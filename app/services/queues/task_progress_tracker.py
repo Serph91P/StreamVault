@@ -14,6 +14,7 @@ from dataclasses import dataclass, asdict
 
 logger = logging.getLogger("streamvault")
 
+
 class TaskStatus(Enum):
     PENDING = "pending"
     RUNNING = "running"
@@ -21,11 +22,13 @@ class TaskStatus(Enum):
     FAILED = "failed"
     RETRYING = "retrying"
 
+
 class TaskPriority(Enum):
     LOW = 1
     NORMAL = 2
     HIGH = 3
     CRITICAL = 4
+
 
 @dataclass
 class QueueTask:
@@ -45,20 +48,20 @@ class QueueTask:
     # Timestamp of the last progress update (heartbeat). Used to distinguish
     # genuinely stalled tasks from long‑running tasks that still emit heartbeats.
     last_progress_update: Optional[datetime] = None
-    
+
     def __lt__(self, other):
         """Enable comparison for PriorityQueue"""
         if not isinstance(other, QueueTask):
             return NotImplemented
         # Compare by created_at timestamp for FIFO ordering of same priority tasks
         return self.created_at < other.created_at
-    
+
     def __eq__(self, other):
         """Enable equality comparison"""
         if not isinstance(other, QueueTask):
             return NotImplemented
         return self.id == other.id
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert task to dictionary for serialization"""
         return {
@@ -73,14 +76,14 @@ class QueueTask:
 
 class TaskProgressTracker:
     """Handles task progress tracking and WebSocket notifications"""
-    
+
     def __init__(self, websocket_manager=None, queue_manager=None):
         self.websocket_manager = websocket_manager
         self.queue_manager = queue_manager  # Reference to queue manager for status
         self.active_tasks: Dict[str, QueueTask] = {}
         self.completed_tasks: Dict[str, QueueTask] = {}
         self.external_tasks: Dict[str, QueueTask] = {}  # For external jobs like recordings
-        
+
         # Task statistics
         self.stats = {
             'total_tasks': 0,
@@ -88,13 +91,13 @@ class TaskProgressTracker:
             'failed_tasks': 0,
             'retried_tasks': 0
         }
-        
+
         # Progress update callbacks
         self.progress_callbacks: Dict[str, Callable] = {}
-        
+
         # Recursion protection for progress updates
         self._updating_progress: set = set()
-        
+
         # Async task management for proper cleanup
         self.background_tasks: set = set()
 
@@ -118,15 +121,15 @@ class TaskProgressTracker:
             old_status = task.status
             task.status = status
             task.error_message = error_message
-            
+
             if status == TaskStatus.RUNNING and not task.started_at:
                 task.started_at = datetime.now(timezone.utc)
             elif status in [TaskStatus.COMPLETED, TaskStatus.FAILED]:
                 task.completed_at = datetime.now(timezone.utc)
-                
+
                 # Move to completed tasks
                 self.completed_tasks[task_id] = self.active_tasks.pop(task_id)
-                
+
                 # Update statistics
                 if status == TaskStatus.COMPLETED:
                     self.stats['completed_tasks'] += 1
@@ -135,9 +138,9 @@ class TaskProgressTracker:
             elif status == TaskStatus.RETRYING:
                 task.retry_count += 1
                 self.stats['retried_tasks'] += 1
-            
+
             logger.debug(f"Task {task_id} status updated: {old_status.value} -> {status.value}")
-            
+
             # Send WebSocket update
             self._create_background_task(self._send_task_update(task))
 
@@ -147,20 +150,20 @@ class TaskProgressTracker:
         if hasattr(self, '_updating_progress') and task_id in self._updating_progress:
             logger.warning(f"Recursion detected in update_task_progress for task {task_id}, skipping")
             return
-            
+
         if not hasattr(self, '_updating_progress'):
             self._updating_progress = set()
-        
+
         self._updating_progress.add(task_id)
-        
+
         try:
             if task_id in self.active_tasks:
                 task = self.active_tasks[task_id]
                 old_progress = task.progress
                 task.progress = max(0.0, min(100.0, progress))
-                
+
                 logger.debug(f"Task {task_id} progress: {old_progress:.1f}% -> {task.progress:.1f}%")
-                
+
                 # Send WebSocket update (throttled to avoid spam)
                 if abs(task.progress - old_progress) >= 5.0 or task.progress >= 100.0:
                     self._create_background_task(self._send_task_update(task))
@@ -229,7 +232,7 @@ class TaskProgressTracker:
         # Count tasks by status
         pending_tasks = len([t for t in self.active_tasks.values() if t.status == TaskStatus.PENDING])
         running_tasks = len([t for t in self.active_tasks.values() if t.status == TaskStatus.RUNNING])
-        
+
         return {
             **self.stats,
             'active_tasks': len(self.active_tasks) + len(self.external_tasks),
@@ -241,7 +244,7 @@ class TaskProgressTracker:
         }
 
     # External task tracking methods (for recordings, etc.)
-    
+
     def add_external_task(self, task_id: str, task_type: str, payload: Dict[str, Any]):
         """Add an external task for tracking (like recordings)"""
         task = QueueTask(
@@ -265,9 +268,9 @@ class TaskProgressTracker:
             task.progress = max(0.0, min(100.0, progress))
             # Heartbeat timestamp (even if percentage stays constant)
             task.last_progress_update = datetime.now(timezone.utc)
-            
+
             logger.debug(f"External task {task_id} progress: {old_progress:.1f}% -> {task.progress:.1f}%")
-            
+
             # Send WebSocket update
             if abs(task.progress - old_progress) >= 5.0 or task.progress >= 100.0:
                 self._create_background_task(self._send_task_update(task))
@@ -279,9 +282,9 @@ class TaskProgressTracker:
             task.status = TaskStatus.COMPLETED if success else TaskStatus.FAILED
             task.completed_at = datetime.now(timezone.utc)
             task.progress = 100.0 if success else task.progress
-            
+
             logger.debug(f"External task {task_id} marked as {'completed' if success else 'failed'}")
-            
+
             # Send final WebSocket update
             self._create_background_task(self._send_task_update(task))
 
@@ -301,12 +304,12 @@ class TaskProgressTracker:
             self.background_tasks.clear()
 
     # WebSocket notification methods
-    
+
     async def _send_task_update(self, task: QueueTask):
         """Send task update via WebSocket"""
         if not self.websocket_manager:
             return
-            
+
         try:
             message = {
                 "type": "task_status_update",
@@ -323,9 +326,9 @@ class TaskProgressTracker:
                     "payload": task.payload
                 }
             }
-            
+
             await self.websocket_manager.send_notification(message)
-            
+
         except Exception as e:
             logger.warning(f"Failed to send WebSocket task update for {task.id}: {e}")
 
@@ -333,7 +336,7 @@ class TaskProgressTracker:
         """Send dedicated progress update via WebSocket"""
         if not self.websocket_manager:
             return
-            
+
         try:
             message = {
                 "type": "task_progress_update",
@@ -342,9 +345,9 @@ class TaskProgressTracker:
                     "progress": progress
                 }
             }
-            
+
             await self.websocket_manager.send_notification(message)
-            
+
         except Exception as e:
             logger.warning(f"Failed to send WebSocket progress update for {task_id}: {e}")
 
@@ -352,43 +355,43 @@ class TaskProgressTracker:
         """Send queue statistics via WebSocket"""
         if not self.websocket_manager:
             return
-            
+
         try:
             stats = self.get_statistics()
             message = {
                 "type": "queue_stats_update",
                 "data": stats
             }
-            
+
             await self.websocket_manager.send_notification(message)
-            
+
         except Exception as e:
             logger.warning(f"Failed to send WebSocket queue statistics: {e}")
 
     # Cleanup methods
-    
+
     def cleanup_old_tasks(self, max_age_hours: int = 24):
         """Clean up old completed tasks"""
         cutoff_time = datetime.now(timezone.utc).timestamp() - (max_age_hours * 3600)
-        
+
         # Clean completed tasks
         to_remove = []
         for task_id, task in self.completed_tasks.items():
             if task.completed_at and task.completed_at.timestamp() < cutoff_time:
                 to_remove.append(task_id)
-        
+
         for task_id in to_remove:
             del self.completed_tasks[task_id]
-            
+
         # Clean external tasks
         to_remove = []
         for task_id, task in self.external_tasks.items():
             if task.completed_at and task.completed_at.timestamp() < cutoff_time:
                 to_remove.append(task_id)
-        
+
         for task_id in to_remove:
             del self.external_tasks[task_id]
-            
+
         if to_remove:
             logger.info(f"Cleaned up {len(to_remove)} old tasks")
 

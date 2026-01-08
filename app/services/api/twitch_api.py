@@ -13,15 +13,16 @@ from app.utils.retry_decorator import twitch_api_retry, NonRetryableError
 
 logger = logging.getLogger("streamvault")
 
+
 class TwitchAPIService:
     """Centralized Twitch API service"""
-    
+
     def __init__(self):
         self.client_id = settings.TWITCH_APP_ID
         self.client_secret = settings.TWITCH_APP_SECRET
         self.base_url = "https://api.twitch.tv/helix"
         self._access_token = None
-    
+
     @twitch_api_retry
     async def get_access_token(self) -> str:
         """Get or refresh Twitch access token"""
@@ -50,15 +51,15 @@ class TwitchAPIService:
                         logger.error(f"Failed to get Twitch access token: {response.status} - {error_text}")
                         raise ConnectionError(f"Failed to get access token: {response.status}")
         return self._access_token
-    
+
     @twitch_api_retry
     async def get_users_by_login(self, usernames: List[str]) -> List[Dict[str, Any]]:
         """Get user data by username(s)"""
         if not usernames:
             return []
-            
+
         token = await self.get_access_token()
-        
+
         async with aiohttp.ClientSession() as session:
             async with session.get(
                 f"{self.base_url}/users",
@@ -81,15 +82,15 @@ class TwitchAPIService:
                     error_text = await response.text()
                     logger.error(f"Failed to get users by login. Status: {response.status} - {error_text}")
                     raise ConnectionError(f"Server error: {response.status}")
-    
+
     @twitch_api_retry
     async def get_users_by_id(self, user_ids: List[str]) -> List[Dict[str, Any]]:
         """Get user data by user ID(s)"""
         if not user_ids:
             return []
-            
+
         token = await self.get_access_token()
-        
+
         async with aiohttp.ClientSession() as session:
             async with session.get(
                 f"{self.base_url}/users",
@@ -110,15 +111,15 @@ class TwitchAPIService:
                     error_text = await response.text()
                     logger.error(f"Failed to get users by ID. Status: {response.status} - {error_text}")
                     raise ConnectionError(f"Server error: {response.status}")
-    
+
     @twitch_api_retry
     async def get_games_by_name(self, game_names: List[str]) -> List[Dict[str, Any]]:
         """Get game/category data by name(s)"""
         if not game_names:
             return []
-            
+
         token = await self.get_access_token()
-        
+
         async with aiohttp.ClientSession() as session:
             async with session.get(
                 f"{self.base_url}/games",
@@ -139,14 +140,14 @@ class TwitchAPIService:
                     error_text = await response.text()
                     logger.error(f"Failed to get games by name. Status: {response.status} - {error_text}")
                     raise ConnectionError(f"Server error: {response.status}")
-    
+
     async def get_games_by_id(self, game_ids: List[str]) -> List[Dict[str, Any]]:
         """Get game/category data by ID(s)"""
         if not game_ids:
             return []
-            
+
         token = await self.get_access_token()
-        
+
         async with aiohttp.ClientSession() as session:
             async with session.get(
                 f"{self.base_url}/games",
@@ -163,13 +164,13 @@ class TwitchAPIService:
                     error_text = await response.text()
                     logger.error(f"Failed to get games by ID. Status: {response.status} - {error_text}")
                     return []
-    
+
     @twitch_api_retry
-    async def get_streams(self, user_ids: List[str] = None, user_logins: List[str] = None, 
-                         game_ids: List[str] = None) -> List[Dict[str, Any]]:
+    async def get_streams(self, user_ids: List[str] = None, user_logins: List[str] = None,
+                          game_ids: List[str] = None) -> List[Dict[str, Any]]:
         """Get stream data"""
         token = await self.get_access_token()
-        
+
         params = {}
         if user_ids:
             params["user_id"] = user_ids
@@ -177,7 +178,7 @@ class TwitchAPIService:
             params["user_login"] = user_logins
         if game_ids:
             params["game_id"] = game_ids
-        
+
         async with aiohttp.ClientSession() as session:
             async with session.get(
                 f"{self.base_url}/streams",
@@ -198,14 +199,14 @@ class TwitchAPIService:
                     error_text = await response.text()
                     logger.error(f"Failed to get streams. Status: {response.status} - {error_text}")
                     raise ConnectionError(f"Server error: {response.status}")
-    
+
     async def search_categories(self, query: str) -> List[Dict[str, Any]]:
         """Search for games/categories"""
         if not query:
             return []
-            
+
         token = await self.get_access_token()
-        
+
         async with aiohttp.ClientSession() as session:
             async with session.get(
                 f"{self.base_url}/search/categories",
@@ -222,11 +223,11 @@ class TwitchAPIService:
                     error_text = await response.text()
                     logger.error(f"Failed to search categories. Status: {response.status} - {error_text}")
                     return []
-    
+
     async def get_top_games(self, first: int = 20) -> List[Dict[str, Any]]:
         """Get top games on Twitch"""
         token = await self.get_access_token()
-        
+
         async with aiohttp.ClientSession() as session:
             async with session.get(
                 f"{self.base_url}/games/top",
@@ -243,7 +244,7 @@ class TwitchAPIService:
                     error_text = await response.text()
                     logger.error(f"Failed to get top games. Status: {response.status} - {error_text}")
                     return []
-    
+
     async def get_user_followed_streamers(self, user_id: str, access_token: str) -> List[Dict[str, Any]]:
         """Get followed streamers for a user (requires user access token)"""
         async with aiohttp.ClientSession() as session:
@@ -262,7 +263,7 @@ class TwitchAPIService:
                     error_text = await response.text()
                     logger.error(f"Failed to get followed streamers. Status: {response.status} - {error_text}")
                     return []
-    
+
     @twitch_api_retry
     async def validate_token(self, access_token: str) -> Optional[Dict[str, Any]]:
         """Validate an access token and get user info"""
@@ -285,9 +286,10 @@ class TwitchAPIService:
         """Get single stream data by user ID"""
         if not user_id:
             return None
-            
+
         streams = await self.get_streams(user_ids=[user_id])
         return streams[0] if streams else None
+
 
 # Global instance
 twitch_api = TwitchAPIService()

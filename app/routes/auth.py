@@ -1,30 +1,32 @@
 import logging
-from fastapi import APIRouter, Depends, HTTPException, Response, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse, RedirectResponse, FileResponse
 from app.services.core.auth_service import AuthService
 from app.dependencies import get_auth_service
-from app.schemas.auth import UserCreate, LoginResponse
+from app.schemas.auth import UserCreate
 from app.config.settings import get_settings
 
 logger = logging.getLogger("streamvault")
 
 router = APIRouter(tags=["auth"])
 
+
 @router.api_route("/setup", methods=["GET", "HEAD"])
 async def setup_page(request: Request, auth_service: AuthService = Depends(get_auth_service)):
     admin_exists = await auth_service.admin_exists()
-    
+
     # Always return JSON for XHR/fetch requests
     if request.headers.get("X-Requested-With") == "XMLHttpRequest" or "application/json" in request.headers.get("accept", ""):
         return JSONResponse(
             content={"setup_required": not admin_exists},
             headers={"Content-Type": "application/json"}
         )
-    
+
     # Handle browser requests
     if admin_exists:
         return RedirectResponse(url="/auth/login", status_code=307)
     return FileResponse("app/frontend/dist/index.html")
+
 
 @router.post("/setup")
 async def setup_admin(
@@ -33,10 +35,10 @@ async def setup_admin(
 ):
     if await auth_service.admin_exists():
         raise HTTPException(status_code=400, detail="Admin already exists")
-    
+
     admin = await auth_service.create_admin(request)
     token = await auth_service.create_session(admin.id)
-    
+
     response = JSONResponse(content={"message": "Admin account created", "success": True})
     settings = get_settings()
     # FIX: Cookie-Pfad explizit auf Root setzen + max_age, damit es für alle Routen (/api/..., /videos, PWA) gesendet wird.
@@ -52,6 +54,7 @@ async def setup_admin(
     )
     return response
 
+
 @router.post("/login")
 async def login(
     request: UserCreate,
@@ -62,12 +65,12 @@ async def login(
         if not request.username or not request.password:
             logger.warning(f"Login attempt with missing credentials: username={bool(request.username)}, password={bool(request.password)}")
             raise HTTPException(status_code=400, detail="Username and password are required")
-        
+
         user = await auth_service.validate_login(request.username, request.password)
         if not user:
             logger.warning(f"Failed login attempt for username: {request.username}")
             raise HTTPException(status_code=401, detail="Invalid credentials")
-        
+
         token = await auth_service.create_session(user.id)
         response = JSONResponse(content={"message": "Login successful", "success": True})
         # Set secure based on configuration, httponly=True for XSS protection
@@ -90,13 +93,14 @@ async def login(
         logger.error(f"Unexpected error during login: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
+
 @router.api_route("/login", methods=["GET", "HEAD"])
 async def login_page(request: Request, auth_service: AuthService = Depends(get_auth_service)):
     def is_api_request() -> bool:
         """Check if this is an API request that expects JSON response"""
-        return (request.headers.get("X-Requested-With") == "XMLHttpRequest" or 
-                "application/json" in request.headers.get("accept", ""))
-    
+        return (request.headers.get("X-Requested-With") == "XMLHttpRequest"
+                or "application/json" in request.headers.get("accept", ""))
+
     def serve_spa_or_error():
         """Serve SPA or return appropriate error response"""
         try:
@@ -109,24 +113,25 @@ async def login_page(request: Request, auth_service: AuthService = Depends(get_a
                     status_code=500
                 )
             raise HTTPException(status_code=500, detail="Unable to serve login page")
-    
+
     try:
         admin_exists = await auth_service.admin_exists()
-        
+
         # Handle API requests
         if is_api_request():
             if not admin_exists:
                 return JSONResponse(content={"redirect": "/auth/setup"})
             return JSONResponse(content={"login_required": True})
-        
+
         # Handle browser requests - serve SPA (frontend handles routing)
         return serve_spa_or_error()
-            
+
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Error in login_page: {e}")
         return serve_spa_or_error()
+
 
 @router.get("/check")
 async def check_auth(
@@ -136,11 +141,12 @@ async def check_auth(
     admin_exists = await auth_service.admin_exists()
     if not admin_exists:
         return JSONResponse(content={"setup_required": True})
-    
+
     session_token = request.cookies.get("session")
     if not session_token or not await auth_service.validate_session(session_token):
         return JSONResponse(content={"authenticated": False})
     return JSONResponse(content={"authenticated": True})
+
 
 @router.post("/logout")
 async def logout(
@@ -161,6 +167,7 @@ async def logout(
         response = JSONResponse(content={"message": "Logout completed", "success": True})
         response.delete_cookie(key="session", path="/")
         return response
+
 
 @router.post("/keepalive")
 async def keepalive(

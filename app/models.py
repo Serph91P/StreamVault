@@ -3,12 +3,10 @@ from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from app.database import Base
 from datetime import datetime
-from pydantic import BaseModel
 from typing import Optional
 import json
 import warnings
-from sqlalchemy.dialects.sqlite import JSON as SQLITE_JSON
-from sqlalchemy.dialects.postgresql import JSONB as PG_JSONB
+
 
 class Recording(Base):
     __tablename__ = "recordings"
@@ -18,7 +16,7 @@ class Recording(Base):
         Index('idx_recordings_status_time', 'status', 'start_time'),  # For finding recordings by status and time
         {'extend_existing': True}
     )
-    
+
     id = Column(Integer, primary_key=True, autoincrement=True)
     stream_id = Column(Integer, ForeignKey("streams.id", ondelete="CASCADE"), nullable=False, index=True)
     start_time = Column(DateTime(timezone=True), nullable=False, index=True)
@@ -27,14 +25,15 @@ class Recording(Base):
     duration = Column(Integer, nullable=True)  # Duration in seconds
     path = Column(String, nullable=True)  # Path to the recording file
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    
+
     # Error tracking (Migration 027)
     error_message = Column(String, nullable=True)  # Detailed error message for debugging
     failure_reason = Column(String, nullable=True)  # Short failure reason (proxy_error, streamlink_crash, etc.)
     failure_timestamp = Column(DateTime(timezone=True), nullable=True)  # When the failure occurred
-    
+
     # Relationship to Stream
     stream = relationship("Stream", backref="recordings")
+
 
 class Streamer(Base):
     __tablename__ = "streamers"
@@ -55,18 +54,18 @@ class Streamer(Base):
     is_favorite = Column(Boolean, default=False, index=True)
     auto_record = Column(Boolean, default=False, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    
+
     # Test data flag - for automated tests (not shown in frontend)
     is_test_data = Column(Boolean, default=False, nullable=False, index=True)
-    
+
     # Last stream information (shown when offline)
     last_stream_title = Column(String, nullable=True)
     last_stream_category_name = Column(String, nullable=True)
     last_stream_viewer_count = Column(Integer, nullable=True)
     last_stream_ended_at = Column(DateTime(timezone=True), nullable=True)
-    
+
     notification_settings = relationship("NotificationSettings", back_populates="streamer")
-    
+
     @property
     def display_name(self):
         """[DEPRECATED] Use `username` directly instead. This property will be removed in the future."""
@@ -76,29 +75,29 @@ class Streamer(Base):
             stacklevel=2
         )
         return self.username
-    
+
     @property
     def is_recording(self) -> bool:
         """
         Check if this streamer currently has an active recording.
         Returns True if there's an active recording (status='recording') for any of this streamer's streams.
-        
+
         This property dynamically queries the Recording table to ensure real-time accuracy.
         """
         from sqlalchemy.orm import object_session
-        
+
         session = object_session(self)
         if not session:
             return False
-        
+
         # Check if there's any active recording for this streamer's streams
         active_recording = session.query(Recording).join(Stream).filter(
             Stream.streamer_id == self.id,
             Recording.status == 'recording'
         ).first()
-        
+
         return active_recording is not None
-    
+
     @property
     def recording_enabled(self) -> bool:
         """
@@ -106,6 +105,8 @@ class Streamer(Base):
         Returns True if automatic recording is enabled for this streamer.
         """
         return self.auto_record
+
+
 class Stream(Base):
     __tablename__ = "streams"
     __table_args__ = (
@@ -128,15 +129,16 @@ class Stream(Base):
     recording_path = Column(String, nullable=True)  # Path to the recorded MP4 file
     episode_number = Column(Integer, nullable=True)  # Episode number for this stream
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    
+
     # Relationships
     streamer = relationship("Streamer", backref="streams")
     stream_metadata = relationship("StreamMetadata", back_populates="stream", uselist=False)
     active_recording_state = relationship("ActiveRecordingState", back_populates="stream", uselist=False, cascade="all, delete-orphan")
-    
+
     @property
     def is_live(self):
         return self.ended_at is None
+
 
 class StreamEvent(Base):
     __tablename__ = "stream_events"
@@ -155,10 +157,11 @@ class StreamEvent(Base):
     category_name = Column(String, nullable=True)
     language = Column(String, nullable=True)
     timestamp = Column(DateTime(timezone=True), server_default=func.now(), index=True)
-    
+
     # Relationship to Stream
     stream = relationship("Stream", backref="stream_events")
-    
+
+
 class User(Base):
     __tablename__ = "users"
     __table_args__ = {'extend_existing': True}
@@ -170,6 +173,7 @@ class User(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     favorite_categories = relationship("FavoriteCategory", back_populates="user", cascade="all, delete-orphan")
 
+
 class Session(Base):
     __tablename__ = "sessions"
     __table_args__ = {'extend_existing': True}
@@ -179,10 +183,11 @@ class Session(Base):
     token = Column(String, unique=True, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
+
 class NotificationSettings(Base):
     __tablename__ = "notification_settings"
     __table_args__ = {'extend_existing': True}
-    
+
     id = Column(Integer, primary_key=True, index=True)
     streamer_id = Column(Integer, ForeignKey("streamers.id", ondelete="CASCADE"), nullable=False, index=True)
     notify_online = Column(Boolean, default=True)
@@ -196,14 +201,14 @@ class NotificationState(Base):
     """Tracks notification read/clear state per user"""
     __tablename__ = "notification_state"
     __table_args__ = {'extend_existing': True}
-    
+
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True, index=True)
     last_read_timestamp = Column(DateTime(timezone=True), nullable=True)  # Last time user marked notifications as read
     last_cleared_timestamp = Column(DateTime(timezone=True), nullable=True)  # Last time user cleared all notifications
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
-    
+
     # Relationship to user
     user = relationship("User", backref="notification_state")
 
@@ -211,7 +216,7 @@ class NotificationState(Base):
 class Category(Base):
     __tablename__ = "categories"
     __table_args__ = {'extend_existing': True}
-    
+
     id = Column(Integer, primary_key=True, autoincrement=True)
     twitch_id = Column(String, unique=True, nullable=False)
     name = Column(String, nullable=False)
@@ -220,10 +225,11 @@ class Category(Base):
     last_seen = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     favorites = relationship("FavoriteCategory", back_populates="category", cascade="all, delete-orphan")
 
+
 class FavoriteCategory(Base):
     __tablename__ = "favorite_categories"
     __table_args__ = (UniqueConstraint('user_id', 'category_id', name='uq_user_category'), {'extend_existing': True})
-    
+
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(Integer, ForeignKey("users.id"))
     category_id = Column(Integer, ForeignKey("categories.id"))
@@ -231,11 +237,11 @@ class FavoriteCategory(Base):
     user = relationship("User", back_populates="favorite_categories")
     category = relationship("Category", back_populates="favorites")
 
-    
+
 class GlobalSettings(Base):
     __tablename__ = "global_settings"
     __table_args__ = {'extend_existing': True}
-    
+
     id: int = Column(Integer, primary_key=True)
     notification_url: Optional[str] = Column(String)
     notifications_enabled: bool = Column(Boolean, default=True)
@@ -245,28 +251,29 @@ class GlobalSettings(Base):
     notify_favorite_category_global: bool = Column(Boolean, default=True)
     http_proxy: Optional[str] = Column(String)
     https_proxy: Optional[str] = Column(String)
-    
+
     # System notification settings (Migration 028)
     notify_recording_started: bool = Column(Boolean, default=False)  # OFF: Every stream triggers recording, too noisy
     notify_recording_failed: bool = Column(Boolean, default=True)    # ON: Critical issue, user needs to know
     notify_recording_completed: bool = Column(Boolean, default=False)  # OFF: Most recordings complete normally, noisy
-    
+
     # Codec preferences (Migration 024) - H.265/AV1 Support (Streamlink 8.0.0+)
     supported_codecs: str = Column(String, default="h264,h265")  # Default: H.264 with H.265 fallback (best compatibility/quality)
     prefer_higher_quality: bool = Column(Boolean, default=True)  # Auto-select highest available quality with h265/av1
-    
+
     # Proxy encryption key (Migration 032) - Persists Fernet key for proxy credential encryption
     proxy_encryption_key: Optional[str] = Column(String, nullable=True)  # Auto-generated on first use, persists across restarts
-    
+
     # Twitch OAuth Token Refresh (Migration 033) - Automatic token refresh without manual intervention
     twitch_refresh_token: Optional[str] = Column(Text, nullable=True)  # Long-lived refresh token (encrypted)
     twitch_token_expires_at: Optional[datetime] = Column(DateTime, nullable=True)  # When current access token expires
     twitch_access_token: Optional[str] = Column(Text, nullable=True)  # Current access token (encrypted, Migration 034)
 
+
 class RecordingSettings(Base):
     __tablename__ = "recording_settings"
     __table_args__ = {'extend_existing': True}
-    
+
     id = Column(Integer, primary_key=True)
     enabled = Column(Boolean, default=False)
     output_directory = Column(String, default="/recordings")
@@ -277,18 +284,19 @@ class RecordingSettings(Base):
     use_category_as_chapter_title = Column(Boolean, default=False)
     max_streams_per_streamer = Column(Integer, default=0)  # 0 = unlimited
     cleanup_policy = Column(String, nullable=True)  # JSON string for cleanup policy
-    
+
     # Multi-Proxy System Configuration (Migration 025)
     enable_proxy = Column(Boolean, default=True)  # Master switch for proxy system
     proxy_health_check_enabled = Column(Boolean, default=True)  # Enable automatic health checks
     proxy_health_check_interval_seconds = Column(Integer, default=300)  # Check interval (5 minutes)
     proxy_max_consecutive_failures = Column(Integer, default=3)  # Auto-disable threshold
     fallback_to_direct_connection = Column(Boolean, default=True)  # Use direct connection when all proxies fail
-      
+
+
 class StreamerRecordingSettings(Base):
     __tablename__ = "streamer_recording_settings"
     __table_args__ = {'extend_existing': True}
-    
+
     id = Column(Integer, primary_key=True)
     streamer_id = Column(Integer, ForeignKey("streamers.id", ondelete="CASCADE"), nullable=False, index=True)
     enabled = Column(Boolean, default=True)
@@ -297,48 +305,51 @@ class StreamerRecordingSettings(Base):
     max_streams = Column(Integer, nullable=True)  # Per-streamer override for max recordings
     cleanup_policy = Column(String, nullable=True)  # JSON string for cleanup policy
     use_global_cleanup_policy = Column(Boolean, default=True)  # Use global cleanup policy or streamer-specific
-    
+
     # Per-streamer codec preferences (Migration 031)
     # NULL = use global default from GlobalSettings.supported_codecs
     # "h264" = force H.264 only (no OAuth required)
     # "h265,h264" = prefer H.265, fallback to H.264 (requires OAuth for H.265)
     # "av1,h265,h264" = prefer AV1, then H.265, then H.264 (requires OAuth)
     supported_codecs = Column(String, nullable=True)
-    
+
     streamer = relationship("Streamer", back_populates="recording_settings")
 
+
 Streamer.recording_settings = relationship("StreamerRecordingSettings", back_populates="streamer", uselist=False, cascade="all, delete-orphan")
+
 
 class StreamMetadata(Base):
     __tablename__ = "stream_metadata"
     __table_args__ = {'extend_existing': True}
-    
+
     id = Column(Integer, primary_key=True)
     stream_id = Column(Integer, ForeignKey("streams.id", ondelete="CASCADE"), index=True)
-    
+
     # Thumbnails
     thumbnail_path = Column(String)
     thumbnail_url = Column(String)
-    
+
     # Metadata files
     nfo_path = Column(String)
     json_path = Column(String)
     tvshow_nfo_path = Column(String)  # TVShow NFO file for media servers
     season_nfo_path = Column(String)  # Season NFO file for media servers
-    
+
     # Kapitelmarker (all generated formats)
     chapters_vtt_path = Column(String)
     chapters_srt_path = Column(String)
     chapters_ffmpeg_path = Column(String)
     chapters_xml_path = Column(String)  # XML chapters for Emby/Jellyfin
-    
+
     # Stream info stats
     avg_viewers = Column(Integer)
     max_viewers = Column(Integer)
     follower_count = Column(Integer)
-    
+
     # Beziehung zum Stream
     stream = relationship("Stream", back_populates="stream_metadata")
+
 
 class PushSubscription(Base):
     __tablename__ = "push_subscriptions"
@@ -351,6 +362,7 @@ class PushSubscription(Base):
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
 
 class SystemConfig(Base):
     __tablename__ = "system_config"
@@ -367,7 +379,7 @@ class SystemConfig(Base):
 class ActiveRecordingState(Base):
     """
     Persistent state for active recordings
-    
+
     This table tracks active recording processes and survives application restarts.
     It enables recovery of running recordings after crashes or deployments.
     """
@@ -378,7 +390,7 @@ class ActiveRecordingState(Base):
         Index('ix_active_recordings_heartbeat', 'last_heartbeat'),
         {'extend_existing': True}
     )
-    
+
     id = Column(Integer, primary_key=True, autoincrement=True)
     stream_id = Column(Integer, ForeignKey('streams.id', ondelete='CASCADE'), nullable=False, unique=True)
     recording_id = Column(Integer, ForeignKey('recordings.id'), nullable=False)
@@ -394,21 +406,21 @@ class ActiveRecordingState(Base):
     config_json = Column(Text, nullable=True)  # Serialized config
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
-    
+
     # Relationships
     stream = relationship("Stream", back_populates="active_recording_state")
     recording = relationship("Recording")
-    
+
     def get_config(self):
         """Get deserialized config"""
         if self.config_json:
             return json.loads(self.config_json)
         return {}
-    
+
     def set_config(self, config_dict):
         """Set serialized config"""
         self.config_json = json.dumps(config_dict) if config_dict else None
-    
+
     def is_stale(self, max_age_seconds=300):
         """Check if heartbeat is stale (default 5 minutes)"""
         if not self.last_heartbeat:
@@ -464,14 +476,14 @@ class RecordingProcessingState(Base):
 class ProxySettings(Base):
     """
     Multi-Proxy Configuration System
-    
+
     Stores multiple proxy configurations with health monitoring and automatic failover.
     Prevents recording failures when a single proxy goes down.
-    
+
     SECURITY: Proxy credentials are encrypted in database using Fernet symmetric encryption.
     The proxy_url column stores encrypted credentials, which are automatically decrypted
     when accessed via the decrypted_proxy_url property.
-    
+
     Selection Algorithm:
     1. Filter: Only enabled=TRUE proxies
     2. Prioritize: healthy > degraded > failed (by health_status)
@@ -487,36 +499,36 @@ class ProxySettings(Base):
         Index('ix_proxy_enabled_health_priority', 'enabled', 'health_status', 'priority'),
         {'extend_existing': True}
     )
-    
+
     id = Column(Integer, primary_key=True, autoincrement=True)
     _proxy_url_encrypted = Column('proxy_url', String(1000), nullable=False)  # ENCRYPTED: Full proxy URL with credentials
     priority = Column(Integer, nullable=False, default=0)  # 0 = highest priority, lower number = higher priority
     enabled = Column(Boolean, nullable=False, default=True)  # Active status - disabled proxies not used
-    
+
     # Health monitoring fields
     last_health_check = Column(DateTime(timezone=True), nullable=True)  # Timestamp of last health test
     health_status = Column(String(20), nullable=False, default='unknown')  # healthy/degraded/failed/unknown
     consecutive_failures = Column(Integer, nullable=False, default=0)  # Failure counter for auto-disable
     average_response_time_ms = Column(Integer, nullable=True)  # Response time in milliseconds
-    
+
     # Statistics tracking
     total_recordings = Column(Integer, nullable=False, default=0)  # How many times used
     failed_recordings = Column(Integer, nullable=False, default=0)  # How many times failed
     success_rate = Column(Float, nullable=True)  # Calculated: (total - failed) / total
-    
+
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
-    
+
     @property
     def proxy_url(self) -> str:
         """
         Get decrypted proxy URL.
-        
+
         SECURITY: Automatically decrypts the stored encrypted URL when accessed.
         Use this property when passing proxy URL to Streamlink or other services.
         """
         from app.utils.proxy_encryption import get_proxy_encryption
-        
+
         try:
             return get_proxy_encryption().decrypt(self._proxy_url_encrypted)
         except Exception as e:
@@ -524,31 +536,31 @@ class ProxySettings(Base):
             logger = logging.getLogger('streamvault')
             logger.error(f"Failed to decrypt proxy URL for ID {self.id}: {e}")
             return ""  # Return empty string on decryption failure
-    
+
     @proxy_url.setter
     def proxy_url(self, plaintext_url: str):
         """
         Set proxy URL (automatically encrypts before storing).
-        
+
         SECURITY: Automatically encrypts the URL before storing in database.
         """
         from app.utils.proxy_encryption import get_proxy_encryption
-        
+
         if plaintext_url:
             self._proxy_url_encrypted = get_proxy_encryption().encrypt(plaintext_url)
         else:
             self._proxy_url_encrypted = ""
-    
+
     @property
     def masked_url(self) -> str:
         """
         Return proxy URL with password masked for security.
         Example: http://username:***@proxy-host:9999
-        
+
         SECURITY: Safe to display in UI and logs.
         """
         decrypted_url = self.proxy_url
-        
+
         if '@' in decrypted_url:
             parts = decrypted_url.split('@')
             if ':' in parts[0]:
@@ -556,21 +568,21 @@ class ProxySettings(Base):
                 user_part = parts[0].rsplit(':', 1)[0]
                 return f"{user_part}:***@{parts[1]}"
         return decrypted_url
-    
+
     def calculate_success_rate(self) -> Optional[float]:
         """Calculate success rate as percentage"""
         if self.total_recordings == 0:
             return None
         return ((self.total_recordings - self.failed_recordings) / self.total_recordings) * 100.0
-    
+
     def update_success_rate(self):
         """Update the success_rate column based on current statistics"""
         self.success_rate = self.calculate_success_rate()
-    
+
     def to_dict(self, mask_password: bool = True) -> dict:
         """
         Serialize proxy settings to dictionary.
-        
+
         Args:
             mask_password: If True, replace password with *** in URL
         """

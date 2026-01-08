@@ -15,7 +15,7 @@ logger = logging.getLogger("streamvault")
 
 class TwitchIntegrationService:
     """Handles Twitch API calls and EventSub management"""
-    
+
     def __init__(self, event_registry: EventHandlerRegistry):
         self.twitch_api = twitch_api
         self.event_registry = event_registry
@@ -169,7 +169,7 @@ class TwitchIntegrationService:
         try:
             streams = await self.get_multiple_stream_info(twitch_ids)
             live_streamers = {stream['user_id'] for stream in streams}
-            
+
             # Return dict mapping twitch_id to live status
             return {twitch_id: twitch_id in live_streamers for twitch_id in twitch_ids}
         except Exception as e:

@@ -10,7 +10,7 @@ from typing import Optional, List, Dict, Any
 from datetime import datetime
 from sqlalchemy.orm import joinedload
 from app.models import Recording, Stream, Streamer
-from app.database import get_db, SessionLocal
+from app.database import get_db
 from app.utils.retry_decorator import database_retry, RetryableError, NonRetryableError
 
 logger = logging.getLogger("streamvault")
@@ -18,7 +18,7 @@ logger = logging.getLogger("streamvault")
 
 class RecordingDatabaseService:
     """Handles all database operations for recordings"""
-    
+
     def __init__(self, db=None):
         self.db = db
 
@@ -32,7 +32,7 @@ class RecordingDatabaseService:
         self, recording_id: int, status: str, path: str = None, duration_seconds: int = None
     ) -> None:
         """Update recording status in database
-        
+
         Args:
             recording_id: Recording ID
             status: New status
@@ -42,28 +42,28 @@ class RecordingDatabaseService:
         try:
             self._ensure_db_session()
             recording = self.db.query(Recording).filter(Recording.id == recording_id).first()
-            
+
             if not recording:
                 logger.error(f"Recording {recording_id} not found for status update")
                 raise NonRetryableError(f"Recording {recording_id} not found")
-            
+
             old_status = recording.status
             recording.status = status
-            
+
             if path:
                 recording.path = path
-            
+
             if duration_seconds is not None:
                 recording.duration = duration_seconds
-            
+
             if status == "completed":
                 recording.end_time = datetime.utcnow()
             elif status == "failed":
                 recording.end_time = datetime.utcnow()
-                
+
             self.db.commit()
             logger.info(f"Recording {recording_id} status updated: {old_status} → {status}")
-            
+
         except Exception as e:
             self.db.rollback()
             logger.error(f"Failed to update recording {recording_id} status to '{status}': {e}")
@@ -76,21 +76,21 @@ class RecordingDatabaseService:
         """Create a new recording entry"""
         try:
             self._ensure_db_session()
-            
+
             recording = Recording(
                 stream_id=stream_id,
                 path=file_path,
                 status="recording",
                 start_time=datetime.utcnow()
             )
-            
+
             self.db.add(recording)
             self.db.commit()
             self.db.refresh(recording)
-            
+
             logger.info(f"Created recording {recording.id} for stream {stream_id}")
             return recording
-            
+
         except Exception as e:
             self.db.rollback()
             logger.error(f"Failed to create recording for stream_id={stream_id}, file_path='{file_path}': {e}")
@@ -106,7 +106,7 @@ class RecordingDatabaseService:
             .filter(Recording.id == recording_id)
             .first()
         )
-    
+
     # Alias for compatibility
     def get_recording_by_id(self, recording_id: int) -> Optional[Recording]:
         """Alias for get_recording - for compatibility"""
@@ -130,12 +130,12 @@ class RecordingDatabaseService:
         try:
             self._ensure_db_session()
             stream = self.db.query(Stream).filter(Stream.id == stream_id).first()
-            
+
             if stream and not stream.ended_at:
                 stream.ended_at = datetime.utcnow()
                 self.db.commit()
                 logger.info(f"Marked stream {stream_id} as ended")
-                
+
         except Exception as e:
             self.db.rollback()
             logger.error(f"Failed to end stream {stream_id}: {e}")
@@ -149,9 +149,9 @@ class RecordingDatabaseService:
             result = self.db.query(Stream, Streamer).join(
                 Streamer, Stream.streamer_id == Streamer.id
             ).filter(Stream.id == stream_id).first()
-            
+
             return result if result else None
-            
+
         except Exception as e:
             logger.error(f"Failed to get stream_id={stream_id} with streamer details: {e}")
             raise RetryableError(f"Database error: {e}")
@@ -172,7 +172,7 @@ class RecordingDatabaseService:
         try:
             self._ensure_db_session()
             recording = self.db.query(Recording).filter(Recording.id == recording_id).first()
-            
+
             if recording:
                 old_path = recording.path
                 recording.path = new_path
@@ -180,7 +180,7 @@ class RecordingDatabaseService:
                 logger.info(f"Updated recording {recording_id} path: {old_path} → {new_path}")
             else:
                 raise NonRetryableError(f"Recording {recording_id} not found")
-                
+
         except Exception as e:
             self.db.rollback()
             logger.error(f"Failed to update recording {recording_id} path from '{recording.path if 'recording' in locals() and recording else 'unknown'}' to '{new_path}': {e}")
@@ -194,7 +194,7 @@ class RecordingDatabaseService:
         try:
             self._ensure_db_session()
             recording = self.db.query(Recording).filter(Recording.id == recording_id).first()
-            
+
             if recording:
                 recording.status = "failed"
                 recording.end_time = datetime.utcnow()
@@ -202,12 +202,12 @@ class RecordingDatabaseService:
                     # Store error message if recording model has such field
                     if hasattr(recording, 'error_message'):
                         recording.error_message = error_message
-                
+
                 self.db.commit()
                 logger.info(f"Marked recording {recording_id} as failed")
             else:
                 raise NonRetryableError(f"Recording {recording_id} not found")
-                
+
         except Exception as e:
             self.db.rollback()
             logger.error(f"Failed to mark recording {recording_id} as failed with error_message='{error_message}': {e}")
@@ -249,7 +249,7 @@ class RecordingDatabaseService:
         """Create a new stream record"""
         try:
             self._ensure_db_session()
-            
+
             # Create new stream
             stream = Stream(
                 streamer_id=stream_data['streamer_id'],
@@ -259,14 +259,14 @@ class RecordingDatabaseService:
                 started_at=stream_data.get('started_at', datetime.now()),
                 twitch_stream_id=stream_data.get('twitch_stream_id', stream_data.get('external_id', 'unknown'))
             )
-            
+
             self.db.add(stream)
             self.db.commit()
             self.db.refresh(stream)
-            
+
             logger.info(f"Created new stream {stream.id} for streamer {stream.streamer_id}")
             return stream
-            
+
         except Exception as e:
             self.db.rollback()
             logger.error(f"Failed to create stream: {e}")

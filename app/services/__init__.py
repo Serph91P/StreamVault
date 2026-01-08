@@ -16,7 +16,7 @@ from app.services.recording.file_operations import (
 from app.services.recording.notification_manager import NotificationManager
 from app.services.recording.stream_info_manager import StreamInfoManager
 from app.services.recording.exceptions import (
-    RecordingError, ProcessError, ConfigurationError, 
+    RecordingError, ProcessError, ConfigurationError,
     StreamUnavailableError, FileOperationError
 )
 
@@ -35,7 +35,6 @@ from app.services.media.thumbnail_service import ThumbnailService
 from app.services.media.artwork_service import ArtworkService
 from app.services.system.system_config_service import SystemConfigService
 from app.services.api.twitch_oauth_service import TwitchOAuthService
-from app.services.communication.webpush_service import ModernWebPushService  # Changed to correct class name
 from app.services.communication.websocket_manager import ConnectionManager
 from app.services.unified_image_service import UnifiedImageService
 # ProcessMonitor integration temporarily disabled for stability

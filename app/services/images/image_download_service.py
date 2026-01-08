@@ -24,17 +24,17 @@ logger = logging.getLogger("streamvault")
 
 class ImageDownloadService:
     """Handles HTTP downloads and common image operations"""
-    
+
     def __init__(self):
         self.session: Optional[aiohttp.ClientSession] = None
         self.config_manager = ConfigManager()
         self._failed_downloads: Set[str] = set()
-        
+
         # Initialize directories
         self._initialized = False
         self.recordings_dir = None
         self.images_base_dir = None
-        
+
     def _ensure_initialized(self):
         """Ensure the service is initialized (lazy initialization)"""
         if not self._initialized:
@@ -42,17 +42,17 @@ class ImageDownloadService:
                 # Fixed Docker path - always /recordings in container
                 # Mapping to host is handled via Docker volumes
                 self.recordings_dir = Path("/recordings")
-                
+
                 # Use unified .media directory instead of separate .images and .artwork
                 self.images_base_dir = self.recordings_dir / ".media"
                 self.images_base_dir.mkdir(parents=True, exist_ok=True)
-                
+
                 # Create subdirectories for organization
                 (self.images_base_dir / "profiles").mkdir(exist_ok=True)
                 (self.images_base_dir / "categories").mkdir(exist_ok=True)
                 (self.images_base_dir / "artwork").mkdir(exist_ok=True)
                 (self.images_base_dir / "thumbnails").mkdir(exist_ok=True)
-                
+
                 self._initialized = True
                 logger.info(f"Image download service initialized, storage: {self.images_base_dir}")
             except Exception as e:
@@ -64,7 +64,7 @@ class ImageDownloadService:
         if self.session is None or self.session.closed:
             self.session = aiohttp.ClientSession()
         return self.session
-    
+
     async def close(self):
         """Close HTTP session"""
         if self.session and not self.session.closed:
@@ -79,7 +79,7 @@ class ImageDownloadService:
         # Remove multiple underscores
         safe_name = re.sub(r'_+', '_', safe_name)
         return safe_name.strip('_').lower()
-    
+
     def create_filename_hash(self, url: str) -> str:
         """Create a hash-based filename for an image URL"""
         return hashlib.md5(url.encode()).hexdigest()
@@ -87,29 +87,29 @@ class ImageDownloadService:
     async def download_image(self, url: str, file_path: Path, expected_content_types: list = None) -> bool:
         """
         Download an image from URL to file path
-        
+
         Args:
             url: Image URL to download
             file_path: Path where to save the image
             expected_content_types: List of expected content types (default: ['image'])
-            
+
         Returns:
             True if download was successful, False otherwise
         """
         if not HAS_AIOFILES:
             logger.warning("aiofiles not available, cannot download image")
             return False
-            
+
         if not url:
             return False
-            
+
         # Skip if previously failed
         if url in self._failed_downloads:
             return False
-            
+
         if expected_content_types is None:
             expected_content_types = ['image']
-            
+
         try:
             session = await self.get_session()
             async with session.get(url) as response:
@@ -118,7 +118,7 @@ class ImageDownloadService:
                     if any(ct in content_type for ct in expected_content_types):
                         # Ensure directory exists
                         file_path.parent.mkdir(parents=True, exist_ok=True)
-                        
+
                         async with aiofiles.open(file_path, 'wb') as f:
                             async for chunk in response.content.iter_chunked(8192):
                                 await f.write(chunk)
@@ -131,7 +131,7 @@ class ImageDownloadService:
         except Exception as e:
             logger.error(f"Error downloading image from {url}: {e}")
             self._failed_downloads.add(url)
-            
+
         return False
 
     def mark_download_failed(self, url: str):

@@ -2,12 +2,12 @@ from fastapi import WebSocket
 from starlette.websockets import WebSocketState
 from typing import List, Dict, Any
 import logging
-import json
 from datetime import datetime
 import asyncio
 from app.utils.client_ip import get_client_info
 
 logger = logging.getLogger('streamvault')
+
 
 class ConnectionManager:
     def __init__(self):
@@ -16,40 +16,40 @@ class ConnectionManager:
 
     async def connect(self, websocket: WebSocket):
         await websocket.accept()
-        
+
         # Get real client information including IP behind reverse proxy
         client_info_data = get_client_info(websocket)
         real_ip = client_info_data["real_ip"]
         proxy_ip = client_info_data["proxy_ip"]
         user_agent = client_info_data["user_agent"][:50] + "..." if len(client_info_data["user_agent"]) > 50 else client_info_data["user_agent"]
         is_proxied = client_info_data["is_reverse_proxied"]
-        
+
         # Create a unique identifier based on real IP and browser info
         client_identifier = f"{real_ip}_{hash(user_agent) % 10000}"
         connection_id = id(websocket)  # Use object ID as unique identifier
-        
+
         async with self._lock:
             # Clean up any stale connections first
             await self._cleanup_stale_connections()
-            
+
             # Check for existing connections from same client
-            existing_from_client = sum(1 for ws_id, ws in self.active_connections.items() 
-                                     if hasattr(ws, '_client_identifier') and ws._client_identifier == client_identifier)
-            
+            existing_from_client = sum(1 for ws_id, ws in self.active_connections.items()
+                                       if hasattr(ws, '_client_identifier') and ws._client_identifier == client_identifier)
+
             # Store client identifier in websocket for tracking
             websocket._client_identifier = client_identifier
             websocket._real_ip = real_ip
-            
+
             self.active_connections[connection_id] = websocket
-            
+
         connection_count = len(self.active_connections)
         proxy_info = f" (via proxy {proxy_ip})" if is_proxied else ""
-        
+
         logger.info(f"🔌 WebSocket connected: {real_ip}{proxy_info} - Agent: {user_agent} (ID: {connection_id}) - Total: {connection_count} connections")
-        
+
         if existing_from_client > 0:
             logger.warning(f"⚠️ Client {real_ip} now has {existing_from_client + 1} connections (possible multiple tabs/windows)")
-        
+
         await self.send_notification_to_socket(websocket, {
             "type": "connection.status",
             "data": {
@@ -68,17 +68,17 @@ class ConnectionManager:
             if connection_id in self.active_connections:
                 del self.active_connections[connection_id]
                 connection_count = len(self.active_connections)
-                
+
                 # Get client info for better logging
                 real_ip = getattr(websocket, '_real_ip', 'unknown')
                 client_identifier = getattr(websocket, '_client_identifier', 'unknown')
-                
+
                 # Count remaining connections from same client
-                remaining_from_client = sum(1 for ws_id, ws in self.active_connections.items() 
-                                          if hasattr(ws, '_client_identifier') and ws._client_identifier == client_identifier)
-                
+                remaining_from_client = sum(1 for ws_id, ws in self.active_connections.items()
+                                            if hasattr(ws, '_client_identifier') and ws._client_identifier == client_identifier)
+
                 logger.info(f"🔌 WebSocket disconnected: {real_ip} (ID: {connection_id}) - Remaining: {connection_count} total, {remaining_from_client} from this client")
-    
+
     async def _cleanup_stale_connections(self):
         """Remove stale/closed WebSocket connections"""
         stale_connections = []
@@ -91,11 +91,11 @@ class ConnectionManager:
             except AttributeError:
                 # Connection is likely closed due to missing client_state
                 stale_connections.append(connection_id)
-        
+
         for connection_id in stale_connections:
             del self.active_connections[connection_id]
             logger.debug(f"🧹 Cleaned up stale connection: {connection_id}")
-        
+
         if stale_connections:
             logger.info(f"🧹 Cleaned up {len(stale_connections)} stale connections")
 
@@ -112,16 +112,16 @@ class ConnectionManager:
 
     async def send_notification(self, message: dict):
         # Only log for non-routine broadcasts or when there's actual data
-        should_log = (message.get("type") != "active_recordings_update" or 
-                     bool(message.get("data")) or 
-                     len(self.active_connections) <= 2)
-        
+        should_log = (message.get("type") != "active_recordings_update"
+                      or bool(message.get("data"))
+                      or len(self.active_connections) <= 2)
+
         if should_log:
             logger.debug(f"WebSocketManager: Attempting to send notification: {message}")
-            
+
         async with self._lock:
             active_sockets = list(self.active_connections.values())
-    
+
         if not active_sockets:
             if should_log:
                 logger.warning("WebSocketManager: No active WebSocket connections")
@@ -233,7 +233,7 @@ class ConnectionManager:
         """Send force recording feedback as toast notification"""
         toast_type = "success" if success else "error"
         title = f"Force Recording - {streamer_name}"
-        
+
         await self.send_toast_notification(
             toast_type=toast_type,
             title=title,
@@ -256,7 +256,7 @@ class ConnectionManager:
         else:
             message = "Streamer is not currently live on Twitch"
             toast_type = "warning"
-        
+
         await self.send_toast_notification(
             toast_type=toast_type,
             title=title,

@@ -1,11 +1,11 @@
-from fastapi import Request, WebSocket
+from fastapi import Request
 from fastapi.responses import RedirectResponse, JSONResponse
 from app.services.core.auth_service import AuthService
-from app.dependencies import get_auth_service
 from app.database import SessionLocal
 import logging
 
 logger = logging.getLogger("streamvault")
+
 
 class AuthMiddleware:
     def __init__(self, app):
@@ -26,7 +26,7 @@ class AuthMiddleware:
         # Public paths that don't require authentication
         public_paths = [
             "/auth/login",
-            "/auth/setup", 
+            "/auth/setup",
             "/auth/check",
             "/auth/logout",
             "/auth/keepalive",
@@ -59,7 +59,7 @@ class AuthMiddleware:
         db = SessionLocal()
         try:
             auth_service = AuthService(db=db)
-            
+
             admin_exists = await auth_service.admin_exists()
 
             if not admin_exists:

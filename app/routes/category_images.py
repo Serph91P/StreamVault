@@ -2,14 +2,14 @@
 API endpoints for category image management
 """
 from fastapi import APIRouter, HTTPException, BackgroundTasks
-from fastapi.responses import JSONResponse
-from typing import List, Optional
+from typing import List
 import logging
 from ..services.unified_image_service import unified_image_service
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/categories", tags=["categories"])
+
 
 @router.get("/image/{category_name}")
 async def get_category_image(category_name: str):
@@ -21,6 +21,7 @@ async def get_category_image(category_name: str):
         logger.error(f"Error getting category image for {category_name}: {e}")
         raise HTTPException(status_code=500, detail="Failed to get category image")
 
+
 @router.post("/preload")
 async def preload_category_images(
     background_tasks: BackgroundTasks,
@@ -30,7 +31,7 @@ async def preload_category_images(
     try:
         # Start the preloading in the background
         background_tasks.add_task(unified_image_service.preload_categories, category_names)
-        
+
         return {
             "message": f"Started preloading {len(category_names)} category images",
             "categories": category_names
@@ -38,6 +39,7 @@ async def preload_category_images(
     except Exception as e:
         logger.error(f"Error preloading category images: {e}")
         raise HTTPException(status_code=500, detail="Failed to start preloading")
+
 
 @router.post("/cleanup")
 async def cleanup_old_images(days_old: int = 30):
@@ -48,6 +50,7 @@ async def cleanup_old_images(days_old: int = 30):
     except Exception as e:
         logger.error(f"Error cleaning up category images: {e}")
         raise HTTPException(status_code=500, detail="Failed to cleanup images")
+
 
 @router.get("/cache/status")
 async def get_cache_status():

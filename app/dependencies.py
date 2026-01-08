@@ -13,6 +13,7 @@ logger = logging.getLogger('streamvault')
 websocket_manager = ConnectionManager()
 event_registry = None
 
+
 def get_db():
     db = SessionLocal()
     try:
@@ -20,8 +21,10 @@ def get_db():
     finally:
         db.close()
 
+
 def get_auth_service(db=Depends(get_db)):
     return AuthService(db=db)
+
 
 async def get_event_registry():
     global event_registry
@@ -36,8 +39,9 @@ async def get_event_registry():
         logger.debug("Event registry initialization complete")
     return event_registry
 
+
 def get_streamer_service(
-    db=Depends(get_db), 
+    db=Depends(get_db),
     event_registry=Depends(get_event_registry)
 ):
     from app.services.streamer_service import StreamerService
@@ -47,6 +51,7 @@ def get_streamer_service(
         event_registry=event_registry
     )
 
+
 def get_settings_service():
     db = SessionLocal()
     try:
@@ -54,10 +59,12 @@ def get_settings_service():
     finally:
         db.close()
 
+
 def get_notification_service():
     return NotificationService(websocket_manager=websocket_manager)
 
+
 def get_current_user(db=Depends(get_db)):
     from app.models import User
-    user = db.query(User).filter(User.is_admin == True).first()
+    user = db.query(User).filter(User.is_admin.is_(True)).first()
     return user

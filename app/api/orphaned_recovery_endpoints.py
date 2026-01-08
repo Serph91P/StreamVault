@@ -3,8 +3,8 @@ API endpoints for orphaned recording recovery management
 """
 
 import logging
-from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
-from typing import Dict, Any, Optional
+from fastapi import APIRouter, HTTPException, BackgroundTasks
+from typing import Dict, Any
 from pydantic import BaseModel
 
 from app.services.recording.orphaned_recovery_service import get_orphaned_recovery_service
@@ -31,12 +31,12 @@ async def get_orphaned_statistics(
     try:
         recovery_service = await get_orphaned_recovery_service()
         stats = await recovery_service.get_orphaned_statistics(max_age_hours)
-        
+
         return {
             "success": True,
             "data": stats
         }
-        
+
     except Exception as e:
         logger.error(f"Failed to get orphaned statistics: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to get statistics: {str(e)}")
@@ -50,14 +50,14 @@ async def scan_orphaned_recordings(
     """Scan for orphaned recordings and optionally trigger recovery"""
     try:
         recovery_service = await get_orphaned_recovery_service()
-        
+
         if request.dry_run:
             # Synchronous dry run
             result = await recovery_service.scan_and_recover_orphaned_recordings(
                 max_age_hours=request.max_age_hours,
                 dry_run=True
             )
-            
+
             return {
                 "success": True,
                 "message": "Dry run completed",
@@ -70,7 +70,7 @@ async def scan_orphaned_recordings(
                 recovery_service,
                 request.max_age_hours
             )
-            
+
             return {
                 "success": True,
                 "message": f"Orphaned recovery started in background (max_age: {request.max_age_hours}h)",
@@ -79,7 +79,7 @@ async def scan_orphaned_recordings(
                     "background": True
                 }
             }
-        
+
     except Exception as e:
         logger.error(f"Failed to scan orphaned recordings: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to scan: {str(e)}")
@@ -93,19 +93,19 @@ async def recover_all_orphaned(
     """Trigger recovery for all orphaned recordings (background task)"""
     try:
         recovery_service = await get_orphaned_recovery_service()
-        
+
         # Run recovery in background
         background_tasks.add_task(
             _background_orphaned_recovery,
             recovery_service,
             max_age_hours
         )
-        
+
         return {
             "success": True,
             "message": f"Orphaned recovery for all recordings started in background (max_age: {max_age_hours}h)"
         }
-        
+
     except Exception as e:
         logger.error(f"Failed to start orphaned recovery: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to start recovery: {str(e)}")
@@ -118,11 +118,11 @@ async def recover_specific_recording(
     """Trigger recovery for a specific recording"""
     try:
         recovery_service = await get_orphaned_recovery_service()
-        
+
         # Get recording details first
         from app.database import SessionLocal
         from app.models import Recording
-        
+
         with SessionLocal() as db:
             recording = db.query(Recording).filter(Recording.id == recording_id).first()
             if not recording:
@@ -135,10 +135,10 @@ async def recover_specific_recording(
                     "success": False,
                     "message": f"Recording {recording_id} is not suitable for recovery: {validation['reason']}"
                 }
-            
+
             # Trigger recovery
             success = await recovery_service.trigger_orphaned_recovery(recording, db)
-            
+
             if success:
                 return {
                     "success": True,
@@ -154,7 +154,7 @@ async def recover_specific_recording(
                     "success": False,
                     "message": f"Failed to trigger recovery for recording {recording_id}"
                 }
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -169,14 +169,14 @@ async def _background_orphaned_recovery(
     """Background task for orphaned recovery"""
     try:
         logger.info(f"Starting background orphaned recovery (max_age: {max_age_hours}h)")
-        
+
         result = await recovery_service.scan_and_recover_orphaned_recordings(
             max_age_hours=max_age_hours,
             dry_run=False
         )
-        
+
         logger.info(f"Background orphaned recovery completed: {result['recovery_triggered']} recoveries triggered")
-        
+
         # Send notification about completion if WebSocket service is available
         try:
             from app.services.websocket.websocket_service import websocket_service
@@ -188,10 +188,10 @@ async def _background_orphaned_recovery(
                 })
         except Exception as e:
             logger.debug(f"Could not send WebSocket notification: {e}")
-        
+
     except Exception as e:
         logger.error(f"Background orphaned recovery failed: {e}", exc_info=True)
-        
+
         # Send error notification
         try:
             from app.services.websocket.websocket_service import websocket_service

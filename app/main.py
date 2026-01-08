@@ -1,7 +1,6 @@
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, HTTPException, Depends
-from fastapi.responses import HTMLResponse, Response, FileResponse
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, HTTPException
+from fastapi.responses import Response, FileResponse
 from fastapi.staticfiles import StaticFiles
-from fastapi.routing import APIRoute
 from app.routes import streamers, auth
 from app.routes import settings as settings_router
 from app.routes import twitch_auth
@@ -18,7 +17,6 @@ from app.routes import health
 from app.routes import notifications  # Notification tracking API
 from app.services.system.development_test_runner import run_development_tests
 from app.config.constants import TIMEOUTS, ASYNC_DELAYS
-import logging
 import hmac
 import hashlib
 import json
@@ -31,32 +29,31 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from typing import Optional
 
-from app.events.handler_registry import EventHandlerRegistry
 from app.config.logging_config import setup_logging
 from app.database import engine
 import app.models as models
-from app.dependencies import websocket_manager, get_event_registry, get_auth_service
+from app.dependencies import websocket_manager, get_event_registry
 from app.services.images.image_sync_service import image_sync_service
 from app.middleware.error_handler import error_handler
 from app.middleware.logging import logging_middleware
 from app.config.settings import settings
 from app.middleware.auth import AuthMiddleware
 from app.routes import categories
-from app.utils.security_enhanced import safe_file_access, safe_error_message
 from app.tasks.websocket_broadcast_task import websocket_broadcast_task
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
     logger.info("Starting application initialization...")
-    
+
     # Initialize services
     event_registry = None
     cleanup_task = None
     log_cleanup_task = None
     recording_service = None
     background_services_task = None
-    
+
     try:
         # Run database migrations always (development and production)
         logger.info("🔄 Running database migrations...")
@@ -70,18 +67,18 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             logger.error(f"❌ Database migration failed: {e}")
             logger.warning("⚠️ Application will continue but may have limited functionality")
-        
+
         # Image migration check and execution
         logger.info("🖼️ Checking image migration status...")
         from app.services.migration.image_migration_service import image_migration_service
-        
+
         try:
             # Check if migration is needed
             old_dirs_exist = (
-                image_migration_service.old_images_dir.exists() or 
-                image_migration_service.old_artwork_dir.exists()
+                image_migration_service.old_images_dir.exists()
+                or image_migration_service.old_artwork_dir.exists()
             )
-            
+
             if old_dirs_exist:
                 logger.info("🔄 Running image migration from old directory structure...")
                 migration_stats = await image_migration_service.migrate_all_images()
@@ -91,11 +88,11 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             logger.error(f"❌ Image migration failed: {e}")
             logger.warning("⚠️ Continuing startup without image migration")
-        
+
         # Generate Streamlink configuration from settings
         logger.info("🔧 Generating Streamlink configuration...")
         from app.services.system.streamlink_config_service import streamlink_config_service
-        
+
         try:
             config_success = await streamlink_config_service.update_config_from_settings()
             if config_success:
@@ -105,11 +102,11 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             logger.error(f"❌ Streamlink config generation failed: {e}")
             logger.warning("⚠️ Continuing without config file - using command-line args")
-        
+
         # Image refresh check for missing images
         logger.info("🔄 Checking for missing images...")
         from app.services.images.image_refresh_service import image_refresh_service
-        
+
         try:
             # Run image refresh in background (non-blocking) with error handling
             async def safe_image_refresh():
@@ -118,13 +115,13 @@ async def lifespan(app: FastAPI):
                     logger.info("✅ Image refresh task completed successfully")
                 except Exception as e:
                     logger.error(f"❌ Image refresh task failed: {e}")
-            
+
             asyncio.create_task(safe_image_refresh())
             logger.info("✅ Image refresh task started in background")
         except Exception as e:
             logger.error(f"❌ Image refresh failed to start: {e}")
             logger.warning("⚠️ Images may not be available until manually refreshed")
-        
+
         # Create any remaining tables from models (after migrations)
         logger.info("🔄 Creating remaining tables from models...")
         try:
@@ -133,12 +130,12 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             logger.error(f"❌ Error creating model tables: {e}")
             logger.warning("⚠️ Application will continue but may have limited functionality")
-        
+
         # Initialize EventSub
         event_registry = await get_event_registry()
         await event_registry.initialize_eventsub()
         logger.info("EventSub initialized successfully")
-        
+
         # Get recording service reference for graceful shutdown
         try:
             recording_service = getattr(event_registry, 'recording_service', None)
@@ -146,7 +143,7 @@ async def lifespan(app: FastAPI):
                 logger.info("Recording service reference obtained for graceful shutdown")
         except Exception as e:
             logger.warning(f"Could not get recording service reference: {e}")
-        
+
         # Start log cleanup service
         try:
             from app.services.system.logging_service import logging_service
@@ -156,30 +153,30 @@ async def lifespan(app: FastAPI):
             logger.info(f"Logging service base directory: {logging_service.logs_base_dir}")
         except Exception as e:
             logger.error(f"Failed to start log cleanup service: {e}")
-        
+
         # Initialize background queue service (will be done later in initialize_background_services)
         try:
             logger.info("Background queue initialization deferred to initialize_background_services()")
-            
+
             # Background queue cleanup will be handled by initialize_background_services()
             logger.info("✅ Background queue auto-cleanup will be initialized later")
-            
+
         except Exception as e:
             logger.error(f"Failed to initialize background queue service: {e}")
             logger.exception("Full error details:")
-        
+
         # Automated recovery service will be handled by initialize_background_services()
         try:
             logger.info("✅ Startup recovery check scheduled (runs once after 2 minutes)")
-            
+
         except Exception as e:
             logger.error(f"❌ Failed to start startup recovery check: {e}")
             logger.warning("⚠️ Failed recordings will not be automatically recovered")
-        
+
         # Start recording cleanup service
         try:
             from app.services.system.cleanup_service import CleanupService
-            
+
             async def scheduled_recording_cleanup():
                 while True:
                     try:
@@ -188,18 +185,18 @@ async def lifespan(app: FastAPI):
                         break
                     except Exception as e:
                         logger.error(f"Error in scheduled recording cleanup: {e}", exc_info=True)
-                    
+
                     # Run every 12 hours
                     await asyncio.sleep(12 * 3600)
-            
+
             cleanup_task = asyncio.create_task(scheduled_recording_cleanup())
             logger.info("Recording cleanup service started")
         except Exception as e:
             logger.error(f"Failed to start recording cleanup service: {e}")
-        
+
         # Wait a moment for migrations to fully complete before starting services
         await asyncio.sleep(ASYNC_DELAYS.BRIEF_PAUSE)
-        
+
         # Start background services AFTER migrations are guaranteed to be complete
         try:
             from app.services.init.startup_init import initialize_background_services
@@ -220,21 +217,21 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             logger.error(f"❌ Failed to schedule background services initialization: {e}", exc_info=True)
             logger.warning("⚠️ Application will continue but background processing may be limited")
-            
+
         # Start image sync service
         try:
             await image_sync_service.start_sync_worker()
             logger.info("✅ Image sync service started")
         except Exception as e:
             logger.error(f"❌ Error starting image sync service: {e}", exc_info=True)
-        
+
         # Start WebSocket broadcast task for real-time updates
         try:
             await websocket_broadcast_task.start()
             logger.info("WebSocket broadcast task started")
         except Exception as e:
             logger.error(f"Error starting WebSocket broadcast task: {e}", exc_info=True)
-        
+
         # Start Proxy Health Check Service
         try:
             from app.services.proxy.proxy_health_service import proxy_health_service
@@ -242,7 +239,7 @@ async def lifespan(app: FastAPI):
             logger.info("✅ Proxy health check service started")
         except Exception as e:
             logger.error(f"❌ Error starting proxy health check service: {e}", exc_info=True)
-        
+
         # Run development tests if in debug mode
         try:
             test_success = await run_development_tests()
@@ -252,17 +249,17 @@ async def lifespan(app: FastAPI):
                 logger.warning("⚠️ Some development tests failed - check logs above")
         except Exception as e:
             logger.error(f"Error running development tests: {e}", exc_info=True)
-        
+
         logger.info("Application startup complete")
-        
+
     except Exception as e:
         logger.error(f"Error during startup: {e}", exc_info=True)
-    
+
     yield
-    
+
     # Shutdown
     logger.info("🛑 Starting application shutdown...")
-    
+
     # Gracefully shutdown recording service first (most critical)
     if recording_service:
         try:
@@ -271,7 +268,7 @@ async def lifespan(app: FastAPI):
             logger.info("✅ Recording service shutdown completed")
         except Exception as e:
             logger.error(f"❌ Error during recording service shutdown: {e}")
-    
+
     # Shutdown active recordings broadcaster
     try:
         logger.info("🔄 Stopping active recordings broadcaster...")
@@ -279,7 +276,7 @@ async def lifespan(app: FastAPI):
         logger.info("✅ Active recordings broadcaster stopped successfully")
     except Exception as e:
         logger.error(f"❌ Error during active recordings broadcaster shutdown: {e}")
-    
+
     # Stop WebSocket broadcast task
     try:
         logger.info("🔄 Stopping WebSocket broadcast task...")
@@ -287,7 +284,7 @@ async def lifespan(app: FastAPI):
         logger.info("✅ WebSocket broadcast task stopped successfully")
     except Exception as e:
         logger.error(f"❌ Error stopping WebSocket broadcast task: {e}")
-    
+
     # Stop Proxy Health Check Service
     try:
         logger.info("🔄 Stopping proxy health check service...")
@@ -296,7 +293,7 @@ async def lifespan(app: FastAPI):
         logger.info("✅ Proxy health check service stopped successfully")
     except Exception as e:
         logger.error(f"❌ Error stopping proxy health check service: {e}")
-    
+
     # Ensure background services initialization finished
     if background_services_task:
         if not background_services_task.done():
@@ -316,7 +313,7 @@ async def lifespan(app: FastAPI):
         logger.info("✅ Background queue service stopped successfully")
     except Exception as e:
         logger.error(f"❌ Error during background queue service shutdown: {e}")
-    
+
     # Cancel cleanup tasks
     for task_name, task in [("cleanup", cleanup_task), ("log_cleanup", log_cleanup_task)]:
         if task and not task.done():
@@ -328,7 +325,7 @@ async def lifespan(app: FastAPI):
                 logger.info(f"✅ {task_name} task cancelled successfully")
             except Exception as e:
                 logger.error(f"❌ Error cancelling {task_name} task: {e}")
-    
+
     # Stop EventSub properly
     if event_registry:
         try:
@@ -344,14 +341,14 @@ async def lifespan(app: FastAPI):
                 logger.info("✅ Event registry cleaned up")
         except Exception as e:
             logger.error(f"❌ Error during EventSub shutdown: {e}")
-    
+
     # Stop image sync service
     try:
         await image_sync_service.stop_sync_worker()
         logger.info("✅ Image sync service stopped")
     except Exception as e:
         logger.error(f"❌ Error stopping image sync service: {e}")
-    
+
     # Stop recording auto-fix service (optional component; ignore if not present)
     try:
         try:
@@ -365,7 +362,7 @@ async def lifespan(app: FastAPI):
             logger.debug("Recording auto-fix service not available; skipping")
     except Exception as e:
         logger.error(f"❌ Error stopping recording auto-fix service: {e}")
-    
+
     # Close database connections
     try:
         from sqlalchemy.ext.asyncio import AsyncEngine
@@ -376,7 +373,7 @@ async def lifespan(app: FastAPI):
         logger.info("✅ Database connections closed")
     except Exception as e:
         logger.error(f"❌ Error disposing database engine: {e}")
-    
+
     logger.info("🎯 Application shutdown complete")
 
 # Initialize application components
@@ -418,13 +415,15 @@ app.add_middleware(
 app.middleware("http")(logging_middleware)
 
 # Enhanced security headers middleware
+
+
 @app.middleware("http")
 async def add_security_headers(request: Request, call_next):
     response = await call_next(request)
-    
+
     # Set proper content types for specific files
     path = request.url.path
-    
+
     # Special handling for service worker
     if path == "/registerSW.js" or path.endswith("registerSW.js"):
         response.headers["Content-Type"] = "application/javascript"
@@ -432,7 +431,7 @@ async def add_security_headers(request: Request, call_next):
         response.headers["Cache-Control"] = "no-cache"
         # Don't set X-Content-Type-Options for service worker
         return response
-    
+
     # Set content types based on file extension
     content_type_map = {
         '.js': 'application/javascript',
@@ -449,12 +448,12 @@ async def add_security_headers(request: Request, call_next):
         '.html': 'text/html',
         '.webp': 'image/webp'
     }
-    
+
     for ext, content_type in content_type_map.items():
         if path.endswith(ext):
             response.headers["Content-Type"] = content_type
             break
-    
+
     # Security headers (only if enabled in settings)
     if settings.SECURE_HEADERS_ENABLED:
         # Basic security headers
@@ -462,11 +461,11 @@ async def add_security_headers(request: Request, call_next):
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["X-XSS-Protection"] = "1; mode=block"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-        
+
         # HSTS (only for HTTPS)
         if settings.is_secure:
             response.headers["Strict-Transport-Security"] = f"max-age={settings.HSTS_MAX_AGE}; includeSubDomains"
-        
+
         # Content Security Policy (if configured)
         if settings.CONTENT_SECURITY_POLICY:
             response.headers["Content-Security-Policy"] = settings.CONTENT_SECURITY_POLICY
@@ -485,43 +484,43 @@ async def add_security_headers(request: Request, call_next):
                 "frame-ancestors 'none'"
             ]
             response.headers["Content-Security-Policy"] = "; ".join(csp_directives)
-        
+
         # Permissions Policy (modern replacement for Feature Policy)
         response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
-    
+
     return response
 
 # Add request ID middleware for tracking
+
+
 @app.middleware("http")
 async def add_request_id(request: Request, call_next):
     import uuid
     request_id = str(uuid.uuid4())
-    
+
     # Skip logging for frequent background queue polling endpoints to reduce log spam
     skip_logging_paths = [
         "/api/background-queue/stats",
         "/api/background-queue/active-tasks"
     ]
-    
+
     # Add request ID to logger context (skip frequent polling endpoints)
     if request.url.path not in skip_logging_paths:
         logger.info(f"Request {request_id}: {request.method} {request.url.path}")
     else:
         # Log at debug level for background queue endpoints
         logger.debug(f"Request {request_id}: {request.method} {request.url.path}")
-    
+
     response = await call_next(request)
     response.headers["X-Request-ID"] = request_id
-    
+
     return response
 
 # Adaptive rate limiting middleware (token-bucket with soft-wait)
 from dataclasses import dataclass
-from typing import Dict, Optional, Tuple
+from typing import Dict, Tuple
 import time
-import hashlib
-import os
-import asyncio
+
 
 @dataclass
 class _TokenBucket:
@@ -538,6 +537,7 @@ class _TokenBucket:
             self.tokens = min(self.capacity, self.tokens + delta * self.refill_per_sec)
             self.last_refill = now
 
+
 class _AdaptiveLimiter:
     def __init__(self) -> None:
         self.enabled = os.getenv("RATE_LIMIT_ENABLED", "true").lower() not in ("false", "0", "no")
@@ -551,10 +551,10 @@ class _AdaptiveLimiter:
         # Allow higher throughput for safe, read-only endpoints
         method = method.upper()
         if method == "GET":
-            if (path.startswith("/api/background-queue/") or
-                path.startswith("/api/streamers") or
-                path.startswith("/api/status") or
-                path.startswith("/api/streams")):
+            if (path.startswith("/api/background-queue/")
+                or path.startswith("/api/streamers")
+                or path.startswith("/api/status")
+                    or path.startswith("/api/streams")):
                 return (800, 20.0)
             # Default GET budget
             return (500, 10.0)
@@ -618,17 +618,19 @@ class _AdaptiveLimiter:
             retry_after = max(1, int(needed / effective_refill))
             return False, retry_after, max(0, int(bucket.tokens)), capacity
 
+
 _limiter = _AdaptiveLimiter()
+
 
 @app.middleware("http")
 async def rate_limit_middleware(request: Request, call_next):
     # Skip rate limiting for health checks, static files, and internal API calls
-    if (request.url.path in ["/health", "/favicon.ico"] or 
-        request.url.path.startswith("/assets/") or
-        request.url.path.startswith("/api/images/") or  # Skip for image API calls
-        request.url.path.startswith("/recordings/.media/") or  # Skip for cached image files
-        request.url.path.startswith("/api/sync/") or    # Skip for sync API calls
-        request.url.path.startswith("/data/")):
+    if (request.url.path in ["/health", "/favicon.ico"] or
+        request.url.path.startswith("/assets/")
+        or request.url.path.startswith("/api/images/")  # Skip for image API calls
+        or request.url.path.startswith("/recordings/.media/")  # Skip for cached image files
+        or request.url.path.startswith("/api/sync/")    # Skip for sync API calls
+            or request.url.path.startswith("/data/")):
         return await call_next(request)
 
     # Get client IP (respect reverse proxy)
@@ -666,13 +668,15 @@ async def rate_limit_middleware(request: Request, call_next):
     return response
 
 # WebSocket endpoint
+
+
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     from app.utils.client_ip import get_real_client_ip
-    
+
     real_ip = get_real_client_ip(websocket)
     logger.info(f"📞 New WebSocket connection attempt from {real_ip}")
-    
+
     await websocket_manager.connect(websocket)
     try:
         while True:
@@ -681,9 +685,11 @@ async def websocket_endpoint(websocket: WebSocket):
         logger.info(f"📞 WebSocket disconnected: {real_ip}")
         await websocket_manager.disconnect(websocket)
 
+
 @app.get("/health")
 async def health_check():
     return {"status": "ok", "service": "StreamVault"}
+
 
 @app.get("/admin/websocket-connections")
 async def get_websocket_connections():
@@ -693,14 +699,14 @@ async def get_websocket_connections():
         for connection_id, ws in websocket_manager.active_connections.items():
             real_ip = getattr(ws, '_real_ip', 'unknown')
             client_identifier = getattr(ws, '_client_identifier', 'unknown')
-            
+
             connections.append({
                 "connection_id": connection_id,
                 "real_ip": real_ip,
                 "client_identifier": client_identifier,
                 "state": ws.application_state.value if hasattr(ws.application_state, 'value') else str(ws.application_state)
             })
-    
+
     # Group by real IP to show multiple connections per client
     clients = {}
     for conn in connections:
@@ -709,7 +715,7 @@ async def get_websocket_connections():
             clients[ip] = {"ip": ip, "connections": [], "count": 0}
         clients[ip]["connections"].append(conn)
         clients[ip]["count"] += 1
-    
+
     return {
         "total_connections": len(connections),
         "unique_clients": len(clients),
@@ -718,10 +724,13 @@ async def get_websocket_connections():
     }
 
 # EventSub Routes
+
+
 @app.get("/eventsub")
 @app.head("/eventsub")
 async def eventsub_root():
     return Response(content="Twitch EventSub Endpoint", media_type="text/plain")
+
 
 @app.post("/eventsub")
 async def eventsub_callback(request: Request):
@@ -872,8 +881,10 @@ from app.routes import version as version_router
 app.include_router(version_router.router, prefix="/api")
 
 # Explicit SPA routes - these must come after API routes but before static files
+
+
 @app.get("/streamers")
-@app.get("/videos") 
+@app.get("/videos")
 @app.get("/subscriptions")
 @app.get("/add-streamer")
 @app.get("/settings")
@@ -890,9 +901,9 @@ async def serve_spa_routes():
             import os
             if os.path.exists(path):
                 return FileResponse(path, media_type="text/html")
-        except Exception as e:
+        except Exception:
             continue
-    
+
     return Response(content="SPA index.html not found", status_code=500)
 
 # Static files for assets
@@ -924,8 +935,6 @@ except Exception as e:
 app.mount("/data", StaticFiles(directory="/app/data"), name="data")
 
 # Mount images directory for unified image service
-import os
-from pathlib import Path
 # Hardcoded Docker path - always /recordings in container
 recordings_dir = "/recordings"
 images_dir = Path(recordings_dir) / ".media"
@@ -943,6 +952,8 @@ app.mount("/api/media", StaticFiles(directory=str(images_dir)), name="media")
 app.mount("/recordings/.media", StaticFiles(directory=str(images_dir)), name="images-compat")
 
 # PWA Files serving - these must be at root level
+
+
 @app.get("/manifest.json")
 async def serve_manifest():
     for path in ["app/frontend/public/manifest.json", "/app/app/frontend/public/manifest.json"]:
@@ -956,6 +967,7 @@ async def serve_manifest():
             continue
     return Response(status_code=404)
 
+
 @app.get("/manifest.webmanifest")
 async def serve_manifest_webmanifest():
     for path in ["app/frontend/public/manifest.webmanifest", "/app/app/frontend/public/manifest.webmanifest"]:
@@ -968,6 +980,7 @@ async def serve_manifest_webmanifest():
         except (FileNotFoundError, PermissionError):
             continue
     return Response(status_code=404)
+
 
 @app.get("/pwa/push-sw.js")
 async def serve_push_sw_helper():
@@ -984,6 +997,7 @@ async def serve_push_sw_helper():
         except (FileNotFoundError, PermissionError):
             continue
     return Response(status_code=404)
+
 
 @app.get("/registerSW.js")
 async def register_service_worker():
@@ -1003,6 +1017,7 @@ async def register_service_worker():
             continue
     return Response(status_code=404)
 
+
 @app.get("/sw.js")
 async def service_worker():
     for path in ["app/frontend/dist/sw.js", "/app/app/frontend/dist/sw.js"]:
@@ -1014,7 +1029,7 @@ async def service_worker():
                 # Only inject once and only if our public file exists
                 inject_marker = "// streamvault-push-import"
                 push_import = "\n".join([
-                    "", 
+                    "",
                     inject_marker,
                     "try {",
                     "  importScripts('/pwa/push-sw.js');",
@@ -1051,6 +1066,7 @@ async def service_worker():
             continue
     return Response(status_code=404)
 
+
 @app.get("/browserconfig.xml")
 async def serve_browserconfig():
     for path in ["app/frontend/public/browserconfig.xml", "/app/app/frontend/public/browserconfig.xml"]:
@@ -1064,6 +1080,7 @@ async def serve_browserconfig():
             continue
     return Response(status_code=404)
 
+
 @app.get("/pwa-test.html")
 async def serve_pwa_test():
     for path in ["app/frontend/public/pwa-test.html", "/app/app/frontend/public/pwa-test.html"]:
@@ -1072,6 +1089,7 @@ async def serve_pwa_test():
         except (FileNotFoundError, PermissionError):
             continue
     return Response(status_code=404)
+
 
 @app.get("/pwa-helper.js")
 async def serve_pwa_helper():
@@ -1084,19 +1102,18 @@ async def serve_pwa_helper():
 
 # (Removed duplicate /registerSW.js endpoint; single secured version is defined later)
 
+
 @app.get("/workbox-{filename:path}")
 async def serve_workbox_files(filename: str):
     """Serve Workbox-related files from the dist directory"""
     import os
-    import re
-    from pathlib import Path
-    
+
     # SECURITY: Complete isolation - user input never reaches file operations
     # Step 1: Create whitelist of allowed workbox files (hardcoded, no user input)
     ALLOWED_WORKBOX_FILES = {
         # Common workbox filenames - add more as needed
         "74f2ef77.js": "workbox-74f2ef77.js",
-        "core.js": "workbox-core.js", 
+        "core.js": "workbox-core.js",
         "sw.js": "workbox-sw.js",
         "runtime.js": "workbox-runtime.js",
         "strategies.js": "workbox-strategies.js",
@@ -1104,38 +1121,38 @@ async def serve_workbox_files(filename: str):
         "routing.js": "workbox-routing.js",
         "window.js": "workbox-window.js"
     }
-    
+
     # Step 2: Validate user input against whitelist only
     if not isinstance(filename, str) or len(filename) > 50:
         logger.warning(f"Invalid workbox filename format: {filename}")
         return Response(status_code=404)
-    
+
     # Step 3: Check if requested file is in whitelist
     if filename not in ALLOWED_WORKBOX_FILES:
         logger.warning(f"Workbox file not in whitelist: {filename}")
         return Response(status_code=404)
-    
+
     # Step 4: Get hardcoded filename from whitelist (no user input involved)
     safe_filename = ALLOWED_WORKBOX_FILES[filename]
-    
+
     # Step 5: Define hardcoded safe paths (completely isolated from user input)
     SAFE_FILE_PATHS = [
         f"app/frontend/dist/{safe_filename}",
         f"/app/app/frontend/dist/{safe_filename}"
     ]
-    
+
     # Step 6: Try each hardcoded path (user input never touches file operations)
     for hardcoded_path in SAFE_FILE_PATHS:
         try:
             # All file operations use hardcoded paths only
             real_path = os.path.realpath(hardcoded_path)
-            
+
             # Verify path is within expected directories
             expected_dirs = [
                 os.path.realpath("app/frontend/dist"),
                 os.path.realpath("/app/app/frontend/dist")
             ]
-            
+
             path_is_safe = False
             for expected_dir in expected_dirs:
                 try:
@@ -1144,7 +1161,7 @@ async def serve_workbox_files(filename: str):
                         break
                 except (ValueError, OSError):
                     continue
-            
+
             # File operations on hardcoded paths only
             if path_is_safe and os.path.exists(real_path) and os.path.isfile(real_path):
                 return FileResponse(
@@ -1158,10 +1175,11 @@ async def serve_workbox_files(filename: str):
         except Exception as e:
             logger.warning(f"Error checking hardcoded workbox path {hardcoded_path}: {e}")
             continue
-    
+
     # No valid hardcoded path found
     logger.warning(f"Workbox file not found in any safe location: {filename}")
     return Response(status_code=404)
+
 
 @app.get("/favicon.ico")
 async def serve_favicon():
@@ -1176,6 +1194,7 @@ async def serve_favicon():
         except (FileNotFoundError, PermissionError):
             continue
     return Response(status_code=404)
+
 
 @app.get("/favicon.png")
 async def serve_favicon_png():
@@ -1195,6 +1214,8 @@ async def serve_favicon_png():
     return Response(status_code=404)
 
 # PWA Icons - serve from public directory
+
+
 @app.get("/{icon_file}")
 async def serve_pwa_icons(icon_file: str):
     # SECURITY: Complete isolation of user input from file operations
@@ -1210,26 +1231,26 @@ async def serve_pwa_icons(icon_file: str):
         'icon-512x512.png', 'maskable-icon-192x192.png', 'maskable-icon-512x512.png',
         'ms-icon-70x70.png', 'ms-icon-144x144.png', 'ms-icon-150x150.png', 'ms-icon-310x310.png'
     }
-    
+
     # Step 2: Early validation - reject if not in allowlist
     if icon_file not in pwa_files:
         return Response(status_code=404)
-    
+
     # Step 3: Additional security checks
     if ".." in icon_file or "/" in icon_file or "\\" in icon_file:
         return Response(status_code=404)
-    
+
     # Step 4: Create safe file mapping - completely disconnect user input from file paths
     # This mapping ensures no user data ever flows to file operations
     safe_file_mappings = {}
     base_directories = ["app/frontend/public", "/app/app/frontend/public"]
-    
+
     for base_dir in base_directories:
         try:
             base_path = Path(base_dir)
             if not base_path.exists():
                 continue
-                
+
             # Pre-validate each allowed file independently
             for allowed_file in pwa_files:
                 safe_path = base_path / allowed_file
@@ -1238,18 +1259,18 @@ async def serve_pwa_icons(icon_file: str):
         except Exception as e:
             logger.warning(f"Error scanning directory {base_dir}: {e}")
             continue
-    
+
     # Step 5: Serve file using safe mapping (no user input in file operations)
     if icon_file in safe_file_mappings:
         safe_path = safe_file_mappings[icon_file]
-        
+
         # Determine media type based on file extension
         media_type = "image/png"
         if icon_file.endswith('.ico'):
             media_type = "image/x-icon"
         elif icon_file.endswith('.svg'):
             media_type = "image/svg+xml"
-        
+
         try:
             return FileResponse(
                 str(safe_path),
@@ -1258,10 +1279,12 @@ async def serve_pwa_icons(icon_file: str):
             )
         except Exception as e:
             logger.warning(f"Error serving icon file: {e}")
-    
+
     return Response(status_code=404)
 
 # Root route to serve index.html
+
+
 @app.get("/")
 async def serve_root():
     """Serve the main SPA index.html for the root route"""
@@ -1274,7 +1297,7 @@ async def serve_root():
         except Exception as e:
             logger.warning(f"Could not serve root from {path}: {e}")
             continue
-    
+
     logger.error("Could not find index.html for root route")
     return Response(content="Welcome to StreamVault - Frontend not available", status_code=500)
 
@@ -1285,6 +1308,8 @@ app.add_exception_handler(Exception, error_handler)
 app.add_middleware(AuthMiddleware)
 
 # Service Worker registration script with enhanced security
+
+
 @app.get("/registerSW.js")
 async def serve_register_sw():
     """Serve the service worker registration script"""
@@ -1302,7 +1327,7 @@ async def serve_register_sw():
             except Exception as e:
                 logger.error(f"Error reading service worker file: {e}")
                 continue
-                
+
             return FileResponse(
                 sw_path,
                 media_type="application/javascript",
@@ -1312,7 +1337,7 @@ async def serve_register_sw():
                     "X-Content-Type-Options": "nosniff"  # Override for service worker
                 }
             )
-    
+
     # If not found in dist, serve a minimal registration script
     minimal_sw = """
     if ('serviceWorker' in navigator) {
@@ -1331,24 +1356,26 @@ async def serve_register_sw():
     )
 
 # SPA catch-all route must be last - only serve for non-API paths
+
+
 @app.get("/{full_path:path}")
 async def serve_spa(full_path: str):
     # Don't serve SPA for API paths, static files, or PWA files
-    if (full_path.startswith("api/") or 
-        full_path.startswith("assets/") or 
-        full_path.startswith("data/") or
-        full_path.startswith("video/") or
-        full_path.startswith("ws") or  # WebSocket
-        full_path.startswith("eventsub") or  # EventSub
-        full_path.startswith("health") or  # Health check
-        full_path.startswith("debug/") or  # Debug endpoints
-        full_path in {"manifest.json", "manifest.webmanifest", "sw.js", "browserconfig.xml", "pwa-test.html", "pwa-helper.js"} or
-        full_path.endswith((".png", ".ico", ".svg", ".jpg", ".jpeg", ".gif", ".webp", ".js", ".css", ".map", ".xml"))):
+    if (full_path.startswith("api/") or
+        full_path.startswith("assets/")
+        or full_path.startswith("data/")
+        or full_path.startswith("video/")
+        or full_path.startswith("ws")  # WebSocket
+        or full_path.startswith("eventsub")  # EventSub
+        or full_path.startswith("health")  # Health check
+        or full_path.startswith("debug/")  # Debug endpoints
+        or full_path in {"manifest.json", "manifest.webmanifest", "sw.js", "browserconfig.xml", "pwa-test.html", "pwa-helper.js"}
+            or full_path.endswith((".png", ".ico", ".svg", ".jpg", ".jpeg", ".gif", ".webp", ".js", ".css", ".map", ".xml"))):
         raise HTTPException(status_code=404)
-    
+
     # For SPA routes like /streamers, /subscriptions, etc., serve index.html
     logger.info(f"SPA Fallback: Serving index.html for route '{full_path}'")
-    
+
     # Try production path first, then fallback
     for path in ["app/frontend/dist/index.html", "/app/app/frontend/dist/index.html"]:
         try:
@@ -1359,6 +1386,6 @@ async def serve_spa(full_path: str):
         except Exception as e:
             logger.warning(f"Could not serve from {path}: {e}")
             continue
-    
+
     logger.error(f"Could not find index.html for SPA route '{full_path}' in any expected location")
     return Response(content=f"SPA index.html not found for route: {full_path}", status_code=500)

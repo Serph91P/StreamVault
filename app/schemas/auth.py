@@ -1,8 +1,10 @@
 from pydantic import BaseModel
 
+
 class UserCreate(BaseModel):
     username: str
     password: str
+
 
 class UserResponse(BaseModel):
     id: int
@@ -11,6 +13,7 @@ class UserResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
 
 class LoginResponse(BaseModel):
     message: str

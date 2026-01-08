@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 import logging
 
 from app.database import get_db
-from app.models import User, NotificationState
+from app.models import NotificationState
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/notifications", tags=["notifications"])
@@ -24,7 +24,6 @@ class NotificationMarkReadRequest(BaseModel):
 
 class NotificationClearRequest(BaseModel):
     """Request to clear all notifications"""
-    pass
 
 
 @router.post("/mark-read")
@@ -40,7 +39,7 @@ async def mark_notifications_read(
         # Get current user (from session - assuming authentication is set up)
         # For now, use a default user ID (1) since we don't have multi-user yet
         user_id = 1
-        
+
         # Parse timestamp
         if request.timestamp:
             try:
@@ -49,12 +48,12 @@ async def mark_notifications_read(
                 read_timestamp = datetime.now(timezone.utc)
         else:
             read_timestamp = datetime.now(timezone.utc)
-        
+
         # Find or create notification state
         notification_state = db.query(NotificationState).filter(
             NotificationState.user_id == user_id
         ).first()
-        
+
         if not notification_state:
             notification_state = NotificationState(
                 user_id=user_id,
@@ -63,16 +62,16 @@ async def mark_notifications_read(
             db.add(notification_state)
         else:
             notification_state.last_read_timestamp = read_timestamp
-        
+
         db.commit()
-        
+
         logger.info(f"Marked notifications as read for user {user_id} up to {read_timestamp}")
-        
+
         return {
             "success": True,
             "last_read_timestamp": read_timestamp.isoformat()
         }
-        
+
     except Exception as e:
         logger.error(f"Error marking notifications as read: {e}", exc_info=True)
         db.rollback()
@@ -90,14 +89,14 @@ async def clear_notifications(
     """
     try:
         user_id = 1  # Default user ID
-        
+
         # Find or create notification state
         notification_state = db.query(NotificationState).filter(
             NotificationState.user_id == user_id
         ).first()
-        
+
         now = datetime.now(timezone.utc)
-        
+
         if not notification_state:
             notification_state = NotificationState(
                 user_id=user_id,
@@ -108,16 +107,16 @@ async def clear_notifications(
         else:
             notification_state.last_read_timestamp = now
             notification_state.last_cleared_timestamp = now
-        
+
         db.commit()
-        
+
         logger.info(f"Cleared all notifications for user {user_id}")
-        
+
         return {
             "success": True,
             "last_cleared_timestamp": now.isoformat()
         }
-        
+
     except Exception as e:
         logger.error(f"Error clearing notifications: {e}", exc_info=True)
         db.rollback()
@@ -134,11 +133,11 @@ async def get_notification_state(
     """
     try:
         user_id = 1  # Default user ID
-        
+
         notification_state = db.query(NotificationState).filter(
             NotificationState.user_id == user_id
         ).first()
-        
+
         if not notification_state:
             # No state yet - return default (never read/cleared)
             return {
@@ -146,13 +145,13 @@ async def get_notification_state(
                 "last_cleared_timestamp": None,
                 "unread_count": 0
             }
-        
+
         return {
             "last_read_timestamp": notification_state.last_read_timestamp.isoformat() if notification_state.last_read_timestamp else None,
             "last_cleared_timestamp": notification_state.last_cleared_timestamp.isoformat() if notification_state.last_cleared_timestamp else None,
             "unread_count": 0  # TODO: Calculate from stored notifications if we store them
         }
-        
+
     except Exception as e:
         logger.error(f"Error getting notification state: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to get notification state: {str(e)}")

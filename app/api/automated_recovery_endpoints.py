@@ -7,11 +7,11 @@ Automatisierung der existierenden Recovery-Services:
 - Failed Recovery (fehlgeschlagene Post-Processing)
 """
 
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import APIRouter, HTTPException
 from typing import Dict, Any, Optional
 import logging
 import asyncio
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 logger = logging.getLogger("streamvault")
 
@@ -24,9 +24,11 @@ MIN_INTERVAL_MINUTES = 1
 MAX_INTERVAL_MINUTES = 1440
 
 # Thread-safe state management
+
+
 class AutomatedRecoveryState:
     """Thread-safe state management for automated recovery"""
-    
+
     def __init__(self):
         self._lock = asyncio.Lock()
         self._running = False
@@ -39,62 +41,63 @@ class AutomatedRecoveryState:
             "last_error": None
         }
         self._task: Optional[asyncio.Task] = None
-    
+
     async def is_running(self) -> bool:
         async with self._lock:
             return self._running
-    
+
     async def set_running(self, running: bool):
         async with self._lock:
             self._running = running
-    
+
     async def get_interval(self) -> int:
         async with self._lock:
             return self._interval
-    
+
     async def set_interval(self, interval: int):
         async with self._lock:
             self._interval = interval
-    
+
     async def get_last_run(self) -> Optional[datetime]:
         async with self._lock:
             return self._last_run
-    
+
     async def set_last_run(self, timestamp: datetime):
         async with self._lock:
             self._last_run = timestamp
-    
+
     async def get_stats(self) -> Dict[str, Any]:
         async with self._lock:
             return self._stats.copy()
-    
+
     async def increment_total_runs(self):
         async with self._lock:
             self._stats["total_runs"] += 1
-    
+
     async def increment_successful_runs(self):
         async with self._lock:
             self._stats["successful_runs"] += 1
             self._stats["last_error"] = None
-    
+
     async def increment_failed_runs(self, error: str):
         async with self._lock:
             self._stats["failed_runs"] += 1
             self._stats["last_error"] = error
-    
+
     async def set_task(self, task: Optional[asyncio.Task]):
         async with self._lock:
             self._task = task
-    
+
     async def get_task(self) -> Optional[asyncio.Task]:
         async with self._lock:
             return self._task
-    
+
     async def cancel_task(self):
         async with self._lock:
             if self._task and not self._task.done():
                 self._task.cancel()
                 self._task = None
+
 
 # Global state instance
 recovery_state = AutomatedRecoveryState()
@@ -103,7 +106,7 @@ recovery_state = AutomatedRecoveryState()
 async def run_comprehensive_recovery() -> Dict[str, Any]:
     """
     Runs comprehensive recovery with all existing services
-    
+
     Uses:
     1. Simple Recovery - reliable metadata_generation tasks (WITHOUT dependencies)
     2. Unified Recovery - for complete analysis (if dependency chains work)
@@ -113,17 +116,17 @@ async def run_comprehensive_recovery() -> Dict[str, Any]:
     await recovery_state.increment_total_runs()
     now = datetime.now(timezone.utc)
     await recovery_state.set_last_run(now)
-    
+
     results = {
         "start_time": now.isoformat(),
         "simple_recovery": None,
         "unified_recovery": None,
-        "orphaned_recovery": None, 
+        "orphaned_recovery": None,
         "failed_recovery": None,
         "total_recoveries": 0,
         "success": False
     }
-    
+
     try:
         # 1. Simple Recovery (reliable - single tasks without dependencies)
         logger.info("🔧 Starting simple reliable recovery...")
@@ -136,14 +139,14 @@ async def run_comprehensive_recovery() -> Dict[str, Any]:
         except Exception as e:
             logger.error(f"❌ Simple recovery failed: {e}")
             results["simple_recovery"] = {"success": False, "error": str(e)}
-        
+
         # 2. Unified Recovery (most comprehensive analysis - if dependencies work)
         logger.info("🔧 Starting unified recovery...")
         try:
             from ..services.recording.unified_recovery_service import get_unified_recovery_service
             unified_service = await get_unified_recovery_service()
             unified_stats = await unified_service.comprehensive_recovery_scan(
-                max_age_hours=72, 
+                max_age_hours=72,
                 dry_run=False
             )
             results["unified_recovery"] = {
@@ -159,14 +162,14 @@ async def run_comprehensive_recovery() -> Dict[str, Any]:
         except Exception as e:
             logger.error(f"❌ Unified recovery failed: {e}")
             results["unified_recovery"] = {"success": False, "error": str(e)}
-        
+
         # 3. Orphaned Recovery (additional for orphaned segments)
         logger.info("🔧 Starting orphaned recovery...")
         try:
             from ..services.recording.orphaned_recovery_service import get_orphaned_recovery_service
             orphaned_service = await get_orphaned_recovery_service()
             orphaned_result = await orphaned_service.scan_and_recover_orphaned_recordings(
-                max_age_hours=48, 
+                max_age_hours=48,
                 dry_run=False
             )
             results["orphaned_recovery"] = {
@@ -179,8 +182,8 @@ async def run_comprehensive_recovery() -> Dict[str, Any]:
         except Exception as e:
             logger.error(f"❌ Orphaned recovery failed: {e}")
             results["orphaned_recovery"] = {"success": False, "error": str(e)}
-        
-        # 4. Failed Recovery (specific for failed post-processing)  
+
+        # 4. Failed Recovery (specific for failed post-processing)
         logger.info("🔧 Starting failed recovery...")
         try:
             from ..services.recording.failed_recording_recovery_service import get_failed_recovery_service
@@ -197,14 +200,14 @@ async def run_comprehensive_recovery() -> Dict[str, Any]:
         except Exception as e:
             logger.error(f"❌ Failed recovery failed: {e}")
             results["failed_recovery"] = {"success": False, "error": str(e)}
-        
+
         results["end_time"] = datetime.now(timezone.utc).isoformat()
         results["success"] = True
         await recovery_state.increment_successful_runs()
-        
+
         logger.info(f"🎉 Comprehensive recovery completed: {results['total_recoveries']} total recoveries")
         return results
-        
+
     except Exception as e:
         results["end_time"] = datetime.now(timezone.utc).isoformat()
         results["success"] = False
@@ -217,34 +220,34 @@ async def run_comprehensive_recovery() -> Dict[str, Any]:
 async def automated_recovery_loop():
     """
     Hauptschleife für automatisierte Recovery
-    
+
     Läuft kontinuierlich und führt alle recovery_interval Sekunden
     umfassende Recovery durch.
     """
     interval = await recovery_state.get_interval()
     logger.info(f"🚀 Starting automated recovery loop (interval: {interval}s)")
-    
+
     while await recovery_state.is_running():
         try:
             logger.info("🔄 Running automated recovery cycle...")
             result = await run_comprehensive_recovery()
-            
+
             if result["success"]:
                 logger.info(f"✅ Recovery cycle completed: {result['total_recoveries']} total recoveries")
             else:
                 logger.error(f"❌ Recovery cycle failed: {result.get('error', 'Unknown error')}")
-            
+
             # Aktuelle Interval-Zeit abrufen (könnte geändert worden sein)
             current_interval = await recovery_state.get_interval()
             await asyncio.sleep(current_interval)
-            
+
         except asyncio.CancelledError:
             logger.info("🛑 Automated recovery loop cancelled")
             break
         except Exception as e:
             logger.error(f"❌ Error in automated recovery loop: {e}")
             await asyncio.sleep(ERROR_DELAY_ON_FAILURE)
-    
+
     await recovery_state.set_running(False)
     logger.info("🛑 Automated recovery loop stopped")
 
@@ -255,7 +258,7 @@ async def start_automated_recovery(
 ):
     """
     Startet automatisierte Recovery mit allen existierenden Services
-    
+
     Args:
         interval_minutes: Intervall zwischen Recovery-Läufen (Standard: 5 Minuten)
     """
@@ -265,27 +268,27 @@ async def start_automated_recovery(
                 "success": False,
                 "message": "Automated recovery is already running"
             }
-        
+
         if interval_minutes < MIN_INTERVAL_MINUTES or interval_minutes > MAX_INTERVAL_MINUTES:
             raise HTTPException(
-                status_code=400, 
+                status_code=400,
                 detail=f"Interval must be between {MIN_INTERVAL_MINUTES} and {MAX_INTERVAL_MINUTES} minutes"
             )
-        
+
         await recovery_state.set_interval(interval_minutes * 60)
         await recovery_state.set_running(True)
-        
+
         # Erstelle persistente Task statt Background Task
         task = asyncio.create_task(automated_recovery_loop())
         await recovery_state.set_task(task)
-        
+
         return {
             "success": True,
             "message": "Automated comprehensive recovery started",
             "interval_minutes": interval_minutes,
             "services": ["unified_recovery", "orphaned_recovery", "failed_recovery"]
         }
-        
+
     except Exception as e:
         logger.error(f"Failed to start automated recovery: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to start recovery: {str(e)}")
@@ -300,15 +303,15 @@ async def stop_automated_recovery():
                 "success": False,
                 "message": "Automated recovery is not running"
             }
-        
+
         await recovery_state.set_running(False)
         await recovery_state.cancel_task()
-        
+
         return {
             "success": True,
             "message": "Automated recovery stopped"
         }
-        
+
     except Exception as e:
         logger.error(f"Failed to stop automated recovery: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to stop recovery: {str(e)}")
@@ -322,7 +325,7 @@ async def run_manual_recovery():
     try:
         result = await run_comprehensive_recovery()
         return result
-        
+
     except Exception as e:
         logger.error(f"Manual comprehensive recovery failed: {e}")
         raise HTTPException(status_code=500, detail=f"Recovery failed: {str(e)}")
@@ -338,15 +341,15 @@ async def run_simple_recovery():
         await recovery_state.increment_total_runs()
         now = datetime.now(timezone.utc)
         await recovery_state.set_last_run(now)
-        
+
         logger.info("🔧 Starting manual simple reliable recovery...")
         from ..services.simple_recovery_service import run_simple_reliable_recovery
         result = await run_simple_reliable_recovery()
-        
+
         await recovery_state.increment_successful_runs()
         logger.info(f"✅ Simple recovery completed: {result.get('total_recoveries', 0)} tasks created")
         return result
-        
+
     except Exception as e:
         await recovery_state.increment_failed_runs(str(e))
         logger.error(f"❌ Simple recovery failed: {e}")
@@ -359,7 +362,7 @@ async def get_recovery_status():
     last_run = await recovery_state.get_last_run()
     stats = await recovery_state.get_stats()
     interval = await recovery_state.get_interval()
-    
+
     return {
         "success": True,
         "data": {
@@ -380,23 +383,23 @@ async def configure_recovery(
 ):
     """
     Konfiguriert automatisierte Recovery
-    
+
     Args:
         interval_minutes: Neues Intervall zwischen Recovery-Läufen
-        
+
     Note: Änderungen werden beim nächsten Zyklus wirksam, nicht sofort
     """
     try:
         if interval_minutes is not None:
             if interval_minutes < MIN_INTERVAL_MINUTES or interval_minutes > MAX_INTERVAL_MINUTES:
                 raise HTTPException(
-                    status_code=400, 
+                    status_code=400,
                     detail=f"Interval must be between {MIN_INTERVAL_MINUTES} and {MAX_INTERVAL_MINUTES} minutes"
                 )
             await recovery_state.set_interval(interval_minutes * 60)
-        
+
         current_interval = await recovery_state.get_interval()
-        
+
         return {
             "success": True,
             "message": "Configuration updated (changes take effect on next cycle)",
@@ -405,7 +408,7 @@ async def configure_recovery(
                 "is_running": await recovery_state.is_running()
             }
         }
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -417,7 +420,7 @@ async def configure_recovery(
 async def test_recovery_services():
     """
     Testet alle Recovery-Services (dry run)
-    
+
     Nützlich um zu prüfen ob alle Services verfügbar sind
     """
     results = {
@@ -425,7 +428,7 @@ async def test_recovery_services():
         "orphaned_recovery": None,
         "failed_recovery": None
     }
-    
+
     # Test Unified Recovery
     try:
         from ..services.recording.unified_recovery_service import get_unified_recovery_service
@@ -439,8 +442,8 @@ async def test_recovery_services():
         }
     except Exception as e:
         results["unified_recovery"] = {"available": False, "error": str(e)}
-    
-    # Test Orphaned Recovery  
+
+    # Test Orphaned Recovery
     try:
         from ..services.recording.orphaned_recovery_service import get_orphaned_recovery_service
         orphaned_service = await get_orphaned_recovery_service()
@@ -451,7 +454,7 @@ async def test_recovery_services():
         }
     except Exception as e:
         results["orphaned_recovery"] = {"available": False, "error": str(e)}
-    
+
     # Test Failed Recovery
     try:
         from ..services.recording.failed_recording_recovery_service import get_failed_recovery_service
@@ -464,7 +467,7 @@ async def test_recovery_services():
         }
     except Exception as e:
         results["failed_recovery"] = {"available": False, "error": str(e)}
-    
+
     return {
         "success": True,
         "services": results,

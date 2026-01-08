@@ -13,7 +13,7 @@ from cachetools import TTLCache
 from sqlalchemy.orm import joinedload
 
 from app.database import SessionLocal
-from app.models import Stream, Recording, StreamMetadata, Streamer, RecordingProcessingState
+from app.models import Stream, StreamMetadata, RecordingProcessingState
 from app.services.media.metadata_service import MetadataService
 from app.services.media.thumbnail_service import ThumbnailService
 from app.services.communication.websocket_manager import websocket_manager
@@ -23,18 +23,19 @@ from app.config.constants import CACHE_CONFIG, ASYNC_DELAYS
 
 logger = logging.getLogger("streamvault")
 
+
 class PostProcessingTaskHandlers:
     """Collection of task handlers for post-processing operations"""
-    
+
     def __init__(self):
         self.metadata_service = MetadataService()
         self.thumbnail_service = ThumbnailService()
         # TTLCache for debouncing broadcasts (prevents memory leaks with automatic expiration)
         self._broadcast_debounce = TTLCache(
-            maxsize=CACHE_CONFIG.SMALL_CACHE_SIZE, 
+            maxsize=CACHE_CONFIG.SMALL_CACHE_SIZE,
             ttl=CACHE_CONFIG.BROADCAST_DEBOUNCE_TTL
         )
-        
+
         # Initialize logging service
         try:
             from app.services.system.logging_service import logging_service
@@ -42,7 +43,7 @@ class PostProcessingTaskHandlers:
         except Exception as e:
             logger.warning(f"Could not initialize logging service: {e}")
             self.logging_service = None
-    
+
     def _check_stream_exists(self, stream_id: int, task_name: str, task_id: str = None) -> Tuple[bool, Optional[Stream]]:
         """
         Check if a stream still exists before processing.
@@ -65,7 +66,7 @@ class PostProcessingTaskHandlers:
         except Exception as e:
             logger.error(f"Error checking stream existence for {task_name}: {e}")
             return False, None
-    
+
     async def handle_metadata_generation(self, payload, progress_callback=None):
         """Handle metadata generation task"""
         # Deep copy payload to avoid accidental mutation across tasks
@@ -82,12 +83,12 @@ class PostProcessingTaskHandlers:
             stream_id=stream_id,
             operation='metadata_generation_start'
         )
-        
+
         # Check if stream still exists before processing
         exists, _ = self._check_stream_exists(stream_id, 'metadata_generation', local_payload.get('task_id'))
         if not exists:
             return {'status': 'skipped', 'reason': 'stream_deleted'}
-        
+
         # Mark running state (best-effort)
         try:
             with SessionLocal() as db:
@@ -213,12 +214,12 @@ class PostProcessingTaskHandlers:
                         self._set_status(db, rec_id, stream_id, 'metadata_generation', 'failed', str(e))
             except Exception as persist_err:
                 logger.debug(f"Could not persist metadata failed status: {persist_err}")
-    
+
     async def handle_chapters_generation(self, payload, progress_callback=None):
         """Handle chapters generation task"""
         stream_id = payload['stream_id']
         mp4_path = payload['mp4_path']
-        
+
         log_with_context(
             logger, 'info',
             f"Starting chapters generation for stream {stream_id}",
@@ -226,12 +227,12 @@ class PostProcessingTaskHandlers:
             stream_id=stream_id,
             operation='chapters_generation_start'
         )
-        
+
         # Check if stream still exists before processing
         exists, _ = self._check_stream_exists(stream_id, 'chapters_generation', payload.get('task_id'))
         if not exists:
             return {'status': 'skipped', 'reason': 'stream_deleted'}
-        
+
         try:
             with SessionLocal() as db:
                 rec_id = payload.get('recording_id')
@@ -239,17 +240,17 @@ class PostProcessingTaskHandlers:
                     self._set_status(db, rec_id, stream_id, 'chapters_generation', 'running')
         except Exception as e:
             logger.debug(f"chapters_generation: failed to mark running: {e}")
-        
+
         try:
             # Generate chapters using metadata service
             chapter_info = await self.metadata_service.ensure_all_chapter_formats(
                 stream_id=stream_id,
                 mp4_path=mp4_path
             )
-            
+
             if not chapter_info:
                 raise Exception("Chapters generation failed")
-                
+
             log_with_context(
                 logger, 'info',
                 f"Chapters generation completed for stream {stream_id}",
@@ -267,7 +268,7 @@ class PostProcessingTaskHandlers:
                         self._set_status(db, rec_id, stream_id, 'chapters_generation', 'completed')
             except Exception as persist_err:
                 logger.debug(f"Could not persist chapters status: {persist_err}")
-            
+
         except Exception as e:
             log_with_context(
                 logger, 'error',
@@ -287,14 +288,14 @@ class PostProcessingTaskHandlers:
             except Exception as persist_err:
                 logger.debug(f"Could not persist chapters failed status: {persist_err}")
             raise
-    
+
     async def handle_mp4_remux(self, payload, progress_callback=None):
         """Handle MP4 remux task"""
         stream_id = payload['stream_id']
         ts_file_path = payload['ts_file_path']
         mp4_output_path = payload['mp4_output_path']
         streamer_name = payload['streamer_name']
-        
+
         log_with_context(
             logger, 'info',
             f"Starting MP4 remux for stream {stream_id}",
@@ -305,12 +306,12 @@ class PostProcessingTaskHandlers:
             operation='mp4_remux_start',
             streamer_name=streamer_name
         )
-        
+
         # Check if stream still exists before processing
         exists, _ = self._check_stream_exists(stream_id, 'mp4_remux', payload.get('task_id'))
         if not exists:
             return {'status': 'skipped', 'reason': 'stream_deleted'}
-        
+
         try:
             with SessionLocal() as db:
                 rec_id = payload.get('recording_id')
@@ -318,7 +319,7 @@ class PostProcessingTaskHandlers:
                     self._set_status(db, rec_id, stream_id, 'mp4_remux', 'running')
         except Exception as e:
             logger.debug(f"mp4_remux: failed to mark running: {e}")
-        
+
         # Log to structured logging service
         if self.logging_service:
             self.logging_service.log_recording_activity(
@@ -326,21 +327,21 @@ class PostProcessingTaskHandlers:
                 streamer_name,
                 f"Remuxing {ts_file_path} to {mp4_output_path}"
             )
-        
+
         try:
             # Check if TS file exists
             if not os.path.exists(ts_file_path):
                 raise Exception(f"TS file not found: {ts_file_path}")
-                
+
             # Get stream metadata for embedding
             with SessionLocal() as db:
                 stream = db.query(Stream).filter(Stream.id == stream_id).first()
                 if not stream:
                     raise Exception(f"Stream {stream_id} not found")
-                
+
                 # Get metadata for embedding
                 metadata = db.query(StreamMetadata).filter(StreamMetadata.stream_id == stream_id).first()
-                
+
                 # Build metadata dict for embedding
                 metadata_dict = {
                     'title': stream.title or f"{streamer_name} Stream",
@@ -350,7 +351,7 @@ class PostProcessingTaskHandlers:
                     'comment': f"Stream by {streamer_name}",
                     'genre': stream.category_name or 'Livestream'
                 }
-                
+
                 # Get chapters if available
                 chapters = None
                 if metadata and metadata.chapters_ffmpeg_path:
@@ -370,21 +371,21 @@ class PostProcessingTaskHandlers:
                                         if '=' in line:
                                             key, value = line.split('=', 1)
                                             chapter_data[key] = value
-                                    
+
                                     if 'START' in chapter_data and 'END' in chapter_data and 'title' in chapter_data:
                                         chapters_list.append({
                                             'start_time': int(chapter_data['START']) / 1000.0,  # Convert ms to seconds
                                             'end_time': int(chapter_data['END']) / 1000.0,
                                             'title': chapter_data['title']
                                         })
-                            
+
                             if chapters_list:
                                 chapters = chapters_list
                                 logger.info(f"Loaded {len(chapters_list)} chapters for embedding")
                     except Exception as e:
                         logger.warning(f"Failed to load chapters from {metadata.chapters_ffmpeg_path}: {e}")
                         chapters = None
-            
+
             # Convert TS to MP4 with metadata
             result = await ffmpeg_utils.embed_metadata_with_ffmpeg_wrapper(
                 input_path=ts_file_path,
@@ -394,14 +395,14 @@ class PostProcessingTaskHandlers:
                 streamer_name=streamer_name,
                 logging_service=self.logging_service
             )
-            
+
             if not result.get('success'):
                 raise Exception(f"MP4 remux failed: {result.get('stderr', 'Unknown error')}")
-                
+
             # Validate MP4 file
             if not await ffmpeg_utils.validate_mp4(mp4_output_path):
                 raise Exception("MP4 validation failed")
-                
+
             # Update Stream.recording_path to the MP4 file
             with SessionLocal() as db:
                 stream = (
@@ -416,7 +417,7 @@ class PostProcessingTaskHandlers:
                     stream.recording_path = mp4_output_path
                     db.commit()
                     logger.info(f"Updated Stream.recording_path for stream {stream_id}: {old_path} -> {mp4_output_path}")
-                    
+
                     # Send WebSocket notification that recording is now available
                     try:
                         # Get streamer info via relationship (already loaded)
@@ -424,6 +425,7 @@ class PostProcessingTaskHandlers:
                         if streamer and websocket_manager:
                             # Send recording available notification
                             import asyncio
+
                             async def send_notification():
                                 await websocket_manager.send_notification({
                                     "type": "recording_available",
@@ -435,20 +437,20 @@ class PostProcessingTaskHandlers:
                                         "title": stream.title
                                     }
                                 })
-                            
+
                             # Run async notification in the event loop
                             try:
-                                loop = asyncio.get_running_loop()
+                                asyncio.get_running_loop()  # Check if loop exists
                                 asyncio.create_task(send_notification())
                             except RuntimeError:
                                 # No running event loop, so create one
                                 asyncio.run(send_notification())
-                                
+
                     except Exception as e:
                         logger.warning(f"Failed to send recording_available WebSocket notification: {e}")
                 else:
                     logger.warning(f"Stream {stream_id} not found for recording_path update")
-                
+
             log_with_context(
                 logger, 'info',
                 f"MP4 remux completed for stream {stream_id}",
@@ -465,7 +467,7 @@ class PostProcessingTaskHandlers:
                         self._set_status(db, rec_id, stream_id, 'mp4_remux', 'completed')
             except Exception as persist_err:
                 logger.debug(f"Could not persist mp4_remux status: {persist_err}")
-            
+
         except Exception as e:
             log_with_context(
                 logger, 'error',
@@ -483,13 +485,12 @@ class PostProcessingTaskHandlers:
             except Exception as persist_err:
                 logger.debug(f"Could not persist mp4_remux failed status: {persist_err}")
             raise
-    
+
     async def handle_thumbnail_generation(self, payload, progress_callback=None):
         """Handle thumbnail generation task"""
         stream_id = payload['stream_id']
         mp4_path = payload['mp4_path']
-        output_dir = payload['output_dir']
-        
+
         log_with_context(
             logger, 'info',
             f"Starting thumbnail generation for stream {stream_id}",
@@ -498,7 +499,7 @@ class PostProcessingTaskHandlers:
             mp4_path=mp4_path,
             operation='thumbnail_generation_start'
         )
-        
+
         # Check if stream still exists before processing
         exists, _ = self._check_stream_exists(stream_id, 'thumbnail_generation', payload.get('task_id'))
         if not exists:
@@ -510,17 +511,17 @@ class PostProcessingTaskHandlers:
                     self._set_status(db, rec_id, stream_id, 'thumbnail_generation', 'running')
         except Exception as e:
             logger.debug(f"thumbnail_generation: failed to mark running: {e}")
-        
+
         try:
             # Generate unified thumbnail from MP4 (only creates -thumb.jpg format)
             thumbnail_path = await self.thumbnail_service.create_unified_thumbnail(
                 stream_id=stream_id,
                 mp4_path=mp4_path
             )
-            
+
             if not thumbnail_path:
                 raise Exception("Thumbnail generation failed")
-                
+
             log_with_context(
                 logger, 'info',
                 f"Thumbnail generation completed for stream {stream_id}",
@@ -537,7 +538,7 @@ class PostProcessingTaskHandlers:
                         self._set_status(db, rec_id, stream_id, 'thumbnail_generation', 'completed')
             except Exception as persist_err:
                 logger.debug(f"Could not persist thumbnail status: {persist_err}")
-            
+
         except Exception as e:
             log_with_context(
                 logger, 'error',
@@ -555,7 +556,7 @@ class PostProcessingTaskHandlers:
             except Exception as persist_err:
                 logger.debug(f"Could not persist thumbnail failed status: {persist_err}")
             raise
-    
+
     async def handle_mp4_validation(self, payload, progress_callback=None):
         """Handle MP4 validation task"""
         stream_id = payload['stream_id']
@@ -563,7 +564,7 @@ class PostProcessingTaskHandlers:
         ts_file_path = payload['ts_file_path']
         validate_size_ratio = payload.get('validate_size_ratio', True)
         min_size_mb = payload.get('min_size_mb', 1)
-        
+
         log_with_context(
             logger, 'info',
             f"Starting MP4 validation for stream {stream_id}",
@@ -572,12 +573,12 @@ class PostProcessingTaskHandlers:
             mp4_path=mp4_path,
             operation='mp4_validation_start'
         )
-        
+
         # Check if stream still exists before processing
         exists, _ = self._check_stream_exists(stream_id, 'mp4_validation', payload.get('task_id'))
         if not exists:
             return {'status': 'skipped', 'reason': 'stream_deleted'}
-        
+
         try:
             with SessionLocal() as db:
                 rec_id = payload.get('recording_id')
@@ -585,36 +586,36 @@ class PostProcessingTaskHandlers:
                     self._set_status(db, rec_id, stream_id, 'mp4_validation', 'running')
         except Exception as e:
             logger.debug(f"mp4_validation: failed to mark running: {e}")
-        
+
         try:
             # Check if MP4 exists
             if not os.path.exists(mp4_path):
                 raise Exception(f"MP4 file not found: {mp4_path}")
-            
+
             # Check MP4 size
             mp4_size = os.path.getsize(mp4_path)
             min_size_bytes = min_size_mb * 1024 * 1024
-            
+
             if mp4_size < min_size_bytes:
                 raise Exception(f"MP4 file too small: {mp4_size} bytes (minimum: {min_size_bytes} bytes)")
-            
+
             # Validate size ratio if requested
             if validate_size_ratio and os.path.exists(ts_file_path):
                 ts_size = os.path.getsize(ts_file_path)
                 if ts_size > 0:
                     size_ratio = mp4_size / ts_size
-                    
+
                     # MP4 should be between 70% and 110% of TS size
                     if size_ratio < 0.7:
                         raise Exception(f"MP4 file too small compared to TS - Ratio: {size_ratio:.2f}")
                     elif size_ratio > 1.1:
                         logger.warning(f"MP4 file larger than TS - Ratio: {size_ratio:.2f} (this is usually okay)")
-            
+
             # Use FFmpeg utils validation
             is_valid = await ffmpeg_utils.validate_mp4(mp4_path)
             if not is_valid:
                 raise Exception("MP4 validation failed - file may be corrupted")
-            
+
             log_with_context(
                 logger, 'info',
                 f"MP4 validation completed for stream {stream_id}",
@@ -630,7 +631,7 @@ class PostProcessingTaskHandlers:
                         self._set_status(db, rec_id, stream_id, 'mp4_validation', 'completed')
             except Exception as persist_err:
                 logger.debug(f"Could not persist mp4_validation status: {persist_err}")
-            
+
         except Exception as e:
             log_with_context(
                 logger, 'error',
@@ -652,7 +653,7 @@ class PostProcessingTaskHandlers:
     async def handle_cleanup(self, payload, progress_callback=None):
         """Handle cleanup task with intelligent TS cleanup or stream deletion cleanup"""
         stream_id = payload['stream_id']
-        
+
         # Handle both post-processing cleanup and stream deletion cleanup
         if 'cleanup_paths' in payload:
             # Stream deletion cleanup - delete everything without validation
@@ -666,24 +667,24 @@ class PostProcessingTaskHandlers:
             mp4_path = payload['mp4_path']
             intelligent_cleanup = payload.get('intelligent_cleanup', False)
             is_deletion_cleanup = False
-        
+
         max_wait_time = payload.get('max_wait_time', 300)  # 5 minutes default
         streamer_name = payload.get('streamer_name', f'stream_{stream_id}')
-        
+
         # Validate that files_to_remove is a list
         if not isinstance(files_to_remove, list):
             logger.warning(f"files_to_remove is not a list: {type(files_to_remove)}, converting to list")
             files_to_remove = [files_to_remove] if files_to_remove else []
-        
+
         # For post-processing cleanup, validate MP4 file exists early (fail fast)
         if not is_deletion_cleanup:
             if not mp4_path or not os.path.exists(mp4_path):
                 raise Exception("MP4 file not found, not removing source files")
-            
+
             mp4_size = os.path.getsize(mp4_path)
             if mp4_size < 1024 * 1024:  # Less than 1MB
                 raise Exception(f"MP4 file too small ({mp4_size} bytes), not removing source files")
-        
+
         log_with_context(
             logger, 'info',
             f"Starting {'deletion' if is_deletion_cleanup else 'post-processing'} cleanup for stream {stream_id}",
@@ -703,7 +704,7 @@ class PostProcessingTaskHandlers:
                         self._set_status(db, rec_id, stream_id, 'cleanup', 'running')
         except Exception as e:
             logger.debug(f"cleanup: failed to mark running: {e}")
-        
+
         # Log to structured logging service
         if self.logging_service:
             cleanup_type = "DELETION_CLEANUP" if is_deletion_cleanup else "POST_PROCESSING_CLEANUP"
@@ -712,7 +713,7 @@ class PostProcessingTaskHandlers:
                 streamer_name,
                 f"Cleaning up {len(files_to_remove)} files for stream {stream_id}"
             )
-        
+
         try:
             removed_files = []
             for file_path in files_to_remove:
@@ -743,7 +744,7 @@ class PostProcessingTaskHandlers:
                         logger.warning(f"Failed to remove {file_path}: {e}")
                 else:
                     logger.debug(f"🧹 CLEANUP_SKIP_MISSING: path={file_path}")
-            
+
             log_with_context(
                 logger, 'info',
                 f"{'Deletion' if is_deletion_cleanup else 'Post-processing'} cleanup completed for stream {stream_id}",
@@ -762,7 +763,7 @@ class PostProcessingTaskHandlers:
                             self._set_status(db, rec_id, stream_id, 'cleanup', 'completed')
             except Exception as persist_err:
                 logger.debug(f"Could not persist cleanup status: {persist_err}")
-            
+
             # Trigger database event for orphaned recovery after cleanup completion (only for post-processing)
             if not is_deletion_cleanup:
                 try:
@@ -772,7 +773,7 @@ class PostProcessingTaskHandlers:
                         await on_post_processing_completed(recording_id, "cleanup")
                 except Exception as e:
                     logger.debug(f"Could not trigger database event for orphaned recovery: {e}")
-                
+
         except Exception as e:
             log_with_context(
                 logger, 'error',
@@ -792,54 +793,53 @@ class PostProcessingTaskHandlers:
             except Exception as persist_err:
                 logger.debug(f"Could not persist cleanup failed status: {persist_err}")
             raise
-    
+
     async def _intelligent_ts_cleanup(self, ts_path: str, mp4_path: str, max_wait_time: int):
         """Intelligent TS cleanup that waits for processes to finish"""
         try:
             # Use the intelligent cleanup from file_operations
             from app.services.recording.file_operations import intelligent_ts_cleanup
-            
+
             # Check if psutil is available for process monitoring
             psutil_available = False
             try:
-                import psutil
                 psutil_available = True
             except ImportError:
                 pass
-            
+
             # Run intelligent cleanup
             await intelligent_ts_cleanup(ts_path, max_wait_time, psutil_available)
-            
+
         except Exception as e:
             # Fallback to simple removal if intelligent cleanup fails
             logger.warning(f"Intelligent cleanup failed, falling back to simple removal: {e}")
             if os.path.exists(ts_path):
                 os.remove(ts_path)
-    
+
     async def handle_unified_recovery(self, payload, progress_callback=None):
         """Handle unified recovery scan task - runs in background to prevent frontend blocking"""
         max_age_hours = payload.get('max_age_hours', 72)
         dry_run = payload.get('dry_run', False)
-        
+
         log_with_context(
             logger, 'info',
             f"Starting unified recovery scan (max_age={max_age_hours}h, dry_run={dry_run})",
             task_id=payload.get('task_id'),
             operation='unified_recovery_start'
         )
-        
+
         try:
             from app.services.recording.unified_recovery_service import get_unified_recovery_service
-            
+
             # Get the unified recovery service
             recovery_service = await get_unified_recovery_service()
-            
+
             # Run comprehensive recovery scan
             stats = await recovery_service.comprehensive_recovery_scan(
                 max_age_hours=max_age_hours,
                 dry_run=dry_run
             )
-            
+
             log_with_context(
                 logger, 'info',
                 f"Unified recovery completed: orphaned={stats.orphaned_segments}, "
@@ -849,7 +849,7 @@ class PostProcessingTaskHandlers:
                 operation='unified_recovery_complete',
                 stats=vars(stats)
             )
-            
+
         except Exception as e:
             log_with_context(
                 logger, 'error',
@@ -860,7 +860,7 @@ class PostProcessingTaskHandlers:
             )
             # Don't raise - recovery failures shouldn't crash the background queue
             logger.exception("Full error details:")
-    
+
     async def cleanup(self):
         """Clean up services"""
         await self.metadata_service.close()
@@ -984,13 +984,14 @@ class PostProcessingTaskHandlers:
                 async def send_once():
                     await websocket_manager.send_notification(snapshot)
                 try:
-                    loop = asyncio.get_running_loop()
+                    asyncio.get_running_loop()  # Check if loop exists
                     asyncio.create_task(send_once())
                 except RuntimeError:
                     pass
                 return
             # Store/overwrite pending snapshot
             self._broadcast_debounce[rec_id] = snapshot
+
             async def delayed_send(recording_id: int):
                 # small delay to coalesce rapid updates
                 await asyncio.sleep(ASYNC_DELAYS.POST_PROCESSING_DELAY)
@@ -1002,19 +1003,20 @@ class PostProcessingTaskHandlers:
                         # Clear after send
                         self._broadcast_debounce.pop(recording_id, None)
             try:
-                loop = asyncio.get_running_loop()
+                asyncio.get_running_loop()  # Verify loop exists
                 asyncio.create_task(delayed_send(rec_id))
             except RuntimeError:
                 # No running loop; skip debounce
                 async def send_fallback():
                     await websocket_manager.send_notification(snapshot)
                 try:
-                    loop = asyncio.get_running_loop()
+                    asyncio.get_running_loop()  # Check if loop exists
                     asyncio.create_task(send_fallback())
                 except RuntimeError:
                     pass
         except Exception as e:
             logger.debug(f"_broadcast_processing_status failed for stream {stream_id}: {e}")
+
 
 # Global instance
 post_processing_task_handlers = PostProcessingTaskHandlers()

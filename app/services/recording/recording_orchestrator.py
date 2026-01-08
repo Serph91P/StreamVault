@@ -6,7 +6,6 @@ Central coordinator that uses all other refactored services for recording operat
 """
 
 import logging
-import asyncio
 from typing import Dict, Any, Optional, List
 # websocket_manager will be imported when needed to avoid circular imports
 from .recording_database_service import RecordingDatabaseService
@@ -30,11 +29,11 @@ logger = logging.getLogger("streamvault")
 
 class RecordingOrchestrator:
     """Central coordinator for all recording operations"""
-    
+
     def __init__(self, db=None):
         # Initialize existing managers
         self.config_manager = ConfigManager()
-        
+
         # Initialize refactored services first (needed for callback)
         self.database_service = RecordingDatabaseService(db)
         self.state_manager = RecordingStateManager(self.config_manager)
@@ -44,7 +43,7 @@ class RecordingOrchestrator:
         self.post_processing_coordinator = PostProcessingCoordinator(
             self.config_manager, self.websocket_service
         )
-        
+
         # Create post-processing callback for ProcessManager dependency injection
         async def post_processing_callback(recording_id: int, file_path: str):
             """Callback for ProcessManager to trigger post-processing"""
@@ -58,7 +57,7 @@ class RecordingOrchestrator:
                         status="completed",
                         path=file_path
                     )
-                    
+
                     # Get additional data needed for post-processing
                     stream_data = await self.database_service.get_stream_by_id(recording_data.stream_id)
                     if stream_data:
@@ -71,7 +70,7 @@ class RecordingOrchestrator:
                                 'stream_id': stream_data.id,
                                 'recording_id': recording_id
                             }
-                            
+
                             # Use the post-processing coordinator
                             await self.post_processing_coordinator.enqueue_post_processing(
                                 recording_id, file_path, recording_data_dict
@@ -85,18 +84,18 @@ class RecordingOrchestrator:
                     logger.error(f"Recording data not found for recording {recording_id}")
             except Exception as e:
                 logger.error(f"Error in post-processing callback: {e}", exc_info=True)
-        
+
         # Initialize ProcessManager with the post-processing callback
         self.process_manager = ProcessManager(
             config_manager=self.config_manager,
             post_processing_callback=post_processing_callback
         )
-        
+
         # Initialize remaining managers
         self.recording_logger = RecordingLogger(config_manager=self.config_manager)
         self.notification_manager = NotificationManager(config_manager=self.config_manager)
         self.stream_info_manager = StreamInfoManager(config_manager=self.config_manager)
-        
+
         self.lifecycle_manager = RecordingLifecycleManager(
             config_manager=self.config_manager,
             process_manager=self.process_manager,
@@ -105,7 +104,7 @@ class RecordingOrchestrator:
             state_manager=self.state_manager,
             recording_logger=self.recording_logger
         )
-        
+
         # Initialize logging service
         try:
             from app.services.system.logging_service import logging_service
@@ -188,18 +187,18 @@ class RecordingOrchestrator:
         """Stop all active recordings"""
         active_recordings = self.state_manager.get_active_recordings()
         stopped_recordings = []
-        
+
         for recording_id in active_recordings:
             success = await self.stop_recording(recording_id, reason="cleanup")
             if success:
                 stopped_recordings.append(recording_id)
-        
+
         return stopped_recordings
 
     def get_recording_statistics(self) -> Dict[str, Any]:
         """Get comprehensive recording statistics"""
         base_stats = self.state_manager.get_recording_statistics()
-        
+
         # Add additional statistics
         base_stats.update({
             'service_status': {
@@ -209,31 +208,31 @@ class RecordingOrchestrator:
                 'lifecycle_manager': not self.lifecycle_manager.is_shutting_down()
             }
         })
-        
+
         return base_stats
 
     # Shutdown methods
 
     async def graceful_shutdown(self, timeout: int | None = None) -> None:
         """Gracefully shutdown all recording operations
-        
+
         Args:
             timeout: Optional timeout hint (seconds) for terminating subprocesses.
         """
         logger.info("Starting graceful shutdown of recording orchestrator")
-        
+
         # Shutdown lifecycle manager (handles active recordings)
         await self.lifecycle_manager.graceful_shutdown(timeout=timeout)
-        
+
         # Save state to persistence
         await self.state_manager.save_state_to_persistence()
-        
+
         # Close database session
         self.database_service.close_session()
-        
+
         # Clear all state
         self.state_manager.clear_all_state()
-        
+
         logger.info("Recording orchestrator shutdown complete")
 
     def is_shutting_down(self) -> bool:

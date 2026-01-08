@@ -19,29 +19,29 @@ logger = logging.getLogger("streamvault")
 async def handle_orphaned_recovery_check(task_data: Dict[str, Any]) -> Dict[str, Any]:
     """
     Handle background orphaned recovery check task
-    
+
     Args:
         task_data: Dict containing:
             - max_age_hours: int - Maximum age of recordings to check
             - trigger_reason: str - Reason for the check
-    
+
     Returns:
         Dict with task result
     """
     try:
         max_age_hours = task_data.get("max_age_hours", 48)
         trigger_reason = task_data.get("trigger_reason", "background_check")
-        
+
         logger.info(f"🔍 ORPHANED_RECOVERY_CHECK_START: max_age={max_age_hours}h, reason={trigger_reason}")
-        
+
         # PRODUCTION FIX: Check if too many orphaned checks are already running
         from app.services.background_queue_service import get_background_queue_service
         queue_service = get_background_queue_service()
         if queue_service:
             active_tasks = queue_service.get_active_tasks()
-            orphaned_check_count = sum(1 for task in active_tasks.values() 
-                                     if task.task_type == 'orphaned_recovery_check')
-            
+            orphaned_check_count = sum(1 for task in active_tasks.values()
+                                       if task.task_type == 'orphaned_recovery_check')
+
             if orphaned_check_count > MAX_CONCURRENT_ORPHANED_CHECKS:  # Limit to max 3 concurrent orphaned checks
                 logger.warning(f"🔍 ORPHANED_RECOVERY_CHECK_SKIP: Too many orphaned checks running ({orphaned_check_count}), skipping this one")
                 return {
@@ -50,26 +50,26 @@ async def handle_orphaned_recovery_check(task_data: Dict[str, Any]) -> Dict[str,
                     "recovery_triggered": 0,
                     "message": f"Skipped - too many orphaned checks running ({orphaned_check_count})"
                 }
-        
+
         # Import the orphaned recovery service
         from app.services.recording.orphaned_recovery_service import get_orphaned_recovery_service
-        
+
         recovery_service = await get_orphaned_recovery_service()
-        
+
         # Get statistics first
         stats = await recovery_service.get_orphaned_statistics(max_age_hours=max_age_hours)
-        
+
         if stats.get("total_orphaned", 0) == 0:
-            logger.debug(f"🔍 ORPHANED_RECOVERY_CHECK: No orphaned recordings found")
+            logger.debug("🔍 ORPHANED_RECOVERY_CHECK: No orphaned recordings found")
             return {
                 "success": True,
                 "orphaned_found": 0,
                 "recovery_triggered": 0,
                 "message": "No orphaned recordings found"
             }
-        
+
         logger.info(f"🔍 ORPHANED_RECOVERY_CHECK: Found {stats['total_orphaned']} orphaned recordings")
-        
+
         # PRODUCTION FIX: Add timeout for orphaned recovery to prevent hanging
         import asyncio
         try:
@@ -82,7 +82,7 @@ async def handle_orphaned_recovery_check(task_data: Dict[str, Any]) -> Dict[str,
                 timeout=ORPHANED_RECOVERY_TIMEOUT_SECONDS  # 2 minutes timeout
             )
         except asyncio.TimeoutError:
-            logger.warning(f"🔍 ORPHANED_RECOVERY_CHECK_TIMEOUT: Recovery check timed out after 2 minutes")
+            logger.warning("🔍 ORPHANED_RECOVERY_CHECK_TIMEOUT: Recovery check timed out after 2 minutes")
             return {
                 "success": False,
                 "orphaned_found": stats.get("total_orphaned", 0),
@@ -90,9 +90,9 @@ async def handle_orphaned_recovery_check(task_data: Dict[str, Any]) -> Dict[str,
                 "message": "Orphaned recovery check timed out",
                 "error": "timeout"
             }
-        
+
         logger.info(f"🔍 ORPHANED_RECOVERY_CHECK_COMPLETE: {result['recovery_triggered']} recoveries triggered")
-        
+
         # Send notification if significant number of orphaned recordings were found
         if result["recovery_triggered"] > 0:
             try:
@@ -109,7 +109,7 @@ async def handle_orphaned_recovery_check(task_data: Dict[str, Any]) -> Dict[str,
                     })
             except Exception as e:
                 logger.debug(f"Could not send WebSocket notification: {e}")
-        
+
         return {
             "success": True,
             "orphaned_found": stats.get("total_orphaned", 0),
@@ -118,7 +118,7 @@ async def handle_orphaned_recovery_check(task_data: Dict[str, Any]) -> Dict[str,
             "statistics": stats,
             "recovery_result": result
         }
-        
+
     except Exception as e:
         logger.error(f"🔍 ORPHANED_RECOVERY_CHECK_ERROR: {e}", exc_info=True)
         return {

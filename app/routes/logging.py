@@ -1,12 +1,9 @@
 from fastapi import APIRouter, HTTPException, Query, Response
-from typing import Optional, List
-import os
 import logging
 from datetime import datetime
-from pathlib import Path
 
 from app.services.system.logging_service import logging_service
-from app.schemas.logging import LoggingSettingsSchema, LogsListSchema, LogFileSchema
+from app.schemas.logging import LogsListSchema, LogFileSchema
 
 router = APIRouter(prefix="/logging", tags=["logging"])
 logger = logging.getLogger("streamvault")
@@ -124,8 +121,8 @@ async def download_log_file(log_type: str, filename: str):
 
 @router.get("/files/{log_type}/{filename}/tail")
 async def tail_log_file(
-    log_type: str, 
-    filename: str, 
+    log_type: str,
+    filename: str,
     lines: int = Query(100, description="Number of lines to return", ge=1, le=10000)
 ):
     """Get the last N lines of a log file"""

@@ -6,7 +6,7 @@ to maintain backward compatibility while the codebase migrates to the new struct
 
 Original God Class (527 lines) split into:
 - NotificationDispatcher: Main coordination
-- ExternalNotificationService: Apprise-based notifications  
+- ExternalNotificationService: Apprise-based notifications
 - PushNotificationService: Browser push notifications
 - NotificationFormatter: Message formatting
 """
@@ -21,7 +21,7 @@ logger = logging.getLogger("streamvault")
 
 class NotificationService:
     """Backward compatibility wrapper for the refactored notification services"""
-    
+
     def __init__(self, websocket_manager: Optional[ConnectionManager] = None):
         self.dispatcher = NotificationDispatcher(websocket_manager)
         # Legacy properties for compatibility
@@ -56,9 +56,9 @@ class NotificationService:
             streamer_name, event_type, details
         )
 
-    def _get_service_specific_url(self, base_url: str, twitch_url: str, profile_image: str, 
-                                 streamer_name: str, event_type: str, 
-                                 original_image_url: Optional[str] = None) -> str:
+    def _get_service_specific_url(self, base_url: str, twitch_url: str, profile_image: str,
+                                  streamer_name: str, event_type: str,
+                                  original_image_url: Optional[str] = None) -> str:
         """Get service-specific URL - legacy method"""
         return self.dispatcher.external_service._get_service_specific_url(
             base_url, twitch_url, profile_image, streamer_name, event_type, original_image_url

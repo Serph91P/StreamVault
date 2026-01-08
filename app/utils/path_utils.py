@@ -1,10 +1,7 @@
 """Path utility functions for StreamVault."""
-import os
-import re
 import logging
-from pathlib import Path
 from datetime import datetime
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 from sqlalchemy import extract
 from app.database import SessionLocal
 from app.utils import async_file
@@ -21,28 +18,29 @@ FILENAME_PRESETS = {
     "chronological": "{year}/{month}/{day}/{streamer} - E{episode:02d} - {title} - {hour}-{minute}"
 }
 
+
 async def get_episode_number(streamer_id: int, now: datetime) -> str:
     """
     Get episode number (count of streams in current month).
-    
+
     This method finds the highest existing episode number for the current month
     and adds 1, rather than just counting all streams. This prevents issues
     when streams are deleted from the filesystem but remain in the database.
-    
+
     Args:
         streamer_id: ID of the streamer
         now: Current datetime
-        
+
     Returns:
         Episode number as a two-digit string
     """
     try:
         from app.models import Stream
-        
+
         with SessionLocal() as db:
             # Find the highest episode number for the current month using database storage
             max_episode_num = 0
-            
+
             # Try to use episode_number column if it exists
             try:
                 max_episode = (
@@ -56,18 +54,18 @@ async def get_episode_number(streamer_id: int, now: datetime) -> str:
                     .order_by(Stream.episode_number.desc())
                     .first()
                 )
-                
+
                 max_episode_num = max_episode[0] if max_episode else 0
             except Exception as e:
                 # If episode_number column doesn't exist, fall back to old method
                 logger.debug(f"episode_number column not available, using fallback method: {e}")
                 max_episode_num = 0
-            
+
             # If no database episode numbers found, try to extract from existing recording paths as fallback
             if max_episode_num == 0:
                 # Look in Recording table instead of Stream table for recording paths
                 from app.models import Recording
-                
+
                 recordings = (
                     db.query(Recording)
                     .join(Stream, Recording.stream_id == Stream.id)
@@ -80,9 +78,9 @@ async def get_episode_number(streamer_id: int, now: datetime) -> str:
                     .order_by(Recording.start_time.desc())
                     .all()
                 )
-                
+
                 current_month_year = f"{now.year}{now.month:02d}"
-                
+
                 for recording in recordings:
                     if recording.path and "S" in recording.path and "E" in recording.path:
                         try:
@@ -94,21 +92,21 @@ async def get_episode_number(streamer_id: int, now: datetime) -> str:
                                 max_episode_num = max(max_episode_num, episode_num)
                         except (ValueError, AttributeError):
                             continue
-                
+
                 # If still no episodes found, also check filesystem for safety
                 if max_episode_num == 0:
                     try:
                         from app.config.settings import get_settings
                         settings = get_settings()
                         output_directory = getattr(settings, 'output_directory', '/recordings')
-                        
+
                         # Get streamer name
                         from app.models import Streamer
                         streamer = db.query(Streamer).filter(Streamer.id == streamer_id).first()
                         if streamer:
                             streamer_dir = await async_file.join(output_directory, streamer.username)
                             season_dir = await async_file.join(streamer_dir, f"Season {now.year}-{now.month:02d}")
-                            
+
                             if await async_file.exists(season_dir):
                                 import re
                                 for filename in await async_file.listdir(season_dir):
@@ -118,10 +116,10 @@ async def get_episode_number(streamer_id: int, now: datetime) -> str:
                                         max_episode_num = max(max_episode_num, episode_num)
                     except Exception as fs_error:
                         logger.debug(f"Could not check filesystem for episodes: {fs_error}")
-            
+
             # Next episode number
             episode_number = max_episode_num + 1
-            
+
             logger.debug(
                 f"Episode number for streamer {streamer_id} in {now.year}-{now.month:02d}: {episode_number} (max existing: {max_episode_num})"
             )
@@ -131,23 +129,24 @@ async def get_episode_number(streamer_id: int, now: datetime) -> str:
         logger.error(f"Error getting episode number: {e}", exc_info=True)
         return "01"  # Default value
 
+
 async def generate_filename(
     streamer: Any, stream_data: Dict[str, Any], template: str, sanitize_func=None
 ) -> str:
     """
     Generate a filename from template with variables.
-    
+
     Args:
         streamer: Streamer object
         stream_data: Stream data dictionary
         template: Filename template
         sanitize_func: Optional function to sanitize filenames
-        
+
     Returns:
         Generated filename
     """
     from app.utils.file_utils import sanitize_filename as default_sanitize
-    
+
     sanitize = sanitize_func or default_sanitize
     now = datetime.now()
 
@@ -182,7 +181,7 @@ async def generate_filename(
     # Check if template is a preset name
     if template in FILENAME_PRESETS:
         template = FILENAME_PRESETS[template]
-        
+
     # Use Python's format string system for replacements
     # This allows for complex formatting like {episode:02d}
     filename = template  # Initialize filename variable
@@ -226,17 +225,18 @@ async def generate_filename(
         filename += ".mp4"
     return filename
 
+
 async def update_recording_path(stream_id: int, new_path: str):
     """
     Update the recording path for a stream after media server structure creation.
-    
+
     Args:
         stream_id: ID of the stream
         new_path: New path for the recording
     """
     try:
         from app.models import Stream
-        
+
         with SessionLocal() as db:
             stream = db.query(Stream).filter(Stream.id == stream_id).first()
             if stream:
@@ -249,17 +249,18 @@ async def update_recording_path(stream_id: int, new_path: str):
     except Exception as e:
         logger.error(f"Error updating recording_path for stream {stream_id}: {e}", exc_info=True)
 
+
 async def update_episode_number(stream_id: int, episode_number: int):
     """
     Update the episode number for a stream.
-    
+
     Args:
         stream_id: ID of the stream
         episode_number: Episode number to set
     """
     try:
         from app.models import Stream
-        
+
         with SessionLocal() as db:
             stream = db.query(Stream).filter(Stream.id == stream_id).first()
             if stream:

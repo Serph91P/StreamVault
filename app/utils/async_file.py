@@ -6,7 +6,7 @@ import asyncio
 import os
 import shutil
 from pathlib import Path
-from typing import Optional, Union, List
+from typing import Union, List
 
 
 async def exists(path: Union[str, Path]) -> bool:
@@ -36,7 +36,7 @@ async def mkdir(path: Union[str, Path], parents: bool = True, exist_ok: bool = T
             Path(path).mkdir(parents=parents, exist_ok=exist_ok)
         else:
             path.mkdir(parents=parents, exist_ok=exist_ok)
-    
+
     await asyncio.to_thread(_mkdir)
 
 
@@ -57,7 +57,7 @@ async def unlink(path: Union[str, Path]) -> None:
             Path(path).unlink()
         else:
             path.unlink()
-    
+
     await asyncio.to_thread(_unlink)
 
 

@@ -7,13 +7,12 @@ to maintain backward compatibility while the codebase migrates to the new struct
 Original God Class (728 lines) split into:
 - ImageDownloadService: HTTP download operations and session management
 - ProfileImageService: Streamer profile image management
-- CategoryImageService: Category/game image management  
+- CategoryImageService: Category/game image management
 - StreamArtworkService: Stream artwork/thumbnail management
 """
 
 import logging
-from pathlib import Path
-from typing import Dict, List, Optional, Any, Set
+from typing import Dict, List, Optional, Any
 from app.services.images import (
     ImageDownloadService,
     ProfileImageService,
@@ -27,7 +26,7 @@ logger = logging.getLogger("streamvault")
 
 class UnifiedImageService:
     """Backward compatibility wrapper for the refactored image services"""
-    
+
     def __init__(self):
         # Initialize the refactored services
         self.download_service = ImageDownloadService()
@@ -35,7 +34,7 @@ class UnifiedImageService:
         self.banner_service = BannerImageService(self.download_service)
         self.category_service = CategoryImageService(self.download_service)
         self.artwork_service = StreamArtworkService(self.download_service)
-        
+
         # Legacy properties for compatibility
         self.session = self.download_service.session
         self._initialized = True
@@ -47,7 +46,7 @@ class UnifiedImageService:
         self._profile_cache = self.profile_service._profile_cache
         self._category_cache = self.category_service._category_cache
         self._failed_downloads = self.download_service._failed_downloads
-        
+
         # Initialize directories for legacy compatibility
         self._setup_legacy_properties()
 
@@ -64,7 +63,6 @@ class UnifiedImageService:
 
     def _ensure_initialized(self):
         """Legacy method - already initialized"""
-        pass
 
     async def _get_session(self):
         """Legacy method - get HTTP session"""
@@ -76,7 +74,6 @@ class UnifiedImageService:
 
     def _load_existing_cache(self):
         """Legacy method - already loaded"""
-        pass
 
     def _filename_to_category(self, filename: str) -> Optional[str]:
         """Legacy method"""
@@ -91,7 +88,7 @@ class UnifiedImageService:
         return self.download_service.create_filename_hash(url)
 
     # Profile Image Methods (delegate to ProfileImageService)
-    
+
     async def download_profile_image(self, streamer_id: int, profile_image_url: str) -> Optional[str]:
         """Download and cache a streamer's profile image"""
         return await self.profile_service.download_profile_image(streamer_id, profile_image_url)
@@ -106,7 +103,7 @@ class UnifiedImageService:
         cached_url = self.profile_service.get_cached_profile_image(streamer_id)
         if cached_url:
             return cached_url
-        
+
         # If no cached image and original_url provided, return original
         return original_url
 
@@ -119,7 +116,7 @@ class UnifiedImageService:
         return await self.profile_service.sync_all_profile_images()
 
     # Category Image Methods (delegate to CategoryImageService)
-    
+
     async def download_category_image(self, category_name: str, box_art_url: Optional[str] = None) -> Optional[str]:
         """Download and cache a category's box art image"""
         # If no box_art_url provided, try to get it from database
@@ -133,7 +130,7 @@ class UnifiedImageService:
                 else:
                     logger.warning(f"No box_art_url found for category: {category_name}")
                     return None
-        
+
         # Type guard to satisfy type checker and ensure valid URL
         if not box_art_url or not isinstance(box_art_url, str):
             return None
@@ -160,7 +157,7 @@ class UnifiedImageService:
         return await self.category_service.bulk_sync_categories(category_data)
 
     # Stream Artwork Methods (delegate to StreamArtworkService)
-    
+
     async def download_stream_artwork(self, stream_id: int, streamer_id: int, thumbnail_url: str) -> Optional[str]:
         """Download and cache stream artwork"""
         return await self.artwork_service.download_stream_artwork(stream_id, streamer_id, thumbnail_url)
@@ -184,7 +181,7 @@ class UnifiedImageService:
         return await self.artwork_service.bulk_download_artwork(artwork_data)
 
     # Banner Image Methods (delegate to BannerImageService)
-    
+
     async def download_banner_image(self, streamer_id: int, offline_image_url: str) -> Optional[str]:
         """Download and cache a streamer's banner image"""
         return await self.banner_service.download_banner_image(streamer_id, offline_image_url)
@@ -206,30 +203,30 @@ class UnifiedImageService:
         return await self.banner_service.sync_all_banner_images()
 
     # Statistics and Maintenance Methods
-    
+
     def get_cache_stats(self) -> Dict[str, Any]:
         """Get comprehensive cache statistics"""
         profile_stats = self.profile_service.get_profile_cache_stats()
         banner_stats = self.banner_service.get_banner_cache_stats()
         category_stats = self.category_service.get_category_cache_stats()
         artwork_stats = self.artwork_service.get_artwork_cache_stats()
-        
+
         return {
             "profiles": profile_stats,
             "banners": banner_stats,
             "categories": category_stats,
             "artwork": artwork_stats,
             "total_cached": (
-                profile_stats.get("cached_profiles", 0) +
-                banner_stats.get("cached_banners", 0) +
-                category_stats.get("cached_categories", 0) +
-                artwork_stats.get("cached_artworks", 0)
+                profile_stats.get("cached_profiles", 0)
+                + banner_stats.get("cached_banners", 0)
+                + category_stats.get("cached_categories", 0)
+                + artwork_stats.get("cached_artworks", 0)
             ),
             "total_failed": (
-                profile_stats.get("failed_downloads", 0) +
-                banner_stats.get("failed_downloads", 0) +
-                category_stats.get("failed_downloads", 0) +
-                artwork_stats.get("failed_downloads", 0)
+                profile_stats.get("failed_downloads", 0)
+                + banner_stats.get("failed_downloads", 0)
+                + category_stats.get("failed_downloads", 0)
+                + artwork_stats.get("failed_downloads", 0)
             )
         }
 
@@ -239,7 +236,7 @@ class UnifiedImageService:
         banner_cleaned = await self.banner_service.cleanup_unused_banner_images()
         category_cleaned = await self.category_service.cleanup_unused_category_images()
         artwork_cleaned = await self.artwork_service.cleanup_unused_artwork()
-        
+
         return {
             "profiles_cleaned": profile_cleaned,
             "banners_cleaned": banner_cleaned,
@@ -253,14 +250,14 @@ class UnifiedImageService:
         return await self.artwork_service.cleanup_old_artwork(days_old)
 
     # Legacy bulk methods for compatibility
-    
+
     async def bulk_download_from_db(self) -> Dict[str, Dict[str, int]]:
         """Legacy method - bulk download all images from database"""
         profile_stats = await self.sync_all_profile_images()
         banner_stats = await self.sync_all_banner_images()
         category_stats = await self.sync_all_category_images()
         artwork_stats = await self.sync_stream_artwork()
-        
+
         return {
             "profiles": profile_stats,
             "banners": banner_stats,
@@ -273,31 +270,31 @@ class UnifiedImageService:
         return await self.bulk_download_from_db()
 
     # Missing methods found in usage analysis
-    
+
     async def cleanup_orphaned_images(self) -> Dict[str, int]:
         """Legacy method - cleanup orphaned images"""
         return await self.cleanup_unused_images()
-    
+
     async def cleanup_old_images(self, days_old: int = 30) -> int:
         """Legacy method - cleanup old images"""
         return await self.cleanup_old_artwork(days_old)
-    
+
     def get_stats(self) -> Dict[str, Any]:
         """Legacy method - get image cache statistics"""
         return self.get_cache_stats()
-    
+
     async def get_missing_images_report(self) -> Dict[str, Any]:
         """Generate report of missing images"""
         from app.database import SessionLocal
         from app.models import Streamer, Category
-        
+
         missing_report = {
             "missing_profiles": 0,
             "missing_categories": 0,
             "total_streamers": 0,
             "total_categories": 0
         }
-        
+
         with SessionLocal() as db:
             # Check missing profile images
             streamers = db.query(Streamer).all()
@@ -305,16 +302,16 @@ class UnifiedImageService:
                 missing_report["total_streamers"] += 1
                 if not self.get_cached_profile_image(streamer.id):
                     missing_report["missing_profiles"] += 1
-            
+
             # Check missing category images
             categories = db.query(Category).all()
             for category in categories:
                 missing_report["total_categories"] += 1
                 if not self.get_cached_category_image(category.name):
                     missing_report["missing_categories"] += 1
-        
+
         return missing_report
-    
+
     async def preload_categories(self, category_names: list) -> Dict[str, int]:
         """Preload category images for given category names"""
         return await self.bulk_sync_categories([

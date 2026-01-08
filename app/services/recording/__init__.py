@@ -5,7 +5,7 @@ Contains all recording-related services and managers:
 
 Original focused managers:
 - ConfigManager: Configuration management
-- ProcessManager: Process execution management  
+- ProcessManager: Process execution management
 - RecordingLogger: Recording event logging
 - NotificationManager: Notification handling
 - StreamInfoManager: Stream metadata management
@@ -45,7 +45,7 @@ __all__ = [
     'RecordingService',
     # Refactored services
     'RecordingOrchestrator',
-    'RecordingStateManager', 
+    'RecordingStateManager',
     'RecordingDatabaseService',
     'RecordingWebSocketService',
     'PostProcessingCoordinator',

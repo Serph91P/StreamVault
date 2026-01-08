@@ -12,6 +12,7 @@ logger = logging.getLogger("streamvault")
 
 ph = PasswordHasher()
 
+
 class AuthService:
     def __init__(self, db: DBSession):
         self.db = db
@@ -54,7 +55,7 @@ class AuthService:
             session = self.db.query(Session).filter_by(token=token).first()
             if not session:
                 return False
-                
+
             # Check if session is expired (production fix for multi-user auth issues)
             cutoff_time = datetime.now(timezone.utc) - timedelta(hours=self.session_timeout_hours)
             if session.created_at < cutoff_time:
@@ -63,9 +64,9 @@ class AuthService:
                 self.db.commit()
                 logger.debug(f"Removed expired session for token {token[:10]}...")
                 return False
-                
+
             return True
-            
+
         except Exception as e:
             logger.error(f"Error validating session: {e}")
             return False
@@ -94,27 +95,27 @@ class AuthService:
             logger.error(f"Error refreshing session: {e}")
             self.db.rollback()
             return False
-    
+
     async def cleanup_expired_sessions(self) -> int:
         """Clean up expired sessions (can be called periodically)"""
         try:
             cutoff_time = datetime.now(timezone.utc) - timedelta(hours=self.session_timeout_hours)
-            
+
             expired_sessions = self.db.query(Session).filter(
                 Session.created_at < cutoff_time
             ).all()
-            
+
             expired_count = len(expired_sessions)
-            
+
             if expired_count > 0:
                 for session in expired_sessions:
                     self.db.delete(session)
-                
+
                 self.db.commit()
                 logger.info(f"Cleaned up {expired_count} expired sessions")
-                
+
             return expired_count
-            
+
         except Exception as e:
             logger.error(f"Error cleaning up expired sessions: {e}")
             self.db.rollback()

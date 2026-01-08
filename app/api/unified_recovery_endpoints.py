@@ -4,7 +4,7 @@ API endpoints for unified recording recovery management
 
 import logging
 from fastapi import APIRouter, HTTPException, BackgroundTasks
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 from pydantic import BaseModel
 
 from app.services.recording.unified_recovery_service import get_unified_recovery_service
@@ -26,10 +26,10 @@ async def get_recovery_statistics(
     """Get statistics about recoverable recordings"""
     try:
         recovery_service = await get_unified_recovery_service()
-        
+
         # Run scan to get current statistics
         stats = await recovery_service.comprehensive_recovery_scan(max_age_hours=max_age_hours, dry_run=True)
-        
+
         return {
             "success": True,
             "statistics": {
@@ -54,14 +54,14 @@ async def comprehensive_recovery_scan(
     """Comprehensive recovery scan and optionally trigger recovery"""
     try:
         recovery_service = await get_unified_recovery_service()
-        
+
         if request.dry_run:
             # Synchronous dry run
             stats = await recovery_service.comprehensive_recovery_scan(
                 max_age_hours=request.max_age_hours,
                 dry_run=True
             )
-            
+
             return {
                 "success": True,
                 "message": "Dry run completed",
@@ -84,15 +84,15 @@ async def comprehensive_recovery_scan(
                     logger.info(f"✅ COMPREHENSIVE_RECOVERY_COMPLETE: {stats}")
                 except Exception as e:
                     logger.error(f"❌ COMPREHENSIVE_RECOVERY_FAILED: {e}")
-            
+
             background_tasks.add_task(run_recovery)
-            
+
             return {
                 "success": True,
                 "message": "Comprehensive recovery started in background",
                 "dry_run": False
             }
-            
+
     except Exception as e:
         logger.error(f"Error in comprehensive recovery scan: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -103,7 +103,7 @@ async def get_recovery_status() -> Dict[str, Any]:
     """Get current recovery service status"""
     try:
         recovery_service = await get_unified_recovery_service()
-        
+
         return {
             "success": True,
             "status": {

@@ -27,13 +27,13 @@ DEFAULT_MAX_RETRIES = RETRY_CONFIG.DEFAULT_MAX_RETRIES
 
 class TaskQueueManager:
     """Core queue management and task orchestration with production concurrency fixes"""
-    
+
     # Constants
     DEFAULT_STREAMER_NAME_FORMAT = "streamer_{stream_id}"
-    
+
     def __init__(self, max_workers: int = 3, websocket_manager=None, enable_streamer_isolation: bool = True):
         self.enable_streamer_isolation = enable_streamer_isolation
-        
+
         if enable_streamer_isolation:
             # Production fix: Use streamer-isolated queues to prevent concurrency issues
             self.streamer_queues: Dict[str, asyncio.PriorityQueue] = defaultdict(lambda: asyncio.PriorityQueue())
@@ -45,14 +45,14 @@ class TaskQueueManager:
             # Original single shared queue
             self.task_queue: asyncio.PriorityQueue = asyncio.PriorityQueue()
             logger.info("TaskQueueManager initialized with shared queue")
-            
+
         self._is_running = False  # Use private attribute for internal state
-        
+
         # Initialize components with queue manager reference
         self.progress_tracker = TaskProgressTracker(websocket_manager, queue_manager=self)
         self.worker_manager = WorkerManager(max_workers, self.progress_tracker, self.mark_task_completed)
         self.dependency_manager = TaskDependencyManager()
-        
+
         # Dependency management
         self.dependency_worker: Optional[asyncio.Task] = None
         self.stats_worker: Optional[asyncio.Task] = None
@@ -67,9 +67,9 @@ class TaskQueueManager:
         if self._is_running:
             logger.debug("TaskQueueManager already running, skipping start...")
             return
-            
+
         self._is_running = True
-        
+
         if self.enable_streamer_isolation:
             # Start isolated workers per streamer (production fix)
             logger.info("Starting TaskQueueManager with streamer isolation")
@@ -78,30 +78,30 @@ class TaskQueueManager:
         else:
             # Start shared worker manager (original)
             await self.worker_manager.start(self.task_queue)
-        
+
         # Start dependency worker
         self.dependency_worker = asyncio.create_task(self._dependency_worker())
-        
+
         # Start statistics broadcast worker
         self.stats_worker = asyncio.create_task(self._stats_broadcast_worker())
-            
+
         logger.info("TaskQueueManager started with dependency management and stats broadcasting")
 
     async def stop(self):
         """Stop the queue manager and all components"""
         if not self._is_running:
             return
-            
+
         self._is_running = False
-        
+
         # Cancel dependency worker
         if self.dependency_worker:
             self.dependency_worker.cancel()
-        
+
         # Cancel stats worker
         if self.stats_worker:
             self.stats_worker.cancel()
-        
+
         if self.enable_streamer_isolation:
             # Stop all streamer workers
             stop_tasks = []
@@ -109,32 +109,32 @@ class TaskQueueManager:
                 for worker in workers:
                     worker.cancel()
                     stop_tasks.append(worker)
-            
+
             if stop_tasks:
                 await asyncio.gather(*stop_tasks, return_exceptions=True)
-                
+
             self.streamer_workers.clear()
             self.streamer_queues.clear()
         else:
             # Stop shared worker manager
             await self.worker_manager.stop()
-        
+
         # Wait for dependency and stats workers to finish
         workers_to_wait = []
         if self.dependency_worker:
             workers_to_wait.append(self.dependency_worker)
         if self.stats_worker:
             workers_to_wait.append(self.stats_worker)
-            
+
         if workers_to_wait:
             await asyncio.gather(*workers_to_wait, return_exceptions=True)
-            
+
         self.dependency_worker = None
         self.stats_worker = None
-        
+
         # Shutdown dependency manager
         await self.dependency_manager.shutdown()
-        
+
         logger.info("TaskQueueManager stopped")
 
     def register_task_handler(self, task_type: str, handler):
@@ -149,19 +149,19 @@ class TaskQueueManager:
         max_retries: int = 3
     ) -> str:
         """Enqueue a new background task with optional streamer isolation"""
-        
+
         # PRODUCTION FIX: Limit orphaned recovery check tasks to prevent queue flooding
         if task_type == 'orphaned_recovery_check':
-            active_orphaned_count = sum(1 for task in self.progress_tracker.get_active_tasks().values() 
-                                      if task.task_type == 'orphaned_recovery_check')
-            
+            active_orphaned_count = sum(1 for task in self.progress_tracker.get_active_tasks().values()
+                                        if task.task_type == 'orphaned_recovery_check')
+
             if active_orphaned_count >= 3:  # Limit to max 3 concurrent orphaned checks
                 logger.warning(f"🔍 ORPHANED_RECOVERY_LIMIT: Skipping new orphaned check - already {active_orphaned_count} running")
                 # Return a dummy task ID but don't actually enqueue
                 return f"skipped_orphaned_{uuid.uuid4()}"
-        
+
         task_id = str(uuid.uuid4())
-        
+
         task = QueueTask(
             id=task_id,
             task_type=task_type,
@@ -171,10 +171,10 @@ class TaskQueueManager:
             created_at=datetime.now(timezone.utc),
             max_retries=max_retries
         )
-        
+
         # Add to progress tracker
         self.progress_tracker.add_task(task)
-        
+
         if self.enable_streamer_isolation:
             # Production fix: Route task to streamer-specific queue
             streamer_name = self._extract_streamer_name(payload)
@@ -185,7 +185,7 @@ class TaskQueueManager:
             priority_value = -priority.value
             await self.task_queue.put((priority_value, task))
             logger.info(f"Enqueued task {task_id} ({task_type}) with priority {priority.name}")
-            
+
         return task_id
 
     def _extract_streamer_name(self, payload: Dict[str, Any]) -> str:
@@ -201,7 +201,7 @@ class TaskQueueManager:
             try:
                 # Lazy import to avoid circular deps
                 from app.database import SessionLocal
-                from app.models import Stream, Streamer
+                from app.models import Stream
                 with SessionLocal() as db:
                     stream = (
                         db.query(Stream)
@@ -261,11 +261,11 @@ class TaskQueueManager:
         """Enqueue task to streamer-specific queue and ensure worker exists"""
         # Get or create streamer queue
         streamer_queue = self.streamer_queues[streamer_name]
-        
+
         # Ensure worker exists for this streamer
         if streamer_name not in self.streamer_workers or not self.streamer_workers[streamer_name]:
             await self._create_streamer_worker(streamer_name, streamer_queue)
-        
+
         # Enqueue task
         priority_value = -task.priority.value
         await streamer_queue.put((priority_value, task))
@@ -273,11 +273,11 @@ class TaskQueueManager:
     async def _create_streamer_worker(self, streamer_name: str, streamer_queue: asyncio.PriorityQueue):
         """Create isolated worker for a specific streamer"""
         worker_name = f"streamer-{streamer_name}-worker"
-        
+
         async def isolated_worker():
             """Isolated worker for a specific streamer"""
             logger.info(f"🎯 Started isolated worker for streamer: {streamer_name}")
-            
+
             while self._is_running:
                 try:
                     # Get next task from this streamer's queue
@@ -288,47 +288,47 @@ class TaskQueueManager:
                         )
                     except asyncio.TimeoutError:
                         continue
-                    
+
                     logger.info(f"🔄 Streamer {streamer_name} worker processing task {task.id} ({task.task_type})")
-                    
+
                     # Update task status to running
                     if self.progress_tracker:
                         self.progress_tracker.update_task_status(task.id, TaskStatus.RUNNING)
-                    
+
                     try:
                         # Execute the task using worker manager's task execution logic
                         success = await self.worker_manager._execute_task(task, worker_name)
-                        
+
                         # Mark task as completed
                         if self.progress_tracker:
                             status = TaskStatus.COMPLETED if success else TaskStatus.FAILED
                             self.progress_tracker.update_task_status(task.id, status)
                             self.progress_tracker.update_task_progress(task.id, 100.0)
-                        
+
                         # Notify completion callback
                         await self.mark_task_completed(task.id, success=success)
-                        
+
                         logger.info(f"✅ Streamer {streamer_name} completed task {task.id} - success: {success}")
-                        
+
                     except Exception as e:
                         logger.error(f"❌ Error executing task {task.id} for streamer {streamer_name}: {e}", exc_info=True)
-                        
+
                         # Mark task as failed
                         if self.progress_tracker:
                             self.progress_tracker.update_task_status(task.id, TaskStatus.FAILED)
-                        
+
                         await self.mark_task_completed(task.id, success=False)
-                        
+
                     finally:
                         # Always mark task as done in the queue to prevent hanging
                         streamer_queue.task_done()
-                        
+
                 except Exception as e:
                     logger.error(f"❌ Error in isolated worker for streamer {streamer_name}: {e}", exc_info=True)
                     await asyncio.sleep(ASYNC_DELAYS.BRIEF_PAUSE)
-            
+
             logger.info(f"🛑 Stopped isolated worker for streamer: {streamer_name}")
-        
+
         # Create and start the worker (limit to max_workers_per_streamer)
         current_worker_count = len(self.streamer_workers[streamer_name])
         if current_worker_count < self.max_workers_per_streamer:
@@ -348,7 +348,7 @@ class TaskQueueManager:
     ) -> str:
         """Enqueue a task with dependencies"""
         task_id = str(uuid.uuid4())
-        
+
         # Create dependency task
         dep_task = Task(
             id=task_id,
@@ -357,10 +357,10 @@ class TaskQueueManager:
             dependencies=set(dependencies or []),
             status=DepTaskStatus.PENDING
         )
-        
+
         # Add to dependency manager
         await self.dependency_manager.add_task(dep_task)
-        
+
         # Create queue task but don't enqueue yet (dependency manager will handle it)
         queue_task = QueueTask(
             id=task_id,
@@ -371,17 +371,17 @@ class TaskQueueManager:
             created_at=datetime.now(timezone.utc),
             max_retries=max_retries
         )
-        
+
         # Add to progress tracker
         self.progress_tracker.add_task(queue_task)
-        
+
         logger.info(f"Enqueued task {task_id} ({task_type}) with {len(dependencies or [])} dependencies")
         return task_id
 
     async def _dependency_worker(self):
         """Worker that manages task dependencies"""
         logger.info("Dependency worker started")
-        
+
         while self._is_running:
             try:
                 # Get ready tasks from dependency manager
@@ -427,7 +427,7 @@ class TaskQueueManager:
                     if queue_task:
                         # Mark dependency task as running
                         await self.dependency_manager.mark_task_running(dep_task.id)
-                        
+
                         # Enqueue the actual task with proper routing
                         if self.enable_streamer_isolation:
                             streamer_name = self._extract_streamer_name(queue_task.payload)
@@ -435,40 +435,40 @@ class TaskQueueManager:
                         else:
                             priority_value = -queue_task.priority.value
                             await self.task_queue.put((priority_value, queue_task))
-                        
+
                         logger.debug(f"Dependency worker enqueued ready task {dep_task.id}")
-                
+
                 # Brief pause before checking again - faster for multiple streams
                 await asyncio.sleep(ASYNC_DELAYS.TASK_QUEUE_POLL_REDUCED)
-                
+
             except asyncio.CancelledError:
                 logger.info("Dependency worker cancelled")
                 break
             except Exception as e:
                 logger.error(f"Dependency worker error: {e}")
                 await asyncio.sleep(ASYNC_DELAYS.BRIEF_PAUSE)
-                
+
         logger.info("Dependency worker stopped")
 
     async def _stats_broadcast_worker(self):
         """Worker that periodically broadcasts queue statistics"""
         logger.info("Stats broadcast worker started")
-        
+
         while self._is_running:
             try:
                 # Send queue statistics via WebSocket
                 await self.progress_tracker.send_queue_statistics()
-                
+
                 # Wait before next broadcast
                 await asyncio.sleep(ASYNC_DELAYS.LONG_RETRY_DELAY)
-                
+
             except asyncio.CancelledError:
                 logger.info("Stats broadcast worker cancelled")
                 break
             except Exception as e:
                 logger.warning(f"Stats broadcast worker error: {e}")
                 await asyncio.sleep(ASYNC_DELAYS.QUEUE_ERROR_WAIT)
-                
+
         logger.info("Stats broadcast worker stopped")
 
     async def mark_task_completed(self, task_id: str, success: bool = True):
@@ -499,7 +499,7 @@ class TaskQueueManager:
             logger.warning(f"Failed to update task {task_id} in dependency manager: {e}")
 
     # Progress and status methods (delegate to progress tracker)
-    
+
     def get_task_status(self, task_id: str) -> Optional[TaskStatus]:
         """Get task status"""
         return self.progress_tracker.get_task_status(task_id)
@@ -523,26 +523,26 @@ class TaskQueueManager:
     def get_queue_statistics(self) -> Dict[str, Any]:
         """Get comprehensive queue statistics"""
         base_stats = self.progress_tracker.get_statistics()
-        
+
         if self.enable_streamer_isolation:
             # Streamer-isolated statistics
             streamer_stats = {}
             total_queue_size = 0
             total_workers = 0
-            
+
             for streamer_name, queue in self.streamer_queues.items():
                 queue_size = queue.qsize()
                 worker_count = len(self.streamer_workers.get(streamer_name, []))
-                
+
                 streamer_stats[streamer_name] = {
                     'queue_size': queue_size,
                     'active_workers': worker_count,
                     'max_workers': self.max_workers_per_streamer
                 }
-                
+
                 total_queue_size += queue_size
                 total_workers += worker_count
-            
+
             return {
                 **base_stats,
                 'queue_size': total_queue_size,
@@ -558,7 +558,7 @@ class TaskQueueManager:
         else:
             # Original shared queue statistics
             worker_stats = self.worker_manager.get_worker_status()
-            
+
             return {
                 **base_stats,
                 'queue_size': self.task_queue.qsize(),
@@ -576,7 +576,7 @@ class TaskQueueManager:
         await self.progress_tracker.send_queue_statistics()
 
     # External task tracking (delegate to progress tracker)
-    
+
     def add_external_task(self, task_id: str, task_type: str, payload: Dict[str, Any]):
         """Add an external task for tracking"""
         self.progress_tracker.add_external_task(task_id, task_type, payload)
@@ -594,7 +594,7 @@ class TaskQueueManager:
         self.progress_tracker.remove_external_task(task_id)
 
     # Utility methods
-    
+
     async def wait_for_completion(self, timeout: Optional[float] = None):
         """Wait for all current tasks to complete"""
         await self.worker_manager.wait_for_completion(timeout)
@@ -614,11 +614,11 @@ class TaskQueueManager:
     def has_handler(self, task_type: str) -> bool:
         """Check if handler is registered for task type"""
         return self.worker_manager.has_handler(task_type)
-    
+
     async def enqueue_recording_post_processing(self, *args, **kwargs):
         """Enqueue a complete post-processing chain for a recording"""
         from app.services.processing.recording_task_factory import RecordingTaskFactory
-        
+
         # Handle single payload argument (from coordinator)
         if len(args) == 1 and isinstance(args[0], dict):
             payload = args[0]
@@ -638,7 +638,7 @@ class TaskQueueManager:
             streamer_name = kwargs.get('streamer_name')
             started_at = kwargs.get('started_at')
             cleanup_ts_file = kwargs.get('cleanup_ts_file', True)
-        
+
         # Type conversion and validation
         if stream_id is not None and not isinstance(stream_id, int):
             try:
@@ -646,37 +646,37 @@ class TaskQueueManager:
             except (ValueError, TypeError):
                 logger.error(f"Invalid stream_id: {stream_id}")
                 raise ValueError(f"Invalid stream_id: {stream_id}")
-        
+
         if recording_id is not None and not isinstance(recording_id, int):
             try:
                 recording_id = int(recording_id)
             except (ValueError, TypeError):
                 logger.error(f"Invalid recording_id: {recording_id}")
                 raise ValueError(f"Invalid recording_id: {recording_id}")
-        
+
         # For missing values, try to derive them or use defaults
         if not output_dir and ts_file_path:
             from pathlib import Path
             output_dir = str(Path(ts_file_path).parent)
-        
+
         if not streamer_name:
             streamer_name = self.DEFAULT_STREAMER_NAME_FORMAT.format(stream_id=stream_id)
-        
+
         if not started_at:
             from datetime import datetime
             started_at = datetime.now().isoformat()
-        
+
         # Final validation
         if not all([stream_id is not None, recording_id is not None, ts_file_path, output_dir, streamer_name, started_at]):
             logger.error(f"Missing required parameters for post-processing: stream_id={stream_id}, recording_id={recording_id}, ts_file_path={ts_file_path}, output_dir={output_dir}, streamer_name={streamer_name}, started_at={started_at}")
             raise ValueError("Missing required parameters for post-processing")
-        
+
         # Ensure all parameters are correctly typed after validation
         if stream_id is None or recording_id is None:
             raise ValueError("stream_id and recording_id must not be None")
         if not all([ts_file_path, output_dir, streamer_name, started_at]):
             raise ValueError("ts_file_path, output_dir, streamer_name, and started_at must not be empty or None")
-        
+
         # Create task factory and generate tasks
         task_factory = RecordingTaskFactory()
         tasks = task_factory.create_post_processing_chain(
@@ -699,7 +699,7 @@ class TaskQueueManager:
                     db.commit()
         except Exception:
             pass
-        
+
         # Add tasks to dependency manager and create corresponding queue tasks for tracking
         for task in tasks:
             await self.dependency_manager.add_task(task)
@@ -709,9 +709,9 @@ class TaskQueueManager:
             # than the progress tracker requires for monitoring
             queue_task = self._create_queue_task_from_dependency_task(task)
             self.progress_tracker.add_task(queue_task)
-        
+
         logger.info(f"Enqueued {len(tasks)} post-processing tasks for recording {recording_id}")
-        
+
         # Return task IDs for tracking
         return [task.id for task in tasks]
 

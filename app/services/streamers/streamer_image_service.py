@@ -14,7 +14,7 @@ logger = logging.getLogger("streamvault")
 
 class StreamerImageService:
     """Handles streamer profile image downloading and caching"""
-    
+
     def __init__(self):
         self.image_service = unified_image_service
 
@@ -60,7 +60,7 @@ class StreamerImageService:
         try:
             # Download the new image
             cached_path = await self.download_profile_image(new_url, str(streamer_id))
-            
+
             if cached_path and cached_path != new_url:
                 # Successfully cached
                 logger.info(f"Refreshed profile image for streamer {streamer_id}")
@@ -116,7 +116,7 @@ class StreamerImageService:
         try:
             if not url or not url.startswith('http'):
                 return False
-            
+
             # Use the download service to test if the URL is accessible
             session = await self.image_service.download_service.get_session()
             async with session.head(url) as response:

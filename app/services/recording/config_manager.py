@@ -6,7 +6,6 @@ This module handles all configuration access with efficient caching.
 import logging
 from datetime import datetime
 from typing import Optional
-from sqlalchemy.orm import Session
 import os
 
 from app.database import SessionLocal
@@ -23,6 +22,7 @@ FILENAME_PRESETS = {
     "kodi": "Season {year}-{month}/{streamer} - S{year}{month}E{episode:02d} - {title}",
     "chronological": "{year}/{month}/{day}/{streamer} - E{episode:02d} - {title} - {hour}-{minute}"
 }
+
 
 class ConfigManager:
     """Manages and caches recording configuration settings"""
@@ -45,47 +45,37 @@ class ConfigManager:
 
     def _categorize_database_error(self, error: Exception, table_name: str) -> Optional[str]:
         """Categorize database errors for better handling.
-        
+
         Args:
             error: The exception that was raised
             table_name: Name of the table being accessed
-            
+
         Returns:
             Error category string or None to continue default handling
         """
         error_msg = str(error).lower()
-        
+
         # Check for table/relation doesn't exist
         if "relation" in error_msg and "does not exist" in error_msg:
             logger.warning(f"{table_name} table doesn't exist yet: {error}")
             logger.info(f"Using default settings - {table_name} table may not exist yet during migration")
             return "table_not_exists"
-        
+
         # Check for connection issues
         elif "connection" in error_msg or "database" in error_msg:
             logger.error(f"Database connection error accessing {table_name}: {error}")
             return "connection_error"
-        
+
         # Check for specific SQLAlchemy errors by type
         error_type = type(error).__name__
         if "ProgrammingError" in error_type or "OperationalError" in error_type:
             # These are typically schema/table issues
             logger.warning(f"Database schema error accessing {table_name}: {error}")
             return "schema_error"
-        
+
         # Other unexpected errors
         logger.error(f"Unexpected error accessing {table_name}: {error}")
         return "unexpected_error"
-
-    def _is_cache_valid(self) -> bool:
-        """Check if the cached settings are still valid"""
-        return (datetime.now() - self.last_refresh).total_seconds() < self.cache_timeout
-
-    def invalidate_cache(self):
-        """Force invalidation of the cache"""
-        self._global_settings = None
-        self._streamer_settings = {}
-        self.last_refresh = datetime.min
 
     def get_global_settings(self) -> Optional[RecordingSettings]:
         """Get global recording settings, using cache if valid"""
@@ -160,21 +150,21 @@ class ConfigManager:
         streamer_settings = self.get_streamer_settings(streamer_id)
         if streamer_settings and streamer_settings.max_streams is not None and streamer_settings.max_streams > 0:
             return streamer_settings.max_streams
-            
+
         global_settings = self.get_global_settings()
         if global_settings and global_settings.max_streams_per_streamer:
             return global_settings.max_streams_per_streamer
-            
+
         return 0  # 0 means unlimited
-        
+
     def get_output_directory(self) -> str:
         """Get output directory - hardcoded for Docker consistency"""
         return "/recordings"
-    
+
     def get_recordings_directory(self) -> str:
         """Get recordings directory - hardcoded for Docker consistency"""
         return "/recordings"
-    
+
     def get_max_concurrent_recordings(self) -> int:
         """Get maximum number of concurrent recordings"""
         # 1) Environment variable override takes precedence if set and valid
@@ -195,14 +185,14 @@ class ConfigManager:
 
         # 3) Safe default
         return 3  # Default to 3 concurrent recordings
-    
+
     def get_check_interval(self) -> int:
         """Get check interval for recording service in seconds"""
         global_settings = self.get_global_settings()
         if global_settings and hasattr(global_settings, 'check_interval'):
             return getattr(global_settings, 'check_interval', 30)
         return 30  # Default to 30 seconds
-    
+
     def get_config_value(self, key: str, default=None):
         """Get a configuration value by key"""
         global_settings = self.get_global_settings()

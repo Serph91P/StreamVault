@@ -6,9 +6,10 @@ from datetime import datetime
 from pathlib import Path
 from app.config.settings import settings
 
+
 class JSONFormatter(logging.Formatter):
     """Custom JSON formatter for structured logging"""
-    
+
     def format(self, record):
         log_entry = {
             'timestamp': datetime.fromtimestamp(record.created).isoformat(),
@@ -19,11 +20,11 @@ class JSONFormatter(logging.Formatter):
             'function': record.funcName,
             'line': record.lineno,
         }
-        
+
         # Add exception info if present
         if record.exc_info:
             log_entry['exception'] = self.formatException(record.exc_info)
-        
+
         # Add extra fields if present
         if hasattr(record, 'streamer_name'):
             log_entry['streamer_name'] = record.streamer_name
@@ -35,8 +36,9 @@ class JSONFormatter(logging.Formatter):
             log_entry['recording_id'] = record.recording_id
         if hasattr(record, 'task_id'):
             log_entry['task_id'] = record.task_id
-            
+
         return json.dumps(log_entry)
+
 
 def setup_logging():
     """Setup logging with daily rotating files"""
@@ -45,7 +47,7 @@ def setup_logging():
 
     # Choose formatter based on environment
     use_json = getattr(settings, 'LOG_FORMAT', 'text').lower() == 'json'
-    
+
     if use_json:
         formatter = JSONFormatter()
     else:
@@ -62,11 +64,11 @@ def setup_logging():
     logs_dir = Path("/app/logs")
     app_logs_dir = logs_dir / "app"
     app_logs_dir.mkdir(parents=True, exist_ok=True)
-    
+
     # Daily rotating file handler instead of simple file handler
     # CRITICAL: Convert Path to string - TimedRotatingFileHandler expects string!
     log_file_path = str(app_logs_dir / 'streamvault.log')
-    
+
     try:
         rotating_handler = logging.handlers.TimedRotatingFileHandler(
             filename=log_file_path,
@@ -77,15 +79,15 @@ def setup_logging():
             utc=True
         )
         rotating_handler.setFormatter(formatter)
-        
+
         # Set the suffix for rotated files (will be streamvault.log.2025-09-17)
         rotating_handler.suffix = '%Y-%m-%d'
-        
+
         logger.addHandler(rotating_handler)
-        
+
         # Verify handler was added successfully
         logger.info(f"📝 TimedRotatingFileHandler configured for: {log_file_path}")
-        
+
     except Exception as e:
         # If handler creation fails, log to console only
         console_handler.setFormatter(formatter)
@@ -97,15 +99,14 @@ def setup_logging():
     try:
         from app.services.system.logging_service import logging_service
         logger.info("Structured logging service initialized")
-        
+
         # Schedule periodic cleanup of old logs
-        import asyncio
         import threading
-        
+
         def start_cleanup_scheduler():
             """Start the log cleanup scheduler in a separate thread"""
             import time
-            
+
             def cleanup_scheduler():
                 """Schedule periodic log cleanup"""
                 while True:
@@ -114,18 +115,18 @@ def setup_logging():
                         logging_service.cleanup_old_logs()
                     except Exception as e:
                         logger.error(f"Error during scheduled log cleanup: {e}")
-            
+
             try:
                 cleanup_scheduler()
             except KeyboardInterrupt:
                 logger.info("Log cleanup scheduler stopped")
             except Exception as e:
                 logger.error(f"Log cleanup scheduler error: {e}")
-        
+
         # Start the cleanup scheduler in a daemon thread
         cleanup_thread = threading.Thread(target=start_cleanup_scheduler, daemon=True)
         cleanup_thread.start()
-        
+
     except Exception as e:
         logger.warning(f"Could not initialize structured logging service: {e}")
 

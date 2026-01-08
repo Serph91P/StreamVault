@@ -18,10 +18,10 @@ async def get_failed_recovery_stats() -> Dict[str, Any]:
     """Get statistics about failed recordings that can be recovered"""
     try:
         from app.services.recording.failed_recording_recovery_service import get_failed_recovery_service
-        
+
         recovery_service = await get_failed_recovery_service()
         result = await recovery_service.scan_and_recover_failed_recordings(dry_run=True)
-        
+
         return {
             "success": True,
             "stats": {
@@ -31,7 +31,7 @@ async def get_failed_recovery_stats() -> Dict[str, Any]:
             },
             "details": result["details"]
         }
-        
+
     except Exception as e:
         logger.error(f"Failed to get failed recovery stats: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to get stats: {str(e)}")
@@ -45,13 +45,13 @@ async def scan_failed_recordings(
     """Scan for failed recordings and optionally trigger recovery"""
     try:
         from app.services.recording.failed_recovery_recovery_service import get_failed_recovery_service
-        
+
         recovery_service = await get_failed_recovery_service()
-        
+
         if dry_run:
             # Synchronous dry run
             result = await recovery_service.scan_and_recover_failed_recordings(dry_run=True)
-            
+
             return {
                 "success": True,
                 "message": "Dry run completed",
@@ -72,7 +72,7 @@ async def scan_failed_recordings(
                     "message": "Recovery completed",
                     "data": result
                 }
-            
+
             return {
                 "success": True,
                 "message": "Failed recording recovery started in background",
@@ -80,7 +80,7 @@ async def scan_failed_recordings(
                     "background": True
                 }
             }
-        
+
     except Exception as e:
         logger.error(f"Failed to scan failed recordings: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to scan: {str(e)}")
@@ -91,10 +91,10 @@ async def recover_specific_recording(recording_id: int) -> Dict[str, Any]:
     """Manually trigger recovery for a specific failed recording"""
     try:
         from app.services.recording.failed_recording_recovery_service import get_failed_recovery_service
-        
+
         recovery_service = await get_failed_recovery_service()
         result = await recovery_service.recover_specific_recording(recording_id)
-        
+
         if result["success"]:
             return {
                 "success": True,
@@ -110,7 +110,7 @@ async def recover_specific_recording(recording_id: int) -> Dict[str, Any]:
                 "success": False,
                 "message": result["error"]
             }
-        
+
     except Exception as e:
         logger.error(f"Failed to recover recording {recording_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to recover recording: {str(e)}")
@@ -120,13 +120,13 @@ async def _background_failed_recovery(recovery_service):
     """Background task for failed recording recovery"""
     try:
         logger.info("🔧 Starting background failed recording recovery...")
-        
+
         result = await recovery_service.scan_and_recover_failed_recordings(dry_run=False)
-        
+
         logger.info(f"🔧 Background failed recovery completed: "
-                   f"triggered={result['recovery_triggered']}, "
-                   f"failed={result['recovery_failed']}")
-        
+                    f"triggered={result['recovery_triggered']}, "
+                    f"failed={result['recovery_failed']}")
+
         # Send WebSocket notification if available
         try:
             from app.services.websocket.websocket_service import websocket_service
@@ -142,6 +142,6 @@ async def _background_failed_recovery(recovery_service):
                 })
         except Exception as e:
             logger.debug(f"Could not send WebSocket notification: {e}")
-        
+
     except Exception as e:
         logger.error(f"Background failed recording recovery failed: {e}", exc_info=True)

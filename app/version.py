@@ -16,6 +16,7 @@ APP_NAME = "StreamVault"
 DESCRIPTION = "Automated Twitch stream recording and management system"
 REPOSITORY = "https://github.com/Serph91P/StreamVault"
 
+
 def get_version_info() -> dict:
     """Get complete version information."""
     return {
