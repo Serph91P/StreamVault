@@ -261,17 +261,22 @@ def get_streamlink_command(
         logger.debug(f"🎨 Overriding codec preference: {supported_codecs}")
 
     # CRITICAL: Always use per-recording OAuth token if provided
-    # This ensures the token is fresh (TwitchTokenService auto-refreshes before each recording)
-    # Per-recording tokens override config.twitch to prevent using stale tokens
+    # This ensures the token is fresh
+    # (TwitchTokenService auto-refreshes before each recording)
+    # Per-recording tokens override config.twitch to prevent stale tokens
     if oauth_token and oauth_token.strip():
-        # Use single argument with = to prevent Streamlink from parsing it as multiple args
+        # Use single argument with = to prevent Streamlink from
+        # parsing it as multiple args
         # CORRECT:   --twitch-api-header=Authorization=OAuth token
-        # INCORRECT: --twitch-api-header Authorization=OAuth token (creates tuple)
-        cmd.append(f"--twitch-api-header=Authorization=OAuth {oauth_token.strip()}")
-        logger.debug("🔑 Using auto-refreshed OAuth token (overrides config.twitch)")
-        logger.debug("   Token enables: H.265/AV1 codecs, 1440p quality, ad-free streams (Turbo)")
+        # INCORRECT: --twitch-api-header Authorization=OAuth token
+        token_header = f"Authorization=OAuth {oauth_token.strip()}"
+        cmd.append(f"--twitch-api-header={token_header}")
+        logger.debug("🔑 Using auto-refreshed OAuth token")
+        logger.debug("   Enables: H.265/AV1, 1440p, ad-free (Turbo)")
     else:
-        logger.warning("⚠️ No OAuth token provided - limited to 1080p H.264, ads may appear")
+        logger.warning(
+            "⚠️ No OAuth token - limited to 1080p H.264, ads may appear"
+        )
 
     # Add proxy settings if provided (overrides config.twitch)
     if proxy_settings:
@@ -297,7 +302,10 @@ def _add_proxy_settings(cmd: List[str], proxy_settings: Dict[str, str], force_mo
         proxy_url = proxy_settings["http"].strip()
         # Validate that the proxy URL has the correct protocol prefix
         if not proxy_url.startswith(('http://', 'https://')):
-            error_msg = f"HTTP proxy URL must start with 'http://' or 'https://'. Current value: {proxy_url}"
+            error_msg = (
+                f"HTTP proxy URL must start with 'http://' or 'https://'. "
+                f"Current value: {proxy_url}"
+            )
             logger.error(f"PROXY_VALIDATION_FAILED: {error_msg}")
             raise ValueError(error_msg)
 
@@ -305,16 +313,19 @@ def _add_proxy_settings(cmd: List[str], proxy_settings: Dict[str, str], force_mo
         logger.debug(f"Using HTTP proxy: {proxy_url}")
 
         # Add proxy-specific optimizations for better audio sync
+        seg_timeout = "60" if not force_mode else "90"
+        stream_timeout = "300" if not force_mode else "360"
+        seg_attempts = "15" if not force_mode else "20"
         cmd.extend([
-            "--stream-segment-timeout", "60" if not force_mode else "90",  # Longer timeouts for proxy latency
-            "--stream-timeout", "300" if not force_mode else "360",       # Extended overall timeout
-            "--hls-segment-queue-threshold", "8",                         # More segments for proxy buffering
-            "--stream-segment-attempts", "15" if not force_mode else "20",  # More retry attempts
-            "--hls-live-edge", "10",                                      # Stay further from live edge to avoid sync issues
-            "--ringbuffer-size", "512M",                                 # Larger internal buffer for stable data flow
-            "--hls-segment-stream-data",                                  # Write segment data immediately to reduce buffering delays
-            "--stream-segment-threads", "2",                             # Use multiple threads for segment downloads
-            "--hls-playlist-reload-time", "segment",                     # Optimize playlist reload timing
+            "--stream-segment-timeout", seg_timeout,
+            "--stream-timeout", stream_timeout,
+            "--hls-segment-queue-threshold", "8",
+            "--stream-segment-attempts", seg_attempts,
+            "--hls-live-edge", "10",
+            "--ringbuffer-size", "512M",
+            "--hls-segment-stream-data",
+            "--stream-segment-threads", "2",
+            "--hls-playlist-reload-time", "segment",
         ])
 
     # Add HTTPS proxy if configured
@@ -322,7 +333,10 @@ def _add_proxy_settings(cmd: List[str], proxy_settings: Dict[str, str], force_mo
         proxy_url = proxy_settings["https"].strip()
         # Validate that the proxy URL has the correct protocol prefix
         if not proxy_url.startswith(('http://', 'https://')):
-            error_msg = f"HTTPS proxy URL must start with 'http://' or 'https://'. Current value: {proxy_url}"
+            error_msg = (
+                f"HTTPS proxy URL must start with 'http://' or 'https://'. "
+                f"Current value: {proxy_url}"
+            )
             logger.error(f"PROXY_VALIDATION_FAILED: {error_msg}")
             raise ValueError(error_msg)
 
@@ -384,8 +398,8 @@ def get_streamlink_vod_command(
     Returns:
         List of command arguments for streamlink
     """
-    # Find ffmpeg binary path
-    ffmpeg_bin: str = os.environ.get("FFMPEG_PATH") or "ffmpeg"  # Use environment variable or default to "ffmpeg"
+    # Find ffmpeg binary path (use env var or default)
+    ffmpeg_bin: str = os.environ.get("FFMPEG_PATH") or "ffmpeg"
 
     # Core command for VOD download
     cmd = [
@@ -398,9 +412,11 @@ def get_streamlink_vod_command(
     ]
 
     # Add logging level
+    log_dir = Path(output_path).parent
+    log_file = os.path.join(log_dir, f"streamlink_vod_{video_id}.log")
     cmd.extend([
         "--loglevel", "debug",
-        "--logfile", os.path.join(Path(output_path).parent, f"streamlink_vod_{video_id}.log")
+        "--logfile", log_file
     ])
 
     # Add proxy settings if provided
@@ -428,8 +444,8 @@ def get_streamlink_clip_command(
     Returns:
         List of command arguments for streamlink
     """
-    # Find ffmpeg binary path
-    ffmpeg_bin: str = os.environ.get("FFMPEG_PATH") or "ffmpeg"  # Use environment variable or default to "ffmpeg"
+    # Find ffmpeg binary path (use env var or default)
+    ffmpeg_bin: str = os.environ.get("FFMPEG_PATH") or "ffmpeg"
 
     # Core command for clip download
     cmd = [

@@ -47,7 +47,10 @@ def store_share_token(token: str, stream_id: int, expiration_seconds: int) -> No
             db.add(share_token)
             db.commit()
 
-            logger.info(f"Stored share token for stream {stream_id}, expires at {expires_at}")
+            logger.info(
+                f"Stored share token for stream {stream_id}, "
+                f"expires at {expires_at}"
+            )
 
         except Exception as e:
             db.rollback()
@@ -151,7 +154,9 @@ def get_tokens_for_stream(stream_id: int) -> list:
 def get_all_tokens(db: Session) -> list:
     """Get all share tokens (for admin purposes)"""
     try:
-        tokens = db.query(ShareTokenModel).order_by(ShareTokenModel.created_at.desc()).all()
+        tokens = db.query(ShareTokenModel).order_by(
+            ShareTokenModel.created_at.desc()
+        ).all()
         return tokens
     except Exception as e:
         logger.error(f"Error getting all tokens: {e}")
