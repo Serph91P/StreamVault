@@ -3,6 +3,7 @@ Configuration manager for the recording service.
 
 This module handles all configuration access with efficient caching.
 """
+
 import logging
 from datetime import datetime
 from typing import Optional
@@ -20,7 +21,7 @@ FILENAME_PRESETS = {
     "emby": "Season {year}-{month}/{streamer} - S{year}{month}E{episode:02d} - {title}",
     "jellyfin": "Season {year}-{month}/{streamer} - S{year}{month}E{episode:02d} - {title}",
     "kodi": "Season {year}-{month}/{streamer} - S{year}{month}E{episode:02d} - {title}",
-    "chronological": "{year}/{month}/{day}/{streamer} - E{episode:02d} - {title} - {hour}-{minute}"
+    "chronological": "{year}/{month}/{day}/{streamer} - E{episode:02d} - {title} - {hour}-{minute}",
 }
 
 
@@ -90,9 +91,7 @@ class ConfigManager:
                     return None
         return self._global_settings
 
-    def get_streamer_settings(
-        self, streamer_id: int
-    ) -> Optional[StreamerRecordingSettings]:
+    def get_streamer_settings(self, streamer_id: int) -> Optional[StreamerRecordingSettings]:
         """Get streamer-specific recording settings, using cache if valid"""
         if streamer_id not in self._streamer_settings or not self._is_cache_valid():
             try:
@@ -180,8 +179,8 @@ class ConfigManager:
 
         # 2) Database/global settings (if column exists in schema)
         global_settings = self.get_global_settings()
-        if global_settings and hasattr(global_settings, 'max_concurrent_recordings'):
-            return getattr(global_settings, 'max_concurrent_recordings', 3)
+        if global_settings and hasattr(global_settings, "max_concurrent_recordings"):
+            return getattr(global_settings, "max_concurrent_recordings", 3)
 
         # 3) Safe default
         return 3  # Default to 3 concurrent recordings
@@ -189,8 +188,8 @@ class ConfigManager:
     def get_check_interval(self) -> int:
         """Get check interval for recording service in seconds"""
         global_settings = self.get_global_settings()
-        if global_settings and hasattr(global_settings, 'check_interval'):
-            return getattr(global_settings, 'check_interval', 30)
+        if global_settings and hasattr(global_settings, "check_interval"):
+            return getattr(global_settings, "check_interval", 30)
         return 30  # Default to 30 seconds
 
     def get_config_value(self, key: str, default=None):

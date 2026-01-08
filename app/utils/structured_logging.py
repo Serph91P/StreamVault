@@ -4,6 +4,7 @@ Structured logging utilities for StreamVault
 Provides helper functions for creating structured log entries
 with contextual information.
 """
+
 import logging
 from typing import Any, Optional
 
@@ -13,12 +14,7 @@ def get_structured_logger(name: str = "streamvault") -> logging.Logger:
     return logging.getLogger(name)
 
 
-def log_with_context(
-    logger: logging.Logger,
-    level: str,
-    message: str,
-    **context: Any
-) -> None:
+def log_with_context(logger: logging.Logger, level: str, message: str, **context: Any) -> None:
     """Log a message with additional context fields
 
     Args:
@@ -35,7 +31,7 @@ def log_with_context(
         lineno=0,
         msg=message,
         args=(),
-        exc_info=None
+        exc_info=None,
     )
 
     # Add context fields to the record
@@ -51,7 +47,7 @@ def log_recording_event(
     event_type: str,
     streamer_name: str,
     stream_id: Optional[int] = None,
-    **additional_context: Any
+    **additional_context: Any,
 ) -> None:
     """Log a recording-related event with structured context
 
@@ -62,23 +58,14 @@ def log_recording_event(
         stream_id: Optional stream ID
         **additional_context: Additional context fields
     """
-    context = {
-        'event_type': event_type,
-        'streamer_name': streamer_name,
-        'operation': 'recording'
-    }
+    context = {"event_type": event_type, "streamer_name": streamer_name, "operation": "recording"}
 
     if stream_id is not None:
-        context['stream_id'] = stream_id
+        context["stream_id"] = stream_id
 
     context.update(additional_context)
 
-    log_with_context(
-        logger,
-        'info',
-        f"Recording {event_type} for {streamer_name}",
-        **context
-    )
+    log_with_context(logger, "info", f"Recording {event_type} for {streamer_name}", **context)
 
 
 def log_ffmpeg_operation(
@@ -88,7 +75,7 @@ def log_ffmpeg_operation(
     input_file: str,
     output_file: str,
     success: bool,
-    **additional_context: Any
+    **additional_context: Any,
 ) -> None:
     """Log an FFmpeg operation with structured context
 
@@ -102,25 +89,20 @@ def log_ffmpeg_operation(
         **additional_context: Additional context fields
     """
     context = {
-        'operation': 'ffmpeg',
-        'ffmpeg_operation': operation,
-        'streamer_name': streamer_name,
-        'input_file': input_file,
-        'output_file': output_file,
-        'success': success
+        "operation": "ffmpeg",
+        "ffmpeg_operation": operation,
+        "streamer_name": streamer_name,
+        "input_file": input_file,
+        "output_file": output_file,
+        "success": success,
     }
 
     context.update(additional_context)
 
-    level = 'info' if success else 'error'
-    status = 'completed' if success else 'failed'
+    level = "info" if success else "error"
+    status = "completed" if success else "failed"
 
-    log_with_context(
-        logger,
-        level,
-        f"FFmpeg {operation} {status} for {streamer_name}",
-        **context
-    )
+    log_with_context(logger, level, f"FFmpeg {operation} {status} for {streamer_name}", **context)
 
 
 def log_stream_detection(
@@ -129,7 +111,7 @@ def log_stream_detection(
     is_live: bool,
     title: Optional[str] = None,
     category: Optional[str] = None,
-    **additional_context: Any
+    **additional_context: Any,
 ) -> None:
     """Log stream detection result with structured context
 
@@ -142,25 +124,23 @@ def log_stream_detection(
         **additional_context: Additional context fields
     """
     context = {
-        'operation': 'stream_detection',
-        'streamer_name': streamer_name,
-        'is_live': is_live,
-        'status': 'LIVE' if is_live else 'OFFLINE'
+        "operation": "stream_detection",
+        "streamer_name": streamer_name,
+        "is_live": is_live,
+        "status": "LIVE" if is_live else "OFFLINE",
     }
 
     if title:
-        context['title'] = title
+        context["title"] = title
     if category:
-        context['category'] = category
+        context["category"] = category
 
     context.update(additional_context)
 
     log_with_context(
-        logger,
-        'info',
-        f"Stream detection: {streamer_name} is {'LIVE' if is_live else 'OFFLINE'}",
-        **context
+        logger, "info", f"Stream detection: {streamer_name} is {'LIVE' if is_live else 'OFFLINE'}", **context
     )
+
 
 # Convenience functions for common logging patterns
 
@@ -168,22 +148,22 @@ def log_stream_detection(
 def log_info(message: str, **context):
     """Log info message with context"""
     logger = get_structured_logger()
-    log_with_context(logger, 'info', message, **context)
+    log_with_context(logger, "info", message, **context)
 
 
 def log_error(message: str, **context):
     """Log error message with context"""
     logger = get_structured_logger()
-    log_with_context(logger, 'error', message, **context)
+    log_with_context(logger, "error", message, **context)
 
 
 def log_warning(message: str, **context):
     """Log warning message with context"""
     logger = get_structured_logger()
-    log_with_context(logger, 'warning', message, **context)
+    log_with_context(logger, "warning", message, **context)
 
 
 def log_debug(message: str, **context):
     """Log debug message with context"""
     logger = get_structured_logger()
-    log_with_context(logger, 'debug', message, **context)
+    log_with_context(logger, "debug", message, **context)

@@ -31,6 +31,7 @@ class LoggingSettingsSchema(BaseModel):
 
 class LogFileSchema(BaseModel):
     """Schema for log file information"""
+
     filename: str
     size: int
     last_modified: str
@@ -39,6 +40,7 @@ class LogFileSchema(BaseModel):
 
 class LogsListSchema(BaseModel):
     """Schema for listing log files"""
+
     streamlink_logs: list[LogFileSchema]
     ffmpeg_logs: list[LogFileSchema]
     app_logs: list[LogFileSchema]

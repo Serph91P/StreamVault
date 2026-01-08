@@ -1,6 +1,7 @@
 """
 Async database utilities for StreamVault
 """
+
 import asyncio
 from typing import List, Any
 from sqlalchemy import select, desc
@@ -36,10 +37,7 @@ async def get_recent_streams(limit: int = 10) -> List[Stream]:
             result = await session.execute(
                 select(Stream)
                 .options(selectinload(Stream.stream_metadata))
-                .filter(
-                    (Stream.ended_at.isnot(None))
-                    | (Stream.recording_path.isnot(None))
-                )
+                .filter((Stream.ended_at.isnot(None)) | (Stream.recording_path.isnot(None)))
                 .order_by(desc(Stream.started_at))
                 .limit(limit)
             )
@@ -81,11 +79,7 @@ def get_async_session_maker():
     """Get or create async session maker"""
     global _async_session_maker
     if _async_session_maker is None:
-        _async_session_maker = async_sessionmaker(
-            bind=get_async_engine(),
-            class_=AsyncSession,
-            expire_on_commit=False
-        )
+        _async_session_maker = async_sessionmaker(bind=get_async_engine(), class_=AsyncSession, expire_on_commit=False)
     return _async_session_maker
 
 
@@ -123,9 +117,7 @@ async def get_streamers_with_streams() -> List[Streamer]:
     async_session = get_async_session_maker()
     async with async_session() as session:
         try:
-            result = await session.execute(
-                select(Streamer).options(selectinload(Streamer.streams))
-            )
+            result = await session.execute(select(Streamer).options(selectinload(Streamer.streams)))
             streamers = result.scalars().all()
             return list(streamers)
         except Exception as e:
@@ -133,7 +125,9 @@ async def get_streamers_with_streams() -> List[Streamer]:
             return []
 
 
-async def batch_process_items(items: List[Any], batch_size: int = 10, max_concurrent: int = 3, sleep_duration: float = 0.1):
+async def batch_process_items(
+    items: List[Any], batch_size: int = 10, max_concurrent: int = 3, sleep_duration: float = 0.1
+):
     """
     Process items in batches with concurrency control.
 
@@ -149,7 +143,7 @@ async def batch_process_items(items: List[Any], batch_size: int = 10, max_concur
     semaphore = asyncio.Semaphore(max_concurrent)
 
     for i in range(0, len(items), batch_size):
-        batch = items[i:i + batch_size]
+        batch = items[i : i + batch_size]
         async with semaphore:
             yield batch
             # Small delay to prevent overwhelming the system

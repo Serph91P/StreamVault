@@ -3,6 +3,7 @@ Migration API Routes
 
 Provides endpoints for data migration tasks and image refresh.
 """
+
 from fastapi import APIRouter, HTTPException, BackgroundTasks
 from pydantic import BaseModel
 from typing import Dict
@@ -18,6 +19,7 @@ router = APIRouter(prefix="/api/migration", tags=["migration"])
 
 class MigrationResponse(BaseModel):
     """Response model for migration operations"""
+
     success: bool
     message: str
     stats: Dict[str, int]
@@ -37,11 +39,7 @@ async def migrate_images(background_tasks: BackgroundTasks):
         # Run migration in background
         stats = await image_migration_service.migrate_all_images()
 
-        return MigrationResponse(
-            success=True,
-            message="Image migration completed successfully",
-            stats=stats
-        )
+        return MigrationResponse(success=True, message="Image migration completed successfully", stats=stats)
     except Exception as e:
         logger.error(f"Error during image migration: {e}")
         raise HTTPException(status_code=500, detail=f"Migration failed: {str(e)}")
@@ -54,15 +52,14 @@ async def get_migration_status():
     """
     try:
         old_dirs_exist = (
-            image_migration_service.old_images_dir.exists()
-            or image_migration_service.old_artwork_dir.exists()
+            image_migration_service.old_images_dir.exists() or image_migration_service.old_artwork_dir.exists()
         )
 
         return {
             "migration_needed": old_dirs_exist,
             "old_images_dir_exists": image_migration_service.old_images_dir.exists(),
             "old_artwork_dir_exists": image_migration_service.old_artwork_dir.exists(),
-            "recordings_dir": str(image_migration_service.recordings_dir)
+            "recordings_dir": str(image_migration_service.recordings_dir),
         }
     except Exception as e:
         logger.error(f"Error checking migration status: {e}")
@@ -84,11 +81,7 @@ async def refresh_missing_images(background_tasks: BackgroundTasks):
         # Run refresh in background
         stats = await image_refresh_service.check_and_refresh_missing_images()
 
-        return MigrationResponse(
-            success=True,
-            message="Image refresh completed successfully",
-            stats=stats
-        )
+        return MigrationResponse(success=True, message="Image refresh completed successfully", stats=stats)
     except Exception as e:
         logger.error(f"Error during image refresh: {e}")
         raise HTTPException(status_code=500, detail=f"Image refresh failed: {str(e)}")

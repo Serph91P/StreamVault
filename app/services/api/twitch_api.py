@@ -33,8 +33,8 @@ class TwitchAPIService:
                     params={
                         "client_id": self.client_id,
                         "client_secret": self.client_secret,
-                        "grant_type": "client_credentials"
-                    }
+                        "grant_type": "client_credentials",
+                    },
                 ) as response:
                     if response.status == 200:
                         data = await response.json()
@@ -64,10 +64,7 @@ class TwitchAPIService:
             async with session.get(
                 f"{self.base_url}/users",
                 params={"login": usernames},
-                headers={
-                    "Client-ID": self.client_id,
-                    "Authorization": f"Bearer {token}"
-                }
+                headers={"Client-ID": self.client_id, "Authorization": f"Bearer {token}"},
             ) as response:
                 if response.status == 200:
                     data = await response.json()
@@ -95,10 +92,7 @@ class TwitchAPIService:
             async with session.get(
                 f"{self.base_url}/users",
                 params={"id": user_ids},
-                headers={
-                    "Client-ID": self.client_id,
-                    "Authorization": f"Bearer {token}"
-                }
+                headers={"Client-ID": self.client_id, "Authorization": f"Bearer {token}"},
             ) as response:
                 if response.status == 200:
                     data = await response.json()
@@ -124,10 +118,7 @@ class TwitchAPIService:
             async with session.get(
                 f"{self.base_url}/games",
                 params={"name": game_names},
-                headers={
-                    "Client-ID": self.client_id,
-                    "Authorization": f"Bearer {token}"
-                }
+                headers={"Client-ID": self.client_id, "Authorization": f"Bearer {token}"},
             ) as response:
                 if response.status == 200:
                     data = await response.json()
@@ -152,10 +143,7 @@ class TwitchAPIService:
             async with session.get(
                 f"{self.base_url}/games",
                 params={"id": game_ids},
-                headers={
-                    "Client-ID": self.client_id,
-                    "Authorization": f"Bearer {token}"
-                }
+                headers={"Client-ID": self.client_id, "Authorization": f"Bearer {token}"},
             ) as response:
                 if response.status == 200:
                     data = await response.json()
@@ -166,8 +154,9 @@ class TwitchAPIService:
                     return []
 
     @twitch_api_retry
-    async def get_streams(self, user_ids: List[str] = None, user_logins: List[str] = None,
-                          game_ids: List[str] = None) -> List[Dict[str, Any]]:
+    async def get_streams(
+        self, user_ids: List[str] = None, user_logins: List[str] = None, game_ids: List[str] = None
+    ) -> List[Dict[str, Any]]:
         """Get stream data"""
         token = await self.get_access_token()
 
@@ -183,10 +172,7 @@ class TwitchAPIService:
             async with session.get(
                 f"{self.base_url}/streams",
                 params=params,
-                headers={
-                    "Client-ID": self.client_id,
-                    "Authorization": f"Bearer {token}"
-                }
+                headers={"Client-ID": self.client_id, "Authorization": f"Bearer {token}"},
             ) as response:
                 if response.status == 200:
                     data = await response.json()
@@ -211,10 +197,7 @@ class TwitchAPIService:
             async with session.get(
                 f"{self.base_url}/search/categories",
                 params={"query": query},
-                headers={
-                    "Client-ID": self.client_id,
-                    "Authorization": f"Bearer {token}"
-                }
+                headers={"Client-ID": self.client_id, "Authorization": f"Bearer {token}"},
             ) as response:
                 if response.status == 200:
                     data = await response.json()
@@ -232,10 +215,7 @@ class TwitchAPIService:
             async with session.get(
                 f"{self.base_url}/games/top",
                 params={"first": first},
-                headers={
-                    "Client-ID": self.client_id,
-                    "Authorization": f"Bearer {token}"
-                }
+                headers={"Client-ID": self.client_id, "Authorization": f"Bearer {token}"},
             ) as response:
                 if response.status == 200:
                     data = await response.json()
@@ -251,10 +231,7 @@ class TwitchAPIService:
             async with session.get(
                 f"{self.base_url}/channels/followed",
                 params={"user_id": user_id},
-                headers={
-                    "Client-ID": self.client_id,
-                    "Authorization": f"Bearer {access_token}"
-                }
+                headers={"Client-ID": self.client_id, "Authorization": f"Bearer {access_token}"},
             ) as response:
                 if response.status == 200:
                     data = await response.json()
@@ -269,8 +246,7 @@ class TwitchAPIService:
         """Validate an access token and get user info"""
         async with aiohttp.ClientSession() as session:
             async with session.get(
-                "https://id.twitch.tv/oauth2/validate",
-                headers={"Authorization": f"OAuth {access_token}"}
+                "https://id.twitch.tv/oauth2/validate", headers={"Authorization": f"OAuth {access_token}"}
             ) as response:
                 if response.status == 200:
                     return await response.json()

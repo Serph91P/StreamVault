@@ -28,20 +28,19 @@ class RecordingWebSocketService:
             # Convert active recordings to WebSocket format
             websocket_data = []
             for recording_id, recording_data in active_recordings.items():
-                websocket_data.append({
-                    'id': recording_id,
-                    'streamer_id': recording_data.get('streamer_id'),
-                    'stream_id': recording_data.get('stream_id'),
-                    'file_path': recording_data.get('file_path'),
-                    'status': recording_data.get('status', 'recording'),
-                    'started_at': recording_data.get('started_at'),
-                    'progress': recording_data.get('progress', 0.0)
-                })
+                websocket_data.append(
+                    {
+                        "id": recording_id,
+                        "streamer_id": recording_data.get("streamer_id"),
+                        "stream_id": recording_data.get("stream_id"),
+                        "file_path": recording_data.get("file_path"),
+                        "status": recording_data.get("status", "recording"),
+                        "started_at": recording_data.get("started_at"),
+                        "progress": recording_data.get("progress", 0.0),
+                    }
+                )
 
-            message = {
-                "type": "active_recordings_update",
-                "data": websocket_data
-            }
+            message = {"type": "active_recordings_update", "data": websocket_data}
 
             await self.websocket_manager.send_notification(message)
             logger.debug(f"Sent active recordings update: {len(websocket_data)} recordings")
@@ -50,10 +49,7 @@ class RecordingWebSocketService:
             logger.error(f"Failed to send active recordings WebSocket update: {e}")
 
     async def send_recording_status_update(
-        self,
-        recording_id: int,
-        status: str,
-        additional_data: Optional[Dict[str, Any]] = None
+        self, recording_id: int, status: str, additional_data: Optional[Dict[str, Any]] = None
     ) -> None:
         """Send recording status update via WebSocket"""
         if not self.websocket_manager:
@@ -67,8 +63,8 @@ class RecordingWebSocketService:
                     "recording_id": recording_id,
                     "status": status,
                     "timestamp": datetime.utcnow().isoformat(),
-                    **(additional_data or {})
-                }
+                    **(additional_data or {}),
+                },
             }
 
             await self.websocket_manager.send_notification(message)
@@ -83,7 +79,7 @@ class RecordingWebSocketService:
         job_type: str,
         status: str,
         progress: float = 0.0,
-        additional_data: Optional[Dict[str, Any]] = None
+        additional_data: Optional[Dict[str, Any]] = None,
     ) -> None:
         """Send recording job status update via WebSocket"""
         if not self.websocket_manager:
@@ -99,8 +95,8 @@ class RecordingWebSocketService:
                     "status": status,
                     "progress": progress,
                     "timestamp": datetime.utcnow().isoformat(),
-                    **(additional_data or {})
-                }
+                    **(additional_data or {}),
+                },
             }
 
             await self.websocket_manager.send_notification(message)
@@ -116,7 +112,7 @@ class RecordingWebSocketService:
         status: str,
         progress: float = 0.0,
         recording_id: Optional[int] = None,
-        additional_data: Optional[Dict[str, Any]] = None
+        additional_data: Optional[Dict[str, Any]] = None,
     ) -> None:
         """Send background task update via WebSocket"""
         if not self.websocket_manager:
@@ -133,8 +129,8 @@ class RecordingWebSocketService:
                     "progress": progress,
                     "recording_id": recording_id,
                     "timestamp": datetime.utcnow().isoformat(),
-                    **(additional_data or {})
-                }
+                    **(additional_data or {}),
+                },
             }
 
             await self.websocket_manager.send_notification(message)
@@ -144,10 +140,7 @@ class RecordingWebSocketService:
             logger.error(f"Failed to send background task WebSocket update: {e}")
 
     async def send_recording_error(
-        self,
-        recording_id: int,
-        error_message: str,
-        additional_data: Optional[Dict[str, Any]] = None
+        self, recording_id: int, error_message: str, additional_data: Optional[Dict[str, Any]] = None
     ) -> None:
         """Send recording error notification via WebSocket"""
         if not self.websocket_manager:
@@ -161,8 +154,8 @@ class RecordingWebSocketService:
                     "recording_id": recording_id,
                     "error_message": error_message,
                     "timestamp": datetime.utcnow().isoformat(),
-                    **(additional_data or {})
-                }
+                    **(additional_data or {}),
+                },
             }
 
             await self.websocket_manager.send_notification(message)
@@ -177,7 +170,7 @@ class RecordingWebSocketService:
         file_path: str,
         duration_seconds: Optional[int] = None,
         file_size: Optional[int] = None,
-        additional_data: Optional[Dict[str, Any]] = None
+        additional_data: Optional[Dict[str, Any]] = None,
     ) -> None:
         """Send recording completed notification via WebSocket"""
         if not self.websocket_manager:
@@ -193,8 +186,8 @@ class RecordingWebSocketService:
                     "duration_seconds": duration_seconds,
                     "file_size": file_size,
                     "timestamp": datetime.utcnow().isoformat(),
-                    **(additional_data or {})
-                }
+                    **(additional_data or {}),
+                },
             }
 
             await self.websocket_manager.send_notification(message)
@@ -209,7 +202,7 @@ class RecordingWebSocketService:
         streamer_id: int,
         stream_id: int,
         file_path: str,
-        additional_data: Optional[Dict[str, Any]] = None
+        additional_data: Optional[Dict[str, Any]] = None,
     ) -> None:
         """Send recording started notification via WebSocket"""
         if not self.websocket_manager:
@@ -225,8 +218,8 @@ class RecordingWebSocketService:
                     "stream_id": stream_id,
                     "file_path": file_path,
                     "timestamp": datetime.utcnow().isoformat(),
-                    **(additional_data or {})
-                }
+                    **(additional_data or {}),
+                },
             }
 
             await self.websocket_manager.send_notification(message)
@@ -240,7 +233,7 @@ class RecordingWebSocketService:
         notification_type: str,
         message: str,
         level: str = "info",
-        additional_data: Optional[Dict[str, Any]] = None
+        additional_data: Optional[Dict[str, Any]] = None,
     ) -> None:
         """Send system notification via WebSocket"""
         if not self.websocket_manager:
@@ -255,8 +248,8 @@ class RecordingWebSocketService:
                     "message": message,
                     "level": level,
                     "timestamp": datetime.utcnow().isoformat(),
-                    **(additional_data or {})
-                }
+                    **(additional_data or {}),
+                },
             }
 
             await self.websocket_manager.send_notification(notification)
@@ -270,7 +263,7 @@ class RecordingWebSocketService:
         recording_id: int,
         progress: float,
         stage: str = "recording",
-        additional_data: Optional[Dict[str, Any]] = None
+        additional_data: Optional[Dict[str, Any]] = None,
     ) -> None:
         """Send recording progress update via WebSocket"""
         if not self.websocket_manager:
@@ -284,8 +277,8 @@ class RecordingWebSocketService:
                     "progress": progress,
                     "stage": stage,
                     "timestamp": datetime.utcnow().isoformat(),
-                    **(additional_data or {})
-                }
+                    **(additional_data or {}),
+                },
             }
 
             await self.websocket_manager.send_notification(message)
@@ -301,11 +294,7 @@ class RecordingWebSocketService:
         try:
             message = {
                 "type": "bulk_recording_update",
-                "data": {
-                    "updates": updates,
-                    "timestamp": datetime.utcnow().isoformat(),
-                    "count": len(updates)
-                }
+                "data": {"updates": updates, "timestamp": datetime.utcnow().isoformat(), "count": len(updates)},
             }
 
             await self.websocket_manager.send_notification(message)

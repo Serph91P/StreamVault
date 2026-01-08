@@ -1,6 +1,7 @@
 """
 Centralized retry utility for handling transient errors across the application.
 """
+
 import asyncio
 import functools
 import logging
@@ -26,7 +27,7 @@ def with_retry(
     jitter: bool = True,
     retry_on: Optional[List[Type[Exception]]] = None,
     stop_on: Optional[List[Type[Exception]]] = None,
-    log_attempts: bool = True
+    log_attempts: bool = True,
 ):
     """
     Decorator for adding retry logic to functions and methods.
@@ -78,7 +79,7 @@ def with_retry(
 
                     # Calculate delay for next attempt
                     if exponential_backoff:
-                        delay = min(base_delay * (2 ** attempt), max_delay)
+                        delay = min(base_delay * (2**attempt), max_delay)
                     else:
                         delay = base_delay
 
@@ -124,7 +125,7 @@ def with_retry(
 
                     # Calculate delay for next attempt
                     if exponential_backoff:
-                        delay = min(base_delay * (2 ** attempt), max_delay)
+                        delay = min(base_delay * (2**attempt), max_delay)
                     else:
                         delay = base_delay
 
@@ -139,6 +140,7 @@ def with_retry(
                         )
 
                     import time
+
                     time.sleep(delay)
 
             # This should never be reached, but just in case
@@ -171,7 +173,7 @@ def twitch_api_retry(func: Callable) -> Callable:
             NonRetryableError,
             # Add specific HTTP error codes that shouldn't be retried
         ],
-        log_attempts=True
+        log_attempts=True,
     )(func)
 
 
@@ -192,7 +194,7 @@ def database_retry(func: Callable) -> Callable:
             NonRetryableError,
             # Add database-specific non-retryable errors
         ],
-        log_attempts=True
+        log_attempts=True,
     )(func)
 
 
@@ -214,5 +216,5 @@ def recording_process_retry(func: Callable) -> Callable:
             NonRetryableError,
             # Add process-specific non-retryable errors
         ],
-        log_attempts=True
+        log_attempts=True,
     )(func)

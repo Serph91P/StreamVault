@@ -1,4 +1,5 @@
 """Path utility functions for StreamVault."""
+
 import logging
 from datetime import datetime
 from typing import Dict, Any
@@ -15,7 +16,7 @@ FILENAME_PRESETS = {
     "emby": "Season {year}-{month}/{streamer} - S{year}{month}E{episode:02d} - {title}",
     "jellyfin": "Season {year}-{month}/{streamer} - S{year}{month}E{episode:02d} - {title}",
     "kodi": "Season {year}-{month}/{streamer} - S{year}{month}E{episode:02d} - {title}",
-    "chronological": "{year}/{month}/{day}/{streamer} - E{episode:02d} - {title} - {hour}-{minute}"
+    "chronological": "{year}/{month}/{day}/{streamer} - E{episode:02d} - {title} - {hour}-{minute}",
 }
 
 
@@ -49,7 +50,7 @@ async def get_episode_number(streamer_id: int, now: datetime) -> str:
                         Stream.streamer_id == streamer_id,
                         extract("year", Stream.started_at) == now.year,
                         extract("month", Stream.started_at) == now.month,
-                        Stream.episode_number.isnot(None)
+                        Stream.episode_number.isnot(None),
                     )
                     .order_by(Stream.episode_number.desc())
                     .first()
@@ -73,7 +74,7 @@ async def get_episode_number(streamer_id: int, now: datetime) -> str:
                         Stream.streamer_id == streamer_id,
                         extract("year", Recording.start_time) == now.year,
                         extract("month", Recording.start_time) == now.month,
-                        Recording.path.isnot(None)
+                        Recording.path.isnot(None),
                     )
                     .order_by(Recording.start_time.desc())
                     .all()
@@ -86,7 +87,8 @@ async def get_episode_number(streamer_id: int, now: datetime) -> str:
                         try:
                             # Extract episode number from path like "S202507E02"
                             import re
-                            match = re.search(rf'S{current_month_year}E(\d+)', recording.path)
+
+                            match = re.search(rf"S{current_month_year}E(\d+)", recording.path)
                             if match:
                                 episode_num = int(match.group(1))
                                 max_episode_num = max(max_episode_num, episode_num)
@@ -97,11 +99,13 @@ async def get_episode_number(streamer_id: int, now: datetime) -> str:
                 if max_episode_num == 0:
                     try:
                         from app.config.settings import get_settings
+
                         settings = get_settings()
-                        output_directory = getattr(settings, 'output_directory', '/recordings')
+                        output_directory = getattr(settings, "output_directory", "/recordings")
 
                         # Get streamer name
                         from app.models import Streamer
+
                         streamer = db.query(Streamer).filter(Streamer.id == streamer_id).first()
                         if streamer:
                             streamer_dir = await async_file.join(output_directory, streamer.username)
@@ -109,8 +113,9 @@ async def get_episode_number(streamer_id: int, now: datetime) -> str:
 
                             if await async_file.exists(season_dir):
                                 import re
+
                                 for filename in await async_file.listdir(season_dir):
-                                    match = re.search(rf'S{current_month_year}E(\d+)', filename)
+                                    match = re.search(rf"S{current_month_year}E(\d+)", filename)
                                     if match:
                                         episode_num = int(match.group(1))
                                         max_episode_num = max(max_episode_num, episode_num)
@@ -130,9 +135,7 @@ async def get_episode_number(streamer_id: int, now: datetime) -> str:
         return "01"  # Default value
 
 
-async def generate_filename(
-    streamer: Any, stream_data: Dict[str, Any], template: str, sanitize_func=None
-) -> str:
+async def generate_filename(streamer: Any, stream_data: Dict[str, Any], template: str, sanitize_func=None) -> str:
     """
     Generate a filename from template with variables.
 
@@ -195,21 +198,21 @@ async def generate_filename(
         for key, value in values.items():
             # Try different possible format strings
             formats_to_try = [
-                f"{{{key}}}",                # {episode}
-                f"{{{key}:02d}}",            # {episode:02d}
-                f"{{{key}:2d}}",             # {episode:2d}
-                f"{{{key}:d}}",              # {episode:d}
+                f"{{{key}}}",  # {episode}
+                f"{{{key}:02d}}",  # {episode:02d}
+                f"{{{key}:2d}}",  # {episode:2d}
+                f"{{{key}:d}}",  # {episode:d}
             ]
             for fmt in formats_to_try:
                 if fmt in filename:
                     try:
-                        if fmt.endswith(':02d}') and isinstance(value, str) and value.isdigit():
+                        if fmt.endswith(":02d}") and isinstance(value, str) and value.isdigit():
                             # For numbers as strings with 02d format
                             filename = filename.replace(fmt, f"{int(value):02d}")
-                        elif fmt.endswith(':d}') and isinstance(value, str) and value.isdigit():
+                        elif fmt.endswith(":d}") and isinstance(value, str) and value.isdigit():
                             # For numbers as strings with simple d format
                             filename = filename.replace(fmt, f"{int(value)}")
-                        elif fmt.endswith(':2d}') and isinstance(value, str) and value.isdigit():
+                        elif fmt.endswith(":2d}") and isinstance(value, str) and value.isdigit():
                             # For numbers as strings with 2d format
                             filename = filename.replace(fmt, f"{int(value):2d}")
                         else:

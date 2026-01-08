@@ -24,8 +24,7 @@ class BannerImageService:
         self.download_service = download_service or ImageDownloadService()
         # TTLCache for banner images
         self._banner_cache: TTLCache = TTLCache(
-            maxsize=CACHE_CONFIG.DEFAULT_CACHE_SIZE,
-            ttl=CACHE_CONFIG.IMAGE_CACHE_TTL
+            maxsize=CACHE_CONFIG.DEFAULT_CACHE_SIZE, ttl=CACHE_CONFIG.IMAGE_CACHE_TTL
         )
         self.banners_dir = None
         self._cache_loaded = False
@@ -67,7 +66,7 @@ class BannerImageService:
             for banner_file in banner_files:
                 try:
                     # Extract streamer_id from filename: banner_123.jpg -> 123
-                    filename_parts = banner_file.stem.split('_')
+                    filename_parts = banner_file.stem.split("_")
                     if len(filename_parts) >= 2:
                         streamer_id = int(filename_parts[1])
                         self._banner_cache[streamer_id] = f"/data/images/banners/{banner_file.name}"
@@ -98,9 +97,7 @@ class BannerImageService:
 
             # Download image
             success = await self.download_service.download_image(
-                offline_image_url,
-                file_path,
-                f"banner for streamer {streamer_id}"
+                offline_image_url, file_path, f"banner for streamer {streamer_id}"
             )
 
             if success:
@@ -152,10 +149,11 @@ class BannerImageService:
 
         try:
             with SessionLocal() as db:
-                streamers = db.query(Streamer).filter(
-                    Streamer.original_offline_image_url.isnot(None),
-                    Streamer.original_offline_image_url != ""
-                ).all()
+                streamers = (
+                    db.query(Streamer)
+                    .filter(Streamer.original_offline_image_url.isnot(None), Streamer.original_offline_image_url != "")
+                    .all()
+                )
 
                 stats["total"] = len(streamers)
                 logger.info(f"Starting banner sync for {stats['total']} streamers")
@@ -201,7 +199,7 @@ class BannerImageService:
             for banner_file in banner_files:
                 try:
                     # Extract streamer_id from filename
-                    filename_parts = banner_file.stem.split('_')
+                    filename_parts = banner_file.stem.split("_")
                     if len(filename_parts) >= 2:
                         streamer_id = int(filename_parts[1])
 
@@ -229,7 +227,7 @@ class BannerImageService:
 
         stats = {
             "cached_banners": len(self._banner_cache),
-            "failed_downloads": len(self.download_service._failed_downloads)
+            "failed_downloads": len(self.download_service._failed_downloads),
         }
 
         # Count files on disk

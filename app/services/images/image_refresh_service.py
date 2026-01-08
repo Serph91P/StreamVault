@@ -3,6 +3,7 @@ Image Refresh Service
 
 Handles automatic re-downloading of missing images and frontend integration.
 """
+
 import asyncio
 import logging
 from pathlib import Path
@@ -31,7 +32,7 @@ class ImageRefreshService:
             "profile_images_refreshed": 0,
             "category_images_refreshed": 0,
             "stream_artwork_refreshed": 0,
-            "errors": 0
+            "errors": 0,
         }
 
         try:
@@ -64,6 +65,7 @@ class ImageRefreshService:
 
         try:
             from app.utils.async_db_utils import get_all_streamers, batch_process_items
+
             streamers = await get_all_streamers()
 
             # Process streamers in batches for better performance
@@ -86,13 +88,19 @@ class ImageRefreshService:
 
                     # Determine a valid HTTP source URL to (re)download from
                     source_url: Optional[str] = None
-                    if streamer.profile_image_url and isinstance(streamer.profile_image_url, str) and streamer.profile_image_url.startswith('http'):
+                    if (
+                        streamer.profile_image_url
+                        and isinstance(streamer.profile_image_url, str)
+                        and streamer.profile_image_url.startswith("http")
+                    ):
                         source_url = streamer.profile_image_url
-                    elif getattr(streamer, 'original_profile_image_url', None) and streamer.original_profile_image_url.startswith('http'):
+                    elif getattr(
+                        streamer, "original_profile_image_url", None
+                    ) and streamer.original_profile_image_url.startswith("http"):
                         source_url = streamer.original_profile_image_url
                     else:
                         # Construct a Twitch CDN URL using twitch_id when available
-                        if streamer.twitch_id and str(streamer.twitch_id).replace('-', '').replace('_', '').isalnum():
+                        if streamer.twitch_id and str(streamer.twitch_id).replace("-", "").replace("_", "").isalnum():
                             source_url = f"https://static-cdn.jtvnw.net/jtv_user_pictures/{streamer.twitch_id}-profile_image-300x300.png"
 
                     if source_url:
@@ -128,7 +136,7 @@ class ImageRefreshService:
         try:
             # Prefer provided source_url; fall back to current DB value
             url_to_use = source_url or streamer.profile_image_url
-            if not url_to_use or not isinstance(url_to_use, str) or not url_to_use.startswith('http'):
+            if not url_to_use or not isinstance(url_to_use, str) or not url_to_use.startswith("http"):
                 logger.debug(f"No valid source URL to download profile image for streamer {streamer.id}")
                 return False
 
@@ -136,6 +144,7 @@ class ImageRefreshService:
             if cached_path:
                 # Update database with cached path using proper session
                 from app.utils.async_db_utils import get_async_session
+
                 async with get_async_session() as db:
                     # Re-fetch the streamer in this session context
                     stmt = select(Streamer).where(Streamer.id == streamer.id)
@@ -170,7 +179,7 @@ class ImageRefreshService:
                 categories = result.scalars().all()
 
                 for category in categories:
-                    if category.box_art_url and category.box_art_url.startswith('http'):
+                    if category.box_art_url and category.box_art_url.startswith("http"):
                         # Check if cached file exists
                         safe_name = sanitize_filename(category.name)
                         expected_path = self.media_dir / "categories" / f"{safe_name}.jpg"
@@ -179,8 +188,7 @@ class ImageRefreshService:
                             logger.info(f"Category image missing for {category.name}, re-downloading...")
                             try:
                                 cached_path = await unified_image_service.download_category_image(
-                                    category.name,
-                                    category.box_art_url
+                                    category.name, category.box_art_url
                                 )
                                 if cached_path:
                                     # Update database with cached path
@@ -206,6 +214,7 @@ class ImageRefreshService:
         try:
             # Use async database operations with batch processing
             from app.utils.async_db_utils import get_recent_streams, batch_process_items
+
             streams = await get_recent_streams(limit=100)
 
             # Process streams in batches for better performance
@@ -213,7 +222,9 @@ class ImageRefreshService:
                 batch_tasks = []
                 for stream in batch:
                     # Check if cached file exists
-                    expected_path = self.media_dir / "artwork" / f"streamer_{stream.streamer_id}" / f"stream_{stream.id}.jpg"
+                    expected_path = (
+                        self.media_dir / "artwork" / f"streamer_{stream.streamer_id}" / f"stream_{stream.id}.jpg"
+                    )
 
                     # Check if stream has metadata with thumbnail_url
                     thumbnail_url = None
@@ -255,9 +266,7 @@ class ImageRefreshService:
                 return False
 
             cached_path = await unified_image_service.download_stream_artwork(
-                stream.id,
-                stream.streamer_id,
-                thumbnail_url
+                stream.id, stream.streamer_id, thumbnail_url
             )
             if cached_path:
                 logger.info(f"Successfully refreshed stream artwork for stream {stream.id}")
@@ -277,10 +286,9 @@ class ImageRefreshService:
                 if not streamer:
                     return False
 
-                if streamer.profile_image_url and streamer.profile_image_url.startswith('http'):
+                if streamer.profile_image_url and streamer.profile_image_url.startswith("http"):
                     cached_path = await unified_image_service.download_profile_image(
-                        streamer.id,
-                        streamer.profile_image_url
+                        streamer.id, streamer.profile_image_url
                     )
                     if cached_path:
                         streamer.profile_image_url = cached_path
@@ -300,10 +308,9 @@ class ImageRefreshService:
                 if not category:
                     return False
 
-                if category.box_art_url and category.box_art_url.startswith('http'):
+                if category.box_art_url and category.box_art_url.startswith("http"):
                     cached_path = await unified_image_service.download_category_image(
-                        category.name,
-                        category.box_art_url
+                        category.name, category.box_art_url
                     )
                     if cached_path:
                         category.box_art_url = cached_path

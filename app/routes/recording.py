@@ -18,10 +18,7 @@ FALLBACK_SUFFIX = "_fallback"
 
 logger = logging.getLogger("streamvault")
 
-router = APIRouter(
-    prefix="/api/recording",
-    tags=["recording"]
-)
+router = APIRouter(prefix="/api/recording", tags=["recording"])
 
 recording_service = None
 
@@ -58,6 +55,7 @@ async def get_recording_settings():
             if settings.cleanup_policy:
                 try:
                     import json
+
                     cleanup_policy = CleanupPolicySchema.parse_obj(json.loads(settings.cleanup_policy))
                 except Exception as e:
                     logger.warning(f"Error parsing cleanup policy: {e}")
@@ -67,12 +65,12 @@ async def get_recording_settings():
                 enabled=settings.enabled,
                 output_directory=settings.output_directory,
                 filename_template=settings.filename_template,
-                filename_preset=getattr(settings, 'filename_preset', 'default'),
+                filename_preset=getattr(settings, "filename_preset", "default"),
                 default_quality=settings.default_quality,
                 use_chapters=settings.use_chapters,
-                use_category_as_chapter_title=getattr(settings, 'use_category_as_chapter_title', False),
-                max_streams_per_streamer=getattr(settings, 'max_streams_per_streamer', 0),
-                cleanup_policy=cleanup_policy
+                use_category_as_chapter_title=getattr(settings, "use_category_as_chapter_title", False),
+                max_streams_per_streamer=getattr(settings, "max_streams_per_streamer", 0),
+                cleanup_policy=cleanup_policy,
             )
 
             return response
@@ -103,19 +101,20 @@ async def update_recording_settings(settings_data: RecordingSettingsSchema):
             existing_settings.use_chapters = settings_data.use_chapters
 
             # Update filename_preset if provided
-            if hasattr(settings_data, 'filename_preset') and settings_data.filename_preset:
+            if hasattr(settings_data, "filename_preset") and settings_data.filename_preset:
                 existing_settings.filename_preset = settings_data.filename_preset
 
             # Add the new field
-            if hasattr(settings_data, 'use_category_as_chapter_title'):
+            if hasattr(settings_data, "use_category_as_chapter_title"):
                 existing_settings.use_category_as_chapter_title = settings_data.use_category_as_chapter_title
 
-            if hasattr(settings_data, 'max_streams_per_streamer'):
+            if hasattr(settings_data, "max_streams_per_streamer"):
                 existing_settings.max_streams_per_streamer = settings_data.max_streams_per_streamer
 
             # Update cleanup policy if provided
-            if hasattr(settings_data, 'cleanup_policy') and settings_data.cleanup_policy:
+            if hasattr(settings_data, "cleanup_policy") and settings_data.cleanup_policy:
                 import json
+
                 existing_settings.cleanup_policy = json.dumps(settings_data.cleanup_policy.dict())
 
             # Save changes
@@ -129,6 +128,7 @@ async def update_recording_settings(settings_data: RecordingSettingsSchema):
                 try:
                     import json
                     from app.schemas.recording import CleanupPolicySchema
+
                     cleanup_policy = CleanupPolicySchema.parse_obj(json.loads(existing_settings.cleanup_policy))
                 except Exception as e:
                     logger.warning(f"Error parsing cleanup policy for response: {e}")
@@ -138,12 +138,12 @@ async def update_recording_settings(settings_data: RecordingSettingsSchema):
                 enabled=existing_settings.enabled,
                 output_directory=existing_settings.output_directory,
                 filename_template=existing_settings.filename_template,
-                filename_preset=getattr(existing_settings, 'filename_preset', 'default'),
+                filename_preset=getattr(existing_settings, "filename_preset", "default"),
                 default_quality=existing_settings.default_quality,
                 use_chapters=existing_settings.use_chapters,
-                use_category_as_chapter_title=getattr(existing_settings, 'use_category_as_chapter_title', False),
-                max_streams_per_streamer=getattr(existing_settings, 'max_streams_per_streamer', 0),
-                cleanup_policy=cleanup_policy
+                use_category_as_chapter_title=getattr(existing_settings, "use_category_as_chapter_title", False),
+                max_streams_per_streamer=getattr(existing_settings, "max_streams_per_streamer", 0),
+                cleanup_policy=cleanup_policy,
             )
     except Exception as e:
         logger.error(f"Error updating recording settings: {e}", exc_info=True)
@@ -171,40 +171,42 @@ async def get_all_streamer_recording_settings():
                     settings = settings_dict[streamer.id]
                 else:
                     # Create default settings
-                    settings = StreamerRecordingSettings(
-                        streamer_id=streamer.id,
-                        enabled=True
-                    )
+                    settings = StreamerRecordingSettings(streamer_id=streamer.id, enabled=True)
                     db.add(settings)
                 # Create response object
                 try:
                     cleanup_policy = None
-                    if hasattr(settings, 'cleanup_policy') and settings.cleanup_policy:
+                    if hasattr(settings, "cleanup_policy") and settings.cleanup_policy:
                         import json
+
                         cleanup_policy = CleanupPolicySchema.parse_obj(json.loads(settings.cleanup_policy))
                 except Exception as e:
                     logger.warning(f"Error parsing cleanup policy: {e}")
                     cleanup_policy = None
 
-                result.append(StreamerRecordingSettingsSchema(
-                    streamer_id=streamer.id,
-                    username=streamer.username,
-                    profile_image_url=unified_image_service.get_profile_image_url(
-                        streamer.id,
-                        streamer.profile_image_url
-                    ),
-                    enabled=settings.enabled,
-                    quality=settings.quality,
-                    custom_filename=settings.custom_filename,
-                    max_streams=settings.max_streams,
-                    cleanup_policy=cleanup_policy
-                ))
+                result.append(
+                    StreamerRecordingSettingsSchema(
+                        streamer_id=streamer.id,
+                        username=streamer.username,
+                        profile_image_url=unified_image_service.get_profile_image_url(
+                            streamer.id, streamer.profile_image_url
+                        ),
+                        enabled=settings.enabled,
+                        quality=settings.quality,
+                        custom_filename=settings.custom_filename,
+                        max_streams=settings.max_streams,
+                        cleanup_policy=cleanup_policy,
+                    )
+                )
 
             db.commit()
             return result
     except Exception as e:
         logger.error(f"Error fetching streamer recording settings: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e)) @ router.post("/streamers/{streamer_id}", response_model=StreamerRecordingSettingsSchema)
+        raise HTTPException(status_code=500, detail=str(e)) @ router.post(
+            "/streamers/{streamer_id}", response_model=StreamerRecordingSettingsSchema
+        )
+
 
 # async def update_streamer_recording_settings(
 #     streamer_id: int,
@@ -242,6 +244,7 @@ async def get_active_recordings():
     """Get all active recordings"""
     import time
     from sqlalchemy.exc import TimeoutError, OperationalError
+
     try:
         from app.utils.cache import app_cache
     except ImportError:
@@ -255,6 +258,7 @@ async def get_active_recordings():
 
             def set(self, key, value, ttl=None):
                 pass
+
         app_cache = DummyCache()
 
     # Check cache first (with short TTL to reduce database load)
@@ -276,11 +280,14 @@ async def get_active_recordings():
             # Use a new session for database queries with proper error handling
             with SessionLocal() as db:
                 # Optimized query with joins to reduce database round trips
-                active_recordings = db.query(Recording).join(Stream).join(Streamer).filter(
-                    Recording.status == "recording"
-                ).options(
-                    joinedload(Recording.stream).joinedload(Stream.streamer)
-                ).all()
+                active_recordings = (
+                    db.query(Recording)
+                    .join(Stream)
+                    .join(Streamer)
+                    .filter(Recording.status == "recording")
+                    .options(joinedload(Recording.stream).joinedload(Stream.streamer))
+                    .all()
+                )
 
                 for recording in active_recordings:
                     try:
@@ -298,11 +305,11 @@ async def get_active_recordings():
                                 stream_id=recording.stream_id,
                                 streamer_id=stream.streamer_id,
                                 streamer_name=stream.streamer.username,
-                                title=stream.title or '',
-                                started_at=recording.start_time.isoformat() if recording.start_time else '',
-                                file_path=recording.path or '',
+                                title=stream.title or "",
+                                started_at=recording.start_time.isoformat() if recording.start_time else "",
+                                file_path=recording.path or "",
                                 status=recording.status,
-                                duration=duration
+                                duration=duration,
                             )
                             result.append(active_recording)
                     except Exception as e:
@@ -321,7 +328,7 @@ async def get_active_recordings():
             if "QueuePool" in str(e) or "timeout" in str(e).lower():
                 logger.warning(f"Database connection pool issue on attempt {attempt + 1}: {e}")
                 if attempt < max_retries - 1:
-                    time.sleep(retry_delay * (2 ** attempt))  # Exponential backoff
+                    time.sleep(retry_delay * (2**attempt))  # Exponential backoff
                     continue
                 else:
                     logger.error(f"Database connection pool exhausted after {max_retries} attempts")
@@ -350,28 +357,34 @@ async def stop_recording(streamer_id: int):
             streamer_name = streamer.username if streamer else f"Streamer {streamer_id}"
 
         # Log the stop request
-        logging_service.log_recording_activity("STOP_REQUEST", f"Streamer {streamer_id}", "Manual stop requested via API")
+        logging_service.log_recording_activity(
+            "STOP_REQUEST", f"Streamer {streamer_id}", "Manual stop requested via API"
+        )
 
         result = await get_recording_service().stop_recording_manual(streamer_id)
         if result:
-            logging_service.log_recording_activity("STOP_SUCCESS", f"Streamer {streamer_id}", "Recording stopped successfully via API")
+            logging_service.log_recording_activity(
+                "STOP_SUCCESS", f"Streamer {streamer_id}", "Recording stopped successfully via API"
+            )
 
             # Send success toast notification
             await websocket_manager.send_toast_notification(
                 toast_type="success",
                 title=f"Recording Stopped - {streamer_name}",
-                message="Recording stopped successfully!"
+                message="Recording stopped successfully!",
             )
 
             return {"status": "success", "message": "Recording stopped successfully"}
         else:
-            logging_service.log_recording_activity("STOP_FAILED", f"Streamer {streamer_id}", "No active recording found", "warning")
+            logging_service.log_recording_activity(
+                "STOP_FAILED", f"Streamer {streamer_id}", "No active recording found", "warning"
+            )
 
             # Send warning toast notification
             await websocket_manager.send_toast_notification(
                 toast_type="warning",
                 title=f"Stop Recording - {streamer_name}",
-                message="No active recording found to stop."
+                message="No active recording found to stop.",
             )
 
             return {"status": "error", "message": "No active recording found"}
@@ -388,7 +401,7 @@ async def stop_recording(streamer_id: int):
             await websocket_manager.send_toast_notification(
                 toast_type="error",
                 title=f"Stop Recording - {streamer_name}",
-                message=f"Failed to stop recording: {str(e)}"
+                message=f"Failed to stop recording: {str(e)}",
             )
         except Exception as notification_error:
             logger.error(f"Failed to send error notification: {notification_error}")
@@ -398,9 +411,7 @@ async def stop_recording(streamer_id: int):
 
 @router.post("/streamers/{streamer_id}", response_model=StreamerRecordingSettingsSchema)
 async def update_streamer_recording_settings(
-    streamer_id: int,
-    settings: StreamerRecordingSettingsSchema,
-    db: Session = Depends(get_db)
+    streamer_id: int, settings: StreamerRecordingSettingsSchema, db: Session = Depends(get_db)
 ):
     """Update recording settings for a specific streamer"""
     try:
@@ -409,9 +420,9 @@ async def update_streamer_recording_settings(
         if not streamer:
             raise HTTPException(status_code=404, detail=f"Streamer with ID {streamer_id} not found")
         # Get or create streamer recording settings
-        streamer_settings = db.query(StreamerRecordingSettings).filter(
-            StreamerRecordingSettings.streamer_id == streamer_id
-        ).first()
+        streamer_settings = (
+            db.query(StreamerRecordingSettings).filter(StreamerRecordingSettings.streamer_id == streamer_id).first()
+        )
 
         if not streamer_settings:
             streamer_settings = StreamerRecordingSettings(streamer_id=streamer_id)
@@ -425,25 +436,34 @@ async def update_streamer_recording_settings(
             old_quality = streamer_settings.quality
             streamer_settings.quality = settings.quality
             if old_quality != settings.quality:
-                logging_service.log_configuration_change("quality", str(old_quality), str(settings.quality), streamer_id)
+                logging_service.log_configuration_change(
+                    "quality", str(old_quality), str(settings.quality), streamer_id
+                )
         if settings.custom_filename is not None:
             old_filename = streamer_settings.custom_filename
             streamer_settings.custom_filename = settings.custom_filename
             if old_filename != settings.custom_filename:
-                logging_service.log_configuration_change("custom_filename", str(old_filename), str(settings.custom_filename), streamer_id)
+                logging_service.log_configuration_change(
+                    "custom_filename", str(old_filename), str(settings.custom_filename), streamer_id
+                )
         if settings.max_streams is not None:
             old_max_streams = streamer_settings.max_streams
             streamer_settings.max_streams = settings.max_streams
             if old_max_streams != settings.max_streams:
-                logging_service.log_configuration_change("max_streams", str(old_max_streams), str(settings.max_streams), streamer_id)
+                logging_service.log_configuration_change(
+                    "max_streams", str(old_max_streams), str(settings.max_streams), streamer_id
+                )
 
         # Log the enabled/disabled change
         if old_enabled != settings.enabled:
-            logging_service.log_configuration_change("recording_enabled", str(old_enabled), str(settings.enabled), streamer_id)
+            logging_service.log_configuration_change(
+                "recording_enabled", str(old_enabled), str(settings.enabled), streamer_id
+            )
 
         # Update cleanup policy if provided
         if settings.cleanup_policy is not None:
             import json
+
             streamer_settings.cleanup_policy = json.dumps(settings.cleanup_policy.dict())
 
         db.commit()
@@ -452,6 +472,7 @@ async def update_streamer_recording_settings(
             cleanup_policy = None
             if streamer_settings.cleanup_policy:
                 import json
+
                 cleanup_policy = CleanupPolicySchema.parse_obj(json.loads(streamer_settings.cleanup_policy))
         except Exception as e:
             logger.warning(f"Error parsing cleanup policy: {e}")
@@ -460,15 +481,12 @@ async def update_streamer_recording_settings(
         return StreamerRecordingSettingsSchema(
             streamer_id=streamer_settings.streamer_id,
             username=streamer.username,
-            profile_image_url=unified_image_service.get_profile_image_url(
-                streamer.id,
-                streamer.profile_image_url
-            ),
+            profile_image_url=unified_image_service.get_profile_image_url(streamer.id, streamer.profile_image_url),
             enabled=streamer_settings.enabled,
             quality=streamer_settings.quality,
             custom_filename=streamer_settings.custom_filename,
             max_streams=streamer_settings.max_streams,
-            cleanup_policy=cleanup_policy
+            cleanup_policy=cleanup_policy,
         )
     except HTTPException:
         raise
@@ -488,17 +506,19 @@ async def force_start_recording(streamer_id: int):
             streamer_name = streamer.username if streamer else f"Streamer {streamer_id}"
 
         # Log force start attempt
-        logging_service.log_recording_activity("FORCE_START_REQUEST", f"Streamer {streamer_id}", "Manual force start requested via API")
+        logging_service.log_recording_activity(
+            "FORCE_START_REQUEST", f"Streamer {streamer_id}", "Manual force start requested via API"
+        )
 
         result = await get_recording_service().force_start_recording(streamer_id)
         if result:
-            logging_service.log_recording_activity("FORCE_START_SUCCESS", f"Streamer {streamer_id}", "Force recording started successfully")
+            logging_service.log_recording_activity(
+                "FORCE_START_SUCCESS", f"Streamer {streamer_id}", "Force recording started successfully"
+            )
 
             # Send success toast notification
             await websocket_manager.send_force_recording_feedback(
-                success=True,
-                streamer_name=streamer_name,
-                message="Recording started successfully!"
+                success=True, streamer_name=streamer_name, message="Recording started successfully!"
             )
 
             return {"status": "success", "message": "Recording started successfully"}
@@ -510,18 +530,23 @@ async def force_start_recording(streamer_id: int):
             logger.error("3. There are network connectivity issues")
             logger.error("4. The stream URL is not accessible")
 
-            logging_service.log_recording_activity("FORCE_START_FAILED", f"Streamer {streamer_id}", "Force start failed - streamer may be offline or stream inaccessible", "warning")
+            logging_service.log_recording_activity(
+                "FORCE_START_FAILED",
+                f"Streamer {streamer_id}",
+                "Force start failed - streamer may be offline or stream inaccessible",
+                "warning",
+            )
 
             # Send error toast notification
             await websocket_manager.send_force_recording_feedback(
                 success=False,
                 streamer_name=streamer_name,
-                message="Failed to start recording. Streamer may be offline or stream not accessible."
+                message="Failed to start recording. Streamer may be offline or stream not accessible.",
             )
 
             raise HTTPException(
                 status_code=400,
-                detail="Failed to start recording. The streamer may be offline, or the stream may not be accessible. Check the logs for more details."
+                detail="Failed to start recording. The streamer may be offline, or the stream may not be accessible. Check the logs for more details.",
             )
     except HTTPException:
         # Re-raise HTTP exceptions without modification
@@ -537,9 +562,7 @@ async def force_start_recording(streamer_id: int):
                 streamer_name = streamer.username if streamer else f"Streamer {streamer_id}"
 
             await websocket_manager.send_force_recording_feedback(
-                success=False,
-                streamer_name=streamer_name,
-                message=f"Internal error: {str(e)}"
+                success=False, streamer_name=streamer_name, message=f"Internal error: {str(e)}"
             )
         except Exception as notification_error:
             logger.error(f"Failed to send error notification: {notification_error}")
@@ -552,22 +575,29 @@ async def cleanup_old_recordings(streamer_id: int):
     """Manually clean up old recordings for a streamer"""
     try:
         # Log cleanup request
-        logging_service.log_recording_activity("CLEANUP_REQUEST", f"Streamer {streamer_id}", "Manual cleanup requested via API")
+        logging_service.log_recording_activity(
+            "CLEANUP_REQUEST", f"Streamer {streamer_id}", "Manual cleanup requested via API"
+        )
 
         from app.services.system.cleanup_service import CleanupService
+
         deleted_count, deleted_paths = await CleanupService.cleanup_old_recordings(streamer_id)
 
         # Log cleanup results
         if deleted_count > 0:
-            logging_service.log_file_operation("CLEANUP", f"{deleted_count} files", True, f"Deleted {deleted_count} old recordings")
+            logging_service.log_file_operation(
+                "CLEANUP", f"{deleted_count} files", True, f"Deleted {deleted_count} old recordings"
+            )
         else:
-            logging_service.log_recording_activity("CLEANUP_NO_FILES", f"Streamer {streamer_id}", "No files found to clean up")
+            logging_service.log_recording_activity(
+                "CLEANUP_NO_FILES", f"Streamer {streamer_id}", "No files found to clean up"
+            )
 
         return {
             "status": "success",
             "message": f"Cleaned up {deleted_count} recordings",
             "deleted_count": deleted_count,
-            "deleted_paths": deleted_paths
+            "deleted_paths": deleted_paths,
         }
     except Exception as e:
         logging_service.log_recording_error(streamer_id, f"Streamer {streamer_id}", "CLEANUP_ERROR", str(e))
@@ -585,15 +615,14 @@ async def run_custom_cleanup(streamer_id: int, policy: CleanupPolicySchema):
         policy_dict = policy.dict(exclude_unset=True)
 
         deleted_count, deleted_paths = await CleanupService.cleanup_old_recordings(
-            streamer_id,
-            custom_policy=policy_dict
+            streamer_id, custom_policy=policy_dict
         )
 
         return {
             "status": "success",
             "message": f"Cleaned up {deleted_count} recordings using custom policy",
             "deleted_count": deleted_count,
-            "deleted_paths": deleted_paths
+            "deleted_paths": deleted_paths,
         }
     except Exception as e:
         logger.error(f"Error running custom cleanup: {e}", exc_info=True)
@@ -605,6 +634,7 @@ async def get_storage_usage(streamer_id: int):
     """Get storage usage information for a streamer"""
     try:
         from app.services.system.cleanup_service import CleanupService
+
         usage = await CleanupService.get_storage_usage(streamer_id)
         return usage
     except Exception as e:
@@ -613,11 +643,7 @@ async def get_storage_usage(streamer_id: int):
 
 
 @router.post("/streamers/{streamer_id}/cleanup-policy", response_model=Dict)
-async def update_streamer_cleanup_policy(
-    streamer_id: int,
-    request_data: Dict,
-    db: Session = Depends(get_db)
-):
+async def update_streamer_cleanup_policy(streamer_id: int, request_data: Dict, db: Session = Depends(get_db)):
     """Update cleanup policy for a specific streamer"""
     try:
         # Check if the streamer exists
@@ -626,16 +652,16 @@ async def update_streamer_cleanup_policy(
             raise HTTPException(status_code=404, detail=f"Streamer with ID {streamer_id} not found")
 
         # Get or create streamer recording settings
-        streamer_settings = db.query(StreamerRecordingSettings).filter(
-            StreamerRecordingSettings.streamer_id == streamer_id
-        ).first()
+        streamer_settings = (
+            db.query(StreamerRecordingSettings).filter(StreamerRecordingSettings.streamer_id == streamer_id).first()
+        )
 
         if not streamer_settings:
             streamer_settings = StreamerRecordingSettings(streamer_id=streamer_id)
             db.add(streamer_settings)
 
         # Handle the use_global_cleanup_policy flag
-        use_global = request_data.get('use_global_cleanup_policy', False)
+        use_global = request_data.get("use_global_cleanup_policy", False)
         streamer_settings.use_global_cleanup_policy = use_global
 
         if use_global:
@@ -643,19 +669,17 @@ async def update_streamer_cleanup_policy(
             streamer_settings.cleanup_policy = None
         else:
             # Set custom policy
-            cleanup_policy = request_data.get('cleanup_policy')
+            cleanup_policy = request_data.get("cleanup_policy")
             if cleanup_policy:
                 import json
+
                 # Validate policy using schema
                 policy_schema = CleanupPolicySchema.parse_obj(cleanup_policy)
                 streamer_settings.cleanup_policy = json.dumps(policy_schema.dict())
 
         db.commit()
 
-        return {
-            "status": "success",
-            "message": "Cleanup policy updated successfully"
-        }
+        return {"status": "success", "message": "Cleanup policy updated successfully"}
     except HTTPException:
         raise
     except Exception as e:
@@ -671,16 +695,9 @@ async def get_filename_presets():
         # Convert the backend dictionary format to frontend array format
         presets = []
         for key, template in FILENAME_PRESETS.items():
-            presets.append({
-                "value": key,
-                "label": key.replace("_", " ").title(),
-                "description": template
-            })
+            presets.append({"value": key, "label": key.replace("_", " ").title(), "description": template})
 
-        return {
-            "status": "success",
-            "data": presets
-        }
+        return {"status": "success", "data": presets}
     except Exception as e:
         logger.error(f"Error getting filename presets: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

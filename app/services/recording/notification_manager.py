@@ -3,6 +3,7 @@ Notification handling for the recording service.
 
 This module is responsible for sending various notifications about recording status.
 """
+
 import logging
 import asyncio
 from typing import Dict, Any
@@ -15,6 +16,7 @@ logger = logging.getLogger("streamvault")
 # Check if notification_utils module is available
 try:
     from app.utils.notification_utils import send_push_notification
+
     logger.info("Successfully imported notification_utils")
 except ImportError as e:
     logger.warning(f"Could not import notification_utils: {e}")
@@ -23,6 +25,7 @@ except ImportError as e:
     async def send_push_notification(title="", body="", data=None, **kwargs):
         logger.info(f"[FALLBACK] Would send notification: {title} - {body}")
         return {"sent": 0, "failed": 0, "skipped": 1, "fallback": True}
+
 
 from app.models import Stream
 
@@ -40,8 +43,7 @@ class NotificationManager:
         self.notifications_enabled = self._get_notifications_enabled()
         # TTLCache automatically evicts old entries (prevents memory leaks)
         self.notification_debounce = TTLCache(
-            maxsize=CACHE_CONFIG.DEFAULT_CACHE_SIZE,
-            ttl=CACHE_CONFIG.NOTIFICATION_DEBOUNCE_TTL
+            maxsize=CACHE_CONFIG.DEFAULT_CACHE_SIZE, ttl=CACHE_CONFIG.NOTIFICATION_DEBOUNCE_TTL
         )
 
     def _get_notifications_enabled(self) -> bool:
@@ -84,7 +86,7 @@ class NotificationManager:
                 "action": "recording_started",
                 "stream_id": stream.id,
                 "stream_name": streamer_name,
-                "category": stream.category_name or "Uncategorized"
+                "category": stream.category_name or "Uncategorized",
             }
 
             # Send notification
@@ -94,8 +96,9 @@ class NotificationManager:
         except Exception as e:
             logger.error(f"Error sending start notification: {e}", exc_info=True)
 
-    async def notify_recording_completed(self, stream: Stream, duration_seconds: int,
-                                         file_path: str, success: bool = True) -> None:
+    async def notify_recording_completed(
+        self, stream: Stream, duration_seconds: int, file_path: str, success: bool = True
+    ) -> None:
         """Send notification that recording has completed
 
         Args:
@@ -125,7 +128,7 @@ class NotificationManager:
                 "stream_name": streamer_name,
                 "success": success,
                 "duration": duration_seconds,
-                "file_path": file_path
+                "file_path": file_path,
             }
 
             # Send notification
@@ -155,7 +158,7 @@ class NotificationManager:
                 "action": "recording_error",
                 "stream_id": stream.id,
                 "stream_name": streamer_name,
-                "error": error_message
+                "error": error_message,
             }
 
             # Send notification

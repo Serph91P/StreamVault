@@ -32,12 +32,7 @@ class ThumbnailService:
     async def download_thumbnail(self, stream_id: int, output_dir: str):
         """Lädt das Stream-Thumbnail herunter und erstellt nur das korrekte Format"""
         with SessionLocal() as db:
-            stream = (
-                db.query(Stream)
-                .options(joinedload(Stream.streamer))
-                .filter(Stream.id == stream_id)
-                .first()
-            )
+            stream = db.query(Stream).options(joinedload(Stream.streamer)).filter(Stream.id == stream_id).first()
             if not stream:
                 logger.warning(f"Stream with ID {stream_id} not found in thumbnail_service")
                 return None
@@ -72,8 +67,8 @@ class ThumbnailService:
                 session = await unified_image_service._get_session()
                 async with session.get(url) as response:
                     if response.status == 200:
-                        content_type = response.headers.get('content-type', '')
-                        if 'image' in content_type:
+                        content_type = response.headers.get("content-type", "")
+                        if "image" in content_type:
                             image_data = await response.read()
 
                             # Prüfen, ob es ein Platzhalter-Bild ist
@@ -81,7 +76,7 @@ class ThumbnailService:
                                 logger.warning(f"Thumbnail for stream {stream_id} is a placeholder image, skipping")
                                 return None
 
-                            with open(thumbnail_path, 'wb') as f:
+                            with open(thumbnail_path, "wb") as f:
                                 f.write(image_data)
 
                             # Metadata aktualisieren
@@ -106,6 +101,7 @@ class ThumbnailService:
 
                                 # Kopiere in verschiedene Standard-Formate für Plex und andere Media Server
                                 import shutil
+
                                 plex_thumbnail_path = os.path.join(video_dir, f"{base_filename}-thumb.jpg")
                                 poster_path = os.path.join(video_dir, "poster.jpg")
 
@@ -131,8 +127,8 @@ class ThumbnailService:
             img = Image.open(io.BytesIO(image_data))
 
             # Konvertiere zu RGB falls notwendig
-            if img.mode != 'RGB':
-                img = img.convert('RGB')
+            if img.mode != "RGB":
+                img = img.convert("RGB")
 
             # Berechne die durchschnittliche Farbe
             avg_color = self._get_average_color(img)
@@ -160,7 +156,7 @@ class ThumbnailService:
             if len(histogram) >= 768:  # RGB = 3 * 256
                 max_values = []
                 for i in range(0, 768, 256):  # R, G, B Kanäle
-                    channel_hist = histogram[i:i + 256]
+                    channel_hist = histogram[i : i + 256]
                     max_values.append(max(channel_hist))
 
                 total_pixels = img.width * img.height
@@ -173,7 +169,9 @@ class ThumbnailService:
             result = is_gray_placeholder or is_too_small or is_low_contrast
 
             if result:
-                logger.info(f"Detected placeholder image: gray={is_gray_placeholder}, small={is_too_small}, low_contrast={is_low_contrast}, avg_color={avg_color}, size={len(image_data)} bytes")
+                logger.info(
+                    f"Detected placeholder image: gray={is_gray_placeholder}, small={is_too_small}, low_contrast={is_low_contrast}, avg_color={avg_color}, size={len(image_data)} bytes"
+                )
 
             return result
 
@@ -206,12 +204,7 @@ class ThumbnailService:
     async def ensure_thumbnail(self, stream_id: int, output_dir: str):
         """Stellt sicher, dass ein Thumbnail existiert - versucht zuerst Twitch, dann Video-Extraktion"""
         with SessionLocal() as db:
-            stream = (
-                db.query(Stream)
-                .options(joinedload(Stream.streamer))
-                .filter(Stream.id == stream_id)
-                .first()
-            )
+            stream = db.query(Stream).options(joinedload(Stream.streamer)).filter(Stream.id == stream_id).first()
             if not stream:
                 logger.warning(f"Stream with ID {stream_id} not found in ensure_thumbnail")
                 return None
@@ -237,7 +230,7 @@ class ThumbnailService:
                 metadata = db.query(StreamMetadata).filter(StreamMetadata.stream_id == stream_id).first()
                 if metadata and metadata.json_path:
                     video_dir = os.path.dirname(metadata.json_path)
-                    video_files = [f for f in os.listdir(video_dir) if f.endswith('.mp4')]
+                    video_files = [f for f in os.listdir(video_dir) if f.endswith(".mp4")]
 
                     if video_files:
                         video_path = os.path.join(video_dir, video_files[0])
@@ -245,32 +238,39 @@ class ThumbnailService:
                         # Nehme Frame bei 10% der Videolänge für ein besseres Bild
                         cmd = [
                             "ffmpeg",
-                            "-i", video_path,
-                            "-ss", "00:00:30",  # 30 Sekunden ins Video
-                            "-vframes", "1",
-                            "-q:v", "1",        # Höchste Qualität
+                            "-i",
+                            video_path,
+                            "-ss",
+                            "00:00:30",  # 30 Sekunden ins Video
+                            "-vframes",
+                            "1",
+                            "-q:v",
+                            "1",  # Höchste Qualität
                             "-y",
-                            thumbnail_path
+                            thumbnail_path,
                         ]
 
                         try:
                             # Use the logging service to create per-streamer logs
                             from app.services.system.logging_service import logging_service
+
                             if logging_service:
-                                streamer_log_path = logging_service.log_ffmpeg_start("thumbnail_extract", cmd, streamer.username)
+                                streamer_log_path = logging_service.log_ffmpeg_start(
+                                    "thumbnail_extract", cmd, streamer.username
+                                )
                                 logger.info(f"FFmpeg logs will be written to: {streamer_log_path}")
 
                             process = await asyncio.create_subprocess_exec(
-                                *cmd,
-                                stdout=asyncio.subprocess.PIPE,
-                                stderr=asyncio.subprocess.PIPE
+                                *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
                             )
 
                             stdout, stderr = await process.communicate()
 
                             # Log the FFmpeg output using the logging service
                             if logging_service:
-                                logging_service.log_ffmpeg_output("thumbnail_extract", stdout, stderr, process.returncode, streamer.username)
+                                logging_service.log_ffmpeg_output(
+                                    "thumbnail_extract", stdout, stderr, process.returncode, streamer.username
+                                )
 
                             if os.path.exists(thumbnail_path) and os.path.getsize(thumbnail_path) > 1000:
                                 # Aktualisiere Metadaten
@@ -286,10 +286,13 @@ class ThumbnailService:
                                     try:
                                         video_dir = os.path.dirname(metadata.json_path)
                                         base_filename = os.path.splitext(os.path.basename(metadata.json_path))[0]
-                                        base_filename = base_filename.replace(".info", "")  # Entferne ".info" wenn vorhanden
+                                        base_filename = base_filename.replace(
+                                            ".info", ""
+                                        )  # Entferne ".info" wenn vorhanden
 
                                         # Kopiere in verschiedene Standard-Formate für Plex und andere Media Server
                                         import shutil
+
                                         plex_thumbnail_path = os.path.join(video_dir, f"{base_filename}-thumb.jpg")
                                         poster_path = os.path.join(video_dir, "poster.jpg")
 
@@ -297,7 +300,9 @@ class ThumbnailService:
                                         shutil.copy2(thumbnail_path, poster_path)
                                         logger.info(f"Copied extracted thumbnail to Plex format: {plex_thumbnail_path}")
                                     except Exception as e:
-                                        logger.error(f"Error copying extracted thumbnail to video directory: {e}", exc_info=True)
+                                        logger.error(
+                                            f"Error copying extracted thumbnail to video directory: {e}", exc_info=True
+                                        )
 
                                 logger.info(f"Successfully extracted thumbnail from video for stream {stream_id}")
                                 return thumbnail_path
@@ -322,6 +327,7 @@ class ThumbnailService:
                         poster_path = os.path.join(video_dir, "poster.jpg")
 
                         import shutil
+
                         if not os.path.exists(plex_thumbnail_path) or os.path.getsize(plex_thumbnail_path) < 1000:
                             shutil.copy2(metadata.thumbnail_path, plex_thumbnail_path)
                             logger.info(f"Copied thumbnail to Plex-friendly format: {plex_thumbnail_path}")
@@ -336,24 +342,28 @@ class ThumbnailService:
 
             return twitch_thumbnail
 
-    async def extract_thumbnail_from_video(self, video_path: str, output_path: str, timestamp: str = "00:05:00") -> bool:
+    async def extract_thumbnail_from_video(
+        self, video_path: str, output_path: str, timestamp: str = "00:05:00"
+    ) -> bool:
         """Extrahiert ein Thumbnail aus der Video-Datei an einer bestimmten Zeitstelle"""
         try:
             # Verwende FFmpeg, um ein Frame aus der Mitte des Videos zu extrahieren
             cmd = [
                 "ffmpeg",
-                "-ss", timestamp,  # Springe zu dieser Zeitstelle (5 Minuten in den Stream)
-                "-i", video_path,
-                "-vframes", "1",   # Nur ein Frame
-                "-q:v", "2",       # Hohe Qualität
-                "-y",              # Überschreibe existierende Datei
-                output_path
+                "-ss",
+                timestamp,  # Springe zu dieser Zeitstelle (5 Minuten in den Stream)
+                "-i",
+                video_path,
+                "-vframes",
+                "1",  # Nur ein Frame
+                "-q:v",
+                "2",  # Hohe Qualität
+                "-y",  # Überschreibe existierende Datei
+                output_path,
             ]
 
             process = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
+                *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
             )
 
             stdout, stderr = await process.communicate()
@@ -374,12 +384,7 @@ class ThumbnailService:
     async def ensure_thumbnail_with_fallback(self, stream_id: int, output_dir: str, video_path: str = None) -> str:
         """Stellt sicher, dass ein hochwertiges Thumbnail existiert - mit Video-Fallback bei Placeholder"""
         with SessionLocal() as db:
-            stream = (
-                db.query(Stream)
-                .options(joinedload(Stream.streamer))
-                .filter(Stream.id == stream_id)
-                .first()
-            )
+            stream = db.query(Stream).options(joinedload(Stream.streamer)).filter(Stream.id == stream_id).first()
             if not stream:
                 logger.warning(f"Stream with ID {stream_id} not found in ensure_thumbnail_with_fallback")
                 return None
@@ -405,7 +410,7 @@ class ThumbnailService:
                 metadata = db.query(StreamMetadata).filter(StreamMetadata.stream_id == stream_id).first()
                 if metadata and metadata.json_path:
                     video_dir = os.path.dirname(metadata.json_path)
-                    video_files = [f for f in os.listdir(video_dir) if f.endswith('.mp4')]
+                    video_files = [f for f in os.listdir(video_dir) if f.endswith(".mp4")]
 
                     if video_files:
                         video_path = os.path.join(video_dir, video_files[0])
@@ -426,10 +431,13 @@ class ThumbnailService:
                                 try:
                                     video_dir = os.path.dirname(metadata.json_path)
                                     base_filename = os.path.splitext(os.path.basename(metadata.json_path))[0]
-                                    base_filename = base_filename.replace(".info", "")  # Entferne ".info" wenn vorhanden
+                                    base_filename = base_filename.replace(
+                                        ".info", ""
+                                    )  # Entferne ".info" wenn vorhanden
 
                                     # Kopiere in verschiedene Standard-Formate für Plex und andere Media Server
                                     import shutil
+
                                     plex_thumbnail_path = os.path.join(video_dir, f"{base_filename}-thumb.jpg")
                                     poster_path = os.path.join(video_dir, "poster.jpg")
 
@@ -437,7 +445,9 @@ class ThumbnailService:
                                     shutil.copy2(thumbnail_path, poster_path)
                                     logger.info(f"Copied extracted thumbnail to Plex format: {plex_thumbnail_path}")
                                 except Exception as e:
-                                    logger.error(f"Error copying extracted thumbnail to video directory: {e}", exc_info=True)
+                                    logger.error(
+                                        f"Error copying extracted thumbnail to video directory: {e}", exc_info=True
+                                    )
 
                             logger.info(f"Successfully extracted thumbnail from video for stream {stream_id}")
                             return thumbnail_path
@@ -460,6 +470,7 @@ class ThumbnailService:
                         poster_path = os.path.join(video_dir, "poster.jpg")
 
                         import shutil
+
                         if not os.path.exists(plex_thumbnail_path) or os.path.getsize(plex_thumbnail_path) < 1000:
                             shutil.copy2(metadata.thumbnail_path, plex_thumbnail_path)
                             logger.info(f"Copied thumbnail to Plex-friendly format: {plex_thumbnail_path}")
@@ -542,12 +553,7 @@ class ThumbnailService:
         try:
             # Get stream info from database with eager loading
             with SessionLocal() as db:
-                stream = (
-                    db.query(Stream)
-                    .options(joinedload(Stream.streamer))
-                    .filter(Stream.id == stream_id)
-                    .first()
-                )
+                stream = db.query(Stream).options(joinedload(Stream.streamer)).filter(Stream.id == stream_id).first()
                 if not stream:
                     logger.warning(f"Stream {stream_id} not found for thumbnail generation")
                     return None
@@ -571,9 +577,7 @@ class ThumbnailService:
                 logger.info(f"Attempting to extract thumbnail from MP4 at {timestamp} for {streamer.username}")
 
                 success = await self.extract_thumbnail_from_video(
-                    video_path=mp4_path,
-                    output_path=thumbnail_path,
-                    timestamp=timestamp
+                    video_path=mp4_path, output_path=thumbnail_path, timestamp=timestamp
                 )
 
                 if success and os.path.exists(thumbnail_path) and os.path.getsize(thumbnail_path) > 1000:
@@ -624,12 +628,13 @@ class ThumbnailService:
             # Create various thumbnail formats for different media servers
             thumbnail_formats = [
                 f"{base_filename}-thumb.jpg",  # Plex thumbnail
-                f"{base_filename}.jpg",        # Alternative format
-                "poster.jpg",                  # Plex poster
-                "folder.jpg",                  # Generic folder image
+                f"{base_filename}.jpg",  # Alternative format
+                "poster.jpg",  # Plex poster
+                "folder.jpg",  # Generic folder image
             ]
 
             import shutil
+
             for format_name in thumbnail_formats:
                 target_path = os.path.join(video_dir, format_name)
                 try:

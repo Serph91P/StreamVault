@@ -8,7 +8,7 @@ from sqlalchemy.orm import sessionmaker
 
 # Get DATABASE_URL from environment (will be used by settings)
 # This is a fallback if settings are not available during early initialization
-DATABASE_URL = os.getenv('DATABASE_URL')
+DATABASE_URL = os.getenv("DATABASE_URL")
 
 # Use SQLite memory database for testing if no URL is provided
 if not DATABASE_URL:
@@ -16,14 +16,14 @@ if not DATABASE_URL:
     print("No DATABASE_URL provided, using in-memory SQLite for testing")
 
 # Ensure the URL uses the correct psycopg3 driver
-if DATABASE_URL and DATABASE_URL.startswith('postgresql://'):
-    DATABASE_URL = DATABASE_URL.replace('postgresql://', 'postgresql+psycopg://')
+if DATABASE_URL and DATABASE_URL.startswith("postgresql://"):
+    DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+psycopg://")
 
 # Debug print to diagnose connection issues
 print(f"Connecting to database with URL: {DATABASE_URL}")
 
 # Determine if we're in a testing environment
-is_testing = 'pytest' in sys.modules or 'import_test.py' in sys.argv[0]
+is_testing = "pytest" in sys.modules or "import_test.py" in sys.argv[0]
 
 # Create engine with retry logic for connection issues
 
@@ -34,21 +34,18 @@ def create_engine_with_retry(url, max_retries=10, retry_delay=3):
 
     for attempt in range(max_retries):
         try:
-            if url.startswith('sqlite'):
-                engine = create_engine(url, future=True, connect_args={'check_same_thread': False})
+            if url.startswith("sqlite"):
+                engine = create_engine(url, future=True, connect_args={"check_same_thread": False})
             else:
                 engine = create_engine(
                     url,
                     future=True,
                     pool_pre_ping=True,  # Verify connections before use
-                    pool_recycle=1800,   # Recycle connections after 30 minutes (was 1 hour)
-                    pool_size=20,        # Reduce pool size for better resource management
-                    max_overflow=50,     # Reduce overflow but still handle spikes
-                    pool_timeout=15,     # Reduce timeout to fail faster and free resources
-                    connect_args={
-                        "connect_timeout": 5,  # Reduce connect timeout
-                        "application_name": "StreamVault"
-                    }
+                    pool_recycle=1800,  # Recycle connections after 30 minutes (was 1 hour)
+                    pool_size=20,  # Reduce pool size for better resource management
+                    max_overflow=50,  # Reduce overflow but still handle spikes
+                    pool_timeout=15,  # Reduce timeout to fail faster and free resources
+                    connect_args={"connect_timeout": 5, "application_name": "StreamVault"},  # Reduce connect timeout
                 )
 
             # Test the connection
@@ -97,6 +94,7 @@ def get_database_url():
     # Try to get from settings first, fallback to environment variable
     try:
         from app.config.settings import settings
+
         url = settings.DATABASE_URL
         if not url:
             url = DATABASE_URL  # Fallback to module-level variable
@@ -115,18 +113,18 @@ def get_database_url():
         return "sqlite:///:memory:"
 
     # Ensure the URL uses the correct psycopg3 driver
-    if url.startswith('postgresql://'):
-        url = url.replace('postgresql://', 'postgresql+psycopg://')
+    if url.startswith("postgresql://"):
+        url = url.replace("postgresql://", "postgresql+psycopg://")
 
     # Log the final URL for debugging (mask sensitive information)
     masked_url = url
-    if '@' in url:
+    if "@" in url:
         # Mask password in URL for security
-        parts = url.split('@')
+        parts = url.split("@")
         if len(parts) > 1:
             auth_part = parts[0]
-            if ':' in auth_part:
-                protocol_user = auth_part.rsplit(':', 1)[0]
+            if ":" in auth_part:
+                protocol_user = auth_part.rsplit(":", 1)[0]
                 masked_url = f"{protocol_user}:***@{parts[1]}"
 
     logger.debug(f"Using database URL: {masked_url}")

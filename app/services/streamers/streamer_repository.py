@@ -25,9 +25,11 @@ class StreamerRepository:
         """Get all streamers with their current status (excludes test data)"""
         try:
             # CRITICAL: Filter out test data to prevent appearing in frontend
-            streamers = self.db.query(Streamer).filter(
-                (Streamer.is_test_data.is_(False)) | (Streamer.is_test_data.is_(None))
-            ).all()
+            streamers = (
+                self.db.query(Streamer)
+                .filter((Streamer.is_test_data.is_(False)) | (Streamer.is_test_data.is_(None)))
+                .all()
+            )
             result = []
 
             for streamer in streamers:
@@ -36,18 +38,21 @@ class StreamerRepository:
                 active_stream_id = None
 
                 # Find the most recent stream that hasn't ended
-                active_stream = self.db.query(Stream).filter(
-                    Stream.streamer_id == streamer.id,
-                    Stream.ended_at.is_(None)
-                ).order_by(Stream.started_at.desc()).first()
+                active_stream = (
+                    self.db.query(Stream)
+                    .filter(Stream.streamer_id == streamer.id, Stream.ended_at.is_(None))
+                    .order_by(Stream.started_at.desc())
+                    .first()
+                )
 
                 # Check if this stream has an active recording
                 if active_stream:
                     # Check if there's an active recording for this stream
-                    active_recording = self.db.query(Recording).filter(
-                        Recording.stream_id == active_stream.id,
-                        Recording.end_time.is_(None)
-                    ).first()
+                    active_recording = (
+                        self.db.query(Recording)
+                        .filter(Recording.stream_id == active_stream.id, Recording.end_time.is_(None))
+                        .first()
+                    )
 
                     if active_recording:
                         is_recording = True
@@ -56,9 +61,11 @@ class StreamerRepository:
                 # Check if recording is enabled from StreamerRecordingSettings
                 recording_enabled = True  # Default
                 try:
-                    settings = self.db.query(StreamerRecordingSettings).filter(
-                        StreamerRecordingSettings.streamer_id == streamer.id
-                    ).first()
+                    settings = (
+                        self.db.query(StreamerRecordingSettings)
+                        .filter(StreamerRecordingSettings.streamer_id == streamer.id)
+                        .first()
+                    )
                     if settings:
                         recording_enabled = settings.enabled
                 except Exception as e:
@@ -78,7 +85,7 @@ class StreamerRepository:
                     category_name=streamer.category_name,
                     language=streamer.language,
                     last_updated=streamer.last_updated,
-                    original_profile_image_url=streamer.original_profile_image_url
+                    original_profile_image_url=streamer.original_profile_image_url,
                 )
                 result.append(streamer_response)
 
@@ -91,9 +98,12 @@ class StreamerRepository:
 
     def get_all_streamers_raw(self) -> List[Streamer]:
         """Get all streamers as raw Streamer objects (excludes test data)"""
-        return self.db.query(Streamer).filter(
-            (Streamer.is_test_data.is_(False)) | (Streamer.is_test_data.is_(None))
-        ).order_by(Streamer.username).all()
+        return (
+            self.db.query(Streamer)
+            .filter((Streamer.is_test_data.is_(False)) | (Streamer.is_test_data.is_(None)))
+            .order_by(Streamer.username)
+            .all()
+        )
 
     def get_streamer_by_username(self, username: str) -> Optional[Streamer]:
         """Get streamer by username (case insensitive)"""
@@ -107,37 +117,42 @@ class StreamerRepository:
         """Get streamer by Twitch ID"""
         return self.db.query(Streamer).filter(Streamer.twitch_id == twitch_id).first()
 
-    def create_streamer(self, user_data: Dict[str, Any], display_name: str = None,
-                        cached_image_path: str = None, cached_banner_path: str = None,
-                        stream_info: Dict[str, Any] = None) -> Streamer:
+    def create_streamer(
+        self,
+        user_data: Dict[str, Any],
+        display_name: str = None,
+        cached_image_path: str = None,
+        cached_banner_path: str = None,
+        stream_info: Dict[str, Any] = None,
+    ) -> Streamer:
         """Create a new streamer with all related settings"""
         try:
             # Use display_name for better user experience, but store original for API calls
-            streamer_name = display_name or user_data.get('display_name') or user_data['login']
+            streamer_name = display_name or user_data.get("display_name") or user_data["login"]
 
             # Determine live status and stream info
             # stream_info will be None if the stream is offline, or contain actual data if live
             is_live = stream_info is not None
-            current_title = stream_info.get('title', '') if stream_info else None
-            current_category = stream_info.get('game_name', '') if stream_info else None
-            current_language = stream_info.get('language', '') if stream_info else None
+            current_title = stream_info.get("title", "") if stream_info else None
+            current_category = stream_info.get("game_name", "") if stream_info else None
+            current_language = stream_info.get("language", "") if stream_info else None
 
             # Debug logging to identify the issue
             logger.debug(f"Creating streamer {streamer_name}: stream_info={stream_info}, is_live={is_live}")
 
             # Create new streamer
             new_streamer = Streamer(
-                twitch_id=user_data['id'],
+                twitch_id=user_data["id"],
                 username=streamer_name,
-                profile_image_url=cached_image_path or user_data['profile_image_url'],
-                original_profile_image_url=user_data['profile_image_url'],
-                offline_image_url=cached_banner_path or user_data.get('offline_image_url'),  # NEW: Banner support
-                original_offline_image_url=user_data.get('offline_image_url'),  # NEW: Original Twitch banner URL
+                profile_image_url=cached_image_path or user_data["profile_image_url"],
+                original_profile_image_url=user_data["profile_image_url"],
+                offline_image_url=cached_banner_path or user_data.get("offline_image_url"),  # NEW: Banner support
+                original_offline_image_url=user_data.get("offline_image_url"),  # NEW: Original Twitch banner URL
                 is_live=is_live,
                 title=current_title,
                 category_name=current_category,
                 language=current_language,
-                last_updated=datetime.now(timezone.utc)
+                last_updated=datetime.now(timezone.utc),
             )
 
             self.db.add(new_streamer)
@@ -147,20 +162,20 @@ class StreamerRepository:
             if is_live and stream_info:
                 try:
                     # Check if stream already exists
-                    existing_stream = self.db.query(Stream).filter(
-                        Stream.twitch_stream_id == stream_info.get('id')
-                    ).first()
+                    existing_stream = (
+                        self.db.query(Stream).filter(Stream.twitch_stream_id == stream_info.get("id")).first()
+                    )
 
                     if not existing_stream:
                         # Create new stream entry
                         new_stream = Stream(
                             streamer_id=new_streamer.id,
-                            twitch_stream_id=stream_info.get('id'),
+                            twitch_stream_id=stream_info.get("id"),
                             title=current_title,
                             category_name=current_category,
                             language=current_language,
                             started_at=datetime.now(timezone.utc),  # We don't know exact start time, use current time
-                            ended_at=None
+                            ended_at=None,
                         )
                         self.db.add(new_stream)
                         new_streamer.active_stream_id = new_stream.id
@@ -178,18 +193,14 @@ class StreamerRepository:
 
             # Create default notification settings
             notification_settings = NotificationSettings(
-                streamer_id=new_streamer.id,
-                notify_online=True,
-                notify_offline=True,
-                notify_update=True
+                streamer_id=new_streamer.id, notify_online=True, notify_offline=True, notify_update=True
             )
             self.db.add(notification_settings)
 
             # Create default recording settings
             try:
                 recording_settings = StreamerRecordingSettings(
-                    streamer_id=new_streamer.id,
-                    enabled=True  # Enable recording by default for new streamers
+                    streamer_id=new_streamer.id, enabled=True  # Enable recording by default for new streamers
                 )
                 self.db.add(recording_settings)
             except Exception as e:
@@ -229,15 +240,10 @@ class StreamerRepository:
             if not streamer:
                 return None
 
-            streamer_data = {
-                "twitch_id": streamer.twitch_id,
-                "username": streamer.username
-            }
+            streamer_data = {"twitch_id": streamer.twitch_id, "username": streamer.username}
 
             # Delete notification settings first
-            self.db.query(NotificationSettings).filter(
-                NotificationSettings.streamer_id == streamer_id
-            ).delete()
+            self.db.query(NotificationSettings).filter(NotificationSettings.streamer_id == streamer_id).delete()
 
             # Delete recording settings
             try:
@@ -250,6 +256,7 @@ class StreamerRepository:
             # Delete streams (CASCADE should handle related records like stream_events, recordings, etc.)
             # But we do it manually to avoid relying on database-level CASCADE that might not be set up
             from app.models import Stream
+
             self.db.query(Stream).filter(Stream.streamer_id == streamer_id).delete()
 
             # Delete the streamer
@@ -266,16 +273,16 @@ class StreamerRepository:
 
     def get_notification_settings(self, streamer_id: int) -> Optional[NotificationSettings]:
         """Get notification settings for a streamer"""
-        return self.db.query(NotificationSettings).filter(
-            NotificationSettings.streamer_id == streamer_id
-        ).first()
+        return self.db.query(NotificationSettings).filter(NotificationSettings.streamer_id == streamer_id).first()
 
     def get_recording_settings(self, streamer_id: int) -> Optional[StreamerRecordingSettings]:
         """Get recording settings for a streamer"""
         try:
-            return self.db.query(StreamerRecordingSettings).filter(
-                StreamerRecordingSettings.streamer_id == streamer_id
-            ).first()
+            return (
+                self.db.query(StreamerRecordingSettings)
+                .filter(StreamerRecordingSettings.streamer_id == streamer_id)
+                .first()
+            )
         except Exception as e:
             logger.warning(f"Could not get recording settings for streamer {streamer_id}: {e}")
             return None
@@ -338,11 +345,11 @@ class StreamerRepository:
             new_stream = Stream(
                 streamer_id=streamer_id,
                 twitch_stream_id=twitch_stream_id,
-                title=stream_data.get('title', ''),
-                category_name=stream_data.get('game_name', ''),
-                language=stream_data.get('language', ''),
+                title=stream_data.get("title", ""),
+                category_name=stream_data.get("game_name", ""),
+                language=stream_data.get("language", ""),
                 started_at=datetime.now(timezone.utc),
-                ended_at=None
+                ended_at=None,
             )
 
             self.db.add(new_stream)

@@ -1,4 +1,5 @@
 """FFmpeg utility functions for StreamVault."""
+
 import os
 import asyncio
 import logging
@@ -46,13 +47,15 @@ async def create_metadata_file(metadata: dict) -> Optional[str]:
     try:
         import tempfile
 
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.txt', mode='w', encoding='utf-8') as f:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".txt", mode="w", encoding="utf-8") as f:
             meta_path = f.name
             f.write(";FFMETADATA1\n")
             for key, value in metadata.items():
                 if value:  # Only write if a value exists
                     # Escape special characters
-                    value_escaped = str(value).replace("=", "\\=").replace(";", "\\;").replace("#", "\\#").replace("\\", "\\\\")
+                    value_escaped = (
+                        str(value).replace("=", "\\=").replace(";", "\\;").replace("#", "\\#").replace("\\", "\\\\")
+                    )
                     f.write(f"{key}={value_escaped}\n")
 
         return meta_path
@@ -62,10 +65,7 @@ async def create_metadata_file(metadata: dict) -> Optional[str]:
 
 
 async def embed_metadata_in_mp4(
-    input_path: str,
-    output_path: str,
-    metadata: Dict[str, Any],
-    chapters: Optional[list] = None
+    input_path: str, output_path: str, metadata: Dict[str, Any], chapters: Optional[list] = None
 ) -> bool:
     """
     Embed metadata into MP4 file using FFmpeg.
@@ -95,9 +95,7 @@ async def embed_metadata_in_mp4(
 
         # Execute FFmpeg
         process = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
+            *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
         )
 
         stdout, stderr = await process.communicate()
@@ -121,7 +119,7 @@ async def convert_ts_to_mp4(
     metadata_file: Optional[str] = None,
     overwrite: bool = False,
     logging_service=None,
-    streamer_name: str = "unknown"
+    streamer_name: str = "unknown",
 ) -> Dict[str, Any]:
     """
     Convert TS file to MP4 using FFmpeg with proper settings.
@@ -154,11 +152,16 @@ async def convert_ts_to_mp4(
             cmd.extend(["-i", metadata_file, "-map_metadata", "1"])
 
         # Add encoding parameters - copy streams without re-encoding
-        cmd.extend([
-            "-c", "copy",
-            "-bsf:a", "aac_adtstoasc",  # Fix for AAC audio in TS container
-            "-movflags", "faststart",    # Optimize for web streaming
-        ])
+        cmd.extend(
+            [
+                "-c",
+                "copy",
+                "-bsf:a",
+                "aac_adtstoasc",  # Fix for AAC audio in TS container
+                "-movflags",
+                "faststart",  # Optimize for web streaming
+            ]
+        )
 
         # Add overwrite flag if needed
         if overwrite:
@@ -176,9 +179,7 @@ async def convert_ts_to_mp4(
         logger.debug(f"FFmpeg command: {' '.join(cmd)}")
 
         process = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
+            *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
         )
 
         stdout, stderr = await process.communicate()
@@ -192,8 +193,8 @@ async def convert_ts_to_mp4(
             return {
                 "success": True,
                 "code": 0,
-                "stdout": stdout.decode('utf-8', errors='replace'),
-                "stderr": stderr.decode('utf-8', errors='replace')
+                "stdout": stdout.decode("utf-8", errors="replace"),
+                "stderr": stderr.decode("utf-8", errors="replace"),
             }
         else:
             logger.error(f"Failed to convert {input_path} to {output_path}")
@@ -201,8 +202,8 @@ async def convert_ts_to_mp4(
             return {
                 "success": False,
                 "code": process.returncode,
-                "stdout": stdout.decode('utf-8', errors='replace'),
-                "stderr": stderr.decode('utf-8', errors='replace')
+                "stdout": stdout.decode("utf-8", errors="replace"),
+                "stderr": stderr.decode("utf-8", errors="replace"),
             }
     except Exception as e:
         logger.error(f"Error during TS to MP4 conversion: {e}", exc_info=True)
@@ -220,24 +221,16 @@ async def extract_video_duration(video_path: str) -> Optional[float]:
         Duration in seconds or None if extraction failed
     """
     try:
-        cmd = [
-            "ffprobe",
-            "-v", "quiet",
-            "-show_entries", "format=duration",
-            "-of", "csv=p=0",
-            video_path
-        ]
+        cmd = ["ffprobe", "-v", "quiet", "-show_entries", "format=duration", "-of", "csv=p=0", video_path]
 
         process = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
+            *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
         )
 
         stdout, stderr = await process.communicate()
 
         if process.returncode == 0:
-            duration_str = stdout.decode('utf-8').strip()
+            duration_str = stdout.decode("utf-8").strip()
             return float(duration_str)
         else:
             logger.error(f"Failed to extract duration from {video_path}")
@@ -254,7 +247,7 @@ async def embed_metadata_with_ffmpeg_wrapper(
     metadata: Dict[str, Any],
     chapters: Optional[list] = None,
     streamer_name: str = "unknown",
-    logging_service=None
+    logging_service=None,
 ) -> Dict[str, Any]:
     """
     Embed metadata into MP4 file using FFmpeg.
@@ -277,22 +270,12 @@ async def embed_metadata_with_ffmpeg_wrapper(
         # Validate input file exists and has content
         if not os.path.exists(input_path):
             logger.error(f"Input file {input_path} does not exist")
-            return {
-                "success": False,
-                "code": -1,
-                "stdout": "",
-                "stderr": "Input file does not exist"
-            }
+            return {"success": False, "code": -1, "stdout": "", "stderr": "Input file does not exist"}
 
         input_size = os.path.getsize(input_path)
         if input_size == 0:
             logger.error(f"Input file {input_path} is empty")
-            return {
-                "success": False,
-                "code": -1,
-                "stdout": "",
-                "stderr": "Input file is empty"
-            }
+            return {"success": False, "code": -1, "stdout": "", "stderr": "Input file is empty"}
 
         # Check if output file already exists
         if os.path.exists(output_path):
@@ -304,12 +287,7 @@ async def embed_metadata_with_ffmpeg_wrapper(
                     logger.warning(f"Could not remove empty output file: {remove_e}")
             else:
                 logger.error(f"Output file {output_path} already exists and is not empty")
-                return {
-                    "success": False,
-                    "code": -1,
-                    "stdout": "",
-                    "stderr": "Output file already exists"
-                }
+                return {"success": False, "code": -1, "stdout": "", "stderr": "Output file already exists"}
 
         # Generate operation ID for logging
         timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -317,10 +295,12 @@ async def embed_metadata_with_ffmpeg_wrapper(
 
         # Log the operation start
         if logging_service:
-            logging_service.ffmpeg_logger.info(f"[FFMPEG_METADATA_START] {streamer_name} - {input_path} -> {output_path}")
+            logging_service.ffmpeg_logger.info(
+                f"[FFMPEG_METADATA_START] {streamer_name} - {input_path} -> {output_path}"
+            )
 
         # Create a temporary file for FFmpeg chapters
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
             metadata_file = f.name
             # Write global metadata
             f.write(";FFMETADATA1\n")
@@ -346,14 +326,20 @@ async def embed_metadata_with_ffmpeg_wrapper(
         # Use FFmpeg to remux with metadata
         cmd = [
             "ffmpeg",
-            "-i", input_path,
-            "-i", metadata_file,
-            "-map_metadata", "1",
-            "-c", "copy",
-            "-bsf:a", "aac_adtstoasc",
-            "-movflags", "faststart",
+            "-i",
+            input_path,
+            "-i",
+            metadata_file,
+            "-map_metadata",
+            "1",
+            "-c",
+            "copy",
+            "-bsf:a",
+            "aac_adtstoasc",
+            "-movflags",
+            "faststart",
             "-y",
-            output_path
+            output_path,
         ]
 
         # Use the logging service to create per-streamer logs
@@ -364,9 +350,7 @@ async def embed_metadata_with_ffmpeg_wrapper(
         # Execute FFmpeg command
         logger.debug(f"Running FFmpeg command: {' '.join(cmd)}")
         process = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
+            *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
         )
 
         stdout, stderr = await process.communicate()
@@ -390,7 +374,9 @@ async def embed_metadata_with_ffmpeg_wrapper(
                 size_ratio = output_size / input_size if input_size > 0 else 0
 
                 if size_ratio < 0.8:  # Output is significantly smaller than input
-                    logger.warning(f"Output file size seems small (ratio: {size_ratio:.2f}), but continuing since FFmpeg succeeded")
+                    logger.warning(
+                        f"Output file size seems small (ratio: {size_ratio:.2f}), but continuing since FFmpeg succeeded"
+                    )
 
                 # Basic check - file exists and has size
                 logger.info(f"FFmpeg metadata embedding successful: {output_path} (size: {output_size} bytes)")
@@ -406,8 +392,8 @@ async def embed_metadata_with_ffmpeg_wrapper(
             return {
                 "success": True,
                 "code": 0,
-                "stdout": stdout.decode('utf-8', errors='replace'),
-                "stderr": stderr.decode('utf-8', errors='replace')
+                "stdout": stdout.decode("utf-8", errors="replace"),
+                "stderr": stderr.decode("utf-8", errors="replace"),
             }
         else:
             logger.error(f"FFmpeg metadata embedding failed - no valid output file: {operation_id}")
@@ -428,20 +414,15 @@ async def embed_metadata_with_ffmpeg_wrapper(
             return {
                 "success": False,
                 "code": process.returncode,
-                "stdout": stdout.decode('utf-8', errors='replace'),
-                "stderr": stderr.decode('utf-8', errors='replace')
+                "stdout": stdout.decode("utf-8", errors="replace"),
+                "stderr": stderr.decode("utf-8", errors="replace"),
             }
 
     except Exception as e:
         logger.error(f"Error during FFmpeg metadata embedding: {e}", exc_info=True)
         if logging_service:
             logging_service.ffmpeg_logger.error(f"[FFMPEG_METADATA_ERROR] {streamer_name} - {str(e)}")
-        return {
-            "success": False,
-            "code": -1,
-            "stdout": "",
-            "stderr": f"Error in FFmpeg metadata embedding: {str(e)}"
-        }
+        return {"success": False, "code": -1, "stdout": "", "stderr": f"Error in FFmpeg metadata embedding: {str(e)}"}
 
 
 async def create_ffmpeg_chapters_file(
@@ -450,7 +431,7 @@ async def create_ffmpeg_chapters_file(
     title: Optional[str] = None,
     artist: Optional[str] = None,
     date: Optional[str] = None,
-    overwrite: bool = False
+    overwrite: bool = False,
 ) -> bool:
     """
     Create an FFmpeg-compatible chapters metadata file.
@@ -474,7 +455,7 @@ async def create_ffmpeg_chapters_file(
         # Create the directory if it doesn't exist
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
-        with open(output_path, 'w', encoding='utf-8') as f:
+        with open(output_path, "w", encoding="utf-8") as f:
             # FFmpeg metadata header
             f.write(";FFMETADATA1\n")
 
@@ -494,12 +475,12 @@ async def create_ffmpeg_chapters_file(
                     f.write("\n[CHAPTER]\n")
                     f.write("TIMEBASE=1/1000\n")
                     # Convert times to milliseconds
-                    start_ms = int(float(chapter['start_time']) * 1000)
-                    end_ms = int(float(chapter['end_time']) * 1000)
+                    start_ms = int(float(chapter["start_time"]) * 1000)
+                    end_ms = int(float(chapter["end_time"]) * 1000)
                     f.write(f"START={start_ms}\n")
                     f.write(f"END={end_ms}\n")
                     # Escape special characters in chapter title
-                    chapter_title = chapter.get('title', 'Chapter').replace('=', '\\=')
+                    chapter_title = chapter.get("title", "Chapter").replace("=", "\\=")
                     f.write(f"title={chapter_title}\n")
 
         logger.info(f"Created FFmpeg chapters file with {len(chapters)} chapters: {output_path}")

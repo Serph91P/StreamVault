@@ -29,8 +29,8 @@ class RecordingStateManager:
         """Add recording to active tracking"""
         self.active_recordings[recording_id] = {
             **recording_data,
-            'started_at': datetime.utcnow().isoformat(),
-            'status': 'recording'
+            "started_at": datetime.utcnow().isoformat(),
+            "status": "recording",
         }
         logger.info(f"Added recording {recording_id} to active tracking")
 
@@ -126,16 +126,12 @@ class RecordingStateManager:
                 logger.warning("State persistence service not available")
                 return
 
-            persistence_data = {
-                'active_recordings': {},
-                'timestamp': datetime.utcnow().isoformat()
-            }
+            persistence_data = {"active_recordings": {}, "timestamp": datetime.utcnow().isoformat()}
 
             # Convert active recordings to serializable format
             for recording_id, recording_data in self.active_recordings.items():
-                persistence_data['active_recordings'][str(recording_id)] = {
-                    k: v for k, v in recording_data.items()
-                    if isinstance(v, (str, int, float, bool, type(None)))
+                persistence_data["active_recordings"][str(recording_id)] = {
+                    k: v for k, v in recording_data.items() if isinstance(v, (str, int, float, bool, type(None)))
                 }
 
             # Note: save_state method removed - persistence now happens via ActiveRecordingState table
@@ -187,9 +183,7 @@ class RecordingStateManager:
 
                     if recording_id in active_db_ids:
                         # Recovery logic for individual recording
-                        success = await self._recover_single_recording(
-                            recording_id, recording_data, database_service
-                        )
+                        success = await self._recover_single_recording(recording_id, recording_data, database_service)
 
                         if success:
                             recovered_recordings.append(recording_id)
@@ -222,23 +216,24 @@ class RecordingStateManager:
                 return False
 
             # Check if recording file still exists
-            file_path = recording_data.get('file_path') or recording.path
+            file_path = recording_data.get("file_path") or recording.path
             if file_path and not Path(file_path).exists():
                 logger.warning(f"Recording file {file_path} no longer exists")
                 # Mark recording as failed
-                await database_service.mark_recording_failed(
-                    recording_id, "Recording file lost during recovery"
-                )
+                await database_service.mark_recording_failed(recording_id, "Recording file lost during recovery")
                 return False
 
             # Add to active recordings
-            self.add_active_recording(recording_id, {
-                'file_path': file_path,
-                'streamer_id': recording.stream.streamer_id if recording.stream else None,
-                'stream_id': recording.stream_id,
-                'recovered': True,
-                **recording_data
-            })
+            self.add_active_recording(
+                recording_id,
+                {
+                    "file_path": file_path,
+                    "streamer_id": recording.stream.streamer_id if recording.stream else None,
+                    "stream_id": recording.stream_id,
+                    "recovered": True,
+                    **recording_data,
+                },
+            )
 
             return True
 
@@ -251,10 +246,7 @@ class RecordingStateManager:
         active_count = self.get_active_recording_count()
         task_count = len(self.recording_tasks)
 
-        return {
-            'active_recordings': active_count,
-            'active_tasks': task_count
-        }
+        return {"active_recordings": active_count, "active_tasks": task_count}
 
     def clear_all_state(self) -> None:
         """Clear all state (for shutdown)"""

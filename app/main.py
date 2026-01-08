@@ -58,6 +58,7 @@ async def lifespan(app: FastAPI):
         # Run database migrations always (development and production)
         logger.info("🔄 Running database migrations...")
         from app.services.system.migration_service import MigrationService
+
         try:
             migration_success = MigrationService.run_safe_migrations()
             if migration_success:
@@ -75,8 +76,7 @@ async def lifespan(app: FastAPI):
         try:
             # Check if migration is needed
             old_dirs_exist = (
-                image_migration_service.old_images_dir.exists()
-                or image_migration_service.old_artwork_dir.exists()
+                image_migration_service.old_images_dir.exists() or image_migration_service.old_artwork_dir.exists()
             )
 
             if old_dirs_exist:
@@ -138,7 +138,7 @@ async def lifespan(app: FastAPI):
 
         # Get recording service reference for graceful shutdown
         try:
-            recording_service = getattr(event_registry, 'recording_service', None)
+            recording_service = getattr(event_registry, "recording_service", None)
             if recording_service:
                 logger.info("Recording service reference obtained for graceful shutdown")
         except Exception as e:
@@ -147,6 +147,7 @@ async def lifespan(app: FastAPI):
         # Start log cleanup service
         try:
             from app.services.system.logging_service import logging_service
+
             # Use the global logging service instance instead of creating a new one
             log_cleanup_task = asyncio.create_task(logging_service._schedule_cleanup(interval_hours=24))
             logger.info("Log cleanup service started")
@@ -235,6 +236,7 @@ async def lifespan(app: FastAPI):
         # Start Proxy Health Check Service
         try:
             from app.services.proxy.proxy_health_service import proxy_health_service
+
             await proxy_health_service.start()
             logger.info("✅ Proxy health check service started")
         except Exception as e:
@@ -289,6 +291,7 @@ async def lifespan(app: FastAPI):
     try:
         logger.info("🔄 Stopping proxy health check service...")
         from app.services.proxy.proxy_health_service import proxy_health_service
+
         await proxy_health_service.stop()
         logger.info("✅ Proxy health check service stopped successfully")
     except Exception as e:
@@ -309,6 +312,7 @@ async def lifespan(app: FastAPI):
     try:
         logger.info("🔄 Stopping background queue service...")
         from app.services.background_queue_service import background_queue_service
+
         await background_queue_service.stop()
         logger.info("✅ Background queue service stopped successfully")
     except Exception as e:
@@ -330,12 +334,12 @@ async def lifespan(app: FastAPI):
     if event_registry:
         try:
             # Try to access eventsub attribute safely
-            eventsub = getattr(event_registry, 'eventsub', None)
-            if eventsub and hasattr(eventsub, 'stop'):
+            eventsub = getattr(event_registry, "eventsub", None)
+            if eventsub and hasattr(eventsub, "stop"):
                 logger.info("🔄 Stopping EventSub...")
                 await eventsub.stop()
                 logger.info("✅ EventSub stopped successfully")
-            elif hasattr(event_registry, 'cleanup'):
+            elif hasattr(event_registry, "cleanup"):
                 logger.info("🔄 Cleaning up event registry...")
                 await event_registry.cleanup()
                 logger.info("✅ Event registry cleaned up")
@@ -355,7 +359,7 @@ async def lifespan(app: FastAPI):
             from app.services.recording.recording_auto_fix_service import recording_auto_fix_service  # type: ignore
         except ModuleNotFoundError:
             recording_auto_fix_service = None  # type: ignore
-        if recording_auto_fix_service and hasattr(recording_auto_fix_service, 'stop'):
+        if recording_auto_fix_service and hasattr(recording_auto_fix_service, "stop"):
             await recording_auto_fix_service.stop()
             logger.info("✅ Recording auto-fix service stopped")
         else:
@@ -366,6 +370,7 @@ async def lifespan(app: FastAPI):
     # Close database connections
     try:
         from sqlalchemy.ext.asyncio import AsyncEngine
+
         if isinstance(engine, AsyncEngine):
             await engine.dispose()
         else:
@@ -375,6 +380,7 @@ async def lifespan(app: FastAPI):
         logger.error(f"❌ Error disposing database engine: {e}")
 
     logger.info("🎯 Application shutdown complete")
+
 
 # Initialize application components
 logger = setup_logging()
@@ -386,7 +392,7 @@ app = FastAPI(
     docs_url="/api/docs",
     redoc_url="/api/redoc",
     openapi_url="/api/openapi.json",
-    lifespan=lifespan
+    lifespan=lifespan,
 )
 
 # Add Trusted Host middleware (security best practice)
@@ -398,7 +404,7 @@ if settings.is_secure:
             settings.domain,
             f"www.{settings.domain}",
             "localhost",  # For health checks
-        ]
+        ],
     )
 
 # Add CORS middleware with secure configuration
@@ -434,19 +440,19 @@ async def add_security_headers(request: Request, call_next):
 
     # Set content types based on file extension
     content_type_map = {
-        '.js': 'application/javascript',
-        '.json': 'application/json',
-        '.css': 'text/css',
-        '.ico': 'image/x-icon',
-        '.png': 'image/png',
-        '.jpg': 'image/jpeg',
-        '.jpeg': 'image/jpeg',
-        '.gif': 'image/gif',
-        '.svg': 'image/svg+xml',
-        '.webmanifest': 'application/manifest+json',
-        '.xml': 'application/xml',
-        '.html': 'text/html',
-        '.webp': 'image/webp'
+        ".js": "application/javascript",
+        ".json": "application/json",
+        ".css": "text/css",
+        ".ico": "image/x-icon",
+        ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".gif": "image/gif",
+        ".svg": "image/svg+xml",
+        ".webmanifest": "application/manifest+json",
+        ".xml": "application/xml",
+        ".html": "text/html",
+        ".webp": "image/webp",
     }
 
     for ext, content_type in content_type_map.items():
@@ -481,7 +487,7 @@ async def add_security_headers(request: Request, call_next):
                 "media-src 'self' blob:",  # For video playback
                 "worker-src 'self' blob:",  # For service workers
                 "manifest-src 'self'",
-                "frame-ancestors 'none'"
+                "frame-ancestors 'none'",
             ]
             response.headers["Content-Security-Policy"] = "; ".join(csp_directives)
 
@@ -490,19 +496,18 @@ async def add_security_headers(request: Request, call_next):
 
     return response
 
+
 # Add request ID middleware for tracking
 
 
 @app.middleware("http")
 async def add_request_id(request: Request, call_next):
     import uuid
+
     request_id = str(uuid.uuid4())
 
     # Skip logging for frequent background queue polling endpoints to reduce log spam
-    skip_logging_paths = [
-        "/api/background-queue/stats",
-        "/api/background-queue/active-tasks"
-    ]
+    skip_logging_paths = ["/api/background-queue/stats", "/api/background-queue/active-tasks"]
 
     # Add request ID to logger context (skip frequent polling endpoints)
     if request.url.path not in skip_logging_paths:
@@ -515,6 +520,7 @@ async def add_request_id(request: Request, call_next):
     response.headers["X-Request-ID"] = request_id
 
     return response
+
 
 # Adaptive rate limiting middleware (token-bucket with soft-wait)
 from dataclasses import dataclass
@@ -551,10 +557,12 @@ class _AdaptiveLimiter:
         # Allow higher throughput for safe, read-only endpoints
         method = method.upper()
         if method == "GET":
-            if (path.startswith("/api/background-queue/")
+            if (
+                path.startswith("/api/background-queue/")
                 or path.startswith("/api/streamers")
                 or path.startswith("/api/status")
-                    or path.startswith("/api/streams")):
+                or path.startswith("/api/streams")
+            ):
                 return (800, 20.0)
             # Default GET budget
             return (500, 10.0)
@@ -562,11 +570,7 @@ class _AdaptiveLimiter:
         return (120, 2.0)
 
     def _key(self, path: str, method: str, client_ip: str, auth_header: Optional[str]) -> str:
-        if (
-            auth_header
-            and auth_header.startswith("Bearer ")
-            and len(auth_header) > 7
-        ):
+        if auth_header and auth_header.startswith("Bearer ") and len(auth_header) > 7:
             token = auth_header[7:].strip()
             # Use a longer digest segment to reduce collision risk
             digest = hashlib.sha256(token.encode("utf-8")).hexdigest()[:32]
@@ -584,7 +588,9 @@ class _AdaptiveLimiter:
                 bucket.refill_per_sec = refill
             return bucket
 
-    async def acquire(self, *, path: str, method: str, client_ip: str, auth_header: Optional[str]) -> Tuple[bool, int, int, int]:
+    async def acquire(
+        self, *, path: str, method: str, client_ip: str, auth_header: Optional[str]
+    ) -> Tuple[bool, int, int, int]:
         """Attempt to consume a token.
         Returns (allowed, retry_after_seconds, remaining_tokens, capacity)
         """
@@ -625,12 +631,14 @@ _limiter = _AdaptiveLimiter()
 @app.middleware("http")
 async def rate_limit_middleware(request: Request, call_next):
     # Skip rate limiting for health checks, static files, and internal API calls
-    if (request.url.path in ["/health", "/favicon.ico"] or
-        request.url.path.startswith("/assets/")
+    if (
+        request.url.path in ["/health", "/favicon.ico"]
+        or request.url.path.startswith("/assets/")
         or request.url.path.startswith("/api/images/")  # Skip for image API calls
         or request.url.path.startswith("/recordings/.media/")  # Skip for cached image files
-        or request.url.path.startswith("/api/sync/")    # Skip for sync API calls
-            or request.url.path.startswith("/data/")):
+        or request.url.path.startswith("/api/sync/")  # Skip for sync API calls
+        or request.url.path.startswith("/data/")
+    ):
         return await call_next(request)
 
     # Get client IP (respect reverse proxy)
@@ -646,7 +654,7 @@ async def rate_limit_middleware(request: Request, call_next):
         path=request.url.path,
         method=request.method,
         client_ip=client_ip,
-        auth_header=request.headers.get("Authorization")
+        auth_header=request.headers.get("Authorization"),
     )
 
     if not allowed:
@@ -658,7 +666,7 @@ async def rate_limit_middleware(request: Request, call_next):
                 "Retry-After": str(retry_after),
                 "X-RateLimit-Limit": str(capacity),
                 "X-RateLimit-Remaining": str(remaining),
-            }
+            },
         )
 
     response = await call_next(request)
@@ -666,6 +674,7 @@ async def rate_limit_middleware(request: Request, call_next):
     response.headers["X-RateLimit-Limit"] = str(capacity)
     response.headers["X-RateLimit-Remaining"] = str(remaining)
     return response
+
 
 # WebSocket endpoint
 
@@ -697,15 +706,21 @@ async def get_websocket_connections():
     connections = []
     async with websocket_manager._lock:
         for connection_id, ws in websocket_manager.active_connections.items():
-            real_ip = getattr(ws, '_real_ip', 'unknown')
-            client_identifier = getattr(ws, '_client_identifier', 'unknown')
+            real_ip = getattr(ws, "_real_ip", "unknown")
+            client_identifier = getattr(ws, "_client_identifier", "unknown")
 
-            connections.append({
-                "connection_id": connection_id,
-                "real_ip": real_ip,
-                "client_identifier": client_identifier,
-                "state": ws.application_state.value if hasattr(ws.application_state, 'value') else str(ws.application_state)
-            })
+            connections.append(
+                {
+                    "connection_id": connection_id,
+                    "real_ip": real_ip,
+                    "client_identifier": client_identifier,
+                    "state": (
+                        ws.application_state.value
+                        if hasattr(ws.application_state, "value")
+                        else str(ws.application_state)
+                    ),
+                }
+            )
 
     # Group by real IP to show multiple connections per client
     clients = {}
@@ -720,8 +735,9 @@ async def get_websocket_connections():
         "total_connections": len(connections),
         "unique_clients": len(clients),
         "clients": list(clients.values()),
-        "connections": connections
+        "connections": connections,
     }
+
 
 # EventSub Routes
 
@@ -757,12 +773,10 @@ async def eventsub_callback(request: Request):
             return Response(status_code=403)
 
         # Create message exactly as Twitch does
-        hmac_message = message_id.encode() + timestamp.encode() + body        # Calculate HMAC using raw bytes
-        calculated_signature = "sha256=" + hmac.new(
-            settings.EVENTSUB_SECRET.encode(),
-            hmac_message,
-            hashlib.sha256
-        ).hexdigest()
+        hmac_message = message_id.encode() + timestamp.encode() + body  # Calculate HMAC using raw bytes
+        calculated_signature = (
+            "sha256=" + hmac.new(settings.EVENTSUB_SECRET.encode(), hmac_message, hashlib.sha256).hexdigest()
+        )
 
         # Debug HMAC calculation (without exposing sensitive data)
         logger.debug(f"HMAC message length: {len(hmac_message)}")
@@ -770,7 +784,9 @@ async def eventsub_callback(request: Request):
         logger.debug(f"Secret length: {len(settings.EVENTSUB_SECRET)}")
 
         if not hmac.compare_digest(received_signature, calculated_signature):
-            logger.error(f"Signature mismatch. Got: {received_signature[:16]}..., Expected: {calculated_signature[:16]}...")
+            logger.error(
+                f"Signature mismatch. Got: {received_signature[:16]}..., Expected: {calculated_signature[:16]}..."
+            )
             return Response(status_code=403)
 
         # Process webhook message based on message_type
@@ -834,6 +850,7 @@ async def eventsub_callback(request: Request):
         logger.error(f"Error processing webhook: {e}", exc_info=True)
         return Response(status_code=500)
 
+
 # API routes first
 app.include_router(health.router)  # Health check endpoints (no auth required)
 app.include_router(streamers.router)
@@ -854,30 +871,37 @@ app.include_router(notifications.router)  # Notification tracking API
 
 # Proxy management routes (Multi-Proxy System)
 from app.routes import proxy as proxy_router
+
 app.include_router(proxy_router.router)
 
 # Unified recovery routes (replaces old orphaned + failed recovery)
 from app.api import unified_recovery_endpoints
+
 app.include_router(unified_recovery_endpoints.router)
 
 # Automated recovery routes
 from app.api import automated_recovery_endpoints
+
 app.include_router(automated_recovery_endpoints.router)
 
 # Push notification routes
 from app.routes import push as push_router
+
 app.include_router(push_router.router)
 
 # Admin routes
 from app.routes import admin as admin_router
+
 app.include_router(admin_router.router)
 
 # Migration routes
 from app.routes import migration as migration_router
+
 app.include_router(migration_router.router)
 
 # Version routes
 from app.routes import version as version_router
+
 app.include_router(version_router.router, prefix="/api")
 
 # Explicit SPA routes - these must come after API routes but before static files
@@ -899,12 +923,14 @@ async def serve_spa_routes():
     for path in ["app/frontend/dist/index.html", "/app/app/frontend/dist/index.html"]:
         try:
             import os
+
             if os.path.exists(path):
                 return FileResponse(path, media_type="text/html")
         except Exception:
             continue
 
     return Response(content="SPA index.html not found", status_code=500)
+
 
 # Static files for assets
 try:
@@ -959,9 +985,7 @@ async def serve_manifest():
     for path in ["app/frontend/public/manifest.json", "/app/app/frontend/public/manifest.json"]:
         try:
             return FileResponse(
-                path,
-                media_type="application/manifest+json",
-                headers={"Cache-Control": "public, max-age=86400"}
+                path, media_type="application/manifest+json", headers={"Cache-Control": "public, max-age=86400"}
             )
         except (FileNotFoundError, PermissionError):
             continue
@@ -973,9 +997,7 @@ async def serve_manifest_webmanifest():
     for path in ["app/frontend/public/manifest.webmanifest", "/app/app/frontend/public/manifest.webmanifest"]:
         try:
             return FileResponse(
-                path,
-                media_type="application/manifest+json",
-                headers={"Cache-Control": "public, max-age=86400"}
+                path, media_type="application/manifest+json", headers={"Cache-Control": "public, max-age=86400"}
             )
         except (FileNotFoundError, PermissionError):
             continue
@@ -988,11 +1010,7 @@ async def serve_push_sw_helper():
     for path in ["app/frontend/public/push-sw.js", "/app/app/frontend/public/push-sw.js"]:
         try:
             return FileResponse(
-                path,
-                media_type="application/javascript",
-                headers={
-                    "Cache-Control": "public, max-age=3600"
-                }
+                path, media_type="application/javascript", headers={"Cache-Control": "public, max-age=3600"}
             )
         except (FileNotFoundError, PermissionError):
             continue
@@ -1007,11 +1025,7 @@ async def register_service_worker():
             return FileResponse(
                 path,
                 media_type="application/javascript",
-                headers={
-                    "Cache-Control": "no-cache, no-store, must-revalidate",
-                    "Pragma": "no-cache",
-                    "Expires": "0"
-                }
+                headers={"Cache-Control": "no-cache, no-store, must-revalidate", "Pragma": "no-cache", "Expires": "0"},
             )
         except (FileNotFoundError, PermissionError):
             continue
@@ -1024,19 +1038,21 @@ async def service_worker():
         try:
             # Read and append import for custom push handlers if not present
             try:
-                with open(path, 'r', encoding='utf-8') as f:
+                with open(path, "r", encoding="utf-8") as f:
                     sw_code = f.read()
                 # Only inject once and only if our public file exists
                 inject_marker = "// streamvault-push-import"
-                push_import = "\n".join([
-                    "",
-                    inject_marker,
-                    "try {",
-                    "  importScripts('/pwa/push-sw.js');",
-                    "} catch (e) { /* ignore */ }",
-                    inject_marker,
-                    ""
-                ])
+                push_import = "\n".join(
+                    [
+                        "",
+                        inject_marker,
+                        "try {",
+                        "  importScripts('/pwa/push-sw.js');",
+                        "} catch (e) { /* ignore */ }",
+                        inject_marker,
+                        "",
+                    ]
+                )
                 if inject_marker not in sw_code:
                     sw_code = sw_code + push_import
                 return Response(
@@ -1046,8 +1062,8 @@ async def service_worker():
                         "Cache-Control": "no-cache, no-store, must-revalidate",
                         "Service-Worker-Allowed": "/",
                         "Pragma": "no-cache",
-                        "Expires": "0"
-                    }
+                        "Expires": "0",
+                    },
                 )
             except (OSError, UnicodeDecodeError) as e:
                 # Fallback to raw file serving if reading fails
@@ -1059,8 +1075,8 @@ async def service_worker():
                         "Cache-Control": "no-cache, no-store, must-revalidate",
                         "Service-Worker-Allowed": "/",
                         "Pragma": "no-cache",
-                        "Expires": "0"
-                    }
+                        "Expires": "0",
+                    },
                 )
         except (FileNotFoundError, PermissionError):
             continue
@@ -1071,11 +1087,7 @@ async def service_worker():
 async def serve_browserconfig():
     for path in ["app/frontend/public/browserconfig.xml", "/app/app/frontend/public/browserconfig.xml"]:
         try:
-            return FileResponse(
-                path,
-                media_type="application/xml",
-                headers={"Cache-Control": "public, max-age=86400"}
-            )
+            return FileResponse(path, media_type="application/xml", headers={"Cache-Control": "public, max-age=86400"})
         except (FileNotFoundError, PermissionError):
             continue
     return Response(status_code=404)
@@ -1100,6 +1112,7 @@ async def serve_pwa_helper():
             continue
     return Response(status_code=404)
 
+
 # (Removed duplicate /registerSW.js endpoint; single secured version is defined later)
 
 
@@ -1119,7 +1132,7 @@ async def serve_workbox_files(filename: str):
         "strategies.js": "workbox-strategies.js",
         "precaching.js": "workbox-precaching.js",
         "routing.js": "workbox-routing.js",
-        "window.js": "workbox-window.js"
+        "window.js": "workbox-window.js",
     }
 
     # Step 2: Validate user input against whitelist only
@@ -1136,10 +1149,7 @@ async def serve_workbox_files(filename: str):
     safe_filename = ALLOWED_WORKBOX_FILES[filename]
 
     # Step 5: Define hardcoded safe paths (completely isolated from user input)
-    SAFE_FILE_PATHS = [
-        f"app/frontend/dist/{safe_filename}",
-        f"/app/app/frontend/dist/{safe_filename}"
-    ]
+    SAFE_FILE_PATHS = [f"app/frontend/dist/{safe_filename}", f"/app/app/frontend/dist/{safe_filename}"]
 
     # Step 6: Try each hardcoded path (user input never touches file operations)
     for hardcoded_path in SAFE_FILE_PATHS:
@@ -1148,10 +1158,7 @@ async def serve_workbox_files(filename: str):
             real_path = os.path.realpath(hardcoded_path)
 
             # Verify path is within expected directories
-            expected_dirs = [
-                os.path.realpath("app/frontend/dist"),
-                os.path.realpath("/app/app/frontend/dist")
-            ]
+            expected_dirs = [os.path.realpath("app/frontend/dist"), os.path.realpath("/app/app/frontend/dist")]
 
             path_is_safe = False
             for expected_dir in expected_dirs:
@@ -1167,10 +1174,7 @@ async def serve_workbox_files(filename: str):
                 return FileResponse(
                     real_path,  # This comes from hardcoded paths, not user input
                     media_type="application/javascript",
-                    headers={
-                        "Cache-Control": "public, max-age=31536000",
-                        "Access-Control-Allow-Origin": "*"
-                    }
+                    headers={"Cache-Control": "public, max-age=31536000", "Access-Control-Allow-Origin": "*"},
                 )
         except Exception as e:
             logger.warning(f"Error checking hardcoded workbox path {hardcoded_path}: {e}")
@@ -1184,13 +1188,10 @@ async def serve_workbox_files(filename: str):
 @app.get("/favicon.ico")
 async def serve_favicon():
     from app.utils.file_paths import get_file_paths
+
     for path in get_file_paths("favicon.ico"):
         try:
-            return FileResponse(
-                path,
-                media_type="image/x-icon",
-                headers={"Cache-Control": "public, max-age=86400"}
-            )
+            return FileResponse(path, media_type="image/x-icon", headers={"Cache-Control": "public, max-age=86400"})
         except (FileNotFoundError, PermissionError):
             continue
     return Response(status_code=404)
@@ -1199,19 +1200,17 @@ async def serve_favicon():
 @app.get("/favicon.png")
 async def serve_favicon_png():
     from app.utils.file_paths import get_file_paths
+
     # Try specific favicon.png files, then fall back to ico
     for filename in ["favicon.png", "favicon-32x32.png", "favicon.ico"]:
         for path in get_file_paths(filename):
             try:
                 media_type = "image/png" if filename.endswith(".png") else "image/x-icon"
-                return FileResponse(
-                    path,
-                    media_type=media_type,
-                    headers={"Cache-Control": "public, max-age=86400"}
-                )
+                return FileResponse(path, media_type=media_type, headers={"Cache-Control": "public, max-age=86400"})
             except (FileNotFoundError, PermissionError):
                 continue
     return Response(status_code=404)
+
 
 # PWA Icons - serve from public directory
 
@@ -1221,15 +1220,34 @@ async def serve_pwa_icons(icon_file: str):
     # SECURITY: Complete isolation of user input from file operations
     # Step 1: Strict allowlist validation - no user data flows to file operations
     pwa_files = {
-        'android-icon-36x36.png', 'android-icon-48x48.png', 'android-icon-72x72.png',
-        'android-icon-96x96.png', 'android-icon-144x144.png', 'android-icon-192x192.png',
-        'apple-icon-57x57.png', 'apple-icon-60x60.png', 'apple-icon-72x72.png',
-        'apple-icon-76x76.png', 'apple-icon-114x114.png', 'apple-icon-120x120.png',
-        'apple-icon-144x144.png', 'apple-icon-152x152.png', 'apple-icon-180x180.png',
-        'apple-icon-precomposed.png', 'apple-icon.png',
-        'favicon-16x16.png', 'favicon-32x32.png', 'favicon-96x96.png', 'favicon.ico',
-        'icon-512x512.png', 'maskable-icon-192x192.png', 'maskable-icon-512x512.png',
-        'ms-icon-70x70.png', 'ms-icon-144x144.png', 'ms-icon-150x150.png', 'ms-icon-310x310.png'
+        "android-icon-36x36.png",
+        "android-icon-48x48.png",
+        "android-icon-72x72.png",
+        "android-icon-96x96.png",
+        "android-icon-144x144.png",
+        "android-icon-192x192.png",
+        "apple-icon-57x57.png",
+        "apple-icon-60x60.png",
+        "apple-icon-72x72.png",
+        "apple-icon-76x76.png",
+        "apple-icon-114x114.png",
+        "apple-icon-120x120.png",
+        "apple-icon-144x144.png",
+        "apple-icon-152x152.png",
+        "apple-icon-180x180.png",
+        "apple-icon-precomposed.png",
+        "apple-icon.png",
+        "favicon-16x16.png",
+        "favicon-32x32.png",
+        "favicon-96x96.png",
+        "favicon.ico",
+        "icon-512x512.png",
+        "maskable-icon-192x192.png",
+        "maskable-icon-512x512.png",
+        "ms-icon-70x70.png",
+        "ms-icon-144x144.png",
+        "ms-icon-150x150.png",
+        "ms-icon-310x310.png",
     }
 
     # Step 2: Early validation - reject if not in allowlist
@@ -1266,21 +1284,20 @@ async def serve_pwa_icons(icon_file: str):
 
         # Determine media type based on file extension
         media_type = "image/png"
-        if icon_file.endswith('.ico'):
+        if icon_file.endswith(".ico"):
             media_type = "image/x-icon"
-        elif icon_file.endswith('.svg'):
+        elif icon_file.endswith(".svg"):
             media_type = "image/svg+xml"
 
         try:
             return FileResponse(
-                str(safe_path),
-                media_type=media_type,
-                headers={"Cache-Control": "public, max-age=31536000"}  # 1 year
+                str(safe_path), media_type=media_type, headers={"Cache-Control": "public, max-age=31536000"}  # 1 year
             )
         except Exception as e:
             logger.warning(f"Error serving icon file: {e}")
 
     return Response(status_code=404)
+
 
 # Root route to serve index.html
 
@@ -1291,6 +1308,7 @@ async def serve_root():
     for path in ["app/frontend/dist/index.html", "/app/app/frontend/dist/index.html"]:
         try:
             import os
+
             if os.path.exists(path):
                 logger.info(f"Serving root index.html from: {path}")
                 return FileResponse(path, media_type="text/html")
@@ -1300,6 +1318,7 @@ async def serve_root():
 
     logger.error("Could not find index.html for root route")
     return Response(content="Welcome to StreamVault - Frontend not available", status_code=500)
+
 
 # Error handler
 app.add_exception_handler(Exception, error_handler)
@@ -1318,10 +1337,10 @@ async def serve_register_sw():
         if sw_path.exists():
             # Validate file content (basic check)
             try:
-                with open(sw_path, 'r') as f:
+                with open(sw_path, "r") as f:
                     content = f.read()
                     # Basic validation - should contain service worker registration code
-                    if 'serviceWorker' not in content:
+                    if "serviceWorker" not in content:
                         logger.warning("Service worker file doesn't contain expected content")
                         continue
             except Exception as e:
@@ -1334,8 +1353,8 @@ async def serve_register_sw():
                 headers={
                     "Service-Worker-Allowed": "/",
                     "Cache-Control": "no-cache, no-store, must-revalidate",
-                    "X-Content-Type-Options": "nosniff"  # Override for service worker
-                }
+                    "X-Content-Type-Options": "nosniff",  # Override for service worker
+                },
             )
 
     # If not found in dist, serve a minimal registration script
@@ -1349,11 +1368,9 @@ async def serve_register_sw():
     return Response(
         content=minimal_sw,
         media_type="application/javascript",
-        headers={
-            "Service-Worker-Allowed": "/",
-            "Cache-Control": "no-cache"
-        }
+        headers={"Service-Worker-Allowed": "/", "Cache-Control": "no-cache"},
     )
+
 
 # SPA catch-all route must be last - only serve for non-API paths
 
@@ -1361,16 +1378,19 @@ async def serve_register_sw():
 @app.get("/{full_path:path}")
 async def serve_spa(full_path: str):
     # Don't serve SPA for API paths, static files, or PWA files
-    if (full_path.startswith("api/") or
-        full_path.startswith("assets/")
+    if (
+        full_path.startswith("api/")
+        or full_path.startswith("assets/")
         or full_path.startswith("data/")
         or full_path.startswith("video/")
         or full_path.startswith("ws")  # WebSocket
         or full_path.startswith("eventsub")  # EventSub
         or full_path.startswith("health")  # Health check
         or full_path.startswith("debug/")  # Debug endpoints
-        or full_path in {"manifest.json", "manifest.webmanifest", "sw.js", "browserconfig.xml", "pwa-test.html", "pwa-helper.js"}
-            or full_path.endswith((".png", ".ico", ".svg", ".jpg", ".jpeg", ".gif", ".webp", ".js", ".css", ".map", ".xml"))):
+        or full_path
+        in {"manifest.json", "manifest.webmanifest", "sw.js", "browserconfig.xml", "pwa-test.html", "pwa-helper.js"}
+        or full_path.endswith((".png", ".ico", ".svg", ".jpg", ".jpeg", ".gif", ".webp", ".js", ".css", ".map", ".xml"))
+    ):
         raise HTTPException(status_code=404)
 
     # For SPA routes like /streamers, /subscriptions, etc., serve index.html
@@ -1380,6 +1400,7 @@ async def serve_spa(full_path: str):
     for path in ["app/frontend/dist/index.html", "/app/app/frontend/dist/index.html"]:
         try:
             import os
+
             if os.path.exists(path):
                 logger.debug(f"Successfully serving index.html from: {path}")
                 return FileResponse(path, media_type="text/html")

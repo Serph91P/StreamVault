@@ -11,8 +11,4 @@ from .task_queue_manager import TaskQueueManager
 from .worker_manager import WorkerManager
 from .task_progress_tracker import TaskProgressTracker
 
-__all__ = [
-    'TaskQueueManager',
-    'WorkerManager',
-    'TaskProgressTracker'
-]
+__all__ = ["TaskQueueManager", "WorkerManager", "TaskProgressTracker"]

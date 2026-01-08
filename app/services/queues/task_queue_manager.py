@@ -40,7 +40,9 @@ class TaskQueueManager:
             self.streamer_workers: Dict[str, list] = defaultdict(list)
             self.max_workers_per_streamer = 4  # Increased: Allow 4 workers per streamer for better concurrency
             self.global_max_streamers = 15  # Increased: Support more concurrent streamers
-            logger.info("TaskQueueManager initialized with streamer isolation for production - max 4 workers per streamer, 15 max streamers")
+            logger.info(
+                "TaskQueueManager initialized with streamer isolation for production - max 4 workers per streamer, 15 max streamers"
+            )
         else:
             # Original single shared queue
             self.task_queue: asyncio.PriorityQueue = asyncio.PriorityQueue()
@@ -146,17 +148,22 @@ class TaskQueueManager:
         task_type: str,
         payload: Dict[str, Any],
         priority: TaskPriority = TaskPriority.NORMAL,
-        max_retries: int = 3
+        max_retries: int = 3,
     ) -> str:
         """Enqueue a new background task with optional streamer isolation"""
 
         # PRODUCTION FIX: Limit orphaned recovery check tasks to prevent queue flooding
-        if task_type == 'orphaned_recovery_check':
-            active_orphaned_count = sum(1 for task in self.progress_tracker.get_active_tasks().values()
-                                        if task.task_type == 'orphaned_recovery_check')
+        if task_type == "orphaned_recovery_check":
+            active_orphaned_count = sum(
+                1
+                for task in self.progress_tracker.get_active_tasks().values()
+                if task.task_type == "orphaned_recovery_check"
+            )
 
             if active_orphaned_count >= 3:  # Limit to max 3 concurrent orphaned checks
-                logger.warning(f"🔍 ORPHANED_RECOVERY_LIMIT: Skipping new orphaned check - already {active_orphaned_count} running")
+                logger.warning(
+                    f"🔍 ORPHANED_RECOVERY_LIMIT: Skipping new orphaned check - already {active_orphaned_count} running"
+                )
                 # Return a dummy task ID but don't actually enqueue
                 return f"skipped_orphaned_{uuid.uuid4()}"
 
@@ -169,7 +176,7 @@ class TaskQueueManager:
             payload=payload,
             status=TaskStatus.PENDING,
             created_at=datetime.now(timezone.utc),
-            max_retries=max_retries
+            max_retries=max_retries,
         )
 
         # Add to progress tracker
@@ -179,7 +186,9 @@ class TaskQueueManager:
             # Production fix: Route task to streamer-specific queue
             streamer_name = self._extract_streamer_name(payload)
             await self._enqueue_to_streamer_queue(task, streamer_name)
-            logger.info(f"Enqueued task {task_id} ({task_type}) for streamer {streamer_name} with priority {priority.name}")
+            logger.info(
+                f"Enqueued task {task_id} ({task_type}) for streamer {streamer_name} with priority {priority.name}"
+            )
         else:
             # Original shared queue behavior
             priority_value = -priority.value
@@ -191,17 +200,18 @@ class TaskQueueManager:
     def _extract_streamer_name(self, payload: Dict[str, Any]) -> str:
         """Extract streamer name from task payload for isolation"""
         # 1) Explicit name wins
-        streamer_name = payload.get('streamer_name')
+        streamer_name = payload.get("streamer_name")
         if streamer_name:
             return str(streamer_name)
 
         # 2) Resolve by stream_id via DB (authoritative)
-        stream_id = payload.get('stream_id')
+        stream_id = payload.get("stream_id")
         if stream_id is not None:
             try:
                 # Lazy import to avoid circular deps
                 from app.database import SessionLocal
                 from app.models import Stream
+
                 with SessionLocal() as db:
                     stream = (
                         db.query(Stream)
@@ -226,29 +236,29 @@ class TaskQueueManager:
                 parts = list(p.parts)
                 # Normalize typical top-level folder names
                 lowered = [s.lower() for s in parts]
-                if 'recordings' in lowered:
-                    idx = lowered.index('recordings')
+                if "recordings" in lowered:
+                    idx = lowered.index("recordings")
                     if idx + 1 < len(parts):
                         return str(parts[idx + 1])
                 # Fallback: first non-empty folder name that isn't a drive or season
                 for part in parts:
-                    norm = part.strip().strip('\\/')
+                    norm = part.strip().strip("\\/")
                     if not norm:
                         continue
                     # Skip drive letters like 'C:\'
-                    if len(norm) == 2 and norm.endswith(':'):
+                    if len(norm) == 2 and norm.endswith(":"):
                         continue
-                    if norm.lower().startswith('season '):
+                    if norm.lower().startswith("season "):
                         continue
-                    if norm.lower() in ('recordings', 'temp', 'tmp', 'segments'):
+                    if norm.lower() in ("recordings", "temp", "tmp", "segments"):
                         continue
                     return str(norm)
             except Exception:
                 return None
             return None
 
-        for key in ('ts_file_path', 'output_dir', 'mp4_path'):
-            name = _candidate_from_path(payload.get(key, ''))
+        for key in ("ts_file_path", "output_dir", "mp4_path"):
+            name = _candidate_from_path(payload.get(key, ""))
             if name:
                 return name
 
@@ -283,8 +293,7 @@ class TaskQueueManager:
                     # Get next task from this streamer's queue
                     try:
                         priority, task = await asyncio.wait_for(
-                            streamer_queue.get(),
-                            timeout=TIMEOUTS.QUEUE_GET_TIMEOUT
+                            streamer_queue.get(), timeout=TIMEOUTS.QUEUE_GET_TIMEOUT
                         )
                     except asyncio.TimeoutError:
                         continue
@@ -311,7 +320,9 @@ class TaskQueueManager:
                         logger.info(f"✅ Streamer {streamer_name} completed task {task.id} - success: {success}")
 
                     except Exception as e:
-                        logger.error(f"❌ Error executing task {task.id} for streamer {streamer_name}: {e}", exc_info=True)
+                        logger.error(
+                            f"❌ Error executing task {task.id} for streamer {streamer_name}: {e}", exc_info=True
+                        )
 
                         # Mark task as failed
                         if self.progress_tracker:
@@ -334,7 +345,9 @@ class TaskQueueManager:
         if current_worker_count < self.max_workers_per_streamer:
             worker_task = asyncio.create_task(isolated_worker())
             self.streamer_workers[streamer_name].append(worker_task)
-            logger.info(f"🎯 Created isolated worker for streamer: {streamer_name} (worker {current_worker_count + 1}/{self.max_workers_per_streamer})")
+            logger.info(
+                f"🎯 Created isolated worker for streamer: {streamer_name} (worker {current_worker_count + 1}/{self.max_workers_per_streamer})"
+            )
         else:
             logger.warning(f"⚠️ Maximum workers reached for streamer {streamer_name} ({self.max_workers_per_streamer})")
 
@@ -344,7 +357,7 @@ class TaskQueueManager:
         payload: Dict[str, Any],
         dependencies: Optional[list] = None,
         priority: TaskPriority = TaskPriority.NORMAL,
-        max_retries: int = 3
+        max_retries: int = 3,
     ) -> str:
         """Enqueue a task with dependencies"""
         task_id = str(uuid.uuid4())
@@ -355,7 +368,7 @@ class TaskQueueManager:
             type=task_type,
             payload=payload,
             dependencies=set(dependencies or []),
-            status=DepTaskStatus.PENDING
+            status=DepTaskStatus.PENDING,
         )
 
         # Add to dependency manager
@@ -369,7 +382,7 @@ class TaskQueueManager:
             payload=payload,
             status=TaskStatus.PENDING,
             created_at=datetime.now(timezone.utc),
-            max_retries=max_retries
+            max_retries=max_retries,
         )
 
         # Add to progress tracker
@@ -390,35 +403,42 @@ class TaskQueueManager:
                     logger.debug(
                         "🧩 DEP_WORKER_READY: count=%d tasks=%s",
                         len(ready_tasks),
-                        ",".join([t.id for t in ready_tasks])
+                        ",".join([t.id for t in ready_tasks]),
                     )
                 for dep_task in ready_tasks:
                     # Skip tasks already completed in persistent state
                     try:
                         from app.database import SessionLocal
                         from app.models import RecordingProcessingState
+
                         with SessionLocal() as db:
-                            rec_id = dep_task.payload.get('recording_id')
+                            rec_id = dep_task.payload.get("recording_id")
                             if rec_id:
-                                state = db.query(RecordingProcessingState).filter(RecordingProcessingState.recording_id == rec_id).first()
+                                state = (
+                                    db.query(RecordingProcessingState)
+                                    .filter(RecordingProcessingState.recording_id == rec_id)
+                                    .first()
+                                )
                                 if state:
                                     step = dep_task.type
                                     status_map = {
-                                        'metadata_generation': state.metadata_status,
-                                        'chapters_generation': state.chapters_status,
-                                        'mp4_remux': state.mp4_remux_status,
-                                        'mp4_validation': state.mp4_validation_status,
-                                        'thumbnail_generation': state.thumbnail_status,
-                                        'cleanup': state.cleanup_status,
+                                        "metadata_generation": state.metadata_status,
+                                        "chapters_generation": state.chapters_status,
+                                        "mp4_remux": state.mp4_remux_status,
+                                        "mp4_validation": state.mp4_validation_status,
+                                        "thumbnail_generation": state.thumbnail_status,
+                                        "cleanup": state.cleanup_status,
                                     }
-                                    if status_map.get(step) == 'completed':
-                                        logger.info(f"⏭️ Skipping already-completed task {dep_task.id} ({step}) for recording {rec_id}")
+                                    if status_map.get(step) == "completed":
+                                        logger.info(
+                                            f"⏭️ Skipping already-completed task {dep_task.id} ({step}) for recording {rec_id}"
+                                        )
                                         await self.dependency_manager.mark_task_completed(dep_task.id)
                                         continue
                     except Exception as e:
                         logger.debug(
                             "Exception while checking completed state for dep_task %s: %s",
-                            getattr(dep_task, 'id', None),
+                            getattr(dep_task, "id", None),
                             e,
                             exc_info=True,
                         )
@@ -491,7 +511,7 @@ class TaskQueueManager:
                     task_id,
                     success,
                     ",".join(dependents),
-                    statuses
+                    statuses,
                 )
             else:
                 logger.info("🔗 TASK_COMPLETION_NO_DEPENDENTS: %s success=%s", task_id, success)
@@ -535,9 +555,9 @@ class TaskQueueManager:
                 worker_count = len(self.streamer_workers.get(streamer_name, []))
 
                 streamer_stats[streamer_name] = {
-                    'queue_size': queue_size,
-                    'active_workers': worker_count,
-                    'max_workers': self.max_workers_per_streamer
+                    "queue_size": queue_size,
+                    "active_workers": worker_count,
+                    "max_workers": self.max_workers_per_streamer,
                 }
 
                 total_queue_size += queue_size
@@ -545,15 +565,15 @@ class TaskQueueManager:
 
             return {
                 **base_stats,
-                'queue_size': total_queue_size,
-                'workers': {
-                    'total': total_workers,
-                    'max_per_streamer': self.max_workers_per_streamer,
-                    'streamers': len(self.streamer_queues),
-                    'isolation_enabled': True
+                "queue_size": total_queue_size,
+                "workers": {
+                    "total": total_workers,
+                    "max_per_streamer": self.max_workers_per_streamer,
+                    "streamers": len(self.streamer_queues),
+                    "isolation_enabled": True,
                 },
-                'streamers': streamer_stats,
-                'registered_handlers': self.worker_manager.get_registered_handlers()
+                "streamers": streamer_stats,
+                "registered_handlers": self.worker_manager.get_registered_handlers(),
             }
         else:
             # Original shared queue statistics
@@ -561,14 +581,14 @@ class TaskQueueManager:
 
             return {
                 **base_stats,
-                'queue_size': self.task_queue.qsize(),
-                'workers': {
-                    'total': self.worker_manager.max_workers,
-                    'active': self.worker_manager.get_worker_count(),
-                    'status': worker_stats,
-                    'isolation_enabled': False
+                "queue_size": self.task_queue.qsize(),
+                "workers": {
+                    "total": self.worker_manager.max_workers,
+                    "active": self.worker_manager.get_worker_count(),
+                    "status": worker_stats,
+                    "isolation_enabled": False,
                 },
-                'registered_handlers': self.worker_manager.get_registered_handlers()
+                "registered_handlers": self.worker_manager.get_registered_handlers(),
             }
 
     async def send_queue_statistics(self):
@@ -622,22 +642,22 @@ class TaskQueueManager:
         # Handle single payload argument (from coordinator)
         if len(args) == 1 and isinstance(args[0], dict):
             payload = args[0]
-            stream_id = payload.get('stream_id')
-            recording_id = payload.get('recording_id')
-            ts_file_path = payload.get('ts_file_path')
-            output_dir = payload.get('output_dir')
-            streamer_name = payload.get('streamer_name')
-            started_at = payload.get('started_at')
-            cleanup_ts_file = payload.get('cleanup_ts_file', True)
+            stream_id = payload.get("stream_id")
+            recording_id = payload.get("recording_id")
+            ts_file_path = payload.get("ts_file_path")
+            output_dir = payload.get("output_dir")
+            streamer_name = payload.get("streamer_name")
+            started_at = payload.get("started_at")
+            cleanup_ts_file = payload.get("cleanup_ts_file", True)
         else:
             # Extract parameters from kwargs
-            stream_id = kwargs.get('stream_id')
-            recording_id = kwargs.get('recording_id')
-            ts_file_path = kwargs.get('ts_file_path')
-            output_dir = kwargs.get('output_dir')
-            streamer_name = kwargs.get('streamer_name')
-            started_at = kwargs.get('started_at')
-            cleanup_ts_file = kwargs.get('cleanup_ts_file', True)
+            stream_id = kwargs.get("stream_id")
+            recording_id = kwargs.get("recording_id")
+            ts_file_path = kwargs.get("ts_file_path")
+            output_dir = kwargs.get("output_dir")
+            streamer_name = kwargs.get("streamer_name")
+            started_at = kwargs.get("started_at")
+            cleanup_ts_file = kwargs.get("cleanup_ts_file", True)
 
         # Type conversion and validation
         if stream_id is not None and not isinstance(stream_id, int):
@@ -657,6 +677,7 @@ class TaskQueueManager:
         # For missing values, try to derive them or use defaults
         if not output_dir and ts_file_path:
             from pathlib import Path
+
             output_dir = str(Path(ts_file_path).parent)
 
         if not streamer_name:
@@ -664,11 +685,16 @@ class TaskQueueManager:
 
         if not started_at:
             from datetime import datetime
+
             started_at = datetime.now().isoformat()
 
         # Final validation
-        if not all([stream_id is not None, recording_id is not None, ts_file_path, output_dir, streamer_name, started_at]):
-            logger.error(f"Missing required parameters for post-processing: stream_id={stream_id}, recording_id={recording_id}, ts_file_path={ts_file_path}, output_dir={output_dir}, streamer_name={streamer_name}, started_at={started_at}")
+        if not all(
+            [stream_id is not None, recording_id is not None, ts_file_path, output_dir, streamer_name, started_at]
+        ):
+            logger.error(
+                f"Missing required parameters for post-processing: stream_id={stream_id}, recording_id={recording_id}, ts_file_path={ts_file_path}, output_dir={output_dir}, streamer_name={streamer_name}, started_at={started_at}"
+            )
             raise ValueError("Missing required parameters for post-processing")
 
         # Ensure all parameters are correctly typed after validation
@@ -686,14 +712,19 @@ class TaskQueueManager:
             output_dir=output_dir,
             streamer_name=streamer_name,
             started_at=started_at,
-            cleanup_ts_file=cleanup_ts_file
+            cleanup_ts_file=cleanup_ts_file,
         )
         # Persist created task IDs for the recording
         try:
             from app.database import SessionLocal
             from app.models import RecordingProcessingState
+
             with SessionLocal() as db:
-                state = db.query(RecordingProcessingState).filter(RecordingProcessingState.recording_id == recording_id).first()
+                state = (
+                    db.query(RecordingProcessingState)
+                    .filter(RecordingProcessingState.recording_id == recording_id)
+                    .first()
+                )
                 if state:
                     state.set_task_ids({t.type: t.id for t in tasks})
                     db.commit()
@@ -724,5 +755,5 @@ class TaskQueueManager:
             payload=task.payload,
             status=TaskStatus.PENDING,
             created_at=datetime.now(timezone.utc),
-            max_retries=DEFAULT_MAX_RETRIES
+            max_retries=DEFAULT_MAX_RETRIES,
         )

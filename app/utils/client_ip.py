@@ -1,6 +1,7 @@
 """
 Client IP extraction utilities for reverse proxy environments.
 """
+
 import logging
 
 logger = logging.getLogger("streamvault")
@@ -18,12 +19,12 @@ def get_real_client_ip(request_or_websocket) -> str:
     """
     # Headers to check in order of preference
     ip_headers = [
-        "cf-connecting-ip",      # Cloudflare
-        "x-real-ip",            # Nginx
-        "x-forwarded-for",      # Standard proxy header
-        "x-client-ip",          # Alternative
+        "cf-connecting-ip",  # Cloudflare
+        "x-real-ip",  # Nginx
+        "x-forwarded-for",  # Standard proxy header
+        "x-client-ip",  # Alternative
         "x-cluster-client-ip",  # Load balancer
-        "forwarded"             # RFC 7239
+        "forwarded",  # RFC 7239
     ]
 
     headers = request_or_websocket.headers
@@ -53,7 +54,7 @@ def get_real_client_ip(request_or_websocket) -> str:
                 return client_ip
 
     # Fallback to direct connection IP
-    if hasattr(request_or_websocket, 'client') and request_or_websocket.client:
+    if hasattr(request_or_websocket, "client") and request_or_websocket.client:
         fallback_ip = request_or_websocket.client.host
         logger.debug(f"Using fallback IP from direct connection: {fallback_ip}")
         return fallback_ip
@@ -80,7 +81,7 @@ def is_valid_ip(ip: str) -> bool:
         ip = ip.split(":")[0]
     elif ip.startswith("[") and "]:" in ip:
         # IPv6 with port
-        ip = ip[1:ip.rindex("]")]
+        ip = ip[1 : ip.rindex("]")]
 
     # Basic IPv4 validation
     if "." in ip:
@@ -94,8 +95,7 @@ def is_valid_ip(ip: str) -> bool:
     # Basic IPv6 validation (simplified)
     if ":" in ip:
         return len(ip.split(":")) <= 8 and all(
-            len(part) <= 4 and all(c in "0123456789abcdefABCDEF" for c in part)
-            for part in ip.split(":") if part
+            len(part) <= 4 and all(c in "0123456789abcdefABCDEF" for c in part) for part in ip.split(":") if part
         )
 
     return False
@@ -116,7 +116,7 @@ def get_client_info(request_or_websocket) -> dict:
 
     # Get proxy IP for comparison
     proxy_ip = "unknown"
-    if hasattr(request_or_websocket, 'client') and request_or_websocket.client:
+    if hasattr(request_or_websocket, "client") and request_or_websocket.client:
         proxy_ip = request_or_websocket.client.host
 
     return {
@@ -125,5 +125,5 @@ def get_client_info(request_or_websocket) -> dict:
         "user_agent": headers.get("user-agent", "unknown"),
         "forwarded_proto": headers.get("x-forwarded-proto", "unknown"),
         "forwarded_host": headers.get("x-forwarded-host", "unknown"),
-        "is_reverse_proxied": real_ip != proxy_ip
+        "is_reverse_proxied": real_ip != proxy_ip,
     }

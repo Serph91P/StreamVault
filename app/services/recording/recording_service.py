@@ -68,7 +68,7 @@ class RecordingService:
         # Find active recording for this streamer
         active_recordings = self.get_active_recordings()
         for recording_id, recording_data in active_recordings.items():
-            if recording_data.get('streamer_id') == streamer_id:
+            if recording_data.get("streamer_id") == streamer_id:
                 return await self.stop_recording(recording_id, "manual_stop")
         return False
 

@@ -111,24 +111,22 @@ class StreamerService:
             logger.debug(f"User data retrieved: {user_data}")
 
             # Check if streamer already exists
-            existing = self.repository.get_streamer_by_twitch_id(user_data['id'])
+            existing = self.repository.get_streamer_by_twitch_id(user_data["id"])
             if existing:
                 logger.debug(f"Streamer already exists: {username}")
                 return existing
 
             # Cache profile image
             cached_image_path = await self.image_service.download_profile_image(
-                int(user_data['id']),
-                user_data['profile_image_url']
+                int(user_data["id"]), user_data["profile_image_url"]
             )
 
             # Cache banner image (if available)
             cached_banner_path = None
-            if user_data.get('offline_image_url'):
+            if user_data.get("offline_image_url"):
                 try:
                     cached_banner_path = await self.image_service.download_banner_image(
-                        int(user_data['id']),
-                        user_data['offline_image_url']
+                        int(user_data["id"]), user_data["offline_image_url"]
                     )
                     logger.debug(f"Cached banner image for {username}: {cached_banner_path}")
                 except Exception as e:
@@ -137,7 +135,7 @@ class StreamerService:
             # Check if streamer is currently live
             stream_info = None
             try:
-                stream_info = await self.twitch_service.get_stream_info(user_data['id'])
+                stream_info = await self.twitch_service.get_stream_info(user_data["id"])
                 if stream_info:
                     logger.info(f"Streamer {username} is currently live: {stream_info.get('title', '')}")
                 else:
@@ -149,23 +147,20 @@ class StreamerService:
             new_streamer = self.repository.create_streamer(
                 user_data=user_data,
                 display_name=display_name,
-                cached_image_path=cached_image_path or user_data['profile_image_url'],
+                cached_image_path=cached_image_path or user_data["profile_image_url"],
                 cached_banner_path=cached_banner_path,  # NEW: Pass cached banner
-                stream_info=stream_info
+                stream_info=stream_info,
             )
 
             # Subscribe to EventSub events
             try:
-                await self.twitch_service.subscribe_to_events(user_data['id'])
+                await self.twitch_service.subscribe_to_events(user_data["id"])
             except Exception as e:
                 logger.error(f"Failed to subscribe to EventSub events: {e}")
                 # Don't fail the whole operation if EventSub subscription fails
 
             # Send notification about new streamer
-            await self.notify({
-                "type": "success",
-                "message": f"Added streamer {new_streamer.username}"
-            })
+            await self.notify({"type": "success", "message": f"Added streamer {new_streamer.username}"})
 
             return new_streamer
 
@@ -191,10 +186,7 @@ class StreamerService:
             streamer_data = self.repository.delete_streamer(streamer_id)
 
             if streamer_data:
-                await self.notify({
-                    "type": "success",
-                    "message": f"Removed streamer {streamer_data['username']}"
-                })
+                await self.notify({"type": "success", "message": f"Removed streamer {streamer_data['username']}"})
 
             return streamer_data
 
@@ -216,19 +208,19 @@ class StreamerService:
                 return False
 
             # Update profile image if changed
-            if user_data.get('profile_image_url') != streamer.original_profile_image_url:
+            if user_data.get("profile_image_url") != streamer.original_profile_image_url:
                 cached_path = await self.image_service.update_streamer_profile_image(
-                    streamer.id, user_data['profile_image_url']
+                    streamer.id, user_data["profile_image_url"]
                 )
                 if cached_path:
-                    user_data['cached_profile_image'] = self.image_service.get_cached_profile_image(streamer.id)
+                    user_data["cached_profile_image"] = self.image_service.get_cached_profile_image(streamer.id)
 
             # Update streamer in database
             self.repository.update_streamer(
                 streamer,
-                username=user_data.get('display_name', streamer.username),
-                profile_image_url=user_data.get('cached_profile_image', user_data.get('profile_image_url')),
-                original_profile_image_url=user_data.get('profile_image_url')
+                username=user_data.get("display_name", streamer.username),
+                profile_image_url=user_data.get("cached_profile_image", user_data.get("profile_image_url")),
+                original_profile_image_url=user_data.get("profile_image_url"),
             )
 
             return True

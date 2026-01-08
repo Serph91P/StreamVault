@@ -11,8 +11,4 @@ from .streamer_repository import StreamerRepository
 from .twitch_integration_service import TwitchIntegrationService
 from .streamer_image_service import StreamerImageService
 
-__all__ = [
-    'StreamerRepository',
-    'TwitchIntegrationService',
-    'StreamerImageService'
-]
+__all__ = ["StreamerRepository", "TwitchIntegrationService", "StreamerImageService"]

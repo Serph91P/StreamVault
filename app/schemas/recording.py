@@ -4,10 +4,10 @@ from enum import Enum
 
 
 class CleanupPolicyType(str, Enum):
-    COUNT = 'count'
-    SIZE = 'size'
-    AGE = 'age'
-    CUSTOM = 'custom'
+    COUNT = "count"
+    SIZE = "size"
+    AGE = "age"
+    CUSTOM = "custom"
 
 
 class PreserveTimeframeSchema(BaseModel):
@@ -28,13 +28,19 @@ class CleanupPolicySchema(BaseModel):
 class RecordingSettingsSchema(BaseModel):
     enabled: bool = Field(default=True, description="Enable recording globally")
     output_directory: str = Field(default="/recordings", description="Directory to save recordings")
-    filename_template: str = Field(default="{streamer}/{streamer}_{year}-{month}-{day}_{hour}-{minute}_{title}_{game}",
-                                   description="Template for recording filenames")
+    filename_template: str = Field(
+        default="{streamer}/{streamer}_{year}-{month}-{day}_{hour}-{minute}_{title}_{game}",
+        description="Template for recording filenames",
+    )
     filename_preset: Optional[str] = Field(default="default", description="Preset template for recording filenames")
     default_quality: str = Field(default="best", description="Default recording quality")
     use_chapters: bool = Field(default=True, description="Create chapters based on stream events")
-    use_category_as_chapter_title: bool = Field(default=False, description="Use category name as chapter title instead of stream title")
-    max_streams_per_streamer: int = Field(default=0, description="Maximum number of streams to keep per streamer (0 = unlimited)")
+    use_category_as_chapter_title: bool = Field(
+        default=False, description="Use category name as chapter title instead of stream title"
+    )
+    max_streams_per_streamer: int = Field(
+        default=0, description="Maximum number of streams to keep per streamer (0 = unlimited)"
+    )
     cleanup_policy: Optional[CleanupPolicySchema] = None
 
     class Config:

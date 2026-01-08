@@ -18,7 +18,7 @@ from app.services.images import (
     ProfileImageService,
     BannerImageService,
     CategoryImageService,
-    StreamArtworkService
+    StreamArtworkService,
 )
 
 logger = logging.getLogger("streamvault")
@@ -123,6 +123,7 @@ class UnifiedImageService:
         if not box_art_url:
             from app.database import SessionLocal
             from app.models import Category
+
             with SessionLocal() as db:
                 category = db.query(Category).filter(Category.name == category_name).first()
                 if category and category.box_art_url:
@@ -227,7 +228,7 @@ class UnifiedImageService:
                 + banner_stats.get("failed_downloads", 0)
                 + category_stats.get("failed_downloads", 0)
                 + artwork_stats.get("failed_downloads", 0)
-            )
+            ),
         }
 
     async def cleanup_unused_images(self) -> Dict[str, int]:
@@ -242,7 +243,7 @@ class UnifiedImageService:
             "banners_cleaned": banner_cleaned,
             "categories_cleaned": category_cleaned,
             "artwork_cleaned": artwork_cleaned,
-            "total_cleaned": profile_cleaned + banner_cleaned + category_cleaned + artwork_cleaned
+            "total_cleaned": profile_cleaned + banner_cleaned + category_cleaned + artwork_cleaned,
         }
 
     async def cleanup_old_artwork(self, days_old: int = 30) -> int:
@@ -262,7 +263,7 @@ class UnifiedImageService:
             "profiles": profile_stats,
             "banners": banner_stats,
             "categories": category_stats,
-            "artwork": artwork_stats
+            "artwork": artwork_stats,
         }
 
     async def sync_all_images(self) -> Dict[str, Any]:
@@ -288,12 +289,7 @@ class UnifiedImageService:
         from app.database import SessionLocal
         from app.models import Streamer, Category
 
-        missing_report = {
-            "missing_profiles": 0,
-            "missing_categories": 0,
-            "total_streamers": 0,
-            "total_categories": 0
-        }
+        missing_report = {"missing_profiles": 0, "missing_categories": 0, "total_streamers": 0, "total_categories": 0}
 
         with SessionLocal() as db:
             # Check missing profile images
@@ -314,9 +310,7 @@ class UnifiedImageService:
 
     async def preload_categories(self, category_names: list) -> Dict[str, int]:
         """Preload category images for given category names"""
-        return await self.bulk_sync_categories([
-            {"name": name, "box_art_url": None} for name in category_names
-        ])
+        return await self.bulk_sync_categories([{"name": name, "box_art_url": None} for name in category_names])
 
 
 # Create a global instance for backward compatibility

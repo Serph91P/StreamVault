@@ -1,7 +1,11 @@
 from fastapi import APIRouter, HTTPException
 from app.database import SessionLocal
 from app.models import GlobalSettings, NotificationSettings, Streamer
-from app.schemas.settings import GlobalSettingsSchema, StreamerNotificationSettingsSchema, StreamerNotificationSettingsUpdateSchema
+from app.schemas.settings import (
+    GlobalSettingsSchema,
+    StreamerNotificationSettingsSchema,
+    StreamerNotificationSettingsUpdateSchema,
+)
 from apprise import Apprise
 from sqlalchemy.orm import joinedload
 import logging
@@ -12,10 +16,7 @@ from app.services.unified_image_service import unified_image_service
 
 logger = logging.getLogger("streamvault")
 
-router = APIRouter(
-    prefix="/api/settings",  # This is the correct prefix
-    tags=["settings"]
-)
+router = APIRouter(prefix="/api/settings", tags=["settings"])  # This is the correct prefix
 
 
 def validate_apprise_url(url: str) -> bool:
@@ -33,7 +34,7 @@ def validate_proxy_url(url: str) -> bool:
 
     url = url.strip()
     # Check if URL starts with required protocol
-    if not url.startswith(('http://', 'https://')):
+    if not url.startswith(("http://", "https://")):
         return False
 
     return True
@@ -55,15 +56,23 @@ async def get_settings():
             notify_update_global=settings.notify_update_global,
             notify_favorite_category_global=settings.notify_favorite_category_global,
             # System notification settings (Migration 028)
-            notify_recording_started=settings.notify_recording_started if hasattr(settings, 'notify_recording_started') else False,
-            notify_recording_failed=settings.notify_recording_failed if hasattr(settings, 'notify_recording_failed') else True,
-            notify_recording_completed=settings.notify_recording_completed if hasattr(settings, 'notify_recording_completed') else False,
+            notify_recording_started=(
+                settings.notify_recording_started if hasattr(settings, "notify_recording_started") else False
+            ),
+            notify_recording_failed=(
+                settings.notify_recording_failed if hasattr(settings, "notify_recording_failed") else True
+            ),
+            notify_recording_completed=(
+                settings.notify_recording_completed if hasattr(settings, "notify_recording_completed") else False
+            ),
             # Codec preferences (Migration 024)
-            supported_codecs=settings.supported_codecs if hasattr(settings, 'supported_codecs') else "h264,h265",
-            prefer_higher_quality=settings.prefer_higher_quality if hasattr(settings, 'prefer_higher_quality') else True,
+            supported_codecs=settings.supported_codecs if hasattr(settings, "supported_codecs") else "h264,h265",
+            prefer_higher_quality=(
+                settings.prefer_higher_quality if hasattr(settings, "prefer_higher_quality") else True
+            ),
             http_proxy=settings.http_proxy,
             https_proxy=settings.https_proxy,
-            apprise_docs_url="https://github.com/caronc/apprise/wiki"
+            apprise_docs_url="https://github.com/caronc/apprise/wiki",
         )
 
 
@@ -71,21 +80,20 @@ async def get_settings():
 async def get_all_streamer_settings():
     try:
         with SessionLocal() as db:
-            settings = db.query(NotificationSettings).join(Streamer).options(
-                joinedload(NotificationSettings.streamer)
-            ).all()
+            settings = (
+                db.query(NotificationSettings).join(Streamer).options(joinedload(NotificationSettings.streamer)).all()
+            )
             return [
                 StreamerNotificationSettingsSchema(
                     streamer_id=s.streamer_id,
                     username=s.streamer.username,
                     profile_image_url=unified_image_service.get_profile_image_url(
-                        s.streamer.id,
-                        s.streamer.profile_image_url
+                        s.streamer.id, s.streamer.profile_image_url
                     ),
                     notify_online=s.notify_online,
                     notify_offline=s.notify_offline,
                     notify_update=s.notify_update,
-                    notify_favorite_category=s.notify_favorite_category
+                    notify_favorite_category=s.notify_favorite_category,
                 )
                 for s in settings
             ]
@@ -95,10 +103,7 @@ async def get_all_streamer_settings():
 
 
 @router.post("/streamer/{streamer_id}", response_model=StreamerNotificationSettingsSchema)
-async def update_streamer_settings(
-    streamer_id: int,
-    settings_data: StreamerNotificationSettingsUpdateSchema
-):
+async def update_streamer_settings(streamer_id: int, settings_data: StreamerNotificationSettingsUpdateSchema):
     logger.debug(f"Updating settings for streamer {streamer_id}: {settings_data}")
     try:
         with SessionLocal() as db:
@@ -123,14 +128,15 @@ async def update_streamer_settings(
             return StreamerNotificationSettingsSchema(
                 streamer_id=settings.streamer_id,
                 username=streamer.username if streamer else None,
-                profile_image_url=unified_image_service.get_profile_image_url(
-                    streamer.id,
-                    streamer.profile_image_url
-                ) if streamer else None,
+                profile_image_url=(
+                    unified_image_service.get_profile_image_url(streamer.id, streamer.profile_image_url)
+                    if streamer
+                    else None
+                ),
                 notify_online=settings.notify_online,
                 notify_offline=settings.notify_offline,
                 notify_update=settings.notify_update,
-                notify_favorite_category=settings.notify_favorite_category
+                notify_favorite_category=settings.notify_favorite_category,
             )
     except Exception as e:
         logger.error(f"Error updating streamer settings: {e}")
@@ -148,7 +154,7 @@ async def get_streamer_settings():
                     "notify_online": s.notify_online,
                     "notify_offline": s.notify_offline,
                     "notify_update": s.notify_update,
-                    "notify_favorite_category": s.notify_favorite_category
+                    "notify_favorite_category": s.notify_favorite_category,
                 }
                 for s in settings
             ]
@@ -163,20 +169,11 @@ async def test_notification():
         with SessionLocal() as db:
             settings = db.query(GlobalSettings).first()
             if not settings:
-                raise HTTPException(
-                    status_code=400,
-                    detail="No settings configured"
-                )
+                raise HTTPException(status_code=400, detail="No settings configured")
             if not settings.notifications_enabled:
-                raise HTTPException(
-                    status_code=400,
-                    detail="Notifications are disabled"
-                )
+                raise HTTPException(status_code=400, detail="Notifications are disabled")
             if not settings.notification_url:
-                raise HTTPException(
-                    status_code=400,
-                    detail="No notification URL configured"
-                )
+                raise HTTPException(status_code=400, detail="No notification URL configured")
 
         from app.services.notification_service import NotificationService
         from app.dependencies import websocket_manager
@@ -186,18 +183,20 @@ async def test_notification():
         test_id = str(uuid.uuid4())
 
         # Send WebSocket notification first
-        await websocket_manager.send_notification({
-            "type": "channel.update",  # Use channel.update type to match Twitch format
-            "data": {
-                "test_id": test_id,
-                "timestamp": int(datetime.now(timezone.utc).timestamp() * 1000),
-                "username": "TestUser",
-                "streamer_name": "TestUser",
-                "title": "Test Notification",
-                "category_name": "StreamVault",
-                "message": "This is a test notification from StreamVault."
+        await websocket_manager.send_notification(
+            {
+                "type": "channel.update",  # Use channel.update type to match Twitch format
+                "data": {
+                    "test_id": test_id,
+                    "timestamp": int(datetime.now(timezone.utc).timestamp() * 1000),
+                    "username": "TestUser",
+                    "streamer_name": "TestUser",
+                    "title": "Test Notification",
+                    "category_name": "StreamVault",
+                    "message": "This is a test notification from StreamVault.",
+                },
             }
-        })
+        )
 
         # Then send external notification via apprise
         notification_service = NotificationService()
@@ -206,10 +205,7 @@ async def test_notification():
         if success:
             return {"status": "success", "message": "Test notification sent successfully"}
         else:
-            raise HTTPException(
-                status_code=500,
-                detail="Failed to send test notification"
-            )
+            raise HTTPException(status_code=500, detail="Failed to send test notification")
     except HTTPException:
         raise
     except Exception as e:
@@ -250,8 +246,8 @@ async def test_websocket_notification():
                 "profile_image_url": "https://static-cdn.jtvnw.net/user-default-pictures-uv/de130ab0-def7-11e9-b668-784f43822e80-profile_image-70x70.png",
                 "test_id": unique_id,  # Add test identifier
                 "timestamp": timestamp,
-                "message": f"Twitch channel update - Test #{timestamp[-6:]}"
-            }
+                "message": f"Twitch channel update - Test #{timestamp[-6:]}",
+            },
         }
 
         await websocket_manager.send_notification(test_notification)
@@ -260,7 +256,7 @@ async def test_websocket_notification():
         return {
             "status": "success",
             "message": f"Test WebSocket notification sent successfully (ID: {unique_id[-8:]})",
-            "notification_id": unique_id
+            "notification_id": unique_id,
         }
     except Exception as e:
         logger.error(f"Error sending test WebSocket notification: {e}")
@@ -297,9 +293,9 @@ async def update_settings(settings_data: GlobalSettingsSchema):
             settings.notify_recording_failed = settings_data.notify_recording_failed
             settings.notify_recording_completed = settings_data.notify_recording_completed
             # Codec preferences (Migration 024)
-            if hasattr(settings_data, 'supported_codecs'):
+            if hasattr(settings_data, "supported_codecs"):
                 settings.supported_codecs = settings_data.supported_codecs or "h264,h265"
-            if hasattr(settings_data, 'prefer_higher_quality'):
+            if hasattr(settings_data, "prefer_higher_quality"):
                 settings.prefer_higher_quality = settings_data.prefer_higher_quality
             settings.http_proxy = settings_data.http_proxy or ""
             settings.https_proxy = settings_data.https_proxy or ""
@@ -315,11 +311,13 @@ async def update_settings(settings_data: GlobalSettingsSchema):
 
                 # Check if settings that affect Streamlink were changed
                 proxy_changed = (
-                    settings_data.http_proxy != settings.http_proxy or
-                    settings_data.https_proxy != settings.https_proxy
+                    settings_data.http_proxy != settings.http_proxy or settings_data.https_proxy != settings.https_proxy
                 )
-                codec_changed = hasattr(settings_data, 'supported_codecs') and settings_data.supported_codecs != settings.supported_codecs
-                
+                codec_changed = (
+                    hasattr(settings_data, "supported_codecs")
+                    and settings_data.supported_codecs != settings.supported_codecs
+                )
+
                 if proxy_changed or codec_changed:
                     logger.info("🔄 Proxy or codec settings changed - regenerating Streamlink config...")
                     config_updated = await streamlink_config_service.regenerate_config()
@@ -359,7 +357,7 @@ async def get_quality_options():
         return {
             "qualities": qualities,
             "oauth_configured": has_oauth,
-            "message": "H.265/1440p available" if has_oauth else "Set TWITCH_OAUTH_TOKEN for H.265/1440p access"
+            "message": "H.265/1440p available" if has_oauth else "Set TWITCH_OAUTH_TOKEN for H.265/1440p access",
         }
     except Exception as e:
         logger.error(f"Error getting quality options: {e}")
@@ -387,7 +385,11 @@ async def get_codec_options():
                 "description": "Best quality - tries AV1 first, falls back to H.265, then H.264",
                 "enabled": has_oauth,
                 "requires_oauth": True,
-                "tooltip": "Requires OAuth authentication for AV1/H.265 access" if not has_oauth else "Highest quality available"
+                "tooltip": (
+                    "Requires OAuth authentication for AV1/H.265 access"
+                    if not has_oauth
+                    else "Highest quality available"
+                ),
             },
             {
                 "value": "h265,h264",
@@ -395,7 +397,11 @@ async def get_codec_options():
                 "description": "Good quality - tries H.265/HEVC first, falls back to H.264",
                 "enabled": has_oauth,
                 "requires_oauth": True,
-                "tooltip": "Requires OAuth authentication for H.265 access" if not has_oauth else "Better quality than H.264 only"
+                "tooltip": (
+                    "Requires OAuth authentication for H.265 access"
+                    if not has_oauth
+                    else "Better quality than H.264 only"
+                ),
             },
             {
                 "value": "h264",
@@ -403,15 +409,15 @@ async def get_codec_options():
                 "description": "Standard quality - works without OAuth token",
                 "enabled": True,
                 "requires_oauth": False,
-                "tooltip": "Available to all users (no authentication needed)"
-            }
+                "tooltip": "Available to all users (no authentication needed)",
+            },
         ]
 
         return {
             "codecs": codecs,
             "oauth_configured": has_oauth,
             "message": "H.265/AV1 codecs available" if has_oauth else "Set TWITCH_OAUTH_TOKEN for H.265/AV1 codecs",
-            "note": "Codec availability depends on streamer's broadcast settings and Twitch's transcoding"
+            "note": "Codec availability depends on streamer's broadcast settings and Twitch's transcoding",
         }
     except Exception as e:
         logger.error(f"Error getting codec options: {e}")

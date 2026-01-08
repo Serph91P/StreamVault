@@ -2,6 +2,7 @@
 Version information for StreamVault.
 This file is auto-populated during Docker build with build args.
 """
+
 import os
 from datetime import datetime
 
@@ -28,5 +29,5 @@ def get_version_info() -> dict:
         "description": DESCRIPTION,
         "repository": REPOSITORY,
         "is_production": BRANCH == "main",
-        "is_development": BRANCH == "develop"
+        "is_development": BRANCH == "develop",
     }

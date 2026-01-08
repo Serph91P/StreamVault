@@ -4,6 +4,7 @@ Post-Processing Task Handlers
 Defines specific handlers for different post-processing tasks
 that run in the background queue.
 """
+
 import asyncio
 import os
 import logging
@@ -33,15 +34,19 @@ class PostProcessingTasks:
         # Initialize logging service
         try:
             from app.services.system.logging_service import logging_service
+
             self.logging_service = logging_service
         except Exception as e:
             logger.warning(f"Could not initialize logging service: {e}")
             self.logging_service = None
 
-    def _normalize_metadata_args(self, stream: Stream, streamer: Stream, base_path: str, base_filename: str) -> tuple[str, str]:
+    def _normalize_metadata_args(
+        self, stream: Stream, streamer: Stream, base_path: str, base_filename: str
+    ) -> tuple[str, str]:
         """Ensure metadata paths point into the correct streamer/season directory (no cross-stream bleed)."""
         try:
             from app.utils.file_utils import sanitize_filename
+
             base_path_obj = Path(base_path)
             # Prefer actual recording path if present & exists
             rp_attr = getattr(stream, "recording_path", None)
@@ -51,9 +56,11 @@ class PostProcessingTasks:
                     base_path_obj = rp.parent
                     base_filename = rp.stem
             rec_root = metadata_service.find_recordings_root(base_path_obj)  # public wrapper
-            if rec_root and getattr(streamer, 'username', None):
+            if rec_root and getattr(streamer, "username", None):
                 expected_streamer_dir = rec_root / sanitize_filename(streamer.username)
-                if expected_streamer_dir.exists() and not metadata_service.is_within(base_path_obj, expected_streamer_dir):
+                if expected_streamer_dir.exists() and not metadata_service.is_within(
+                    base_path_obj, expected_streamer_dir
+                ):
                     # Construct deterministic season dir (fallback when started_at missing)
                     if stream.started_at:
                         season_name = f"Season {stream.started_at.strftime('%Y-%m')}"
@@ -73,29 +80,25 @@ class PostProcessingTasks:
     def _fetch_stream_and_streamer(self, stream_id: int) -> tuple[Optional[Stream], Optional[Streamer]]:
         """Small helper to fetch stream and streamer with eager loading to avoid N+1 queries."""
         with SessionLocal() as db:
-            stream = (
-                db.query(Stream)
-                .options(joinedload(Stream.streamer))
-                .filter(Stream.id == stream_id)
-                .first()
-            )
+            stream = db.query(Stream).options(joinedload(Stream.streamer)).filter(Stream.id == stream_id).first()
             streamer = stream.streamer if stream else None
             return stream, streamer
 
     async def handle_video_conversion(self, task: QueueTask):
         """Convert .ts file to .mp4 with metadata and chapters"""
         payload = task.payload
-        stream_id = payload['stream_id']
-        ts_file_path = payload['ts_file_path']
-        output_dir = payload['output_dir']
+        stream_id = payload["stream_id"]
+        ts_file_path = payload["ts_file_path"]
+        output_dir = payload["output_dir"]
 
         log_with_context(
-            logger, 'info',
+            logger,
+            "info",
             f"Starting video conversion for stream {stream_id}",
             stream_id=stream_id,
             task_id=task.id,
             input_file=ts_file_path,
-            operation='video_conversion'
+            operation="video_conversion",
         )
 
         try:
@@ -128,11 +131,11 @@ class PostProcessingTasks:
 
             # Step 2: Generate metadata files
             # Normalize args using current DB data (stream, streamer re-fetched for safety)
-            norm_base_path, norm_base_filename = self._normalize_metadata_args(stream, streamer, str(output_dir), base_filename)
+            norm_base_path, norm_base_filename = self._normalize_metadata_args(
+                stream, streamer, str(output_dir), base_filename
+            )
             await self.metadata_service.generate_metadata_for_stream(
-                stream_id=stream_id,
-                base_path=norm_base_path,
-                base_filename=norm_base_filename
+                stream_id=stream_id, base_path=norm_base_path, base_filename=norm_base_filename
             )
 
             # Update progress
@@ -140,9 +143,7 @@ class PostProcessingTasks:
 
             # Step 3: Generate/ensure thumbnail
             await self.thumbnail_service.ensure_thumbnail_with_fallback(
-                stream_id=stream_id,
-                output_dir=str(output_dir),
-                video_path=str(mp4_output_path)
+                stream_id=stream_id, output_dir=str(output_dir), video_path=str(mp4_output_path)
             )
 
             # Update progress
@@ -172,7 +173,7 @@ class PostProcessingTasks:
             task.progress = 95.0
 
             # Step 5: Cleanup TS file (optional)
-            cleanup_ts = payload.get('cleanup_ts_file', True)
+            cleanup_ts = payload.get("cleanup_ts_file", True)
             if cleanup_ts and os.path.exists(ts_file_path):
                 try:
                     os.remove(ts_file_path)
@@ -184,37 +185,40 @@ class PostProcessingTasks:
             task.progress = 100.0
 
             log_with_context(
-                logger, 'info',
+                logger,
+                "info",
                 "Video conversion completed successfully",
                 stream_id=stream_id,
                 task_id=task.id,
                 output_file=str(mp4_output_path),
-                operation='video_conversion_complete'
+                operation="video_conversion_complete",
             )
 
         except Exception as e:
             log_with_context(
-                logger, 'error',
+                logger,
+                "error",
                 f"Video conversion failed: {e}",
                 stream_id=stream_id,
                 task_id=task.id,
-                operation='video_conversion_error'
+                operation="video_conversion_error",
             )
             raise
 
     async def handle_metadata_generation(self, task: QueueTask):
         """Generate metadata files for a stream"""
         payload = task.payload
-        stream_id = payload['stream_id']
-        base_path = payload['base_path']
-        base_filename = payload['base_filename']
+        stream_id = payload["stream_id"]
+        base_path = payload["base_path"]
+        base_filename = payload["base_filename"]
 
         log_with_context(
-            logger, 'info',
+            logger,
+            "info",
             f"Starting metadata generation for stream {stream_id}",
             stream_id=stream_id,
             task_id=task.id,
-            operation='metadata_generation'
+            operation="metadata_generation",
         )
 
         try:
@@ -223,11 +227,13 @@ class PostProcessingTasks:
             # Generate all metadata files
             # Fetch stream/streamer for normalization
             stream, streamer = self._fetch_stream_and_streamer(stream_id)
-            norm_base_path, norm_base_filename = self._normalize_metadata_args(stream, streamer, base_path, base_filename) if (stream and streamer) else (base_path, base_filename)
+            norm_base_path, norm_base_filename = (
+                self._normalize_metadata_args(stream, streamer, base_path, base_filename)
+                if (stream and streamer)
+                else (base_path, base_filename)
+            )
             success = await self.metadata_service.generate_metadata_for_stream(
-                stream_id=stream_id,
-                base_path=norm_base_path,
-                base_filename=norm_base_filename
+                stream_id=stream_id, base_path=norm_base_path, base_filename=norm_base_filename
             )
 
             if not success:
@@ -236,36 +242,39 @@ class PostProcessingTasks:
             task.progress = 100.0
 
             log_with_context(
-                logger, 'info',
+                logger,
+                "info",
                 "Metadata generation completed successfully",
                 stream_id=stream_id,
                 task_id=task.id,
-                operation='metadata_generation_complete'
+                operation="metadata_generation_complete",
             )
 
         except Exception as e:
             log_with_context(
-                logger, 'error',
+                logger,
+                "error",
                 f"Metadata generation failed: {e}",
                 stream_id=stream_id,
                 task_id=task.id,
-                operation='metadata_generation_error'
+                operation="metadata_generation_error",
             )
             raise
 
     async def handle_thumbnail_generation(self, task: QueueTask):
         """Generate thumbnail for a stream"""
         payload = task.payload
-        stream_id = payload['stream_id']
-        video_path = payload.get('video_path')
-        output_dir = payload['output_dir']
+        stream_id = payload["stream_id"]
+        video_path = payload.get("video_path")
+        output_dir = payload["output_dir"]
 
         log_with_context(
-            logger, 'info',
+            logger,
+            "info",
             f"Starting thumbnail generation for stream {stream_id}",
             stream_id=stream_id,
             task_id=task.id,
-            operation='thumbnail_generation'
+            operation="thumbnail_generation",
         )
 
         try:
@@ -275,53 +284,54 @@ class PostProcessingTasks:
             if video_path:
                 # Extract from video file
                 thumbnail_path = await self.thumbnail_service.generate_thumbnail_from_mp4(
-                    stream_id=stream_id,
-                    mp4_path=video_path
+                    stream_id=stream_id, mp4_path=video_path
                 )
             else:
                 # Try to get from Twitch or existing sources
                 thumbnail_path = await self.thumbnail_service.ensure_thumbnail_with_fallback(
-                    stream_id=stream_id,
-                    output_dir=output_dir
+                    stream_id=stream_id, output_dir=output_dir
                 )
 
             task.progress = 100.0
 
             if thumbnail_path:
                 log_with_context(
-                    logger, 'info',
+                    logger,
+                    "info",
                     "Thumbnail generation completed successfully",
                     stream_id=stream_id,
                     task_id=task.id,
                     thumbnail_path=thumbnail_path,
-                    operation='thumbnail_generation_complete'
+                    operation="thumbnail_generation_complete",
                 )
             else:
                 raise Exception("Thumbnail generation failed")
 
         except Exception as e:
             log_with_context(
-                logger, 'error',
+                logger,
+                "error",
                 f"Thumbnail generation failed: {e}",
                 stream_id=stream_id,
                 task_id=task.id,
-                operation='thumbnail_generation_error'
+                operation="thumbnail_generation_error",
             )
             raise
 
     async def handle_file_cleanup(self, task: QueueTask):
         """Clean up temporary files"""
         payload = task.payload
-        files_to_delete = payload.get('files_to_delete', [])
-        directories_to_delete = payload.get('directories_to_delete', [])
+        files_to_delete = payload.get("files_to_delete", [])
+        directories_to_delete = payload.get("directories_to_delete", [])
 
         log_with_context(
-            logger, 'info',
+            logger,
+            "info",
             "Starting file cleanup task",
             task_id=task.id,
             files_count=len(files_to_delete),
             dirs_count=len(directories_to_delete),
-            operation='file_cleanup'
+            operation="file_cleanup",
         )
 
         try:
@@ -344,6 +354,7 @@ class PostProcessingTasks:
                 try:
                     if os.path.exists(dir_path) and os.path.isdir(dir_path):
                         import shutil
+
                         shutil.rmtree(dir_path)
                         logger.debug(f"Deleted directory: {dir_path}")
                     processed += 1
@@ -354,18 +365,12 @@ class PostProcessingTasks:
             task.progress = 100.0
 
             log_with_context(
-                logger, 'info',
-                "File cleanup completed",
-                task_id=task.id,
-                operation='file_cleanup_complete'
+                logger, "info", "File cleanup completed", task_id=task.id, operation="file_cleanup_complete"
             )
 
         except Exception as e:
             log_with_context(
-                logger, 'error',
-                f"File cleanup failed: {e}",
-                task_id=task.id,
-                operation='file_cleanup_error'
+                logger, "error", f"File cleanup failed: {e}", task_id=task.id, operation="file_cleanup_error"
             )
             raise
 
@@ -373,17 +378,21 @@ class PostProcessingTasks:
         """Convert TS file to MP4 using FFmpeg"""
 
         # Get streamer name from task
-        streamer_name = task.streamer_name if hasattr(task, 'streamer_name') else "unknown"
+        streamer_name = task.streamer_name if hasattr(task, "streamer_name") else "unknown"
 
         # FFmpeg command for conversion
         cmd = [
             "ffmpeg",
-            "-i", ts_file_path,
-            "-c", "copy",  # Copy streams without re-encoding
-            "-bsf:a", "aac_adtstoasc",  # Fix AAC stream
-            "-movflags", "+faststart",  # Optimize for streaming
+            "-i",
+            ts_file_path,
+            "-c",
+            "copy",  # Copy streams without re-encoding
+            "-bsf:a",
+            "aac_adtstoasc",  # Fix AAC stream
+            "-movflags",
+            "+faststart",  # Optimize for streaming
             "-y",  # Overwrite output file
-            mp4_output_path
+            mp4_output_path,
         ]
 
         # Use the logging service to create per-streamer logs
@@ -393,9 +402,7 @@ class PostProcessingTasks:
 
         # Create process
         process = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
+            *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
         )
 
         # Monitor progress (simplified)
@@ -406,7 +413,7 @@ class PostProcessingTasks:
             self.logging_service.log_ffmpeg_output("ts_to_mp4_task", stdout, stderr, process.returncode, streamer_name)
 
         if process.returncode != 0:
-            error_msg = stderr.decode('utf-8', errors='ignore')
+            error_msg = stderr.decode("utf-8", errors="ignore")
             raise Exception(f"FFmpeg conversion failed: {error_msg}")
 
         # Update progress during conversion

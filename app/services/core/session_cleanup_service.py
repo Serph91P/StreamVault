@@ -32,7 +32,9 @@ class SessionCleanupService:
 
         self.is_running = True
         self.cleanup_task = asyncio.create_task(self._cleanup_worker())
-        logger.info(f"Session cleanup service started (timeout: {self.session_timeout_hours}h, interval: {self.cleanup_interval_minutes}m)")
+        logger.info(
+            f"Session cleanup service started (timeout: {self.session_timeout_hours}h, interval: {self.cleanup_interval_minutes}m)"
+        )
 
     async def stop(self):
         """Stop the session cleanup service"""
@@ -79,9 +81,7 @@ class SessionCleanupService:
             cutoff_time = datetime.now(timezone.utc) - timedelta(hours=self.session_timeout_hours)
 
             # Find expired sessions
-            expired_sessions = db.query(Session).filter(
-                Session.created_at < cutoff_time
-            ).all()
+            expired_sessions = db.query(Session).filter(Session.created_at < cutoff_time).all()
 
             if expired_sessions:
                 expired_count = len(expired_sessions)
@@ -133,22 +133,20 @@ class SessionCleanupService:
             total_sessions = db.query(Session).count()
 
             cutoff_time = datetime.now(timezone.utc) - timedelta(hours=self.session_timeout_hours)
-            expired_sessions = db.query(Session).filter(
-                Session.created_at < cutoff_time
-            ).count()
+            expired_sessions = db.query(Session).filter(Session.created_at < cutoff_time).count()
 
             return {
-                'total_sessions': total_sessions,
-                'expired_sessions': expired_sessions,
-                'active_sessions': total_sessions - expired_sessions,
-                'session_timeout_hours': self.session_timeout_hours,
-                'cleanup_interval_minutes': self.cleanup_interval_minutes,
-                'is_running': self.is_running
+                "total_sessions": total_sessions,
+                "expired_sessions": expired_sessions,
+                "active_sessions": total_sessions - expired_sessions,
+                "session_timeout_hours": self.session_timeout_hours,
+                "cleanup_interval_minutes": self.cleanup_interval_minutes,
+                "is_running": self.is_running,
             }
 
         except Exception as e:
             logger.error(f"Error getting session stats: {e}")
-            return {'error': str(e)}
+            return {"error": str(e)}
         finally:
             if db:
                 db.close()

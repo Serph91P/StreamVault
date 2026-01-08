@@ -4,6 +4,7 @@ Image Migration Service
 Migrates images from old directory structure to new simplified structure.
 Cleans up old directories and prevents duplicates.
 """
+
 import shutil
 import logging
 import asyncio
@@ -35,12 +36,13 @@ class ImageMigrationService:
             "images_moved": 0,
             "duplicates_found": 0,
             "errors": 0,
-            "directories_cleaned": 0
+            "directories_cleaned": 0,
         }
 
         try:
             # Get all streamers from database using async session management
             from app.utils.async_db_utils import get_all_streamers, batch_process_items
+
             streamers = await get_all_streamers()
 
             # Process streamers in batches for better performance
@@ -99,10 +101,7 @@ class ImageMigrationService:
         """
         Migrate images for a specific streamer
         """
-        result = {
-            "images_moved": 0,
-            "duplicates_found": 0
-        }
+        result = {"images_moved": 0, "duplicates_found": 0}
 
         # Get streamer directory
         streamer_dir = self.recordings_dir / sanitize_filename(streamer.username)
@@ -128,7 +127,6 @@ class ImageMigrationService:
             self.old_images_dir / "artwork" / sanitize_filename(streamer.username) / "poster.jpg",
             self.old_images_dir / "artwork" / sanitize_filename(streamer.username) / "banner.jpg",
             self.old_images_dir / "artwork" / sanitize_filename(streamer.username) / "fanart.jpg",
-
             # Old .artwork structure
             self.old_artwork_dir / sanitize_filename(streamer.username) / "poster.jpg",
             self.old_artwork_dir / sanitize_filename(streamer.username) / "banner.jpg",
@@ -139,7 +137,7 @@ class ImageMigrationService:
         target_files = {
             "poster.jpg": artwork_dir / "poster.jpg",
             "banner.jpg": artwork_dir / "banner.jpg",
-            "fanart.jpg": artwork_dir / "fanart.jpg"
+            "fanart.jpg": artwork_dir / "fanart.jpg",
         }
 
         for source_path in migration_sources:
@@ -185,10 +183,7 @@ class ImageMigrationService:
         """
         result = {"directories_removed": 0}
 
-        directories_to_check = [
-            self.old_images_dir,
-            self.old_artwork_dir
-        ]
+        directories_to_check = [self.old_images_dir, self.old_artwork_dir]
 
         for directory in directories_to_check:
             if directory.exists():
@@ -210,7 +205,9 @@ class ImageMigrationService:
 
         return result
 
-    def _get_streamer_for_task(self, task_to_streamer_map: Dict[Awaitable[Any], Streamer], task: Awaitable[Any]) -> Optional[Streamer]:
+    def _get_streamer_for_task(
+        self, task_to_streamer_map: Dict[Awaitable[Any], Streamer], task: Awaitable[Any]
+    ) -> Optional[Streamer]:
         """
         Helper function to get streamer associated with a task.
         Uses O(1) dictionary lookup instead of O(n) linear search.
@@ -232,7 +229,7 @@ class ImageMigrationService:
 
             # Compare file content in chunks
             chunk_size = 8192
-            with open(file1, 'rb') as f1, open(file2, 'rb') as f2:
+            with open(file1, "rb") as f1, open(file2, "rb") as f2:
                 while True:
                     chunk1 = f1.read(chunk_size)
                     chunk2 = f2.read(chunk_size)

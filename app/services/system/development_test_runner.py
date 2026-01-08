@@ -92,32 +92,37 @@ class DevelopmentTestRunner:
             ("AuthService", "app.services.core.auth_service", "AuthService"),
             ("LoggingService", "app.services.system.logging_service", "LoggingService"),
             ("CleanupService", "app.services.system.cleanup_service", "CleanupService"),
-
             # Notification services
             ("NotificationDispatcher", "app.services.notifications.notification_dispatcher", "NotificationDispatcher"),
-            ("ExternalNotificationService", "app.services.notifications.external_notification_service", "ExternalNotificationService"),
-            ("PushNotificationService", "app.services.notifications.push_notification_service", "PushNotificationService"),
-
+            (
+                "ExternalNotificationService",
+                "app.services.notifications.external_notification_service",
+                "ExternalNotificationService",
+            ),
+            (
+                "PushNotificationService",
+                "app.services.notifications.push_notification_service",
+                "PushNotificationService",
+            ),
             # Recording services
             ("RecordingService", "app.services.recording.recording_service", "RecordingService"),
             ("RecordingOrchestrator", "app.services.recording.recording_orchestrator", "RecordingOrchestrator"),
-            ("RecordingLifecycleManager", "app.services.recording.recording_lifecycle_manager", "RecordingLifecycleManager"),
-
+            (
+                "RecordingLifecycleManager",
+                "app.services.recording.recording_lifecycle_manager",
+                "RecordingLifecycleManager",
+            ),
             # Media services
             ("MetadataService", "app.services.media.metadata_service", "MetadataService"),
             ("ThumbnailService", "app.services.images.thumbnail_service", "ThumbnailService"),
-
             # Communication services
             ("ModernWebPushService", "app.services.communication.webpush_service", "ModernWebPushService"),
             ("WebSocketManager", "app.services.communication.websocket_manager", "WebSocketManager"),
-
             # Processing services
             ("TaskDependencyManager", "app.services.processing.task_dependency_manager", "TaskDependencyManager"),
             ("TaskProgressTracker", "app.services.queues.task_progress_tracker", "TaskProgressTracker"),
-
             # Background services
             ("BackgroundQueueService", "app.services.background_queue_service", "BackgroundQueueService"),
-
             # Streamer services
             ("StreamerService", "app.services.streamer_service", "StreamerService"),
         ]
@@ -146,7 +151,9 @@ class DevelopmentTestRunner:
                     self._record_test(f"Service: {service_name}", True, f"Imported instance from {module_path}")
 
                 else:
-                    self._record_test(f"Service: {service_name}", False, f"Class {class_name} not found in {module_path}")
+                    self._record_test(
+                        f"Service: {service_name}", False, f"Class {class_name} not found in {module_path}"
+                    )
 
             except ImportError as e:
                 self._record_test(f"Service: {service_name}", False, f"Import failed: {str(e)}")
@@ -158,6 +165,7 @@ class DevelopmentTestRunner:
         try:
             # Test the new refactored notification structure
             from app.services.notifications.external_notification_service import ExternalNotificationService
+
             external_service = ExternalNotificationService()
             test_result = await external_service.send_test_notification()
 
@@ -169,9 +177,12 @@ class DevelopmentTestRunner:
             # Also test notification dispatcher
             try:
                 from app.services.notifications.notification_dispatcher import NotificationDispatcher
+
                 _ = NotificationDispatcher()  # Verify init works
                 # Test basic dispatcher functionality
-                self._record_test("Notification Dispatcher Init", True, "NotificationDispatcher initialized successfully")
+                self._record_test(
+                    "Notification Dispatcher Init", True, "NotificationDispatcher initialized successfully"
+                )
             except Exception as e:
                 self._record_test("Notification Dispatcher Init", False, f"Dispatcher error: {str(e)}")
 
@@ -261,7 +272,7 @@ class DevelopmentTestRunner:
                     is_live=True,
                     title="Development Test Stream",
                     category_name="Software and Game Development",
-                    language="en"
+                    language="en",
                 )
                 db.add(test_streamer)
                 db.flush()
@@ -273,14 +284,16 @@ class DevelopmentTestRunner:
                     category_name="Software and Game Development",
                     language="en",
                     started_at=datetime.now(),
-                    twitch_stream_id="test_stream_789"
+                    twitch_stream_id="test_stream_789",
                 )
                 db.add(test_stream)
                 db.flush()
 
                 db.commit()
 
-                self._record_test("Test Database Entries", True, f"Created streamer {test_streamer.id} and stream {test_stream.id}")
+                self._record_test(
+                    "Test Database Entries", True, f"Created streamer {test_streamer.id} and stream {test_stream.id}"
+                )
                 return test_streamer.id, test_stream.id
 
         except Exception as e:
@@ -341,7 +354,9 @@ class DevelopmentTestRunner:
             try:
                 stream_recordings = await recording_service.get_stream_recordings(stream_id)
                 if isinstance(stream_recordings, list):
-                    self._record_test("Stream Recordings Check", True, f"Found {len(stream_recordings)} recordings for stream")
+                    self._record_test(
+                        "Stream Recordings Check", True, f"Found {len(stream_recordings)} recordings for stream"
+                    )
                 else:
                     self._record_test("Stream Recordings Check", False, "Failed to get stream recordings")
             except Exception as e:
@@ -409,16 +424,19 @@ class DevelopmentTestRunner:
                 return {"success": False, "message": f"Test file not found: {test_file}"}
 
             # Run pytest with short output
-            result = subprocess.run([
-                sys.executable, "-m", "pytest", test_file, "-v", "--tb=short", "--maxfail=3"
-            ], capture_output=True, text=True, timeout=30)
+            result = subprocess.run(
+                [sys.executable, "-m", "pytest", test_file, "-v", "--tb=short", "--maxfail=3"],
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
 
             if result.returncode == 0:
                 return {"success": True, "message": f"All tests passed ({test_file})"}
             else:
                 # Extract useful error info
-                error_lines = result.stdout.split('\n')[-10:]  # Last 10 lines
-                error_summary = '\n'.join([line for line in error_lines if line.strip()])
+                error_lines = result.stdout.split("\n")[-10:]  # Last 10 lines
+                error_summary = "\n".join([line for line in error_lines if line.strip()])
                 return {"success": False, "message": f"Tests failed: {error_summary[:200]}..."}
 
         except subprocess.TimeoutExpired:
@@ -455,21 +473,36 @@ class DevelopmentTestRunner:
 
         try:
             # Create a realistic .ts file (Transport Stream like Streamlink would create)
-            result = subprocess.run([
-                "ffmpeg",
-                "-f", "lavfi",
-                "-i", "testsrc=duration=5:size=1280x720:rate=30",  # 5 second 720p test video
-                "-f", "lavfi",
-                "-i", "sine=frequency=1000:duration=5",  # 5 second test audio
-                "-c:v", "libx264",
-                "-c:a", "aac",
-                "-f", "mpegts",  # Output as Transport Stream (.ts)
-                "-t", "5",
-                "-y", test_ts_path
-            ], capture_output=True, timeout=15)
+            result = subprocess.run(
+                [
+                    "ffmpeg",
+                    "-f",
+                    "lavfi",
+                    "-i",
+                    "testsrc=duration=5:size=1280x720:rate=30",  # 5 second 720p test video
+                    "-f",
+                    "lavfi",
+                    "-i",
+                    "sine=frequency=1000:duration=5",  # 5 second test audio
+                    "-c:v",
+                    "libx264",
+                    "-c:a",
+                    "aac",
+                    "-f",
+                    "mpegts",  # Output as Transport Stream (.ts)
+                    "-t",
+                    "5",
+                    "-y",
+                    test_ts_path,
+                ],
+                capture_output=True,
+                timeout=15,
+            )
 
             if result.returncode == 0 and os.path.exists(test_ts_path):
-                self._log_test_detail(f"Created realistic .ts file: {test_ts_path} ({os.path.getsize(test_ts_path)} bytes)")
+                self._log_test_detail(
+                    f"Created realistic .ts file: {test_ts_path} ({os.path.getsize(test_ts_path)} bytes)"
+                )
 
                 # Now test the remux process from .ts to .mp4
                 await self._test_ts_to_mp4_remux(test_ts_path, test_mp4_path)
@@ -481,10 +514,10 @@ class DevelopmentTestRunner:
 
         # Fallback: create a minimal .ts file
         self._log_test_detail("Creating fallback .ts file")
-        with open(test_ts_path, 'wb') as f:
+        with open(test_ts_path, "wb") as f:
             # Write minimal TS packet headers (hex for Transport Stream)
-            f.write(bytes.fromhex('474011100000b00d0001c100000001e020'))
-            f.write(b'DUMMY_TS_FILE_FOR_TESTING' * 100)  # Pad to reasonable size
+            f.write(bytes.fromhex("474011100000b00d0001c100000001e020"))
+            f.write(b"DUMMY_TS_FILE_FOR_TESTING" * 100)  # Pad to reasonable size
 
         return test_ts_path
 
@@ -496,11 +529,16 @@ class DevelopmentTestRunner:
             # This mimics what the recording system does
             remux_command = [
                 "ffmpeg",
-                "-i", ts_path,
-                "-c", "copy",  # Copy streams without re-encoding
-                "-avoid_negative_ts", "make_zero",
-                "-fflags", "+genpts",
-                "-y", mp4_path
+                "-i",
+                ts_path,
+                "-c",
+                "copy",  # Copy streams without re-encoding
+                "-avoid_negative_ts",
+                "make_zero",
+                "-fflags",
+                "+genpts",
+                "-y",
+                mp4_path,
             ]
 
             start_time = time.time()
@@ -532,7 +570,7 @@ class DevelopmentTestRunner:
                 "streamer": "test_streamer",
                 "category": "Software and Game Development",
                 "started_at": "2025-01-17T19:00:00Z",
-                "language": "en"
+                "language": "en",
             }
 
             # Test metadata command generation
@@ -542,13 +580,7 @@ class DevelopmentTestRunner:
 
             output_path = mp4_path.replace(".mp4", "_with_metadata.mp4")
 
-            metadata_command = [
-                "ffmpeg",
-                "-i", mp4_path,
-                "-c", "copy"
-            ] + metadata_args + [
-                "-y", output_path
-            ]
+            metadata_command = ["ffmpeg", "-i", mp4_path, "-c", "copy"] + metadata_args + ["-y", output_path]
 
             result = subprocess.run(metadata_command, capture_output=True, timeout=15)
 
@@ -556,15 +588,19 @@ class DevelopmentTestRunner:
                 self._record_test("Metadata Addition", True, f"Added {len(test_metadata)} metadata fields")
 
                 # Verify metadata was added
-                verify_result = subprocess.run([
-                    "ffprobe", "-v", "quiet", "-print_format", "json", "-show_format", output_path
-                ], capture_output=True, timeout=10)
+                verify_result = subprocess.run(
+                    ["ffprobe", "-v", "quiet", "-print_format", "json", "-show_format", output_path],
+                    capture_output=True,
+                    timeout=10,
+                )
 
                 if verify_result.returncode == 0:
                     probe_data = json.loads(verify_result.stdout.decode())
                     tags = probe_data.get("format", {}).get("tags", {})
                     found_tags = len([tag for tag in test_metadata.keys() if tag in tags])
-                    self._record_test("Metadata Verification", True, f"Verified {found_tags}/{len(test_metadata)} metadata tags")
+                    self._record_test(
+                        "Metadata Verification", True, f"Verified {found_tags}/{len(test_metadata)} metadata tags"
+                    )
 
             else:
                 self._record_test("Metadata Addition", False, "Failed to add metadata to MP4")
@@ -638,7 +674,7 @@ class DevelopmentTestRunner:
             self.test_log_file = os.path.join(test_logs_dir, log_filename)
 
             # Initialize log file
-            with open(self.test_log_file, 'w') as f:
+            with open(self.test_log_file, "w") as f:
                 f.write("StreamVault Development Test Results\n")
                 f.write(f"Started: {datetime.now().isoformat()}\n")
                 f.write("=" * 60 + "\n\n")
@@ -653,7 +689,7 @@ class DevelopmentTestRunner:
         """Log detailed test information to file"""
         if self.test_log_file:
             try:
-                with open(self.test_log_file, 'a') as f:
+                with open(self.test_log_file, "a") as f:
                     f.write(f"[{datetime.now().strftime('%H:%M:%S')}] {message}\n")
             except Exception:
                 pass  # Don't break tests if logging fails
@@ -666,7 +702,7 @@ class DevelopmentTestRunner:
             return
 
         try:
-            with open(self.test_log_file, 'a') as f:
+            with open(self.test_log_file, "a") as f:
                 f.write("\n" + "=" * 60 + "\n")
                 f.write("FINAL TEST RESULTS\n")
                 f.write("=" * 60 + "\n\n")
@@ -708,11 +744,7 @@ class DevelopmentTestRunner:
 
     def _record_test(self, test_name: str, success: bool, message: str):
         """Record a test result"""
-        self.test_results[test_name] = {
-            "success": success,
-            "message": message,
-            "timestamp": datetime.now()
-        }
+        self.test_results[test_name] = {"success": success, "message": message, "timestamp": datetime.now()}
 
         if success:
             self.passed_tests.append(test_name)

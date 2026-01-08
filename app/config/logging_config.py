@@ -12,48 +12,46 @@ class JSONFormatter(logging.Formatter):
 
     def format(self, record):
         log_entry = {
-            'timestamp': datetime.fromtimestamp(record.created).isoformat(),
-            'level': record.levelname,
-            'logger': record.name,
-            'message': record.getMessage(),
-            'module': record.module,
-            'function': record.funcName,
-            'line': record.lineno,
+            "timestamp": datetime.fromtimestamp(record.created).isoformat(),
+            "level": record.levelname,
+            "logger": record.name,
+            "message": record.getMessage(),
+            "module": record.module,
+            "function": record.funcName,
+            "line": record.lineno,
         }
 
         # Add exception info if present
         if record.exc_info:
-            log_entry['exception'] = self.formatException(record.exc_info)
+            log_entry["exception"] = self.formatException(record.exc_info)
 
         # Add extra fields if present
-        if hasattr(record, 'streamer_name'):
-            log_entry['streamer_name'] = record.streamer_name
-        if hasattr(record, 'stream_id'):
-            log_entry['stream_id'] = record.stream_id
-        if hasattr(record, 'operation'):
-            log_entry['operation'] = record.operation
-        if hasattr(record, 'recording_id'):
-            log_entry['recording_id'] = record.recording_id
-        if hasattr(record, 'task_id'):
-            log_entry['task_id'] = record.task_id
+        if hasattr(record, "streamer_name"):
+            log_entry["streamer_name"] = record.streamer_name
+        if hasattr(record, "stream_id"):
+            log_entry["stream_id"] = record.stream_id
+        if hasattr(record, "operation"):
+            log_entry["operation"] = record.operation
+        if hasattr(record, "recording_id"):
+            log_entry["recording_id"] = record.recording_id
+        if hasattr(record, "task_id"):
+            log_entry["task_id"] = record.task_id
 
         return json.dumps(log_entry)
 
 
 def setup_logging():
     """Setup logging with daily rotating files"""
-    logger = logging.getLogger('streamvault')
+    logger = logging.getLogger("streamvault")
     logger.setLevel(settings.LOG_LEVEL)
 
     # Choose formatter based on environment
-    use_json = getattr(settings, 'LOG_FORMAT', 'text').lower() == 'json'
+    use_json = getattr(settings, "LOG_FORMAT", "text").lower() == "json"
 
     if use_json:
         formatter = JSONFormatter()
     else:
-        formatter = logging.Formatter(
-            '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-        )
+        formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
     # Console handler
     console_handler = logging.StreamHandler(sys.stdout)
@@ -67,21 +65,21 @@ def setup_logging():
 
     # Daily rotating file handler instead of simple file handler
     # CRITICAL: Convert Path to string - TimedRotatingFileHandler expects string!
-    log_file_path = str(app_logs_dir / 'streamvault.log')
+    log_file_path = str(app_logs_dir / "streamvault.log")
 
     try:
         rotating_handler = logging.handlers.TimedRotatingFileHandler(
             filename=log_file_path,
-            when='midnight',
+            when="midnight",
             interval=1,
             backupCount=30,  # Keep 30 days of logs
-            encoding='utf-8',
-            utc=True
+            encoding="utf-8",
+            utc=True,
         )
         rotating_handler.setFormatter(formatter)
 
         # Set the suffix for rotated files (will be streamvault.log.2025-09-17)
-        rotating_handler.suffix = '%Y-%m-%d'
+        rotating_handler.suffix = "%Y-%m-%d"
 
         logger.addHandler(rotating_handler)
 
@@ -98,6 +96,7 @@ def setup_logging():
     # Initialize the structured logging service
     try:
         from app.services.system.logging_service import logging_service
+
         logger.info("Structured logging service initialized")
 
         # Schedule periodic cleanup of old logs

@@ -170,7 +170,7 @@ class TwitchTokenService:
                 "client_id": self.settings.TWITCH_APP_ID,
                 "client_secret": self.settings.TWITCH_APP_SECRET,
                 "grant_type": "refresh_token",
-                "refresh_token": refresh_token
+                "refresh_token": refresh_token,
             }
 
             async with aiohttp.ClientSession() as session:
@@ -215,6 +215,7 @@ class TwitchTokenService:
             # === STEP 5: Regenerate Streamlink config with new token ===
             try:
                 from app.services.system.streamlink_config_service import streamlink_config_service
+
                 config_updated = await streamlink_config_service.regenerate_config()
                 if config_updated:
                     logger.info("🔄 Streamlink config updated with refreshed token")
@@ -231,12 +232,7 @@ class TwitchTokenService:
             self.db.rollback()
             return None
 
-    async def store_oauth_tokens(
-        self,
-        access_token: str,
-        refresh_token: str,
-        expires_in: int = 14400
-    ) -> bool:
+    async def store_oauth_tokens(self, access_token: str, refresh_token: str, expires_in: int = 14400) -> bool:
         """
         Store OAuth tokens received from Twitch OAuth callback.
 
@@ -280,6 +276,7 @@ class TwitchTokenService:
             # === Update Streamlink config with new token ===
             try:
                 from app.services.system.streamlink_config_service import streamlink_config_service
+
                 config_updated = await streamlink_config_service.regenerate_config()
                 if config_updated:
                     logger.info("🔄 Streamlink config generated with new OAuth token")

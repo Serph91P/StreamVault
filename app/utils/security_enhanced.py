@@ -3,6 +3,7 @@ Enhanced security utilities for StreamVault - CodeQL-safe implementation
 This module provides path validation that completely breaks the data flow from user input
 to path operations, preventing CodeQL from detecting path injection vulnerabilities.
 """
+
 import logging
 import os
 import re
@@ -75,7 +76,7 @@ def create_clean_path_string(base_dir: str, *components: str) -> str:
             raise HTTPException(status_code=400, detail="Invalid path component")
 
         # Check for valid characters only
-        if not re.match(r'^[a-zA-Z0-9\-_. ]+$', component):
+        if not re.match(r"^[a-zA-Z0-9\-_. ]+$", component):
             raise HTTPException(status_code=400, detail="Invalid characters in path")
 
         # Create completely new string object - this breaks the data flow chain
@@ -216,7 +217,7 @@ def list_safe_directory(base_dir: str, subdir: Optional[str] = None) -> list:
         entries = []
         for entry in os.listdir(target_path):
             # Only include entries with safe characters
-            if re.match(r'^[a-zA-Z0-9\-_. ]+$', entry):
+            if re.match(r"^[a-zA-Z0-9\-_. ]+$", entry):
                 entries.append(entry)
 
         return entries

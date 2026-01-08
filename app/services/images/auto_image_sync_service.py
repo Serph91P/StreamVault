@@ -1,6 +1,7 @@
 """
 Automatic Image Sync Service - handles background image downloading
 """
+
 import asyncio
 import logging
 from pathlib import Path
@@ -112,7 +113,7 @@ class AutoImageSyncService:
                         if category and category.box_art_url:
                             image_url = category.box_art_url
 
-                if image_url and image_url.startswith('http'):
+                if image_url and image_url.startswith("http"):
                     cached_path = await unified_image_service.download_category_image(category_name, image_url)
                     if cached_path:
                         logger.info(f"Successfully synced category image for {category_name}")
@@ -150,28 +151,19 @@ class AutoImageSyncService:
 
     async def request_streamer_profile_sync(self, streamer_id: int, profile_image_url: str):
         """Request sync of a streamer's profile image"""
-        await self._sync_queue.put({
-            "type": "streamer_profile",
-            "streamer_id": streamer_id,
-            "profile_image_url": profile_image_url
-        })
+        await self._sync_queue.put(
+            {"type": "streamer_profile", "streamer_id": streamer_id, "profile_image_url": profile_image_url}
+        )
 
     async def request_category_image_sync(self, category_name: str, image_url: Optional[str] = None):
         """Request sync of a category image"""
-        await self._sync_queue.put({
-            "type": "category_image",
-            "category_name": category_name,
-            "image_url": image_url
-        })
+        await self._sync_queue.put({"type": "category_image", "category_name": category_name, "image_url": image_url})
 
     async def request_stream_artwork_sync(self, stream_id: int, streamer_id: int, artwork_url: str):
         """Request sync of stream artwork"""
-        await self._sync_queue.put({
-            "type": "stream_artwork",
-            "stream_id": stream_id,
-            "streamer_id": streamer_id,
-            "artwork_url": artwork_url
-        })
+        await self._sync_queue.put(
+            {"type": "stream_artwork", "stream_id": stream_id, "streamer_id": streamer_id, "artwork_url": artwork_url}
+        )
 
     # Bulk sync operations
 
@@ -195,16 +187,18 @@ class AutoImageSyncService:
                     needs_sync = False
 
                     # Check if streamer has HTTP URL (needs downloading)
-                    if streamer.profile_image_url and streamer.profile_image_url.startswith('http'):
+                    if streamer.profile_image_url and streamer.profile_image_url.startswith("http"):
                         needs_sync = True
                     # Check if streamer has local path but file doesn't exist (needs re-downloading)
-                    elif streamer.profile_image_url and streamer.profile_image_url.startswith('/data/images/'):
+                    elif streamer.profile_image_url and streamer.profile_image_url.startswith("/data/images/"):
                         # Check if the local file actually exists
                         filename = Path(streamer.profile_image_url).name
                         local_file_path = Path(self.PROFILES_BASE_PATH) / filename
                         if not local_file_path.exists():
                             # File is missing, force to use the default Twitch avatar URL template
-                            logger.warning(f"Profile image file missing for streamer {streamer.username}: {streamer.profile_image_url}")
+                            logger.warning(
+                                f"Profile image file missing for streamer {streamer.username}: {streamer.profile_image_url}"
+                            )
                             logger.info(f"Expected file at: {local_file_path}")
                             # Use Twitch's default profile image URL pattern
                             twitch_profile_url = self.TWITCH_PROFILE_URL_TEMPLATE.format(twitch_id=streamer.twitch_id)
@@ -237,9 +231,9 @@ class AutoImageSyncService:
         try:
             with SessionLocal() as db:
                 # Only query categories that have HTTP URLs and need syncing
-                categories = db.query(Category).filter(
-                    Category.box_art_url.ilike('http%')
-                ).limit(limit).offset(offset).all()
+                categories = (
+                    db.query(Category).filter(Category.box_art_url.ilike("http%")).limit(limit).offset(offset).all()
+                )
 
                 count = 0
                 for category in categories:

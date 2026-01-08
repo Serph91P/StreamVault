@@ -1,6 +1,7 @@
 """
 Cached streamer directory validation utility
 """
+
 import time
 import threading
 from pathlib import Path
@@ -10,11 +11,7 @@ import logging
 logger = logging.getLogger("streamvault")
 
 # Global cache for valid streamers
-_streamer_cache: Dict[str, Any] = {
-    "valid_streamers": [],
-    "last_updated": 0.0,
-    "cache_duration": 300  # 5 minutes
-}
+_streamer_cache: Dict[str, Any] = {"valid_streamers": [], "last_updated": 0.0, "cache_duration": 300}  # 5 minutes
 
 # Thread lock for cache operations
 _cache_lock = threading.Lock()
@@ -92,5 +89,5 @@ def get_cache_info() -> Dict[str, Any]:
             "cache_age_seconds": age,
             "cache_duration": _streamer_cache["cache_duration"],
             "is_expired": age > _streamer_cache["cache_duration"],
-            "streamers": _streamer_cache["valid_streamers"].copy()
+            "streamers": _streamer_cache["valid_streamers"].copy(),
         }

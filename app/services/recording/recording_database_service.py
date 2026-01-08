@@ -77,12 +77,7 @@ class RecordingDatabaseService:
         try:
             self._ensure_db_session()
 
-            recording = Recording(
-                stream_id=stream_id,
-                path=file_path,
-                status="recording",
-                start_time=datetime.utcnow()
-            )
+            recording = Recording(stream_id=stream_id, path=file_path, status="recording", start_time=datetime.utcnow())
 
             self.db.add(recording)
             self.db.commit()
@@ -117,9 +112,7 @@ class RecordingDatabaseService:
         """Get all active recordings from database"""
         try:
             self._ensure_db_session()
-            return self.db.query(Recording).filter(
-                Recording.status.in_(["recording", "processing"])
-            ).all()
+            return self.db.query(Recording).filter(Recording.status.in_(["recording", "processing"])).all()
         except Exception as e:
             logger.error(f"Failed to get active recordings: {e}")
             raise RetryableError(f"Database error: {e}")
@@ -146,9 +139,12 @@ class RecordingDatabaseService:
         """Get stream and associated streamer data"""
         try:
             self._ensure_db_session()
-            result = self.db.query(Stream, Streamer).join(
-                Streamer, Stream.streamer_id == Streamer.id
-            ).filter(Stream.id == stream_id).first()
+            result = (
+                self.db.query(Stream, Streamer)
+                .join(Streamer, Stream.streamer_id == Streamer.id)
+                .filter(Stream.id == stream_id)
+                .first()
+            )
 
             return result if result else None
 
@@ -183,7 +179,9 @@ class RecordingDatabaseService:
 
         except Exception as e:
             self.db.rollback()
-            logger.error(f"Failed to update recording {recording_id} path from '{recording.path if 'recording' in locals() and recording else 'unknown'}' to '{new_path}': {e}")
+            logger.error(
+                f"Failed to update recording {recording_id} path from '{recording.path if 'recording' in locals() and recording else 'unknown'}' to '{new_path}': {e}"
+            )
             if "not found" in str(e).lower():
                 raise NonRetryableError(f"Recording not found: {e}")
             raise RetryableError(f"Database error: {e}")
@@ -200,7 +198,7 @@ class RecordingDatabaseService:
                 recording.end_time = datetime.utcnow()
                 if error_message:
                     # Store error message if recording model has such field
-                    if hasattr(recording, 'error_message'):
+                    if hasattr(recording, "error_message"):
                         recording.error_message = error_message
 
                 self.db.commit()
@@ -252,12 +250,12 @@ class RecordingDatabaseService:
 
             # Create new stream
             stream = Stream(
-                streamer_id=stream_data['streamer_id'],
-                title=stream_data.get('title', 'Unknown Stream'),
-                category_name=stream_data.get('category_name', 'Unknown'),
-                language=stream_data.get('language', 'en'),
-                started_at=stream_data.get('started_at', datetime.now()),
-                twitch_stream_id=stream_data.get('twitch_stream_id', stream_data.get('external_id', 'unknown'))
+                streamer_id=stream_data["streamer_id"],
+                title=stream_data.get("title", "Unknown Stream"),
+                category_name=stream_data.get("category_name", "Unknown"),
+                language=stream_data.get("language", "en"),
+                started_at=stream_data.get("started_at", datetime.now()),
+                twitch_stream_id=stream_data.get("twitch_stream_id", stream_data.get("external_id", "unknown")),
             )
 
             self.db.add(stream)

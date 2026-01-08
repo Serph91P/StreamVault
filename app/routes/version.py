@@ -1,6 +1,7 @@
 """
 Version API endpoints for checking StreamVault version and updates.
 """
+
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 import httpx
@@ -14,10 +15,7 @@ router = APIRouter(prefix="/version", tags=["version"])
 logger = logging.getLogger("streamvault")
 
 # Cache for GitHub API responses (avoid rate limiting)
-_update_check_cache = {
-    "data": None,
-    "expires_at": None
-}
+_update_check_cache = {"data": None, "expires_at": None}
 
 
 @router.get("")
@@ -39,10 +37,7 @@ async def get_version(db: Session = Depends(get_db)):
     # Check for updates (with caching)
     update_info = await _check_for_updates()
 
-    return {
-        **version_info,
-        **update_info
-    }
+    return {**version_info, **update_info}
 
 
 async def _check_for_updates() -> dict:
@@ -56,12 +51,7 @@ async def _check_for_updates() -> dict:
     if _update_check_cache["expires_at"] and now < _update_check_cache["expires_at"]:
         return _update_check_cache["data"]
 
-    result = {
-        "update_available": False,
-        "latest_version": None,
-        "latest_version_url": None,
-        "update_check_error": None
-    }
+    result = {"update_available": False, "latest_version": None, "latest_version_url": None, "update_check_error": None}
 
     try:
         # Only check for updates on main/develop branches
@@ -78,10 +68,9 @@ async def _check_for_updates() -> dict:
             api_url = "https://api.github.com/repos/Serph91P/StreamVault/releases"
 
         async with httpx.AsyncClient(timeout=5.0) as client:
-            response = await client.get(api_url, headers={
-                "Accept": "application/vnd.github.v3+json",
-                "User-Agent": "StreamVault-UpdateChecker"
-            })
+            response = await client.get(
+                api_url, headers={"Accept": "application/vnd.github.v3+json", "User-Agent": "StreamVault-UpdateChecker"}
+            )
 
             if response.status_code != 200:
                 result["update_check_error"] = f"GitHub API returned {response.status_code}"

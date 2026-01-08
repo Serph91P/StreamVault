@@ -32,29 +32,29 @@ def encode_proxy_url(proxy_url: str) -> str:
     parsed = urlparse(proxy_url)
 
     # Extract username and password from netloc
-    if '@' not in parsed.netloc:
+    if "@" not in parsed.netloc:
         # No credentials - return as-is
         return proxy_url
 
     # Split credentials and host
-    credentials, host = parsed.netloc.rsplit('@', 1)
+    credentials, host = parsed.netloc.rsplit("@", 1)
 
     # Check if already encoded (contains %)
-    if '%' in credentials:
+    if "%" in credentials:
         # Already encoded - return as-is
         return proxy_url
 
     # Split username and password
-    if ':' in credentials:
-        username, password = credentials.split(':', 1)
+    if ":" in credentials:
+        username, password = credentials.split(":", 1)
     else:
         username = credentials
-        password = ''
+        password = ""
 
     # URL-encode both username and password
     # safe='' means encode everything including @ : / etc
-    encoded_username = quote(username, safe='')
-    encoded_password = quote(password, safe='') if password else ''
+    encoded_username = quote(username, safe="")
+    encoded_password = quote(password, safe="") if password else ""
 
     # Rebuild netloc
     if encoded_password:
@@ -63,14 +63,7 @@ def encode_proxy_url(proxy_url: str) -> str:
         encoded_netloc = f"{encoded_username}@{host}"
 
     # Rebuild full URL
-    encoded_url = urlunparse((
-        parsed.scheme,
-        encoded_netloc,
-        parsed.path,
-        parsed.params,
-        parsed.query,
-        parsed.fragment
-    ))
+    encoded_url = urlunparse((parsed.scheme, encoded_netloc, parsed.path, parsed.params, parsed.query, parsed.fragment))
 
     return encoded_url
 
@@ -93,10 +86,10 @@ def decode_proxy_url_for_display(proxy_url: str) -> str:
 
     parsed = urlparse(proxy_url)
 
-    if '@' not in parsed.netloc:
+    if "@" not in parsed.netloc:
         return proxy_url
 
-    credentials, host = parsed.netloc.rsplit('@', 1)
+    credentials, host = parsed.netloc.rsplit("@", 1)
 
     # Decode credentials
     decoded_credentials = unquote(credentials)
@@ -105,14 +98,7 @@ def decode_proxy_url_for_display(proxy_url: str) -> str:
     decoded_netloc = f"{decoded_credentials}@{host}"
 
     # Rebuild URL
-    decoded_url = urlunparse((
-        parsed.scheme,
-        decoded_netloc,
-        parsed.path,
-        parsed.params,
-        parsed.query,
-        parsed.fragment
-    ))
+    decoded_url = urlunparse((parsed.scheme, decoded_netloc, parsed.path, parsed.params, parsed.query, parsed.fragment))
 
     return decoded_url
 

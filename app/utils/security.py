@@ -200,10 +200,7 @@ def validate_path_security(user_path: str, operation_type: str = "access") -> st
 
     if not user_path or not isinstance(user_path, str):
         logger.error(f"🚨 SECURITY: Empty or invalid path type: {type(user_path)}")
-        raise HTTPException(
-            status_code=400,
-            detail="Path cannot be empty"
-        )
+        raise HTTPException(status_code=400, detail="Path cannot be empty")
 
     settings = get_settings()
     safe_base = os.path.realpath(settings.RECORDING_DIRECTORY)
@@ -214,10 +211,7 @@ def validate_path_security(user_path: str, operation_type: str = "access") -> st
         normalized_path = os.path.realpath(os.path.abspath(user_path))
     except (OSError, ValueError, TypeError) as e:
         logger.error(f"🚨 SECURITY: Invalid path provided: {user_path} - {e}")
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid path format: {user_path}"
-        )
+        raise HTTPException(status_code=400, detail=f"Invalid path format: {user_path}")
 
     # CRITICAL: Ensure path is within safe directory
     # Using shared helper for consistent validation
@@ -235,42 +229,27 @@ def validate_path_security(user_path: str, operation_type: str = "access") -> st
                 "attempted_path": user_path,
                 "normalized_path": normalized_path,
                 "safe_base": safe_base,
-                "operation_type": operation_type
+                "operation_type": operation_type,
             },
-            severity="CRITICAL"
+            severity="CRITICAL",
         )
 
-        raise HTTPException(
-            status_code=403,
-            detail="Access denied: Path outside allowed directory"
-        )
+        raise HTTPException(status_code=403, detail="Access denied: Path outside allowed directory")
 
     # Additional validation based on operation type
     if operation_type in ["read", "write", "delete"]:
         if not os.path.exists(normalized_path):
-            raise HTTPException(
-                status_code=404,
-                detail=f"Path not found: {user_path}"
-            )
+            raise HTTPException(status_code=404, detail=f"Path not found: {user_path}")
 
         # Validate path type for specific operations
         if operation_type == "read" and not os.path.isfile(normalized_path):
-            raise HTTPException(
-                status_code=400,
-                detail=f"Path is not a file: {user_path}"
-            )
+            raise HTTPException(status_code=400, detail=f"Path is not a file: {user_path}")
         elif operation_type == "write":
             parent_dir = os.path.dirname(normalized_path)
             if not os.path.isdir(parent_dir):
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Parent directory does not exist: {parent_dir}"
-                )
+                raise HTTPException(status_code=400, detail=f"Parent directory does not exist: {parent_dir}")
             if os.path.exists(normalized_path) and os.path.isdir(normalized_path):
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Cannot write to directory: {user_path}"
-                )
+                raise HTTPException(status_code=400, detail=f"Cannot write to directory: {user_path}")
 
     logger.debug(f"🔒 SECURITY: Path validated - {user_path} -> {normalized_path}")
     return normalized_path
@@ -296,13 +275,13 @@ def validate_filename(filename: str) -> str:
 
     # Remove or replace dangerous characters
     # Allow: letters, numbers, dots, hyphens, underscores, spaces
-    safe_filename = re.sub(r'[^\w\-_\. ]', '_', clean_filename)
+    safe_filename = re.sub(r"[^\w\-_\. ]", "_", clean_filename)
 
     # Replace multiple spaces/underscores with single ones
-    safe_filename = re.sub(r'[_\s]+', '_', safe_filename)
+    safe_filename = re.sub(r"[_\s]+", "_", safe_filename)
 
     # Prevent hidden files and directory references
-    if safe_filename.startswith('.') or safe_filename in ['..', '.', '/', '\\']:
+    if safe_filename.startswith(".") or safe_filename in ["..", ".", "/", "\\"]:
         raise ValueError(f"Invalid filename: {filename}")
 
     # Length validation
@@ -336,10 +315,9 @@ def validate_streamer_name(name: str) -> str:
 
     # Twitch username rules: 4-25 chars, alphanumeric + underscore
     # Must start with letter or number
-    if not re.match(r'^[a-zA-Z0-9][a-zA-Z0-9_]{3,24}$', clean_name):
+    if not re.match(r"^[a-zA-Z0-9][a-zA-Z0-9_]{3,24}$", clean_name):
         raise ValueError(
-            "Invalid streamer name: must be 4-25 characters, "
-            "alphanumeric + underscore, start with letter/number"
+            "Invalid streamer name: must be 4-25 characters, " "alphanumeric + underscore, start with letter/number"
         )
 
     return clean_name
@@ -350,7 +328,7 @@ def log_security_event(
     details: dict,
     severity: str = "INFO",
     user_id: Optional[int] = None,
-    ip_address: Optional[str] = None
+    ip_address: Optional[str] = None,
 ):
     """
     Log security-related events for monitoring and analysis
@@ -363,13 +341,14 @@ def log_security_event(
         ip_address: Source IP address (optional)
     """
     from datetime import timezone
+
     log_entry = {
         "event_type": event_type,
         "user_id": user_id,
         "ip_address": ip_address,
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "severity": severity,
-        **details
+        **details,
     }
 
     if severity == "CRITICAL":
@@ -381,23 +360,20 @@ def log_security_event(
 
 
 # File type validation constants
-ALLOWED_VIDEO_EXTENSIONS = {'.mp4', '.mkv', '.ts', '.m3u8', '.avi', '.mov'}
-ALLOWED_IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.webp'}
+ALLOWED_VIDEO_EXTENSIONS = {".mp4", ".mkv", ".ts", ".m3u8", ".avi", ".mov"}
+ALLOWED_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
 
 ALLOWED_VIDEO_MIME_TYPES = {
-    'video/mp4',
-    'video/x-matroska',      # .mkv
-    'video/mp2t',            # .ts
-    'application/x-mpegURL',  # .m3u8
-    'video/x-msvideo',       # .avi
-    'video/quicktime'        # .mov
+    "video/mp4",
+    "video/x-matroska",  # .mkv
+    "video/mp2t",  # .ts
+    "application/x-mpegURL",  # .m3u8
+    "video/x-msvideo",  # .avi
+    "video/quicktime",  # .mov
 }
 
 
-def validate_file_type(
-    filename: str,
-    allowed_extensions: set = ALLOWED_VIDEO_EXTENSIONS
-) -> str:
+def validate_file_type(filename: str, allowed_extensions: set = ALLOWED_VIDEO_EXTENSIONS) -> str:
     """
     Validate file type by extension
 
@@ -421,8 +397,7 @@ def validate_file_type(
 
     if file_extension not in allowed_extensions:
         raise ValueError(
-            f"File type '{file_extension}' not allowed. "
-            f"Allowed: {', '.join(sorted(allowed_extensions))}"
+            f"File type '{file_extension}' not allowed. " f"Allowed: {', '.join(sorted(allowed_extensions))}"
         )
 
     return file_extension
@@ -462,7 +437,7 @@ def is_path_within_base(path: str, base: str) -> bool:
         # - Mixed path separators on Windows (/ vs \)
         # - Path canonicalization bypasses
         # - Case sensitivity issues
-        if not hasattr(path_obj, 'is_relative_to'):
+        if not hasattr(path_obj, "is_relative_to"):
             raise RuntimeError(
                 "Python 3.9+ required for secure path validation. "
                 "is_relative_to() method not available. "
@@ -500,13 +475,7 @@ def sanitize_html_input(html_input: str) -> str:
 
 
 # Whitelist of allowed redirect paths for OAuth flows
-ALLOWED_REDIRECT_PATHS = {
-    "/settings",
-    "/add-streamer",
-    "/streamers",
-    "/",
-    "/home"
-}
+ALLOWED_REDIRECT_PATHS = {"/settings", "/add-streamer", "/streamers", "/", "/home"}
 
 
 def validate_redirect_url(url: str, default_url: str = "/") -> str:
@@ -549,11 +518,8 @@ def validate_redirect_url(url: str, default_url: str = "/") -> str:
         logger.warning(f"🚨 SECURITY: Absolute URL redirect blocked: {url}")
         log_security_event(
             event_type="OPEN_REDIRECT_BLOCKED",
-            details={
-                "attempted_url": url,
-                "reason": "absolute_url"
-            },
-            severity="WARNING"
+            details={"attempted_url": url, "reason": "absolute_url"},
+            severity="WARNING",
         )
         return default_url
 
@@ -562,11 +528,8 @@ def validate_redirect_url(url: str, default_url: str = "/") -> str:
         logger.warning(f"🚨 SECURITY: Malicious URL scheme blocked: {url}")
         log_security_event(
             event_type="OPEN_REDIRECT_BLOCKED",
-            details={
-                "attempted_url": url,
-                "reason": "malicious_scheme"
-            },
-            severity="CRITICAL"
+            details={"attempted_url": url, "reason": "malicious_scheme"},
+            severity="CRITICAL",
         )
         return default_url
 
@@ -575,11 +538,8 @@ def validate_redirect_url(url: str, default_url: str = "/") -> str:
         logger.warning(f"🚨 SECURITY: Non-relative URL blocked: {url}")
         log_security_event(
             event_type="OPEN_REDIRECT_BLOCKED",
-            details={
-                "attempted_url": url,
-                "reason": "not_relative"
-            },
-            severity="WARNING"
+            details={"attempted_url": url, "reason": "not_relative"},
+            severity="WARNING",
         )
         return default_url
 
@@ -591,12 +551,8 @@ def validate_redirect_url(url: str, default_url: str = "/") -> str:
         logger.warning(f"🚨 SECURITY: Redirect to non-whitelisted path blocked: {base_path}")
         log_security_event(
             event_type="OPEN_REDIRECT_BLOCKED",
-            details={
-                "attempted_url": url,
-                "base_path": base_path,
-                "reason": "not_whitelisted"
-            },
-            severity="WARNING"
+            details={"attempted_url": url, "base_path": base_path, "reason": "not_whitelisted"},
+            severity="WARNING",
         )
         return default_url
 
@@ -642,9 +598,9 @@ def sanitize_proxy_url_for_logging(proxy_url: str) -> str:
         if parsed.username or parsed.password:
             # Replace credentials with [REDACTED]
             netloc = parsed.netloc
-            if '@' in netloc:
+            if "@" in netloc:
                 # Extract host part after @
-                host_part = netloc.split('@', 1)[1]
+                host_part = netloc.split("@", 1)[1]
                 # Reconstruct with redacted credentials
                 netloc = f"[REDACTED]:[REDACTED]@{host_part}"
 
@@ -691,13 +647,13 @@ def sanitize_command_for_logging(cmd: list) -> str:
         # Patterns that indicate sensitive data
         sensitive_patterns = [
             ("--twitch-api-header=", "OAuth"),  # Twitch OAuth tokens
-            ("Authorization=OAuth", None),       # OAuth in headers
-            ("--http-proxy=", "://"),           # Proxy URLs with credentials
-            ("--https-proxy=", "://"),          # Proxy URLs with credentials
-            ("--password=", None),              # Generic password flags
-            ("--token=", None),                 # Generic token flags
-            ("--api-key=", None),               # API keys
-            ("--secret=", None)                 # Secrets
+            ("Authorization=OAuth", None),  # OAuth in headers
+            ("--http-proxy=", "://"),  # Proxy URLs with credentials
+            ("--https-proxy=", "://"),  # Proxy URLs with credentials
+            ("--password=", None),  # Generic password flags
+            ("--token=", None),  # Generic token flags
+            ("--api-key=", None),  # API keys
+            ("--secret=", None),  # Secrets
         ]
 
         sanitized_arg = arg

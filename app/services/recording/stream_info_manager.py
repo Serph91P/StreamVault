@@ -5,6 +5,7 @@ This module handles stream information from Twitch webhooks and database.
 Since stream online status comes from Twitch EventSub webhooks, this manager
 focuses on extracting metadata from database records.
 """
+
 import logging
 from typing import Dict, Any, List
 
@@ -35,23 +36,20 @@ class StreamInfoManager:
         """
         try:
             metadata = {
-                'streamer_name': stream.streamer.username,
-                'twitch_id': stream.streamer.twitch_id,
-                'stream_title': stream.title,
-                'category_name': stream.category_name,
-                'language': stream.language,
-                'started_at': stream.started_at.isoformat() if stream.started_at else None,
-                'twitch_stream_id': stream.twitch_stream_id
+                "streamer_name": stream.streamer.username,
+                "twitch_id": stream.streamer.twitch_id,
+                "stream_title": stream.title,
+                "category_name": stream.category_name,
+                "language": stream.language,
+                "started_at": stream.started_at.isoformat() if stream.started_at else None,
+                "twitch_stream_id": stream.twitch_stream_id,
             }
 
             return metadata
 
         except Exception as e:
             logger.error(f"Error getting stream metadata for {stream.streamer.username}: {e}", exc_info=True)
-            return {
-                'streamer_name': stream.streamer.username if stream.streamer else 'unknown',
-                'error': str(e)
-            }
+            return {"streamer_name": stream.streamer.username if stream.streamer else "unknown", "error": str(e)}
 
     def get_preferred_quality(self) -> str:
         """Get preferred quality from config
@@ -69,7 +67,4 @@ class StreamInfoManager:
         Returns:
             List of qualities in priority order
         """
-        return [
-            'source', 'best', '1080p60', '1080p', '720p60', '720p',
-            '480p', '360p', 'worst'
-        ]
+        return ["source", "best", "1080p60", "1080p", "720p60", "720p", "480p", "360p", "worst"]

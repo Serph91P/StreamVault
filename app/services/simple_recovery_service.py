@@ -27,7 +27,7 @@ async def run_simple_reliable_recovery() -> Dict[str, Any]:
         "start_time": datetime.now(timezone.utc).isoformat(),
         "simple_recovery": None,
         "total_recoveries": 0,
-        "success": False
+        "success": False,
     }
 
     try:
@@ -35,12 +35,12 @@ async def run_simple_reliable_recovery() -> Dict[str, Any]:
 
         # Find failed recordings with Unified Recovery Service
         from ..services.recording.unified_recovery_service import get_unified_recovery_service
+
         unified_service = await get_unified_recovery_service()
 
         # Run only scan (dry_run=True) to find failed recordings
         unified_stats = await unified_service.comprehensive_recovery_scan(
-            max_age_hours=72,
-            dry_run=True  # Only scan, don't create complex chains
+            max_age_hours=72, dry_run=True  # Only scan, don't create complex chains
         )
 
         failed_count = unified_stats.failed_post_processing
@@ -54,7 +54,7 @@ async def run_simple_reliable_recovery() -> Dict[str, Any]:
                 "success": True,
                 "failed_found": failed_count,
                 "recovery_triggered": recovery_triggered,
-                "method": "full_post_processing_chains"
+                "method": "full_post_processing_chains",
             }
             results["total_recoveries"] = recovery_triggered
 
@@ -64,7 +64,7 @@ async def run_simple_reliable_recovery() -> Dict[str, Any]:
                 "success": True,
                 "failed_found": 0,
                 "recovery_triggered": 0,
-                "method": "full_post_processing_chains"
+                "method": "full_post_processing_chains",
             }
             logger.info("ℹ️ No failed recordings found")
 
@@ -107,10 +107,7 @@ async def create_full_recovery_chains(unified_service: "UnifiedRecoveryService")
         db = SessionLocal()
         try:
             # Get all recordings that have a path but completed
-            recordings = db.query(Recording).filter(
-                Recording.path.isnot(None),
-                Recording.status == 'completed'
-            ).all()
+            recordings = db.query(Recording).filter(Recording.path.isnot(None), Recording.status == "completed").all()
 
             for recording in recordings:
                 try:
@@ -144,7 +141,9 @@ async def create_full_recovery_chains(unified_service: "UnifiedRecoveryService")
                     started_at = recording.start_time.isoformat()
                     output_dir = str(recording_path.parent)
 
-                    logger.info(f"🔍 Creating full post-processing chain for recording {recording.id}: {recording.path}")
+                    logger.info(
+                        f"🔍 Creating full post-processing chain for recording {recording.id}: {recording.path}"
+                    )
 
                     # Trigger full post-processing chain (NOT just metadata!)
                     success = await enqueue_recording_post_processing(
@@ -154,7 +153,7 @@ async def create_full_recovery_chains(unified_service: "UnifiedRecoveryService")
                         output_dir=output_dir,
                         streamer_name=streamer_name,
                         started_at=started_at,
-                        cleanup_ts_file=True  # Clean up TS after successful MP4 creation
+                        cleanup_ts_file=True,  # Clean up TS after successful MP4 creation
                     )
 
                     if success:

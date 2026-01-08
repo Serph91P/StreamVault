@@ -56,9 +56,15 @@ class NotificationService:
             streamer_name, event_type, details
         )
 
-    def _get_service_specific_url(self, base_url: str, twitch_url: str, profile_image: str,
-                                  streamer_name: str, event_type: str,
-                                  original_image_url: Optional[str] = None) -> str:
+    def _get_service_specific_url(
+        self,
+        base_url: str,
+        twitch_url: str,
+        profile_image: str,
+        streamer_name: str,
+        event_type: str,
+        original_image_url: Optional[str] = None,
+    ) -> str:
         """Get service-specific URL - legacy method"""
         return self.dispatcher.external_service._get_service_specific_url(
             base_url, twitch_url, profile_image, streamer_name, event_type, original_image_url
@@ -82,6 +88,7 @@ async def get_user_info(user_id: str) -> Optional[Dict[str, Any]]:
     """Get user info from Twitch API including profile image"""
     try:
         from app.services.api.twitch_api import twitch_api
+
         users = await twitch_api.get_users_by_id([user_id])
         return users[0] if users else None
     except Exception as e:

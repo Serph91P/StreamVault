@@ -58,12 +58,11 @@ class NotificationFormatter:
             # Recording events (NEW)
             "recording_started": "recording started",
             "recording_failed": "recording failed",
-            "recording_completed": "recording completed"
+            "recording_completed": "recording completed",
         }
 
     @staticmethod
-    def format_recording_notification(streamer_name: str, event_type: str,
-                                      details: dict) -> Tuple[str, str]:
+    def format_recording_notification(streamer_name: str, event_type: str, details: dict) -> Tuple[str, str]:
         """Format recording event notifications
 
         Args:
@@ -77,9 +76,9 @@ class NotificationFormatter:
 
         if event_type == "recording_started":
             title = f"🔴 Recording Started: {streamer_name}"
-            quality = details.get('quality', 'best')
-            stream_title = details.get('stream_title', 'N/A')
-            category = details.get('category', 'N/A')
+            quality = details.get("quality", "best")
+            stream_title = details.get("stream_title", "N/A")
+            category = details.get("category", "N/A")
 
             message = (
                 f"Started recording {streamer_name}'s stream.\n\n"
@@ -90,10 +89,10 @@ class NotificationFormatter:
 
         elif event_type == "recording_failed":
             title = f"❌ Recording Failed: {streamer_name}"
-            error = details.get('error_message', 'Unknown error')
-            timestamp = details.get('timestamp', 'N/A')
-            stream_title = details.get('stream_title', 'N/A')
-            category = details.get('category', 'N/A')
+            error = details.get("error_message", "Unknown error")
+            timestamp = details.get("timestamp", "N/A")
+            stream_title = details.get("stream_title", "N/A")
+            category = details.get("category", "N/A")
 
             message = (
                 f"Recording failed for {streamer_name}.\n\n"
@@ -106,9 +105,9 @@ class NotificationFormatter:
 
         elif event_type == "recording_completed":
             title = f"✅ Recording Completed: {streamer_name}"
-            duration = details.get('duration_minutes', 0)
-            file_size_mb = details.get('file_size_mb', 0)
-            quality = details.get('quality', 'best')
+            duration = details.get("duration_minutes", 0)
+            file_size_mb = details.get("file_size_mb", 0)
+            quality = details.get("quality", "best")
 
             # Format duration nicely
             hours = duration // 60

@@ -71,7 +71,7 @@ class ArtworkService:
                 "season.jpg": "Season poster",
                 "season-poster.jpg": "Season poster alternative name",
                 "folder.jpg": "Folder image for Windows",
-                "show.jpg": "Show image"
+                "show.jpg": "Show image",
             }
 
             # Download and save each image format
@@ -139,7 +139,7 @@ class ArtworkService:
     <uniqueid type="twitch">{streamer.id}</uniqueid>
 </tvshow>"""
 
-            with open(nfo_path, 'w', encoding='utf-8') as f:
+            with open(nfo_path, "w", encoding="utf-8") as f:
                 f.write(tvshow_content)
 
             logger.debug(f"Created tvshow.nfo: {nfo_path}")
@@ -152,10 +152,9 @@ class ArtworkService:
         try:
             with SessionLocal() as db:
                 # Get all unique year-month combinations for this streamer
-                streams = db.query(Stream).filter(
-                    Stream.streamer_id == streamer.id,
-                    Stream.started_at.isnot(None)
-                ).all()
+                streams = (
+                    db.query(Stream).filter(Stream.streamer_id == streamer.id, Stream.started_at.isnot(None)).all()
+                )
 
                 season_combinations = set()
                 for stream in streams:
@@ -191,7 +190,7 @@ class ArtworkService:
     </fanart>
 </season>"""
 
-            with open(nfo_path, 'w', encoding='utf-8') as f:
+            with open(nfo_path, "w", encoding="utf-8") as f:
                 f.write(season_content)
 
             logger.debug(f"Created season.nfo: {nfo_path}")
@@ -213,9 +212,9 @@ class ArtworkService:
             # Check if URL is actually a local file path (cross-platform detection)
             # Handle Unix paths, Windows paths, and UNC paths
             is_local_path = (
-                url.startswith('/')  # Unix absolute path
-                or (len(url) >= 3 and url[1] == ':' and url[2] == '\\')  # Windows C:\ style
-                or url.startswith('\\\\')  # UNC path \\server\share
+                url.startswith("/")  # Unix absolute path
+                or (len(url) >= 3 and url[1] == ":" and url[2] == "\\")  # Windows C:\ style
+                or url.startswith("\\\\")  # UNC path \\server\share
                 or Path(url).is_absolute()  # Fallback for other formats
             )
 
@@ -225,9 +224,9 @@ class ArtworkService:
                 source_path = Path(url)
 
                 # Handle legacy path migration: /data/images/profiles/ -> /recordings/.media/profiles/
-                if url.startswith('/data/images/profiles/'):
+                if url.startswith("/data/images/profiles/"):
                     # Map old path to new structure
-                    filename = url.split('/')[-1]  # Extract just the filename
+                    filename = url.split("/")[-1]  # Extract just the filename
                     source_path = self.recordings_dir / ".media" / "profiles" / filename
                     logger.debug(f"Mapped legacy path {url} to {source_path}")
 
@@ -245,14 +244,14 @@ class ArtworkService:
             session = await unified_image_service._get_session()
             async with session.get(url) as response:
                 if response.status == 200:
-                    content_type = response.headers.get('content-type', '')
-                    if 'image' in content_type:
+                    content_type = response.headers.get("content-type", "")
+                    if "image" in content_type:
                         content = await response.read()
 
                         # Create parent directory if it doesn't exist
                         target_path.parent.mkdir(parents=True, exist_ok=True)
 
-                        with open(target_path, 'wb') as f:
+                        with open(target_path, "wb") as f:
                             f.write(content)
 
                         logger.debug(f"Downloaded image: {target_path}")
@@ -271,10 +270,11 @@ class ArtworkService:
     def _sanitize_filename(self, filename: str) -> str:
         """Sanitize filename for filesystem use"""
         import re
+
         # Replace invalid characters with underscores
-        sanitized = re.sub(r'[<>:"/\\|?*]', '_', filename)
+        sanitized = re.sub(r'[<>:"/\\|?*]', "_", filename)
         # Remove leading/trailing whitespace and dots
-        sanitized = sanitized.strip('. ')
+        sanitized = sanitized.strip(". ")
         return sanitized or "unknown"
 
 

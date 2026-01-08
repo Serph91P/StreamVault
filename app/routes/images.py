@@ -1,6 +1,7 @@
 """
 Image serving routes for the unified image service
 """
+
 from fastapi import APIRouter, HTTPException, BackgroundTasks
 from fastapi.responses import FileResponse, JSONResponse
 import logging
@@ -9,10 +10,7 @@ from app.services.unified_image_service import unified_image_service
 
 logger = logging.getLogger("streamvault")
 
-router = APIRouter(
-    prefix="/data/images",
-    tags=["images"]
-)
+router = APIRouter(prefix="/data/images", tags=["images"])
 
 
 @router.get("/profiles/{filename}")
@@ -24,7 +22,7 @@ async def serve_profile_image(filename: str):
             return FileResponse(
                 file_path,
                 media_type="image/jpeg",
-                headers={"Cache-Control": "public, max-age=86400"}  # Cache for 1 day
+                headers={"Cache-Control": "public, max-age=86400"},  # Cache for 1 day
             )
         else:
             raise HTTPException(status_code=404, detail="Profile image not found")
@@ -42,7 +40,7 @@ async def serve_category_image(filename: str):
             return FileResponse(
                 file_path,
                 media_type="image/jpeg",
-                headers={"Cache-Control": "public, max-age=86400"}  # Cache for 1 day
+                headers={"Cache-Control": "public, max-age=86400"},  # Cache for 1 day
             )
         else:
             raise HTTPException(status_code=404, detail="Category image not found")
@@ -60,7 +58,7 @@ async def serve_artwork_image(streamer_id: str, filename: str):
             return FileResponse(
                 file_path,
                 media_type="image/jpeg",
-                headers={"Cache-Control": "public, max-age=86400"}  # Cache for 1 day
+                headers={"Cache-Control": "public, max-age=86400"},  # Cache for 1 day
             )
         else:
             raise HTTPException(status_code=404, detail="Artwork image not found")
@@ -127,10 +125,7 @@ async def get_profile_image_url(streamer_id: int):
                 raise HTTPException(status_code=404, detail="Streamer not found")
 
             # Get cached image URL or fallback to original
-            image_url = unified_image_service.get_profile_image_url(
-                streamer_id,
-                streamer.profile_image_url
-            )
+            image_url = unified_image_service.get_profile_image_url(streamer_id, streamer.profile_image_url)
 
             return {"image_url": image_url}
     except HTTPException:

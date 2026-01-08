@@ -10,13 +10,16 @@ import logging
 
 logger = logging.getLogger("streamvault")
 
+
 def upgrade():
     """Create active_recordings_state table for persistent recording state"""
     logger.info("🔄 Creating active_recordings_state table...")
-    
+
     with engine.connect() as connection:
         # Create table with IF NOT EXISTS
-        connection.execute(text("""
+        connection.execute(
+            text(
+                """
             CREATE TABLE IF NOT EXISTS active_recordings_state (
                 id SERIAL PRIMARY KEY,
                 stream_id INTEGER NOT NULL,
@@ -34,15 +37,21 @@ def upgrade():
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
             )
-        """))
+        """
+            )
+        )
         connection.commit()
-        
+
         # Create unique constraint on stream_id (with proper error handling)
         try:
-            connection.execute(text("""
-                ALTER TABLE active_recordings_state 
+            connection.execute(
+                text(
+                    """
+                ALTER TABLE active_recordings_state
                 ADD CONSTRAINT active_recordings_state_stream_id_key UNIQUE (stream_id)
-            """))
+            """
+                )
+            )
             connection.commit()
         except Exception as e:
             connection.rollback()
@@ -50,18 +59,22 @@ def upgrade():
                 logger.info("Constraint active_recordings_state_stream_id_key already exists")
             else:
                 logger.debug(f"Could not create unique constraint: {e}")
-        
+
         # Create foreign key constraints if tables exist (optional)
         try:
             # Check if streams table exists
             result = connection.execute(text("SELECT 1 FROM information_schema.tables WHERE table_name = 'streams'"))
             if result.fetchone():
                 try:
-                    connection.execute(text("""
-                        ALTER TABLE active_recordings_state 
-                        ADD CONSTRAINT fk_active_recordings_stream 
+                    connection.execute(
+                        text(
+                            """
+                        ALTER TABLE active_recordings_state
+                        ADD CONSTRAINT fk_active_recordings_stream
                         FOREIGN KEY (stream_id) REFERENCES streams(id) ON DELETE CASCADE
-                    """))
+                    """
+                        )
+                    )
                     connection.commit()
                 except Exception as fk_e:
                     connection.rollback()
@@ -72,17 +85,21 @@ def upgrade():
         except Exception as e:
             connection.rollback()
             logger.debug(f"Could not check streams table: {e}")
-        
+
         try:
             # Check if recordings table exists
             result = connection.execute(text("SELECT 1 FROM information_schema.tables WHERE table_name = 'recordings'"))
             if result.fetchone():
                 try:
-                    connection.execute(text("""
-                        ALTER TABLE active_recordings_state 
-                        ADD CONSTRAINT fk_active_recordings_recording 
+                    connection.execute(
+                        text(
+                            """
+                        ALTER TABLE active_recordings_state
+                        ADD CONSTRAINT fk_active_recordings_recording
                         FOREIGN KEY (recording_id) REFERENCES recordings(id) ON DELETE CASCADE
-                    """))
+                    """
+                        )
+                    )
                     connection.commit()
                 except Exception as fk_e:
                     connection.rollback()
@@ -93,38 +110,50 @@ def upgrade():
         except Exception as e:
             connection.rollback()
             logger.debug(f"Could not check recordings table: {e}")
-        
+
         # Create indices for better performance
         try:
-            connection.execute(text("""
-                CREATE INDEX IF NOT EXISTS ix_active_recordings_stream_id 
+            connection.execute(
+                text(
+                    """
+                CREATE INDEX IF NOT EXISTS ix_active_recordings_stream_id
                 ON active_recordings_state (stream_id)
-            """))
+            """
+                )
+            )
             connection.commit()
         except Exception as e:
             connection.rollback()
             logger.debug(f"Could not create index ix_active_recordings_stream_id: {e}")
-        
+
         try:
-            connection.execute(text("""
-                CREATE INDEX IF NOT EXISTS ix_active_recordings_status 
+            connection.execute(
+                text(
+                    """
+                CREATE INDEX IF NOT EXISTS ix_active_recordings_status
                 ON active_recordings_state (status)
-            """))
+            """
+                )
+            )
             connection.commit()
         except Exception as e:
             connection.rollback()
             logger.debug(f"Could not create index ix_active_recordings_status: {e}")
-        
+
         try:
-            connection.execute(text("""
-                CREATE INDEX IF NOT EXISTS ix_active_recordings_heartbeat 
+            connection.execute(
+                text(
+                    """
+                CREATE INDEX IF NOT EXISTS ix_active_recordings_heartbeat
                 ON active_recordings_state (last_heartbeat)
-            """))
+            """
+                )
+            )
             connection.commit()
         except Exception as e:
             connection.rollback()
             logger.debug(f"Could not create index ix_active_recordings_heartbeat: {e}")
-        
+
         logger.info("✅ Active recordings state table and indices created successfully")
         logger.info("🎯 Features enabled:")
         logger.info("   • Persistent recording state across restarts")
@@ -132,12 +161,14 @@ def upgrade():
         logger.info("   • Heartbeat monitoring for stale process detection")
         logger.info("   • Production-ready container deployment support")
 
+
 def downgrade():
     """Remove active_recordings_state table"""
     with engine.connect() as connection:
         connection.execute(text("DROP TABLE IF EXISTS active_recordings_state"))
         connection.commit()
         logger.info("Removed active_recordings_state table")
+
 
 if __name__ == "__main__":
     upgrade()

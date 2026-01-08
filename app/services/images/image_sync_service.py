@@ -1,6 +1,7 @@
 """
 Image sync service for automatic downloading of images when entities are created/updated
 """
+
 import asyncio
 import logging
 from typing import Optional
@@ -115,28 +116,19 @@ class ImageSyncService:
 
     async def request_streamer_profile_sync(self, streamer_id: int, profile_image_url: str):
         """Request sync of a streamer's profile image"""
-        await self._sync_queue.put({
-            "type": "streamer_profile",
-            "streamer_id": streamer_id,
-            "profile_image_url": profile_image_url
-        })
+        await self._sync_queue.put(
+            {"type": "streamer_profile", "streamer_id": streamer_id, "profile_image_url": profile_image_url}
+        )
 
     async def request_category_image_sync(self, category_name: str, image_url: Optional[str] = None):
         """Request sync of a category image"""
-        await self._sync_queue.put({
-            "type": "category_image",
-            "category_name": category_name,
-            "image_url": image_url
-        })
+        await self._sync_queue.put({"type": "category_image", "category_name": category_name, "image_url": image_url})
 
     async def request_stream_artwork_sync(self, stream_id: int, streamer_id: int, artwork_url: str):
         """Request sync of stream artwork"""
-        await self._sync_queue.put({
-            "type": "stream_artwork",
-            "stream_id": stream_id,
-            "streamer_id": streamer_id,
-            "artwork_url": artwork_url
-        })
+        await self._sync_queue.put(
+            {"type": "stream_artwork", "stream_id": stream_id, "streamer_id": streamer_id, "artwork_url": artwork_url}
+        )
 
     # Bulk sync operations
 
@@ -148,10 +140,7 @@ class ImageSyncService:
 
             for streamer in streamers:
                 if streamer.profile_image_url:
-                    await self.request_streamer_profile_sync(
-                        streamer.id,
-                        streamer.profile_image_url
-                    )
+                    await self.request_streamer_profile_sync(streamer.id, streamer.profile_image_url)
 
             logger.info(f"Requested sync for {len(streamers)} streamers")
 
@@ -178,33 +167,31 @@ class ImageSyncService:
         try:
             # Popular categories that are commonly used
             popular_categories = [
-                'Just Chatting',
-                'League of Legends',
-                'Fortnite',
-                'Minecraft',
-                'Grand Theft Auto V',
-                'Valorant',
-                'Counter-Strike 2',
-                'World of Warcraft',
-                'Dota 2',
-                'Apex Legends',
-                'Call of Duty: Modern Warfare III',
-                'Rocket League',
-                'Overwatch 2',
-                'Hearthstone',
-                'Among Us',
-                'Fall Guys',
-                'PUBG: BATTLEGROUNDS',
-                'Dead by Daylight',
-                'Escape from Tarkov',
-                'Path of Exile'
+                "Just Chatting",
+                "League of Legends",
+                "Fortnite",
+                "Minecraft",
+                "Grand Theft Auto V",
+                "Valorant",
+                "Counter-Strike 2",
+                "World of Warcraft",
+                "Dota 2",
+                "Apex Legends",
+                "Call of Duty: Modern Warfare III",
+                "Rocket League",
+                "Overwatch 2",
+                "Hearthstone",
+                "Among Us",
+                "Fall Guys",
+                "PUBG: BATTLEGROUNDS",
+                "Dead by Daylight",
+                "Escape from Tarkov",
+                "Path of Exile",
             ]
 
             # Only sync categories that exist in the database
             with SessionLocal() as db:
-                existing_categories = db.query(Category).filter(
-                    Category.name.in_(popular_categories)
-                ).all()
+                existing_categories = db.query(Category).filter(Category.name.in_(popular_categories)).all()
 
             for category in existing_categories:
                 if category.name:
@@ -288,7 +275,9 @@ class ImageSyncService:
                         missing_categories += 1
 
             if missing_profiles > 0 or missing_categories > 0:
-                logger.info(f"Requested sync for {missing_profiles} missing profile images and {missing_categories} missing category images")
+                logger.info(
+                    f"Requested sync for {missing_profiles} missing profile images and {missing_categories} missing category images"
+                )
             else:
                 logger.info("All images are up to date")
 

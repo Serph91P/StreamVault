@@ -3,6 +3,7 @@ Utility functions for sending notifications.
 
 This module provides helper functions for sending different types of notifications.
 """
+
 import logging
 import json
 import time
@@ -23,7 +24,7 @@ async def send_push_notification(
     badge: str = "/android-icon-96x96.png",
     require_interaction: bool = True,
     db=None,
-    filter_inactive: bool = True
+    filter_inactive: bool = True,
 ) -> Dict[str, int]:
     """
     Send a push notification to all active subscriptions.
@@ -52,6 +53,7 @@ async def send_push_notification(
             try:
                 # Lazy import to avoid circular dependencies
                 from importlib import import_module
+
                 enhanced_push_service = import_module("app.services.enhanced_push_service").enhanced_push_service
                 _enhanced_push_service = enhanced_push_service
                 logger.debug("Successfully loaded enhanced_push_service")
@@ -63,6 +65,7 @@ async def send_push_notification(
                     async def send_notification(self, *args, **kwargs):
                         logger.info(f"[FALLBACK] Would send notification with args: {args}, kwargs: {kwargs}")
                         return True
+
                 _enhanced_push_service = FallbackPushService()
 
         # Create a database session if none provided
@@ -82,7 +85,7 @@ async def send_push_notification(
             "badge": badge,
             "requireInteraction": require_interaction,
             "timestamp": int(time.time() * 1000),
-            "data": data
+            "data": data,
         }
 
         # Check if notifications are globally enabled
@@ -118,10 +121,7 @@ async def send_push_notification(
                     continue
 
                 # Send the notification
-                success = await _enhanced_push_service.send_notification(
-                    subscription_data,
-                    notification_data
-                )
+                success = await _enhanced_push_service.send_notification(subscription_data, notification_data)
 
                 if success:
                     sent_count += 1
@@ -136,11 +136,7 @@ async def send_push_notification(
         if close_db:
             db.close()
 
-        return {
-            "sent": sent_count,
-            "failed": failed_count,
-            "skipped": skipped_count
-        }
+        return {"sent": sent_count, "failed": failed_count, "skipped": skipped_count}
 
     except Exception as e:
         logger.error(f"Error sending push notifications: {e}")

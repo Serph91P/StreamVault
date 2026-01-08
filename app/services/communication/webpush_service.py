@@ -16,6 +16,7 @@ try:
     from cryptography.hazmat.primitives.ciphers.aead import AESGCM
     from cryptography.hazmat.primitives import hashes, serialization
     from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+
     HAS_VAPID = True
 except ImportError:
     HAS_VAPID = False
@@ -56,14 +57,11 @@ class ModernWebPushService:
 
         # Get the public key in uncompressed format
         public_key_bytes = public_key.public_bytes(
-            encoding=serialization.Encoding.X962,
-            format=serialization.PublicFormat.UncompressedPoint
+            encoding=serialization.Encoding.X962, format=serialization.PublicFormat.UncompressedPoint
         )
 
         # Deserialize the receiver's public key
-        receiver_public_key = ec.EllipticCurvePublicKey.from_encoded_point(
-            ec.SECP256R1(), p256dh
-        )
+        receiver_public_key = ec.EllipticCurvePublicKey.from_encoded_point(ec.SECP256R1(), p256dh)
 
         # Perform ECDH
         shared_key = private_key.exchange(ec.ECDH(), receiver_public_key)
@@ -98,7 +96,7 @@ class ModernWebPushService:
         # Encrypt the payload
         aesgcm = AESGCM(cek)
         # Add padding delimiter (0x02 followed by padding)
-        padded_payload = payload + b'\x02'
+        padded_payload = payload + b"\x02"
         ciphertext = aesgcm.encrypt(nonce, padded_payload, None)
 
         # Return the encrypted payload with public key prepended
@@ -115,10 +113,9 @@ class ModernWebPushService:
         else:
             raise TypeError("Data must be string, dict, or bytes")
 
-    def send_notification(self,
-                          subscription_info: Dict[str, Any],
-                          data: Union[str, Dict, bytes],
-                          ttl: int = 30) -> bool:
+    def send_notification(
+        self, subscription_info: Dict[str, Any], data: Union[str, Dict, bytes], ttl: int = 30
+    ) -> bool:
         """Send a web push notification
 
         Args:
@@ -208,10 +205,7 @@ class ModernWebPushService:
 
             if response.status >= 400:
                 logger.error(f"Push notification failed with status {response.status}: {response.read()}")
-                raise WebPushException(
-                    f"Push failed with status {response.status}",
-                    response=response
-                )
+                raise WebPushException(f"Push failed with status {response.status}", response=response)
 
             conn.close()
             return True
@@ -219,6 +213,7 @@ class ModernWebPushService:
         except Exception as e:
             logger.error(f"Failed to send push notification: {str(e)}")
             return False
+
 
 # Example usage:
 # service = ModernWebPushService(

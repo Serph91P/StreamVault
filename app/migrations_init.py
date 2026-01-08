@@ -1,6 +1,7 @@
 """
 Migration initialization script to run pending migrations at application startup
 """
+
 import logging
 from app.config.settings import settings
 
@@ -19,6 +20,7 @@ def run_migrations() -> None:
     try:
         # Use the unified migration service that handles both numbered and old migrations
         from app.services.system.migration_service import MigrationService
+
         results = MigrationService.run_pending_migrations()
 
         if not results:

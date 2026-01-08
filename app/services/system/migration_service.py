@@ -26,32 +26,40 @@ class MigrationService:
         try:
             with engine.connect() as connection:
                 # Check if table exists and what columns it has
-                result = connection.execute(text("""
+                result = connection.execute(
+                    text(
+                        """
                     SELECT column_name
                     FROM information_schema.columns
                     WHERE table_name = 'migrations'
                     AND table_schema = 'public'
-                """)).fetchall()
+                """
+                    )
+                ).fetchall()
 
                 existing_columns = [row[0] for row in result]
 
                 if not existing_columns:
                     # Table doesn't exist, create it
                     logger.info("Creating migrations table...")
-                    connection.execute(text("""
+                    connection.execute(
+                        text(
+                            """
                         CREATE TABLE migrations (
                             id SERIAL PRIMARY KEY,
                             script_name VARCHAR(255) NOT NULL UNIQUE,
                             applied_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
                             success BOOLEAN DEFAULT TRUE
                         )
-                    """))
+                    """
+                        )
+                    )
                     connection.commit()
                     logger.info("✅ Migrations table created")
-                elif 'script_name' not in existing_columns:
+                elif "script_name" not in existing_columns:
                     # Table exists but has old schema, fix it
                     logger.info("Updating migrations table schema...")
-                    if 'name' in existing_columns:
+                    if "name" in existing_columns:
                         # Rename old column
                         connection.execute(text("ALTER TABLE migrations RENAME COLUMN name TO script_name"))
                         connection.commit()
@@ -76,7 +84,7 @@ class MigrationService:
             with SessionLocal() as db:
                 result = db.execute(
                     text("SELECT COUNT(*) FROM migrations WHERE script_name = :name AND success = TRUE"),
-                    {"name": migration_name}
+                    {"name": migration_name},
                 ).scalar()
                 return result > 0
         except Exception as e:
@@ -89,13 +97,15 @@ class MigrationService:
         try:
             with SessionLocal() as db:
                 db.execute(
-                    text("""
+                    text(
+                        """
                         INSERT INTO migrations (script_name, applied_at, success)
                         VALUES (:name, NOW(), :success)
                         ON CONFLICT (script_name) DO UPDATE SET
                         applied_at = NOW(), success = :success
-                    """),
-                    {"name": migration_name, "success": success}
+                    """
+                    ),
+                    {"name": migration_name, "success": success},
                 )
                 db.commit()
         except Exception as e:
@@ -131,20 +141,20 @@ class MigrationService:
         # Migrations are at: /app/migrations/
         # Path depth constants for clarity
         MIGRATION_SERVICE_DEPTH = 3  # From /app/app/services/system/ to /app/
-        FALLBACK_DEPTH = 2           # From /app/app/services/system/ to /app/app/
+        FALLBACK_DEPTH = 2  # From /app/app/services/system/ to /app/app/
 
         current_file = Path(__file__)
 
         # Try the correct path based on Dockerfile structure
-        migrations_dir = current_file.parents[MIGRATION_SERVICE_DEPTH] / 'migrations'  # /app/migrations
+        migrations_dir = current_file.parents[MIGRATION_SERVICE_DEPTH] / "migrations"  # /app/migrations
 
         if not migrations_dir.exists() or not migrations_dir.is_dir():
             logger.warning(f"Expected migrations directory not found at: {migrations_dir}")
             # Try fallback paths
             fallback_paths = [
-                Path('/app/migrations'),                                    # Absolute path
-                Path('./migrations'),                                      # Relative to working directory
-                current_file.parents[FALLBACK_DEPTH] / 'migrations',      # /app/app/migrations
+                Path("/app/migrations"),  # Absolute path
+                Path("./migrations"),  # Relative to working directory
+                current_file.parents[FALLBACK_DEPTH] / "migrations",  # /app/app/migrations
             ]
 
             for path in fallback_paths:
@@ -162,23 +172,25 @@ class MigrationService:
         migration_scripts = []
 
         # First, look for new numbered migrations (001_, 002_, etc.)
-        numbered_migrations = glob.glob(str(migrations_dir / '[0-9][0-9][0-9]_*.py'))
+        numbered_migrations = glob.glob(str(migrations_dir / "[0-9][0-9][0-9]_*.py"))
         if numbered_migrations:
             numbered_migrations.sort()  # Sort numerically
             migration_scripts.extend(numbered_migrations)
             logger.info(f"Found {len(numbered_migrations)} numbered migrations")
 
         # Then, get any old migrations that haven't been moved to backup
-        old_migrations = glob.glob(str(migrations_dir / '20[0-9][0-9]*_*.py'))
+        old_migrations = glob.glob(str(migrations_dir / "20[0-9][0-9]*_*.py"))
         if old_migrations:
             old_migrations.sort()  # Sort by date
             migration_scripts.extend(old_migrations)
             logger.info(f"Found {len(old_migrations)} old date-based migrations")
 
         # Filter out non-migration files
-        migration_scripts = [script for script in migration_scripts if os.path.basename(script) not in [
-            '__init__.py', 'manage.py', 'README.md'
-        ]]
+        migration_scripts = [
+            script
+            for script in migration_scripts
+            if os.path.basename(script) not in ["__init__.py", "manage.py", "README.md"]
+        ]
 
         logger.info(f"Found {len(migration_scripts)} migration scripts in {migrations_dir}")
         for script in migration_scripts:
@@ -207,12 +219,12 @@ class MigrationService:
             spec.loader.exec_module(migration_module)
 
             # For simple Alembic-style migrations, we'll use direct SQLAlchemy
-            if hasattr(migration_module, 'upgrade'):
+            if hasattr(migration_module, "upgrade"):
                 migration_module.upgrade()
                 MigrationService.mark_migration_applied(script_name, True)
                 logger.info(f"✅ Successfully applied migration: {script_name}")
                 return True, "Migration completed successfully"
-            elif hasattr(migration_module, 'run_migration'):
+            elif hasattr(migration_module, "run_migration"):
                 migration_module.run_migration()
                 MigrationService.mark_migration_applied(script_name, True)
                 logger.info(f"✅ Successfully applied migration: {script_name}")
@@ -281,8 +293,11 @@ class MigrationService:
                     break
                 except Exception as e:
                     if attempt < max_retries - 1:
-                        logger.info(f"Database not ready (attempt {attempt + 1}/{max_retries}), waiting {retry_delay}s...")
+                        logger.info(
+                            f"Database not ready (attempt {attempt + 1}/{max_retries}), waiting {retry_delay}s..."
+                        )
                         import time
+
                         time.sleep(retry_delay)
                     else:
                         logger.error(f"Failed to connect to database after {max_retries} attempts: {e}")
@@ -299,10 +314,7 @@ class MigrationService:
             all_scripts = cls.get_all_migration_scripts()
 
             # Filter out already applied migrations
-            pending_scripts = [
-                script for script in all_scripts
-                if os.path.basename(script) not in applied_migrations
-            ]
+            pending_scripts = [script for script in all_scripts if os.path.basename(script) not in applied_migrations]
 
             if not pending_scripts:
                 logger.info("No pending migrations found")

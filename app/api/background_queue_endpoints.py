@@ -1,6 +1,7 @@
 """
 API endpoints for background queue monitoring
 """
+
 from fastapi import APIRouter, HTTPException
 from typing import List, Dict, Any
 import logging
@@ -38,7 +39,7 @@ async def get_active_tasks() -> List[Dict[str, Any]]:
 
         # Also include external tasks (like recordings)
         for task_id, task in queue_service.external_tasks.items():
-            if task.status.value in ['running', 'pending']:
+            if task.status.value in ["running", "pending"]:
                 task_info = task.to_dict()
                 active_tasks.append(task_info)
 
@@ -57,9 +58,7 @@ async def get_recent_tasks() -> List[Dict[str, Any]]:
 
         # Get recent tasks from the queue service (last 50)
         completed_tasks = sorted(
-            queue_service.completed_tasks.items(),
-            key=lambda x: x[1].completed_at or x[1].created_at,
-            reverse=True
+            queue_service.completed_tasks.items(), key=lambda x: x[1].completed_at or x[1].created_at, reverse=True
         )
 
         for task_id, task in completed_tasks[:50]:
@@ -68,10 +67,13 @@ async def get_recent_tasks() -> List[Dict[str, Any]]:
 
         # Also include completed external tasks
         external_completed = sorted(
-            [(tid, task) for tid, task in queue_service.external_tasks.items()
-             if task.status.value in ['completed', 'failed']],
+            [
+                (tid, task)
+                for tid, task in queue_service.external_tasks.items()
+                if task.status.value in ["completed", "failed"]
+            ],
             key=lambda x: x[1].completed_at or x[1].created_at,
-            reverse=True
+            reverse=True,
         )
 
         for task_id, task in external_completed[:25]:  # Include up to 25 external tasks
@@ -80,8 +82,7 @@ async def get_recent_tasks() -> List[Dict[str, Any]]:
 
         # Sort all tasks together by completion/creation time
         recent_tasks.sort(
-            key=lambda x: x.get('completed_at') or x.get('created_at') or datetime.min.isoformat(),
-            reverse=True
+            key=lambda x: x.get("completed_at") or x.get("created_at") or datetime.min.isoformat(), reverse=True
         )
 
         return recent_tasks[:50]  # Return max 50 total tasks
@@ -115,25 +116,21 @@ async def get_stream_tasks(stream_id: int) -> Dict[str, Any]:
         queue_service = get_background_queue_service()
 
         # Get all tasks (active, completed, external) for this stream
-        stream_tasks = {
-            "active": [],
-            "completed": [],
-            "external": []
-        }
+        stream_tasks = {"active": [], "completed": [], "external": []}
 
         # Check active tasks
         for task_id, task in queue_service.active_tasks.items():
-            if task.payload.get('stream_id') == stream_id:
+            if task.payload.get("stream_id") == stream_id:
                 stream_tasks["active"].append(task.to_dict())
 
         # Check completed tasks
         for task_id, task in queue_service.completed_tasks.items():
-            if task.payload.get('stream_id') == stream_id:
+            if task.payload.get("stream_id") == stream_id:
                 stream_tasks["completed"].append(task.to_dict())
 
         # Check external tasks
         for task_id, task in queue_service.external_tasks.items():
-            if task.payload.get('stream_id') == stream_id:
+            if task.payload.get("stream_id") == stream_id:
                 stream_tasks["external"].append(task.to_dict())
 
         return stream_tasks
@@ -152,13 +149,13 @@ async def cancel_stream_tasks(stream_id: int) -> Dict[str, Any]:
         # Cancel active tasks for this stream
         tasks_to_cancel = []
         for task_id, task in queue_service.active_tasks.items():
-            if task.payload.get('stream_id') == stream_id:
+            if task.payload.get("stream_id") == stream_id:
                 tasks_to_cancel.append(task_id)
 
         # Cancel external tasks for this stream
         external_to_cancel = []
         for task_id, task in queue_service.external_tasks.items():
-            if task.payload.get('stream_id') == stream_id and task.status.value in ['running', 'pending']:
+            if task.payload.get("stream_id") == stream_id and task.status.value in ["running", "pending"]:
                 external_to_cancel.append(task_id)
 
         # Cancel the tasks using the queue manager
@@ -177,11 +174,7 @@ async def cancel_stream_tasks(stream_id: int) -> Dict[str, Any]:
             except Exception as e:
                 logger.warning(f"Failed to cancel external task {task_id}: {e}")
 
-        return {
-            "success": True,
-            "cancelled_count": cancelled_count,
-            "stream_id": stream_id
-        }
+        return {"success": True, "cancelled_count": cancelled_count, "stream_id": stream_id}
     except Exception as e:
         logger.error(f"Error cancelling stream tasks: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to cancel stream tasks")
@@ -195,7 +188,7 @@ async def enqueue_recording_post_processing(
     output_dir: str,
     streamer_name: str,
     started_at: str,
-    cleanup_ts_file: bool = True
+    cleanup_ts_file: bool = True,
 ) -> Dict[str, Any]:
     """Enqueue a recording post-processing chain"""
     try:
@@ -208,14 +201,10 @@ async def enqueue_recording_post_processing(
             output_dir=output_dir,
             streamer_name=streamer_name,
             started_at=started_at,
-            cleanup_ts_file=cleanup_ts_file
+            cleanup_ts_file=cleanup_ts_file,
         )
 
-        return {
-            "success": True,
-            "task_ids": task_ids,
-            "stream_id": stream_id
-        }
+        return {"success": True, "task_ids": task_ids, "stream_id": stream_id}
     except Exception as e:
         logger.error(f"Error enqueuing recording post-processing: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to enqueue recording post-processing")
@@ -223,12 +212,7 @@ async def enqueue_recording_post_processing(
 
 @router.post("/enqueue/metadata-generation")
 async def enqueue_metadata_generation(
-    stream_id: int,
-    recording_id: int,
-    mp4_file_path: str,
-    output_dir: str,
-    streamer_name: str,
-    started_at: str
+    stream_id: int, recording_id: int, mp4_file_path: str, output_dir: str, streamer_name: str, started_at: str
 ) -> Dict[str, Any]:
     """Enqueue metadata generation tasks"""
     try:
@@ -240,14 +224,10 @@ async def enqueue_metadata_generation(
             mp4_file_path=mp4_file_path,
             output_dir=output_dir,
             streamer_name=streamer_name,
-            started_at=started_at
+            started_at=started_at,
         )
 
-        return {
-            "success": True,
-            "task_ids": task_ids,
-            "stream_id": stream_id
-        }
+        return {"success": True, "task_ids": task_ids, "stream_id": stream_id}
     except Exception as e:
         logger.error(f"Error enqueuing metadata generation: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to enqueue metadata generation")
@@ -255,12 +235,7 @@ async def enqueue_metadata_generation(
 
 @router.post("/enqueue/thumbnail-generation")
 async def enqueue_thumbnail_generation(
-    stream_id: int,
-    recording_id: int,
-    mp4_file_path: str,
-    output_dir: str,
-    streamer_name: str,
-    started_at: str
+    stream_id: int, recording_id: int, mp4_file_path: str, output_dir: str, streamer_name: str, started_at: str
 ) -> Dict[str, Any]:
     """Enqueue thumbnail generation task"""
     try:
@@ -272,14 +247,10 @@ async def enqueue_thumbnail_generation(
             mp4_file_path=mp4_file_path,
             output_dir=output_dir,
             streamer_name=streamer_name,
-            started_at=started_at
+            started_at=started_at,
         )
 
-        return {
-            "success": True,
-            "task_id": task_id,
-            "stream_id": stream_id
-        }
+        return {"success": True, "task_id": task_id, "stream_id": stream_id}
     except Exception as e:
         logger.error(f"Error enqueuing thumbnail generation: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to enqueue thumbnail generation")
@@ -297,8 +268,8 @@ async def cleanup_stuck_tasks() -> Dict[str, Any]:
         tasks_to_cleanup = []
         for task_id, task in queue_service.active_tasks.items():
             # Handle both enum and string status values
-            status_value = task.status.value if hasattr(task.status, 'value') else str(task.status)
-            if status_value == 'pending':
+            status_value = task.status.value if hasattr(task.status, "value") else str(task.status)
+            if status_value == "pending":
                 # Make both timestamps timezone-aware for comparison
                 task_created = task.created_at
                 if task_created.tzinfo is None:
@@ -311,7 +282,7 @@ async def cleanup_stuck_tasks() -> Dict[str, Any]:
         # Clean up stuck external tasks
         external_to_cleanup = []
         for task_id, task in queue_service.external_tasks.items():
-            if task.status.value in ['pending', 'running']:
+            if task.status.value in ["pending", "running"]:
                 # Make both timestamps timezone-aware for comparison
                 task_created = task.created_at
                 if task_created.tzinfo is None:
@@ -343,7 +314,7 @@ async def cleanup_stuck_tasks() -> Dict[str, Any]:
             "success": True,
             "cleaned_up_count": cleanup_count,
             "internal_tasks": len(tasks_to_cleanup),
-            "external_tasks": len(external_to_cleanup)
+            "external_tasks": len(external_to_cleanup),
         }
     except Exception as e:
         logger.error(f"Error cleaning up stuck tasks: {e}", exc_info=True)

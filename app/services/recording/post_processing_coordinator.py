@@ -25,10 +25,7 @@ class PostProcessingCoordinator:
         self.websocket_service = websocket_service
 
     async def enqueue_post_processing(
-        self,
-        recording_id: int,
-        ts_file_path: str,
-        recording_data: Dict[str, Any]
+        self, recording_id: int, ts_file_path: str, recording_data: Dict[str, Any]
     ) -> bool:
         """Enqueue post-processing tasks for a completed recording"""
         try:
@@ -36,12 +33,12 @@ class PostProcessingCoordinator:
 
             # Prepare post-processing payload
             payload = {
-                'recording_id': recording_id,
-                'ts_file_path': ts_file_path,
-                'streamer_id': recording_data.get('streamer_id'),
-                'stream_id': recording_data.get('stream_id'),
-                'started_at': recording_data.get('started_at'),
-                'metadata': recording_data.get('metadata', {})
+                "recording_id": recording_id,
+                "ts_file_path": ts_file_path,
+                "streamer_id": recording_data.get("streamer_id"),
+                "stream_id": recording_data.get("stream_id"),
+                "started_at": recording_data.get("started_at"),
+                "metadata": recording_data.get("metadata", {}),
             }
 
             # Enqueue post-processing task
@@ -50,10 +47,7 @@ class PostProcessingCoordinator:
             # Send WebSocket update
             if self.websocket_service:
                 await self.websocket_service.send_recording_job_update(
-                    recording_id=recording_id,
-                    job_type="post_processing",
-                    status="queued",
-                    progress=0.0
+                    recording_id=recording_id, job_type="post_processing", status="queued", progress=0.0
                 )
 
             logger.info(f"Successfully enqueued post-processing for recording {recording_id}")
@@ -65,8 +59,7 @@ class PostProcessingCoordinator:
             # Send error WebSocket update
             if self.websocket_service:
                 await self.websocket_service.send_recording_error(
-                    recording_id=recording_id,
-                    error_message=f"Failed to enqueue post-processing: {str(e)}"
+                    recording_id=recording_id, error_message=f"Failed to enqueue post-processing: {str(e)}"
                 )
 
             return False
@@ -75,7 +68,7 @@ class PostProcessingCoordinator:
         """Find and validate the converted MP4 file"""
         try:
             ts_path = Path(ts_file_path)
-            expected_mp4_path = ts_path.with_suffix('.mp4')
+            expected_mp4_path = ts_path.with_suffix(".mp4")
 
             logger.info(f"Looking for MP4 file: {expected_mp4_path}")
 
@@ -131,84 +124,68 @@ class PostProcessingCoordinator:
             logger.error(f"Error validating MP4 file {mp4_path}: {e}")
             return False
 
-    async def delayed_metadata_generation(
-        self,
-        recording_id: int,
-        delay_minutes: int = 5
-    ) -> None:
+    async def delayed_metadata_generation(self, recording_id: int, delay_minutes: int = 5) -> None:
         """Generate metadata after a delay (for late stream info)"""
         try:
             delay_seconds = delay_minutes * 60
-            logger.info(f"Scheduling delayed metadata generation for recording {recording_id} in {delay_minutes} minutes")
+            logger.info(
+                f"Scheduling delayed metadata generation for recording {recording_id} in {delay_minutes} minutes"
+            )
 
             await asyncio.sleep(delay_seconds)
 
             # Enqueue metadata generation task
-            payload = {
-                'recording_id': recording_id,
-                'task_type': 'delayed_metadata',
-                'delay_applied': delay_minutes
-            }
+            payload = {"recording_id": recording_id, "task_type": "delayed_metadata", "delay_applied": delay_minutes}
 
             # Use background queue to handle delayed metadata
             from app.services.background_queue_service import background_queue_service
-            await background_queue_service.enqueue_task(
-                task_type="delayed_metadata_generation",
-                payload=payload
-            )
+
+            await background_queue_service.enqueue_task(task_type="delayed_metadata_generation", payload=payload)
 
             logger.info(f"Enqueued delayed metadata generation for recording {recording_id}")
 
         except Exception as e:
             logger.error(f"Failed to schedule delayed metadata generation for recording {recording_id}: {e}")
 
-    async def generate_stream_metadata(
-        self,
-        recording_id: int,
-        stream_data: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    async def generate_stream_metadata(self, recording_id: int, stream_data: Dict[str, Any]) -> Dict[str, Any]:
         """Generate comprehensive metadata for a recording"""
         try:
             metadata = {
-                'recording_id': recording_id,
-                'generated_at': datetime.utcnow().isoformat(),
-                'stream_info': stream_data,
-                'processing_info': {
-                    'post_processing_required': True,
-                    'metadata_generation_time': datetime.utcnow().isoformat()
-                }
+                "recording_id": recording_id,
+                "generated_at": datetime.utcnow().isoformat(),
+                "stream_info": stream_data,
+                "processing_info": {
+                    "post_processing_required": True,
+                    "metadata_generation_time": datetime.utcnow().isoformat(),
+                },
             }
 
             # Add file information if available
-            file_path = stream_data.get('file_path')
+            file_path = stream_data.get("file_path")
             if file_path and Path(file_path).exists():
                 file_stat = Path(file_path).stat()
-                metadata['file_info'] = {
-                    'size_bytes': file_stat.st_size,
-                    'created_at': datetime.fromtimestamp(file_stat.st_ctime).isoformat(),
-                    'modified_at': datetime.fromtimestamp(file_stat.st_mtime).isoformat()
+                metadata["file_info"] = {
+                    "size_bytes": file_stat.st_size,
+                    "created_at": datetime.fromtimestamp(file_stat.st_ctime).isoformat(),
+                    "modified_at": datetime.fromtimestamp(file_stat.st_mtime).isoformat(),
                 }
 
             # Add stream metadata
-            if 'title' in stream_data:
-                metadata['stream_title'] = stream_data['title']
-            if 'category_name' in stream_data:
-                metadata['stream_category'] = stream_data['category_name']
-            if 'started_at' in stream_data:
-                metadata['stream_started_at'] = stream_data['started_at']
+            if "title" in stream_data:
+                metadata["stream_title"] = stream_data["title"]
+            if "category_name" in stream_data:
+                metadata["stream_category"] = stream_data["category_name"]
+            if "started_at" in stream_data:
+                metadata["stream_started_at"] = stream_data["started_at"]
 
             logger.debug(f"Generated metadata for recording {recording_id}")
             return metadata
 
         except Exception as e:
             logger.error(f"Failed to generate metadata for recording {recording_id}: {e}")
-            return {'recording_id': recording_id, 'error': str(e)}
+            return {"recording_id": recording_id, "error": str(e)}
 
-    async def cleanup_temporary_files(
-        self,
-        file_paths: List[str],
-        keep_originals: bool = False
-    ) -> List[str]:
+    async def cleanup_temporary_files(self, file_paths: List[str], keep_originals: bool = False) -> List[str]:
         """Clean up temporary files after post-processing"""
         cleaned_files = []
 
@@ -243,8 +220,8 @@ class PostProcessingCoordinator:
 
     def _is_temporary_file(self, path: Path) -> bool:
         """Check if a file is considered temporary"""
-        temp_extensions = {'.ts', '.tmp', '.temp', '.part'}
-        temp_prefixes = {'temp_', 'tmp_', 'processing_'}
+        temp_extensions = {".ts", ".tmp", ".temp", ".part"}
+        temp_prefixes = {"temp_", "tmp_", "processing_"}
 
         # Check extension
         if path.suffix.lower() in temp_extensions:
@@ -259,36 +236,36 @@ class PostProcessingCoordinator:
         return False
 
     async def estimate_processing_time(
-        self,
-        file_size_bytes: int,
-        file_duration_seconds: Optional[int] = None
+        self, file_size_bytes: int, file_duration_seconds: Optional[int] = None
     ) -> Dict[str, float]:
         """Estimate post-processing time based on file characteristics"""
         try:
             # Base estimates (in seconds)
             base_conversion_rate = 0.5  # seconds per MB for TS to MP4 conversion
-            base_metadata_time = 30     # base metadata generation time
+            base_metadata_time = 30  # base metadata generation time
 
             file_size_mb = file_size_bytes / (1024 * 1024)
 
             estimates = {
-                'conversion_time': file_size_mb * base_conversion_rate,
-                'metadata_time': base_metadata_time,
-                'total_time': (file_size_mb * base_conversion_rate) + base_metadata_time
+                "conversion_time": file_size_mb * base_conversion_rate,
+                "metadata_time": base_metadata_time,
+                "total_time": (file_size_mb * base_conversion_rate) + base_metadata_time,
             }
 
             # Adjust based on duration if available
             if file_duration_seconds:
                 duration_factor = min(file_duration_seconds / 3600, 4.0)  # Cap at 4x for very long streams
-                estimates['conversion_time'] *= duration_factor
-                estimates['total_time'] = estimates['conversion_time'] + estimates['metadata_time']
+                estimates["conversion_time"] *= duration_factor
+                estimates["total_time"] = estimates["conversion_time"] + estimates["metadata_time"]
 
-            logger.debug(f"Estimated processing time: {estimates['total_time']:.1f} seconds for {file_size_mb:.1f} MB file")
+            logger.debug(
+                f"Estimated processing time: {estimates['total_time']:.1f} seconds for {file_size_mb:.1f} MB file"
+            )
             return estimates
 
         except Exception as e:
             logger.error(f"Error estimating processing time: {e}")
-            return {'conversion_time': 300, 'metadata_time': 30, 'total_time': 330}  # Default estimates
+            return {"conversion_time": 300, "metadata_time": 30, "total_time": 330}  # Default estimates
 
     async def get_processing_status(self, recording_id: int) -> Dict[str, Any]:
         """Get current post-processing status for a recording"""
@@ -304,30 +281,28 @@ class PostProcessingCoordinator:
 
             # Find tasks for this recording
             for task_id, task in {**active_tasks, **completed_tasks}.items():
-                if task.payload.get('recording_id') == recording_id:
-                    recording_tasks.append({
-                        'task_id': task_id,
-                        'task_type': task.task_type,
-                        'status': task.status.value,
-                        'progress': task.progress,
-                        'created_at': task.created_at.isoformat(),
-                        'started_at': task.started_at.isoformat() if task.started_at else None,
-                        'completed_at': task.completed_at.isoformat() if task.completed_at else None
-                    })
+                if task.payload.get("recording_id") == recording_id:
+                    recording_tasks.append(
+                        {
+                            "task_id": task_id,
+                            "task_type": task.task_type,
+                            "status": task.status.value,
+                            "progress": task.progress,
+                            "created_at": task.created_at.isoformat(),
+                            "started_at": task.started_at.isoformat() if task.started_at else None,
+                            "completed_at": task.completed_at.isoformat() if task.completed_at else None,
+                        }
+                    )
 
             return {
-                'recording_id': recording_id,
-                'tasks': recording_tasks,
-                'total_tasks': len(recording_tasks),
-                'completed_tasks': len([t for t in recording_tasks if t['status'] == 'completed']),
-                'failed_tasks': len([t for t in recording_tasks if t['status'] == 'failed']),
-                'status_updated_at': datetime.utcnow().isoformat()
+                "recording_id": recording_id,
+                "tasks": recording_tasks,
+                "total_tasks": len(recording_tasks),
+                "completed_tasks": len([t for t in recording_tasks if t["status"] == "completed"]),
+                "failed_tasks": len([t for t in recording_tasks if t["status"] == "failed"]),
+                "status_updated_at": datetime.utcnow().isoformat(),
             }
 
         except Exception as e:
             logger.error(f"Failed to get processing status for recording {recording_id}: {e}")
-            return {
-                'recording_id': recording_id,
-                'error': str(e),
-                'status_updated_at': datetime.utcnow().isoformat()
-            }
+            return {"recording_id": recording_id, "error": str(e), "status_updated_at": datetime.utcnow().isoformat()}

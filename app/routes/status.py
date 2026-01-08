@@ -4,6 +4,7 @@ Status API Routes
 Provides real-time status endpoints that work independently of WebSocket connections.
 This ensures the frontend can always get current state, regardless of WebSocket connectivity.
 """
+
 from fastapi import APIRouter, HTTPException
 from sqlalchemy.orm import joinedload
 from sqlalchemy import and_
@@ -41,11 +42,12 @@ async def check_recordings_active() -> Dict[str, Any]:
         with SessionLocal() as db:
             # Get active recordings with streamer info
             # PERF: Use eager loading to prevent N+1 queries
-            active_recordings = db.query(Recording).filter(
-                Recording.status == "recording"
-            ).options(
-                joinedload(Recording.stream).joinedload(Stream.streamer)
-            ).all()
+            active_recordings = (
+                db.query(Recording)
+                .filter(Recording.status == "recording")
+                .options(joinedload(Recording.stream).joinedload(Stream.streamer))
+                .all()
+            )
 
             active_count = len(active_recordings)
             active_streamers = []
@@ -63,7 +65,11 @@ async def check_recordings_active() -> Dict[str, Any]:
                 "safe_to_update": active_count == 0,  # Safe when no recordings active
                 "active_streamers": active_streamers,
                 "timestamp": datetime.now(timezone.utc).isoformat(),
-                "message": "No active recordings - safe to update" if active_count == 0 else f"{active_count} recording(s) in progress - wait before updating"
+                "message": (
+                    "No active recordings - safe to update"
+                    if active_count == 0
+                    else f"{active_count} recording(s) in progress - wait before updating"
+                ),
             }
 
     except Exception as e:
@@ -77,20 +83,19 @@ async def get_system_status() -> Dict[str, Any]:
     try:
         with SessionLocal() as db:
             # Get active recordings count
-            active_recordings_count = db.query(Recording).filter(
-                Recording.status == "recording"
-            ).count()
+            active_recordings_count = db.query(Recording).filter(Recording.status == "recording").count()
 
             # Get total streamers count
             total_streamers = db.query(Streamer).count()
 
             # Get live streamers (those with recent active streams)
-            live_streamers_count = db.query(Streamer).join(Stream).filter(
-                and_(
-                    Stream.ended_at.is_(None),
-                    Stream.started_at.isnot(None)
-                )
-            ).distinct().count()
+            live_streamers_count = (
+                db.query(Streamer)
+                .join(Stream)
+                .filter(and_(Stream.ended_at.is_(None), Stream.started_at.isnot(None)))
+                .distinct()
+                .count()
+            )
 
             # Get queue status
             queue_stats = {}
@@ -106,9 +111,9 @@ async def get_system_status() -> Dict[str, Any]:
                     "active_recordings": active_recordings_count,
                     "total_streamers": total_streamers,
                     "live_streamers": live_streamers_count,
-                    "timestamp": datetime.utcnow().isoformat()
+                    "timestamp": datetime.utcnow().isoformat(),
                 },
-                "background_queue": queue_stats
+                "background_queue": queue_stats,
             }
 
     except Exception as e:
@@ -123,11 +128,12 @@ async def get_active_recordings_status() -> Dict[str, Any]:
         with SessionLocal() as db:
             # Get active recordings with full details
             # PERF: Use eager loading to prevent N+1 queries
-            active_recordings = db.query(Recording).filter(
-                Recording.status == "recording"
-            ).options(
-                joinedload(Recording.stream).joinedload(Stream.streamer)
-            ).all()
+            active_recordings = (
+                db.query(Recording)
+                .filter(Recording.status == "recording")
+                .options(joinedload(Recording.stream).joinedload(Stream.streamer))
+                .all()
+            )
 
             recordings_data = []
             for recording in active_recordings:
@@ -139,17 +145,19 @@ async def get_active_recordings_status() -> Dict[str, Any]:
                         if recording.start_time:
                             duration = int((datetime.now(timezone.utc) - recording.start_time).total_seconds())
 
-                        recordings_data.append({
-                            "id": recording.id,
-                            "stream_id": recording.stream_id,
-                            "streamer_id": stream.streamer_id,
-                            "streamer_name": stream.streamer.username,
-                            "title": stream.title or '',
-                            "started_at": recording.start_time.isoformat() if recording.start_time else '',
-                            "file_path": recording.path or '',
-                            "status": recording.status,
-                            "duration": duration
-                        })
+                        recordings_data.append(
+                            {
+                                "id": recording.id,
+                                "stream_id": recording.stream_id,
+                                "streamer_id": stream.streamer_id,
+                                "streamer_name": stream.streamer.username,
+                                "title": stream.title or "",
+                                "started_at": recording.start_time.isoformat() if recording.start_time else "",
+                                "file_path": recording.path or "",
+                                "status": recording.status,
+                                "duration": duration,
+                            }
+                        )
                 except Exception as e:
                     logger.warning(f"Error processing recording {recording.id}: {e}")
                     continue
@@ -157,7 +165,7 @@ async def get_active_recordings_status() -> Dict[str, Any]:
             return {
                 "active_recordings": recordings_data,
                 "count": len(recordings_data),
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.utcnow().isoformat(),
             }
 
     except Exception as e:
@@ -170,10 +178,7 @@ async def get_background_queue_status() -> Dict[str, Any]:
     """Get current background queue status"""
     try:
         if not background_queue_service:
-            return {
-                "error": "Background queue service not available",
-                "timestamp": datetime.utcnow().isoformat()
-            }
+            return {"error": "Background queue service not available", "timestamp": datetime.utcnow().isoformat()}
 
         # Get queue statistics
         stats = background_queue_service.get_queue_statistics()
@@ -183,35 +188,39 @@ async def get_background_queue_status() -> Dict[str, Any]:
         # Convert tasks to serializable format
         active_tasks_data = []
         for task_id, task in active_tasks.items():
-            active_tasks_data.append({
-                "id": task_id,
-                "task_type": task.task_type,
-                "status": task.status.value if hasattr(task.status, 'value') else str(task.status),
-                "progress": task.progress,
-                "created_at": task.created_at.isoformat() if task.created_at else None,
-                "streamer_name": task.payload.get("streamer_name", "Unknown"),
-                "stream_id": task.payload.get("stream_id"),
-                "recording_id": task.payload.get("recording_id")
-            })
+            active_tasks_data.append(
+                {
+                    "id": task_id,
+                    "task_type": task.task_type,
+                    "status": task.status.value if hasattr(task.status, "value") else str(task.status),
+                    "progress": task.progress,
+                    "created_at": task.created_at.isoformat() if task.created_at else None,
+                    "streamer_name": task.payload.get("streamer_name", "Unknown"),
+                    "stream_id": task.payload.get("stream_id"),
+                    "recording_id": task.payload.get("recording_id"),
+                }
+            )
 
         recent_tasks_data = []
         for task_id, task in list(recent_tasks.items())[-10:]:  # Last 10 tasks
-            recent_tasks_data.append({
-                "id": task_id,
-                "task_type": task.task_type,
-                "status": task.status.value if hasattr(task.status, 'value') else str(task.status),
-                "progress": task.progress,
-                "created_at": task.created_at.isoformat() if task.created_at else None,
-                "completed_at": task.completed_at.isoformat() if task.completed_at else None,
-                "streamer_name": task.payload.get("streamer_name", "Unknown"),
-                "error_message": task.error_message
-            })
+            recent_tasks_data.append(
+                {
+                    "id": task_id,
+                    "task_type": task.task_type,
+                    "status": task.status.value if hasattr(task.status, "value") else str(task.status),
+                    "progress": task.progress,
+                    "created_at": task.created_at.isoformat() if task.created_at else None,
+                    "completed_at": task.completed_at.isoformat() if task.completed_at else None,
+                    "streamer_name": task.payload.get("streamer_name", "Unknown"),
+                    "error_message": task.error_message,
+                }
+            )
 
         return {
             "stats": stats,
             "active_tasks": active_tasks_data,
             "recent_tasks": recent_tasks_data,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.utcnow().isoformat(),
         }
 
     except Exception as e:
@@ -239,11 +248,8 @@ async def get_health_status() -> Dict[str, Any]:
 
     return {
         "status": overall_status,
-        "components": {
-            "database": db_status,
-            "background_queue": queue_status
-        },
-        "timestamp": datetime.utcnow().isoformat()
+        "components": {"database": db_status, "background_queue": queue_status},
+        "timestamp": datetime.utcnow().isoformat(),
     }
 
 
@@ -254,16 +260,12 @@ async def get_streamers_status() -> Dict[str, Any]:
         with SessionLocal() as db:
             # Get streamers with their current status
             # PERF: Eager load streams to avoid N+1 when checking latest_stream
-            streamers = db.query(Streamer).options(
-                joinedload(Streamer.streams)
-            ).all()
+            streamers = db.query(Streamer).options(joinedload(Streamer.streams)).all()
 
             # PERF: Fetch all active recordings in one query to avoid N+1
             active_recording_stream_ids = set(
-                recording.stream_id for recording in
-                db.query(Recording.stream_id).filter(
-                    Recording.status == "recording"
-                ).all()
+                recording.stream_id
+                for recording in db.query(Recording.stream_id).filter(Recording.status == "recording").all()
             )
 
             streamer_status = []
@@ -281,7 +283,11 @@ async def get_streamers_status() -> Dict[str, Any]:
                 latest_stream = None
                 if streamer.streams:
                     # Streams are already loaded, just sort in Python
-                    sorted_streams = sorted(streamer.streams, key=lambda s: s.created_at or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
+                    sorted_streams = sorted(
+                        streamer.streams,
+                        key=lambda s: s.created_at or datetime.min.replace(tzinfo=timezone.utc),
+                        reverse=True,
+                    )
                     latest_stream = sorted_streams[0] if sorted_streams else None
 
                 is_live = latest_stream and latest_stream.ended_at is None if latest_stream else False
@@ -293,8 +299,7 @@ async def get_streamers_status() -> Dict[str, Any]:
                 if unified_image_service:
                     try:
                         profile_image_url = unified_image_service.get_profile_image_url(
-                            streamer.id,
-                            streamer.profile_image_url
+                            streamer.id, streamer.profile_image_url
                         )
                     except Exception as e:
                         logger.warning(f"Failed to get profile image URL for streamer {streamer.id}: {e}")
@@ -309,23 +314,25 @@ async def get_streamers_status() -> Dict[str, Any]:
                     last_category = latest_stream.category_name
                     language = latest_stream.language
 
-                streamer_status.append({
-                    "id": streamer.id,
-                    "name": streamer.username,
-                    "display_name": streamer.display_name,
-                    "twitch_id": streamer.twitch_id,
-                    "profile_image_url": profile_image_url,
-                    "is_live": is_live,
-                    "is_recording": is_recording,
-                    "is_favorite": streamer.is_favorite,
-                    "auto_record": streamer.auto_record,
-                    "last_seen": latest_stream.created_at.isoformat() if latest_stream else None,
-                    "current_title": latest_stream.title if latest_stream and is_live else None,
-                    "current_category": latest_stream.category_name if latest_stream and is_live else None,
-                    "last_title": last_title,
-                    "last_category": last_category,
-                    "language": language
-                })
+                streamer_status.append(
+                    {
+                        "id": streamer.id,
+                        "name": streamer.username,
+                        "display_name": streamer.display_name,
+                        "twitch_id": streamer.twitch_id,
+                        "profile_image_url": profile_image_url,
+                        "is_live": is_live,
+                        "is_recording": is_recording,
+                        "is_favorite": streamer.is_favorite,
+                        "auto_record": streamer.auto_record,
+                        "last_seen": latest_stream.created_at.isoformat() if latest_stream else None,
+                        "current_title": latest_stream.title if latest_stream and is_live else None,
+                        "current_category": latest_stream.category_name if latest_stream and is_live else None,
+                        "last_title": last_title,
+                        "last_category": last_category,
+                        "language": language,
+                    }
+                )
 
             return {
                 "streamers": streamer_status,
@@ -333,9 +340,9 @@ async def get_streamers_status() -> Dict[str, Any]:
                     "total": len(streamers),
                     "online": online_count,
                     "recording": recording_count,
-                    "offline": len(streamers) - online_count
+                    "offline": len(streamers) - online_count,
                 },
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.utcnow().isoformat(),
             }
 
     except Exception as e:
@@ -350,15 +357,18 @@ async def get_streams_status() -> Dict[str, Any]:
         with SessionLocal() as db:
             # Get recent streams (last 24 hours)
             from datetime import timedelta, timezone
+
             recent_cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
 
             # PERF: Eager load streamer and recordings to prevent N+1 queries
-            recent_streams = db.query(Stream).filter(
-                Stream.created_at >= recent_cutoff
-            ).options(
-                joinedload(Stream.streamer),
-                joinedload(Stream.recordings)
-            ).order_by(Stream.created_at.desc()).limit(50).all()
+            recent_streams = (
+                db.query(Stream)
+                .filter(Stream.created_at >= recent_cutoff)
+                .options(joinedload(Stream.streamer), joinedload(Stream.recordings))
+                .order_by(Stream.created_at.desc())
+                .limit(50)
+                .all()
+            )
 
             # Get live streams
             live_streams = db.query(Stream).filter(Stream.ended_at.is_(None)).all()
@@ -381,26 +391,28 @@ async def get_streams_status() -> Dict[str, Any]:
 
                     duration = (now_utc - start_time).total_seconds()
 
-                streams_data.append({
-                    "id": stream.id,
-                    "streamer_name": stream.streamer.username if stream.streamer else "Unknown",
-                    "title": stream.title,
-                    "category": stream.category_name,
-                    "is_live": is_live,
-                    "has_recording": recording is not None,
-                    "recording_status": recording.status if recording else None,
-                    "started_at": stream.started_at.isoformat() if stream.started_at else None,
-                    "duration": duration
-                })
+                streams_data.append(
+                    {
+                        "id": stream.id,
+                        "streamer_name": stream.streamer.username if stream.streamer else "Unknown",
+                        "title": stream.title,
+                        "category": stream.category_name,
+                        "is_live": is_live,
+                        "has_recording": recording is not None,
+                        "recording_status": recording.status if recording else None,
+                        "started_at": stream.started_at.isoformat() if stream.started_at else None,
+                        "duration": duration,
+                    }
+                )
 
             return {
                 "streams": streams_data,
                 "summary": {
                     "recent_count": len(recent_streams),
                     "live_count": len(live_streams),
-                    "recorded_count": len([s for s in streams_data if s["has_recording"]])
+                    "recorded_count": len([s for s in streams_data if s["has_recording"]]),
                 },
-                "timestamp": datetime.now(timezone.utc).isoformat()
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
 
     except Exception as e:
@@ -417,9 +429,7 @@ async def get_notifications_status() -> Dict[str, Any]:
             notification_settings = db.query(NotificationSettings).all()
 
             # Get push subscriptions
-            push_subscriptions = db.query(PushSubscription).filter(
-                PushSubscription.is_active.is_(True)
-            ).count()
+            push_subscriptions = db.query(PushSubscription).filter(PushSubscription.is_active.is_(True)).count()
 
             # Get global settings
             global_settings = db.query(GlobalSettings).first()
@@ -428,24 +438,32 @@ async def get_notifications_status() -> Dict[str, Any]:
             recent_events = []
             try:
                 from datetime import timedelta
+
                 recent_cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
 
                 # PERF: Eager load stream and streamer to prevent N+1 queries
-                events = db.query(StreamEvent).filter(
-                    StreamEvent.timestamp >= recent_cutoff
-                ).options(
-                    joinedload(StreamEvent.stream).joinedload(Stream.streamer)
-                ).order_by(StreamEvent.timestamp.desc()).limit(20).all()
+                events = (
+                    db.query(StreamEvent)
+                    .filter(StreamEvent.timestamp >= recent_cutoff)
+                    .options(joinedload(StreamEvent.stream).joinedload(Stream.streamer))
+                    .order_by(StreamEvent.timestamp.desc())
+                    .limit(20)
+                    .all()
+                )
 
                 for event in events:
-                    recent_events.append({
-                        "id": event.id,
-                        "type": event.event_type,
-                        "streamer_name": event.stream.streamer.username if event.stream and event.stream.streamer else "Unknown",
-                        "title": event.title,
-                        "category_name": event.category_name,
-                        "timestamp": event.timestamp.isoformat()
-                    })
+                    recent_events.append(
+                        {
+                            "id": event.id,
+                            "type": event.event_type,
+                            "streamer_name": (
+                                event.stream.streamer.username if event.stream and event.stream.streamer else "Unknown"
+                            ),
+                            "title": event.title,
+                            "category_name": event.category_name,
+                            "timestamp": event.timestamp.isoformat(),
+                        }
+                    )
             except Exception as e:
                 logger.warning(f"Could not get recent events: {e}")
 
@@ -454,10 +472,10 @@ async def get_notifications_status() -> Dict[str, Any]:
                     "enabled": global_settings.notifications_enabled if global_settings else False,
                     "url_configured": bool(global_settings.notification_url) if global_settings else False,
                     "active_subscriptions": push_subscriptions,
-                    "streamers_with_notifications": len(notification_settings)
+                    "streamers_with_notifications": len(notification_settings),
                 },
                 "recent_events": recent_events,
-                "timestamp": datetime.now(timezone.utc).isoformat()
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
 
     except Exception as e:

@@ -25,12 +25,16 @@ class NotificationDispatcher:
     async def send_stream_notification(self, streamer_name: str, event_type: str, details: dict):
         """Main entry point for sending all types of stream notifications"""
         try:
-            logger.info(f"🔔 SEND_STREAM_NOTIFICATION: streamer={streamer_name}, event={event_type}, details_keys={list(details.keys())}")
+            logger.info(
+                f"🔔 SEND_STREAM_NOTIFICATION: streamer={streamer_name}, event={event_type}, details_keys={list(details.keys())}"
+            )
 
             # Check if we should send notifications for this event type and streamer
-            if 'streamer_id' in details:
-                should_send = await self.push_service.should_notify(details['streamer_id'], event_type)
-                logger.debug(f"Notification check for streamer {details['streamer_id']} and event {event_type}: should_send={should_send}")
+            if "streamer_id" in details:
+                should_send = await self.push_service.should_notify(details["streamer_id"], event_type)
+                logger.debug(
+                    f"Notification check for streamer {details['streamer_id']} and event {event_type}: should_send={should_send}"
+                )
                 if not should_send:
                     logger.debug(f"Notifications disabled for streamer {details['streamer_id']} and event {event_type}")
                     return
@@ -72,8 +76,8 @@ class NotificationDispatcher:
                     "profile_image_url": details.get("profile_image_url"),
                     "streamer_id": details.get("streamer_id"),
                     "twitch_id": details.get("twitch_id"),
-                    "is_live": details.get("is_live")
-                }
+                    "is_live": details.get("is_live"),
+                },
             }
             logger.debug(f"Sending WebSocket notification: {websocket_notification}")
             await self.websocket_manager.send_notification(websocket_notification)

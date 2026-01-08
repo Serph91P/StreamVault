@@ -119,7 +119,9 @@ class MetadataService:
                     root = parent
 
             if not root:
-                logger.debug("No recordings root with .media found for %s; skipping local artwork copies", safe_username)
+                logger.debug(
+                    "No recordings root with .media found for %s; skipping local artwork copies", safe_username
+                )
                 return
 
             central_artwork_dir = root / ".media" / "artwork" / safe_username
@@ -181,12 +183,7 @@ class MetadataService:
         """Public wrapper for safe path containment check."""
         return self._is_within(child, parent)
 
-    async def generate_metadata_for_stream(
-        self,
-        stream_id: int,
-        base_path: str,
-        base_filename: str
-    ) -> bool:
+    async def generate_metadata_for_stream(self, stream_id: int, base_path: str, base_filename: str) -> bool:
         """Generate all metadata files for a stream
 
         NOTE: This method is invoked during post-processing and queries by stream_id
@@ -205,10 +202,7 @@ class MetadataService:
                 # No filter on ended_at since we need to generate metadata for completed/ended streams during post-processing
                 stream = (
                     db.query(Stream)
-                    .options(
-                        joinedload(Stream.streamer),
-                        joinedload(Stream.stream_metadata)
-                    )
+                    .options(joinedload(Stream.streamer), joinedload(Stream.stream_metadata))
                     .filter(Stream.id == stream_id)
                     .first()
                 )
@@ -247,7 +241,7 @@ class MetadataService:
                 try:
                     recordings_root = self._find_recordings_root(base_path_obj)
                     expected_streamer_dir = None
-                    if recordings_root and streamer and getattr(streamer, 'username', None):
+                    if recordings_root and streamer and getattr(streamer, "username", None):
                         expected_streamer_dir = recordings_root / sanitize_filename(streamer.username)
                         if expected_streamer_dir.exists():
                             # If current base_path is not under expected streamer dir, try to correct
@@ -272,14 +266,16 @@ class MetadataService:
                                         f"Base path {base_path_obj} not under streamer dir {expected_streamer_dir}; attempting to rebase"
                                     )
                                     # Prefer recording_path if available
-                                    if getattr(stream, 'recording_path', None):
+                                    if getattr(stream, "recording_path", None):
                                         rp = Path(stream.recording_path)
                                         if rp.exists() and self._is_within(rp, expected_streamer_dir):
                                             base_path_obj = rp.parent
                                             base_filename = rp.stem
                                     else:
                                         # Fallback to computed Season folder
-                                        season_dir = expected_streamer_dir / f"Season {stream.started_at.strftime('%Y-%m')}"
+                                        season_dir = (
+                                            expected_streamer_dir / f"Season {stream.started_at.strftime('%Y-%m')}"
+                                        )
                                         season_dir.mkdir(parents=True, exist_ok=True)
                                         base_path_obj = season_dir
                                         # keep base_filename as-is
@@ -316,7 +312,9 @@ class MetadataService:
 
                 # 3) Chapters
                 try:
-                    ok = await self.ensure_all_chapter_formats(stream_id, str(base_path_obj / f"{base_filename}.mp4"), db)
+                    ok = await self.ensure_all_chapter_formats(
+                        stream_id, str(base_path_obj / f"{base_filename}.mp4"), db
+                    )
                     if not ok:
                         success = False
                 except Exception as e:
@@ -359,7 +357,7 @@ class MetadataService:
         streamer: Streamer,
         base_path: Path,
         base_filename: str,
-        metadata: StreamMetadata
+        metadata: StreamMetadata,
     ) -> bool:
         """Erzeugt JSON-Metadatendatei.
 
@@ -379,27 +377,35 @@ class MetadataService:
                 "streamer": {
                     "id": stream.streamer_id,
                     "username": streamer.username,
-                    "profile_image": streamer.profile_image_url
+                    "profile_image": streamer.profile_image_url,
                 },
                 "title": stream.title,
                 "category": stream.category_name,
                 "started_at": stream.started_at.isoformat() if stream.started_at else None,
                 "ended_at": stream.ended_at.isoformat() if stream.ended_at else None,
-                "duration": (stream.ended_at - stream.started_at).total_seconds() if stream.ended_at and stream.started_at else None,
+                "duration": (
+                    (stream.ended_at - stream.started_at).total_seconds()
+                    if stream.ended_at and stream.started_at
+                    else None
+                ),
                 "events": [
                     {
                         "type": event.event_type,
                         "title": event.title,
                         "category": event.category_name,
                         "timestamp": event.timestamp.isoformat() if event.timestamp else None,
-                        "relative_time": (event.timestamp - stream.started_at).total_seconds() if event.timestamp and stream.started_at else None
+                        "relative_time": (
+                            (event.timestamp - stream.started_at).total_seconds()
+                            if event.timestamp and stream.started_at
+                            else None
+                        ),
                     }
                     for event in events
-                ]
+                ],
             }
 
             # JSON speichern
-            with open(json_path, 'w', encoding='utf-8') as f:
+            with open(json_path, "w", encoding="utf-8") as f:
                 json.dump(meta_dict, f, indent=2)
 
             metadata.json_path = str(json_path)
@@ -416,7 +422,7 @@ class MetadataService:
         streamer: Streamer,
         base_path: Path,
         base_filename: str,
-        metadata: StreamMetadata
+        metadata: StreamMetadata,
     ) -> bool:
         """Creates NFO file for Kodi/Plex/Emby with relative image paths."""
         try:
@@ -462,9 +468,7 @@ class MetadataService:
                     expected_streamer_dir = recordings_root / sanitize_filename(streamer.username)
                     if expected_streamer_dir.exists():
                         if not self._is_within(streamer_dir, expected_streamer_dir):
-                            logger.warning(
-                                f"Streamer dir mismatch for NFOs: {streamer_dir} -> {expected_streamer_dir}"
-                            )
+                            logger.warning(f"Streamer dir mismatch for NFOs: {streamer_dir} -> {expected_streamer_dir}")
                             streamer_dir = expected_streamer_dir
                             if season_dir is not None:
                                 # Recompute season_dir under corrected streamer_dir
@@ -499,7 +503,9 @@ class MetadataService:
                 await artwork_service.save_streamer_artwork(streamer)
                 # Ensure local copies (some servers block ../ traversals or outside-library references)
                 try:
-                    self._ensure_local_artwork(streamer_dir=streamer_dir, season_dir=season_dir, safe_username=safe_username)
+                    self._ensure_local_artwork(
+                        streamer_dir=streamer_dir, season_dir=season_dir, safe_username=safe_username
+                    )
                 except Exception as e_copy:
                     logger.debug(f"Local artwork copy step failed (non-fatal): {e_copy}")
 
@@ -554,7 +560,9 @@ class MetadataService:
                             if central_art.exists():
                                 shutil.copy2(central_art, local_season_poster)
                         except Exception as ce_season:
-                            logger.exception("Failed to copy central season poster to local season directory: %s", ce_season)
+                            logger.exception(
+                                "Failed to copy central season poster to local season directory: %s", ce_season
+                            )
                     ET.SubElement(season_root, "thumb").text = "poster.jpg"
 
                 # Write XML
@@ -631,7 +639,11 @@ class MetadataService:
             plot += "."
 
             ET.SubElement(episode_root, "plot").text = plot
-            ET.SubElement(episode_root, "runtime").text = str(int((stream.ended_at - stream.started_at).total_seconds() / 60)) if stream.ended_at and stream.started_at else ""
+            ET.SubElement(episode_root, "runtime").text = (
+                str(int((stream.ended_at - stream.started_at).total_seconds() / 60))
+                if stream.ended_at and stream.started_at
+                else ""
+            )
 
             # Genre/Category
             if stream.category_name:
@@ -664,7 +676,7 @@ class MetadataService:
                 base_filename=base_filename,
                 thumbnail_url=thumbnail_url,
                 local_thumbnail=local_thumbnail,
-                db=db
+                db=db,
             )
 
             # Different thumb formats for different media servers
@@ -714,7 +726,7 @@ class MetadataService:
         base_filename: str,
         thumbnail_url: Optional[str] = None,
         local_thumbnail: Optional[str] = None,
-        db: Optional[Session] = None
+        db: Optional[Session] = None,
     ) -> Optional[str]:
         """Processes thumbnail for an episode and saves it in different formats
 
@@ -765,7 +777,7 @@ class MetadataService:
                     return str(thumb_path)
 
             # If no thumbnail available, extract from video
-            video_files = [f for f in os.listdir(base_path) if f.endswith('.mp4')]
+            video_files = [f for f in os.listdir(base_path) if f.endswith(".mp4")]
             if video_files:
                 video_path = os.path.join(base_path, video_files[0])
                 extracted_thumb = await self.extract_thumbnail(video_path, stream_id, db)
@@ -791,7 +803,7 @@ class MetadataService:
         """
         try:
             # Check if URL is actually a local path
-            if not url.startswith(('http://', 'https://')):
+            if not url.startswith(("http://", "https://")):
                 local_path = Path(url)
                 if local_path.exists():
                     os.makedirs(os.path.dirname(target_path), exist_ok=True)
@@ -803,16 +815,17 @@ class MetadataService:
 
             # Download from URL using unified_image_service
             from app.services.unified_image_service import unified_image_service
+
             session = await unified_image_service._get_session()
             async with session.get(url) as response:
                 if response.status == 200:
-                    content_type = response.headers.get('content-type', '')
-                    if 'image' in content_type:
+                    content_type = response.headers.get("content-type", "")
+                    if "image" in content_type:
                         # Make sure the directory exists
                         os.makedirs(os.path.dirname(target_path), exist_ok=True)
 
                         # Save the image
-                        with open(target_path, 'wb') as f:
+                        with open(target_path, "wb") as f:
                             f.write(await response.read())
                         return True
                     else:
@@ -1012,11 +1025,15 @@ class MetadataService:
                     plex_name += f" - {actual_title}"
 
                 # Clean the filename
-                plex_name = plex_name.replace('/', '-').replace('\\', '-').replace(':', '-')
+                plex_name = plex_name.replace("/", "-").replace("\\", "-").replace(":", "-")
 
                 # Determine the streamer folder name from target_dir
                 try:
-                    target_streamer_dir = target_dir.parent if re.search(r"(season\s*\d+|s\d+)", target_dir.name, re.IGNORECASE) else target_dir
+                    target_streamer_dir = (
+                        target_dir.parent
+                        if re.search(r"(season\s*\d+|s\d+)", target_dir.name, re.IGNORECASE)
+                        else target_dir
+                    )
                     target_streamer_name = target_streamer_dir.name
                     if sanitize_filename(streamer_name) != sanitize_filename(target_streamer_name):
                         logger.warning(
@@ -1031,7 +1048,9 @@ class MetadataService:
                     recordings_root = self._find_recordings_root(target_dir)
                     if recordings_root and streamer_name:
                         expected_streamer_dir = recordings_root / sanitize_filename(streamer_name)
-                        if expected_streamer_dir.exists() and not self._is_within(target_streamer_dir, expected_streamer_dir):
+                        if expected_streamer_dir.exists() and not self._is_within(
+                            target_streamer_dir, expected_streamer_dir
+                        ):
                             logger.warning(
                                 f"Target dir {target_streamer_dir} is not within expected streamer dir {expected_streamer_dir}; skipping Plex link creation"
                             )
@@ -1069,9 +1088,11 @@ class MetadataService:
 
                         # Skip if source and destination are the same file
                         if video_src.resolve() == video_dest.resolve():
-                            logger.debug(f"Skipping video symlink creation - source and destination are identical: {video_src}")
+                            logger.debug(
+                                f"Skipping video symlink creation - source and destination are identical: {video_src}"
+                            )
                         elif not video_dest.exists():
-                            if os.name == 'nt':  # Windows
+                            if os.name == "nt":  # Windows
                                 try:
                                     os.link(video_src, video_dest)
                                 except (OSError, PermissionError) as e:
@@ -1106,9 +1127,11 @@ class MetadataService:
 
                         # Skip if source and destination are the same file
                         if nfo_src.resolve() == nfo_dest.resolve():
-                            logger.debug(f"Skipping NFO symlink creation - source and destination are identical: {nfo_src}")
+                            logger.debug(
+                                f"Skipping NFO symlink creation - source and destination are identical: {nfo_src}"
+                            )
                         elif not nfo_dest.exists():
-                            if os.name == 'nt':  # Windows
+                            if os.name == "nt":  # Windows
                                 try:
                                     os.link(nfo_src, nfo_dest)
                                 except (OSError, PermissionError) as e:
@@ -1143,10 +1166,7 @@ class MetadataService:
             return False
 
     async def extract_thumbnail(
-        self,
-        video_path: str,
-        stream_id: Optional[int] = None,
-        db: Optional[Session] = None
+        self, video_path: str, stream_id: Optional[int] = None, db: Optional[Session] = None
     ) -> Optional[str]:
         """Extrahiert das erste Frame des Videos als Thumbnail.
         Uses FFmpeg for all video formats.
@@ -1166,7 +1186,7 @@ class MetadataService:
                 logger.info(f"Using existing thumbnail at {thumbnail_path}")
                 if stream_id and db:
                     metadata = db.query(StreamMetadata).filter(StreamMetadata.stream_id == stream_id).first()
-                    if metadata and not getattr(metadata, 'thumbnail_path', None):
+                    if metadata and not getattr(metadata, "thumbnail_path", None):
                         metadata.thumbnail_path = str(thumbnail_path)
                         db.commit()
                 return str(thumbnail_path)
@@ -1174,36 +1194,47 @@ class MetadataService:
             # Check if the file has a video stream first (skip audio-only)
             check_cmd = [
                 "ffprobe",
-                "-v", "error",
-                "-select_streams", "v:0",
-                "-show_entries", "stream=codec_type",
-                "-of", "default=noprint_wrappers=1:nokey=1",
-                str(video_path_obj)
+                "-v",
+                "error",
+                "-select_streams",
+                "v:0",
+                "-show_entries",
+                "stream=codec_type",
+                "-of",
+                "default=noprint_wrappers=1:nokey=1",
+                str(video_path_obj),
             ]
             check_process = await asyncio.create_subprocess_exec(
-                *check_cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
+                *check_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
             )
             check_stdout, _ = await check_process.communicate()
-            if check_process.returncode != 0 or not check_stdout or "video" not in check_stdout.decode("utf-8", errors="ignore").lower():
+            if (
+                check_process.returncode != 0
+                or not check_stdout
+                or "video" not in check_stdout.decode("utf-8", errors="ignore").lower()
+            ):
                 logger.info(f"Audio-only file detected, skipping thumbnail extraction: {video_path}")
                 return None
 
             # FFmpeg command to grab a frame at 10s for better quality
             cmd = [
                 "ffmpeg",
-                "-ss", "00:00:10",
-                "-i", str(video_path_obj),
-                "-vframes", "1",
-                "-q:v", "2",
-                "-f", "image2",
+                "-ss",
+                "00:00:10",
+                "-i",
+                str(video_path_obj),
+                "-vframes",
+                "1",
+                "-q:v",
+                "2",
+                "-f",
+                "image2",
                 "-y",
-                str(thumbnail_path)
+                str(thumbnail_path),
             ]
 
             # Create a unique log file for this thumbnail extraction
-            streamer_name = video_path_obj.stem.split('-')[0] if '-' in video_path_obj.stem else 'unknown'
+            streamer_name = video_path_obj.stem.split("-")[0] if "-" in video_path_obj.stem else "unknown"
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             ffmpeg_log_path = logging_service.get_ffmpeg_log_path(f"thumbnail_{timestamp}", streamer_name)
             os.makedirs(os.path.dirname(ffmpeg_log_path), exist_ok=True)
@@ -1216,14 +1247,12 @@ class MetadataService:
             cmd.extend(["-loglevel", "quiet"])
 
             import tempfile
+
             stdout_file = tempfile.NamedTemporaryFile(delete=False, prefix="ffmpeg_thumb_stdout_", suffix=".log")
             stderr_file = tempfile.NamedTemporaryFile(delete=False, prefix="ffmpeg_thumb_stderr_", suffix=".log")
             try:
                 process = await asyncio.create_subprocess_exec(
-                    *cmd,
-                    stdout=stdout_file.fileno(),
-                    stderr=stderr_file.fileno(),
-                    env=env
+                    *cmd, stdout=stdout_file.fileno(), stderr=stderr_file.fileno(), env=env
                 )
                 stdout_file.close()
                 stderr_file.close()
@@ -1231,11 +1260,11 @@ class MetadataService:
 
                 # Append temp outputs to the ffmpeg log
                 try:
-                    with open(stdout_file.name, 'r', errors='ignore') as f:
+                    with open(stdout_file.name, "r", errors="ignore") as f:
                         stdout_str = f.read()
-                    with open(stderr_file.name, 'r', errors='ignore') as f:
+                    with open(stderr_file.name, "r", errors="ignore") as f:
                         stderr_str = f.read()
-                    with open(ffmpeg_log_path, 'a', errors='ignore') as f:
+                    with open(ffmpeg_log_path, "a", errors="ignore") as f:
                         f.write("\n\n--- STDOUT ---\n")
                         f.write(stdout_str)
                         f.write("\n\n--- STDERR ---\n")
@@ -1275,12 +1304,7 @@ class MetadataService:
         """
         return f"https://static-cdn.jtvnw.net/previews-ttv/live_user_{username}-{width}x{height}.jpg"
 
-    async def download_twitch_thumbnail(
-        self,
-        streamer_username: str,
-        stream_id: int,
-        output_dir: str
-    ) -> Optional[str]:
+    async def download_twitch_thumbnail(self, streamer_username: str, stream_id: int, output_dir: str) -> Optional[str]:
         """Lädt das Twitch-Stream-Thumbnail herunter.
 
         Returns:
@@ -1298,7 +1322,7 @@ class MetadataService:
             session = await self._get_session()
             async with session.get(url) as response:
                 if response.status == 200:
-                    with open(thumbnail_path, 'wb') as f:
+                    with open(thumbnail_path, "wb") as f:
                         f.write(await response.read())
 
                     # Metadata aktualisieren
@@ -1322,10 +1346,7 @@ class MetadataService:
         return None
 
     async def ensure_all_chapter_formats(
-        self,
-        stream_id: int,
-        mp4_path: str,
-        db: Optional[Session] = None
+        self, stream_id: int, mp4_path: str, db: Optional[Session] = None
     ) -> Optional[Dict[str, str]]:
         """Stellt sicher, dass Kapitel in allen gängigen Formaten erstellt werden.
 
@@ -1347,13 +1368,18 @@ class MetadataService:
             try:
                 stream = db.query(Stream).filter(Stream.id == stream_id).first()
                 if not stream:
-                    logger.warning(f"Stream with ID {stream_id} not found for chapter generation (likely deleted during post-processing)")
+                    logger.warning(
+                        f"Stream with ID {stream_id} not found for chapter generation (likely deleted during post-processing)"
+                    )
                     return None
 
                 # Stream-Events abrufen (Kategorie-Wechsel usw.)
-                events = db.query(StreamEvent).filter(
-                    StreamEvent.stream_id == stream_id
-                ).order_by(StreamEvent.timestamp).all()
+                events = (
+                    db.query(StreamEvent)
+                    .filter(StreamEvent.stream_id == stream_id)
+                    .order_by(StreamEvent.timestamp)
+                    .all()
+                )
 
                 if not events or len(events) < 1:
                     logger.info(f"No events found for stream {stream_id}, creating minimal chapter file")
@@ -1366,7 +1392,7 @@ class MetadataService:
                             timestamp=stream.started_at,
                             title=stream.title or "Stream",
                             category_name=stream.category_name or "Stream",
-                            event_type='category_change'
+                            event_type="category_change",
                         )
                         events = [dummy_event]
                     else:
@@ -1384,7 +1410,7 @@ class MetadataService:
                 await self._generate_vtt_chapters(stream, events, vtt_path)
 
                 # 2. Exakte Dateinamen-Kopie für Plex
-                exact_vtt_path = mp4_path_obj.with_suffix('.vtt')
+                exact_vtt_path = mp4_path_obj.with_suffix(".vtt")
                 if exact_vtt_path != vtt_path:
                     shutil.copy2(vtt_path, exact_vtt_path)
 
@@ -1420,7 +1446,7 @@ class MetadataService:
                     "vtt": str(vtt_path),
                     "srt": str(srt_path),
                     "ffmpeg": str(ffmpeg_chapters_path),
-                    "xml": str(xml_chapters_path)
+                    "xml": str(xml_chapters_path),
                 }
             finally:
                 if close_db:
@@ -1442,7 +1468,7 @@ class MetadataService:
             # Calculate stream duration and handle pre-stream events
             stream_duration, events = self._prepare_events_and_duration(stream, events)
 
-            with open(output_path, 'w', encoding='utf-8') as f:
+            with open(output_path, "w", encoding="utf-8") as f:
                 f.write("WEBVTT - Generated by StreamVault\n\n")
 
                 # Always create at least one meaningful chapter
@@ -1460,9 +1486,7 @@ class MetadataService:
             return False
 
     def _prepare_events_and_duration(
-        self,
-        stream: Stream,
-        events: List[StreamEvent]
+        self, stream: Stream, events: List[StreamEvent]
     ) -> Tuple[float, List[StreamEvent]]:
         """Bereitet Events vor und berechnet die Stream-Dauer.
 
@@ -1508,7 +1532,7 @@ class MetadataService:
                 event_type="stream.online",
                 title=stream.title or "Stream",
                 category_name=stream.category_name,
-                timestamp=stream.started_at
+                timestamp=stream.started_at,
             )
             return duration, [default_event]
 
@@ -1565,11 +1589,7 @@ class MetadataService:
             logger.debug(f"Created chapter from {start_offset} to {end_offset} seconds: {title}")
 
     def _calculate_chapter_timestamps(
-        self,
-        index: int,
-        event: StreamEvent,
-        events: List[StreamEvent],
-        stream: Stream
+        self, index: int, event: StreamEvent, events: List[StreamEvent], stream: Stream
     ) -> Tuple[float, float]:
         """Berechnet Start- und Endzeit eines Kapitels.
 
@@ -1624,7 +1644,7 @@ class MetadataService:
             # Sort events by timestamp
             events = sorted(events, key=lambda x: x.timestamp)
 
-            with open(output_path, 'w', encoding='utf-8') as f:
+            with open(output_path, "w", encoding="utf-8") as f:
                 for i, event in enumerate(events):
                     # Berechne Start- und Endzeit
                     start_offset, end_offset = self._calculate_srt_timestamps(i, event, events, stream)
@@ -1650,11 +1670,7 @@ class MetadataService:
             return False
 
     def _calculate_srt_timestamps(
-        self,
-        index: int,
-        event: StreamEvent,
-        events: List[StreamEvent],
-        stream: Stream
+        self, index: int, event: StreamEvent, events: List[StreamEvent], stream: Stream
     ) -> Tuple[float, float]:
         """Berechnet Start- und Endzeit eines SRT-Kapitels.
 
@@ -1697,7 +1713,7 @@ class MetadataService:
             bool: True bei Erfolg, False bei Fehler
         """
         try:
-            with open(output_path, 'w', encoding='utf-8') as f:
+            with open(output_path, "w", encoding="utf-8") as f:
                 f.write(";FFMETADATA1\n")
 
                 # Stream-Metadaten
@@ -1706,7 +1722,7 @@ class MetadataService:
 
                 # Streamer-Informationen via relationship (should be preloaded by caller with joinedload)
                 streamer_username = None
-                if hasattr(stream, 'streamer') and stream.streamer:
+                if hasattr(stream, "streamer") and stream.streamer:
                     # Use preloaded relationship if available
                     streamer_username = stream.streamer.username
                 else:
@@ -1727,11 +1743,11 @@ class MetadataService:
 
                 # If we have no events, create a default one covering the whole stream
                 if not filtered_events and stream.category_name:
-                    dummy_event = type('Event', (), {
-                        'timestamp': stream.started_at,
-                        'title': stream.title,
-                        'category_name': stream.category_name
-                    })
+                    dummy_event = type(
+                        "Event",
+                        (),
+                        {"timestamp": stream.started_at, "title": stream.title, "category_name": stream.category_name},
+                    )
                     filtered_events.append(dummy_event)
 
                 # Log how many chapters we're creating
@@ -1762,7 +1778,7 @@ class MetadataService:
                     event = filtered_events[0]
                     if event.category_name:
                         title = f"{event.category_name}"
-                    elif hasattr(event, 'title') and event.title:
+                    elif hasattr(event, "title") and event.title:
                         title = f"{event.title}"
                     else:
                         title = "Stream"
@@ -1775,12 +1791,14 @@ class MetadataService:
                     # Multiple chapters - standard handling
                     for i, event in enumerate(filtered_events):
                         # Berechne Start- und Endzeit
-                        start_offset_ms, end_offset_ms = self._calculate_ffmpeg_timestamps(i, event, filtered_events, stream)
+                        start_offset_ms, end_offset_ms = self._calculate_ffmpeg_timestamps(
+                            i, event, filtered_events, stream
+                        )
 
                         # Kapitel-Titel erstellen
                         if event.category_name:
                             title = f"{event.category_name}"
-                        elif hasattr(event, 'title') and event.title:
+                        elif hasattr(event, "title") and event.title:
                             title = f"{event.title}"
                         else:
                             title = "Stream"
@@ -1795,7 +1813,9 @@ class MetadataService:
                         f.write(f"END={end_offset_ms}\n")
                         f.write(f"title={title}\n")
 
-                        logger.debug(f"Created chapter {i + 1}/{len(filtered_events)}: {title}, {start_offset_ms}ms to {end_offset_ms}ms")
+                        logger.debug(
+                            f"Created chapter {i + 1}/{len(filtered_events)}: {title}, {start_offset_ms}ms to {end_offset_ms}ms"
+                        )
 
                 logger.info(f"ffmpeg chapters file created at {output_path}")
                 return True
@@ -1805,11 +1825,7 @@ class MetadataService:
             return False
 
     def _calculate_ffmpeg_timestamps(
-        self,
-        index: int,
-        event: Any,
-        events: List[Any],
-        stream: Stream
+        self, index: int, event: Any, events: List[Any], stream: Stream
     ) -> Tuple[int, int]:
         """Berechnet Start- und Endzeit eines FFmpeg-Kapitels in Millisekunden.
 
@@ -1899,10 +1915,7 @@ class MetadataService:
         return f"{hours:02d}:{minutes:02d}:{secs:02d},{ms:03d}"
 
     async def import_manual_chapters(
-        self,
-        stream_id: int,
-        chapters_txt_path: str,
-        mp4_path: str
+        self, stream_id: int, chapters_txt_path: str, mp4_path: str
     ) -> Optional[Dict[str, str]]:
         """Importiert manuell erstellte Kapitel aus einer Textdatei und erstellt alle Formate.
 
@@ -1917,10 +1930,11 @@ class MetadataService:
 
             # Kapitel aus der Textdatei lesen
             chapters = []
-            with open(chapters_path, 'r', encoding='utf-8') as f:
+            with open(chapters_path, "r", encoding="utf-8") as f:
                 for line in f:
                     # Format: 0:23:20 Start
                     import re as re_module
+
                     match = re_module.match(r"(\d+):(\d{2}):(\d{2}) (.*)", line.strip())
                     if match:
                         hrs = int(match.group(1))
@@ -1932,10 +1946,7 @@ class MetadataService:
                         total_seconds = (hrs * 3600) + (mins * 60) + secs
                         timestamp_ms = total_seconds * 1000
 
-                        chapters.append({
-                            "title": title,
-                            "startTime": timestamp_ms
-                        })
+                        chapters.append({"title": title, "startTime": timestamp_ms})
 
             # Keine Kapitel gefunden
             if not chapters:
@@ -1963,10 +1974,7 @@ class MetadataService:
 
                     # Event erstellen
                     event = StreamEvent(
-                        stream_id=stream_id,
-                        event_type="manual.chapter",
-                        title=chapter["title"],
-                        timestamp=timestamp
+                        stream_id=stream_id, event_type="manual.chapter", title=chapter["title"], timestamp=timestamp
                     )
                     db.add(event)
 
@@ -1997,7 +2005,9 @@ class MetadataService:
             mp4_size = mp4_path_obj.stat().st_size
             if mp4_size < 10000:
                 logger.error(f"MP4 file is too small ({mp4_size} bytes), likely corrupted: {mp4_path}")
-                logging_service.ffmpeg_logger.error(f"[METADATA_EMBED_FAILED] MP4 file too small: {mp4_path}, {mp4_size} bytes")
+                logging_service.ffmpeg_logger.error(
+                    f"[METADATA_EMBED_FAILED] MP4 file too small: {mp4_path}, {mp4_size} bytes"
+                )
                 return False
 
             logger.info(f"Source MP4 validation passed: {mp4_path}, size: {mp4_size} bytes")
@@ -2006,10 +2016,7 @@ class MetadataService:
             with SessionLocal() as db:
                 stream = (
                     db.query(Stream)
-                    .options(
-                        joinedload(Stream.streamer),
-                        joinedload(Stream.stream_metadata)
-                    )
+                    .options(joinedload(Stream.streamer), joinedload(Stream.stream_metadata))
                     .filter(Stream.id == stream_id)
                     .first()
                 )
@@ -2040,11 +2047,15 @@ class MetadataService:
                         # Replace original file with the metadata-embedded version
                         shutil.move(temp_output, mp4_path)
                         logger.info(f"Successfully embedded metadata using FFmpeg for stream {stream_id}")
-                        logging_service.ffmpeg_logger.info(f"[METADATA_EMBED_SUCCESS] FFmpeg metadata embedding successful: {mp4_path}")
+                        logging_service.ffmpeg_logger.info(
+                            f"[METADATA_EMBED_SUCCESS] FFmpeg metadata embedding successful: {mp4_path}"
+                        )
                         return True
                     else:
                         logger.error(f"FFmpeg metadata embedding failed for stream {stream_id}")
-                        logging_service.ffmpeg_logger.error(f"[METADATA_EMBED_FAILED] FFmpeg metadata embedding failed: {mp4_path}")
+                        logging_service.ffmpeg_logger.error(
+                            f"[METADATA_EMBED_FAILED] FFmpeg metadata embedding failed: {mp4_path}"
+                        )
                         return False
 
                 except Exception as e:
@@ -2058,7 +2069,9 @@ class MetadataService:
             logger.error(f"Error embedding all metadata: {e}", exc_info=True)
             return False
 
-    async def _create_media_server_chapters(self, stream_id: int, mp4_path: str, use_category_as_chapter_title: bool = False) -> None:
+    async def _create_media_server_chapters(
+        self, stream_id: int, mp4_path: str, use_category_as_chapter_title: bool = False
+    ) -> None:
         """Create additional chapter files for better media server compatibility
 
         Args:
@@ -2068,7 +2081,7 @@ class MetadataService:
         """
         try:
             mp4_path_obj = Path(mp4_path)
-            base_path = mp4_path_obj.with_suffix('')
+            base_path = mp4_path_obj.with_suffix("")
 
             with SessionLocal() as db:
                 stream = db.query(Stream).filter(Stream.id == stream_id).first()
@@ -2076,7 +2089,12 @@ class MetadataService:
                     logger.warning(f"Stream {stream_id} not found for media server chapter creation")
                     return
 
-                events = db.query(StreamEvent).filter(StreamEvent.stream_id == stream_id).order_by(StreamEvent.timestamp).all()
+                events = (
+                    db.query(StreamEvent)
+                    .filter(StreamEvent.stream_id == stream_id)
+                    .order_by(StreamEvent.timestamp)
+                    .all()
+                )
                 if not events:
                     logger.warning(f"No events found for stream {stream_id}, cannot create media server chapters")
                     return
@@ -2096,11 +2114,7 @@ class MetadataService:
             logger.error(f"Error creating media server chapters: {e}")
 
     async def _create_plex_chapters_file(
-        self,
-        stream: Stream,
-        events: List[StreamEvent],
-        output_path: str,
-        use_category_as_chapter_title: bool = False
+        self, stream: Stream, events: List[StreamEvent], output_path: str, use_category_as_chapter_title: bool = False
     ) -> bool:
         """Create a chapter file in Plex-compatible format
 
@@ -2114,7 +2128,7 @@ class MetadataService:
             bool: True on success, False on failure
         """
         try:
-            with open(output_path, 'w', encoding='utf-8') as f:
+            with open(output_path, "w", encoding="utf-8") as f:
                 # Format: CHAPTER01=00:00:00.000
                 #         CHAPTER01NAME=Chapter Title
 
@@ -2141,7 +2155,7 @@ class MetadataService:
                         event_type="stream.online",
                         title=stream.title,
                         category_name=stream.category_name,
-                        timestamp=stream.started_at
+                        timestamp=stream.started_at,
                     )
                     chapter_events = [dummy_event]
 
@@ -2192,7 +2206,7 @@ class MetadataService:
         if not text:
             return "Untitled"
         # Escape =, ;, # and \ characters as they have special meaning in FFmpeg metadata
-        return text.replace('=', '\\=').replace(';', '\\;').replace('#', '\\#').replace('\\', '\\\\')
+        return text.replace("=", "\\=").replace(";", "\\;").replace("#", "\\#").replace("\\", "\\\\")
 
     def _format_xml_time(self, seconds: float) -> str:
         """Formatiert Sekunden in das XML-Format für FFmpeg/Matroska: HH:MM:SS.nnnnnnnnn.
@@ -2212,7 +2226,7 @@ class MetadataService:
         streamer: Streamer,
         input_path: str,
         output_path: str,
-        metadata: StreamMetadata
+        metadata: StreamMetadata,
     ) -> bool:
         """
         Embed metadata into MP4 file using FFmpeg.
@@ -2242,35 +2256,47 @@ class MetadataService:
                 "description": stream.title or "Twitch stream recording",
                 "streamer": streamer.username,
                 "game": stream.category_name,
-                "stream_date": stream.started_at.strftime("%Y-%m-%d") if stream.started_at else datetime.now().strftime("%Y-%m-%d")
+                "stream_date": (
+                    stream.started_at.strftime("%Y-%m-%d") if stream.started_at else datetime.now().strftime("%Y-%m-%d")
+                ),
             }
 
             # Build FFmpeg command for metadata embedding
             cmd = [
                 "ffmpeg",
-                "-i", input_path,
-                "-c", "copy",
-                "-metadata", f"title={metadata_dict['title']}",
-                "-metadata", f"artist={metadata_dict['artist']}",
-                "-metadata", f"album={metadata_dict['album']}",
-                "-metadata", f"year={metadata_dict['year']}",
-                "-metadata", f"genre={metadata_dict['genre']}",
-                "-metadata", f"comment={metadata_dict['comment']}",
-                "-metadata", f"description={metadata_dict['description']}",
-                "-metadata", f"streamer={metadata_dict['streamer']}",
-                "-metadata", f"game={metadata_dict['game']}",
-                "-metadata", f"stream_date={metadata_dict['stream_date']}",
+                "-i",
+                input_path,
+                "-c",
+                "copy",
+                "-metadata",
+                f"title={metadata_dict['title']}",
+                "-metadata",
+                f"artist={metadata_dict['artist']}",
+                "-metadata",
+                f"album={metadata_dict['album']}",
+                "-metadata",
+                f"year={metadata_dict['year']}",
+                "-metadata",
+                f"genre={metadata_dict['genre']}",
+                "-metadata",
+                f"comment={metadata_dict['comment']}",
+                "-metadata",
+                f"description={metadata_dict['description']}",
+                "-metadata",
+                f"streamer={metadata_dict['streamer']}",
+                "-metadata",
+                f"game={metadata_dict['game']}",
+                "-metadata",
+                f"stream_date={metadata_dict['stream_date']}",
                 "-y",  # Overwrite output file if exists
-                output_path
+                output_path,
             ]
 
             logger.debug(f"FFmpeg command for metadata embedding: {' '.join(cmd)}")
 
             # Execute FFmpeg command
             process = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
+                *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
             )
 
             stdout, stderr = await process.communicate()
@@ -2298,7 +2324,9 @@ class MetadataService:
             List of chapter dictionaries or None
         """
         try:
-            events = db.query(StreamEvent).filter(StreamEvent.stream_id == stream.id).order_by(StreamEvent.timestamp).all()
+            events = (
+                db.query(StreamEvent).filter(StreamEvent.stream_id == stream.id).order_by(StreamEvent.timestamp).all()
+            )
 
             if not events:
                 return None
@@ -2312,10 +2340,7 @@ class MetadataService:
                     if start_time < 0:
                         start_time = 0
 
-                chapter = {
-                    "start_time": start_time,
-                    "title": event.category_name or f"Chapter {i + 1}"
-                }
+                chapter = {"start_time": start_time, "title": event.category_name or f"Chapter {i + 1}"}
                 chapters.append(chapter)
 
             return chapters

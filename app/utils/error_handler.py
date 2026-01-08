@@ -1,6 +1,7 @@
 """
 Centralized error handling utilities to prevent information exposure
 """
+
 import logging
 from fastapi import HTTPException
 from typing import Optional
@@ -9,10 +10,7 @@ logger = logging.getLogger(__name__)
 
 
 def handle_api_error(
-    exception: Exception,
-    operation: str,
-    status_code: int = 500,
-    public_message: Optional[str] = None
+    exception: Exception, operation: str, status_code: int = 500, public_message: Optional[str] = None
 ) -> HTTPException:
     """
     Handle API errors securely without exposing internal details
@@ -39,9 +37,7 @@ def handle_api_error(
 
 
 def create_error_response(
-    success: bool = False,
-    message: str = "An error occurred",
-    error_code: Optional[str] = None
+    success: bool = False, message: str = "An error occurred", error_code: Optional[str] = None
 ) -> dict:
     """
     Create a standardized error response for non-HTTP endpoints
@@ -54,10 +50,7 @@ def create_error_response(
     Returns:
         dict: Standardized error response
     """
-    response = {
-        "success": success,
-        "message": message
-    }
+    response = {"success": success, "message": message}
 
     if error_code:
         response["error_code"] = error_code
@@ -83,5 +76,5 @@ ERRORS = {
     "VALIDATION_ERROR": "Invalid request data",
     "NOT_FOUND": "The requested resource was not found",
     "PERMISSION_DENIED": "You don't have permission to perform this action",
-    "SERVICE_UNAVAILABLE": "The service is temporarily unavailable"
+    "SERVICE_UNAVAILABLE": "The service is temporarily unavailable",
 }

@@ -63,7 +63,7 @@ async def get_orphaned_recordings_stats(
             orphaned_recordings=stats.get("total_orphaned", 0),
             orphaned_segments=stats.get("total_orphaned_segments", 0),
             total_size_gb=stats.get("total_size_gb", 0.0),
-            by_streamer=by_streamer
+            by_streamer=by_streamer,
         )
 
     except Exception as e:
@@ -75,7 +75,7 @@ async def get_orphaned_recordings_stats(
 async def retry_all_failed_post_processing(
     max_age_hours: int = Query(48, description="Maximum age in hours for orphaned recordings"),
     dry_run: bool = Query(False, description="If true, only show what would be processed"),
-    cleanup_segments: bool = Query(True, description="Also cleanup orphaned segment directories")
+    cleanup_segments: bool = Query(True, description="Also cleanup orphaned segment directories"),
 ) -> PostProcessingRetryResponse:
     """
     🔄 Retry Post-Processing for All Failed Recordings
@@ -84,16 +84,18 @@ async def retry_all_failed_post_processing(
     try:
         from app.services.recording.orphaned_recovery_service import get_orphaned_recovery_service
 
-        logger.info(f"🔄 ADMIN_RETRY_ALL_POST_PROCESSING: max_age={max_age_hours}h, dry_run={dry_run}, cleanup_segments={cleanup_segments}")
+        logger.info(
+            f"🔄 ADMIN_RETRY_ALL_POST_PROCESSING: max_age={max_age_hours}h, dry_run={dry_run}, cleanup_segments={cleanup_segments}"
+        )
 
         recovery_service = await get_orphaned_recovery_service()
         result = await recovery_service.scan_and_recover_orphaned_recordings(
-            max_age_hours=max_age_hours,
-            dry_run=dry_run,
-            cleanup_segments=cleanup_segments
+            max_age_hours=max_age_hours, dry_run=dry_run, cleanup_segments=cleanup_segments
         )
 
-        logger.info(f"🔄 ADMIN_RETRY_ALL_RESULT: triggered={result['recovery_triggered']}, failed={result['recovery_failed']}")
+        logger.info(
+            f"🔄 ADMIN_RETRY_ALL_RESULT: triggered={result['recovery_triggered']}, failed={result['recovery_failed']}"
+        )
 
         return PostProcessingRetryResponse(
             success=True,
@@ -102,7 +104,7 @@ async def retry_all_failed_post_processing(
             recovery_failed=result.get("recovery_failed", 0),
             segments_cleaned=result.get("segments_cleaned", 0),
             details=result.get("orphaned_recordings", []),
-            errors=result.get("errors", [])
+            errors=result.get("errors", []),
         )
 
     except Exception as e:
@@ -111,9 +113,7 @@ async def retry_all_failed_post_processing(
 
 
 @router.post("/retry-specific", response_model=PostProcessingRetryResponse)
-async def retry_specific_recordings(
-    request: PostProcessingRetryRequest
-) -> PostProcessingRetryResponse:
+async def retry_specific_recordings(request: PostProcessingRetryRequest) -> PostProcessingRetryResponse:
     """
     🎯 Retry Post-Processing for Specific Recordings
     Manually restart post-processing for selected recording IDs
@@ -127,13 +127,7 @@ async def retry_specific_recordings(
 
         recovery_service = await get_orphaned_recovery_service()
 
-        result = {
-            "recovery_triggered": 0,
-            "recovery_failed": 0,
-            "segments_cleaned": 0,
-            "details": [],
-            "errors": []
-        }
+        result = {"recovery_triggered": 0, "recovery_failed": 0, "segments_cleaned": 0, "details": [], "errors": []}
 
         with SessionLocal() as db:
             for recording_id in request.recording_ids:
@@ -152,10 +146,14 @@ async def retry_specific_recordings(
 
                     recording_info = {
                         "recording_id": recording_id,
-                        "streamer_name": recording.stream.streamer.username if recording.stream and recording.stream.streamer else "Unknown",
+                        "streamer_name": (
+                            recording.stream.streamer.username
+                            if recording.stream and recording.stream.streamer
+                            else "Unknown"
+                        ),
                         "file_path": recording.path,
                         "recovery_triggered": False,
-                        "error": None
+                        "error": None,
                     }
 
                     if not request.dry_run:
@@ -191,7 +189,7 @@ async def retry_specific_recordings(
             recovery_failed=result["recovery_failed"],
             segments_cleaned=result["segments_cleaned"],
             details=result["details"],
-            errors=result["errors"]
+            errors=result["errors"],
         )
 
     except Exception as e:
@@ -202,7 +200,7 @@ async def retry_specific_recordings(
 @router.post("/cleanup-segments")
 async def cleanup_orphaned_segments(
     max_age_hours: int = Query(48, description="Maximum age in hours for orphaned segments"),
-    dry_run: bool = Query(False, description="If true, only show what would be cleaned")
+    dry_run: bool = Query(False, description="If true, only show what would be cleaned"),
 ) -> Dict[str, Any]:
     """
     🧹 Cleanup Orphaned Segment Directories
@@ -216,27 +214,20 @@ async def cleanup_orphaned_segments(
 
         recovery_service = await get_orphaned_recovery_service()
 
-        result = {
-            "segments_cleaned": 0,
-            "segments_cleanup_failed": 0,
-            "segments_cleaned_list": [],
-            "errors": []
-        }
+        result = {"segments_cleaned": 0, "segments_cleanup_failed": 0, "segments_cleaned_list": [], "errors": []}
 
         with SessionLocal() as db:
             await recovery_service._cleanup_orphaned_segments(db, max_age_hours, dry_run, result)
 
-        logger.info(f"🧹 ADMIN_CLEANUP_SEGMENTS_RESULT: cleaned={result['segments_cleaned']}, failed={result['segments_cleanup_failed']}")
+        logger.info(
+            f"🧹 ADMIN_CLEANUP_SEGMENTS_RESULT: cleaned={result['segments_cleaned']}, failed={result['segments_cleanup_failed']}"
+        )
 
         message = f"{'Would clean' if dry_run else 'Cleaned'} {result['segments_cleaned']} orphaned segment directories"
         if result["segments_cleanup_failed"] > 0:
             message += f", {result['segments_cleanup_failed']} failed"
 
-        return {
-            "success": True,
-            "message": message,
-            "data": result
-        }
+        return {"success": True, "message": message, "data": result}
 
     except Exception as e:
         logger.error(f"Error cleaning orphaned segments: {e}", exc_info=True)
@@ -267,8 +258,8 @@ async def cleanup_orphaned_files() -> Dict[str, Any]:
             "message": f"Cleaned {cleaned_count} orphaned files",
             "data": {
                 "cleaned_count": cleaned_count,
-                "cleaned_paths": cleaned_paths[:100]  # Limit to first 100 for response size
-            }
+                "cleaned_paths": cleaned_paths[:100],  # Limit to first 100 for response size
+            },
         }
 
     except Exception as e:
@@ -279,7 +270,7 @@ async def cleanup_orphaned_files() -> Dict[str, Any]:
 @router.get("/orphaned-list")
 async def get_orphaned_recordings_list(
     max_age_hours: int = Query(48, description="Maximum age in hours for orphaned recordings"),
-    limit: int = Query(50, description="Maximum number of recordings to return")
+    limit: int = Query(50, description="Maximum number of recordings to return"),
 ) -> Dict[str, Any]:
     """
     📋 Get List of Orphaned Recordings
@@ -305,15 +296,23 @@ async def get_orphaned_recordings_list(
 
                 recording_info = {
                     "recording_id": recording.id,
-                    "streamer_name": recording.stream.streamer.username if recording.stream and recording.stream.streamer else "Unknown",
+                    "streamer_name": (
+                        recording.stream.streamer.username
+                        if recording.stream and recording.stream.streamer
+                        else "Unknown"
+                    ),
                     "stream_title": recording.stream.title if recording.stream else "Unknown",
                     "file_path": recording.path,
                     "created_at": recording.created_at.isoformat() if recording.created_at else None,
                     "status": recording.status,
-                    "file_size_mb": validation.get("file_size", 0) / (1024 * 1024) if validation.get("file_size") else 0,
-                    "file_age_hours": validation.get("file_age_seconds", 0) / 3600 if validation.get("file_age_seconds") else 0,
+                    "file_size_mb": (
+                        validation.get("file_size", 0) / (1024 * 1024) if validation.get("file_size") else 0
+                    ),
+                    "file_age_hours": (
+                        validation.get("file_age_seconds", 0) / 3600 if validation.get("file_age_seconds") else 0
+                    ),
                     "valid_for_recovery": validation["valid"],
-                    "validation_reason": validation.get("reason") if not validation["valid"] else None
+                    "validation_reason": validation.get("reason") if not validation["valid"] else None,
                 }
 
                 recordings_info.append(recording_info)
@@ -322,7 +321,7 @@ async def get_orphaned_recordings_list(
             "success": True,
             "total_found": len(orphaned_recordings),
             "total_returned": len(recordings_info),
-            "recordings": recordings_info
+            "recordings": recordings_info,
         }
 
     except Exception as e:
@@ -336,7 +335,7 @@ async def enqueue_manual_post_processing(
     ts_file_path: str,
     streamer_name: str,
     stream_id: Optional[int] = None,
-    force: bool = Query(False, description="Force processing even if MP4 exists")
+    force: bool = Query(False, description="Force processing even if MP4 exists"),
 ) -> Dict[str, Any]:
     """
     ⚡ Manually Enqueue Post-Processing
@@ -360,7 +359,7 @@ async def enqueue_manual_post_processing(
             raise HTTPException(status_code=400, detail=f"File not found: {ts_file_path}")
 
         # Check if MP4 already exists (unless forced)
-        mp4_path = normalized_path.replace('.ts', '.mp4')
+        mp4_path = normalized_path.replace(".ts", ".mp4")
         if Path(mp4_path).exists() and not force:
             raise HTTPException(status_code=400, detail=f"MP4 already exists: {mp4_path}. Use force=true to override.")
 
@@ -380,7 +379,7 @@ async def enqueue_manual_post_processing(
             output_dir=output_dir,
             streamer_name=streamer_name,
             started_at=started_at,
-            cleanup_ts_file=True
+            cleanup_ts_file=True,
         )
 
         logger.info(f"⚡ ADMIN_MANUAL_ENQUEUE_SUCCESS: recording_id={recording_id}, task_ids={task_ids}")
@@ -391,7 +390,7 @@ async def enqueue_manual_post_processing(
             "recording_id": recording_id,
             "task_ids": task_ids,
             "ts_file_path": ts_file_path,
-            "mp4_output_path": mp4_path
+            "mp4_output_path": mp4_path,
         }
 
     except Exception as e:

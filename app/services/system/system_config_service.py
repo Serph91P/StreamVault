@@ -42,11 +42,7 @@ class SystemConfigService:
                         config.description = description
                 else:
                     # Create new
-                    config = SystemConfig(
-                        key=key,
-                        value=value,
-                        description=description
-                    )
+                    config = SystemConfig(key=key, value=value, description=description)
                     session.add(config)
 
                 session.commit()
@@ -62,9 +58,9 @@ class SystemConfigService:
     def get_vapid_keys() -> Dict[str, Optional[str]]:
         """Get VAPID keys from database"""
         return {
-            'public_key': SystemConfigService.get_config('vapid_public_key'),
-            'private_key': SystemConfigService.get_config('vapid_private_key'),
-            'claims_sub': SystemConfigService.get_config('vapid_claims_sub')
+            "public_key": SystemConfigService.get_config("vapid_public_key"),
+            "private_key": SystemConfigService.get_config("vapid_private_key"),
+            "claims_sub": SystemConfigService.get_config("vapid_claims_sub"),
         }
 
     @staticmethod
@@ -73,19 +69,13 @@ class SystemConfigService:
         try:
             success = True
             success &= SystemConfigService.set_config(
-                'vapid_public_key',
-                public_key,
-                'VAPID public key for push notifications'
+                "vapid_public_key", public_key, "VAPID public key for push notifications"
             )
             success &= SystemConfigService.set_config(
-                'vapid_private_key',
-                private_key,
-                'VAPID private key for push notifications'
+                "vapid_private_key", private_key, "VAPID private key for push notifications"
             )
             success &= SystemConfigService.set_config(
-                'vapid_claims_sub',
-                claims_sub,
-                'VAPID claims subject for push notifications'
+                "vapid_claims_sub", claims_sub, "VAPID claims subject for push notifications"
             )
 
             if success:

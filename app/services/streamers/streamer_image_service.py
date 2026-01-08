@@ -100,7 +100,7 @@ class StreamerImageService:
 
     def is_cached_image(self, image_url: str) -> bool:
         """Check if an image URL is a cached local path"""
-        return image_url and image_url.startswith('/recordings/.media/profiles/')
+        return image_url and image_url.startswith("/recordings/.media/profiles/")
 
     def get_original_url_from_cached(self, cached_path: str) -> Optional[str]:
         """Extract original URL info from cached path (limited functionality)"""
@@ -114,14 +114,14 @@ class StreamerImageService:
     async def validate_image_url(self, url: str) -> bool:
         """Validate that an image URL is accessible"""
         try:
-            if not url or not url.startswith('http'):
+            if not url or not url.startswith("http"):
                 return False
 
             # Use the download service to test if the URL is accessible
             session = await self.image_service.download_service.get_session()
             async with session.head(url) as response:
-                content_type = response.headers.get('content-type', '')
-                return response.status == 200 and 'image' in content_type
+                content_type = response.headers.get("content-type", "")
+                return response.status == 200 and "image" in content_type
         except Exception as e:
             logger.debug(f"Image URL validation failed for {url}: {e}")
             return False

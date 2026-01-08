@@ -140,11 +140,9 @@ class StreamArtworkService:
                     if stream.stream_metadata and stream.stream_metadata.thumbnail_url:
                         thumbnail_url = stream.stream_metadata.thumbnail_url
 
-                    if thumbnail_url and thumbnail_url.startswith('http'):
+                    if thumbnail_url and thumbnail_url.startswith("http"):
                         # This is a Twitch URL, download and cache it
-                        cached_path = await self.download_stream_artwork(
-                            stream.id, stream.streamer_id, thumbnail_url
-                        )
+                        cached_path = await self.download_stream_artwork(stream.id, stream.streamer_id, thumbnail_url)
                         if cached_path:
                             # Update to use cached path
                             stream.stream_metadata.thumbnail_url = cached_path
@@ -167,9 +165,9 @@ class StreamArtworkService:
         stats = {"downloaded": 0, "failed": 0}
 
         for artwork_info in artwork_data:
-            stream_id = artwork_info.get('stream_id')
-            streamer_id = artwork_info.get('streamer_id')
-            thumbnail_url = artwork_info.get('thumbnail_url')
+            stream_id = artwork_info.get("stream_id")
+            streamer_id = artwork_info.get("streamer_id")
+            thumbnail_url = artwork_info.get("thumbnail_url")
 
             if not all([stream_id, streamer_id, thumbnail_url]):
                 continue
@@ -199,7 +197,9 @@ class StreamArtworkService:
             return {
                 "cached_artworks": total_files,
                 "streamers_with_artwork": streamer_count,
-                "failed_downloads": len([url for url in self.download_service._failed_downloads if 'thumbnail' in url or 'artwork' in url])
+                "failed_downloads": len(
+                    [url for url in self.download_service._failed_downloads if "thumbnail" in url or "artwork" in url]
+                ),
             }
         except Exception as e:
             logger.error(f"Error getting artwork cache stats: {e}")

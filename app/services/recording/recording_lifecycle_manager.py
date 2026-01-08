@@ -14,6 +14,7 @@ from pathlib import Path
 from app.config.constants import ASYNC_DELAYS
 from app.utils.path_utils import generate_filename, update_episode_number
 from app.services.api.twitch_api import twitch_api
+
 try:
     from app.utils.cache import app_cache
 except ImportError:
@@ -27,6 +28,7 @@ except ImportError:
 
         def set(self, key, value, ttl=None):
             pass
+
     app_cache = DummyCache()
 
 # Import background queue service at module level to avoid repeated imports
@@ -50,11 +52,17 @@ class RecordingLifecycleManager:
     SEGMENT_PART_IDENTIFIER = "_part"
 
     # Supported video extensions for filename cleanup
-    SUPPORTED_VIDEO_EXTENSIONS = ['.mp4', '.ts', '.mkv', '.avi', '.mov', '.wmv', '.flv', '.webm']
+    SUPPORTED_VIDEO_EXTENSIONS = [".mp4", ".ts", ".mkv", ".avi", ".mov", ".wmv", ".flv", ".webm"]
 
-    def __init__(self, config_manager=None, process_manager=None,
-                 database_service=None, websocket_service=None, state_manager=None,
-                 recording_logger=None):
+    def __init__(
+        self,
+        config_manager=None,
+        process_manager=None,
+        database_service=None,
+        websocket_service=None,
+        state_manager=None,
+        recording_logger=None,
+    ):
         self.config_manager = config_manager
         self.process_manager = process_manager
         self.database_service = database_service
@@ -83,7 +91,9 @@ class RecordingLifecycleManager:
             # Use authoritative streamer_id from the stream, not the parameter
             authoritative_streamer_id = stream.streamer_id
             if authoritative_streamer_id != streamer_id:
-                logger.warning(f"🚨 PARAMETER_MISMATCH_CORRECTED: Provided streamer_id={streamer_id} != stream.streamer_id={authoritative_streamer_id}. Using authoritative value.")
+                logger.warning(
+                    f"🚨 PARAMETER_MISMATCH_CORRECTED: Provided streamer_id={streamer_id} != stream.streamer_id={authoritative_streamer_id}. Using authoritative value."
+                )
 
             # Use the authoritative streamer_id from here on
             streamer_id = authoritative_streamer_id
@@ -97,9 +107,12 @@ class RecordingLifecycleManager:
             # The old recording is removed from active_recordings before the new segment starts
             active_recordings = self.state_manager.get_active_recordings()
             existing_recording = next(
-                (rec_id for rec_id, rec_data in active_recordings.items()
-                 if rec_data.get('streamer_id') == streamer_id),
-                None
+                (
+                    rec_id
+                    for rec_id, rec_data in active_recordings.items()
+                    if rec_data.get("streamer_id") == streamer_id
+                ),
+                None,
             )
             if existing_recording:
                 logger.warning(
@@ -112,10 +125,7 @@ class RecordingLifecycleManager:
             file_path = await self._generate_recording_path(streamer_id, stream_id)
 
             # Create recording in database
-            recording = await self.database_service.create_recording(
-                stream_id=stream_id,
-                file_path=file_path
-            )
+            recording = await self.database_service.create_recording(stream_id=stream_id, file_path=file_path)
 
             if not recording:
                 logger.error("Failed to create recording in database")
@@ -124,26 +134,18 @@ class RecordingLifecycleManager:
             recording_id = recording.id
 
             # Add to active recordings
-            recording_data = {
-                'file_path': file_path,
-                'streamer_id': streamer_id,
-                'stream_id': stream_id,
-                **kwargs
-            }
+            recording_data = {"file_path": file_path, "streamer_id": streamer_id, "stream_id": stream_id, **kwargs}
             self.state_manager.add_active_recording(recording_id, recording_data)
 
             # Get streamer name for logging
             streamer = await self.database_service.get_streamer_by_id(streamer_id)
             streamer_name = streamer.username if streamer else f"streamer_{streamer_id}"
-            quality = kwargs.get('quality', 'best')
+            quality = kwargs.get("quality", "best")
 
             # Log recording start to dedicated file
-            if hasattr(self, 'recording_logger'):
+            if hasattr(self, "recording_logger"):
                 self.recording_logger.log_recording_start(
-                    streamer_id=streamer_id,
-                    streamer_name=streamer_name,
-                    quality=quality,
-                    output_path=file_path
+                    streamer_id=streamer_id, streamer_name=streamer_name, quality=quality, output_path=file_path
                 )
 
             # Start recording process
@@ -156,10 +158,7 @@ class RecordingLifecycleManager:
                 # Send WebSocket notification
                 if self.websocket_service:
                     await self.websocket_service.send_recording_started(
-                        recording_id=recording_id,
-                        streamer_id=streamer_id,
-                        stream_id=stream_id,
-                        file_path=file_path
+                        recording_id=recording_id, streamer_id=streamer_id, stream_id=stream_id, file_path=file_path
                     )
 
                 logger.info(f"Successfully started recording {recording_id}")
@@ -187,39 +186,40 @@ class RecordingLifecycleManager:
             success = await self._stop_recording_process(recording_id)
 
             # Log recording stop to dedicated file
-            if hasattr(self, 'recording_logger'):
+            if hasattr(self, "recording_logger"):
                 try:
                     # Get recording info for logging
                     recording = await self.database_service.get_recording_by_id(recording_id)
                     if recording:
-                        streamer = await self.database_service.get_streamer_by_id(recording_data['streamer_id'])
+                        streamer = await self.database_service.get_streamer_by_id(recording_data["streamer_id"])
                         streamer_name = streamer.username if streamer else f"streamer_{recording_data['streamer_id']}"
 
                         # Calculate duration if possible
                         duration = 0
-                        if hasattr(recording, 'created_at') and recording.created_at:
+                        if hasattr(recording, "created_at") and recording.created_at:
                             from datetime import datetime, timezone
+
                             duration = int((datetime.now(timezone.utc) - recording.created_at).total_seconds())
 
                         self.recording_logger.log_recording_stop(
-                            streamer_id=recording_data['streamer_id'],
+                            streamer_id=recording_data["streamer_id"],
                             streamer_name=streamer_name,
                             duration=duration,
-                            output_path=recording_data['file_path'],
-                            reason=reason
+                            output_path=recording_data["file_path"],
+                            reason=reason,
                         )
                 except Exception as log_error:
                     logger.debug(f"Could not log recording stop: {log_error}")
 
             # Update status regardless of process stop success
             await self.database_service.update_recording_status(
-                recording_id=recording_id,
-                status="stopped" if success else "failed"
+                recording_id=recording_id, status="stopped" if success else "failed"
             )
 
             # Trigger database event for orphaned recovery
             try:
                 from app.services.recording.database_event_orphaned_recovery import on_recording_status_changed
+
                 await on_recording_status_changed(recording_id, "active", "stopped" if success else "failed")
             except Exception as e:
                 logger.debug(f"Could not trigger database event for orphaned recovery: {e}")
@@ -235,7 +235,7 @@ class RecordingLifecycleManager:
                 await self.websocket_service.send_recording_status_update(
                     recording_id=recording_id,
                     status="stopped" if success else "failed",
-                    additional_data={'reason': reason}
+                    additional_data={"reason": reason},
                 )
 
             # Trigger post-processing for automatic stops (stream ended)
@@ -285,6 +285,7 @@ class RecordingLifecycleManager:
 
                 # Check if stream.online event already exists
                 from app.models import StreamEvent
+
                 existing_online_event = (
                     self.database_service.db.query(StreamEvent)
                     .filter(StreamEvent.stream_id == stream.id)
@@ -299,22 +300,22 @@ class RecordingLifecycleManager:
                     initial_event = StreamEvent(
                         stream_id=stream.id,
                         event_type="stream.online",
-                        title=stream.title or stream_info.get('title'),
-                        category_name=stream.category_name or stream_info.get('game_name'),
-                        language=stream.language or stream_info.get('language', 'en'),
-                        timestamp=started_at
+                        title=stream.title or stream_info.get("title"),
+                        category_name=stream.category_name or stream_info.get("game_name"),
+                        language=stream.language or stream_info.get("language", "en"),
+                        timestamp=started_at,
                     )
                     self.database_service.db.add(initial_event)
 
                     # Create initial channel.update event (for category timeline)
-                    if stream.category_name or stream_info.get('game_name'):
+                    if stream.category_name or stream_info.get("game_name"):
                         pre_stream_event = StreamEvent(
                             stream_id=stream.id,
                             event_type="channel.update",
-                            title=stream.title or stream_info.get('title'),
-                            category_name=stream.category_name or stream_info.get('game_name'),
-                            language=stream.language or stream_info.get('language', 'en'),
-                            timestamp=started_at - timedelta(seconds=1)
+                            title=stream.title or stream_info.get("title"),
+                            category_name=stream.category_name or stream_info.get("game_name"),
+                            language=stream.language or stream_info.get("language", "en"),
+                            timestamp=started_at - timedelta(seconds=1),
                         )
                         self.database_service.db.add(pre_stream_event)
 
@@ -336,9 +337,9 @@ class RecordingLifecycleManager:
             recording_id = await self.start_recording(
                 stream_id=stream.id,
                 streamer_id=streamer_id,
-                title=stream_info.get('title'),
-                category_name=stream_info.get('game_name'),
-                forced=True
+                title=stream_info.get("title"),
+                category_name=stream_info.get("game_name"),
+                forced=True,
             )
 
             if recording_id:
@@ -356,9 +357,7 @@ class RecordingLifecycleManager:
             logger.info(f"Starting monitoring for recording {recording_id}")
 
             # Start monitoring task
-            monitor_task = asyncio.create_task(
-                self._monitor_recording_task(recording_id)
-            )
+            monitor_task = asyncio.create_task(self._monitor_recording_task(recording_id))
 
             # Track the task
             self.state_manager.add_recording_task(recording_id, monitor_task)
@@ -424,9 +423,7 @@ class RecordingLifecycleManager:
 
             # Use the new ProcessManager API with proper parameters
             process = await self.process_manager.start_recording_process(
-                stream=stream,
-                output_path=file_path,
-                quality="best"  # TODO: Get quality from recording settings
+                stream=stream, output_path=file_path, quality="best"  # TODO: Get quality from recording settings
             )
 
             success = process is not None
@@ -436,25 +433,21 @@ class RecordingLifecycleManager:
                 try:
                     if background_queue_service:
                         task_payload = {
-                            'recording_id': recording_id,
-                            'streamer_id': streamer_id,
-                            'streamer_name': stream.streamer.username if stream.streamer else 'Unknown',
-                            'stream_id': stream.id,
-                            'file_path': file_path
+                            "recording_id": recording_id,
+                            "streamer_id": streamer_id,
+                            "streamer_name": stream.streamer.username if stream.streamer else "Unknown",
+                            "stream_id": stream.id,
+                            "file_path": file_path,
                         }
                         background_queue_service.add_external_task(
-                            f"recording_{recording_id}",
-                            "recording",
-                            task_payload
+                            f"recording_{recording_id}", "recording", task_payload
                         )
                         logger.debug(f"Registered recording {recording_id} as external task")
                 except Exception as e:
                     logger.warning(f"Failed to register recording {recording_id} as external task: {e}")
 
                 # Start monitoring task
-                monitor_task = asyncio.create_task(
-                    self.monitor_and_process_recording(recording_id)
-                )
+                monitor_task = asyncio.create_task(self.monitor_and_process_recording(recording_id))
                 self.state_manager.add_recording_task(recording_id, monitor_task)
 
             return success
@@ -504,20 +497,16 @@ class RecordingLifecycleManager:
                 logger.warning(f"Recording {recording_id} data not found")
                 return
 
-            file_path = recording_data.get('file_path')
+            file_path = recording_data.get("file_path")
             if not file_path or not Path(file_path).exists():
                 logger.error(f"Recording file not found: {file_path}")
-                await self.database_service.mark_recording_failed(
-                    recording_id, "Recording file not found"
-                )
+                await self.database_service.mark_recording_failed(recording_id, "Recording file not found")
                 return
 
             # Update database status
             file_size = Path(file_path).stat().st_size
             await self.database_service.update_recording_status(
-                recording_id=recording_id,
-                status="completed",
-                path=file_path
+                recording_id=recording_id, status="completed", path=file_path
             )
 
             # Send completion notification
@@ -526,9 +515,7 @@ class RecordingLifecycleManager:
                     recording_id=recording_id,
                     file_path=file_path,
                     file_size=file_size,
-                    additional_data={
-                        'stream_id': recording_data.get('stream_id')
-                    }
+                    additional_data={"stream_id": recording_data.get("stream_id")},
                 )
 
             # Remove from active recordings
@@ -541,12 +528,14 @@ class RecordingLifecycleManager:
                     background_queue_service.complete_external_task(task_id, success=True)
 
                     # Also remove from external tasks to prevent UI showing as stuck
-                    if hasattr(background_queue_service, 'progress_tracker'):
+                    if hasattr(background_queue_service, "progress_tracker"):
                         background_queue_service.progress_tracker.remove_external_task(task_id)
 
                     logger.info(f"✅ EXTERNAL_TASK_COMPLETED: recording_{recording_id} marked as completed and removed")
             except Exception as e:
-                logger.error(f"❌ EXTERNAL_TASK_ERROR: Failed to complete external task for recording {recording_id}: {e}")
+                logger.error(
+                    f"❌ EXTERNAL_TASK_ERROR: Failed to complete external task for recording {recording_id}: {e}"
+                )
 
             logger.info(f"Recording {recording_id} completed successfully")
 
@@ -555,7 +544,9 @@ class RecordingLifecycleManager:
             try:
                 await self._schedule_post_processing_once(recording_id)
             except Exception as sched_err:
-                logger.error(f"Failed to schedule post-processing from completion handler for recording {recording_id}: {sched_err}")
+                logger.error(
+                    f"Failed to schedule post-processing from completion handler for recording {recording_id}: {sched_err}"
+                )
 
         except Exception as e:
             logger.error(f"Error handling recording completion {recording_id}: {e}")
@@ -575,18 +566,19 @@ class RecordingLifecycleManager:
                     background_queue_service.complete_external_task(task_id, success=False)
 
                     # Also remove from external tasks to prevent UI showing as stuck
-                    if hasattr(background_queue_service, 'progress_tracker'):
+                    if hasattr(background_queue_service, "progress_tracker"):
                         background_queue_service.progress_tracker.remove_external_task(task_id)
 
                     logger.info(f"❌ EXTERNAL_TASK_FAILED: recording_{recording_id} marked as failed and removed")
             except Exception as e:
-                logger.error(f"❌ EXTERNAL_TASK_ERROR: Failed to mark external task as failed for recording {recording_id}: {e}")
+                logger.error(
+                    f"❌ EXTERNAL_TASK_ERROR: Failed to mark external task as failed for recording {recording_id}: {e}"
+                )
 
             # Send error notification
             if self.websocket_service:
                 await self.websocket_service.send_recording_error(
-                    recording_id=recording_id,
-                    error_message=error_message
+                    recording_id=recording_id, error_message=error_message
                 )
 
             # Remove from active recordings
@@ -626,7 +618,7 @@ class RecordingLifecycleManager:
                 "title": stream.title or "Unknown Stream",
                 "category_name": stream.category_name or "Unknown",
                 "language": stream.language or "en",
-                "started_at": stream.started_at or datetime.now()
+                "started_at": stream.started_at or datetime.now(),
             }
 
             logger.info(f"🎬 CALLING_GENERATE_FILENAME: streamer={streamer.username}")
@@ -634,11 +626,7 @@ class RecordingLifecycleManager:
             # Use media server structure template (like Plex/Jellyfin) - no extension here!
             template = "Season {year}-{month}/{streamer} - S{year}{month}E{episode:02d} - {title}"
 
-            filename = await generate_filename(
-                streamer=streamer,
-                stream_data=stream_data,
-                template=template
-            )
+            filename = await generate_filename(streamer=streamer, stream_data=stream_data, template=template)
 
             # Try to persist the month-episode number we just used into the Stream
             try:
@@ -655,11 +643,11 @@ class RecordingLifecycleManager:
             # Remove any existing video extensions from the filename (case-insensitive)
             for ext in self.SUPPORTED_VIDEO_EXTENSIONS:
                 if filename.lower().endswith(ext):
-                    filename = filename[:-len(ext)]
+                    filename = filename[: -len(ext)]
                     break  # Stop after first match to avoid unnecessary iterations
 
             # Add .ts extension
-            filename += '.ts'
+            filename += ".ts"
 
             # Hardcoded Docker path - always /recordings in container
             recordings_dir = "/recordings"
@@ -669,7 +657,7 @@ class RecordingLifecycleManager:
             full_path = str(streamer_dir / filename)
 
             # Ensure directory exists
-            season_dir = streamer_dir / filename.split('/')[0]  # Extract season directory
+            season_dir = streamer_dir / filename.split("/")[0]  # Extract season directory
             season_dir.mkdir(parents=True, exist_ok=True)
 
             logger.info(f"🎬 GENERATED_PATH: {full_path}")
@@ -739,7 +727,7 @@ class RecordingLifecycleManager:
                 return
 
             # Check if this is a segmented recording
-            segments_dir = recording_path.replace('.ts', self.SEGMENT_DIR_SUFFIX)
+            segments_dir = recording_path.replace(".ts", self.SEGMENT_DIR_SUFFIX)
             if Path(segments_dir).exists():
                 logger.info(f"🎬 SEGMENTED_RECORDING_DETECTED: {segments_dir}")
 
@@ -751,10 +739,14 @@ class RecordingLifecycleManager:
                     logger.info(f"🎬 FOUND_SEGMENTS: {len(segment_files)} segments")
 
                     # PRODUCTION FIX: Queue segment concatenation as background task instead of blocking
-                    logger.info(f"🎬 QUEUING_SEGMENT_CONCATENATION: {len(segment_files)} files for recording {recording_id}")
+                    logger.info(
+                        f"🎬 QUEUING_SEGMENT_CONCATENATION: {len(segment_files)} files for recording {recording_id}"
+                    )
 
                     # Queue segment concatenation task first
-                    await self._queue_segment_concatenation_task(recording_id, stream_data.id, segment_files, recording_path, streamer_data)
+                    await self._queue_segment_concatenation_task(
+                        recording_id, stream_data.id, segment_files, recording_path, streamer_data
+                    )
                     return  # Exit here - post-processing will continue after concatenation
                 else:
                     logger.warning(f"🎬 NO_SEGMENTS_FOUND: {segments_dir}")
@@ -770,13 +762,15 @@ class RecordingLifecycleManager:
 
             # Import TaskPriority only, background_queue_service already imported at module level
             from app.services.queues.task_progress_tracker import TaskPriority
+
             background_queue = background_queue_service
 
             # Schedule post-processing tasks with dependencies
             logger.info(f"🎬 SCHEDULING_POST_PROCESSING_TASKS: recording_id={recording_id}")
 
             import os
-            mp4_path = recording_path.replace('.ts', '.mp4')
+
+            mp4_path = recording_path.replace(".ts", ".mp4")
             base_filename = os.path.splitext(os.path.basename(mp4_path))[0]
             output_dir = os.path.dirname(mp4_path)
 
@@ -791,10 +785,10 @@ class RecordingLifecycleManager:
                     "output_dir": output_dir,
                     "video_path": mp4_path,
                     "streamer_name": streamer_data.username,
-                    "stream_title": stream_data.title or "Unknown Stream"
+                    "stream_title": stream_data.title or "Unknown Stream",
                 },
                 dependencies=[],  # No dependencies - run first
-                priority=TaskPriority.HIGH
+                priority=TaskPriority.HIGH,
             )
 
             # 2. MP4 remux task (after metadata)
@@ -806,10 +800,10 @@ class RecordingLifecycleManager:
                     "ts_file_path": recording_path,
                     "mp4_output_path": mp4_path,
                     "streamer_name": streamer_data.username,
-                    "stream_title": stream_data.title or "Unknown Stream"
+                    "stream_title": stream_data.title or "Unknown Stream",
                 },
                 dependencies=[metadata_task_id],  # Wait for metadata
-                priority=TaskPriority.HIGH
+                priority=TaskPriority.HIGH,
             )
 
             # 3. Thumbnail generation task (after MP4 remux)
@@ -820,17 +814,17 @@ class RecordingLifecycleManager:
                     "stream_id": stream_data.id,
                     "mp4_path": mp4_path,
                     "output_dir": output_dir,
-                    "streamer_name": streamer_data.username
+                    "streamer_name": streamer_data.username,
                 },
                 dependencies=[mp4_remux_task_id],  # Wait for MP4 remux
-                priority=TaskPriority.NORMAL
+                priority=TaskPriority.NORMAL,
             )
 
             # 4. Cleanup task (after everything)
             files_to_remove = [recording_path]  # Remove .ts file
 
             # Also remove segments directory if it exists
-            segments_dir = recording_path.replace('.ts', self.SEGMENT_DIR_SUFFIX)
+            segments_dir = recording_path.replace(".ts", self.SEGMENT_DIR_SUFFIX)
             if Path(segments_dir).exists():
                 files_to_remove.append(segments_dir)
                 logger.info(f"🎬 CLEANUP_SCHEDULED: Will remove segments directory {segments_dir}")
@@ -843,7 +837,7 @@ class RecordingLifecycleManager:
                 "mp4_path": mp4_path,
                 "streamer_name": streamer_data.username,
                 "intelligent_cleanup": True,
-                "max_wait_time": 300
+                "max_wait_time": 300,
             }
 
             logger.info(f"🎬 CLEANUP_PAYLOAD: {cleanup_payload}")
@@ -852,7 +846,7 @@ class RecordingLifecycleManager:
                 "cleanup",
                 cleanup_payload,
                 dependencies=[thumbnail_task_id],  # Wait for thumbnail generation
-                priority=TaskPriority.LOW
+                priority=TaskPriority.LOW,
             )
 
             logger.info(f"🎬 POST_PROCESSING_SCHEDULED: recording_id={recording_id}")
@@ -860,7 +854,9 @@ class RecordingLifecycleManager:
         except Exception as e:
             logger.error(f"Error triggering post-processing for recording {recording_id}: {e}", exc_info=True)
 
-    async def _queue_segment_concatenation_task(self, recording_id: int, stream_id: int, segment_files: list, recording_path: str, streamer_data):
+    async def _queue_segment_concatenation_task(
+        self, recording_id: int, stream_id: int, segment_files: list, recording_path: str, streamer_data
+    ):
         """Queue segment concatenation as a background task to avoid blocking the stream offline handler"""
         try:
             from app.services.queues.task_progress_tracker import TaskPriority
@@ -870,24 +866,26 @@ class RecordingLifecycleManager:
 
             # Create concatenation task payload with all required fields for post-processing
             concat_payload = {
-                'recording_id': recording_id,
-                'segment_files': [str(f) for f in segment_files],
-                'output_path': recording_path,
-                'streamer_name': streamer_data.username,
+                "recording_id": recording_id,
+                "segment_files": [str(f) for f in segment_files],
+                "output_path": recording_path,
+                "streamer_name": streamer_data.username,
                 # Real stream id to avoid mixing identifiers
-                'stream_id': stream_id,
+                "stream_id": stream_id,
                 # Include started_at for post-processing tasks that need it
-                'started_at': stream_data.started_at.isoformat() if stream_data and stream_data.started_at else None,
+                "started_at": stream_data.started_at.isoformat() if stream_data and stream_data.started_at else None,
             }
 
             # Enqueue segment concatenation task with high priority
             concat_task_id = await background_queue_service.enqueue_task(
-                task_type='segment_concatenation',
+                task_type="segment_concatenation",
                 payload=concat_payload,
-                priority=TaskPriority.HIGH  # High priority for immediate processing
+                priority=TaskPriority.HIGH,  # High priority for immediate processing
             )
 
-            logger.info(f"🎬 SEGMENT_CONCATENATION_QUEUED: task_id={concat_task_id}, recording_id={recording_id}, stream_id={stream_id}")
+            logger.info(
+                f"🎬 SEGMENT_CONCATENATION_QUEUED: task_id={concat_task_id}, recording_id={recording_id}, stream_id={stream_id}"
+            )
 
         except Exception as e:
             logger.error(f"Error queuing segment concatenation for recording {recording_id}: {e}", exc_info=True)
@@ -908,10 +906,12 @@ class RecordingLifecycleManager:
                 logger.error(f"🎬 INVALID_RECORDING_ID: {recording_id}")
                 return None
 
-            output_path = first_segment.parent.parent / f"{first_segment.stem.split(self.SEGMENT_PART_IDENTIFIER)[0]}.ts"
+            output_path = (
+                first_segment.parent.parent / f"{first_segment.stem.split(self.SEGMENT_PART_IDENTIFIER)[0]}.ts"
+            )
 
             # Validate output path doesn't contain dangerous shell characters
-            if any(char in str(output_path) for char in [';', '|', '&', '`', '$']):
+            if any(char in str(output_path) for char in [";", "|", "&", "`", "$"]):
                 logger.error(f"🎬 UNSAFE_OUTPUT_PATH: {output_path}")
                 return None
 
@@ -925,7 +925,7 @@ class RecordingLifecycleManager:
                 if not segment_path.exists() or not segment_path.is_file():
                     logger.warning(f"🎬 SKIPPING_INVALID_SEGMENT: {segment}")
                     continue
-                if not segment_path.suffix == '.ts':
+                if not segment_path.suffix == ".ts":
                     logger.warning(f"🎬 SKIPPING_NON_TS_SEGMENT: {segment}")
                     continue
                 validated_segments.append(segment_path)
@@ -935,7 +935,7 @@ class RecordingLifecycleManager:
                 return None
 
             # Write concat file with escaped paths
-            with open(concat_file_path, 'w', encoding='utf-8') as f:
+            with open(concat_file_path, "w", encoding="utf-8") as f:
                 for segment in validated_segments:
                     # Use relative paths and escape single quotes
                     safe_name = segment.name.replace("'", "'\"'\"'")
@@ -944,12 +944,16 @@ class RecordingLifecycleManager:
             # Run FFmpeg concatenation with safe arguments
             ffmpeg_cmd = [
                 "ffmpeg",
-                "-f", "concat",
-                "-safe", "0",
-                "-i", str(concat_file_path),
-                "-c", "copy",
+                "-f",
+                "concat",
+                "-safe",
+                "0",
+                "-i",
+                str(concat_file_path),
+                "-c",
+                "copy",
                 "-y",  # Overwrite output file
-                str(output_path)
+                str(output_path),
             ]
 
             logger.debug(f"🎬 FFMPEG_CONCAT_CMD: {' '.join(ffmpeg_cmd)}")
@@ -962,19 +966,18 @@ class RecordingLifecycleManager:
                         cwd=str(first_segment.parent),  # Set working directory
                         stdout=asyncio.subprocess.PIPE,
                         stderr=asyncio.subprocess.PIPE,
-                        env={"PATH": "/usr/bin:/bin"}  # Restricted environment
+                        env={"PATH": "/usr/bin:/bin"},  # Restricted environment
                     ),
-                    timeout=300  # 5 minute timeout
+                    timeout=300,  # 5 minute timeout
                 )
 
                 stdout, stderr = await asyncio.wait_for(
-                    process.communicate(),
-                    timeout=600  # 10 minute timeout for large files
+                    process.communicate(), timeout=600  # 10 minute timeout for large files
                 )
 
             except asyncio.TimeoutError:
                 logger.error("🎬 CONCATENATION_TIMEOUT: FFmpeg process timed out")
-                if 'process' in locals():
+                if "process" in locals():
                     process.kill()
                 return None
 
@@ -998,7 +1001,7 @@ class RecordingLifecycleManager:
 
                 # Safe stderr decoding with error handling
                 try:
-                    stderr_text = stderr.decode('utf-8', errors='replace')
+                    stderr_text = stderr.decode("utf-8", errors="replace")
                 except Exception as e:
                     stderr_text = f"Could not decode stderr: {e}"
 
@@ -1034,7 +1037,7 @@ class RecordingLifecycleManager:
 
         # Also request ProcessManager to gracefully shutdown subprocesses if available
         try:
-            if self.process_manager and hasattr(self.process_manager, 'graceful_shutdown'):
+            if self.process_manager and hasattr(self.process_manager, "graceful_shutdown"):
                 await self.process_manager.graceful_shutdown(timeout=timeout or 15)
         except Exception as e:
             logger.warning(f"ProcessManager graceful shutdown encountered an error: {e}")
@@ -1089,14 +1092,13 @@ class RecordingLifecycleManager:
                     progress_percent = 0.0
 
                 progress_percent = min(100.0, max(0.0, progress_percent))
-                self.state_manager.update_active_recording(recording_id, {'progress': progress_percent})
+                self.state_manager.update_active_recording(recording_id, {"progress": progress_percent})
 
                 # Update external task progress in background queue
                 try:
                     if background_queue_service:
                         background_queue_service.update_external_task_progress(
-                            f"recording_{recording_id}",
-                            progress_percent
+                            f"recording_{recording_id}", progress_percent
                         )
                         logger.debug(f"HEARTBEAT recording_{recording_id} progress={progress_percent}")
                 except Exception as e:
@@ -1104,8 +1106,7 @@ class RecordingLifecycleManager:
 
                 if self.websocket_service:
                     await self.websocket_service.send_recording_progress_update(
-                        recording_id=recording_id,
-                        progress=progress_percent
+                        recording_id=recording_id, progress=progress_percent
                     )
         except Exception as e:
             logger.debug(f"Failed to update progress for recording {recording_id}: {e}")
@@ -1114,17 +1115,12 @@ class RecordingLifecycleManager:
         """Clean up after a failed recording start"""
         try:
             self.state_manager.remove_active_recording(recording_id)
-            await self.database_service.mark_recording_failed(
-                recording_id, "Failed to start recording process"
-            )
+            await self.database_service.mark_recording_failed(recording_id, "Failed to start recording process")
 
             # Mark external task as failed in background queue
             try:
                 if background_queue_service:
-                    background_queue_service.complete_external_task(
-                        f"recording_{recording_id}",
-                        success=False
-                    )
+                    background_queue_service.complete_external_task(f"recording_{recording_id}", success=False)
                     logger.debug(f"Marked recording {recording_id} as failed in background queue")
             except Exception as e:
                 logger.warning(f"Failed to mark external task as failed for recording {recording_id}: {e}")
@@ -1137,7 +1133,7 @@ class RecordingLifecycleManager:
         try:
             # Check if stream already exists
             existing_stream = await self.database_service.get_stream_by_twitch_stream_id(
-                stream_info.get('id', 'Unknown')
+                stream_info.get("id", "Unknown")
             )
 
             if existing_stream:
@@ -1145,13 +1141,13 @@ class RecordingLifecycleManager:
 
             # Create new stream
             stream_data = {
-                'streamer_id': streamer_id,
-                'title': stream_info.get('title', 'Unknown Stream'),
-                'category_name': stream_info.get('game_name', 'Unknown'),
-                'language': stream_info.get('language', 'en'),
-                'started_at': datetime.now(timezone.utc),
-                'is_live': True,
-                'twitch_stream_id': stream_info.get('id', 'Unknown')  # Use consistent field name
+                "streamer_id": streamer_id,
+                "title": stream_info.get("title", "Unknown Stream"),
+                "category_name": stream_info.get("game_name", "Unknown"),
+                "language": stream_info.get("language", "en"),
+                "started_at": datetime.now(timezone.utc),
+                "is_live": True,
+                "twitch_stream_id": stream_info.get("id", "Unknown"),  # Use consistent field name
             }
 
             stream = await self.database_service.create_stream(stream_data)
@@ -1161,6 +1157,7 @@ class RecordingLifecycleManager:
                 # This ensures category timeline shows in UI for force-started recordings
                 try:
                     from app.models import StreamEvent
+
                     self.database_service._ensure_db_session()
 
                     started_at = stream.started_at or datetime.now(timezone.utc)
@@ -1172,7 +1169,7 @@ class RecordingLifecycleManager:
                         title=stream.title,
                         category_name=stream.category_name,
                         language=stream.language,
-                        timestamp=started_at
+                        timestamp=started_at,
                     )
                     self.database_service.db.add(initial_event)
 
@@ -1184,7 +1181,7 @@ class RecordingLifecycleManager:
                             title=stream.title,
                             category_name=stream.category_name,
                             language=stream.language,
-                            timestamp=started_at - timedelta(seconds=1)
+                            timestamp=started_at - timedelta(seconds=1),
                         )
                         self.database_service.db.add(pre_stream_event)
                         logger.debug(f"Added initial StreamEvents for force-started stream {stream.id}")

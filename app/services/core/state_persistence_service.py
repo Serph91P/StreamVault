@@ -4,11 +4,13 @@ State Persistence Service for Active Recordings
 This service manages the persistent state of active recordings,
 enabling recovery after application restarts.
 """
+
 import os
 import logging
 
 try:
     import psutil
+
     HAS_PSUTIL = True
 except ImportError:
     HAS_PSUTIL = False
@@ -74,17 +76,15 @@ class StatePersistenceService:
         started_at: datetime,
         ts_output_path: str,
         force_mode: bool = False,
-        quality: str = 'best',
-        config: Optional[Dict[str, Any]] = None
+        quality: str = "best",
+        config: Optional[Dict[str, Any]] = None,
     ) -> ActiveRecordingState:
         """Save an active recording to persistent storage"""
 
         try:
             with SessionLocal() as db:
                 # Check if entry already exists
-                existing = db.query(ActiveRecordingState).filter(
-                    ActiveRecordingState.stream_id == stream_id
-                ).first()
+                existing = db.query(ActiveRecordingState).filter(ActiveRecordingState.stream_id == stream_id).first()
 
                 if existing:
                     # Update existing entry
@@ -96,7 +96,7 @@ class StatePersistenceService:
                     existing.ts_output_path = ts_output_path
                     existing.force_mode = force_mode
                     existing.quality = quality
-                    existing.status = 'active'
+                    existing.status = "active"
                     existing.last_heartbeat = datetime.now(timezone.utc)
                     existing.set_config(config)
 
@@ -113,8 +113,8 @@ class StatePersistenceService:
                         ts_output_path=ts_output_path,
                         force_mode=force_mode,
                         quality=quality,
-                        status='active',
-                        last_heartbeat=datetime.now(timezone.utc)
+                        status="active",
+                        last_heartbeat=datetime.now(timezone.utc),
                     )
                     state.set_config(config)
                     db.add(state)
@@ -122,11 +122,12 @@ class StatePersistenceService:
                 db.commit()
 
                 log_with_context(
-                    logger, 'info',
+                    logger,
+                    "info",
                     f"Saved active recording state for {streamer_name}",
                     stream_id=stream_id,
                     process_id=process_id,
-                    operation='state_persistence'
+                    operation="state_persistence",
                 )
 
                 return state
@@ -140,18 +141,17 @@ class StatePersistenceService:
 
         try:
             with SessionLocal() as db:
-                result = db.query(ActiveRecordingState).filter(
-                    ActiveRecordingState.stream_id == stream_id
-                ).delete()
+                result = db.query(ActiveRecordingState).filter(ActiveRecordingState.stream_id == stream_id).delete()
 
                 db.commit()
 
                 if result > 0:
                     log_with_context(
-                        logger, 'info',
+                        logger,
+                        "info",
                         f"Removed active recording state for stream {stream_id}",
                         stream_id=stream_id,
-                        operation='state_persistence'
+                        operation="state_persistence",
                     )
                     return True
                 else:
@@ -169,9 +169,7 @@ class StatePersistenceService:
             with SessionLocal() as db:
                 # Use explicit transaction with rollback on error
                 try:
-                    state = db.query(ActiveRecordingState).filter(
-                        ActiveRecordingState.stream_id == stream_id
-                    ).first()
+                    state = db.query(ActiveRecordingState).filter(ActiveRecordingState.stream_id == stream_id).first()
 
                     if state:
                         state.last_heartbeat = datetime.now(timezone.utc)
@@ -194,9 +192,7 @@ class StatePersistenceService:
 
         try:
             with SessionLocal() as db:
-                states = db.query(ActiveRecordingState).filter(
-                    ActiveRecordingState.status == 'active'
-                ).all()
+                states = db.query(ActiveRecordingState).filter(ActiveRecordingState.status == "active").all()
 
                 return states
 
@@ -213,16 +209,16 @@ class StatePersistenceService:
 
         try:
             with SessionLocal() as db:
-                states = db.query(ActiveRecordingState).filter(
-                    ActiveRecordingState.status == 'active'
-                ).all()
+                states = db.query(ActiveRecordingState).filter(ActiveRecordingState.status == "active").all()
 
                 removed_count = 0
 
                 for state in states:
                     # Check if process still exists
                     if not self._process_exists(state.process_id):
-                        logger.warning(f"Process {state.process_id} no longer exists, removing state for {state.streamer_name}")
+                        logger.warning(
+                            f"Process {state.process_id} no longer exists, removing state for {state.streamer_name}"
+                        )
                         db.delete(state)
                         removed_count += 1
                     # Check if entry is stale
@@ -262,21 +258,23 @@ class StatePersistenceService:
 
                 # Verify output file exists
                 if not os.path.exists(state.ts_output_path):
-                    logger.warning(f"Output file {state.ts_output_path} not found, cannot recover {state.streamer_name}")
+                    logger.warning(
+                        f"Output file {state.ts_output_path} not found, cannot recover {state.streamer_name}"
+                    )
                     await self.remove_active_recording(state.stream_id)
                     continue
 
                 # Build recovery info
                 recovery_info = {
-                    'stream_id': state.stream_id,
-                    'recording_id': state.recording_id,
-                    'process_id': state.process_id,
-                    'process_identifier': state.process_identifier,
-                    'streamer_name': state.streamer_name,
-                    'start_time': state.started_at,
-                    'ts_output_path': state.ts_output_path,
-                    'force_mode': state.force_mode,
-                    'config': state.get_config()
+                    "stream_id": state.stream_id,
+                    "recording_id": state.recording_id,
+                    "process_id": state.process_id,
+                    "process_identifier": state.process_identifier,
+                    "streamer_name": state.streamer_name,
+                    "start_time": state.started_at,
+                    "ts_output_path": state.ts_output_path,
+                    "force_mode": state.force_mode,
+                    "config": state.get_config(),
                 }
 
                 recoverable_recordings.append(recovery_info)

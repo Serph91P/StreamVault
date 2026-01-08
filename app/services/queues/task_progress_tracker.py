@@ -33,6 +33,7 @@ class TaskPriority(Enum):
 @dataclass
 class QueueTask:
     """Background task definition"""
+
     id: str
     task_type: str
     priority: TaskPriority
@@ -66,11 +67,11 @@ class QueueTask:
         """Convert task to dictionary for serialization"""
         return {
             **asdict(self),
-            'priority': self.priority.value,
-            'status': self.status.value,
-            'created_at': self.created_at.isoformat(),
-            'started_at': self.started_at.isoformat() if self.started_at else None,
-            'completed_at': self.completed_at.isoformat() if self.completed_at else None,
+            "priority": self.priority.value,
+            "status": self.status.value,
+            "created_at": self.created_at.isoformat(),
+            "started_at": self.started_at.isoformat() if self.started_at else None,
+            "completed_at": self.completed_at.isoformat() if self.completed_at else None,
         }
 
 
@@ -85,12 +86,7 @@ class TaskProgressTracker:
         self.external_tasks: Dict[str, QueueTask] = {}  # For external jobs like recordings
 
         # Task statistics
-        self.stats = {
-            'total_tasks': 0,
-            'completed_tasks': 0,
-            'failed_tasks': 0,
-            'retried_tasks': 0
-        }
+        self.stats = {"total_tasks": 0, "completed_tasks": 0, "failed_tasks": 0, "retried_tasks": 0}
 
         # Progress update callbacks
         self.progress_callbacks: Dict[str, Callable] = {}
@@ -111,7 +107,7 @@ class TaskProgressTracker:
     def add_task(self, task: QueueTask):
         """Add a task to tracking"""
         self.active_tasks[task.id] = task
-        self.stats['total_tasks'] += 1
+        self.stats["total_tasks"] += 1
         logger.debug(f"Task {task.id} added to tracking")
 
     def update_task_status(self, task_id: str, status: TaskStatus, error_message: str = None):
@@ -132,12 +128,12 @@ class TaskProgressTracker:
 
                 # Update statistics
                 if status == TaskStatus.COMPLETED:
-                    self.stats['completed_tasks'] += 1
+                    self.stats["completed_tasks"] += 1
                 elif status == TaskStatus.FAILED:
-                    self.stats['failed_tasks'] += 1
+                    self.stats["failed_tasks"] += 1
             elif status == TaskStatus.RETRYING:
                 task.retry_count += 1
-                self.stats['retried_tasks'] += 1
+                self.stats["retried_tasks"] += 1
 
             logger.debug(f"Task {task_id} status updated: {old_status.value} -> {status.value}")
 
@@ -147,11 +143,11 @@ class TaskProgressTracker:
     def update_task_progress(self, task_id: str, progress: float):
         """Update task progress"""
         # Add recursion protection
-        if hasattr(self, '_updating_progress') and task_id in self._updating_progress:
+        if hasattr(self, "_updating_progress") and task_id in self._updating_progress:
             logger.warning(f"Recursion detected in update_task_progress for task {task_id}, skipping")
             return
 
-        if not hasattr(self, '_updating_progress'):
+        if not hasattr(self, "_updating_progress"):
             self._updating_progress = set()
 
         self._updating_progress.add(task_id)
@@ -211,7 +207,7 @@ class TaskProgressTracker:
     def _get_worker_count(self) -> int:
         """Get the current number of active workers"""
         try:
-            if self.queue_manager and hasattr(self.queue_manager, 'worker_manager'):
+            if self.queue_manager and hasattr(self.queue_manager, "worker_manager"):
                 return self.queue_manager.worker_manager.get_active_worker_count()
             return 0
         except Exception:
@@ -222,7 +218,7 @@ class TaskProgressTracker:
         try:
             if self.queue_manager:
                 # Use getattr with a default value to make this more defensive
-                return getattr(self.queue_manager, 'is_running', False)
+                return getattr(self.queue_manager, "is_running", False)
             return False
         except Exception:
             return False
@@ -235,12 +231,12 @@ class TaskProgressTracker:
 
         return {
             **self.stats,
-            'active_tasks': len(self.active_tasks) + len(self.external_tasks),
-            'pending_tasks': pending_tasks,
-            'running_tasks': running_tasks,
-            'external_tasks': len(self.external_tasks),
-            'workers': self._get_worker_count(),
-            'is_running': self._get_is_running()
+            "active_tasks": len(self.active_tasks) + len(self.external_tasks),
+            "pending_tasks": pending_tasks,
+            "running_tasks": running_tasks,
+            "external_tasks": len(self.external_tasks),
+            "workers": self._get_worker_count(),
+            "is_running": self._get_is_running(),
         }
 
     # External task tracking methods (for recordings, etc.)
@@ -255,7 +251,7 @@ class TaskProgressTracker:
             status=TaskStatus.RUNNING,
             created_at=datetime.now(timezone.utc),
             started_at=datetime.now(timezone.utc),
-            last_progress_update=datetime.now(timezone.utc)
+            last_progress_update=datetime.now(timezone.utc),
         )
         self.external_tasks[task_id] = task
         logger.debug(f"External task {task_id} ({task_type}) added to tracking")
@@ -323,8 +319,8 @@ class TaskProgressTracker:
                     "completed_at": task.completed_at.isoformat() if task.completed_at else None,
                     "error_message": task.error_message,
                     "retry_count": task.retry_count,
-                    "payload": task.payload
-                }
+                    "payload": task.payload,
+                },
             }
 
             await self.websocket_manager.send_notification(message)
@@ -338,13 +334,7 @@ class TaskProgressTracker:
             return
 
         try:
-            message = {
-                "type": "task_progress_update",
-                "data": {
-                    "task_id": task_id,
-                    "progress": progress
-                }
-            }
+            message = {"type": "task_progress_update", "data": {"task_id": task_id, "progress": progress}}
 
             await self.websocket_manager.send_notification(message)
 
@@ -358,10 +348,7 @@ class TaskProgressTracker:
 
         try:
             stats = self.get_statistics()
-            message = {
-                "type": "queue_stats_update",
-                "data": stats
-            }
+            message = {"type": "queue_stats_update", "data": stats}
 
             await self.websocket_manager.send_notification(message)
 

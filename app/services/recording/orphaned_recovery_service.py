@@ -57,13 +57,11 @@ class OrphanedRecoveryService:
             "total_orphaned_segments": stats.orphaned_segments,
             "failed_post_processing": stats.failed_post_processing,
             "total_size_gb": stats.total_size_gb,
-            "by_streamer": {}  # Not supported in new service
+            "by_streamer": {},  # Not supported in new service
         }
 
     async def scan_and_recover_orphaned_recordings(
-        self,
-        max_age_hours: int = 72,
-        dry_run: bool = False
+        self, max_age_hours: int = 72, dry_run: bool = False
     ) -> Dict[str, Any]:
         """Scan and recover orphaned recordings (compatibility wrapper)"""
         stats = await self._service.comprehensive_recovery_scan(max_age_hours=max_age_hours, dry_run=dry_run)
@@ -73,20 +71,12 @@ class OrphanedRecoveryService:
             "orphaned_found": stats.orphaned_segments,
             "recovered": stats.recovered_recordings,
             "triggered_post_processing": stats.triggered_post_processing,
-            "total_size_gb": stats.total_size_gb
+            "total_size_gb": stats.total_size_gb,
         }
 
-    async def cleanup_orphaned_segments(
-        self,
-        max_age_hours: int = 72,
-        dry_run: bool = False
-    ) -> Dict[str, Any]:
+    async def cleanup_orphaned_segments(self, max_age_hours: int = 72, dry_run: bool = False) -> Dict[str, Any]:
         """Cleanup orphaned segment directories (compatibility wrapper)"""
         # Use comprehensive scan which includes segment cleanup
         stats = await self._service.comprehensive_recovery_scan(max_age_hours=max_age_hours, dry_run=dry_run)
 
-        return {
-            "success": True,
-            "segments_cleaned": stats.orphaned_segments,
-            "total_size_gb": stats.total_size_gb
-        }
+        return {"success": True, "segments_cleaned": stats.orphaned_segments, "total_size_gb": stats.total_size_gb}

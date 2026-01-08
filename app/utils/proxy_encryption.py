@@ -18,7 +18,7 @@ import os
 import logging
 from cryptography.fernet import Fernet
 
-logger = logging.getLogger('streamvault')
+logger = logging.getLogger("streamvault")
 
 
 class ProxyEncryption:
@@ -63,14 +63,11 @@ class ProxyEncryption:
                     # Generate new key and save to database
                     logger.info("🔑 Generating new proxy encryption key...")
                     new_key = Fernet.generate_key()
-                    encryption_key = new_key.decode('utf-8')
+                    encryption_key = new_key.decode("utf-8")
 
                     # Save to database
                     if not settings:
-                        settings = GlobalSettings(
-                            notifications_enabled=True,
-                            proxy_encryption_key=encryption_key
-                        )
+                        settings = GlobalSettings(notifications_enabled=True, proxy_encryption_key=encryption_key)
                         db.add(settings)
                     else:
                         settings.proxy_encryption_key = encryption_key
@@ -91,7 +88,7 @@ class ProxyEncryption:
                 logger.error("❌ CRITICAL: No encryption key in database or environment!")
                 logger.error("   Generating ephemeral key - proxies will be lost on restart")
                 new_key = Fernet.generate_key()
-                encryption_key = new_key.decode('utf-8')
+                encryption_key = new_key.decode("utf-8")
 
         try:
             self._cipher = Fernet(encryption_key.encode() if isinstance(encryption_key, str) else encryption_key)
@@ -114,8 +111,8 @@ class ProxyEncryption:
             return plaintext
 
         try:
-            encrypted_bytes = self._cipher.encrypt(plaintext.encode('utf-8'))
-            encrypted_str = encrypted_bytes.decode('utf-8')
+            encrypted_bytes = self._cipher.encrypt(plaintext.encode("utf-8"))
+            encrypted_str = encrypted_bytes.decode("utf-8")
 
             logger.debug(f"🔒 Encrypted proxy URL: {plaintext[:20]}... → {encrypted_str[:20]}...")
             return encrypted_str
@@ -138,8 +135,8 @@ class ProxyEncryption:
             return encrypted
 
         try:
-            decrypted_bytes = self._cipher.decrypt(encrypted.encode('utf-8'))
-            decrypted_str = decrypted_bytes.decode('utf-8')
+            decrypted_bytes = self._cipher.decrypt(encrypted.encode("utf-8"))
+            decrypted_str = decrypted_bytes.decode("utf-8")
 
             logger.debug(f"🔓 Decrypted proxy URL: {encrypted[:20]}... → {decrypted_str[:20]}...")
             return decrypted_str

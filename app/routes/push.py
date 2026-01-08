@@ -25,44 +25,36 @@ async def get_vapid_public_key():
             detail={
                 "error": "Push notifications not configured",
                 "message": "VAPID keys are missing. They should be auto-generated on startup.",
-                "suggestion": "Check server logs for VAPID key generation or restart the application"
-            }
+                "suggestion": "Check server logs for VAPID key generation or restart the application",
+            },
         )
 
     logger.debug("🔑 Serving VAPID public key for push subscription")
-    return {
-        "publicKey": settings.VAPID_PUBLIC_KEY,  # This is already base64 encoded
-        "configured": True
-    }
+    return {"publicKey": settings.VAPID_PUBLIC_KEY, "configured": True}  # This is already base64 encoded
 
 
 @router.post("/subscribe")
-async def subscribe_to_push(
-    subscription_data: Dict[str, Any] = Body(...),
-    db: Session = Depends(get_db)
-):
+async def subscribe_to_push(subscription_data: Dict[str, Any] = Body(...), db: Session = Depends(get_db)):
     """Subscribe a client to push notifications"""
     try:
         logger.info("🔔 PUSH_SUBSCRIBE_REQUEST: Starting subscription process")
         logger.debug(f"🔔 Request data keys: {list(subscription_data.keys())}")
 
-        subscription = subscription_data.get('subscription', {})
-        user_agent = subscription_data.get('userAgent', '')
+        subscription = subscription_data.get("subscription", {})
+        user_agent = subscription_data.get("userAgent", "")
 
         logger.debug(f"🔔 Subscription keys: {list(subscription.keys()) if subscription else 'None'}")
         logger.debug(f"🔔 User agent: {user_agent[:50]}..." if user_agent else "🔔 No user agent")
 
-        if not subscription or 'endpoint' not in subscription:
+        if not subscription or "endpoint" not in subscription:
             logger.error("🔔 INVALID_SUBSCRIPTION_DATA: Missing subscription or endpoint")
             raise HTTPException(status_code=400, detail="Invalid subscription data")
 
-        endpoint = subscription['endpoint']
+        endpoint = subscription["endpoint"]
         logger.debug(f"🔔 Endpoint: {endpoint[:50]}...")
 
         # Check if subscription already exists
-        existing = db.query(PushSubscription).filter(
-            PushSubscription.endpoint == endpoint
-        ).first()
+        existing = db.query(PushSubscription).filter(PushSubscription.endpoint == endpoint).first()
 
         if existing:
             logger.info(f"🔔 UPDATING_EXISTING_SUBSCRIPTION: id={existing.id}")
@@ -74,10 +66,7 @@ async def subscribe_to_push(
             logger.info("🔔 CREATING_NEW_SUBSCRIPTION")
             # Create new subscription
             new_subscription = PushSubscription(
-                endpoint=endpoint,
-                subscription_data=json.dumps(subscription),
-                user_agent=user_agent,
-                is_active=True
+                endpoint=endpoint, subscription_data=json.dumps(subscription), user_agent=user_agent, is_active=True
             )
             db.add(new_subscription)
 
@@ -88,10 +77,7 @@ async def subscribe_to_push(
         logger.info(f"🔔 SUBSCRIPTION_SAVED: endpoint={endpoint[:50]}...")
         logger.info(f"🔔 TOTAL_ACTIVE_SUBSCRIPTIONS: count={total_active}")
 
-        return {
-            "success": True,
-            "message": "Push subscription successful"
-        }
+        return {"success": True, "message": "Push subscription successful"}
 
     except Exception as e:
         db.rollback()
@@ -99,31 +85,23 @@ async def subscribe_to_push(
 
 
 @router.post("/unsubscribe")
-async def unsubscribe_from_push(
-    unsubscribe_data: Dict[str, Any] = Body(...),
-    db: Session = Depends(get_db)
-):
+async def unsubscribe_from_push(unsubscribe_data: Dict[str, Any] = Body(...), db: Session = Depends(get_db)):
     """Unsubscribe a client from push notifications"""
     try:
-        endpoint = unsubscribe_data.get('endpoint')
+        endpoint = unsubscribe_data.get("endpoint")
 
         if not endpoint:
             raise HTTPException(status_code=400, detail="Endpoint required")
 
         # Find and deactivate subscription
-        subscription = db.query(PushSubscription).filter(
-            PushSubscription.endpoint == endpoint
-        ).first()
+        subscription = db.query(PushSubscription).filter(PushSubscription.endpoint == endpoint).first()
 
         if subscription:
             subscription.is_active = False
             db.commit()
             logger.info(f"Push subscription deactivated: {endpoint[:50]}...")
 
-        return {
-            "success": True,
-            "message": "Push unsubscription successful"
-        }
+        return {"success": True, "message": "Push unsubscription successful"}
 
     except Exception as e:
         db.rollback()
@@ -144,17 +122,12 @@ async def send_test_notification(db: Session = Depends(get_db)):
             logger.warning("🧪 PUSH_TEST_FAILED: VAPID keys not configured")
             return {
                 "success": False,
-                "message": "Push notification service is not properly configured. Please contact an administrator."
+                "message": "Push notification service is not properly configured. Please contact an administrator.",
             }
 
         # Initialize push service
-        vapid_claims = {
-            "sub": getattr(settings, 'VAPID_CLAIMS_SUB', "mailto:admin@streamvault.local")
-        }
-        push_service = ModernWebPushService(
-            vapid_private_key=settings.VAPID_PRIVATE_KEY,
-            vapid_claims=vapid_claims
-        )
+        vapid_claims = {"sub": getattr(settings, "VAPID_CLAIMS_SUB", "mailto:admin@streamvault.local")}
+        push_service = ModernWebPushService(vapid_private_key=settings.VAPID_PRIVATE_KEY, vapid_claims=vapid_claims)
 
         # Check global notification settings
         global_settings = db.query(GlobalSettings).first()
@@ -163,16 +136,14 @@ async def send_test_notification(db: Session = Depends(get_db)):
         logger.info(f"🧪 GLOBAL_NOTIFICATIONS_ENABLED: {global_notifications_enabled}")
 
         # Get active subscriptions
-        active_subscriptions = db.query(PushSubscription).filter(
-            PushSubscription.is_active.is_(True)
-        ).all()
+        active_subscriptions = db.query(PushSubscription).filter(PushSubscription.is_active.is_(True)).all()
 
         logger.info(f"🧪 ACTIVE_SUBSCRIPTIONS_FOUND: {len(active_subscriptions)}")
 
         if not active_subscriptions:
             return {
                 "success": False,
-                "message": "No active push subscriptions found. Please enable push notifications in a browser first."
+                "message": "No active push subscriptions found. Please enable push notifications in a browser first.",
             }
 
         notification_data = {
@@ -183,7 +154,7 @@ async def send_test_notification(db: Session = Depends(get_db)):
             "type": "test",
             "url": "/",
             "requireInteraction": True,
-            "timestamp": int(time.time() * 1000)
+            "timestamp": int(time.time() * 1000),
         }
 
         sent_count = 0
@@ -193,7 +164,7 @@ async def send_test_notification(db: Session = Depends(get_db)):
         for subscription in active_subscriptions:
             try:
                 subscription_data = json.loads(subscription.subscription_data)
-                endpoint = subscription_data.get('endpoint', 'unknown')[:50]
+                endpoint = subscription_data.get("endpoint", "unknown")[:50]
 
                 logger.debug(f"🧪 SENDING_TEST_TO: {endpoint}...")
 
@@ -208,11 +179,13 @@ async def send_test_notification(db: Session = Depends(get_db)):
 
             except Exception as e:
                 failed_count += 1
-                endpoint = subscription.endpoint[:50] if subscription.endpoint else 'unknown'
+                endpoint = subscription.endpoint[:50] if subscription.endpoint else "unknown"
                 failed_endpoints.append(f"{endpoint} (error: {str(e)[:30]})")
                 logger.error(f"🧪 TEST_EXCEPTION: {endpoint}: {e}")
 
-        logger.info(f"🧪 PUSH_TEST_SUMMARY: sent={sent_count}, failed={failed_count}, total={len(active_subscriptions)}")
+        logger.info(
+            f"🧪 PUSH_TEST_SUMMARY: sent={sent_count}, failed={failed_count}, total={len(active_subscriptions)}"
+        )
 
         # Only include debug info in development mode or for admin users
         # Remove sensitive debug information for production
@@ -223,20 +196,20 @@ async def send_test_notification(db: Session = Depends(get_db)):
                 "message": f"Test notifications sent to {sent_count} subscribers"
                 + (f" ({failed_count} failed)" if failed_count > 0 else ""),
                 "sent_count": sent_count,
-                "failed_count": failed_count
+                "failed_count": failed_count,
             }
         else:
             return {
                 "success": False,
                 "message": f"Failed to send notifications to all {len(active_subscriptions)} subscribers. Check VAPID key configuration or subscription validity.",
-                "suggestion": "Check browser console for errors or try re-subscribing to push notifications"
+                "suggestion": "Check browser console for errors or try re-subscribing to push notifications",
             }
 
     except Exception:
         return create_error_response(
             success=False,
             message="Server error while sending test notification. Please contact support if the issue persists.",
-            error_code="NOTIFICATION_TEST_FAILED"
+            error_code="NOTIFICATION_TEST_FAILED",
         )
 
 
@@ -257,9 +230,7 @@ async def get_push_debug_info(db: Session = Depends(get_db)):
         global_notifications_enabled = global_settings and global_settings.notifications_enabled
 
         # Check subscriptions count
-        active_subscriptions = db.query(PushSubscription).filter(
-            PushSubscription.is_active.is_(True)
-        ).count()
+        active_subscriptions = db.query(PushSubscription).filter(PushSubscription.is_active.is_(True)).count()
 
         # Check streamers count
         streamers_with_settings = db.query(NotificationSettings).count()
@@ -270,9 +241,9 @@ async def get_push_debug_info(db: Session = Depends(get_db)):
                 "vapid_configured": vapid_configured,
                 "global_notifications_enabled": global_notifications_enabled,
                 "has_active_subscriptions": active_subscriptions > 0,
-                "has_streamer_settings": streamers_with_settings > 0
+                "has_streamer_settings": streamers_with_settings > 0,
             },
-            "issues": []
+            "issues": [],
         }
 
         # Identify potential issues
@@ -285,16 +256,11 @@ async def get_push_debug_info(db: Session = Depends(get_db)):
         if streamers_with_settings == 0:
             debug_info["issues"].append("No streamer notification settings configured")
 
-        return {
-            "success": True,
-            "debug": debug_info
-        }
+        return {"success": True, "debug": debug_info}
 
     except Exception:
         return create_error_response(
-            success=False,
-            message="Failed to get debug information",
-            error_code="DEBUG_INFO_FAILED"
+            success=False, message="Failed to get debug information", error_code="DEBUG_INFO_FAILED"
         )
 
 
@@ -314,14 +280,12 @@ async def send_test_local_notification():
                 "requireInteraction": True,
                 "timestamp": int(time.time() * 1000),
                 "tag": "test-local-notification",
-                "data": {
-                    "url": "/",
-                    "type": "test_local"
-                }}
+                "data": {"url": "/", "type": "test_local"},
+            },
         }
     except Exception as e:
         logger.error(f"Error creating local test notification: {e}", exc_info=True)
         return {
             "success": False,
-            "message": "Failed to prepare local test notification. An internal error occurred. Please try again later."
+            "message": "Failed to prepare local test notification. An internal error occurred. Please try again later.",
         }

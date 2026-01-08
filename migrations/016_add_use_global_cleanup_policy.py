@@ -20,6 +20,7 @@ from app.config.settings import settings
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
 def run_migration():
     """Add use_global_cleanup_policy flag to streamer_recording_settings"""
     session = None
@@ -27,53 +28,65 @@ def run_migration():
         # Validate DATABASE_URL
         if not settings.DATABASE_URL:
             raise ValueError("DATABASE_URL not configured")
-        
+
         # Connect to the database
         engine = create_engine(settings.DATABASE_URL)
         Session = sessionmaker(bind=engine)
         session = Session()
-        
+
         logger.info("🔄 Adding use_global_cleanup_policy column to streamer_recording_settings...")
-        
+
         # Use SQLAlchemy's introspection for database-agnostic column checking
         inspector = inspect(engine)
-        columns = inspector.get_columns('streamer_recording_settings')
-        column_names = [col['name'] for col in columns]
-        
-        if 'use_global_cleanup_policy' in column_names:
+        columns = inspector.get_columns("streamer_recording_settings")
+        column_names = [col["name"] for col in columns]
+
+        if "use_global_cleanup_policy" in column_names:
             logger.info("✅ Column use_global_cleanup_policy already exists, skipping")
             return True
-        
+
         logger.info("🔄 Adding use_global_cleanup_policy column...")
-        
+
         # Use database-agnostic approach
         database_url = settings.DATABASE_URL.lower()
-        
-        if 'postgresql' in database_url:
+
+        if "postgresql" in database_url:
             # PostgreSQL syntax
-            session.execute(text("""
-                ALTER TABLE streamer_recording_settings 
+            session.execute(
+                text(
+                    """
+                ALTER TABLE streamer_recording_settings
                 ADD COLUMN use_global_cleanup_policy BOOLEAN NOT NULL DEFAULT TRUE
-            """))
-        elif 'sqlite' in database_url:
+            """
+                )
+            )
+        elif "sqlite" in database_url:
             # SQLite syntax (SQLite uses INTEGER for boolean, 1 for TRUE)
-            session.execute(text("""
-                ALTER TABLE streamer_recording_settings 
+            session.execute(
+                text(
+                    """
+                ALTER TABLE streamer_recording_settings
                 ADD COLUMN use_global_cleanup_policy INTEGER NOT NULL DEFAULT 1
-            """))
+            """
+                )
+            )
         else:
             # Generic fallback
-            session.execute(text("""
-                ALTER TABLE streamer_recording_settings 
+            session.execute(
+                text(
+                    """
+                ALTER TABLE streamer_recording_settings
                 ADD COLUMN use_global_cleanup_policy BOOLEAN NOT NULL DEFAULT TRUE
-            """))
-        
+            """
+                )
+            )
+
         session.commit()
-        
+
         logger.info("✅ Added use_global_cleanup_policy column to streamer_recording_settings")
         logger.info("✅ Migration 016 completed successfully")
         return True
-        
+
     except (DatabaseError, OperationalError) as e:
         if session:
             session.rollback()
@@ -87,6 +100,7 @@ def run_migration():
     finally:
         if session:
             session.close()
+
 
 if __name__ == "__main__":
     run_migration()

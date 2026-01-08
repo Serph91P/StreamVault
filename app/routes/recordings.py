@@ -3,6 +3,7 @@ Recordings API Routes
 
 Provides endpoints for recordings management and querying.
 """
+
 from fastapi import APIRouter, HTTPException, Depends, Query
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import desc
@@ -32,11 +33,13 @@ def get_recording_service():
 async def get_latest_recording(db: Session = Depends(get_db)):
     """Get the most recent completed recording for performance optimization"""
     try:
-        latest_recording = db.query(Recording).options(
-            joinedload(Recording.stream).joinedload(Stream.streamer)
-        ).filter(Recording.status == 'completed')\
-            .order_by(desc(Recording.end_time))\
+        latest_recording = (
+            db.query(Recording)
+            .options(joinedload(Recording.stream).joinedload(Stream.streamer))
+            .filter(Recording.status == "completed")
+            .order_by(desc(Recording.end_time))
             .first()
+        )
 
         if not latest_recording:
             return {"recording": None}
@@ -55,7 +58,7 @@ async def get_latest_recording(db: Session = Depends(get_db)):
             "ended_at": latest_recording.end_time.isoformat() if latest_recording.end_time else None,
             "duration": latest_recording.duration,
             "file_path": latest_recording.path,
-            "status": latest_recording.status
+            "status": latest_recording.status,
         }
 
         return {"recording": result}
@@ -65,18 +68,17 @@ async def get_latest_recording(db: Session = Depends(get_db)):
 
 
 @router.get("/recent")
-async def get_recent_recordings(
-    limit: int = Query(default=10, ge=1, le=50),
-    db: Session = Depends(get_db)
-):
+async def get_recent_recordings(limit: int = Query(default=10, ge=1, le=50), db: Session = Depends(get_db)):
     """Get recent recordings for performance optimization"""
     try:
-        recent_recordings = db.query(Recording).options(
-            joinedload(Recording.stream).joinedload(Stream.streamer)
-        ).filter(Recording.status == 'completed')\
-            .order_by(desc(Recording.end_time))\
-            .limit(limit)\
+        recent_recordings = (
+            db.query(Recording)
+            .options(joinedload(Recording.stream).joinedload(Stream.streamer))
+            .filter(Recording.status == "completed")
+            .order_by(desc(Recording.end_time))
+            .limit(limit)
             .all()
+        )
 
         # Get streamer info for all recordings
         results = []
@@ -94,7 +96,7 @@ async def get_recent_recordings(
                 "ended_at": recording.end_time.isoformat() if recording.end_time else None,
                 "duration": recording.duration,
                 "file_path": recording.path,
-                "status": recording.status
+                "status": recording.status,
             }
             results.append(result)
 
@@ -118,28 +120,34 @@ async def force_stop_recording(request_data: dict):
             streamer_name = streamer.username if streamer else f"Streamer {streamer_id}"
 
         # Log the force stop request
-        logging_service.log_recording_activity("FORCE_STOP_REQUEST", f"Streamer {streamer_id}", "Force stop requested via API")
+        logging_service.log_recording_activity(
+            "FORCE_STOP_REQUEST", f"Streamer {streamer_id}", "Force stop requested via API"
+        )
 
         result = await get_recording_service().stop_recording_manual(streamer_id)
         if result:
-            logging_service.log_recording_activity("FORCE_STOP_SUCCESS", f"Streamer {streamer_id}", "Recording force stopped successfully via API")
+            logging_service.log_recording_activity(
+                "FORCE_STOP_SUCCESS", f"Streamer {streamer_id}", "Recording force stopped successfully via API"
+            )
 
             # Send success toast notification
             await websocket_manager.send_toast_notification(
                 toast_type="success",
                 title=f"Recording Stopped - {streamer_name}",
-                message="Recording force stopped successfully!"
+                message="Recording force stopped successfully!",
             )
 
             return {"status": "success", "message": "Recording force stopped successfully"}
         else:
-            logging_service.log_recording_activity("FORCE_STOP_FAILED", f"Streamer {streamer_id}", "No active recording found", "warning")
+            logging_service.log_recording_activity(
+                "FORCE_STOP_FAILED", f"Streamer {streamer_id}", "No active recording found", "warning"
+            )
 
             # Send warning toast notification
             await websocket_manager.send_toast_notification(
                 toast_type="warning",
                 title=f"Force Stop Recording - {streamer_name}",
-                message="No active recording found to stop."
+                message="No active recording found to stop.",
             )
 
             return {"status": "error", "message": "No active recording found"}
@@ -156,7 +164,7 @@ async def force_stop_recording(request_data: dict):
             await websocket_manager.send_toast_notification(
                 toast_type="error",
                 title=f"Force Stop Recording - {streamer_name}",
-                message=f"Failed to force stop recording: {str(e)}"
+                message=f"Failed to force stop recording: {str(e)}",
             )
         except Exception as notification_error:
             logger.error(f"Failed to send error notification: {notification_error}")

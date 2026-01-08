@@ -24,8 +24,7 @@ class ProfileImageService:
         self.download_service = download_service or ImageDownloadService()
         # TTLCache for profile images (prevents memory leaks with automatic expiration)
         self._profile_cache: TTLCache = TTLCache(
-            maxsize=CACHE_CONFIG.DEFAULT_CACHE_SIZE,
-            ttl=CACHE_CONFIG.IMAGE_CACHE_TTL
+            maxsize=CACHE_CONFIG.DEFAULT_CACHE_SIZE, ttl=CACHE_CONFIG.IMAGE_CACHE_TTL
         )
         self.profiles_dir = None
         self._cache_loaded = False
@@ -55,6 +54,7 @@ class ProfileImageService:
         try:
             with SessionLocal() as db:
                 from app.models import Streamer
+
                 streamer = db.query(Streamer).filter(Streamer.id == streamer_id).first()
                 return streamer.twitch_id if streamer else None
         except Exception as e:
@@ -78,10 +78,12 @@ class ProfileImageService:
         try:
             # Test if database is ready by attempting a simple query
             from app.database import SessionLocal
+
             with SessionLocal() as db:
                 # Try a simple query to check if streamers table exists
                 # Use text() for raw SQL to avoid table reflection issues
                 from sqlalchemy import text
+
                 db.execute(text("SELECT 1 FROM streamers LIMIT 1")).fetchone()
 
             # Database is ready, load cache
@@ -91,7 +93,7 @@ class ProfileImageService:
             # Database not ready yet, skip cache loading for now
             logger.debug(f"Database not ready for profile image cache loading: {e}")
             # Set a flag to indicate we tried but failed, so we don't spam logs
-            if not hasattr(self, '_cache_load_attempted'):
+            if not hasattr(self, "_cache_load_attempted"):
                 logger.info("Profile image cache loading deferred until database is ready")
                 self._cache_load_attempted = True
 
@@ -236,7 +238,7 @@ class ProfileImageService:
                 streamers = db.query(Streamer).all()
 
                 for streamer in streamers:
-                    if streamer.profile_image_url and streamer.profile_image_url.startswith('http'):
+                    if streamer.profile_image_url and streamer.profile_image_url.startswith("http"):
                         # This is a Twitch URL, download and cache it
                         cached_path = await self.download_profile_image(streamer.id, streamer.profile_image_url)
                         if cached_path:
@@ -261,7 +263,7 @@ class ProfileImageService:
         self._ensure_cache_loaded()
         return {
             "cached_profiles": len(self._profile_cache),
-            "failed_downloads": len([url for url in self.download_service._failed_downloads if 'profile' in url])
+            "failed_downloads": len([url for url in self.download_service._failed_downloads if "profile" in url]),
         }
 
     async def cleanup_unused_profile_images(self) -> int:

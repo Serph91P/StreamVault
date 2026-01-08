@@ -97,29 +97,33 @@ class WebSocketBroadcastTask:
         try:
             with SessionLocal() as db:
                 # Get all currently active recordings with joined relationships
-                active_recordings = db.query(Recording).options(
-                    joinedload(Recording.stream).joinedload(Stream.streamer)
-                ).filter(
-                    and_(
-                        Recording.status.in_(["recording", "processing"]),
-                        Recording.path.isnot(None)
-                    )
-                ).all()
+                active_recordings = (
+                    db.query(Recording)
+                    .options(joinedload(Recording.stream).joinedload(Stream.streamer))
+                    .filter(and_(Recording.status.in_(["recording", "processing"]), Recording.path.isnot(None)))
+                    .all()
+                )
 
                 # Convert to dict format for frontend
                 recordings_data = []
                 for recording in active_recordings:
-                    recordings_data.append({
-                        "id": recording.id,
-                        "stream_id": recording.stream_id,
-                        "streamer_id": recording.stream.streamer_id if recording.stream else None,
-                        "streamer_name": recording.stream.streamer.username if recording.stream and recording.stream.streamer else "Unknown",
-                        "title": recording.stream.title if recording.stream else "No Title",
-                        "started_at": recording.start_time.isoformat() if recording.start_time else None,
-                        "file_path": recording.path,
-                        "status": recording.status,
-                        "duration": self._calculate_duration(recording.start_time) if recording.start_time else 0
-                    })
+                    recordings_data.append(
+                        {
+                            "id": recording.id,
+                            "stream_id": recording.stream_id,
+                            "streamer_id": recording.stream.streamer_id if recording.stream else None,
+                            "streamer_name": (
+                                recording.stream.streamer.username
+                                if recording.stream and recording.stream.streamer
+                                else "Unknown"
+                            ),
+                            "title": recording.stream.title if recording.stream else "No Title",
+                            "started_at": recording.start_time.isoformat() if recording.start_time else None,
+                            "file_path": recording.path,
+                            "status": recording.status,
+                            "duration": self._calculate_duration(recording.start_time) if recording.start_time else 0,
+                        }
+                    )
 
                 # Calculate hash of current data to check for changes
                 current_hash = hashlib.sha256(json.dumps(recordings_data, sort_keys=True).encode()).hexdigest()
@@ -131,13 +135,19 @@ class WebSocketBroadcastTask:
                     # Send via WebSocket if we have connected clients
                     if websocket_manager and len(websocket_manager.active_connections) > 0:
                         await websocket_manager.send_active_recordings_update(recordings_data)
-                        logger.debug(f"Broadcasted {len(recordings_data)} active recordings to {len(websocket_manager.active_connections)} clients (data changed)")
+                        logger.debug(
+                            f"Broadcasted {len(recordings_data)} active recordings to {len(websocket_manager.active_connections)} clients (data changed)"
+                        )
                     elif websocket_manager:
-                        logger.debug(f"No WebSocket clients connected - skipping broadcast of {len(recordings_data)} recordings")
+                        logger.debug(
+                            f"No WebSocket clients connected - skipping broadcast of {len(recordings_data)} recordings"
+                        )
                     else:
                         logger.warning("WebSocket manager not available - cannot broadcast recordings")
                 else:
-                    logger.debug(f"Active recordings data unchanged - skipping broadcast ({len(recordings_data)} recordings)")
+                    logger.debug(
+                        f"Active recordings data unchanged - skipping broadcast ({len(recordings_data)} recordings)"
+                    )
 
         except Exception as e:
             logger.error(f"Error broadcasting active recordings: {e}")
@@ -157,35 +167,39 @@ class WebSocketBroadcastTask:
                     # Convert tasks to serializable format
                     active_tasks_data = []
                     for task_id, task in active_tasks.items():
-                        active_tasks_data.append({
-                            "id": task_id,
-                            "task_type": task.task_type,
-                            "status": task.status.value if hasattr(task.status, 'value') else str(task.status),
-                            "progress": task.progress,
-                            "created_at": task.created_at.isoformat() if task.created_at else None,
-                            "streamer_name": task.payload.get("streamer_name", "Unknown"),
-                            "stream_id": task.payload.get("stream_id"),
-                            "recording_id": task.payload.get("recording_id")
-                        })
+                        active_tasks_data.append(
+                            {
+                                "id": task_id,
+                                "task_type": task.task_type,
+                                "status": task.status.value if hasattr(task.status, "value") else str(task.status),
+                                "progress": task.progress,
+                                "created_at": task.created_at.isoformat() if task.created_at else None,
+                                "streamer_name": task.payload.get("streamer_name", "Unknown"),
+                                "stream_id": task.payload.get("stream_id"),
+                                "recording_id": task.payload.get("recording_id"),
+                            }
+                        )
 
                     recent_tasks_data = []
                     for task_id, task in list(recent_tasks.items())[-10:]:  # Last 10 tasks
-                        recent_tasks_data.append({
-                            "id": task_id,
-                            "task_type": task.task_type,
-                            "status": task.status.value if hasattr(task.status, 'value') else str(task.status),
-                            "progress": task.progress,
-                            "created_at": task.created_at.isoformat() if task.created_at else None,
-                            "completed_at": task.completed_at.isoformat() if task.completed_at else None,
-                            "streamer_name": task.payload.get("streamer_name", "Unknown"),
-                            "error_message": task.error_message
-                        })
+                        recent_tasks_data.append(
+                            {
+                                "id": task_id,
+                                "task_type": task.task_type,
+                                "status": task.status.value if hasattr(task.status, "value") else str(task.status),
+                                "progress": task.progress,
+                                "created_at": task.created_at.isoformat() if task.created_at else None,
+                                "completed_at": task.completed_at.isoformat() if task.completed_at else None,
+                                "streamer_name": task.payload.get("streamer_name", "Unknown"),
+                                "error_message": task.error_message,
+                            }
+                        )
 
                     # Prepare data for frontend
                     queue_data = {
                         "stats": queue_stats,
                         "active_tasks": active_tasks_data,
-                        "recent_tasks": recent_tasks_data
+                        "recent_tasks": recent_tasks_data,
                     }
 
                     # Calculate hash of current data to check for changes
@@ -197,14 +211,15 @@ class WebSocketBroadcastTask:
 
                         # Send via WebSocket if we have connected clients
                         if websocket_manager and len(websocket_manager.active_connections) > 0:
-                            message = {
-                                "type": "background_queue_update",
-                                "data": queue_data
-                            }
+                            message = {"type": "background_queue_update", "data": queue_data}
                             await websocket_manager.send_notification(message)
-                            logger.debug(f"Broadcasted queue status to {len(websocket_manager.active_connections)} clients: {len(active_tasks_data)} active, {len(recent_tasks_data)} recent (data changed)")
+                            logger.debug(
+                                f"Broadcasted queue status to {len(websocket_manager.active_connections)} clients: {len(active_tasks_data)} active, {len(recent_tasks_data)} recent (data changed)"
+                            )
                     else:
-                        logger.debug(f"Queue data unchanged - skipping broadcast ({len(active_tasks_data)} active tasks)")
+                        logger.debug(
+                            f"Queue data unchanged - skipping broadcast ({len(active_tasks_data)} active tasks)"
+                        )
 
                 except AttributeError as e:
                     logger.warning(f"Background queue service method not available: {e}")
@@ -229,7 +244,7 @@ class WebSocketBroadcastTask:
             recording_result = await cleanup_service.cleanup_stuck_recording_tasks()
             orphaned_result = await cleanup_service.stop_continuous_orphaned_recovery()
 
-            total_fixed = recording_result.get('cleaned', 0) + orphaned_result.get('stopped', 0)
+            total_fixed = recording_result.get("cleaned", 0) + orphaned_result.get("stopped", 0)
 
             if total_fixed > 0:
                 logger.info(f"🧹 AUTO_CLEANUP: Fixed {total_fixed} stuck tasks automatically")
@@ -251,6 +266,7 @@ class WebSocketBroadcastTask:
         if start_time.tzinfo is not None:
             # Both are timezone-aware, use UTC for calculation
             from datetime import timezone
+
             now = datetime.now(timezone.utc)
             # Convert start_time to UTC if it's not already
             if start_time.tzinfo != timezone.utc:

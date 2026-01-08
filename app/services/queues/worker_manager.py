@@ -18,7 +18,12 @@ logger = logging.getLogger("streamvault")
 class WorkerManager:
     """Manages worker threads and task execution"""
 
-    def __init__(self, max_workers: int = 3, progress_tracker: Optional[TaskProgressTracker] = None, completion_callback: Optional[Callable] = None):
+    def __init__(
+        self,
+        max_workers: int = 3,
+        progress_tracker: Optional[TaskProgressTracker] = None,
+        completion_callback: Optional[Callable] = None,
+    ):
         """
         Initialize the WorkerManager.
 
@@ -84,10 +89,7 @@ class WorkerManager:
             try:
                 # Get next task from queue with timeout
                 try:
-                    priority, task = await asyncio.wait_for(
-                        self.task_queue.get(),
-                        timeout=1.0
-                    )
+                    priority, task = await asyncio.wait_for(self.task_queue.get(), timeout=1.0)
                 except asyncio.TimeoutError:
                     continue
 
@@ -149,8 +151,10 @@ class WorkerManager:
         # Create progress callback if tracker is available
         progress_callback = None
         if self.progress_tracker:
+
             def update_progress(progress: float):
                 self.progress_tracker.update_task_progress(task.id, progress)
+
             progress_callback = update_progress
             self.progress_tracker.register_progress_callback(task.id, progress_callback)
 
@@ -165,13 +169,9 @@ class WorkerManager:
             else:
                 # Sync handler - run in thread pool
                 if progress_callback:
-                    await asyncio.get_event_loop().run_in_executor(
-                        None, handler, task.payload, progress_callback
-                    )
+                    await asyncio.get_event_loop().run_in_executor(None, handler, task.payload, progress_callback)
                 else:
-                    await asyncio.get_event_loop().run_in_executor(
-                        None, handler, task.payload
-                    )
+                    await asyncio.get_event_loop().run_in_executor(None, handler, task.payload)
 
             # If we reach here, the task executed successfully
             return True
@@ -196,10 +196,12 @@ class WorkerManager:
                 self.progress_tracker.update_task_status(task.id, TaskStatus.RETRYING)
 
             # Calculate retry delay (exponential backoff)
-            retry_delay = min(2 ** task.retry_count, 60)  # Max 60 seconds
+            retry_delay = min(2**task.retry_count, 60)  # Max 60 seconds
 
-            logger.info(f"Worker {worker_name} retrying task {task.id} in {retry_delay}s "
-                        f"(attempt {task.retry_count + 1}/{task.max_retries + 1})")
+            logger.info(
+                f"Worker {worker_name} retrying task {task.id} in {retry_delay}s "
+                f"(attempt {task.retry_count + 1}/{task.max_retries + 1})"
+            )
 
             # Re-queue the task after delay
             await asyncio.sleep(retry_delay)
@@ -211,8 +213,10 @@ class WorkerManager:
             if self.progress_tracker:
                 self.progress_tracker.update_task_status(task.id, TaskStatus.FAILED, error_msg)
 
-            logger.error(f"Worker {worker_name} task {task.id} failed permanently after "
-                         f"{task.max_retries} retries: {error_msg}")
+            logger.error(
+                f"Worker {worker_name} task {task.id} failed permanently after "
+                f"{task.max_retries} retries: {error_msg}"
+            )
 
     def get_worker_count(self) -> int:
         """Get number of active workers"""
@@ -228,7 +232,7 @@ class WorkerManager:
 
     async def wait_for_completion(self, timeout: Optional[float] = None):
         """Wait for all current tasks to complete"""
-        if hasattr(self, 'task_queue'):
+        if hasattr(self, "task_queue"):
             try:
                 await asyncio.wait_for(self.task_queue.join(), timeout=timeout)
                 logger.info("All tasks completed")

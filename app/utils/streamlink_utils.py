@@ -27,12 +27,7 @@ def get_streamlink_version() -> str:
         String containing the version of Streamlink
     """
     try:
-        result = subprocess.run(
-            ["streamlink", "--version"],
-            capture_output=True,
-            text=True,
-            check=True
-        )
+        result = subprocess.run(["streamlink", "--version"], capture_output=True, text=True, check=True)
         # Extract version number from the output
         version_line = result.stdout.strip()
         # Usually outputs something like "streamlink 5.5.1"
@@ -78,7 +73,7 @@ def check_proxy_connectivity(proxy_settings: Optional[Dict[str, str]] = None) ->
             capture_output=True,
             text=True,
             timeout=10,  # 10 second timeout
-            check=False  # Don't raise exception on non-zero exit
+            check=False,  # Don't raise exception on non-zero exit
         )
 
         # Check for proxy connection errors in stderr
@@ -93,7 +88,7 @@ def check_proxy_connectivity(proxy_settings: Optional[Dict[str, str]] = None) ->
             "failed to connect",
             "network is unreachable",
             "connection timed out",
-            "name or service not known"  # DNS resolution failure
+            "name or service not known",  # DNS resolution failure
         ]
 
         for pattern in proxy_error_patterns:
@@ -137,7 +132,7 @@ def get_stream_info(streamer_name: str, proxy_settings: Optional[Dict[str, str]]
             return False, {
                 "error": "Proxy connection failed",
                 "details": proxy_error,
-                "proxy_settings": {k: v[:50] + "..." if len(v) > 50 else v for k, v in proxy_settings.items() if v}
+                "proxy_settings": {k: v[:50] + "..." if len(v) > 50 else v for k, v in proxy_settings.items() if v},
             }
 
     cmd = ["streamlink", "--json", f"twitch.tv/{streamer_name}"]
@@ -152,6 +147,7 @@ def get_stream_info(streamer_name: str, proxy_settings: Optional[Dict[str, str]]
     try:
         # SECURITY: Sanitize command for logging to prevent token exposure (CWE-532)
         from app.utils.security import sanitize_command_for_logging
+
         logger.debug(f"Running stream info command: {sanitize_command_for_logging(cmd)}")
         result = subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=30)
 
@@ -173,13 +169,16 @@ def get_stream_info(streamer_name: str, proxy_settings: Optional[Dict[str, str]]
             return False, {
                 "error": "Proxy or network connection failed",
                 "stderr": e.stderr,
-                "details": "Check proxy settings or network connectivity"
+                "details": "Check proxy settings or network connectivity",
             }
 
-        return False, {"error": str(e), "stderr": e.stderr if hasattr(e, 'stderr') else "No error output"}
+        return False, {"error": str(e), "stderr": e.stderr if hasattr(e, "stderr") else "No error output"}
     except json.JSONDecodeError as e:
         logger.error(f"Failed to parse JSON output from Streamlink: {e}")
-        return False, {"error": f"JSON parse error: {e}", "raw_output": result.stdout if 'result' in locals() else "No output"}
+        return False, {
+            "error": f"JSON parse error: {e}",
+            "raw_output": result.stdout if "result" in locals() else "No output",
+        }
     except Exception as e:
         logger.error(f"Unexpected error getting stream info: {e}")
         return False, {"error": str(e)}
@@ -193,7 +192,7 @@ def get_streamlink_command(
     force_mode: bool = False,
     log_path: Optional[str] = None,
     supported_codecs: Optional[str] = None,
-    oauth_token: Optional[str] = None
+    oauth_token: Optional[str] = None,
 ) -> List[str]:
     """
     Generate a Streamlink command for recording a stream.
@@ -232,6 +231,7 @@ def get_streamlink_command(
     if not log_path:
         # Lazy import to avoid circular dependencies and import-time side effects
         from app.services.system.logging_service import logging_service
+
         log_path = logging_service.get_streamlink_log_path(streamer_name)
 
     # Core streamlink command
@@ -239,11 +239,14 @@ def get_streamlink_command(
     # We MUST specify --config to load our custom config location
     cmd = [
         "streamlink",
-        "--config", "/app/config/streamlink/config.twitch",
+        "--config",
+        "/app/config/streamlink/config.twitch",
         f"twitch.tv/{streamer_name}",
         quality,
-        "-o", ts_output_path,
-        "--logfile", log_path,
+        "-o",
+        ts_output_path,
+        "--logfile",
+        log_path,
     ]
 
     # Note: These settings are now in config.twitch (auto-generated from settings):
@@ -274,9 +277,7 @@ def get_streamlink_command(
         logger.debug("🔑 Using auto-refreshed OAuth token")
         logger.debug("   Enables: H.265/AV1, 1440p, ad-free (Turbo)")
     else:
-        logger.warning(
-            "⚠️ No OAuth token - limited to 1080p H.264, ads may appear"
-        )
+        logger.warning("⚠️ No OAuth token - limited to 1080p H.264, ads may appear")
 
     # Add proxy settings if provided (overrides config.twitch)
     if proxy_settings:
@@ -301,11 +302,8 @@ def _add_proxy_settings(cmd: List[str], proxy_settings: Dict[str, str], force_mo
     if "http" in proxy_settings and proxy_settings["http"].strip():
         proxy_url = proxy_settings["http"].strip()
         # Validate that the proxy URL has the correct protocol prefix
-        if not proxy_url.startswith(('http://', 'https://')):
-            error_msg = (
-                f"HTTP proxy URL must start with 'http://' or 'https://'. "
-                f"Current value: {proxy_url}"
-            )
+        if not proxy_url.startswith(("http://", "https://")):
+            error_msg = f"HTTP proxy URL must start with 'http://' or 'https://'. " f"Current value: {proxy_url}"
             logger.error(f"PROXY_VALIDATION_FAILED: {error_msg}")
             raise ValueError(error_msg)
 
@@ -316,27 +314,34 @@ def _add_proxy_settings(cmd: List[str], proxy_settings: Dict[str, str], force_mo
         seg_timeout = "60" if not force_mode else "90"
         stream_timeout = "300" if not force_mode else "360"
         seg_attempts = "15" if not force_mode else "20"
-        cmd.extend([
-            "--stream-segment-timeout", seg_timeout,
-            "--stream-timeout", stream_timeout,
-            "--hls-segment-queue-threshold", "8",
-            "--stream-segment-attempts", seg_attempts,
-            "--hls-live-edge", "10",
-            "--ringbuffer-size", "512M",
-            "--hls-segment-stream-data",
-            "--stream-segment-threads", "2",
-            "--hls-playlist-reload-time", "segment",
-        ])
+        cmd.extend(
+            [
+                "--stream-segment-timeout",
+                seg_timeout,
+                "--stream-timeout",
+                stream_timeout,
+                "--hls-segment-queue-threshold",
+                "8",
+                "--stream-segment-attempts",
+                seg_attempts,
+                "--hls-live-edge",
+                "10",
+                "--ringbuffer-size",
+                "512M",
+                "--hls-segment-stream-data",
+                "--stream-segment-threads",
+                "2",
+                "--hls-playlist-reload-time",
+                "segment",
+            ]
+        )
 
     # Add HTTPS proxy if configured
     if "https" in proxy_settings and proxy_settings["https"].strip():
         proxy_url = proxy_settings["https"].strip()
         # Validate that the proxy URL has the correct protocol prefix
-        if not proxy_url.startswith(('http://', 'https://')):
-            error_msg = (
-                f"HTTPS proxy URL must start with 'http://' or 'https://'. "
-                f"Current value: {proxy_url}"
-            )
+        if not proxy_url.startswith(("http://", "https://")):
+            error_msg = f"HTTPS proxy URL must start with 'http://' or 'https://'. " f"Current value: {proxy_url}"
             logger.error(f"PROXY_VALIDATION_FAILED: {error_msg}")
             raise ValueError(error_msg)
 
@@ -344,14 +349,22 @@ def _add_proxy_settings(cmd: List[str], proxy_settings: Dict[str, str], force_mo
         logger.debug(f"Using HTTPS proxy: {proxy_url}")
 
         # Add proxy-specific optimizations for HTTPS connections too
-        cmd.extend([
-            "--stream-segment-timeout", "60" if not force_mode else "90",
-            "--stream-timeout", "300" if not force_mode else "360",
-            "--hls-segment-queue-threshold", "8",
-            "--stream-segment-attempts", "15" if not force_mode else "20",
-            "--hls-live-edge", "10",
-            "--ringbuffer-size", "512M",
-        ])
+        cmd.extend(
+            [
+                "--stream-segment-timeout",
+                "60" if not force_mode else "90",
+                "--stream-timeout",
+                "300" if not force_mode else "360",
+                "--hls-segment-queue-threshold",
+                "8",
+                "--stream-segment-attempts",
+                "15" if not force_mode else "20",
+                "--hls-live-edge",
+                "10",
+                "--ringbuffer-size",
+                "512M",
+            ]
+        )
 
     return cmd
 
@@ -383,7 +396,7 @@ def get_streamlink_vod_command(
     quality: str,
     output_path: str,
     proxy_settings: Optional[Dict[str, str]] = None,
-    force_mode: bool = False
+    force_mode: bool = False,
 ) -> List[str]:
     """
     Generate a Streamlink command for downloading a VOD.
@@ -404,20 +417,22 @@ def get_streamlink_vod_command(
     # Core command for VOD download
     cmd = [
         "streamlink",
-        "--ffmpeg-ffmpeg", ffmpeg_bin,
-        "-o", output_path,
-        "--stream-segment-threads", "10",
-        "--url", f"https://www.twitch.tv/videos/{video_id}",
-        "--default-stream", quality,
+        "--ffmpeg-ffmpeg",
+        ffmpeg_bin,
+        "-o",
+        output_path,
+        "--stream-segment-threads",
+        "10",
+        "--url",
+        f"https://www.twitch.tv/videos/{video_id}",
+        "--default-stream",
+        quality,
     ]
 
     # Add logging level
     log_dir = Path(output_path).parent
     log_file = os.path.join(log_dir, f"streamlink_vod_{video_id}.log")
-    cmd.extend([
-        "--loglevel", "debug",
-        "--logfile", log_file
-    ])
+    cmd.extend(["--loglevel", "debug", "--logfile", log_file])
 
     # Add proxy settings if provided
     if proxy_settings:
@@ -427,10 +442,7 @@ def get_streamlink_vod_command(
 
 
 def get_streamlink_clip_command(
-    clip_url: str,
-    quality: str,
-    output_path: str,
-    proxy_settings: Optional[Dict[str, str]] = None
+    clip_url: str, quality: str, output_path: str, proxy_settings: Optional[Dict[str, str]] = None
 ) -> List[str]:
     """
     Generate a Streamlink command for downloading a Twitch clip.
@@ -450,19 +462,27 @@ def get_streamlink_clip_command(
     # Core command for clip download
     cmd = [
         "streamlink",
-        "--ffmpeg-ffmpeg", ffmpeg_bin,
-        "-o", output_path,
-        "--stream-segment-threads", "10",
-        "--url", clip_url,
-        "--default-stream", quality,
+        "--ffmpeg-ffmpeg",
+        ffmpeg_bin,
+        "-o",
+        output_path,
+        "--stream-segment-threads",
+        "10",
+        "--url",
+        clip_url,
+        "--default-stream",
+        quality,
     ]
 
     # Add logging level
-    cmd.extend([
-        "--loglevel", "debug",
-        "--logfile", os.path.join(Path(output_path).parent,
-                                  f"streamlink_clip_{Path(output_path).stem}.log")
-    ])
+    cmd.extend(
+        [
+            "--loglevel",
+            "debug",
+            "--logfile",
+            os.path.join(Path(output_path).parent, f"streamlink_clip_{Path(output_path).stem}.log"),
+        ]
+    )
 
     # Add proxy settings if provided
     if proxy_settings:

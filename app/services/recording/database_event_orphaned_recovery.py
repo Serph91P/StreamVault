@@ -73,7 +73,9 @@ class DatabaseEventOrphanedRecovery:
             # 1. Once at startup
             # 2. When explicitly triggered via API
             # 3. When streams end (to catch failed recordings)
-            logger.debug(f"✅ POST_PROCESSING_COMPLETED: {task_type} for recording {recording_id} - no orphaned check needed")
+            logger.debug(
+                f"✅ POST_PROCESSING_COMPLETED: {task_type} for recording {recording_id} - no orphaned check needed"
+            )
 
         except Exception as e:
             logger.error(f"Error handling post-processing completion: {e}", exc_info=True)
@@ -100,11 +102,8 @@ class DatabaseEventOrphanedRecovery:
                 if background_queue_service and background_queue_service.is_running:
                     await background_queue_service.enqueue_task(
                         "orphaned_recovery_check",
-                        {
-                            "max_age_hours": 48,  # Check recordings from last 48 hours
-                            "trigger_reason": trigger_reason
-                        },
-                        priority=1  # Low priority
+                        {"max_age_hours": 48, "trigger_reason": trigger_reason},  # Check recordings from last 48 hours
+                        priority=1,  # Low priority
                     )
                     logger.debug(f"🔍 ORPHANED_RECOVERY_CHECK_SCHEDULED: {trigger_reason}")
                 else:

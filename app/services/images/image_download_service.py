@@ -15,6 +15,7 @@ from app.services.recording.config_manager import ConfigManager
 
 try:
     import aiofiles
+
     HAS_AIOFILES = True
 except ImportError:
     HAS_AIOFILES = False
@@ -73,12 +74,12 @@ class ImageDownloadService:
     def sanitize_filename(self, name: str) -> str:
         """Sanitize filename for filesystem"""
         # Replace special characters with underscores
-        safe_name = re.sub(r'[<>:"/\\|?*]', '_', name)
+        safe_name = re.sub(r'[<>:"/\\|?*]', "_", name)
         # Replace spaces with underscores
-        safe_name = safe_name.replace(' ', '_')
+        safe_name = safe_name.replace(" ", "_")
         # Remove multiple underscores
-        safe_name = re.sub(r'_+', '_', safe_name)
-        return safe_name.strip('_').lower()
+        safe_name = re.sub(r"_+", "_", safe_name)
+        return safe_name.strip("_").lower()
 
     def create_filename_hash(self, url: str) -> str:
         """Create a hash-based filename for an image URL"""
@@ -108,18 +109,18 @@ class ImageDownloadService:
             return False
 
         if expected_content_types is None:
-            expected_content_types = ['image']
+            expected_content_types = ["image"]
 
         try:
             session = await self.get_session()
             async with session.get(url) as response:
                 if response.status == 200:
-                    content_type = response.headers.get('content-type', '')
+                    content_type = response.headers.get("content-type", "")
                     if any(ct in content_type for ct in expected_content_types):
                         # Ensure directory exists
                         file_path.parent.mkdir(parents=True, exist_ok=True)
 
-                        async with aiofiles.open(file_path, 'wb') as f:
+                        async with aiofiles.open(file_path, "wb") as f:
                             async for chunk in response.content.iter_chunked(8192):
                                 await f.write(chunk)
                         logger.debug(f"Downloaded image: {url} -> {file_path}")

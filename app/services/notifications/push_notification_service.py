@@ -24,7 +24,9 @@ class PushNotificationService:
         """Check if notifications should be sent for this streamer and event type"""
         with SessionLocal() as db:
             global_settings = db.query(GlobalSettings).first()
-            logger.debug(f"Global settings: notifications_enabled={global_settings.notifications_enabled if global_settings else 'None'}")
+            logger.debug(
+                f"Global settings: notifications_enabled={global_settings.notifications_enabled if global_settings else 'None'}"
+            )
 
             if not global_settings or not global_settings.notifications_enabled:
                 logger.debug("Global notifications disabled")
@@ -35,7 +37,7 @@ class PushNotificationService:
                 "online": ("notify_online", "notify_online_global"),
                 "offline": ("notify_offline", "notify_offline_global"),
                 "update": ("notify_update", "notify_update_global"),
-                "favorite_category": ("notify_favorite_category", "notify_favorite_category_global")
+                "favorite_category": ("notify_favorite_category", "notify_favorite_category_global"),
             }
 
             streamer_field, global_field = setting_map.get(event_type, (None, None))
@@ -52,9 +54,9 @@ class PushNotificationService:
                 return False
 
             # Streamer-spezifische Einstellungen prüfen
-            streamer_settings = db.query(NotificationSettings)\
-                .filter(NotificationSettings.streamer_id == streamer_id)\
-                .first()
+            streamer_settings = (
+                db.query(NotificationSettings).filter(NotificationSettings.streamer_id == streamer_id).first()
+            )
 
             # Wenn keine streamer-spezifischen Einstellungen existieren, verwende global
             if not streamer_settings:
@@ -71,13 +73,13 @@ class PushNotificationService:
     async def send_push_notifications(self, streamer_name: str, event_type: str, details: dict):
         """Send push notifications to all active subscribers"""
         try:
-            logger.info(f"🔔 PUSH_NOTIFICATION_ATTEMPT: streamer={streamer_name}, event={event_type}, details={details}")
+            logger.info(
+                f"🔔 PUSH_NOTIFICATION_ATTEMPT: streamer={streamer_name}, event={event_type}, details={details}"
+            )
 
             with SessionLocal() as db:
                 # Get all active push subscriptions
-                active_subscriptions = db.query(PushSubscription).filter(
-                    PushSubscription.is_active.is_(True)
-                ).all()
+                active_subscriptions = db.query(PushSubscription).filter(PushSubscription.is_active.is_(True)).all()
 
                 logger.info(f"🔔 PUSH_SUBSCRIPTIONS_FOUND: count={len(active_subscriptions)}")
                 for sub in active_subscriptions:
@@ -87,10 +89,10 @@ class PushNotificationService:
                     logger.warning("🔔 NO_ACTIVE_PUSH_SUBSCRIPTIONS: No active push subscriptions found")
                     return
 
-                streamer_id = details.get('streamer_id')
-                stream_id = details.get('stream_id')
-                stream_title = details.get('title', 'Stream')
-                category_name = details.get('category_name', '')
+                streamer_id = details.get("streamer_id")
+                stream_id = details.get("stream_id")
+                stream_title = details.get("title", "Stream")
+                category_name = details.get("category_name", "")
 
                 # Skip if we don't have essential data
                 if not streamer_id:
@@ -99,7 +101,9 @@ class PushNotificationService:
 
                 # Check if we should send push notifications for this event type and streamer
                 should_send = await self.should_notify(int(streamer_id), event_type)
-                logger.info(f"🔔 PUSH_NOTIFICATION_CHECK: streamer_id={streamer_id}, event={event_type}, should_send={should_send}")
+                logger.info(
+                    f"🔔 PUSH_NOTIFICATION_CHECK: streamer_id={streamer_id}, event={event_type}, should_send={should_send}"
+                )
 
                 if not should_send:
                     logger.warning(f"🔔 PUSH_NOTIFICATIONS_DISABLED: streamer_id={streamer_id}, event={event_type}")
@@ -112,65 +116,61 @@ class PushNotificationService:
                 for subscription in active_subscriptions:
                     try:
                         subscription_data = json.loads(subscription.subscription_data)
-                        logger.debug(f"🔔 SENDING_PUSH_TO_SUBSCRIPTION: endpoint={subscription_data.get('endpoint', 'unknown')[:50]}...")
+                        logger.debug(
+                            f"🔔 SENDING_PUSH_TO_SUBSCRIPTION: endpoint={subscription_data.get('endpoint', 'unknown')[:50]}..."
+                        )
 
                         success = False
-                        if event_type == 'online':
+                        if event_type == "online":
                             success = await self.push_service.send_stream_online_notification(
                                 subscription_data,
                                 streamer_name,
                                 stream_title,
                                 int(streamer_id),
                                 int(stream_id) if stream_id else None,
-                                category_name
+                                category_name,
                             )
-                        elif event_type == 'offline':
+                        elif event_type == "offline":
                             success = await self.push_service.send_stream_offline_notification(
-                                subscription_data,
-                                streamer_name,
-                                int(streamer_id)
+                                subscription_data, streamer_name, int(streamer_id)
                             )
-                        elif event_type == 'update':
+                        elif event_type == "update":
                             success = await self.push_service.send_stream_update_notification(
-                                subscription_data,
-                                streamer_name,
-                                stream_title,
-                                category_name,
-                                int(streamer_id)
+                                subscription_data, streamer_name, stream_title, category_name, int(streamer_id)
                             )
-                        elif event_type == 'favorite_category':
+                        elif event_type == "favorite_category":
                             success = await self.push_service.send_favorite_category_notification(
-                                subscription_data,
-                                streamer_name,
-                                stream_title,
-                                category_name,
-                                int(streamer_id)
+                                subscription_data, streamer_name, stream_title, category_name, int(streamer_id)
                             )
-                        elif event_type == 'recording_started':
+                        elif event_type == "recording_started":
                             success = await self.push_service.send_recording_started_notification(
                                 subscription_data,
                                 streamer_name,
                                 stream_title,
                                 int(streamer_id),
-                                int(stream_id) if stream_id else None
+                                int(stream_id) if stream_id else None,
                             )
-                        elif event_type == 'recording_finished' and stream_id:
-                            duration = details.get('duration', 'Unknown')
+                        elif event_type == "recording_finished" and stream_id:
+                            duration = details.get("duration", "Unknown")
                             success = await self.push_service.send_recording_finished_notification(
                                 subscription_data,
                                 streamer_name,
                                 stream_title,
                                 int(streamer_id),
                                 int(stream_id),
-                                duration
+                                duration,
                             )
 
                         if success:
                             successful_sends += 1
-                            logger.debug(f"🔔 PUSH_SUCCESS: endpoint={subscription_data.get('endpoint', 'unknown')[:50]}...")
+                            logger.debug(
+                                f"🔔 PUSH_SUCCESS: endpoint={subscription_data.get('endpoint', 'unknown')[:50]}..."
+                            )
                         else:
                             failed_sends += 1
-                            logger.warning(f"🔔 PUSH_FAILED: endpoint={subscription_data.get('endpoint', 'unknown')[:50]}...")
+                            logger.warning(
+                                f"🔔 PUSH_FAILED: endpoint={subscription_data.get('endpoint', 'unknown')[:50]}..."
+                            )
 
                     except Exception as sub_error:
                         failed_sends += 1
@@ -182,7 +182,9 @@ class PushNotificationService:
                             db.commit()
                             logger.info(f"Deactivated expired push subscription: {subscription.endpoint[:50]}")
 
-                logger.info(f"🔔 PUSH_NOTIFICATION_SUMMARY: event={event_type}, successful={successful_sends}, failed={failed_sends}, total={len(active_subscriptions)}")
+                logger.info(
+                    f"🔔 PUSH_NOTIFICATION_SUMMARY: event={event_type}, successful={successful_sends}, failed={failed_sends}, total={len(active_subscriptions)}"
+                )
 
         except Exception as e:
             logger.error(f"🔔 PUSH_NOTIFICATION_ERROR: {e}", exc_info=True)

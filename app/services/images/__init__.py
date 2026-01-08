@@ -16,9 +16,9 @@ from .category_image_service import CategoryImageService
 from .stream_artwork_service import StreamArtworkService
 
 __all__ = [
-    'ImageDownloadService',
-    'ProfileImageService',
-    'BannerImageService',
-    'CategoryImageService',
-    'StreamArtworkService'
+    "ImageDownloadService",
+    "ProfileImageService",
+    "BannerImageService",
+    "CategoryImageService",
+    "StreamArtworkService",
 ]

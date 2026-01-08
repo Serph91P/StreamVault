@@ -16,11 +16,10 @@ async def setup_page(request: Request, auth_service: AuthService = Depends(get_a
     admin_exists = await auth_service.admin_exists()
 
     # Always return JSON for XHR/fetch requests
-    if request.headers.get("X-Requested-With") == "XMLHttpRequest" or "application/json" in request.headers.get("accept", ""):
-        return JSONResponse(
-            content={"setup_required": not admin_exists},
-            headers={"Content-Type": "application/json"}
-        )
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest" or "application/json" in request.headers.get(
+        "accept", ""
+    ):
+        return JSONResponse(content={"setup_required": not admin_exists}, headers={"Content-Type": "application/json"})
 
     # Handle browser requests
     if admin_exists:
@@ -29,10 +28,7 @@ async def setup_page(request: Request, auth_service: AuthService = Depends(get_a
 
 
 @router.post("/setup")
-async def setup_admin(
-    request: UserCreate,
-    auth_service: AuthService = Depends(get_auth_service)
-):
+async def setup_admin(request: UserCreate, auth_service: AuthService = Depends(get_auth_service)):
     if await auth_service.admin_exists():
         raise HTTPException(status_code=400, detail="Admin already exists")
 
@@ -56,14 +52,13 @@ async def setup_admin(
 
 
 @router.post("/login")
-async def login(
-    request: UserCreate,
-    auth_service: AuthService = Depends(get_auth_service)
-):
+async def login(request: UserCreate, auth_service: AuthService = Depends(get_auth_service)):
     try:
         # Validate input
         if not request.username or not request.password:
-            logger.warning(f"Login attempt with missing credentials: username={bool(request.username)}, password={bool(request.password)}")
+            logger.warning(
+                f"Login attempt with missing credentials: username={bool(request.username)}, password={bool(request.password)}"
+            )
             raise HTTPException(status_code=400, detail="Username and password are required")
 
         user = await auth_service.validate_login(request.username, request.password)
@@ -98,8 +93,9 @@ async def login(
 async def login_page(request: Request, auth_service: AuthService = Depends(get_auth_service)):
     def is_api_request() -> bool:
         """Check if this is an API request that expects JSON response"""
-        return (request.headers.get("X-Requested-With") == "XMLHttpRequest"
-                or "application/json" in request.headers.get("accept", ""))
+        return request.headers.get("X-Requested-With") == "XMLHttpRequest" or "application/json" in request.headers.get(
+            "accept", ""
+        )
 
     def serve_spa_or_error():
         """Serve SPA or return appropriate error response"""
@@ -108,10 +104,7 @@ async def login_page(request: Request, auth_service: AuthService = Depends(get_a
         except Exception as file_error:
             logger.error(f"Error serving index.html: {file_error}")
             if is_api_request():
-                return JSONResponse(
-                    content={"error": "Internal server error"},
-                    status_code=500
-                )
+                return JSONResponse(content={"error": "Internal server error"}, status_code=500)
             raise HTTPException(status_code=500, detail="Unable to serve login page")
 
     try:
@@ -134,10 +127,7 @@ async def login_page(request: Request, auth_service: AuthService = Depends(get_a
 
 
 @router.get("/check")
-async def check_auth(
-    request: Request,
-    auth_service: AuthService = Depends(get_auth_service)
-):
+async def check_auth(request: Request, auth_service: AuthService = Depends(get_auth_service)):
     admin_exists = await auth_service.admin_exists()
     if not admin_exists:
         return JSONResponse(content={"setup_required": True})
@@ -149,10 +139,7 @@ async def check_auth(
 
 
 @router.post("/logout")
-async def logout(
-    request: Request,
-    auth_service: AuthService = Depends(get_auth_service)
-):
+async def logout(request: Request, auth_service: AuthService = Depends(get_auth_service)):
     try:
         session_token = request.cookies.get("session")
         if session_token:
@@ -170,10 +157,7 @@ async def logout(
 
 
 @router.post("/keepalive")
-async def keepalive(
-    request: Request,
-    auth_service: AuthService = Depends(get_auth_service)
-):
+async def keepalive(request: Request, auth_service: AuthService = Depends(get_auth_service)):
     """Refresh the current session to implement sliding expiration."""
     try:
         session_token = request.cookies.get("session")

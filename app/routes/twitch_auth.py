@@ -8,22 +8,17 @@ import logging
 
 logger = logging.getLogger("streamvault")
 
-router = APIRouter(
-    prefix="/api/twitch",
-    tags=["twitch-oauth"]
-)
+router = APIRouter(prefix="/api/twitch", tags=["twitch-oauth"])
 
 
-def get_twitch_oauth_service(
-    streamer_service: StreamerService = Depends(get_streamer_service)
-) -> TwitchOAuthService:
+def get_twitch_oauth_service(streamer_service: StreamerService = Depends(get_streamer_service)) -> TwitchOAuthService:
     return TwitchOAuthService(streamer_service)
 
 
 @router.get("/auth-url")
 async def get_twitch_auth_url(
     state: str = Query(None, description="Return URL after OAuth (e.g., '/settings' or '/add-streamer')"),
-    oauth_service: TwitchOAuthService = Depends(get_twitch_oauth_service)
+    oauth_service: TwitchOAuthService = Depends(get_twitch_oauth_service),
 ):
     """Get Twitch OAuth authorization URL
 
@@ -39,7 +34,7 @@ async def twitch_callback(
     code: str = Query(...),
     state: str = Query(None, description="Return URL passed from OAuth initiation"),
     oauth_service: TwitchOAuthService = Depends(get_twitch_oauth_service),
-    response: Response = None
+    response: Response = None,
 ):
     """Handle Twitch OAuth callback
 
@@ -70,9 +65,7 @@ async def twitch_callback(
             try:
                 token_service = TwitchTokenService(db)
                 success = await token_service.store_oauth_tokens(
-                    access_token=access_token,
-                    refresh_token=refresh_token,
-                    expires_in=expires_in
+                    access_token=access_token, refresh_token=refresh_token, expires_in=expires_in
                 )
 
                 if success:
@@ -98,8 +91,7 @@ async def twitch_callback(
 
 @router.get("/followed-channels")
 async def get_followed_channels(
-    access_token: str = Query(...),
-    oauth_service: TwitchOAuthService = Depends(get_twitch_oauth_service)
+    access_token: str = Query(...), oauth_service: TwitchOAuthService = Depends(get_twitch_oauth_service)
 ):
     """Get channels that the authenticated user follows"""
     # SECURITY: Do not log access tokens (even partial) - CWE-532
@@ -117,8 +109,7 @@ async def get_followed_channels(
 
 @router.post("/import-streamers")
 async def import_streamers(
-    streamers: List[Dict[str, Any]],
-    oauth_service: TwitchOAuthService = Depends(get_twitch_oauth_service)
+    streamers: List[Dict[str, Any]], oauth_service: TwitchOAuthService = Depends(get_twitch_oauth_service)
 ):
     """Import selected streamers from followed channels"""
     if not streamers:
@@ -132,6 +123,7 @@ async def import_streamers(
 async def get_callback_url():
     """Get the configured callback URL for Twitch OAuth"""
     from app.config.settings import settings
+
     callback_url = f"{settings.BASE_URL}/api/twitch/callback"
     return {"url": callback_url}
 
@@ -157,6 +149,7 @@ async def get_connection_status():
             is_valid = False
             if has_refresh_token and global_settings.twitch_token_expires_at:
                 from datetime import datetime, timezone
+
                 # Make both datetimes timezone-aware for comparison
                 now_utc = datetime.now(timezone.utc)
                 expires_at = global_settings.twitch_token_expires_at
@@ -168,7 +161,11 @@ async def get_connection_status():
             return {
                 "connected": has_refresh_token,
                 "valid": is_valid,
-                "expires_at": global_settings.twitch_token_expires_at.isoformat() if global_settings and global_settings.twitch_token_expires_at else None
+                "expires_at": (
+                    global_settings.twitch_token_expires_at.isoformat()
+                    if global_settings and global_settings.twitch_token_expires_at
+                    else None
+                ),
             }
         except Exception as e:
             logger.error(f"Error checking connection status: {e}")

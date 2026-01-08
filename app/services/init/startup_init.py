@@ -15,6 +15,7 @@ async def initialize_background_queue_with_fixes():
     try:
         # Check if already initialized to prevent double initialization
         from app.services.init.background_queue_init import background_queue_manager
+
         if background_queue_manager.is_initialized:
             logger.info("✅ Background queue already initialized, skipping duplicate initialization")
             return
@@ -23,10 +24,12 @@ async def initialize_background_queue_with_fixes():
 
         # Check if we're in production environment (multiple streamers)
         import os
-        enable_isolation = os.getenv('STREAMVAULT_ENABLE_STREAMER_ISOLATION', 'true').lower() == 'true'
+
+        enable_isolation = os.getenv("STREAMVAULT_ENABLE_STREAMER_ISOLATION", "true").lower() == "true"
 
         # Initialize with enhanced queue manager
         from app.services.init.background_queue_init import initialize_background_queue
+
         await initialize_background_queue(enable_streamer_isolation=enable_isolation)
 
         logger.info(f"✅ Background queue initialized with streamer isolation: {enable_isolation}")
@@ -91,7 +94,7 @@ async def initialize_vapid_keys():
         # Force VAPID key loading/generation by accessing them
         vapid_keys = settings.get_vapid_keys()
 
-        if vapid_keys and vapid_keys['public_key'] and vapid_keys['private_key']:
+        if vapid_keys and vapid_keys["public_key"] and vapid_keys["private_key"]:
             logger.info("VAPID keys initialized successfully")
             logger.debug(f"Public key: {vapid_keys['public_key'][:20]}...")
         else:
@@ -172,15 +175,21 @@ async def verify_queue_readiness() -> bool:
                     if status:
                         # Check for streamer isolation mode (has 'streamers' field) or shared mode (has queue_size field) or active workers
                         has_queue_system = (
-                            ('streamers' in status and isinstance(status['streamers'], dict))
-                            or ('queue_size' in status and isinstance(status['queue_size'], int) and status['queue_size'] >= 0)
-                            or ('workers' in status and status['workers'].get('total', 0) > 0)
+                            ("streamers" in status and isinstance(status["streamers"], dict))
+                            or (
+                                "queue_size" in status
+                                and isinstance(status["queue_size"], int)
+                                and status["queue_size"] >= 0
+                            )
+                            or ("workers" in status and status["workers"].get("total", 0) > 0)
                         )
                         if has_queue_system:
                             logger.info(f"✅ Queue readiness verified on attempt {attempt + 1}")
                             return True
                         else:
-                            logger.debug(f"⚠️ Queue manager running but no queue system detected on attempt {attempt + 1}: {status}")
+                            logger.debug(
+                                f"⚠️ Queue manager running but no queue system detected on attempt {attempt + 1}: {status}"
+                            )
                     else:
                         logger.debug(f"⚠️ Queue manager running but status unavailable on attempt {attempt + 1}")
 
@@ -216,11 +225,12 @@ async def unified_recovery_scan():
         # Enqueue recovery task instead of running synchronously
         # This prevents blocking the frontend during FFmpeg concatenation
         from app.services.background_queue_service import TaskPriority
+
         task_id = await queue_service.enqueue_task(
             task_type="unified_recovery",
             payload={"max_age_hours": 72, "dry_run": False},
             priority=TaskPriority.LOW,
-            max_retries=1
+            max_retries=1,
         )
 
         if task_id:
@@ -259,10 +269,7 @@ async def cleanup_zombie_recordings():
         from app.config.settings import settings
 
         # Initialize event registry with required dependencies
-        event_handler_registry = EventHandlerRegistry(
-            connection_manager=websocket_manager,
-            settings=settings
-        )
+        event_handler_registry = EventHandlerRegistry(connection_manager=websocket_manager, settings=settings)
         from datetime import datetime, timezone
         from sqlalchemy.orm import joinedload
 
@@ -271,11 +278,12 @@ async def cleanup_zombie_recordings():
             streamer_service = StreamerService(db, websocket_manager, event_handler_registry)
             recording_service = RecordingService()
             # Find all recordings with 'recording' status (eager load relationships)
-            zombie_recordings = db.query(Recording).options(
-                joinedload(Recording.stream).joinedload(Stream.streamer)
-            ).filter(
-                Recording.status == 'recording'
-            ).all()
+            zombie_recordings = (
+                db.query(Recording)
+                .options(joinedload(Recording.stream).joinedload(Stream.streamer))
+                .filter(Recording.status == "recording")
+                .all()
+            )
 
             if not zombie_recordings:
                 logger.info("✅ No zombie recordings found")
@@ -289,7 +297,7 @@ async def cleanup_zombie_recordings():
                     # Get streamer information through relationships
                     if not recording.stream or not recording.stream.streamer:
                         logger.warning(f"⚠️ Recording {recording.id} has no associated streamer - marking as stopped")
-                        recording.status = 'stopped'
+                        recording.status = "stopped"
                         recording.end_time = datetime.now(timezone.utc)
                         cleaned_count += 1
                         continue
@@ -319,14 +327,14 @@ async def cleanup_zombie_recordings():
                             await recording_service.start_recording(
                                 stream_id=stream.id,
                                 streamer_id=streamer.id,
-                                force_mode=True  # Force resume even if recording "exists"
+                                force_mode=True,  # Force resume even if recording "exists"
                             )
                             resumed_count += 1
                             logger.info(f"✅ Successfully resumed recording for {streamer.username}")
                         except Exception as resume_error:
                             logger.error(f"❌ Failed to resume recording for {streamer.username}: {resume_error}")
                             # Fallback: Mark as stopped if resume fails
-                            recording.status = 'stopped'
+                            recording.status = "stopped"
                             recording.end_time = datetime.now(timezone.utc)
                             cleaned_count += 1
                     else:
@@ -348,6 +356,7 @@ async def cleanup_zombie_recordings():
                             # Both datetimes must be timezone-aware for subtraction
                             if recording.start_time.tzinfo is None:
                                 from datetime import timezone as tz
+
                                 start_time_aware = recording.start_time.replace(tzinfo=tz.utc)
                             else:
                                 start_time_aware = recording.start_time
@@ -355,7 +364,7 @@ async def cleanup_zombie_recordings():
                             duration = int((end_time - start_time_aware).total_seconds())
 
                         # Mark as stopped (not failed, because the recording may have been successful)
-                        recording.status = 'stopped'
+                        recording.status = "stopped"
                         recording.end_time = recording.end_time or now_utc
                         if duration:
                             recording.duration_seconds = duration
@@ -446,6 +455,7 @@ async def shutdown_background_services():
 
         # Shutdown image sync service
         from app.services.images.auto_image_sync_service import auto_image_sync_service
+
         await auto_image_sync_service.stop_sync_worker()
 
         # Shutdown background queue

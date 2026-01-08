@@ -29,8 +29,7 @@ class CategoryImageService:
         self.download_service = download_service or ImageDownloadService()
         # TTLCache for category images (prevents memory leaks with automatic expiration)
         self._category_cache: TTLCache = TTLCache(
-            maxsize=CACHE_CONFIG.DEFAULT_CACHE_SIZE,
-            ttl=CACHE_CONFIG.IMAGE_CACHE_TTL
+            maxsize=CACHE_CONFIG.DEFAULT_CACHE_SIZE, ttl=CACHE_CONFIG.IMAGE_CACHE_TTL
         )
         self._background_tasks: Set[asyncio.Task] = set()
         self.categories_dir = None
@@ -103,7 +102,7 @@ class CategoryImageService:
                 return None
 
         # Check if the box_art_url is already a local path (cached)
-        if box_art_url.startswith('/api/media/categories/'):
+        if box_art_url.startswith("/api/media/categories/"):
             # This is already a local cached path, check if file exists
             safe_name = self.download_service.sanitize_filename(category_name)
             filename = f"{safe_name}.jpg"
@@ -166,7 +165,7 @@ class CategoryImageService:
                 category = db.query(Category).filter(Category.name == category_name).first()
                 if category and category.box_art_url:
                     # If it's already a local path, check if file exists
-                    if category.box_art_url.startswith('/api/media/categories/'):
+                    if category.box_art_url.startswith("/api/media/categories/"):
                         safe_name = self.download_service.sanitize_filename(category_name)
                         filename = f"{safe_name}.jpg"
                         self._ensure_categories_dir()
@@ -201,7 +200,9 @@ class CategoryImageService:
                     try:
                         # Create background task for downloading
                         loop = asyncio.get_event_loop()
-                        task = loop.create_task(self._download_category_image_background(category_name, category.box_art_url))
+                        task = loop.create_task(
+                            self._download_category_image_background(category_name, category.box_art_url)
+                        )
                         self._background_tasks.add(task)
                         task.add_done_callback(lambda t: self._background_tasks.discard(t))
                     except RuntimeError as e:
@@ -261,7 +262,7 @@ class CategoryImageService:
                 categories = db.query(Category).all()
 
                 for category in categories:
-                    if category.box_art_url and category.box_art_url.startswith('http'):
+                    if category.box_art_url and category.box_art_url.startswith("http"):
                         # This is a Twitch URL, download and cache it
                         cached_path = await self.download_category_image(category.name, category.box_art_url)
                         if cached_path:
@@ -288,8 +289,8 @@ class CategoryImageService:
         try:
             with SessionLocal() as db:
                 for cat_info in category_data:
-                    category_name = cat_info.get('name')
-                    box_art_url = cat_info.get('box_art_url')
+                    category_name = cat_info.get("name")
+                    box_art_url = cat_info.get("box_art_url")
 
                     if not category_name or not box_art_url:
                         continue
@@ -298,16 +299,12 @@ class CategoryImageService:
                     category = db.query(Category).filter(Category.name == category_name).first()
                     if not category:
                         # Create new category
-                        category = Category(
-                            name=category_name,
-                            twitch_id=cat_info.get('id'),
-                            box_art_url=box_art_url
-                        )
+                        category = Category(name=category_name, twitch_id=cat_info.get("id"), box_art_url=box_art_url)
                         db.add(category)
                         stats["updated"] += 1
 
                     # Download image if it's a HTTP URL
-                    if box_art_url.startswith('http'):
+                    if box_art_url.startswith("http"):
                         cached_path = await self.download_category_image(category_name, box_art_url)
                         if cached_path:
                             category.box_art_url = cached_path
@@ -327,7 +324,9 @@ class CategoryImageService:
         """Get statistics about category image cache"""
         return {
             "cached_categories": len(self._category_cache),
-            "failed_downloads": len([url for url in self.download_service._failed_downloads if 'category' in url or 'box_art' in url])
+            "failed_downloads": len(
+                [url for url in self.download_service._failed_downloads if "category" in url or "box_art" in url]
+            ),
         }
 
     async def cleanup_unused_category_images(self) -> int:

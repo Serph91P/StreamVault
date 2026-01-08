@@ -1,6 +1,7 @@
 """
 API endpoints for category image management
 """
+
 from fastapi import APIRouter, HTTPException, BackgroundTasks
 from typing import List
 import logging
@@ -23,19 +24,13 @@ async def get_category_image(category_name: str):
 
 
 @router.post("/preload")
-async def preload_category_images(
-    background_tasks: BackgroundTasks,
-    category_names: List[str]
-):
+async def preload_category_images(background_tasks: BackgroundTasks, category_names: List[str]):
     """Preload category images in the background"""
     try:
         # Start the preloading in the background
         background_tasks.add_task(unified_image_service.preload_categories, category_names)
 
-        return {
-            "message": f"Started preloading {len(category_names)} category images",
-            "categories": category_names
-        }
+        return {"message": f"Started preloading {len(category_names)} category images", "categories": category_names}
     except Exception as e:
         logger.error(f"Error preloading category images: {e}")
         raise HTTPException(status_code=500, detail="Failed to start preloading")
@@ -61,7 +56,7 @@ async def get_cache_status():
             "cached_categories": stats.get("categories_cached", 0),
             "failed_downloads": stats.get("failed_downloads", 0),
             "cache_directory": str(unified_image_service.categories_dir),
-            "cached_categories_list": list(unified_image_service._category_cache.keys())
+            "cached_categories_list": list(unified_image_service._category_cache.keys()),
         }
         return cache_info
     except Exception as e:

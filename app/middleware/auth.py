@@ -21,7 +21,9 @@ class AuthMiddleware:
 
         # Process HTTP requests
         request = Request(scope, receive=receive)
-        is_json_request = request.headers.get("X-Requested-With") == "XMLHttpRequest" or "application/json" in request.headers.get("accept", "")
+        is_json_request = request.headers.get(
+            "X-Requested-With"
+        ) == "XMLHttpRequest" or "application/json" in request.headers.get("accept", "")
 
         # Public paths that don't require authentication
         public_paths = [
@@ -49,7 +51,7 @@ class AuthMiddleware:
             "/recordings/.media/",
             "/api/media/",
             "/data/images/",
-            "/data/"
+            "/data/",
         ]
 
         if any(request.url.path.startswith(path) for path in public_paths):
@@ -65,7 +67,9 @@ class AuthMiddleware:
             if not admin_exists:
                 if not request.url.path.startswith("/auth/setup"):
                     if is_json_request:
-                        return await JSONResponse({"error": "Setup required", "redirect": "/auth/setup"}, status_code=307)(scope, receive, send)
+                        return await JSONResponse(
+                            {"error": "Setup required", "redirect": "/auth/setup"}, status_code=307
+                        )(scope, receive, send)
                     return await RedirectResponse(url="/auth/setup", status_code=307)(scope, receive, send)
 
             session_token = request.cookies.get("session")
@@ -73,13 +77,17 @@ class AuthMiddleware:
                 logger.debug(f"No session cookie found for {request.url.path}")
                 if not request.url.path.startswith("/auth/login"):
                     if is_json_request:
-                        return await JSONResponse({"error": "Authentication required", "redirect": "/auth/login"}, status_code=401)(scope, receive, send)
+                        return await JSONResponse(
+                            {"error": "Authentication required", "redirect": "/auth/login"}, status_code=401
+                        )(scope, receive, send)
                     return await RedirectResponse(url="/auth/login", status_code=307)(scope, receive, send)
             elif not await auth_service.validate_session(session_token):
                 logger.debug(f"Invalid session token for {request.url.path}")
                 if not request.url.path.startswith("/auth/login"):
                     if is_json_request:
-                        return await JSONResponse({"error": "Authentication required", "redirect": "/auth/login"}, status_code=401)(scope, receive, send)
+                        return await JSONResponse(
+                            {"error": "Authentication required", "redirect": "/auth/login"}, status_code=401
+                        )(scope, receive, send)
                     return await RedirectResponse(url="/auth/login", status_code=307)(scope, receive, send)
 
             return await self.app(scope, receive, send)

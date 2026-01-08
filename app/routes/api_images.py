@@ -1,6 +1,7 @@
 """
 API routes for image management
 """
+
 from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
 from fastapi.responses import JSONResponse
 import logging
@@ -13,10 +14,7 @@ from app.services.images.image_sync_service import image_sync_service
 
 logger = logging.getLogger("streamvault")
 
-router = APIRouter(
-    prefix="/api/images",
-    tags=["images-api"]
-)
+router = APIRouter(prefix="/api/images", tags=["images-api"])
 
 
 @router.get("/streamer/{streamer_id}")
@@ -28,17 +26,14 @@ async def get_streamer_image_info(streamer_id: int, db: Session = Depends(get_db
             raise HTTPException(status_code=404, detail="Streamer not found")
 
         # Get cached image URL or fallback to original
-        image_url = unified_image_service.get_profile_image_url(
-            streamer_id,
-            streamer.profile_image_url
-        )
+        image_url = unified_image_service.get_profile_image_url(streamer_id, streamer.profile_image_url)
 
         return {
             "streamer_id": streamer_id,
             "username": streamer.username,
             "image_url": image_url,
             "original_image_url": streamer.profile_image_url,
-            "cached": str(streamer_id) in unified_image_service._profile_cache
+            "cached": str(streamer_id) in unified_image_service._profile_cache,
         }
     except HTTPException:
         raise
@@ -59,11 +54,7 @@ async def download_streamer_image(streamer_id: int, background_tasks: Background
             raise HTTPException(status_code=400, detail="No profile image URL available")
 
         # Add download task to background
-        background_tasks.add_task(
-            unified_image_service.download_profile_image,
-            streamer_id,
-            streamer.profile_image_url
-        )
+        background_tasks.add_task(unified_image_service.download_profile_image, streamer_id, streamer.profile_image_url)
 
         return {"message": f"Profile image download started for {streamer.username}"}
     except HTTPException:
@@ -83,7 +74,7 @@ async def get_category_image_info(category_name: str):
         return {
             "category_name": category_name,
             "image_url": image_url,
-            "cached": category_name in unified_image_service._category_cache
+            "cached": category_name in unified_image_service._category_cache,
         }
     except Exception as e:
         logger.error(f"Error getting category image info for {category_name}: {e}")
@@ -95,10 +86,7 @@ async def download_category_image(category_name: str, background_tasks: Backgrou
     """Download and cache a category image"""
     try:
         # Add download task to background
-        background_tasks.add_task(
-            unified_image_service.download_category_image,
-            category_name
-        )
+        background_tasks.add_task(unified_image_service.download_category_image, category_name)
 
         return {"message": f"Category image download started for {category_name}"}
     except Exception as e:
@@ -148,18 +136,17 @@ async def get_all_streamers_image_info(db: Session = Depends(get_db)):
 
         result = []
         for streamer in streamers:
-            image_url = unified_image_service.get_profile_image_url(
-                streamer.id,
-                streamer.profile_image_url
-            )
+            image_url = unified_image_service.get_profile_image_url(streamer.id, streamer.profile_image_url)
 
-            result.append({
-                "streamer_id": streamer.id,
-                "username": streamer.username,
-                "image_url": image_url,
-                "original_image_url": streamer.profile_image_url,
-                "cached": str(streamer.id) in unified_image_service._profile_cache
-            })
+            result.append(
+                {
+                    "streamer_id": streamer.id,
+                    "username": streamer.username,
+                    "image_url": image_url,
+                    "original_image_url": streamer.profile_image_url,
+                    "cached": str(streamer.id) in unified_image_service._profile_cache,
+                }
+            )
 
         return result
     except Exception as e:
@@ -177,11 +164,13 @@ async def get_all_categories_image_info(db: Session = Depends(get_db)):
         for category in categories:
             image_url = unified_image_service.get_category_image_url(category.name)
 
-            result.append({
-                "category_name": category.name,
-                "image_url": image_url,
-                "cached": category.name in unified_image_service._category_cache
-            })
+            result.append(
+                {
+                    "category_name": category.name,
+                    "image_url": image_url,
+                    "cached": category.name in unified_image_service._category_cache,
+                }
+            )
 
         return result
     except Exception as e:
@@ -207,7 +196,7 @@ async def get_sync_queue_status():
         return {
             "queue_size": image_sync_service.get_queue_size(),
             "is_running": image_sync_service.is_running(),
-            "service_initialized": unified_image_service._initialized
+            "service_initialized": unified_image_service._initialized,
         }
     except Exception as e:
         logger.error(f"Error getting sync queue status: {e}")

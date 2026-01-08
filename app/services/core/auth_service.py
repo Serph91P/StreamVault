@@ -23,11 +23,7 @@ class AuthService:
 
     async def create_admin(self, user_data: UserCreate) -> UserResponse:
         hashed_password = ph.hash(user_data.password)
-        admin = User(
-            username=user_data.username,
-            password=hashed_password,
-            is_admin=True
-        )
+        admin = User(username=user_data.username, password=hashed_password, is_admin=True)
         self.db.add(admin)
         self.db.commit()
         return UserResponse.model_validate(admin)
@@ -101,9 +97,7 @@ class AuthService:
         try:
             cutoff_time = datetime.now(timezone.utc) - timedelta(hours=self.session_timeout_hours)
 
-            expired_sessions = self.db.query(Session).filter(
-                Session.created_at < cutoff_time
-            ).all()
+            expired_sessions = self.db.query(Session).filter(Session.created_at < cutoff_time).all()
 
             expired_count = len(expired_sessions)
 

@@ -12,9 +12,9 @@ class Recording(Base):
     __tablename__ = "recordings"
     __table_args__ = (
         # Composite indexes for common query patterns
-        Index('idx_recordings_stream_status', 'stream_id', 'status'),  # For finding recordings by stream and status
-        Index('idx_recordings_status_time', 'status', 'start_time'),  # For finding recordings by status and time
-        {'extend_existing': True}
+        Index("idx_recordings_stream_status", "stream_id", "status"),  # For finding recordings by stream and status
+        Index("idx_recordings_status_time", "status", "start_time"),  # For finding recordings by status and time
+        {"extend_existing": True},
     )
 
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -37,7 +37,7 @@ class Recording(Base):
 
 class Streamer(Base):
     __tablename__ = "streamers"
-    __table_args__ = {'extend_existing': True}
+    __table_args__ = {"extend_existing": True}
 
     id = Column(Integer, primary_key=True, autoincrement=True, index=True)
     twitch_id = Column(String, unique=True, nullable=False, index=True)
@@ -72,7 +72,7 @@ class Streamer(Base):
         warnings.warn(
             "The `display_name` property is deprecated and will be removed in the future. Use `username` instead.",
             DeprecationWarning,
-            stacklevel=2
+            stacklevel=2,
         )
         return self.username
 
@@ -91,10 +91,12 @@ class Streamer(Base):
             return False
 
         # Check if there's any active recording for this streamer's streams
-        active_recording = session.query(Recording).join(Stream).filter(
-            Stream.streamer_id == self.id,
-            Recording.status == 'recording'
-        ).first()
+        active_recording = (
+            session.query(Recording)
+            .join(Stream)
+            .filter(Stream.streamer_id == self.id, Recording.status == "recording")
+            .first()
+        )
 
         return active_recording is not None
 
@@ -111,11 +113,11 @@ class Stream(Base):
     __tablename__ = "streams"
     __table_args__ = (
         # Composite indexes for common query patterns
-        Index('idx_streams_streamer_active', 'streamer_id', 'ended_at'),  # For finding active streams
-        Index('idx_streams_streamer_recent', 'streamer_id', 'started_at'),  # For recent streams by streamer
-        Index('idx_streams_category_recent', 'category_name', 'started_at'),  # For recent streams by category
-        Index('idx_streams_time_range', 'started_at', 'ended_at'),  # For time-based queries
-        {'extend_existing': True}
+        Index("idx_streams_streamer_active", "streamer_id", "ended_at"),  # For finding active streams
+        Index("idx_streams_streamer_recent", "streamer_id", "started_at"),  # For recent streams by streamer
+        Index("idx_streams_category_recent", "category_name", "started_at"),  # For recent streams by category
+        Index("idx_streams_time_range", "started_at", "ended_at"),  # For time-based queries
+        {"extend_existing": True},
     )
 
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -133,7 +135,9 @@ class Stream(Base):
     # Relationships
     streamer = relationship("Streamer", backref="streams")
     stream_metadata = relationship("StreamMetadata", back_populates="stream", uselist=False)
-    active_recording_state = relationship("ActiveRecordingState", back_populates="stream", uselist=False, cascade="all, delete-orphan")
+    active_recording_state = relationship(
+        "ActiveRecordingState", back_populates="stream", uselist=False, cascade="all, delete-orphan"
+    )
 
     @property
     def is_live(self):
@@ -144,10 +148,10 @@ class StreamEvent(Base):
     __tablename__ = "stream_events"
     __table_args__ = (
         # Composite indexes for common query patterns
-        Index('idx_stream_events_stream_type', 'stream_id', 'event_type'),  # For finding events by stream and type
-        Index('idx_stream_events_stream_time', 'stream_id', 'timestamp'),  # For chronological events by stream
-        Index('idx_stream_events_type_time', 'event_type', 'timestamp'),  # For recent events by type
-        {'extend_existing': True}
+        Index("idx_stream_events_stream_type", "stream_id", "event_type"),  # For finding events by stream and type
+        Index("idx_stream_events_stream_time", "stream_id", "timestamp"),  # For chronological events by stream
+        Index("idx_stream_events_type_time", "event_type", "timestamp"),  # For recent events by type
+        {"extend_existing": True},
     )
 
     id = Column(Integer, primary_key=True)
@@ -164,7 +168,7 @@ class StreamEvent(Base):
 
 class User(Base):
     __tablename__ = "users"
-    __table_args__ = {'extend_existing': True}
+    __table_args__ = {"extend_existing": True}
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     username = Column(String, unique=True, nullable=False)
@@ -176,7 +180,7 @@ class User(Base):
 
 class Session(Base):
     __tablename__ = "sessions"
-    __table_args__ = {'extend_existing': True}
+    __table_args__ = {"extend_existing": True}
 
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"))
@@ -186,7 +190,7 @@ class Session(Base):
 
 class NotificationSettings(Base):
     __tablename__ = "notification_settings"
-    __table_args__ = {'extend_existing': True}
+    __table_args__ = {"extend_existing": True}
 
     id = Column(Integer, primary_key=True, index=True)
     streamer_id = Column(Integer, ForeignKey("streamers.id", ondelete="CASCADE"), nullable=False, index=True)
@@ -199,8 +203,9 @@ class NotificationSettings(Base):
 
 class NotificationState(Base):
     """Tracks notification read/clear state per user"""
+
     __tablename__ = "notification_state"
-    __table_args__ = {'extend_existing': True}
+    __table_args__ = {"extend_existing": True}
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True, index=True)
@@ -215,7 +220,7 @@ class NotificationState(Base):
 
 class Category(Base):
     __tablename__ = "categories"
-    __table_args__ = {'extend_existing': True}
+    __table_args__ = {"extend_existing": True}
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     twitch_id = Column(String, unique=True, nullable=False)
@@ -228,7 +233,7 @@ class Category(Base):
 
 class FavoriteCategory(Base):
     __tablename__ = "favorite_categories"
-    __table_args__ = (UniqueConstraint('user_id', 'category_id', name='uq_user_category'), {'extend_existing': True})
+    __table_args__ = (UniqueConstraint("user_id", "category_id", name="uq_user_category"), {"extend_existing": True})
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(Integer, ForeignKey("users.id"))
@@ -240,7 +245,7 @@ class FavoriteCategory(Base):
 
 class GlobalSettings(Base):
     __tablename__ = "global_settings"
-    __table_args__ = {'extend_existing': True}
+    __table_args__ = {"extend_existing": True}
 
     id: int = Column(Integer, primary_key=True)
     notification_url: Optional[str] = Column(String)
@@ -254,15 +259,17 @@ class GlobalSettings(Base):
 
     # System notification settings (Migration 028)
     notify_recording_started: bool = Column(Boolean, default=False)  # OFF: Every stream triggers recording, too noisy
-    notify_recording_failed: bool = Column(Boolean, default=True)    # ON: Critical issue, user needs to know
+    notify_recording_failed: bool = Column(Boolean, default=True)  # ON: Critical issue, user needs to know
     notify_recording_completed: bool = Column(Boolean, default=False)  # OFF: Most recordings complete normally, noisy
 
     # Codec preferences (Migration 024) - H.265/AV1 Support (Streamlink 8.0.0+)
-    supported_codecs: str = Column(String, default="h264,h265")  # Default: H.264 with H.265 fallback (best compatibility/quality)
+    # Default: H.264 with H.265 fallback (best compatibility/quality)
+    supported_codecs: str = Column(String, default="h264,h265")
     prefer_higher_quality: bool = Column(Boolean, default=True)  # Auto-select highest available quality with h265/av1
 
     # Proxy encryption key (Migration 032) - Persists Fernet key for proxy credential encryption
-    proxy_encryption_key: Optional[str] = Column(String, nullable=True)  # Auto-generated on first use, persists across restarts
+    # Auto-generated on first use, persists across restarts
+    proxy_encryption_key: Optional[str] = Column(String, nullable=True)
 
     # Twitch OAuth Token Refresh (Migration 033) - Automatic token refresh without manual intervention
     twitch_refresh_token: Optional[str] = Column(Text, nullable=True)  # Long-lived refresh token (encrypted)
@@ -272,12 +279,14 @@ class GlobalSettings(Base):
 
 class RecordingSettings(Base):
     __tablename__ = "recording_settings"
-    __table_args__ = {'extend_existing': True}
+    __table_args__ = {"extend_existing": True}
 
     id = Column(Integer, primary_key=True)
     enabled = Column(Boolean, default=False)
     output_directory = Column(String, default="/recordings")
-    filename_template = Column(String, default="{streamer}/{streamer}_{year}-{month}-{day}_{hour}-{minute}_{title}_{game}")
+    filename_template = Column(
+        String, default="{streamer}/{streamer}_{year}-{month}-{day}_{hour}-{minute}_{title}_{game}"
+    )
     default_quality = Column(String, default="best")
     use_chapters = Column(Boolean, default=True)
     filename_preset = Column(String, default="default")
@@ -295,7 +304,7 @@ class RecordingSettings(Base):
 
 class StreamerRecordingSettings(Base):
     __tablename__ = "streamer_recording_settings"
-    __table_args__ = {'extend_existing': True}
+    __table_args__ = {"extend_existing": True}
 
     id = Column(Integer, primary_key=True)
     streamer_id = Column(Integer, ForeignKey("streamers.id", ondelete="CASCADE"), nullable=False, index=True)
@@ -316,12 +325,14 @@ class StreamerRecordingSettings(Base):
     streamer = relationship("Streamer", back_populates="recording_settings")
 
 
-Streamer.recording_settings = relationship("StreamerRecordingSettings", back_populates="streamer", uselist=False, cascade="all, delete-orphan")
+Streamer.recording_settings = relationship(
+    "StreamerRecordingSettings", back_populates="streamer", uselist=False, cascade="all, delete-orphan"
+)
 
 
 class StreamMetadata(Base):
     __tablename__ = "stream_metadata"
-    __table_args__ = {'extend_existing': True}
+    __table_args__ = {"extend_existing": True}
 
     id = Column(Integer, primary_key=True)
     stream_id = Column(Integer, ForeignKey("streams.id", ondelete="CASCADE"), index=True)
@@ -353,7 +364,7 @@ class StreamMetadata(Base):
 
 class PushSubscription(Base):
     __tablename__ = "push_subscriptions"
-    __table_args__ = {'extend_existing': True}
+    __table_args__ = {"extend_existing": True}
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     endpoint = Column(String, unique=True, nullable=False)
@@ -366,7 +377,7 @@ class PushSubscription(Base):
 
 class SystemConfig(Base):
     __tablename__ = "system_config"
-    __table_args__ = {'extend_existing': True}
+    __table_args__ = {"extend_existing": True}
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     key = Column(String, unique=True, nullable=False)
@@ -383,25 +394,26 @@ class ActiveRecordingState(Base):
     This table tracks active recording processes and survives application restarts.
     It enables recovery of running recordings after crashes or deployments.
     """
+
     __tablename__ = "active_recordings_state"
     __table_args__ = (
-        Index('ix_active_recordings_stream_id', 'stream_id'),
-        Index('ix_active_recordings_status', 'status'),
-        Index('ix_active_recordings_heartbeat', 'last_heartbeat'),
-        {'extend_existing': True}
+        Index("ix_active_recordings_stream_id", "stream_id"),
+        Index("ix_active_recordings_status", "status"),
+        Index("ix_active_recordings_heartbeat", "last_heartbeat"),
+        {"extend_existing": True},
     )
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    stream_id = Column(Integer, ForeignKey('streams.id', ondelete='CASCADE'), nullable=False, unique=True)
-    recording_id = Column(Integer, ForeignKey('recordings.id'), nullable=False)
+    stream_id = Column(Integer, ForeignKey("streams.id", ondelete="CASCADE"), nullable=False, unique=True)
+    recording_id = Column(Integer, ForeignKey("recordings.id"), nullable=False)
     process_id = Column(Integer, nullable=False)  # OS process ID
     process_identifier = Column(String(100), nullable=False)  # Internal process identifier
     streamer_name = Column(String(100), nullable=False)
     started_at = Column(DateTime(timezone=True), nullable=False)
     ts_output_path = Column(String(500), nullable=False)
     force_mode = Column(Boolean, default=False)
-    quality = Column(String(50), default='best')
-    status = Column(String(50), default='active')  # active, stopping, error
+    quality = Column(String(50), default="best")
+    status = Column(String(50), default="active")  # active, stopping, error
     last_heartbeat = Column(DateTime(timezone=True), nullable=False)
     config_json = Column(Text, nullable=True)  # Serialized config
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -434,26 +446,27 @@ class RecordingProcessingState(Base):
     Persistent per-recording post-processing status.
     Tracks which steps have completed so pipelines can resume idempotently.
     """
+
     __tablename__ = "recording_processing_state"
     __table_args__ = (
-        Index('ix_rps_recording_id', 'recording_id', unique=True),
-        Index('ix_rps_stream_id', 'stream_id'),
-        Index('ix_rps_updated_at', 'updated_at'),
-        {'extend_existing': True}
+        Index("ix_rps_recording_id", "recording_id", unique=True),
+        Index("ix_rps_stream_id", "stream_id"),
+        Index("ix_rps_updated_at", "updated_at"),
+        {"extend_existing": True},
     )
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    recording_id = Column(Integer, ForeignKey('recordings.id', ondelete='CASCADE'), nullable=False, unique=True)
-    stream_id = Column(Integer, ForeignKey('streams.id', ondelete='CASCADE'), nullable=False, index=True)
-    streamer_id = Column(Integer, ForeignKey('streamers.id', ondelete='CASCADE'), nullable=False, index=True)
+    recording_id = Column(Integer, ForeignKey("recordings.id", ondelete="CASCADE"), nullable=False, unique=True)
+    stream_id = Column(Integer, ForeignKey("streams.id", ondelete="CASCADE"), nullable=False, index=True)
+    streamer_id = Column(Integer, ForeignKey("streamers.id", ondelete="CASCADE"), nullable=False, index=True)
 
     # Step statuses: 'pending' | 'running' | 'completed' | 'failed'
-    metadata_status = Column(String(20), default='pending', nullable=False)
-    chapters_status = Column(String(20), default='pending', nullable=False)
-    mp4_remux_status = Column(String(20), default='pending', nullable=False)
-    mp4_validation_status = Column(String(20), default='pending', nullable=False)
-    thumbnail_status = Column(String(20), default='pending', nullable=False)
-    cleanup_status = Column(String(20), default='pending', nullable=False)
+    metadata_status = Column(String(20), default="pending", nullable=False)
+    chapters_status = Column(String(20), default="pending", nullable=False)
+    mp4_remux_status = Column(String(20), default="pending", nullable=False)
+    mp4_validation_status = Column(String(20), default="pending", nullable=False)
+    thumbnail_status = Column(String(20), default="pending", nullable=False)
+    cleanup_status = Column(String(20), default="pending", nullable=False)
 
     last_error = Column(Text, nullable=True)
 
@@ -491,23 +504,25 @@ class ProxySettings(Base):
     4. Sort: By average_response_time_ms (ascending, faster = better)
     5. Return: First match or None
     """
+
     __tablename__ = "proxy_settings"
     __table_args__ = (
-        Index('ix_proxy_enabled', 'enabled'),
-        Index('ix_proxy_health_status', 'health_status'),
-        Index('ix_proxy_priority', 'priority'),
-        Index('ix_proxy_enabled_health_priority', 'enabled', 'health_status', 'priority'),
-        {'extend_existing': True}
+        Index("ix_proxy_enabled", "enabled"),
+        Index("ix_proxy_health_status", "health_status"),
+        Index("ix_proxy_priority", "priority"),
+        Index("ix_proxy_enabled_health_priority", "enabled", "health_status", "priority"),
+        {"extend_existing": True},
     )
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    _proxy_url_encrypted = Column('proxy_url', String(1000), nullable=False)  # ENCRYPTED: Full proxy URL with credentials
+    # ENCRYPTED: Full proxy URL with credentials
+    _proxy_url_encrypted = Column("proxy_url", String(1000), nullable=False)
     priority = Column(Integer, nullable=False, default=0)  # 0 = highest priority, lower number = higher priority
     enabled = Column(Boolean, nullable=False, default=True)  # Active status - disabled proxies not used
 
     # Health monitoring fields
     last_health_check = Column(DateTime(timezone=True), nullable=True)  # Timestamp of last health test
-    health_status = Column(String(20), nullable=False, default='unknown')  # healthy/degraded/failed/unknown
+    health_status = Column(String(20), nullable=False, default="unknown")  # healthy/degraded/failed/unknown
     consecutive_failures = Column(Integer, nullable=False, default=0)  # Failure counter for auto-disable
     average_response_time_ms = Column(Integer, nullable=True)  # Response time in milliseconds
 
@@ -533,7 +548,8 @@ class ProxySettings(Base):
             return get_proxy_encryption().decrypt(self._proxy_url_encrypted)
         except Exception as e:
             import logging
-            logger = logging.getLogger('streamvault')
+
+            logger = logging.getLogger("streamvault")
             logger.error(f"Failed to decrypt proxy URL for ID {self.id}: {e}")
             return ""  # Return empty string on decryption failure
 
@@ -561,11 +577,11 @@ class ProxySettings(Base):
         """
         decrypted_url = self.proxy_url
 
-        if '@' in decrypted_url:
-            parts = decrypted_url.split('@')
-            if ':' in parts[0]:
+        if "@" in decrypted_url:
+            parts = decrypted_url.split("@")
+            if ":" in parts[0]:
                 # Split protocol://username:password
-                user_part = parts[0].rsplit(':', 1)[0]
+                user_part = parts[0].rsplit(":", 1)[0]
                 return f"{user_part}:***@{parts[1]}"
         return decrypted_url
 
@@ -587,18 +603,18 @@ class ProxySettings(Base):
             mask_password: If True, replace password with *** in URL
         """
         return {
-            'id': self.id,
-            'proxy_url': self.masked_url if mask_password else self.proxy_url,
-            'masked_url': self.masked_url,  # Always include masked URL for display
-            'priority': self.priority,
-            'enabled': self.enabled,
-            'last_check': self.last_health_check.isoformat() if self.last_health_check else None,  # Changed key name
-            'health_status': self.health_status,
-            'response_time_ms': self.average_response_time_ms,  # Changed key name
-            'consecutive_failures': self.consecutive_failures,
-            'last_error': None,  # TODO: Add last_error column to model if needed
-            'total_requests': self.total_recordings,  # Renamed for clarity
-            'successful_requests': self.total_recordings - self.failed_recordings,  # Calculated field
-            'failed_requests': self.failed_recordings,  # Renamed for clarity
-            'created_at': self.created_at.isoformat() if self.created_at else None,
+            "id": self.id,
+            "proxy_url": self.masked_url if mask_password else self.proxy_url,
+            "masked_url": self.masked_url,  # Always include masked URL for display
+            "priority": self.priority,
+            "enabled": self.enabled,
+            "last_check": self.last_health_check.isoformat() if self.last_health_check else None,  # Changed key name
+            "health_status": self.health_status,
+            "response_time_ms": self.average_response_time_ms,  # Changed key name
+            "consecutive_failures": self.consecutive_failures,
+            "last_error": None,  # TODO: Add last_error column to model if needed
+            "total_requests": self.total_recordings,  # Renamed for clarity
+            "successful_requests": self.total_recordings - self.failed_recordings,  # Calculated field
+            "failed_requests": self.failed_recordings,  # Renamed for clarity
+            "created_at": self.created_at.isoformat() if self.created_at else None,
         }

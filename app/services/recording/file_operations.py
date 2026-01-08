@@ -3,6 +3,7 @@ File operations for the recording service.
 
 This module handles all file-related operations like remuxing and cleanup.
 """
+
 import os
 import asyncio
 from pathlib import Path
@@ -11,6 +12,7 @@ from datetime import datetime
 import logging
 
 from app.config.constants import ASYNC_DELAYS
+
 # FFmpeg utilities now handled by background queue system
 
 logger = logging.getLogger("streamvault")
@@ -30,10 +32,10 @@ async def intelligent_ts_cleanup(output_path: str, max_wait_time: int = 1800, ps
         psutil_available: Whether psutil module is available
     """
     try:
-        if not output_path.endswith('.ts') or not os.path.exists(output_path):
+        if not output_path.endswith(".ts") or not os.path.exists(output_path):
             return
 
-        mp4_path = output_path.replace('.ts', '.mp4')
+        mp4_path = output_path.replace(".ts", ".mp4")
         start_time = datetime.now()
         check_interval = 10  # Check every 10 seconds
 
@@ -47,7 +49,9 @@ async def intelligent_ts_cleanup(output_path: str, max_wait_time: int = 1800, ps
                 mp4_size = os.path.getsize(mp4_path)
 
                 # Check if any FFmpeg processes are working on our files
-                active_ffmpeg_processes = await check_ffmpeg_processes_for_file(output_path, mp4_path) if psutil_available else []
+                active_ffmpeg_processes = (
+                    await check_ffmpeg_processes_for_file(output_path, mp4_path) if psutil_available else []
+                )
 
                 if not active_ffmpeg_processes:
                     # No FFmpeg processes working on our files, check if MP4 is stable
@@ -59,18 +63,22 @@ async def intelligent_ts_cleanup(output_path: str, max_wait_time: int = 1800, ps
                         if new_mp4_size == mp4_size and new_mp4_size > 1024 * 1024:  # Stable and > 1MB
                             # Final verification: try to read the MP4 file
                             try:
-                                with open(mp4_path, 'rb') as f:
+                                with open(mp4_path, "rb") as f:
                                     f.read(1024)  # Try to read first 1KB
 
                                 # MP4 is ready and stable, safe to remove TS
                                 os.remove(output_path)
-                                logger.info(f"Process-aware cleanup: Removed TS file {output_path} (waited {elapsed:.0f}s)")
+                                logger.info(
+                                    f"Process-aware cleanup: Removed TS file {output_path} (waited {elapsed:.0f}s)"
+                                )
                                 return True
 
                             except Exception as e:
                                 logger.warning(f"MP4 file not readable yet, will retry: {e}")
                 else:
-                    logger.debug(f"FFmpeg processes still active for our files: {len(active_ffmpeg_processes)} processes")
+                    logger.debug(
+                        f"FFmpeg processes still active for our files: {len(active_ffmpeg_processes)} processes"
+                    )
 
             # Check if we've exceeded max wait time
             if elapsed > max_wait_time:
@@ -98,31 +106,34 @@ async def check_ffmpeg_processes_for_file(ts_path: str, mp4_path: str) -> List[D
     """
     try:
         import psutil
+
         active_processes = []
 
         # Get the base filename without extension for matching
         ts_basename = os.path.basename(ts_path)
         mp4_basename = os.path.basename(mp4_path)
 
-        for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+        for proc in psutil.process_iter(["pid", "name", "cmdline"]):
             try:
                 proc_info = proc.info
-                if not proc_info['name']:
+                if not proc_info["name"]:
                     continue
 
                 # Check if this is an FFmpeg process
-                if 'ffmpeg' in proc_info['name'].lower():
-                    cmdline = proc_info.get('cmdline', [])
+                if "ffmpeg" in proc_info["name"].lower():
+                    cmdline = proc_info.get("cmdline", [])
                     if cmdline:
-                        cmdline_str = ' '.join(cmdline)
+                        cmdline_str = " ".join(cmdline)
 
                         # Check if this FFmpeg process is working with our files
                         if ts_basename in cmdline_str or mp4_basename in cmdline_str:
-                            active_processes.append({
-                                'pid': proc_info['pid'],
-                                'name': proc_info['name'],
-                                'cmdline': cmdline_str[:200]  # Truncate for logging
-                            })
+                            active_processes.append(
+                                {
+                                    "pid": proc_info["pid"],
+                                    "name": proc_info["name"],
+                                    "cmdline": cmdline_str[:200],  # Truncate for logging
+                                }
+                            )
                             logger.debug(f"Found active FFmpeg process: PID {proc_info['pid']}")
 
             except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):

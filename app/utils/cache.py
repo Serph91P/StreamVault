@@ -1,6 +1,7 @@
 """
 Simple in-memory cache for frequently accessed data
 """
+
 import time
 from typing import Any, Optional, Dict
 from threading import Lock
@@ -46,10 +47,7 @@ class SimpleCache:
         """Remove expired entries and return count of removed entries"""
         with self._lock:
             current_time = time.time()
-            expired_keys = [
-                key for key, (_, expire_time) in self._cache.items()
-                if current_time >= expire_time
-            ]
+            expired_keys = [key for key, (_, expire_time) in self._cache.items() if current_time >= expire_time]
 
             for key in expired_keys:
                 del self._cache[key]

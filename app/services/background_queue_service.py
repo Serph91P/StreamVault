@@ -30,13 +30,13 @@ class BackgroundQueueService:
         self.queue_manager = TaskQueueManager(
             max_workers=max_workers,
             websocket_manager=websocket_manager,
-            enable_streamer_isolation=True  # Enable concurrent streaming by default
+            enable_streamer_isolation=True,  # Enable concurrent streaming by default
         )
 
         # Legacy properties for compatibility
         self.max_workers = max_workers
         # Handle both streamer isolation and shared queue modes
-        if hasattr(self.queue_manager, 'task_queue'):
+        if hasattr(self.queue_manager, "task_queue"):
             self.task_queue = self.queue_manager.task_queue
         else:
             # For streamer isolation mode, create a compatibility property
@@ -80,7 +80,7 @@ class BackgroundQueueService:
         task_type: str,
         payload: Dict[str, Any],
         priority: TaskPriority = TaskPriority.NORMAL,
-        max_retries: int = 3
+        max_retries: int = 3,
     ) -> str:
         """Enqueue a new background task"""
         return await self.queue_manager.enqueue_task(task_type, payload, priority, max_retries)
@@ -91,7 +91,7 @@ class BackgroundQueueService:
         payload: Dict[str, Any],
         dependencies: Optional[list] = None,
         priority: TaskPriority = TaskPriority.NORMAL,
-        max_retries: int = 3
+        max_retries: int = 3,
     ) -> str:
         """Enqueue a task with dependencies"""
         return await self.queue_manager.enqueue_task_with_dependencies(
@@ -137,11 +137,13 @@ class BackgroundQueueService:
         if process_monitor:
             try:
                 process_stats = process_monitor.get_system_status()
-                queue_stats.update({
-                    "process_monitor": process_stats,
-                    "active_processes": process_stats.get("active_processes", 0),
-                    "recording_active": process_stats.get("recording_active", False)
-                })
+                queue_stats.update(
+                    {
+                        "process_monitor": process_stats,
+                        "active_processes": process_stats.get("active_processes", 0),
+                        "recording_active": process_stats.get("recording_active", False),
+                    }
+                )
             except Exception as e:
                 logger.warning(f"Could not get process monitor stats: {e}")
 
@@ -211,7 +213,7 @@ class BackgroundQueueService:
 
     def has_queue_manager(self) -> bool:
         """Check if queue manager is available"""
-        return hasattr(self, 'queue_manager') and self.queue_manager is not None
+        return hasattr(self, "queue_manager") and self.queue_manager is not None
 
     def is_queue_manager_running(self) -> bool:
         """Check if the queue manager is running"""
@@ -241,7 +243,7 @@ class BackgroundQueueService:
         else:
             # For streamer isolation mode, sum all streamer queues
             stats = self.queue_manager.get_queue_statistics()
-            return stats.get('queue_size', 0)
+            return stats.get("queue_size", 0)
 
     @property
     def active_worker_count(self) -> int:
@@ -251,7 +253,7 @@ class BackgroundQueueService:
     @property
     def total_tasks_processed(self) -> int:
         """Get total number of tasks processed"""
-        return self.stats['completed_tasks'] + self.stats['failed_tasks']
+        return self.stats["completed_tasks"] + self.stats["failed_tasks"]
 
     # Legacy methods that might be used by existing code
 
@@ -264,7 +266,7 @@ class BackgroundQueueService:
         warnings.warn(
             "BackgroundQueueService._worker is deprecated. Workers are now managed internally by TaskQueueManager.",
             DeprecationWarning,
-            stacklevel=2
+            stacklevel=2,
         )
         raise NotImplementedError("Legacy _worker method is no longer supported")
 
@@ -273,7 +275,7 @@ class BackgroundQueueService:
         warnings.warn(
             "BackgroundQueueService._dependency_worker is deprecated. Dependency worker is now managed internally by TaskQueueManager.",
             DeprecationWarning,
-            stacklevel=2
+            stacklevel=2,
         )
         raise NotImplementedError("Legacy _dependency_worker method is no longer supported")
 

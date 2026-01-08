@@ -7,6 +7,7 @@ Central coordinator that uses all other refactored services for recording operat
 
 import logging
 from typing import Dict, Any, Optional, List
+
 # websocket_manager will be imported when needed to avoid circular imports
 from .recording_database_service import RecordingDatabaseService
 from .recording_state_manager import RecordingStateManager
@@ -39,10 +40,9 @@ class RecordingOrchestrator:
         self.state_manager = RecordingStateManager(self.config_manager)
         # Import websocket_manager here to avoid circular imports
         from app.dependencies import websocket_manager
+
         self.websocket_service = RecordingWebSocketService(websocket_manager)
-        self.post_processing_coordinator = PostProcessingCoordinator(
-            self.config_manager, self.websocket_service
-        )
+        self.post_processing_coordinator = PostProcessingCoordinator(self.config_manager, self.websocket_service)
 
         # Create post-processing callback for ProcessManager dependency injection
         async def post_processing_callback(recording_id: int, file_path: str):
@@ -53,9 +53,7 @@ class RecordingOrchestrator:
                 if recording_data:
                     # Update recording status first
                     await self.database_service.update_recording_status(
-                        recording_id=recording_id,
-                        status="completed",
-                        path=file_path
+                        recording_id=recording_id, status="completed", path=file_path
                     )
 
                     # Get additional data needed for post-processing
@@ -65,10 +63,12 @@ class RecordingOrchestrator:
                         if streamer_data:
                             # Create recording data dict for post-processing
                             recording_data_dict = {
-                                'streamer_name': streamer_data.username,
-                                'started_at': recording_data.started_at.isoformat() if recording_data.started_at else None,
-                                'stream_id': stream_data.id,
-                                'recording_id': recording_id
+                                "streamer_name": streamer_data.username,
+                                "started_at": (
+                                    recording_data.started_at.isoformat() if recording_data.started_at else None
+                                ),
+                                "stream_id": stream_data.id,
+                                "recording_id": recording_id,
                             }
 
                             # Use the post-processing coordinator
@@ -87,8 +87,7 @@ class RecordingOrchestrator:
 
         # Initialize ProcessManager with the post-processing callback
         self.process_manager = ProcessManager(
-            config_manager=self.config_manager,
-            post_processing_callback=post_processing_callback
+            config_manager=self.config_manager, post_processing_callback=post_processing_callback
         )
 
         # Initialize remaining managers
@@ -102,12 +101,13 @@ class RecordingOrchestrator:
             database_service=self.database_service,
             websocket_service=self.websocket_service,
             state_manager=self.state_manager,
-            recording_logger=self.recording_logger
+            recording_logger=self.recording_logger,
         )
 
         # Initialize logging service
         try:
             from app.services.system.logging_service import logging_service
+
             self.logging_service = logging_service
         except Exception as e:
             logger.warning(f"Could not initialize logging service: {e}")
@@ -143,9 +143,7 @@ class RecordingOrchestrator:
 
     async def recover_active_recordings_from_persistence(self) -> List[int]:
         """Recover active recordings from persistence after restart"""
-        return await self.state_manager.recover_active_recordings_from_persistence(
-            self.database_service
-        )
+        return await self.state_manager.recover_active_recordings_from_persistence(self.database_service)
 
     # Post-processing methods
 
@@ -159,9 +157,7 @@ class RecordingOrchestrator:
 
     async def find_and_validate_mp4(self, ts_file_path: str, max_wait_minutes: int = 10) -> Optional[str]:
         """Find and validate converted MP4 file"""
-        return await self.post_processing_coordinator.find_and_validate_mp4(
-            ts_file_path, max_wait_minutes
-        )
+        return await self.post_processing_coordinator.find_and_validate_mp4(ts_file_path, max_wait_minutes)
 
     # Database operations (delegate to database service)
 
@@ -169,9 +165,7 @@ class RecordingOrchestrator:
         self, recording_id: int, status: str, path: str = None, duration_seconds: int = None
     ) -> None:
         """Update recording status in database"""
-        await self.database_service.update_recording_status(
-            recording_id, status, path, duration_seconds
-        )
+        await self.database_service.update_recording_status(recording_id, status, path, duration_seconds)
 
     async def ensure_stream_ended(self, stream_id: int) -> None:
         """Ensure stream is marked as ended"""
@@ -200,14 +194,16 @@ class RecordingOrchestrator:
         base_stats = self.state_manager.get_recording_statistics()
 
         # Add additional statistics
-        base_stats.update({
-            'service_status': {
-                'database_service': self.database_service is not None,
-                'websocket_service': self.websocket_service.is_websocket_available(),
-                'process_manager': self.process_manager is not None,
-                'lifecycle_manager': not self.lifecycle_manager.is_shutting_down()
+        base_stats.update(
+            {
+                "service_status": {
+                    "database_service": self.database_service is not None,
+                    "websocket_service": self.websocket_service.is_websocket_available(),
+                    "process_manager": self.process_manager is not None,
+                    "lifecycle_manager": not self.lifecycle_manager.is_shutting_down(),
+                }
             }
-        })
+        )
 
         return base_stats
 
@@ -263,9 +259,7 @@ class RecordingOrchestrator:
 
     async def _enqueue_post_processing(self, recording_id: int, ts_file_path: str, recording_data: Dict[str, Any]):
         """Legacy method - delegate to post-processing coordinator"""
-        await self.post_processing_coordinator.enqueue_post_processing(
-            recording_id, ts_file_path, recording_data
-        )
+        await self.post_processing_coordinator.enqueue_post_processing(recording_id, ts_file_path, recording_data)
 
     async def _find_and_validate_mp4(self, ts_file_path: str, max_wait_minutes: int = 10):
         """Legacy method - delegate to post-processing coordinator"""
@@ -297,6 +291,4 @@ class RecordingOrchestrator:
 
     async def _recover_single_recording(self, recording_id: int, recording_data: Dict[str, Any]):
         """Legacy method - handled by state manager"""
-        return await self.state_manager._recover_single_recording(
-            recording_id, recording_data, self.database_service
-        )
+        return await self.state_manager._recover_single_recording(recording_id, recording_data, self.database_service)

@@ -1,6 +1,7 @@
 """
 Recording activity logger for detailed tracking of all recording operations.
 """
+
 import logging
 import uuid
 import json
@@ -28,24 +29,30 @@ class RecordingLogger:
         logging_service.log_recording_activity_to_file(
             "RECORDING_START",
             streamer_name,
-            f"[SESSION:{self.session_id}] Started recording: Quality={quality}, Path={output_path}"
+            f"[SESSION:{self.session_id}] Started recording: Quality={quality}, Path={output_path}",
         )
 
-    def log_recording_stop(self, streamer_id: int, streamer_name: str, duration: int, output_path: str, reason: str = "manual"):
+    def log_recording_stop(
+        self, streamer_id: int, streamer_name: str, duration: int, output_path: str, reason: str = "manual"
+    ):
         """Log the stop of a recording session"""
-        self.logger.info(f"[SESSION:{self.session_id}] RECORDING_STOP - Streamer: {streamer_name} (ID: {streamer_id}), Duration: {duration}s, Reason: {reason}")
+        self.logger.info(
+            f"[SESSION:{self.session_id}] RECORDING_STOP - Streamer: {streamer_name} (ID: {streamer_id}), Duration: {duration}s, Reason: {reason}"
+        )
         self.logger.info(f"[SESSION:{self.session_id}] Output: {output_path}")
 
         # Log to dedicated streamer recording file
         logging_service.log_recording_activity_to_file(
             "RECORDING_STOP",
             streamer_name,
-            f"[SESSION:{self.session_id}] Stopped recording: Duration={duration}s, Reason={reason}, Path={output_path}"
+            f"[SESSION:{self.session_id}] Stopped recording: Duration={duration}s, Reason={reason}, Path={output_path}",
         )
 
     def log_recording_error(self, streamer_id: int, streamer_name: str, error: str):
         """Log recording errors"""
-        self.logger.error(f"[SESSION:{self.session_id}] RECORDING_ERROR - Streamer: {streamer_name} (ID: {streamer_id}), Error: {error}")
+        self.logger.error(
+            f"[SESSION:{self.session_id}] RECORDING_ERROR - Streamer: {streamer_name} (ID: {streamer_id}), Error: {error}"
+        )
 
     def log_process_monitoring(self, streamer_name: str, action: str, details: str = ""):
         """Log process monitoring activities"""
@@ -59,13 +66,13 @@ class RecordingLogger:
         # Extract streamer name from file path if possible
         try:
             # Assuming path structure like /recordings/streamer_name/...
-            path_parts = file_path.split('/')
-            if len(path_parts) >= 3 and path_parts[1] == 'recordings':
+            path_parts = file_path.split("/")
+            if len(path_parts) >= 3 and path_parts[1] == "recordings":
                 streamer_name = path_parts[2]
                 logging_service.log_post_processing_activity(
                     f"{operation}_{status}",
                     streamer_name,
-                    f"[SESSION:{self.session_id}] {operation}: {file_path} - {status} {details}"
+                    f"[SESSION:{self.session_id}] {operation}: {file_path} - {status} {details}",
                 )
         except Exception:
             pass  # If we can't extract streamer name, skip dedicated logging
@@ -75,34 +82,40 @@ class RecordingLogger:
         status = "LIVE" if is_live else "OFFLINE"
         self.logger.info(f"[SESSION:{self.session_id}] STREAM_STATUS - {streamer_name}: {status}")
         if stream_info:
-            title = stream_info.get('title', 'Unknown')
-            category = stream_info.get('category_name', 'Unknown')
-            self.logger.info(f"[SESSION:{self.session_id}] STREAM_INFO - {streamer_name}: Title='{title}', Category='{category}'")
-            recording_logger.debug(f"[SESSION:{self.session_id}] STREAM_INFO - {streamer_name}: {json.dumps(stream_info, indent=2)}")
+            title = stream_info.get("title", "Unknown")
+            category = stream_info.get("category_name", "Unknown")
+            self.logger.info(
+                f"[SESSION:{self.session_id}] STREAM_INFO - {streamer_name}: Title='{title}', Category='{category}'"
+            )
+            recording_logger.debug(
+                f"[SESSION:{self.session_id}] STREAM_INFO - {streamer_name}: {json.dumps(stream_info, indent=2)}"
+            )
 
         # Log stream events to dedicated streamer file
         event_details = f"[SESSION:{self.session_id}] Stream {status}"
         if stream_info and is_live:
-            title = stream_info.get('title', 'Unknown')
-            category = stream_info.get('category_name', 'Unknown')
+            title = stream_info.get("title", "Unknown")
+            category = stream_info.get("category_name", "Unknown")
             event_details += f" - Title: '{title}', Category: '{category}'"
 
-        logging_service.log_stream_event_to_file(
-            status,
-            streamer_name,
-            event_details
-        )
+        logging_service.log_stream_event_to_file(status, streamer_name, event_details)
 
     def log_configuration_change(self, setting: str, old_value: Any, new_value: Any, streamer_id: Optional[int] = None):
         """Log configuration changes"""
         target = "Global" if streamer_id is None else f"Streamer {streamer_id}"
-        recording_logger.info(f"[SESSION:{self.session_id}] CONFIG_CHANGE - {target}: {setting} changed from {old_value} to {new_value}")
+        recording_logger.info(
+            f"[SESSION:{self.session_id}] CONFIG_CHANGE - {target}: {setting} changed from {old_value} to {new_value}"
+        )
 
     def log_metadata_operation(self, streamer_name: str, operation: str, success: bool, details: str = ""):
         """Log metadata operations"""
         status = "SUCCESS" if success else "FAILED"
-        recording_logger.info(f"[SESSION:{self.session_id}] METADATA - {streamer_name}: {operation} - {status} {details}")
+        recording_logger.info(
+            f"[SESSION:{self.session_id}] METADATA - {streamer_name}: {operation} - {status} {details}"
+        )
 
     def log_cleanup_operation(self, streamer_name: str, files_deleted: int, space_freed: int, details: str = ""):
         """Log cleanup operations"""
-        recording_logger.info(f"[SESSION:{self.session_id}] CLEANUP - {streamer_name}: Deleted {files_deleted} files, freed {space_freed} MB {details}")
+        recording_logger.info(
+            f"[SESSION:{self.session_id}] CLEANUP - {streamer_name}: Deleted {files_deleted} files, freed {space_freed} MB {details}"
+        )

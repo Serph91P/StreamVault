@@ -33,7 +33,7 @@ jobs:
 
       - name: Run Python linter
         run: |
-          flake8 app/ --max-line-length=88 --extend-ignore=E203,W503
+          flake8 app/ --max-line-length=120 --extend-ignore=E203,W503,E501,E402 --exclude=app/frontend/node_modules
 
       - name: Run pytest
         run: |
