@@ -37,7 +37,10 @@ from app.services.media.artwork_service import ArtworkService
 from app.services.system.system_config_service import SystemConfigService
 from app.services.api.twitch_oauth_service import TwitchOAuthService
 from app.services.communication.websocket_manager import ConnectionManager
-from app.services.unified_image_service import UnifiedImageService
+
+# UnifiedImageService imported lazily to avoid directory creation at import time
+# Use: from app.services.unified_image_service import unified_image_service
+UnifiedImageService = None  # Lazy import marker
 
 # ProcessMonitor integration temporarily disabled for stability
 ProcessMonitor = None

@@ -4,7 +4,9 @@ from pathlib import Path
 
 from app.database import SessionLocal
 from app.models import Stream, Streamer
-from app.services.unified_image_service import unified_image_service
+
+# Lazy import to avoid directory creation at import time
+# unified_image_service is imported when needed in methods
 
 logger = logging.getLogger("streamvault")
 
@@ -18,16 +20,26 @@ class ArtworkService:
         self.recordings_dir = Path("/recordings")
         self.media_base_path = self.recordings_dir / ".media"
         self.artwork_base_path = self.media_base_path / "artwork"
+        self._initialized = False
 
-        # Ensure the directories exist
-        self.media_base_path.mkdir(parents=True, exist_ok=True)
-        self.artwork_base_path.mkdir(parents=True, exist_ok=True)
+    def _ensure_dirs(self):
+        """Lazily create directories only when needed"""
+        if self._initialized:
+            return
+        try:
+            self.media_base_path.mkdir(parents=True, exist_ok=True)
+            self.artwork_base_path.mkdir(parents=True, exist_ok=True)
+            self._initialized = True
+        except PermissionError:
+            # Running in test environment without /recordings
+            pass
 
     async def close(self):
         """Close resources (now handled by unified_image_service)"""
 
     def get_streamer_artwork_dir(self, streamer_username: str) -> Path:
         """Get the artwork directory for a specific streamer"""
+        self._ensure_dirs()
         safe_username = self._sanitize_filename(streamer_username)
         artwork_dir = self.artwork_base_path / safe_username
         artwork_dir.mkdir(parents=True, exist_ok=True)
@@ -35,6 +47,7 @@ class ArtworkService:
 
     def get_streamer_metadata_dir(self, streamer_username: str) -> Path:
         """Get the metadata directory for a specific streamer"""
+        self._ensure_dirs()
         safe_username = self._sanitize_filename(streamer_username)
         metadata_dir = self.media_base_path / "metadata" / safe_username
         metadata_dir.mkdir(parents=True, exist_ok=True)
@@ -241,6 +254,9 @@ class ArtworkService:
                     return False
 
             # URL is a proper HTTP/HTTPS URL - download it
+            # Lazy import to avoid directory creation at module load time
+            from app.services.unified_image_service import unified_image_service
+
             session = await unified_image_service._get_session()
             async with session.get(url) as response:
                 if response.status == 200:

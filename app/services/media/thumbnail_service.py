@@ -11,7 +11,8 @@ from sqlalchemy.orm import joinedload
 
 from app.database import SessionLocal
 from app.models import Stream, StreamMetadata
-from app.services.unified_image_service import unified_image_service
+
+# unified_image_service imported lazily to avoid directory creation at import time
 
 logger = logging.getLogger("streamvault")
 
@@ -63,6 +64,9 @@ class ThumbnailService:
             url = await self.get_stream_thumbnail(streamer.username)
 
             try:
+                # Lazy import to avoid directory creation at module load time
+                from app.services.unified_image_service import unified_image_service
+
                 # Use unified_image_service for download
                 session = await unified_image_service._get_session()
                 async with session.get(url) as response:

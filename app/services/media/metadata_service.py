@@ -16,7 +16,8 @@ from sqlalchemy.orm import Session, joinedload
 from app.database import SessionLocal
 from app.models import Stream, StreamMetadata, StreamEvent, Streamer, RecordingSettings
 from app.services.system.logging_service import logging_service
-from app.services.media.artwork_service import artwork_service
+
+# artwork_service imported lazily to avoid directory creation at import time
 from app.utils.file_utils import sanitize_filename
 
 logger = logging.getLogger("streamvault")
@@ -500,6 +501,9 @@ class MetadataService:
             # Important for Plex: Store artwork in hidden .media directory
             if streamer.profile_image_url:
                 # Save artwork to .media directory (avoids Emby creating seasons from folders)
+                # Lazy import to avoid directory creation at module load time
+                from app.services.media.artwork_service import artwork_service
+
                 await artwork_service.save_streamer_artwork(streamer)
                 # Ensure local copies (some servers block ../ traversals or outside-library references)
                 try:

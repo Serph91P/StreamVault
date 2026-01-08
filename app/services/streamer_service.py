@@ -18,7 +18,8 @@ from app.schemas.streamers import StreamerResponse
 from app.services.communication.websocket_manager import ConnectionManager
 from app.events.handler_registry import EventHandlerRegistry
 from app.services.streamers import StreamerRepository, TwitchIntegrationService
-from app.services.unified_image_service import unified_image_service
+
+# unified_image_service imported lazily to avoid directory creation at import time
 
 logger = logging.getLogger("streamvault")
 
@@ -34,6 +35,9 @@ class StreamerService:
         # Initialize the refactored services
         self.repository = StreamerRepository(db)
         self.twitch_service = TwitchIntegrationService(event_registry)
+        # Lazy import to avoid directory creation at module load time
+        from app.services.unified_image_service import unified_image_service
+
         self.image_service = unified_image_service
 
         # Legacy properties for compatibility
