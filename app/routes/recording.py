@@ -201,8 +201,10 @@ async def get_all_streamer_recording_settings():
             return result
     except Exception as e:
         logger.error(f"Error fetching streamer recording settings: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))@router.post("/streamers/{streamer_id}", response_model=StreamerRecordingSettingsSchema)
-    
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Commented out duplicate endpoint - functionality moved to update_streamer_recording_settings below
+# @router.post("/streamers/{streamer_id}", response_model=StreamerRecordingSettingsSchema)
 # async def update_streamer_recording_settings(
 #     streamer_id: int, 
 #     settings_data: StreamerRecordingSettingsSchema
