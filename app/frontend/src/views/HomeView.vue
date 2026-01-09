@@ -181,8 +181,8 @@ const liveStreamers = computed(() => {
 })
 
 const recentRecordings = computed(() => {
-  // Sort by date (newest first) and limit to 6
-  return videos.value
+  // Sort by date (newest first) and limit to 6 - spread to avoid mutating original
+  return [...videos.value]
     .sort((a, b) => {
       const dateA = new Date(a.stream_date || a.created_at).getTime()
       const dateB = new Date(b.stream_date || b.created_at).getTime()

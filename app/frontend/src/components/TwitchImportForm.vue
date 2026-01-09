@@ -245,7 +245,7 @@ async function startTwitchAuth(): Promise<void> {
   }
 }
 
-async function loadFollowedChannels(token: string): Promise<void> {
+async function loadFollowedChannels(_token: string): Promise<void> {
   try {
     loading.value = true
     loadingMessage.value = 'Loading channels you follow...'
@@ -291,7 +291,7 @@ function resetImport(): void {
   selectedStreamers.value = []
 }
 
-function dismissError(): void {
+function _dismissError(): void {
   error.value = null
 }
 

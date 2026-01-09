@@ -39,9 +39,9 @@
         <div class="progress-container" @click="seekVideo">
           <div class="progress-bar-track">
             <!-- Chapter markers background -->
-            <div class="chapter-markers" v-if="chapters.length > 0">
+            <div class="chapter-markers" v-if="parsedChapters.length > 0">
               <div 
-                v-for="(chapter, index) in chapters" 
+                v-for="(chapter, index) in parsedChapters" 
                 :key="index"
                 class="chapter-marker"
                 :style="{ 
@@ -102,14 +102,14 @@
           
           <div class="controls-right">
             <!-- Chapter Navigation (when chapters exist) -->
-            <template v-if="chapters.length > 0">
+            <template v-if="parsedChapters.length > 0">
               <!-- Previous Chapter Button -->
               <button 
                 @click="previousChapter" 
                 :disabled="currentChapterIndex <= 0"
                 class="control-button chapter-nav-button"
                 :aria-label="'Previous Chapter'"
-                :title="`Previous: ${chapters[currentChapterIndex - 1]?.title || 'None'}`"
+                :title="`Previous: ${parsedChapters[currentChapterIndex - 1]?.title || 'None'}`"
               >
                 <svg viewBox="0 0 24 24" fill="currentColor" class="control-icon">
                   <path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/>
@@ -122,21 +122,21 @@
                 class="control-button chapters-button"
                 :class="{ 'active': showChapterUI }"
                 :aria-label="'Chapters'"
-                :title="`${chapters.length} Chapters${currentChapter ? ': ' + currentChapter.title : ''}`"
+                :title="`${parsedChapters.length} Chapters${currentChapter ? ': ' + currentChapter.title : ''}`"
               >
                 <svg viewBox="0 0 24 24" fill="currentColor" class="control-icon">
                   <path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/>
                 </svg>
-                <span class="chapter-count">{{ chapters.length }}</span>
+                <span class="chapter-count">{{ parsedChapters.length }}</span>
               </button>
               
               <!-- Next Chapter Button -->
               <button 
                 @click="nextChapter" 
-                :disabled="currentChapterIndex >= chapters.length - 1"
+                :disabled="currentChapterIndex >= parsedChapters.length - 1"
                 class="control-button chapter-nav-button"
                 :aria-label="'Next Chapter'"
-                :title="`Next: ${chapters[currentChapterIndex + 1]?.title || 'None'}`"
+                :title="`Next: ${parsedChapters[currentChapterIndex + 1]?.title || 'None'}`"
               >
                 <svg viewBox="0 0 24 24" fill="currentColor" class="control-icon">
                   <path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/>
@@ -177,7 +177,7 @@
       <!-- Chapter List Panel (Overlay inside video) -->
       <transition name="slide-panel">
         <div 
-          v-if="showChapterUI && chapters.length > 0" 
+          v-if="showChapterUI && parsedChapters.length > 0" 
           class="chapter-list-panel"
           ref="chapterListPanel"
           @scroll="handleChapterListScroll"
@@ -188,7 +188,7 @@
         </div>
         <div class="chapter-list" ref="chapterList">
           <div 
-            v-for="(chapter, index) in chapters" 
+            v-for="(chapter, index) in parsedChapters" 
             :key="index"
             class="chapter-item"
             :class="{ 'active': currentChapterIndex === index }"
@@ -285,7 +285,7 @@ const error = ref<string>('')
 const currentTime = ref(0)
 const videoDuration = ref(0)
 const showChapterUI = ref(false)
-const chapters = ref<Chapter[]>([])
+const parsedChapters = ref<Chapter[]>([])
 
 // Custom controls state
 const isPlaying = ref(false)
@@ -306,8 +306,8 @@ const progressPercentage = computed(() => {
 
 // Current chapter detection
 const currentChapterIndex = computed(() => {
-  for (let i = chapters.value.length - 1; i >= 0; i--) {
-    if (currentTime.value >= chapters.value[i].startTime) {
+  for (let i = parsedChapters.value.length - 1; i >= 0; i--) {
+    if (currentTime.value >= parsedChapters.value[i].startTime) {
       return i
     }
   }
@@ -315,7 +315,7 @@ const currentChapterIndex = computed(() => {
 })
 
 const currentChapter = computed(() => {
-  return chapters.value[currentChapterIndex.value] || null
+  return parsedChapters.value[currentChapterIndex.value] || null
 })
 
 // Video URL decoding
@@ -381,7 +381,7 @@ const toggleFullscreen = async () => {
   }
 }
 
-const toggleControls = () => {
+const _toggleControls = () => {
   showControls.value = !showControls.value
   resetControlsTimeout()
 }
@@ -445,8 +445,8 @@ const onVideoLoaded = () => {
     emit('video-ready', videoDuration.value)
     
     // Recalculate chapter durations now that we have video duration
-    if (chapters.value.length > 0) {
-      chapters.value = calculateChapterDurations([...chapters.value])
+    if (parsedChapters.value.length > 0) {
+      parsedChapters.value = calculateChapterDurations([...parsedChapters.value])
     }
   }
 }
@@ -487,13 +487,13 @@ const seekToChapter = (startTime: number) => {
 
 const previousChapter = () => {
   if (currentChapterIndex.value > 0) {
-    seekToChapter(chapters.value[currentChapterIndex.value - 1].startTime)
+    seekToChapter(parsedChapters.value[currentChapterIndex.value - 1].startTime)
   }
 }
 
 const nextChapter = () => {
-  if (currentChapterIndex.value < chapters.value.length - 1) {
-    seekToChapter(chapters.value[currentChapterIndex.value + 1].startTime)
+  if (currentChapterIndex.value < parsedChapters.value.length - 1) {
+    seekToChapter(parsedChapters.value[currentChapterIndex.value + 1].startTime)
   }
 }
 
@@ -505,7 +505,7 @@ const toggleChapterUI = () => {
 const loadChapters = async () => {
   // First, check if we have pre-loaded chapters from props
   if (props.chapters && props.chapters.length > 0) {
-    chapters.value = convertApiChaptersToInternal(props.chapters)
+    parsedChapters.value = convertApiChaptersToInternal(props.chapters)
     return
   }
 
@@ -533,7 +533,7 @@ const loadChapters = async () => {
         })
         
         // Deduplicate by startTime and title
-        chapters.value = converted.filter((chapter: any, index: number, self: any[]) => 
+        parsedChapters.value = converted.filter((chapter: any, index: number, self: any[]) => 
           index === self.findIndex((c: any) => 
             c.startTime === chapter.startTime && c.title === chapter.title
           )
@@ -624,7 +624,7 @@ const parseTimeStringToSeconds = (timeString: string): number => {
 
 const parseWebVTTChapters = (vttText: string) => {
   const lines = vttText.split('\n')
-  const parsedChapters: Chapter[] = []
+  const localChapters: Chapter[] = []
   
   let i = 0
   while (i < lines.length) {
@@ -641,7 +641,7 @@ const parseWebVTTChapters = (vttText: string) => {
       i++
       const title = lines[i]?.trim() || 'Chapter'
       
-      parsedChapters.push({
+      localChapters.push({
         title,
         startTime,
         duration
@@ -650,8 +650,8 @@ const parseWebVTTChapters = (vttText: string) => {
     i++
   }
   
-  if (parsedChapters.length > 0) {
-    chapters.value = parsedChapters
+  if (localChapters.length > 0) {
+    parsedChapters.value = localChapters
   }
 }
 
@@ -740,8 +740,8 @@ const scrollToActiveChapter = (index: number) => {
 
 // Watch for chapter changes and emit events + auto-scroll
 watch(currentChapterIndex, (newIndex, oldIndex) => {
-  if (newIndex !== oldIndex && chapters.value[newIndex]) {
-    emit('chapter-change', chapters.value[newIndex], newIndex)
+  if (newIndex !== oldIndex && parsedChapters.value[newIndex]) {
+    emit('chapter-change', parsedChapters.value[newIndex], newIndex)
     
     // Auto-scroll to active chapter if chapter UI is visible
     if (showChapterUI.value) {
@@ -806,7 +806,7 @@ onUnmounted(() => {
 // Watch for changes in chapters prop
 watch(() => props.chapters, (newChapters) => {
   if (newChapters && newChapters.length > 0) {
-    chapters.value = convertApiChaptersToInternal(newChapters)
+    parsedChapters.value = convertApiChaptersToInternal(newChapters)
   }
 }, { immediate: true })
 </script>

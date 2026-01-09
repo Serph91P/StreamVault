@@ -31,7 +31,7 @@ app.mount('#app')
 // Service Worker wird automatisch von VitePWA registriert
 import { registerSW } from 'virtual:pwa-register'
 
-const updateSW = registerSW({
+const _updateSW = registerSW({
   onNeedRefresh() {
     // Zeige eine Benachrichtigung für Updates
     console.log('PWA needs refresh')
@@ -48,13 +48,13 @@ const updateSW = registerSW({
 })
 
 // PWA Install Event
-let deferredPrompt: any = null
+let _deferredPrompt: any = null
 
 window.addEventListener('beforeinstallprompt', (e) => {
   // Prevent the mini-infobar from appearing on mobile
   e.preventDefault()
   // Stash the event so it can be triggered later.
-  deferredPrompt = e
+  _deferredPrompt = e
   console.log('PWA install prompt available')
   
   // Make the install prompt available
@@ -63,7 +63,7 @@ window.addEventListener('beforeinstallprompt', (e) => {
 
 window.addEventListener('appinstalled', () => {
   console.log('PWA was installed')
-  deferredPrompt = null
+  // deferredPrompt is managed by the PWA composable
 })
 
 // Lightweight session keepalive: ping backend periodically to refresh cookie session

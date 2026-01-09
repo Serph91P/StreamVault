@@ -1,6 +1,6 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import type { Ref } from 'vue'
-import { logDebug, logError, logWebSocket } from '@/utils/logger'
+import { logDebug, logWebSocket } from '@/utils/logger'
 
 interface WebSocketMessage {
   type: string

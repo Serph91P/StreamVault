@@ -36,14 +36,14 @@ export const mockApi = {
     getById: (id: number) => mockResponse(mockStreamers.find(s => s.id === id)),
     create: (data: any) => mockResponse({ ...data, id: Date.now() }),
     update: (id: number, data: any) => mockResponse({ ...data, id }),
-    delete: (id: number) => mockResponse({ success: true }),
+    delete: (_id: number) => mockResponse({ success: true }),
     validate: (username: string) => mockResponse({ 
       valid: true, 
       user_id: '12345',
       display_name: username,
       profile_image_url: 'https://static-cdn.jtvnw.net/user-default-pictures-uv/cdd517fe-def4-11e9-948e-784f43822e80-profile_image-300x300.png'
     }),
-    forceRecord: (id: number) => mockResponse({ success: true, message: 'Recording started' })
+    forceRecord: (_id: number) => mockResponse({ success: true, message: 'Recording started' })
   },
 
   // Videos
@@ -53,21 +53,21 @@ export const mockApi = {
     getByStreamer: (streamerId: number) => mockResponse(
       mockVideos.filter(v => v.streamer_id === streamerId)
     ),
-    delete: (id: number) => mockResponse({ success: true }),
+    delete: (_id: number) => mockResponse({ success: true }),
     getChapters: (id: number) => mockResponse(mockChapters.filter(c => c.stream_id === id))
   },
 
   // Recordings
   recordings: {
     getActive: () => mockResponse(mockActiveRecordings),
-    stop: (id: number) => mockResponse({ success: true, message: 'Recording stopped' })
+    stop: (_id: number) => mockResponse({ success: true, message: 'Recording stopped' })
   },
 
   // Categories
   categories: {
     getAll: () => mockResponse(mockCategories),
     getFavorites: () => mockResponse(mockCategories.filter(c => c.is_favorite)),
-    toggleFavorite: (id: string) => mockResponse({ success: true }),
+    toggleFavorite: (_id: string) => mockResponse({ success: true }),
     search: (query: string) => mockResponse(
       mockCategories.filter(c => c.name.toLowerCase().includes(query.toLowerCase()))
     )
@@ -83,7 +83,7 @@ export const mockApi = {
   // Settings
   settings: {
     getAll: () => mockResponse(mockSettings),
-    update: (section: string, data: any) => mockResponse({ ...mockSettings, [section]: data }),
+    update: (_section: string, data: any) => mockResponse({ ...mockSettings, ...data }),
     getVersion: () => mockResponse(mockVersionInfo)
   },
 
@@ -106,8 +106,8 @@ export const mockApi = {
     getAll: () => mockResponse(mockProxies),
     create: (data: any) => mockResponse({ ...data, id: Date.now() }),
     update: (id: number, data: any) => mockResponse({ ...data, id }),
-    delete: (id: number) => mockResponse({ success: true }),
-    testHealth: (id: number) => mockResponse({ 
+    delete: (_id: number) => mockResponse({ success: true }),
+    testHealth: (_id: number) => mockResponse({ 
       healthy: true, 
       response_time_ms: Math.random() * 200 
     })
@@ -116,7 +116,7 @@ export const mockApi = {
   // Notifications
   notifications: {
     getHistory: () => mockResponse([]),
-    markAsRead: (id: number) => mockResponse({ success: true }),
+    markAsRead: (_id: number) => mockResponse({ success: true }),
     clearAll: () => mockResponse({ success: true })
   }
 }
