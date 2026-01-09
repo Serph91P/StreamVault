@@ -17,7 +17,7 @@ import { useWebSocket } from './useWebSocket'
 import { logDebug, logError, logWebSocket } from '@/utils/logger'
 
 // Configuration constants
-const TIMEOUT_THRESHOLD_MS = 45000 // 45 seconds - fallback to REST if no WebSocket updates
+const _TIMEOUT_THRESHOLD_MS = 45000 // 45 seconds - fallback to REST if no WebSocket updates
 
 interface SystemStatus {
   active_recordings: number
@@ -465,7 +465,7 @@ export function useSystemAndRecordingStatus() {
   // Periodic refresh interval (DISABLED - WebSocket provides all updates)
   let refreshInterval: NodeJS.Timeout | null = null
   
-  const startPeriodicRefresh = (intervalMs = 30000) => {
+  const startPeriodicRefresh = (_intervalMs = 30000) => {
     // CRITICAL FIX: Disable polling - WebSocket handles all real-time updates
     // This prevents unnecessary API traffic when WebSocket is working
     logDebug('useSystemAndRecordingStatus', 'Periodic polling DISABLED - using WebSocket-only updates')

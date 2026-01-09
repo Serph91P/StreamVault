@@ -2,20 +2,22 @@
 Recording Task Factory
 Creates task chains for recording post-processing with proper dependencies
 """
+
 import logging
-from typing import Dict, List, Any
+from typing import List
 from datetime import datetime
 from pathlib import Path
 
-from app.services.processing.task_dependency_manager import Task, TaskStatus
+from app.services.processing.task_dependency_manager import Task
 from app.database import SessionLocal
 from app.models import RecordingProcessingState, Stream
 
 logger = logging.getLogger("streamvault")
 
+
 class RecordingTaskFactory:
     """Factory for creating recording post-processing task chains"""
-    
+
     @staticmethod
     def create_post_processing_chain(
         stream_id: int,
@@ -24,10 +26,10 @@ class RecordingTaskFactory:
         output_dir: str,
         streamer_name: str,
         started_at: str,
-        cleanup_ts_file: bool = True
+        cleanup_ts_file: bool = True,
     ) -> List[Task]:
         """Create a complete post-processing task chain for a recording
-        
+
         Args:
             stream_id: Stream ID
             recording_id: Recording ID
@@ -36,7 +38,7 @@ class RecordingTaskFactory:
             streamer_name: Name of the streamer
             started_at: Recording start time (ISO format)
             cleanup_ts_file: Whether to cleanup the .ts file after processing
-            
+
         Returns:
             List of tasks with proper dependencies
         """
@@ -45,29 +47,31 @@ class RecordingTaskFactory:
         completed = set()
         try:
             with SessionLocal() as db:
-                state = db.query(RecordingProcessingState).filter(RecordingProcessingState.recording_id == recording_id).first()
+                state = (
+                    db.query(RecordingProcessingState)
+                    .filter(RecordingProcessingState.recording_id == recording_id)
+                    .first()
+                )
                 if state:
-                    if state.metadata_status == 'completed':
-                        completed.add('metadata_generation')
-                    if state.chapters_status == 'completed':
-                        completed.add('chapters_generation')
-                    if state.mp4_remux_status == 'completed':
-                        completed.add('mp4_remux')
-                    if state.mp4_validation_status == 'completed':
-                        completed.add('mp4_validation')
-                    if state.thumbnail_status == 'completed':
-                        completed.add('thumbnail_generation')
-                    if state.cleanup_status == 'completed':
-                        completed.add('cleanup')
+                    if state.metadata_status == "completed":
+                        completed.add("metadata_generation")
+                    if state.chapters_status == "completed":
+                        completed.add("chapters_generation")
+                    if state.mp4_remux_status == "completed":
+                        completed.add("mp4_remux")
+                    if state.mp4_validation_status == "completed":
+                        completed.add("mp4_validation")
+                    if state.thumbnail_status == "completed":
+                        completed.add("thumbnail_generation")
+                    if state.cleanup_status == "completed":
+                        completed.add("cleanup")
                 else:
                     # Prime a state row so we can keep progress even if app restarts mid-chain
                     try:
                         stream = db.query(Stream).get(stream_id)
                         if stream:
                             st = RecordingProcessingState(
-                                recording_id=recording_id,
-                                stream_id=stream_id,
-                                streamer_id=stream.streamer_id
+                                recording_id=recording_id, stream_id=stream_id, streamer_id=stream.streamer_id
                             )
                             db.add(st)
                             db.commit()
@@ -81,116 +85,110 @@ class RecordingTaskFactory:
                         logger.debug(f"Could not prime processing state for recording {recording_id}: {e}")
         except Exception:
             pass
-        
+
         # Base task IDs
         base_id = f"stream_{stream_id}_recording_{recording_id}"
-        
+
         # Task IDs
         metadata_task_id = f"{base_id}_metadata"
         chapters_task_id = f"{base_id}_chapters"
         mp4_remux_task_id = f"{base_id}_mp4_remux"
         thumbnail_task_id = f"{base_id}_thumbnail"
         cleanup_task_id = f"{base_id}_cleanup"
-        
+
         # Common payload data
         common_payload = {
-            'stream_id': stream_id,
-            'recording_id': recording_id,
-            'ts_file_path': ts_file_path,
-            'output_dir': output_dir,
-            'streamer_name': streamer_name,
-            'started_at': started_at
+            "stream_id": stream_id,
+            "recording_id": recording_id,
+            "ts_file_path": ts_file_path,
+            "output_dir": output_dir,
+            "streamer_name": streamer_name,
+            "started_at": started_at,
         }
-        
+
         # Calculate MP4 output path
         ts_path = Path(ts_file_path)
-        mp4_path = str(ts_path.with_suffix('.mp4'))
-        
+        mp4_path = str(ts_path.with_suffix(".mp4"))
+
         # 1. Metadata Generation Task (no dependencies)
-        if 'metadata_generation' not in completed:
+        if "metadata_generation" not in completed:
             metadata_task = Task(
-            id=metadata_task_id,
-            type='metadata_generation',
-            payload={
-                **common_payload,
-                'mp4_path': mp4_path,  # Metadata needs to know the final MP4 path
-                'base_filename': ts_path.stem
-            },
-            dependencies=set(),
-            priority=1  # High priority
+                id=metadata_task_id,
+                type="metadata_generation",
+                payload={
+                    **common_payload,
+                    "mp4_path": mp4_path,  # Metadata needs to know the final MP4 path
+                    "base_filename": ts_path.stem,
+                },
+                dependencies=set(),
+                priority=1,  # High priority
             )
             tasks.append(metadata_task)
-        
+
         # 2. Chapters Generation Task (no dependencies)
-        if 'chapters_generation' not in completed:
+        if "chapters_generation" not in completed:
             chapters_task = Task(
-            id=chapters_task_id,
-            type='chapters_generation',
-            payload={
-                **common_payload,
-                'mp4_path': mp4_path,
-                'base_filename': ts_path.stem
-            },
-            dependencies={metadata_task_id} if any(t.id == metadata_task_id for t in tasks) else set(),
-            priority=1  # High priority
+                id=chapters_task_id,
+                type="chapters_generation",
+                payload={**common_payload, "mp4_path": mp4_path, "base_filename": ts_path.stem},
+                dependencies={metadata_task_id} if any(t.id == metadata_task_id for t in tasks) else set(),
+                priority=1,  # High priority
             )
             tasks.append(chapters_task)
-        
+
         # 3. MP4 Remux Task (depends on metadata and chapters)
-        if 'mp4_remux' not in completed:
+        if "mp4_remux" not in completed:
             mp4_remux_task = Task(
-            id=mp4_remux_task_id,
-            type='mp4_remux',
-            payload={
-                **common_payload,
-                'mp4_output_path': mp4_path,
-                'overwrite': True,
-                'include_metadata': True,
-                'include_chapters': True
-            },
-            dependencies={dep for dep in {metadata_task_id, chapters_task_id} if dep and dep in [t.id for t in tasks]},
-            priority=2  # Medium priority
+                id=mp4_remux_task_id,
+                type="mp4_remux",
+                payload={
+                    **common_payload,
+                    "mp4_output_path": mp4_path,
+                    "overwrite": True,
+                    "include_metadata": True,
+                    "include_chapters": True,
+                },
+                dependencies={
+                    dep for dep in {metadata_task_id, chapters_task_id} if dep and dep in [t.id for t in tasks]
+                },
+                priority=2,  # Medium priority
             )
             tasks.append(mp4_remux_task)
-        
+
         # 4. MP4 Validation Task (depends on MP4 remux)
         mp4_validation_task_id = f"{base_id}_mp4_validation"
-        if 'mp4_validation' not in completed:
+        if "mp4_validation" not in completed:
             mp4_validation_task = Task(
-            id=mp4_validation_task_id,
-            type='mp4_validation',
-            payload={
-                **common_payload,
-                'mp4_path': mp4_path,
-                'ts_file_path': ts_file_path,
-                'validate_size_ratio': True,
-                'min_size_mb': 1  # Minimum 1MB
-            },
-            dependencies={mp4_remux_task_id} if any(t.id == mp4_remux_task_id for t in tasks) else set(),
-            priority=2  # High priority - validation is critical
+                id=mp4_validation_task_id,
+                type="mp4_validation",
+                payload={
+                    **common_payload,
+                    "mp4_path": mp4_path,
+                    "ts_file_path": ts_file_path,
+                    "validate_size_ratio": True,
+                    "min_size_mb": 1,  # Minimum 1MB
+                },
+                dependencies={mp4_remux_task_id} if any(t.id == mp4_remux_task_id for t in tasks) else set(),
+                priority=2,  # High priority - validation is critical
             )
             tasks.append(mp4_validation_task)
-        
+
         # 5. Thumbnail Generation Task (depends on MP4 validation)
-        if 'thumbnail_generation' not in completed:
+        if "thumbnail_generation" not in completed:
             thumbnail_task = Task(
-            id=thumbnail_task_id,
-            type='thumbnail_generation',
-            payload={
-                **common_payload,
-                'mp4_path': mp4_path,
-                'fallback_to_video_extraction': True
-            },
-            dependencies={mp4_validation_task_id} if any(t.id == mp4_validation_task_id for t in tasks) else set(),
-            priority=3  # Lower priority
+                id=thumbnail_task_id,
+                type="thumbnail_generation",
+                payload={**common_payload, "mp4_path": mp4_path, "fallback_to_video_extraction": True},
+                dependencies={mp4_validation_task_id} if any(t.id == mp4_validation_task_id for t in tasks) else set(),
+                priority=3,  # Lower priority
             )
             tasks.append(thumbnail_task)
-        
+
         # 6. Cleanup Task (depends on MP4 validation, only if cleanup_ts_file is True)
-        if cleanup_ts_file and 'cleanup' not in completed:
+        if cleanup_ts_file and "cleanup" not in completed:
             # Prepare files to remove: .ts file and potential segments directory
             files_to_remove = [ts_file_path]
-            
+
             # Check if there's a corresponding segments directory that should be cleaned up
             ts_path = Path(ts_file_path)
             segments_dir = ts_path.parent / f"{ts_path.stem}_segments"
@@ -198,37 +196,34 @@ class RecordingTaskFactory:
             if segments_dir.is_dir():
                 files_to_remove.append(str(segments_dir))
                 logger.debug(f"Added segments directory to cleanup: {segments_dir}")
-            
+
             cleanup_task = Task(
                 id=cleanup_task_id,
-                type='cleanup',
+                type="cleanup",
                 payload={
                     **common_payload,
-                    'files_to_remove': files_to_remove,
-                    'mp4_path': mp4_path,
-                    'intelligent_cleanup': True,
-                    'max_wait_time': 300  # 5 minutes max wait for processes
+                    "files_to_remove": files_to_remove,
+                    "mp4_path": mp4_path,
+                    "intelligent_cleanup": True,
+                    "max_wait_time": 300,  # 5 minutes max wait for processes
                 },
-                dependencies={mp4_validation_task_id} if any(t.id == mp4_validation_task_id for t in tasks) else set(),  # Depends on validation, not thumbnail
-                priority=4  # Lowest priority
+                dependencies=(
+                    {mp4_validation_task_id} if any(t.id == mp4_validation_task_id for t in tasks) else set()
+                ),  # Depends on validation, not thumbnail
+                priority=4,  # Lowest priority
             )
             tasks.append(cleanup_task)
-        
+
         logger.info(f"Created post-processing chain for stream {stream_id} with {len(tasks)} tasks")
-        
+
         return tasks
-    
+
     @staticmethod
     def create_metadata_only_chain(
-        stream_id: int,
-        recording_id: int,
-        mp4_file_path: str,
-        output_dir: str,
-        streamer_name: str,
-        started_at: str
+        stream_id: int, recording_id: int, mp4_file_path: str, output_dir: str, streamer_name: str, started_at: str
     ) -> List[Task]:
         """Create a metadata-only task chain for existing MP4 files
-        
+
         Args:
             stream_id: Stream ID
             recording_id: Recording ID
@@ -236,86 +231,72 @@ class RecordingTaskFactory:
             output_dir: Output directory
             streamer_name: Name of the streamer
             started_at: Recording start time (ISO format)
-            
+
         Returns:
             List of tasks for metadata generation only
         """
         tasks = []
-        
+
         # Base task IDs
         base_id = f"stream_{stream_id}_metadata_only"
-        
+
         # Task IDs
         metadata_task_id = f"{base_id}_metadata"
         chapters_task_id = f"{base_id}_chapters"
         thumbnail_task_id = f"{base_id}_thumbnail"
-        
+
         # Common payload data
         common_payload = {
-            'stream_id': stream_id,
-            'recording_id': recording_id,
-            'mp4_path': mp4_file_path,
-            'output_dir': output_dir,
-            'streamer_name': streamer_name,
-            'started_at': started_at
+            "stream_id": stream_id,
+            "recording_id": recording_id,
+            "mp4_path": mp4_file_path,
+            "output_dir": output_dir,
+            "streamer_name": streamer_name,
+            "started_at": started_at,
         }
-        
+
         mp4_path = Path(mp4_file_path)
-        
+
         # 1. Metadata Generation Task
         metadata_task = Task(
             id=metadata_task_id,
-            type='metadata_generation',
-            payload={
-                **common_payload,
-                'base_filename': mp4_path.stem
-            },
+            type="metadata_generation",
+            payload={**common_payload, "base_filename": mp4_path.stem},
             dependencies=set(),
-            priority=1
+            priority=1,
         )
         tasks.append(metadata_task)
-        
+
         # 2. Chapters Generation Task
         chapters_task = Task(
             id=chapters_task_id,
-            type='chapters_generation',
-            payload={
-                **common_payload,
-                'base_filename': mp4_path.stem
-            },
+            type="chapters_generation",
+            payload={**common_payload, "base_filename": mp4_path.stem},
             dependencies=set(),
-            priority=1
+            priority=1,
         )
         tasks.append(chapters_task)
-        
+
         # 3. Thumbnail Generation Task
         thumbnail_task = Task(
             id=thumbnail_task_id,
-            type='thumbnail_generation',
-            payload={
-                **common_payload,
-                'fallback_to_video_extraction': True
-            },
+            type="thumbnail_generation",
+            payload={**common_payload, "fallback_to_video_extraction": True},
             dependencies=set(),
-            priority=2
+            priority=2,
         )
         tasks.append(thumbnail_task)
-        
+
         logger.info(f"Created metadata-only chain for stream {stream_id} with {len(tasks)} tasks")
-        
+
         return tasks
-    
+
     @staticmethod
     def create_thumbnail_only_task(
-        stream_id: int,
-        recording_id: int,
-        mp4_file_path: str,
-        output_dir: str,
-        streamer_name: str,
-        started_at: str
+        stream_id: int, recording_id: int, mp4_file_path: str, output_dir: str, streamer_name: str, started_at: str
     ) -> Task:
         """Create a single thumbnail generation task
-        
+
         Args:
             stream_id: Stream ID
             recording_id: Recording ID
@@ -323,28 +304,28 @@ class RecordingTaskFactory:
             output_dir: Output directory
             streamer_name: Name of the streamer
             started_at: Recording start time (ISO format)
-            
+
         Returns:
             Single thumbnail generation task
         """
         task_id = f"stream_{stream_id}_thumbnail_only"
-        
+
         return Task(
             id=task_id,
-            type='thumbnail_generation',
+            type="thumbnail_generation",
             payload={
-                'stream_id': stream_id,
-                'recording_id': recording_id,
-                'mp4_path': mp4_file_path,
-                'output_dir': output_dir,
-                'streamer_name': streamer_name,
-                'started_at': started_at,
-                'fallback_to_video_extraction': True
+                "stream_id": stream_id,
+                "recording_id": recording_id,
+                "mp4_path": mp4_file_path,
+                "output_dir": output_dir,
+                "streamer_name": streamer_name,
+                "started_at": started_at,
+                "fallback_to_video_extraction": True,
             },
             dependencies=set(),
-            priority=2
+            priority=2,
         )
-    
+
     @staticmethod
     def create_repair_chain(
         stream_id: int,
@@ -353,10 +334,10 @@ class RecordingTaskFactory:
         output_dir: str,
         streamer_name: str,
         started_at: str,
-        failed_tasks: List[str]
+        failed_tasks: List[str],
     ) -> List[Task]:
         """Create a repair task chain for failed processing
-        
+
         Args:
             stream_id: Stream ID
             recording_id: Recording ID
@@ -365,100 +346,90 @@ class RecordingTaskFactory:
             streamer_name: Name of the streamer
             started_at: Recording start time (ISO format)
             failed_tasks: List of failed task types to retry
-            
+
         Returns:
             List of repair tasks
         """
         tasks = []
-        
+
         # Base task IDs
         base_id = f"stream_{stream_id}_repair_{int(datetime.now().timestamp())}"
-        
+
         # Common payload data
         common_payload = {
-            'stream_id': stream_id,
-            'recording_id': recording_id,
-            'ts_file_path': ts_file_path,
-            'output_dir': output_dir,
-            'streamer_name': streamer_name,
-            'started_at': started_at
+            "stream_id": stream_id,
+            "recording_id": recording_id,
+            "ts_file_path": ts_file_path,
+            "output_dir": output_dir,
+            "streamer_name": streamer_name,
+            "started_at": started_at,
         }
-        
+
         ts_path = Path(ts_file_path)
-        mp4_path = str(ts_path.with_suffix('.mp4'))
-        
+        mp4_path = str(ts_path.with_suffix(".mp4"))
+
         # Create tasks only for failed steps
         dependencies = set()
-        
-        if 'metadata' in failed_tasks or 'metadata_generation' in failed_tasks:
+
+        if "metadata" in failed_tasks or "metadata_generation" in failed_tasks:
             metadata_task_id = f"{base_id}_metadata"
             metadata_task = Task(
                 id=metadata_task_id,
-                type='metadata_generation',
-                payload={
-                    **common_payload,
-                    'mp4_path': mp4_path,
-                    'base_filename': ts_path.stem
-                },
+                type="metadata_generation",
+                payload={**common_payload, "mp4_path": mp4_path, "base_filename": ts_path.stem},
                 dependencies=set(),
                 priority=1,
-                max_retries=1  # Reduced retries for repair
+                max_retries=1,  # Reduced retries for repair
             )
             tasks.append(metadata_task)
             dependencies.add(metadata_task_id)
-        
-        if 'chapters' in failed_tasks or 'chapters_generation' in failed_tasks:
+
+        if "chapters" in failed_tasks or "chapters_generation" in failed_tasks:
             chapters_task_id = f"{base_id}_chapters"
             chapters_task = Task(
                 id=chapters_task_id,
-                type='chapters_generation',
-                payload={
-                    **common_payload,
-                    'mp4_path': mp4_path,
-                    'base_filename': ts_path.stem
-                },
+                type="chapters_generation",
+                payload={**common_payload, "mp4_path": mp4_path, "base_filename": ts_path.stem},
                 dependencies=set(),
                 priority=1,
-                max_retries=1
+                max_retries=1,
             )
             tasks.append(chapters_task)
             dependencies.add(chapters_task_id)
-        
-        if 'mp4_remux' in failed_tasks:
+
+        if "mp4_remux" in failed_tasks:
             mp4_remux_task_id = f"{base_id}_mp4_remux"
             mp4_remux_task = Task(
                 id=mp4_remux_task_id,
-                type='mp4_remux',
+                type="mp4_remux",
                 payload={
                     **common_payload,
-                    'mp4_output_path': mp4_path,
-                    'overwrite': True,
-                    'include_metadata': True,
-                    'include_chapters': True
+                    "mp4_output_path": mp4_path,
+                    "overwrite": True,
+                    "include_metadata": True,
+                    "include_chapters": True,
                 },
                 dependencies=dependencies,
                 priority=2,
-                max_retries=1
+                max_retries=1,
             )
             tasks.append(mp4_remux_task)
             dependencies = {mp4_remux_task_id}
-        
-        if 'thumbnail' in failed_tasks or 'thumbnail_generation' in failed_tasks:
+
+        if "thumbnail" in failed_tasks or "thumbnail_generation" in failed_tasks:
             thumbnail_task_id = f"{base_id}_thumbnail"
             thumbnail_task = Task(
                 id=thumbnail_task_id,
-                type='thumbnail_generation',
-                payload={
-                    **common_payload,
-                    'mp4_path': mp4_path,
-                    'fallback_to_video_extraction': True
-                },
+                type="thumbnail_generation",
+                payload={**common_payload, "mp4_path": mp4_path, "fallback_to_video_extraction": True},
                 dependencies=dependencies,
                 priority=3,
-                max_retries=1
+                max_retries=1,
             )
             tasks.append(thumbnail_task)
-        
-        logger.info(f"Created repair chain for stream {stream_id} with {len(tasks)} tasks for failed steps: {failed_tasks}")
-        
+
+        logger.info(
+            f"Created repair chain for stream {stream_id} with {len(tasks)} tasks for failed steps: {failed_tasks}"
+        )
+
         return tasks

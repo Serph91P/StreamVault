@@ -23,7 +23,7 @@ class APICache {
     return Date.now() - entry.timestamp > this.TTL
   }
   
-  async get(url: string, options: RequestInit = {}, ttl = this.TTL): Promise<any> {
+  async get(url: string, options: RequestInit = {}, _ttl = this.TTL): Promise<any> {
     const key = this.generateKey(url, options)
     const cached = this.cache.get(key)
     

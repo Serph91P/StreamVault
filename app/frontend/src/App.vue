@@ -744,7 +744,7 @@ watch(() => messages.value.length, (newLength) => {
     const newCount = newLength - previousMessageCount
     const messagesToProcess = messages.value.slice(-newCount)
     
-    messagesToProcess.forEach((message, index) => {
+    messagesToProcess.forEach((message, _index) => {
       processWebSocketMessage(message)
     })
     
@@ -853,7 +853,7 @@ onMounted(async () => {
   
   // Process any existing WebSocket messages
   if (messages.value.length > 0) {
-    messages.value.forEach((message, index) => {
+    messages.value.forEach((message, _index) => {
       processWebSocketMessage(message)
     })
   }

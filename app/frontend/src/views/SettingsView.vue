@@ -269,7 +269,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { useNotificationSettings } from '@/composables/useNotificationSettings'
 import { useRecordingSettings } from '@/composables/useRecordingSettings'
 import { useWebSocket } from '@/composables/useWebSocket'
@@ -366,7 +366,7 @@ const {
   updateStreamerSettings: updateStreamerRecordingSettings,
   fetchActiveRecordings,
   stopRecording,
-  cleanupOldRecordings
+  cleanupOldRecordings: _cleanupOldRecordings
 } = useRecordingSettings()
 
 const notificationStreamerSettings = ref<StreamerNotificationSettings[]>([])

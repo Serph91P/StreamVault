@@ -125,7 +125,7 @@ const {
   isLoading,
   connectionStatus,
   forceRefreshFromAPI,
-  cancelStreamTasks
+  cancelStreamTasks: _cancelStreamTasks
 } = useBackgroundQueue()
 
 // Also track active recordings (they may not appear as queue tasks)
@@ -211,7 +211,7 @@ const totalProgress = computed(() => {
   return Math.round(total / valid.length)
 })
 
-const statusIconClass = computed(() => {
+const _statusIconClass = computed(() => {
   if (isLoading.value) return 'status-loading'
   if (!isConnected.value) return 'status-error'
   if (queueStats.value.failed_tasks > 0) return 'status-error'

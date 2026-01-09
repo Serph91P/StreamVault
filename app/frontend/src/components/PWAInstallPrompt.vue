@@ -22,7 +22,7 @@
 import { ref, onMounted, computed } from 'vue'
 import { usePWA } from '@/composables/usePWA'
 
-const { isInstallable, isInstalled, installPWA, getPlatformInfo } = usePWA()
+const { isInstallable, isInstalled, installPWA, getPlatformInfo: _getPlatformInfo } = usePWA()
 const showInstallPrompt = ref(false)
 const hasBeenDismissed = ref(false)
 const platformInfo = ref(null)

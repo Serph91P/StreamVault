@@ -14,14 +14,15 @@ from typing import Optional
 
 logger = logging.getLogger("streamvault")
 
+
 class StreamlinkConfigService:
     """Manages automatic generation of Streamlink configuration files"""
-    
+
     def __init__(self):
         # Streamlink config directory (Docker: /app/config/streamlink)
         self.config_dir = Path("/app/config/streamlink")
         self.twitch_config_path = self.config_dir / "config.twitch"
-        
+
         # Ensure config directory exists (must be writable volume mount in Docker)
         if not self.config_dir.exists():
             try:
@@ -34,31 +35,31 @@ class StreamlinkConfigService:
                 logger.error(f"❌ Failed to create streamlink config directory: {e}")
         else:
             logger.debug(f"📂 Streamlink config directory: {self.config_dir}")
-    
+
     def generate_twitch_config(
         self,
         oauth_token: Optional[str] = None,
         http_proxy: Optional[str] = None,
         https_proxy: Optional[str] = None,
-        supported_codecs: str = "av1,h265,h264"
+        supported_codecs: str = "av1,h265,h264",
     ) -> bool:
         """
         Generate Twitch plugin configuration file for Streamlink.
-        
+
         This config contains static Streamlink options that don't change per-recording:
         - Codec preferences (h265, av1, h264)
         - Ad blocking settings
         - OAuth authentication header (if token provided)
         - Proxy settings (if configured)
-        
+
         Dynamic settings (quality, output path) are passed via command-line.
-        
+
         Args:
             oauth_token: Twitch OAuth token for H.265/1440p access
             http_proxy: HTTP proxy URL
             https_proxy: HTTPS proxy URL
             supported_codecs: Comma-separated codec list (default: av1,h265,h264)
-            
+
         Returns:
             True if config was successfully written, False otherwise
         """
@@ -72,80 +73,88 @@ class StreamlinkConfigService:
                 f"twitch-supported-codecs={supported_codecs}",
                 "",
             ]
-            
+
             # OAuth token is ALWAYS passed via CLI (--twitch-api-header)
             # Do NOT add it to config file to avoid duplicate headers
-            config_lines.extend([
-                "# Twitch OAuth Authentication",
-                "# Token is passed via CLI argument (--twitch-api-header) per recording",
-                "# This ensures we always use the freshest auto-refreshed token",
-                "# DO NOT add twitch-api-header here - it causes duplicate headers!",
-                "",
-            ])
-            
+            config_lines.extend(
+                [
+                    "# Twitch OAuth Authentication",
+                    "# Token is passed via CLI argument (--twitch-api-header) per recording",
+                    "# This ensures we always use the freshest auto-refreshed token",
+                    "# DO NOT add twitch-api-header here - it causes duplicate headers!",
+                    "",
+                ]
+            )
+
             if oauth_token and oauth_token.strip():
                 logger.info("🔑 OAuth token available - will be passed via CLI per recording")
             else:
                 logger.warning("⚠️ No OAuth token - H.265/1440p quality unavailable")
                 logger.warning("⚠️ No OAuth token - recordings limited to 1080p60 H.264")
-            
+
             # Add proxy settings if configured
             if http_proxy and http_proxy.strip():
-                config_lines.extend([
-                    "# HTTP Proxy",
-                    f"http-proxy={http_proxy.strip()}",
-                    "",
-                ])
+                config_lines.extend(
+                    [
+                        "# HTTP Proxy",
+                        f"http-proxy={http_proxy.strip()}",
+                        "",
+                    ]
+                )
                 logger.info(f"🔧 HTTP proxy configured: {http_proxy[:30]}...")
-            
+
             if https_proxy and https_proxy.strip():
-                config_lines.extend([
-                    "# HTTPS Proxy",
-                    f"https-proxy={https_proxy.strip()}",
-                    "",
-                ])
+                config_lines.extend(
+                    [
+                        "# HTTPS Proxy",
+                        f"https-proxy={https_proxy.strip()}",
+                        "",
+                    ]
+                )
                 logger.info(f"🔧 HTTPS proxy configured: {https_proxy[:30]}...")
-            
+
             # Add static Streamlink options (from get_streamlink_command)
-            config_lines.extend([
-                "# Stream stability settings",
-                "hls-live-edge=99999",
-                "stream-timeout=200",
-                "stream-segment-timeout=200",
-                "stream-segment-threads=5",
-                "retry-streams=10",
-                "retry-max=5",
-                "",
-                "# FFmpeg output format",
-                "ffmpeg-fout=mpegts",
-                "",
-                "# Logging configuration",
-                "loglevel=debug",
-                "logformat=[{asctime}][{name}][{levelname}] {message}",
-                "logdateformat=%Y-%m-%d %H:%M:%S",
-                "",
-                "# NOTE: Quality, output path, and log file path are set via command-line",
-                "# because they change per-recording and per-streamer",
-            ])
-            
+            config_lines.extend(
+                [
+                    "# Stream stability settings",
+                    "hls-live-edge=99999",
+                    "stream-timeout=200",
+                    "stream-segment-timeout=200",
+                    "stream-segment-threads=5",
+                    "retry-streams=10",
+                    "retry-max=5",
+                    "",
+                    "# FFmpeg output format",
+                    "ffmpeg-fout=mpegts",
+                    "",
+                    "# Logging configuration",
+                    "loglevel=debug",
+                    "logformat=[{asctime}][{name}][{levelname}] {message}",
+                    "logdateformat=%Y-%m-%d %H:%M:%S",
+                    "",
+                    "# NOTE: Quality, output path, and log file path are set via command-line",
+                    "# because they change per-recording and per-streamer",
+                ]
+            )
+
             # Write config file
             config_content = "\n".join(config_lines)
-            
+
             # Skip if directory doesn't exist (permission issue during init)
             if not self.config_dir.exists():
                 logger.warning("⚠️ Config directory doesn't exist - skipping config file write")
                 logger.warning("   Using command-line arguments only")
                 return False
-            
-            with open(self.twitch_config_path, 'w', encoding='utf-8') as f:
+
+            with open(self.twitch_config_path, "w", encoding="utf-8") as f:
                 f.write(config_content)
-            
+
             logger.info(f"✅ Streamlink Twitch config generated: {self.twitch_config_path}")
             logger.debug(f"📝 Config size: {len(config_content)} bytes")
-            
+
             return True
-            
-        except PermissionError as e:
+
+        except PermissionError:
             logger.warning(f"⚠️ No permission to write {self.twitch_config_path}")
             logger.warning("   Check docker-compose.yml volume mount (should NOT be :ro)")
             return False
@@ -156,23 +165,23 @@ class StreamlinkConfigService:
         except Exception as e:
             logger.error(f"❌ Unexpected error generating streamlink config: {e}")
             return False
-    
+
     async def update_config_from_settings(self, db_session=None) -> bool:
         """
         Update Streamlink config based on current application settings.
-        
+
         Pulls settings from:
         1. Database (GlobalSettings: OAuth token via TwitchTokenService, proxy, codecs)
         2. Environment variables (fallback for TWITCH_OAUTH_TOKEN)
-        
+
         This is called at:
         - Application startup
         - When user changes proxy settings
         - When user changes codec preferences
-        
+
         Args:
             db_session: Optional database session (if None, creates new one)
-            
+
         Returns:
             True if config was successfully updated, False otherwise
         """
@@ -181,20 +190,20 @@ class StreamlinkConfigService:
             from app.database import SessionLocal
             from app.models import GlobalSettings
             from app.services.system.twitch_token_service import TwitchTokenService
-            
+
             # Get proxy and codec settings from database
             close_session = False
             if db_session is None:
                 db_session = SessionLocal()
                 close_session = True
-            
+
             try:
                 global_settings = db_session.query(GlobalSettings).first()
-                
+
                 # === Get OAuth token from TwitchTokenService (handles refresh) ===
                 token_service = TwitchTokenService(db_session)
                 oauth_token = await token_service.get_valid_access_token()
-                
+
                 if global_settings:
                     http_proxy = global_settings.http_proxy
                     https_proxy = global_settings.https_proxy
@@ -204,56 +213,56 @@ class StreamlinkConfigService:
                     http_proxy = settings.HTTP_PROXY
                     https_proxy = settings.HTTPS_PROXY
                     supported_codecs = "av1,h265,h264"
-                
+
                 logger.debug(f"🔧 Config settings: codecs={supported_codecs}, oauth={'✅' if oauth_token else '❌'}")
-                
+
                 # Generate config with current settings
                 return self.generate_twitch_config(
                     oauth_token=oauth_token,
                     http_proxy=http_proxy,
                     https_proxy=https_proxy,
-                    supported_codecs=supported_codecs
+                    supported_codecs=supported_codecs,
                 )
             finally:
                 if close_session:
                     db_session.close()
-            
+
         except Exception as e:
             logger.error(f"❌ Failed to update streamlink config from settings: {e}")
             return False
-    
+
     async def regenerate_config(self) -> bool:
         """
         Force regeneration of Streamlink config from current settings.
-        
+
         Called when user updates settings that affect Streamlink:
         - Proxy settings changed
         - Codec preferences changed
         - OAuth token refreshed
-        
+
         Returns:
             True if config was successfully regenerated
         """
         logger.info("🔄 Regenerating Streamlink config from updated settings...")
         success = await self.update_config_from_settings()
-        
+
         if success:
             logger.info("✅ Streamlink config regenerated successfully")
         else:
             logger.error("❌ Failed to regenerate Streamlink config")
-        
+
         return success
-    
+
     def get_available_qualities(self, has_oauth_token: bool = False) -> list[dict]:
         """
         Get available quality options based on OAuth token availability.
-        
+
         Without OAuth: Twitch limits to 1080p60 H.264 (unauthenticated access)
         With OAuth: Access to 1440p60 H.265/HEVC
-        
+
         Args:
             has_oauth_token: Whether OAuth token is configured
-            
+
         Returns:
             List of quality options with availability status
         """
@@ -263,7 +272,7 @@ class StreamlinkConfigService:
                 "label": "Best Available",
                 "description": "Highest quality available for this stream",
                 "enabled": True,
-                "requires_oauth": False
+                "requires_oauth": False,
             },
             {
                 "value": "1440p60",
@@ -271,45 +280,45 @@ class StreamlinkConfigService:
                 "description": "2560x1440 resolution with H.265/HEVC codec",
                 "enabled": has_oauth_token,
                 "requires_oauth": True,
-                "tooltip": "Requires TWITCH_OAUTH_TOKEN to be configured" if not has_oauth_token else None
+                "tooltip": "Requires TWITCH_OAUTH_TOKEN to be configured" if not has_oauth_token else None,
             },
             {
                 "value": "1080p60",
                 "label": "1080p 60fps",
                 "description": "1920x1080 resolution",
                 "enabled": True,
-                "requires_oauth": False
+                "requires_oauth": False,
             },
             {
                 "value": "720p60",
                 "label": "720p 60fps",
                 "description": "1280x720 resolution",
                 "enabled": True,
-                "requires_oauth": False
+                "requires_oauth": False,
             },
             {
                 "value": "480p",
                 "label": "480p",
                 "description": "854x480 resolution",
                 "enabled": True,
-                "requires_oauth": False
+                "requires_oauth": False,
             },
             {
                 "value": "360p",
                 "label": "360p",
                 "description": "640x360 resolution",
                 "enabled": True,
-                "requires_oauth": False
+                "requires_oauth": False,
             },
             {
                 "value": "audio_only",
                 "label": "Audio Only",
                 "description": "Audio stream only (no video)",
                 "enabled": True,
-                "requires_oauth": False
-            }
+                "requires_oauth": False,
+            },
         ]
-        
+
         return qualities
 
 

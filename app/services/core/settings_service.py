@@ -6,10 +6,11 @@ import logging
 
 logger = logging.getLogger("streamvault")
 
+
 class SettingsService:
     def __init__(self, db: Session):
         self.db = db
-    
+
     def validate_apprise_url(self, url: str) -> bool:
         try:
             apobj = Apprise()
@@ -34,9 +35,7 @@ class SettingsService:
         return settings
 
     async def get_streamer_settings(self, streamer_id: int) -> StreamerNotificationSettingsSchema:
-        settings = self.db.query(NotificationSettings)\
-            .filter(NotificationSettings.streamer_id == streamer_id)\
-            .first()
+        settings = self.db.query(NotificationSettings).filter(NotificationSettings.streamer_id == streamer_id).first()
         if not settings:
             settings = NotificationSettings(streamer_id=streamer_id)
             self.db.add(settings)
@@ -44,17 +43,13 @@ class SettingsService:
         return StreamerNotificationSettingsSchema.model_validate(settings)
 
     async def update_streamer_settings(
-        self, 
-        streamer_id: int, 
-        settings_data: StreamerNotificationSettingsSchema
+        self, streamer_id: int, settings_data: StreamerNotificationSettingsSchema
     ) -> StreamerNotificationSettingsSchema:
-        settings = self.db.query(NotificationSettings)\
-            .filter(NotificationSettings.streamer_id == streamer_id)\
-            .first()
+        settings = self.db.query(NotificationSettings).filter(NotificationSettings.streamer_id == streamer_id).first()
         if not settings:
             settings = NotificationSettings(streamer_id=streamer_id)
             self.db.add(settings)
-        
+
         settings.notify_online = settings_data.notify_online
         settings.notify_offline = settings_data.notify_offline
         settings.notify_update = settings_data.notify_update

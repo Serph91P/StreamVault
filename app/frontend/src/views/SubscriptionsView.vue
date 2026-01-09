@@ -302,7 +302,7 @@ async function deleteAllSubscriptions() {
       throw new Error(`Failed to delete subscriptions: ${response.status}`)
     }
 
-    const data = await response.json()
+    const _data = await response.json()
     alert('All subscriptions successfully deleted!')
 
     subscriptions.value = []

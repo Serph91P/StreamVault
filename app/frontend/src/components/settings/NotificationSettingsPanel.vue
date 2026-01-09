@@ -194,7 +194,6 @@ import { ref, computed, onUnmounted } from 'vue'
 import { useToast } from '@/composables/useToast'
 import { UI } from '@/config/constants'
 import type { NotificationSettings, StreamerNotificationSettings } from '@/types/settings'
-import GlassCard from '@/components/cards/GlassCard.vue'
 
 // Props
 const props = defineProps({

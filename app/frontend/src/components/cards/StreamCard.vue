@@ -223,7 +223,7 @@ const emit = defineEmits<{
   delete: [stream: Stream]
 }>()
 
-const router = useRouter()
+const _router = useRouter()
 const isExpanded = ref(false)
 const showActions = ref(false)
 const moreButtonRef = ref<HTMLButtonElement | null>(null)

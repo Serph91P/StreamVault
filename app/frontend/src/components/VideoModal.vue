@@ -240,7 +240,7 @@ const shareVideo = async () => {
   }
 }
 
-const fallbackShare = async (url) => {
+const _fallbackShare = async (url) => {
   try {
     // If no URL provided, try to generate one via API
     if (!url) {

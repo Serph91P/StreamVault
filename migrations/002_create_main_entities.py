@@ -17,6 +17,7 @@ from app.config.settings import settings
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
 def run_migration():
     """Create main entity tables with basic foreign keys"""
     session = None
@@ -25,11 +26,13 @@ def run_migration():
         engine = create_engine(settings.DATABASE_URL)
         Session = sessionmaker(bind=engine)
         session = Session()
-        
+
         logger.info("🔄 Creating main entity tables...")
 
         # 1. Streamers table - match the Models exactly
-        session.execute(text("""
+        session.execute(
+            text(
+                """
             CREATE TABLE IF NOT EXISTS streamers (
                 id SERIAL PRIMARY KEY,
                 twitch_id VARCHAR(255) UNIQUE NOT NULL,
@@ -45,11 +48,15 @@ def run_migration():
                 auto_record BOOLEAN DEFAULT FALSE,
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
             )
-        """))
+        """
+            )
+        )
         logger.info("✅ Created streamers table")
-        
+
         # 2. Streams table - match the Models exactly
-        session.execute(text("""
+        session.execute(
+            text(
+                """
             CREATE TABLE IF NOT EXISTS streams (
                 id SERIAL PRIMARY KEY,
                 streamer_id INTEGER NOT NULL REFERENCES streamers(id) ON DELETE CASCADE,
@@ -63,11 +70,15 @@ def run_migration():
                 episode_number INTEGER,
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
             )
-        """))
+        """
+            )
+        )
         logger.info("✅ Created streams table")
-        
+
         # 3. Sessions table - with NOT NULL constraints for security and expires_at
-        session.execute(text("""
+        session.execute(
+            text(
+                """
             CREATE TABLE IF NOT EXISTS sessions (
                 id SERIAL PRIMARY KEY,
                 user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -75,20 +86,26 @@ def run_migration():
                 expires_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT (CURRENT_TIMESTAMP + INTERVAL '24 hours'),
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
             )
-        """))
+        """
+            )
+        )
         logger.info("✅ Created sessions table")
-        
+
         # Create indexes for sessions
-        session.execute(text("""
+        session.execute(
+            text(
+                """
             CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token);
             CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
             CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at);
-        """))
+        """
+            )
+        )
         logger.info("✅ Created sessions indexes")
-        
+
         session.commit()
         logger.info("🎉 Migration 002 completed successfully")
-        
+
     except Exception as e:
         logger.error(f"Migration 002 failed: {e}")
         if session:
@@ -97,6 +114,7 @@ def run_migration():
     finally:
         if session and session.is_active:
             session.close()
+
 
 if __name__ == "__main__":
     run_migration()

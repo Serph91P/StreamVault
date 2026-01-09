@@ -2,6 +2,7 @@
 Version information for StreamVault.
 This file is auto-populated during Docker build with build args.
 """
+
 import os
 from datetime import datetime
 
@@ -16,6 +17,7 @@ APP_NAME = "StreamVault"
 DESCRIPTION = "Automated Twitch stream recording and management system"
 REPOSITORY = "https://github.com/Serph91P/StreamVault"
 
+
 def get_version_info() -> dict:
     """Get complete version information."""
     return {
@@ -27,5 +29,5 @@ def get_version_info() -> dict:
         "description": DESCRIPTION,
         "repository": REPOSITORY,
         "is_production": BRANCH == "main",
-        "is_development": BRANCH == "develop"
+        "is_development": BRANCH == "develop",
     }
