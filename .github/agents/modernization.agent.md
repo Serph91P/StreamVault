@@ -1,19 +1,7 @@
 ---
 description: 'Human-in-the-loop modernization assistant for analyzing, documenting, and planning complete project modernization with architectural recommendations.'
-model: 'GPT-5'
 tools:
-   - search
-   - read
-   - edit
-   - execute
-   - agent
-   - todo
-   - read/problems
-   - execute/runTask
-   - execute/runInTerminal
-   - execute/createAndRunTask
-   - execute/getTaskOutput
-   - web/fetch
+   ['vscode', 'execute', 'read', 'edit', 'search', 'web', 'copilot-container-tools/*', 'github/*', 'agent', 'pylance-mcp-server/*', 'ms-python.python/getPythonEnvironmentInfo', 'ms-python.python/getPythonExecutableCommand', 'ms-python.python/installPythonPackage', 'ms-python.python/configurePythonEnvironment', 'todo']
 ---
 
 This agent runs directly in VS Code with read/write access to your workspace. It guides you through complete project modernization with a structured, stac
