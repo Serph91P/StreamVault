@@ -2,11 +2,14 @@ from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 
+
 class StreamerBase(BaseModel):
     username: str
-    
+
+
 class StreamerCreate(StreamerBase):
     settings: Optional[Dict[str, Any]] = None
+
 
 class StreamerResponse(BaseModel):
     id: int
@@ -22,7 +25,7 @@ class StreamerResponse(BaseModel):
     last_updated: Optional[datetime] = None
     profile_image_url: Optional[str] = None
     original_profile_image_url: Optional[str] = None
-    
+
     # Last stream information (shown when offline)
     last_stream_title: Optional[str] = None
     last_stream_category_name: Optional[str] = None
@@ -31,6 +34,7 @@ class StreamerResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
 
 class StreamerList(BaseModel):
     streamers: List[StreamerResponse]

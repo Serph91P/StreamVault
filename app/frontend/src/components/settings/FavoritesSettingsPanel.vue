@@ -104,7 +104,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch, nextTick } from 'vue';
+import { ref, computed, onMounted, nextTick } from 'vue';
 import { useCategoryImages } from '@/composables/useCategoryImages';
 import { useToast } from '@/composables/useToast';
 import { IMAGE_LOADING } from '@/config/constants';
@@ -129,7 +129,7 @@ const error = ref<string | null>(null);
 const imageErrors = ref<Set<string>>(new Set());
 
 // Use category images composable
-const { getCategoryImage, preloadCategoryImages, refreshImages, clearCache } = useCategoryImages();
+const { getCategoryImage, preloadCategoryImages, refreshImages: _refreshImages, clearCache: _clearCache } = useCategoryImages();
 const toast = useToast();
 
 // Computed properties
@@ -271,7 +271,7 @@ const toggleFavorite = async (category: Category) => {
   }
 };
 
-const formatImageUrl = (url: string | null, width: number, height: number): string => {
+const _formatImageUrl = (url: string | null, width: number, height: number): string => {
   if (!url) return '';
   
   // Handle Twitch-Format mit Platzhaltern

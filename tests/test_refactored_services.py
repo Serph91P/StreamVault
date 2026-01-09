@@ -4,7 +4,6 @@ Test script to validate all refactored services import correctly
 """
 
 import sys
-import traceback
 
 # Test all refactored services by category
 service_tests = {
@@ -22,7 +21,7 @@ service_tests = {
     ],
     "System Services": [
         "app.services.system.logging_service",
-        "app.services.system.cleanup_service", 
+        "app.services.system.cleanup_service",
         "app.services.system.migration_service",
         "app.services.system.system_config_service",
     ],
@@ -60,21 +59,22 @@ service_tests = {
         "app.services.streamer_service",
         "app.services.unified_image_service",
         "app.services.background_queue_service",
-    ]
+    ],
 }
+
 
 def test_service_imports():
     """Test all service imports"""
     total_tests = 0
     passed_tests = 0
     failed_services = []
-    
+
     print("TESTING REFACTORED SERVICES IMPORTS")
     print("=" * 50)
-    
+
     for category, services in service_tests.items():
         print(f"\n[{category}]:")
-        
+
         for service in services:
             total_tests += 1
             try:
@@ -84,10 +84,10 @@ def test_service_imports():
             except Exception as e:
                 print(f"  FAIL: {service}: {str(e)[:80]}...")
                 failed_services.append((service, str(e)))
-    
+
     print("\n" + "=" * 50)
     print(f"RESULTS: {passed_tests}/{total_tests} services passed")
-    
+
     if failed_services:
         print(f"\nFAILED SERVICES ({len(failed_services)}):")
         for service, error in failed_services:
@@ -96,6 +96,7 @@ def test_service_imports():
     else:
         print("ALL SERVICES IMPORT SUCCESSFULLY!")
         return True
+
 
 if __name__ == "__main__":
     success = test_service_imports()

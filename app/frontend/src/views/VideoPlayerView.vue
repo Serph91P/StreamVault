@@ -97,7 +97,7 @@ interface ChapterData {
 const route = useRoute()
 const router = useRouter()
 
-const streamerId = computed(() => route.params.streamerId as string)
+const _streamerId = computed(() => route.params.streamerId as string)
 const streamId = computed(() => route.params.streamId as string)
 const streamTitle = computed(() => (route.query.title as string) || `Stream ${streamId.value}`)
 const streamerName = computed(() => route.query.streamerName as string)
@@ -160,7 +160,7 @@ const onVideoReady = (duration: number) => {
   }
 }
 
-const onTimeUpdate = (currentTime: number) => {
+const onTimeUpdate = (_currentTime: number) => {
   // Update progress or other time-based features
 }
 

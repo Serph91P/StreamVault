@@ -6,7 +6,7 @@ Creates table recording_processing_state to persist per-recording post-processin
 from sqlalchemy import text
 from app.database import engine
 
-SCRIPT_NAME = __name__.split('.')[-1] + '.py'
+SCRIPT_NAME = __name__.split(".")[-1] + ".py"
 
 SQL_CREATE = """
 CREATE TABLE IF NOT EXISTS recording_processing_state (

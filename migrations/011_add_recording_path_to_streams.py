@@ -17,6 +17,7 @@ from app.config.settings import settings
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
 def run_migration():
     """Add recording_path column to streams table"""
     session = None
@@ -25,16 +26,20 @@ def run_migration():
         engine = create_engine(settings.DATABASE_URL)
         Session = sessionmaker(bind=engine)
         session = Session()
-        
+
         logger.info("🔄 Adding recording_path to streams table...")
-        
+
         # Check if the column already exists
-        result = session.execute(text("""
-            SELECT COUNT(*) 
-            FROM information_schema.columns 
-            WHERE table_name = 'streams' 
+        result = session.execute(
+            text(
+                """
+            SELECT COUNT(*)
+            FROM information_schema.columns
+            WHERE table_name = 'streams'
             AND column_name = 'recording_path'
-        """))
+        """
+            )
+        )
         column_exists = result.scalar() > 0
 
         if column_exists:
@@ -42,11 +47,15 @@ def run_migration():
             return
 
         # Add the recording_path column
-        session.execute(text("""
-            ALTER TABLE streams 
+        session.execute(
+            text(
+                """
+            ALTER TABLE streams
             ADD COLUMN recording_path VARCHAR(1024) NULL
-        """))
-        
+        """
+            )
+        )
+
         session.commit()
         logger.info("🎉 Migration 011 completed successfully")
 
@@ -58,6 +67,7 @@ def run_migration():
     finally:
         if session and session.is_active:
             session.close()
+
 
 if __name__ == "__main__":
     run_migration()

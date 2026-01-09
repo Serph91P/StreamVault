@@ -5,7 +5,6 @@ This file sets up the test environment with appropriate paths and database confi
 """
 
 import os
-import sys
 import tempfile
 from pathlib import Path
 
@@ -63,9 +62,9 @@ def setup_test_environment():
     (local_logs / "streamlink").mkdir(parents=True, exist_ok=True)
     (local_logs / "ffmpeg").mkdir(parents=True, exist_ok=True)
     (local_logs / "app").mkdir(parents=True, exist_ok=True)
-    
+
     yield
-    
+
     # Cleanup temp directory after all tests
     if os.path.exists(_test_temp_dir):
         shutil.rmtree(_test_temp_dir, ignore_errors=True)

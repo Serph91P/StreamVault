@@ -5,7 +5,7 @@ Contains all recording-related services and managers:
 
 Original focused managers:
 - ConfigManager: Configuration management
-- ProcessManager: Process execution management  
+- ProcessManager: Process execution management
 - RecordingLogger: Recording event logging
 - NotificationManager: Notification handling
 - StreamInfoManager: Stream metadata management
@@ -42,18 +42,18 @@ from .stream_info_manager import StreamInfoManager
 
 __all__ = [
     # Main service
-    'RecordingService',
+    "RecordingService",
     # Refactored services
-    'RecordingOrchestrator',
-    'RecordingStateManager', 
-    'RecordingDatabaseService',
-    'RecordingWebSocketService',
-    'PostProcessingCoordinator',
-    'RecordingLifecycleManager',
+    "RecordingOrchestrator",
+    "RecordingStateManager",
+    "RecordingDatabaseService",
+    "RecordingWebSocketService",
+    "PostProcessingCoordinator",
+    "RecordingLifecycleManager",
     # Original managers
-    'ConfigManager',
-    'ProcessManager',
-    'RecordingLogger',
-    'NotificationManager',
-    'StreamInfoManager'
+    "ConfigManager",
+    "ProcessManager",
+    "RecordingLogger",
+    "NotificationManager",
+    "StreamInfoManager",
 ]

@@ -2,13 +2,16 @@ from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime
 
+
 class CategoryBase(BaseModel):
     name: str
     twitch_id: str
     box_art_url: Optional[str] = None
 
+
 class CategoryCreate(CategoryBase):
     pass
+
 
 class CategoryResponse(CategoryBase):
     id: int
@@ -19,11 +22,14 @@ class CategoryResponse(CategoryBase):
     class Config:
         from_attributes = True
 
+
 class CategoryList(BaseModel):
     categories: List[CategoryResponse]
 
+
 class FavoriteCategoryCreate(BaseModel):
     category_id: int
+
 
 class FavoriteCategoryResponse(BaseModel):
     id: int

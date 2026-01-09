@@ -16,6 +16,7 @@ from app.config.settings import settings
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
 def run_migration():
     """
     Adds the recording_path column to the streams table.
@@ -26,29 +27,37 @@ def run_migration():
         engine = create_engine(settings.DATABASE_URL)
         Session = sessionmaker(bind=engine)
         session = Session()
-        
+
         # First check if streams table exists
-        table_exists = session.execute(text("""
+        table_exists = session.execute(
+            text(
+                """
             SELECT EXISTS (
-                SELECT FROM information_schema.tables 
-                WHERE table_schema = 'public' 
+                SELECT FROM information_schema.tables
+                WHERE table_schema = 'public'
                 AND table_name = 'streams'
             );
-        """)).scalar()
-        
+        """
+            )
+        ).scalar()
+
         if not table_exists:
             logger.info("Table 'streams' does not exist yet, skipping recording_path column addition...")
             if session:
                 session.close()
             return
-        
+
         # Check if the column already exists (PostgreSQL)
-        result = session.execute(text("""
-            SELECT COUNT(*) 
-            FROM information_schema.columns 
-            WHERE table_name = 'streams' 
+        result = session.execute(
+            text(
+                """
+            SELECT COUNT(*)
+            FROM information_schema.columns
+            WHERE table_name = 'streams'
             AND column_name = 'recording_path'
-        """))
+        """
+            )
+        )
         column_exists = result.scalar() > 0
 
         if column_exists:
@@ -65,11 +74,12 @@ def run_migration():
     except Exception as e:
         logger.error(f"Migration failed: {e}")
         if session:
-            session.rollback() # Rollback in case of error
+            session.rollback()  # Rollback in case of error
         raise
     finally:
         if session and session.is_active:
             session.close()
+
 
 if __name__ == "__main__":
     run_migration()

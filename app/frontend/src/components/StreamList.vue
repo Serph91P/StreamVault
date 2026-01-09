@@ -550,7 +550,7 @@ const loadChapters = async (s: Stream) => {
     const res = await streamersApi.getStreamChapters(Number(s.streamer_id), Number(s.id))
     const arr = Array.isArray(res?.chapters) ? res.chapters : []
     state.chapters = arr
-  } catch (e: any) {
+  } catch (_e: any) {
     state.error = 'Failed to load chapters'
   } finally {
     state.isLoading = false
@@ -630,7 +630,7 @@ const getDisplayPath = (recordingPath: string): string => {
   return filename
 }
 
-const handleImageError = (event: Event, categoryName: string) => {
+const handleImageError = (event: Event, _categoryName: string) => {
   const target = event.target as HTMLImageElement
   target.style.display = 'none'
   

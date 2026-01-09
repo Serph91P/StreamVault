@@ -24,51 +24,66 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("streamvault")
 
+
 def upgrade():
     """Add offline_image_url column to streamers table"""
     logger.info("📦 Adding offline_image_url column to streamers table...")
-    
+
     try:
         with engine.connect() as conn:
             # Add offline_image_url column
-            conn.execute(text("""
-                ALTER TABLE streamers 
+            conn.execute(
+                text(
+                    """
+                ALTER TABLE streamers
                 ADD COLUMN IF NOT EXISTS offline_image_url VARCHAR
-            """))
-            
+            """
+                )
+            )
+
             # Add original_offline_image_url for fallback
-            conn.execute(text("""
-                ALTER TABLE streamers 
+            conn.execute(
+                text(
+                    """
+                ALTER TABLE streamers
                 ADD COLUMN IF NOT EXISTS original_offline_image_url VARCHAR
-            """))
-            
+            """
+                )
+            )
+
             conn.commit()
-            
+
         logger.info("✅ Successfully added banner columns to streamers table")
-        
+
     except Exception as e:
         logger.error(f"❌ Error adding banner columns: {e}")
         raise
 
+
 def downgrade():
     """Remove offline_image_url columns from streamers table"""
     logger.info("📦 Removing offline_image_url columns from streamers table...")
-    
+
     try:
         with engine.connect() as conn:
-            conn.execute(text("""
-                ALTER TABLE streamers 
+            conn.execute(
+                text(
+                    """
+                ALTER TABLE streamers
                 DROP COLUMN IF EXISTS offline_image_url,
                 DROP COLUMN IF EXISTS original_offline_image_url
-            """))
-            
+            """
+                )
+            )
+
             conn.commit()
-            
+
         logger.info("✅ Successfully removed banner columns from streamers table")
-        
+
     except Exception as e:
         logger.error(f"❌ Error removing banner columns: {e}")
         raise
+
 
 if __name__ == "__main__":
     upgrade()

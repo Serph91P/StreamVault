@@ -10,68 +10,60 @@ import os
 from pathlib import Path
 from fastapi import HTTPException
 
-from app.utils.security import (
-    validate_path_security,
-    validate_filename,
-    validate_streamer_name,
-    validate_file_type
-)
+from app.utils.security import validate_path_security, validate_filename, validate_streamer_name, validate_file_type
 
 
 class TestPathTraversalPrevention:
     """
     Test suite for path traversal attack prevention
     """
-    
+
     def setup_method(self):
         """Set up test environment"""
         self.temp_dir = tempfile.mkdtemp()
         self.safe_base = os.path.realpath(self.temp_dir)
-        
+
         # Mock settings
         import app.config.settings as settings_module
+
         self.original_get_settings = settings_module.get_settings
-        
+
         class MockSettings:
             RECORDING_DIRECTORY = self.temp_dir
-        
+
         settings_module.get_settings = lambda: MockSettings()
-        
+
     def teardown_method(self):
         """Clean up test environment"""
         import shutil
         import app.config.settings as settings_module
-        
+
         # Restore original settings
         settings_module.get_settings = self.original_get_settings
-        
+
         # Remove temp directory
         if os.path.exists(self.temp_dir):
             shutil.rmtree(self.temp_dir)
-    
+
     def test_path_traversal_with_relative_paths_blocked(self):
         """Test that ../../../ path traversal is blocked"""
         with pytest.raises(HTTPException) as exc_info:
             validate_path_security("../../../etc/passwd", "read")
         assert exc_info.value.status_code == 403
         assert "Path outside allowed directory" in exc_info.value.detail
-        
+
     def test_path_traversal_with_absolute_paths_blocked(self):
         """Test that absolute paths outside base are blocked"""
         with pytest.raises(HTTPException) as exc_info:
             validate_path_security("/etc/passwd", "read")
         assert exc_info.value.status_code == 403
         assert "Path outside allowed directory" in exc_info.value.detail
-    
+
     def test_path_traversal_with_encoded_paths_blocked(self):
         """Test that encoded path traversal attempts are blocked"""
         # URL-encoded ../ is %2e%2e%2f
-        evil_paths = [
-            "..%2F..%2F..%2Fetc%2Fpasswd",
-            "....//....//....//etc/passwd",
-            "..;/..;/..;/etc/passwd"
-        ]
-        
+        evil_paths = ["..%2F..%2F..%2Fetc%2Fpasswd", "....//....//....//etc/passwd", "..;/..;/..;/etc/passwd"]
+
         for evil_path in evil_paths:
             # Note: os.path.realpath will normalize these, so they should be blocked
             try:
@@ -81,74 +73,74 @@ class TestPathTraversalPrevention:
             except HTTPException as e:
                 # Expected: path blocked
                 assert e.status_code in [403, 404, 400]
-    
+
     def test_valid_subdirectory_allowed(self):
         """Test that valid subdirectories are allowed"""
         # Create a subdirectory
         subdir = os.path.join(self.temp_dir, "recordings", "streamer1")
         os.makedirs(subdir, exist_ok=True)
-        
+
         # Create a test file
         test_file = os.path.join(subdir, "test.mp4")
         Path(test_file).touch()
-        
+
         # Should succeed
         result = validate_path_security(test_file, "read")
         assert result == os.path.realpath(test_file)
         assert result.startswith(self.safe_base)
-    
+
     def test_symlink_traversal_blocked(self):
         """Test that symlinks cannot bypass security"""
         # Create a directory outside safe base
         outside_dir = tempfile.mkdtemp()
-        
+
         try:
             # Create symlink inside safe base pointing outside
             evil_link = os.path.join(self.temp_dir, "evil_link")
             os.symlink(outside_dir, evil_link)
-            
+
             # Attempt to access - should be blocked
             with pytest.raises(HTTPException) as exc_info:
                 validate_path_security(evil_link, "read")
-            
+
             assert exc_info.value.status_code == 403
             assert "Path outside allowed directory" in exc_info.value.detail
-            
+
         finally:
             # Cleanup
             if os.path.exists(evil_link):
                 os.unlink(evil_link)
             if os.path.exists(outside_dir):
                 os.rmdir(outside_dir)
-    
+
     def test_nonexistent_path_with_read_operation(self):
         """Test that non-existent paths fail for read operations"""
         nonexistent = os.path.join(self.temp_dir, "does_not_exist.mp4")
-        
+
         with pytest.raises(HTTPException) as exc_info:
             validate_path_security(nonexistent, "read")
-        
+
         assert exc_info.value.status_code == 404
         assert "Path not found" in exc_info.value.detail
-    
+
     def test_valid_base_directory_allowed(self):
         """Test that the base directory itself is allowed"""
         result = validate_path_security(self.temp_dir, "access")
         assert result == self.safe_base
-    
+
     def test_empty_path_blocked(self):
         """Test that empty paths are blocked"""
         with pytest.raises(HTTPException) as exc_info:
             validate_path_security("", "read")
-        
+
         assert exc_info.value.status_code == 400
         assert "Path cannot be empty" in exc_info.value.detail
-    
+
     def test_null_path_blocked(self):
         """Test that null paths are blocked"""
         with pytest.raises(HTTPException) as exc_info:
             validate_path_security(None, "read")  # type: ignore
-        
+
         assert exc_info.value.status_code == 400
 
 
@@ -156,48 +148,48 @@ class TestFilenameValidation:
     """
     Test suite for filename validation and sanitization
     """
-    
+
     def test_valid_filename(self):
         """Test that valid filenames pass"""
         assert validate_filename("test.mp4") == "test.mp4"
         assert validate_filename("stream_2024_01_15.mkv") == "stream_2024_01_15.mkv"
         assert validate_filename("my video.ts") == "my_video.ts"
-    
+
     def test_path_traversal_in_filename(self):
         """Test that path traversal attempts raise an error"""
         # ../ should raise ValueError because sanitized result starts with '.'
         with pytest.raises(ValueError, match="Invalid filename"):
             validate_filename("../evil.mp4")
-        
+
     def test_dangerous_characters_removed(self):
         """Test that dangerous characters are removed or replaced"""
-        result = validate_filename("test<>:\"|?*.mp4")
+        result = validate_filename('test<>:"|?*.mp4')
         assert "<" not in result
         assert ">" not in result
         assert ":" not in result
         assert '"' not in result
         assert "?" not in result
         assert "*" not in result
-    
+
     def test_hidden_files_blocked(self):
         """Test that hidden files are blocked"""
         with pytest.raises(ValueError):
             validate_filename(".hidden")
-            
+
         with pytest.raises(ValueError):
             validate_filename("..")
-            
+
         with pytest.raises(ValueError):
             validate_filename(".")
-    
+
     def test_empty_filename_blocked(self):
         """Test that empty filenames are blocked"""
         with pytest.raises(ValueError):
             validate_filename("")
-            
+
         with pytest.raises(ValueError):
             validate_filename("   ")
-    
+
     def test_filename_length_limit(self):
         """Test that excessively long filenames are blocked"""
         long_filename = "a" * 300 + ".mp4"
@@ -210,29 +202,29 @@ class TestStreamerNameValidation:
     """
     Test suite for Twitch streamer name validation
     """
-    
+
     def test_valid_streamer_names(self):
         """Test that valid Twitch usernames pass"""
         assert validate_streamer_name("validname") == "validname"
         assert validate_streamer_name("Test_User_123") == "test_user_123"
         assert validate_streamer_name("a1b2c3d4") == "a1b2c3d4"
-    
+
     def test_invalid_characters_blocked(self):
         """Test that invalid characters are blocked"""
         with pytest.raises(ValueError):
             validate_streamer_name("invalid-name!")  # Exclamation mark not allowed
-            
+
         with pytest.raises(ValueError):
             validate_streamer_name("name with spaces")
-    
+
     def test_length_requirements(self):
         """Test Twitch username length requirements (4-25 chars)"""
         with pytest.raises(ValueError):
             validate_streamer_name("abc")  # Too short
-            
+
         with pytest.raises(ValueError):
             validate_streamer_name("a" * 26)  # Too long
-    
+
     def test_must_start_with_alphanumeric(self):
         """Test that username must start with letter or number"""
         with pytest.raises(ValueError):
@@ -243,29 +235,29 @@ class TestFileTypeValidation:
     """
     Test suite for file type validation
     """
-    
+
     def test_valid_video_extensions(self):
         """Test that valid video extensions pass"""
         assert validate_file_type("video.mp4") == ".mp4"
         assert validate_file_type("stream.mkv") == ".mkv"
         assert validate_file_type("recording.ts") == ".ts"
-    
+
     def test_invalid_extensions_blocked(self):
         """Test that invalid file types are blocked"""
         with pytest.raises(ValueError):
             validate_file_type("malware.exe")
-            
+
         with pytest.raises(ValueError):
             validate_file_type("script.sh")
-            
+
         with pytest.raises(ValueError):
             validate_file_type("document.pdf")
-    
+
     def test_no_extension_blocked(self):
         """Test that files without extensions are blocked"""
         with pytest.raises(ValueError):
             validate_file_type("noextension")
-    
+
     def test_case_insensitive(self):
         """Test that extension checking is case-insensitive"""
         assert validate_file_type("VIDEO.MP4") == ".mp4"
@@ -276,44 +268,45 @@ class TestSecurityIntegration:
     """
     Integration tests for security functions working together
     """
-    
+
     def setup_method(self):
         """Set up test environment"""
         self.temp_dir = tempfile.mkdtemp()
-        
+
         # Mock settings
         import app.config.settings as settings_module
+
         self.original_get_settings = settings_module.get_settings
-        
+
         class MockSettings:
             RECORDING_DIRECTORY = self.temp_dir
-        
+
         settings_module.get_settings = lambda: MockSettings()
-    
+
     def teardown_method(self):
         """Clean up"""
         import shutil
         import app.config.settings as settings_module
-        
+
         settings_module.get_settings = self.original_get_settings
-        
+
         if os.path.exists(self.temp_dir):
             shutil.rmtree(self.temp_dir)
-    
+
     def test_complete_file_validation_workflow(self):
         """Test complete workflow of validating user input for file operations"""
         # User provides inputs
         streamer_name = "TestStreamer123"
         filename = "../../../etc/passwd"
-        
+
         # Validate streamer name
         clean_streamer = validate_streamer_name(streamer_name)
         assert clean_streamer == "teststreamer123"
-        
+
         # Validate filename - should raise ValueError for path traversal attempts
         with pytest.raises(ValueError, match="Invalid filename"):
             validate_filename(filename)
-    
+
     def test_attack_chain_blocked(self):
         """Test that a chain of attack attempts is blocked"""
         attack_vectors = [
@@ -321,9 +314,9 @@ class TestSecurityIntegration:
             ("/etc/shadow", "Absolute path outside base"),
             ("..\\..\\..\\windows\\system32", "Windows path traversal"),
             (".htaccess", "Hidden file access"),
-            ("file<>:\"|.mp4", "Command injection characters in filename")
+            ('file<>:"|.mp4', "Command injection characters in filename"),
         ]
-        
+
         for attack_input, description in attack_vectors:
             try:
                 # Try to sanitize filename
@@ -332,16 +325,17 @@ class TestSecurityIntegration:
                 except ValueError:
                     # Filename validation blocked it
                     continue
-                
+
                 # Try to validate path
                 file_path = os.path.join(self.temp_dir, clean_filename)
                 validate_path_security(file_path, "access")
-                
+
                 # If we get here, verify result is still safe
                 resolved = os.path.realpath(file_path)
-                assert resolved.startswith(os.path.realpath(self.temp_dir)), \
-                    f"Attack vector '{description}' bypassed security!"
-                    
+                assert resolved.startswith(
+                    os.path.realpath(self.temp_dir)
+                ), f"Attack vector '{description}' bypassed security!"
+
             except (HTTPException, ValueError):
                 # Expected: attack blocked
                 pass
@@ -351,133 +345,113 @@ class TestURLRedirectValidation:
     """
     Test suite for URL redirect validation (CWE-601: Open Redirect)
     """
-    
+
     def test_allowed_relative_urls(self):
         """Test that whitelisted relative URLs are allowed"""
         from app.utils.security import validate_redirect_url
-        
-        allowed_urls = [
-            "/settings",
-            "/add-streamer",
-            "/streamers",
-            "/",
-            "/home"
-        ]
-        
+
+        allowed_urls = ["/settings", "/add-streamer", "/streamers", "/", "/home"]
+
         for url in allowed_urls:
             result = validate_redirect_url(url, "/")
             assert result == url, f"URL {url} should be allowed"
-    
+
     def test_allowed_urls_with_query_params(self):
         """Test that whitelisted URLs with query parameters are allowed"""
         from app.utils.security import validate_redirect_url
-        
+
         test_cases = [
             ("/settings?auth_success=true", "/settings?auth_success=true"),
             ("/add-streamer?token=abc123", "/add-streamer?token=abc123"),
-            ("/streamers?filter=live", "/streamers?filter=live")
+            ("/streamers?filter=live", "/streamers?filter=live"),
         ]
-        
+
         for url, expected in test_cases:
             result = validate_redirect_url(url, "/")
             assert result == expected, f"URL {url} should be allowed with query params"
-    
+
     def test_absolute_urls_blocked(self):
         """Test that absolute URLs are blocked (prevent external redirects)"""
         from app.utils.security import validate_redirect_url
-        
+
         malicious_urls = [
             "https://evil.com",
             "http://phishing-site.com",
             "https://evil.com/login",
-            "http://attacker.com?redirect=/settings"
+            "http://attacker.com?redirect=/settings",
         ]
-        
+
         for url in malicious_urls:
             result = validate_redirect_url(url, "/")
             assert result == "/", f"Absolute URL {url} should be blocked and return default"
-    
+
     def test_protocol_relative_urls_blocked(self):
         """Test that protocol-relative URLs are blocked"""
         from app.utils.security import validate_redirect_url
-        
-        malicious_urls = [
-            "//evil.com",
-            "//evil.com/phishing",
-            "//attacker.com?state=/settings"
-        ]
-        
+
+        malicious_urls = ["//evil.com", "//evil.com/phishing", "//attacker.com?state=/settings"]
+
         for url in malicious_urls:
             result = validate_redirect_url(url, "/")
             assert result == "/", f"Protocol-relative URL {url} should be blocked"
-    
+
     def test_javascript_urls_blocked(self):
         """Test that javascript: URLs are blocked"""
         from app.utils.security import validate_redirect_url
-        
+
         malicious_urls = [
             "javascript:alert('XSS')",
             "javascript:void(0)",
             "javascript://evil.com%0Aalert(1)",
-            "data:text/html,<script>alert('XSS')</script>"
+            "data:text/html,<script>alert('XSS')</script>",
         ]
-        
+
         for url in malicious_urls:
             result = validate_redirect_url(url, "/")
             assert result == "/", f"Malicious URL {url} should be blocked"
-    
+
     def test_non_whitelisted_paths_blocked(self):
         """Test that non-whitelisted paths are blocked"""
         from app.utils.security import validate_redirect_url
-        
-        non_whitelisted = [
-            "/admin",
-            "/api/delete-all",
-            "/internal/debug",
-            "/secret"
-        ]
-        
+
+        non_whitelisted = ["/admin", "/api/delete-all", "/internal/debug", "/secret"]
+
         for url in non_whitelisted:
             result = validate_redirect_url(url, "/")
             assert result == "/", f"Non-whitelisted path {url} should be blocked"
-    
+
     def test_none_or_empty_url_returns_default(self):
         """Test that None or empty URLs return default"""
         from app.utils.security import validate_redirect_url
-        
+
         assert validate_redirect_url(None, "/home") == "/home"
         assert validate_redirect_url("", "/home") == "/home"
         assert validate_redirect_url("   ", "/home") == "/home"
-    
+
     def test_non_relative_urls_blocked(self):
         """Test that URLs not starting with / are blocked"""
         from app.utils.security import validate_redirect_url
-        
-        non_relative_urls = [
-            "settings",
-            "add-streamer",
-            "../settings",
-            "www.evil.com"
-        ]
-        
+
+        non_relative_urls = ["settings", "add-streamer", "../settings", "www.evil.com"]
+
         for url in non_relative_urls:
             result = validate_redirect_url(url, "/")
             assert result == "/", f"Non-relative URL {url} should be blocked"
-    
+
     def test_oauth_flow_realistic_scenario(self):
         """Test realistic OAuth flow scenarios"""
         from app.utils.security import validate_redirect_url
-        
+
         # Legitimate OAuth flows
         assert validate_redirect_url("/settings", "/") == "/settings"
         assert validate_redirect_url("/add-streamer", "/") == "/add-streamer"
-        
+
         # Attacker trying to redirect to external site
         assert validate_redirect_url("https://evil.com", "/add-streamer") == "/add-streamer"
-        
+
         # Attacker trying protocol-relative URL
         assert validate_redirect_url("//evil.com", "/add-streamer") == "/add-streamer"
-        
+
         # Attacker trying to access admin panel
         assert validate_redirect_url("/admin/delete-all", "/add-streamer") == "/add-streamer"
 
@@ -486,68 +460,68 @@ class TestProxyURLSanitization:
     """
     Test suite for proxy URL sanitization (CWE-532: Information Exposure Through Log Files)
     """
-    
+
     def test_proxy_with_credentials_redacted(self):
         """Test that proxy credentials are redacted"""
         from app.utils.security import sanitize_proxy_url_for_logging
-        
+
         url = "http://user:password@proxy.com:8080"
         result = sanitize_proxy_url_for_logging(url)
-        
+
         assert "user" not in result
         assert "password" not in result
         assert "[REDACTED]" in result
         assert "proxy.com:8080" in result
-    
+
     def test_proxy_without_credentials_unchanged(self):
         """Test that proxy URLs without credentials are unchanged"""
         from app.utils.security import sanitize_proxy_url_for_logging
-        
+
         url = "http://proxy.com:8080"
         result = sanitize_proxy_url_for_logging(url)
-        
+
         assert result == url
         assert "[REDACTED]" not in result
-    
+
     def test_https_proxy_with_credentials_redacted(self):
         """Test HTTPS proxy credentials are redacted"""
         from app.utils.security import sanitize_proxy_url_for_logging
-        
+
         url = "https://admin:secret123@secure-proxy.example.com:443"
         result = sanitize_proxy_url_for_logging(url)
-        
+
         assert "admin" not in result
         assert "secret123" not in result
         assert "[REDACTED]" in result
         assert "secure-proxy.example.com:443" in result
-    
+
     def test_socks_proxy_with_credentials_redacted(self):
         """Test SOCKS proxy credentials are redacted"""
         from app.utils.security import sanitize_proxy_url_for_logging
-        
+
         url = "socks5://user:pass@socks-proxy.com:1080"
         result = sanitize_proxy_url_for_logging(url)
-        
+
         assert "user" not in result
         assert "pass" not in result
         assert "[REDACTED]" in result
         assert "socks-proxy.com:1080" in result
-    
+
     def test_empty_or_invalid_proxy_url(self):
         """Test that empty or invalid URLs are handled gracefully"""
         from app.utils.security import sanitize_proxy_url_for_logging
-        
+
         assert "[INVALID_URL]" in sanitize_proxy_url_for_logging("")
         assert "[INVALID_URL]" in sanitize_proxy_url_for_logging(None)
-    
+
     def test_malformed_url_redacted(self):
         """Test that malformed URLs are safely redacted"""
         from app.utils.security import sanitize_proxy_url_for_logging
-        
+
         # Malformed URL that can't be parsed
         url = "not-a-valid-url-format"
         result = sanitize_proxy_url_for_logging(url)
-        
+
         # Should be safe - either return as-is (no credentials) or redact
         assert "not-a-valid-url-format" in result or "[REDACTED" in result
 
@@ -556,92 +530,85 @@ class TestCommandSanitization:
     """
     Test suite for command sanitization (CWE-532: Information Exposure Through Log Files)
     """
-    
+
     def test_oauth_token_redacted(self):
         """Test that OAuth tokens are redacted from commands"""
         from app.utils.security import sanitize_command_for_logging
-        
+
         cmd = [
             "streamlink",
             "--twitch-api-header=Authorization=OAuth abc123xyz789",
             "https://twitch.tv/streamer",
-            "best"
+            "best",
         ]
-        
+
         result = sanitize_command_for_logging(cmd)
         assert "abc123xyz789" not in result
         assert "[REDACTED]" in result
         assert "streamlink" in result
         assert "best" in result
-    
+
     def test_proxy_credentials_redacted(self):
         """Test that proxy credentials are redacted"""
         from app.utils.security import sanitize_command_for_logging
-        
+
         cmd = [
             "streamlink",
             "--http-proxy=http://user:pass@proxy.com:8080",
             "--https-proxy=https://user:pass@proxy.com:8080",
             "url",
-            "best"
+            "best",
         ]
-        
+
         result = sanitize_command_for_logging(cmd)
         assert "user:pass" not in result
         assert "[REDACTED]" in result
         assert "streamlink" in result
-    
+
     def test_multiple_sensitive_args_redacted(self):
         """Test that multiple sensitive arguments are all redacted"""
         from app.utils.security import sanitize_command_for_logging
-        
-        cmd = [
-            "streamlink",
-            "--password=secret123",
-            "--token=token456",
-            "--api-key=key789",
-            "url",
-            "best"
-        ]
-        
+
+        cmd = ["streamlink", "--password=secret123", "--token=token456", "--api-key=key789", "url", "best"]
+
         result = sanitize_command_for_logging(cmd)
         assert "secret123" not in result
         assert "token456" not in result
         assert "key789" not in result
         # All should be redacted
         assert result.count("[REDACTED]") == 3
-    
+
     def test_non_sensitive_args_preserved(self):
         """Test that non-sensitive arguments are preserved"""
         from app.utils.security import sanitize_command_for_logging
-        
+
         cmd = [
             "streamlink",
             "--output=/path/to/file.mp4",
             "--force",
             "https://twitch.tv/streamer",
             "best",
-            "--retry-streams=10"
+            "--retry-streams=10",
         ]
-        
+
         result = sanitize_command_for_logging(cmd)
         assert "/path/to/file.mp4" in result
         assert "--force" in result
         assert "best" in result
         assert "--retry-streams=10" in result
         assert "[REDACTED]" not in result
-    
+
     def test_empty_command(self):
         """Test that empty commands are handled gracefully"""
         from app.utils.security import sanitize_command_for_logging
-        
+
         assert sanitize_command_for_logging([]) == ""
         assert sanitize_command_for_logging(None) == ""
-    
+
     def test_realistic_streamlink_command(self):
         """Test a realistic streamlink command with OAuth token"""
         from app.utils.security import sanitize_command_for_logging
-        
+
         # Use obviously fake token to avoid triggering security scanners
         fake_token = "fake_test_token_" + "x" * 10
         cmd = [
@@ -652,15 +619,15 @@ class TestCommandSanitization:
             "--retry-streams=10",
             "--retry-open=5",
             "https://twitch.tv/streamer",
-            "best"
+            "best",
         ]
-        
+
         result = sanitize_command_for_logging(cmd)
-        
+
         # Token should be redacted
         assert fake_token not in result
         assert "--twitch-api-header=[REDACTED]" in result
-        
+
         # Other args should be preserved
         assert "--output=/recordings/streamer/stream.mp4" in result
         assert "--force" in result

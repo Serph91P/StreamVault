@@ -39,7 +39,7 @@
           class="btn-action btn-danger"
           v-ripple
         >
-          <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <svg class="icon">
             <use href="#icon-trash-2" />
           </svg>
           <span>Delete All</span>
@@ -105,8 +105,9 @@
                   :disabled="loading"
                   class="btn-delete"
                   v-ripple
+                  title="Delete subscription"
                 >
-                  <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <svg class="icon">
                     <use href="#icon-trash" />
                   </svg>
                 </button>
@@ -266,6 +267,11 @@ async function resubscribeAll() {
 }
 
 async function deleteSubscription(id: string) {
+  // Confirmation dialog
+  if (!confirm('Are you sure you want to delete this subscription? This action cannot be undone.')) {
+    return
+  }
+  
   try {
     const response = await fetch(`/api/streamers/subscriptions/${id}`, {
       method: 'DELETE'
@@ -296,7 +302,7 @@ async function deleteAllSubscriptions() {
       throw new Error(`Failed to delete subscriptions: ${response.status}`)
     }
 
-    const data = await response.json()
+    const _data = await response.json()
     alert('All subscriptions successfully deleted!')
 
     subscriptions.value = []
@@ -382,7 +388,11 @@ onMounted(loadSubscriptions)
   .icon {
     width: 18px;
     height: 18px;
-    fill: currentColor;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
   }
 
   &:disabled {
@@ -587,7 +597,11 @@ onMounted(loadSubscriptions)
   .icon {
     width: 16px;
     height: 16px;
-    fill: var(--text-secondary);
+    stroke: var(--text-secondary);
+    fill: none;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
   }
 
   &:hover:not(:disabled) {
@@ -595,7 +609,7 @@ onMounted(loadSubscriptions)
     border-color: var(--color-error);
 
     .icon {
-      fill: var(--color-error);
+      stroke: var(--color-error);
     }
   }
 

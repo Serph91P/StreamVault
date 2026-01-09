@@ -265,7 +265,7 @@ const formatViewers = (count?: number) => {
   return count.toString()
 }
 
-const truncateText = (text: string, maxLength: number) => {
+const _truncateText = (text: string, maxLength: number) => {
   if (!text || text.length <= maxLength) return text
   return text.substring(0, maxLength) + '...'
 }

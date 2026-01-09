@@ -99,10 +99,8 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import { useRouter } from 'vue-router'
 import GlassCard from '@/components/cards/GlassCard.vue'
 
-const router = useRouter()
 const username = ref('')
 const password = ref('')
 const isLoading = ref(false)

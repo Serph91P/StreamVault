@@ -4,7 +4,7 @@
  * Provides Instagram-like swipe gestures for tab navigation on mobile.
  */
 
-import { onMounted, onUnmounted } from 'vue'
+import { onMounted } from 'vue'
 import { useSwipe } from '@vueuse/core'
 import { useNavigation } from './useNavigation'
 import { UI } from '@/config/constants'

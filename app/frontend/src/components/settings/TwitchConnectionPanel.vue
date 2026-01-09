@@ -248,7 +248,7 @@ async function fetchConnectionStatus() {
   }
 }
 
-async function connectTwitch() {
+async function _connectTwitch() {
   try {
     isLoading.value = true
     

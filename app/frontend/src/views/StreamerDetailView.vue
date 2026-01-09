@@ -281,7 +281,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { streamersApi } from '@/services/api'
 import { useForceRecording } from '@/composables/useForceRecording'
@@ -517,12 +517,12 @@ async function deleteAll() {
   }
 }
 
-function handleWatchLive(stream: any) {
+function handleWatchLive(_stream: any) {
   if (!streamer.value) return
   window.open(`https://twitch.tv/${streamer.value.username}`, '_blank', 'noopener,noreferrer')
 }
 
-function handleForceRecord(stream: any) {
+function handleForceRecord(_stream: any) {
   forceStartRecording(Number(streamerId.value))
 }
 

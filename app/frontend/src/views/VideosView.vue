@@ -140,9 +140,9 @@
           <label class="filter-label">Duration</label>
           <select v-model="filterDuration" class="filter-select">
             <option value="">Any Duration</option>
-            <option value="short">Short (< 1h)</option>
+            <option value="short">Short (&lt; 1h)</option>
             <option value="medium">Medium (1-3h)</option>
-            <option value="long">Long (> 3h)</option>
+            <option value="long">Long (&gt; 3h)</option>
           </select>
         </div>
 
@@ -181,8 +181,7 @@
       :title="searchQuery ? 'No Results Found' : 'No Videos Yet'"
       :description="searchQuery ? `No videos match '${searchQuery}'` : 'Start recording streamers to see their VODs here.'"
       icon="video"
-      action-label="Clear Search"
-      v-if="searchQuery"
+      :action-label="searchQuery ? 'Clear Search' : undefined"
       @action="searchQuery = ''"
     />
 

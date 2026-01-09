@@ -8,7 +8,7 @@ interface RequestConfig {
   [key: string]: any
 }
 
-interface ApiClientOptions {
+interface _ApiClientOptions {
   headers?: Record<string, string>
 }
 
