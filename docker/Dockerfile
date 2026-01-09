@@ -172,7 +172,8 @@ EXPOSE 7000
 ENTRYPOINT ["/app/entrypoint.sh"]
 
 # =============================================================================
-# Stage 4: Minimal Runtime (optional - for maximum size reduction)
+# Stage 4: Minimal Runtime (for maximum size reduction)
+# This stage removes build tools and creates the smallest possible image
 # =============================================================================
 FROM python:3.14-alpine AS runtime
 
@@ -191,3 +192,15 @@ COPY --from=final --chown=appuser:appuser /app /app
 
 USER appuser
 WORKDIR /app
+
+# Labels for image metadata (OCI standard)
+LABEL org.opencontainers.image.title="StreamVault" \
+      org.opencontainers.image.description="Self-hosted Twitch stream recorder"
+
+# Health check for container orchestration
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost:7000/api/health/live || exit 1
+
+EXPOSE 7000
+
+ENTRYPOINT ["/app/entrypoint.sh"]
