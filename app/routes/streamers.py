@@ -1026,8 +1026,6 @@ async def delete_all_streams(streamer_id: int, exclude_active: bool = True, db: 
         active_stream_ids: set[int] = set()
         if exclude_active:
             try:
-                from datetime import datetime
-
                 # Join to ensure we only consider this streamer's states
                 active_states = (
                     db.query(ActiveRecordingState)
