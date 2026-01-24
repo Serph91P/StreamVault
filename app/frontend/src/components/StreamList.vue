@@ -636,7 +636,13 @@ const handleImageError = (event: Event, _categoryName: string) => {
   
   const wrapper = target.parentElement
   if (wrapper) {
-    wrapper.innerHTML = '<div class="category-icon"><i class="fas fa-gamepad"></i></div>'
+    // Use safer DOM methods instead of innerHTML to prevent XSS
+    const iconDiv = document.createElement('div')
+    iconDiv.className = 'category-icon'
+    const icon = document.createElement('i')
+    icon.className = 'fas fa-gamepad'
+    iconDiv.appendChild(icon)
+    wrapper.replaceChildren(iconDiv)
   }
 }
 

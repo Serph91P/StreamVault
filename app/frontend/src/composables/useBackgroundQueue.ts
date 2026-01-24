@@ -64,9 +64,9 @@ export function useBackgroundQueue() {
     
     try {
       const [statsRes, activeRes, recentRes] = await Promise.all([
-        fetch('/api/background-queue/stats'),
-        fetch('/api/background-queue/active-tasks'),
-        fetch('/api/background-queue/recent-tasks')
+        fetch('/api/background-queue/stats', { credentials: 'include' }),
+        fetch('/api/background-queue/active-tasks', { credentials: 'include' }),
+        fetch('/api/background-queue/recent-tasks', { credentials: 'include' })
       ])
 
       if (statsRes.ok) {

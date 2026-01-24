@@ -198,7 +198,9 @@ function getStreamerName(twitchId: string): string {
 
 async function loadStreamers() {
   try {
-    const response = await fetch('/api/streamers')
+    const response = await fetch('/api/streamers', {
+      credentials: 'include' // CRITICAL: Required to send session cookie
+    })
     const data = await response.json()
 
     if (Array.isArray(data)) {
@@ -225,7 +227,9 @@ async function loadStreamers() {
 async function loadSubscriptions() {
   loading.value = true
   try {
-    const response = await fetch('/api/streamers/subscriptions')
+    const response = await fetch('/api/streamers/subscriptions', {
+      credentials: 'include' // CRITICAL: Required to send session cookie
+    })
     const data = await response.json()
     subscriptions.value = data.subscriptions
 
@@ -242,6 +246,7 @@ async function resubscribeAll() {
   try {
     const response = await fetch('/api/streamers/resubscribe-all', {
       method: 'POST',
+      credentials: 'include', // CRITICAL: Required to send session cookie
       headers: {
         'Accept': 'application/json'
       }
@@ -274,7 +279,8 @@ async function deleteSubscription(id: string) {
   
   try {
     const response = await fetch(`/api/streamers/subscriptions/${id}`, {
-      method: 'DELETE'
+      method: 'DELETE',
+      credentials: 'include' // CRITICAL: Required to send session cookie
     })
     if (!response.ok) throw new Error('Failed to delete subscription')
 
@@ -291,6 +297,7 @@ async function deleteAllSubscriptions() {
   try {
     const response = await fetch('/api/streamers/subscriptions', {
       method: 'DELETE',
+      credentials: 'include', // CRITICAL: Required to send session cookie
       headers: {
         'Accept': 'application/json'
       }

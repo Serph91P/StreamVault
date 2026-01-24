@@ -512,7 +512,9 @@ const loadChapters = async () => {
   if (props.streamId && props.autoChapters) {
     try {
       // Fetch chapters from StreamVault API
-      const response = await fetch(`/api/streams/${props.streamId}/chapters`)
+      const response = await fetch(`/api/streams/${props.streamId}/chapters`, {
+        credentials: 'include' // CRITICAL: Required to send session cookie
+      })
       if (response.ok) {
         const chaptersData = await response.json()
         const converted = chaptersData.map((ch: any, index: number, arr: any[]) => {
@@ -547,7 +549,9 @@ const loadChapters = async () => {
   // If we have a chapters URL, try to parse WebVTT chapters
   if (props.chaptersUrl) {
     try {
-      const response = await fetch(props.chaptersUrl)
+      const response = await fetch(props.chaptersUrl, {
+        credentials: 'include' // CRITICAL: Required to send session cookie
+      })
       if (response.ok) {
         const vttText = await response.text()
         parseWebVTTChapters(vttText)

@@ -242,8 +242,8 @@ button:not(.unstyled),
   border: 1px solid var(--accent-color);
 
   &:not(:disabled):hover {
-    background: #7c3aed;  // accent-600
-    border-color: #7c3aed;
+    background: v.$accent-600;
+    border-color: v.$accent-600;
   }
 }
 
@@ -254,8 +254,8 @@ button:not(.unstyled),
   border: 1px solid var(--danger-color);
 
   &:not(:disabled):hover {
-    background: #dc2626;  // danger-600
-    border-color: #dc2626;
+    background: v.$danger-600;
+    border-color: v.$danger-600;
   }
 
   &:focus-visible {
@@ -283,8 +283,8 @@ button:not(.unstyled),
   border: 1px solid var(--success-color);
 
   &:not(:disabled):hover {
-    background: #059669;  // success-600
-    border-color: #059669;
+    background: v.$success-600;
+    border-color: v.$success-600;
   }
   
   // Light mode: Ensure white text on green
@@ -303,12 +303,12 @@ button:not(.unstyled),
 // Warning button (orange/yellow)
 .btn-warning {
   background: var(--warning-color);
-  color: #212529;  // Dark text for contrast
+  color: v.$slate-800;  // Dark text for contrast
   border: 1px solid var(--warning-color);
 
   &:not(:disabled):hover {
-    background: #d97706;  // warning-600
-    border-color: #d97706;
+    background: v.$warning-600;
+    border-color: v.$warning-600;
     color: white;
   }
 }
@@ -320,8 +320,8 @@ button:not(.unstyled),
   border: 1px solid var(--info-color);
 
   &:not(:disabled):hover {
-    background: #2563eb;  // info-600
-    border-color: #2563eb;
+    background: v.$info-600;
+    border-color: v.$info-600;
   }
 }
 

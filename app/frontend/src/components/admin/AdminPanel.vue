@@ -653,7 +653,9 @@ const viewLogs = async () => {
 
 const loadLogs = async () => {
   try {
-    const response = await fetch(`/api/admin/logs/recent?lines=${logLines.value}&level=${logLevel.value}`)
+    const response = await fetch(`/api/admin/logs/recent?lines=${logLines.value}&level=${logLevel.value}`, {
+      credentials: 'include' // CRITICAL: Required to send session cookie
+    })
     logs.value = await response.json()
   } catch (error) {
     console.error('Failed to load logs:', error)
