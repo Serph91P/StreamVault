@@ -267,8 +267,13 @@ class ProxyHealthService:
                         return {"status": "failed", "response_time_ms": None, "error": "No access token received"}
 
         except Exception as e:
+            # Log full exception details server-side, but return only a generic error message to the client.
             logger.error(f"Error getting access token for proxy check: {e}")
-            return {"status": "failed", "response_time_ms": None, "error": f"Token error: {str(e)[:50]}"}
+            return {
+                "status": "failed",
+                "response_time_ms": None,
+                "error": "Token error",
+            }
 
         # Now test the proxy with authenticated Twitch API request
         timeout = aiohttp.ClientTimeout(total=10.0, connect=5.0)
@@ -333,17 +338,32 @@ class ProxyHealthService:
         except asyncio.TimeoutError:
             return {"status": "failed", "response_time_ms": None, "error": "Timeout after 10 seconds"}
 
+            # Log detailed connection error, but expose only a generic message to the client.
         except aiohttp.ClientProxyConnectionError as e:
             logger.error(f"Proxy connection error during health check: {e}")
-            return {"status": "failed", "response_time_ms": None, "error": f"Proxy connection failed: {str(e)[:100]}"}
+            return {
+                "status": "failed",
+                "response_time_ms": None,
+                "error": "Proxy connection failed",
+            }
 
+            # Log detailed client error, but expose only a generic message to the client.
         except aiohttp.ClientError as e:
             logger.error(f"Client error during proxy health check: {e}")
-            return {"status": "failed", "response_time_ms": None, "error": f"Connection error: {str(e)[:100]}"}
+            return {
+                "status": "failed",
+                "response_time_ms": None,
+                "error": "Connection error",
+            }
 
+            # Log unexpected exceptions with stack trace, but do not leak details to the client.
         except Exception as e:
             logger.error(f"Unexpected error checking proxy health: {e}", exc_info=True)
-            return {"status": "failed", "response_time_ms": None, "error": f"Unexpected error: {str(e)[:100]}"}
+            return {
+                "status": "failed",
+                "response_time_ms": None,
+                "error": "Unexpected error during proxy health check",
+            }
 
     async def check_proxy_health_manual(self, proxy_id: int) -> Dict[str, Any]:
         """
