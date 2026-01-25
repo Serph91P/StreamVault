@@ -389,12 +389,13 @@ $duration-400: 400ms;  // Missing in original list
   --purple-color: #{$twitch-purple};
   
   // ===== BACKGROUNDS (Dark Mode) =====
-  --background-dark: #{$slate-900};
-  --background-darker: #{$slate-950};
-  --background-card: #{$slate-800};
+  --background-dark: #{$slate-900};         // #0f172a
+  --background-darker: #{$slate-950};       // #020617
+  --background-card: #{$slate-900};         // #0f172a (matches dark background for consistency)
+  --background-card-rgb: 15, 23, 42;        // slate-900 RGB for glass effects
   --background-primary: #{$slate-950};      // Darkest background
-  --background-secondary: #{$slate-800};    // Card background
-  --background-tertiary: #{$slate-700};     // Lighter background
+  --background-secondary: #{$slate-900};    // Card background (darker)
+  --background-tertiary: #{$slate-800};     // Lighter background
   
   // ===== TEXT COLORS (Dark Mode) =====
   --text-primary: #{$slate-50};

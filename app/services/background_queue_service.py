@@ -6,7 +6,7 @@ to maintain backward compatibility while the codebase migrates to the new struct
 
 Original God Class (613 lines) split into:
 - TaskQueueManager: Core queue management and task orchestration
-- WorkerManager: Worker thread management and task execution  
+- WorkerManager: Worker thread management and task execution
 - TaskProgressTracker: Progress tracking and WebSocket updates
 """
 
@@ -24,19 +24,19 @@ process_monitor = None
 
 class BackgroundQueueService:
     """Backward compatibility wrapper for the refactored queue services"""
-    
+
     def __init__(self, max_workers: int = 3, websocket_manager=None):
         # Initialize the refactored queue manager with streamer isolation enabled for production
         self.queue_manager = TaskQueueManager(
-            max_workers=max_workers, 
+            max_workers=max_workers,
             websocket_manager=websocket_manager,
-            enable_streamer_isolation=True  # Enable concurrent streaming by default
+            enable_streamer_isolation=True,  # Enable concurrent streaming by default
         )
-        
+
         # Legacy properties for compatibility
         self.max_workers = max_workers
         # Handle both streamer isolation and shared queue modes
-        if hasattr(self.queue_manager, 'task_queue'):
+        if hasattr(self.queue_manager, "task_queue"):
             self.task_queue = self.queue_manager.task_queue
         else:
             # For streamer isolation mode, create a compatibility property
@@ -56,7 +56,7 @@ class BackgroundQueueService:
         await self.queue_manager.start()
         self.is_running = self.queue_manager.is_running
         self.dependency_worker = self.queue_manager.dependency_worker
-        
+
         # Start process monitor - temporarily disabled
         # if process_monitor:
         #     await process_monitor.start()
@@ -66,7 +66,7 @@ class BackgroundQueueService:
         await self.queue_manager.stop()
         self.is_running = self.queue_manager.is_running
         self.dependency_worker = self.queue_manager.dependency_worker
-        
+
         # Stop process monitor - temporarily disabled
         # if process_monitor:
         #     await process_monitor.stop()
@@ -80,7 +80,7 @@ class BackgroundQueueService:
         task_type: str,
         payload: Dict[str, Any],
         priority: TaskPriority = TaskPriority.NORMAL,
-        max_retries: int = 3
+        max_retries: int = 3,
     ) -> str:
         """Enqueue a new background task"""
         return await self.queue_manager.enqueue_task(task_type, payload, priority, max_retries)
@@ -91,7 +91,7 @@ class BackgroundQueueService:
         payload: Dict[str, Any],
         dependencies: Optional[list] = None,
         priority: TaskPriority = TaskPriority.NORMAL,
-        max_retries: int = 3
+        max_retries: int = 3,
     ) -> str:
         """Enqueue a task with dependencies"""
         return await self.queue_manager.enqueue_task_with_dependencies(
@@ -103,7 +103,7 @@ class BackgroundQueueService:
         await self.queue_manager.mark_task_completed(task_id, success)
 
     # Status and progress methods (delegate to queue manager)
-    
+
     def get_task_status(self, task_id: str) -> Optional[TaskStatus]:
         """Get task status"""
         return self.queue_manager.get_task_status(task_id)
@@ -120,7 +120,7 @@ class BackgroundQueueService:
         """Get all active tasks including external tasks"""
         active_tasks = self.queue_manager.get_active_tasks()
         external_tasks = self.queue_manager.progress_tracker.external_tasks
-        
+
         # Combine both dictionaries
         all_active_tasks = {**active_tasks, **external_tasks}
         return all_active_tasks
@@ -132,19 +132,21 @@ class BackgroundQueueService:
     def get_queue_statistics(self) -> Dict[str, Any]:
         """Get comprehensive queue statistics"""
         queue_stats = self.queue_manager.get_queue_statistics()
-        
+
         # Add process monitor statistics
         if process_monitor:
             try:
                 process_stats = process_monitor.get_system_status()
-                queue_stats.update({
-                    "process_monitor": process_stats,
-                    "active_processes": process_stats.get("active_processes", 0),
-                    "recording_active": process_stats.get("recording_active", False)
-                })
+                queue_stats.update(
+                    {
+                        "process_monitor": process_stats,
+                        "active_processes": process_stats.get("active_processes", 0),
+                        "recording_active": process_stats.get("recording_active", False),
+                    }
+                )
             except Exception as e:
                 logger.warning(f"Could not get process monitor stats: {e}")
-                
+
         return queue_stats
 
     async def get_queue_stats(self) -> Dict[str, Any]:
@@ -161,7 +163,7 @@ class BackgroundQueueService:
     async def send_queue_statistics(self):
         """Send queue statistics via WebSocket"""
         await self.queue_manager.send_queue_statistics()
-        
+
         # Also send process monitor statistics - temporarily disabled
         # if process_monitor:
         #     try:
@@ -170,7 +172,7 @@ class BackgroundQueueService:
         #         logger.warning(f"Could not send process monitor stats: {e}")
 
     # External task tracking methods
-    
+
     def add_external_task(self, task_id: str, task_type: str, payload: Dict[str, Any]):
         """Add an external task for tracking"""
         self.queue_manager.add_external_task(task_id, task_type, payload)
@@ -188,7 +190,7 @@ class BackgroundQueueService:
         self.queue_manager.remove_external_task(task_id)
 
     # Legacy utility methods
-    
+
     async def wait_for_completion(self, timeout: Optional[float] = None):
         """Wait for all current tasks to complete"""
         await self.queue_manager.wait_for_completion(timeout)
@@ -208,15 +210,15 @@ class BackgroundQueueService:
     def has_handler(self, task_type: str) -> bool:
         """Check if handler is registered for task type"""
         return self.queue_manager.has_handler(task_type)
-    
+
     def has_queue_manager(self) -> bool:
         """Check if queue manager is available"""
-        return hasattr(self, 'queue_manager') and self.queue_manager is not None
-    
+        return hasattr(self, "queue_manager") and self.queue_manager is not None
+
     def is_queue_manager_running(self) -> bool:
         """Check if the queue manager is running"""
         return self.has_queue_manager() and self.queue_manager.is_running
-    
+
     def get_queue_status(self) -> Optional[Dict[str, Any]]:
         """Get queue status with proper abstraction"""
         if not self.has_queue_manager():
@@ -226,13 +228,13 @@ class BackgroundQueueService:
         except Exception as e:
             logger.error(f"Error getting queue status: {e}")
             return None
-    
+
     async def enqueue_recording_post_processing(self, **kwargs):
         """Enqueue a complete post-processing chain for a recording"""
         return await self.queue_manager.enqueue_recording_post_processing(**kwargs)
 
     # Properties for legacy compatibility
-    
+
     @property
     def queue_size(self) -> int:
         """Get current queue size"""
@@ -241,7 +243,7 @@ class BackgroundQueueService:
         else:
             # For streamer isolation mode, sum all streamer queues
             stats = self.queue_manager.get_queue_statistics()
-            return stats.get('queue_size', 0)
+            return stats.get("queue_size", 0)
 
     @property
     def active_worker_count(self) -> int:
@@ -251,10 +253,10 @@ class BackgroundQueueService:
     @property
     def total_tasks_processed(self) -> int:
         """Get total number of tasks processed"""
-        return self.stats['completed_tasks'] + self.stats['failed_tasks']
+        return self.stats["completed_tasks"] + self.stats["failed_tasks"]
 
     # Legacy methods that might be used by existing code
-    
+
     def get_statistics(self) -> Dict[str, Any]:
         """Legacy method - use get_queue_statistics instead"""
         return self.get_queue_statistics()
@@ -264,7 +266,7 @@ class BackgroundQueueService:
         warnings.warn(
             "BackgroundQueueService._worker is deprecated. Workers are now managed internally by TaskQueueManager.",
             DeprecationWarning,
-            stacklevel=2
+            stacklevel=2,
         )
         raise NotImplementedError("Legacy _worker method is no longer supported")
 
@@ -273,7 +275,7 @@ class BackgroundQueueService:
         warnings.warn(
             "BackgroundQueueService._dependency_worker is deprecated. Dependency worker is now managed internally by TaskQueueManager.",
             DeprecationWarning,
-            stacklevel=2
+            stacklevel=2,
         )
         raise NotImplementedError("Legacy _dependency_worker method is no longer supported")
 

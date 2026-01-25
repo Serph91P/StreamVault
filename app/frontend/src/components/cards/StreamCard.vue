@@ -1,6 +1,6 @@
 <template>
   <GlassCard
-    variant="medium"
+    variant="subtle"
     hoverable
     class="stream-card"
     :class="{ 
@@ -223,7 +223,7 @@ const emit = defineEmits<{
   delete: [stream: Stream]
 }>()
 
-const router = useRouter()
+const _router = useRouter()
 const isExpanded = ref(false)
 const showActions = ref(false)
 const moreButtonRef = ref<HTMLButtonElement | null>(null)
@@ -739,6 +739,19 @@ onUnmounted(() => {
   overflow: hidden;
   z-index: 10000;
   animation: dropdown-appear 0.15s ease-out;
+  
+  // Mobile: Make dropdown full-width and position at bottom
+  @include m.respond-below('sm') {
+    position: fixed;
+    left: var(--spacing-2) !important;
+    right: var(--spacing-2) !important;
+    bottom: var(--spacing-2) !important;
+    top: auto !important;
+    width: auto;
+    min-width: unset;
+    border-radius: var(--radius-lg);
+    padding: var(--spacing-2);
+  }
 }
 
 @keyframes dropdown-appear {
@@ -818,6 +831,33 @@ onUnmounted(() => {
 @include m.respond-below('sm') {
   .stream-compact {
     flex-wrap: wrap;
+    cursor: pointer;  /* Make entire area tappable */
+    transition: background-color v.$duration-200 v.$ease-out;
+    border-radius: var(--radius-md);
+    margin: calc(-1 * var(--spacing-2));
+    padding: var(--spacing-2);
+    
+    /* Add subtle indicator that card is expandable */
+    &::after {
+      content: 'Tap to expand';
+      display: block;
+      flex-basis: 100%;
+      font-size: var(--text-xs);
+      color: var(--text-muted);
+      text-align: center;
+      margin-top: var(--spacing-2);
+      opacity: 0.6;
+    }
+    
+    /* Visual feedback on touch - shows user it's tappable */
+    &:active {
+      background: rgba(var(--primary-500-rgb), 0.15);
+    }
+  }
+  
+  /* Hide hint when expanded */
+  .stream-card.is-expanded .stream-compact::after {
+    display: none;
   }
 
   .stream-title {
@@ -826,6 +866,27 @@ onUnmounted(() => {
 
   .info-grid {
     grid-template-columns: 1fr;
+  }
+
+  /* Hide expand button on mobile - card tap expands instead */
+  .expand-btn {
+    display: none;
+  }
+
+  /* Hide action button when collapsed on mobile */
+  .stream-actions {
+    display: none;
+  }
+}
+
+/* Mobile: Show actions when expanded */
+.stream-card.is-expanded {
+  @include m.respond-below('sm') {
+    .stream-actions {
+      display: block;
+      position: static;
+      margin-top: var(--spacing-3);
+    }
   }
 }
 </style>

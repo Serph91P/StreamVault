@@ -8,7 +8,7 @@ interface RequestConfig {
   [key: string]: any
 }
 
-interface ApiClientOptions {
+interface _ApiClientOptions {
   headers?: Record<string, string>
 }
 
@@ -42,6 +42,16 @@ class ApiClient {
       const response = await fetch(url, config)
 
       if (!response.ok) {
+        // Handle 401 Unauthorized - redirect to login
+        if (response.status === 401) {
+          console.warn('Session expired or invalid, redirecting to login...')
+          // Clear any stored auth data
+          localStorage.removeItem('streamvault_session')
+          sessionStorage.clear()
+          // Force redirect to login page
+          window.location.href = '/auth/login'
+          return
+        }
         throw new Error(`HTTP error! status: ${response.status}`)
       }
 

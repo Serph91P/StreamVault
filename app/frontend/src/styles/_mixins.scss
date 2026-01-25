@@ -38,22 +38,28 @@
 
 @mixin card-base($padding: v.$spacing-6, $bg: var(--background-card)) {
   background: $bg;
-  border-radius: v.$border-radius-lg;  // 12px (modern rounded)
-  padding: $padding;
-  box-shadow: v.$shadow-sm;  // Subtle elevation
+  border-radius: v.$border-radius-md;  // 10px on mobile (less aggressive)
+  padding: v.$spacing-4;  // 16px on mobile (reduced from 24px)
+  box-shadow: none;  // Remove shadow on mobile
   border: 1px solid var(--border-color);
   transition: v.$transition-all;
   
   @include respond-to('md') {
-    padding: v.$spacing-8;  // 32px on larger screens
-    border-radius: v.$border-radius-xl;  // 16px on desktop
+    padding: $padding;  // Use provided padding on desktop
+    border-radius: v.$border-radius-lg;  // 12px (modern rounded)
+    box-shadow: v.$shadow-sm;  // Subtle elevation on desktop
+    
+    // Hover state (subtle lift) - desktop only
+    &:hover {
+      box-shadow: v.$shadow-md;
+      transform: translateY(-2px);
+      border-color: rgba(var(--primary-color-rgb), 0.3);
+    }
   }
   
-  // Hover state (subtle lift)
-  &:hover {
-    box-shadow: v.$shadow-md;
-    transform: translateY(-2px);
-    border-color: rgba(var(--primary-color-rgb), 0.3);
+  @include respond-to('lg') {
+    padding: v.$spacing-8;  // 32px on larger screens
+    border-radius: v.$border-radius-xl;  // 16px on desktop
   }
   
   // Interactive card (clickable)
@@ -89,12 +95,12 @@
   }
 }
 
-// Glassmorphism card variant
+// Glassmorphism card variant - NO background color, pure blur only
 @mixin card-glass($blur: 20px, $opacity: 0.6) {
-  background: rgba(var(--background-card-rgb), $opacity);
+  // NO background - pure blur effect only
   backdrop-filter: blur($blur);
   -webkit-backdrop-filter: blur($blur);  // Safari support
-  border: 1px solid rgba(var(--border-color-rgb), 0.3);
+  border: 1px solid rgba(var(--primary-color-rgb), 0.2);
   border-radius: v.$border-radius-xl;  // 16px
   padding: v.$spacing-6;  // 24px
   box-shadow: v.$shadow-lg;
@@ -105,7 +111,7 @@
   }
 
   &:hover {
-    background: rgba(var(--background-card-rgb), $opacity + 0.1);
+    // NO background change on hover
     box-shadow: v.$shadow-xl;
     transform: translateY(-2px);
   }

@@ -1,12 +1,9 @@
 from fastapi import APIRouter, HTTPException, Query, Response
-from typing import Optional, List
-import os
 import logging
 from datetime import datetime
-from pathlib import Path
 
 from app.services.system.logging_service import logging_service
-from app.schemas.logging import LoggingSettingsSchema, LogsListSchema, LogFileSchema
+from app.schemas.logging import LogsListSchema, LogFileSchema
 
 router = APIRouter(prefix="/logging", tags=["logging"])
 logger = logging.getLogger("streamvault")
@@ -26,12 +23,14 @@ async def list_log_files():
             for log_file in logging_service.streamlink_logs_dir.glob("*.log*"):
                 if log_file.is_file():
                     stat = log_file.stat()
-                    streamlink_logs.append(LogFileSchema(
-                        filename=log_file.name,
-                        size=stat.st_size,
-                        last_modified=datetime.fromtimestamp(stat.st_mtime).isoformat(),
-                        type="streamlink"
-                    ))
+                    streamlink_logs.append(
+                        LogFileSchema(
+                            filename=log_file.name,
+                            size=stat.st_size,
+                            last_modified=datetime.fromtimestamp(stat.st_mtime).isoformat(),
+                            type="streamlink",
+                        )
+                    )
                     total_size += stat.st_size
 
         # Get FFmpeg logs
@@ -39,12 +38,14 @@ async def list_log_files():
             for log_file in logging_service.ffmpeg_logs_dir.glob("*.log*"):
                 if log_file.is_file():
                     stat = log_file.stat()
-                    ffmpeg_logs.append(LogFileSchema(
-                        filename=log_file.name,
-                        size=stat.st_size,
-                        last_modified=datetime.fromtimestamp(stat.st_mtime).isoformat(),
-                        type="ffmpeg"
-                    ))
+                    ffmpeg_logs.append(
+                        LogFileSchema(
+                            filename=log_file.name,
+                            size=stat.st_size,
+                            last_modified=datetime.fromtimestamp(stat.st_mtime).isoformat(),
+                            type="ffmpeg",
+                        )
+                    )
                     total_size += stat.st_size
 
         # Get app logs
@@ -52,12 +53,14 @@ async def list_log_files():
             for log_file in logging_service.app_logs_dir.glob("*.log*"):
                 if log_file.is_file():
                     stat = log_file.stat()
-                    app_logs.append(LogFileSchema(
-                        filename=log_file.name,
-                        size=stat.st_size,
-                        last_modified=datetime.fromtimestamp(stat.st_mtime).isoformat(),
-                        type="app"
-                    ))
+                    app_logs.append(
+                        LogFileSchema(
+                            filename=log_file.name,
+                            size=stat.st_size,
+                            last_modified=datetime.fromtimestamp(stat.st_mtime).isoformat(),
+                            type="app",
+                        )
+                    )
                     total_size += stat.st_size
 
         # Sort by last modified (newest first)
@@ -66,10 +69,7 @@ async def list_log_files():
         app_logs.sort(key=lambda x: x.last_modified, reverse=True)
 
         return LogsListSchema(
-            streamlink_logs=streamlink_logs,
-            ffmpeg_logs=ffmpeg_logs,
-            app_logs=app_logs,
-            total_size=total_size
+            streamlink_logs=streamlink_logs, ffmpeg_logs=ffmpeg_logs, app_logs=app_logs, total_size=total_size
         )
 
     except Exception as e:
@@ -103,7 +103,7 @@ async def download_log_file(log_type: str, filename: str):
             raise HTTPException(status_code=404, detail="Log file not found")
 
         # Read the file content
-        with open(log_file_path, 'r', encoding='utf-8', errors='ignore') as f:
+        with open(log_file_path, "r", encoding="utf-8", errors="ignore") as f:
             content = f.read()
 
         return Response(
@@ -111,8 +111,8 @@ async def download_log_file(log_type: str, filename: str):
             media_type="text/plain",
             headers={
                 "Content-Disposition": f"attachment; filename={filename}",
-                "Content-Type": "text/plain; charset=utf-8"
-            }
+                "Content-Type": "text/plain; charset=utf-8",
+            },
         )
 
     except HTTPException:
@@ -124,9 +124,7 @@ async def download_log_file(log_type: str, filename: str):
 
 @router.get("/files/{log_type}/{filename}/tail")
 async def tail_log_file(
-    log_type: str, 
-    filename: str, 
-    lines: int = Query(100, description="Number of lines to return", ge=1, le=10000)
+    log_type: str, filename: str, lines: int = Query(100, description="Number of lines to return", ge=1, le=10000)
 ):
     """Get the last N lines of a log file"""
     try:
@@ -152,7 +150,7 @@ async def tail_log_file(
             raise HTTPException(status_code=404, detail="Log file not found")
 
         # Read the last N lines
-        with open(log_file_path, 'r', encoding='utf-8', errors='ignore') as f:
+        with open(log_file_path, "r", encoding="utf-8", errors="ignore") as f:
             all_lines = f.readlines()
             last_lines = all_lines[-lines:] if len(all_lines) > lines else all_lines
 
@@ -161,7 +159,7 @@ async def tail_log_file(
             "lines_requested": lines,
             "lines_returned": len(last_lines),
             "total_lines": len(all_lines),
-            "content": "".join(last_lines)
+            "content": "".join(last_lines),
         }
 
     except HTTPException:
@@ -228,7 +226,7 @@ async def get_logging_stats():
         stats = {
             "streamlink": {"count": 0, "total_size": 0},
             "ffmpeg": {"count": 0, "total_size": 0},
-            "app": {"count": 0, "total_size": 0}
+            "app": {"count": 0, "total_size": 0},
         }
 
         # Count streamlink logs

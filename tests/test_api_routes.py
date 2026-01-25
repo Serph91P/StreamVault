@@ -8,7 +8,7 @@ import sys
 # Test all API routes
 route_modules = [
     "app.routes.videos",
-    "app.routes.streamers", 
+    "app.routes.streamers",
     "app.routes.recording",
     "app.routes.categories",
     "app.routes.settings",
@@ -23,15 +23,16 @@ route_modules = [
     "app.api.background_queue_endpoints",
 ]
 
+
 def test_route_imports():
     """Test all route imports"""
     total_tests = 0
     passed_tests = 0
     failed_routes = []
-    
+
     print("TESTING API ROUTES IMPORTS")
     print("=" * 40)
-    
+
     for route_module in route_modules:
         total_tests += 1
         try:
@@ -41,10 +42,10 @@ def test_route_imports():
         except Exception as e:
             print(f"  FAIL: {route_module}: {str(e)[:80]}...")
             failed_routes.append((route_module, str(e)))
-    
+
     print("\n" + "=" * 40)
     print(f"RESULTS: {passed_tests}/{total_tests} routes passed")
-    
+
     if failed_routes:
         print(f"\nFAILED ROUTES ({len(failed_routes)}):")
         for route, error in failed_routes:
@@ -53,6 +54,7 @@ def test_route_imports():
     else:
         print("ALL ROUTES IMPORT SUCCESSFULLY!")
         return True
+
 
 if __name__ == "__main__":
     success = test_route_imports()

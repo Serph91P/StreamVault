@@ -1,31 +1,26 @@
 <template>
   <button 
     @click="toggleTheme" 
-    class="theme-toggle"
+    class="icon-btn"
     :aria-label="isDark ? 'Switch to light mode' : 'Switch to dark mode'"
     :title="isDark ? 'Switch to light mode' : 'Switch to dark mode'"
   >
     <!-- Moon Icon (Dark Mode Active) -->
-    <svg v-if="isDark" class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-      <path 
-        stroke-linecap="round" 
-        stroke-linejoin="round" 
-        stroke-width="2" 
-        d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"
-      />
+    <svg v-if="isDark" viewBox="0 0 24 24">
+      <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
     </svg>
     
     <!-- Sun Icon (Light Mode Active) -->
-    <svg v-else class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-      <circle cx="12" cy="12" r="5" stroke-width="2"/>
-      <line x1="12" y1="1" x2="12" y2="3" stroke-width="2" stroke-linecap="round"/>
-      <line x1="12" y1="21" x2="12" y2="23" stroke-width="2" stroke-linecap="round"/>
-      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" stroke-width="2" stroke-linecap="round"/>
-      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" stroke-width="2" stroke-linecap="round"/>
-      <line x1="1" y1="12" x2="3" y2="12" stroke-width="2" stroke-linecap="round"/>
-      <line x1="21" y1="12" x2="23" y2="12" stroke-width="2" stroke-linecap="round"/>
-      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" stroke-width="2" stroke-linecap="round"/>
-      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" stroke-width="2" stroke-linecap="round"/>
+    <svg v-else viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="5"/>
+      <line x1="12" y1="1" x2="12" y2="3"/>
+      <line x1="12" y1="21" x2="12" y2="23"/>
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+      <line x1="1" y1="12" x2="3" y2="12"/>
+      <line x1="21" y1="12" x2="23" y2="12"/>
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
     </svg>
   </button>
 </template>
@@ -37,63 +32,13 @@ const { isDark, toggleTheme } = useTheme()
 </script>
 
 <style scoped lang="scss">
-.theme-toggle {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 44px;
-  height: 44px;
-  padding: 0;
-  background: transparent;
-  border: none;
-  border-radius: 50%;
-  color: var(--text-primary);
-  cursor: pointer;
-  transition: all var(--duration-200, 200ms) var(--vue-ease-out);
-  
-  // Touch-friendly size (44x44px minimum)
-  min-width: 44px;
-  min-height: 44px;
-  
-  .icon {
-    width: 20px;
-    height: 20px;
-    transition: transform var(--duration-200, 200ms) var(--vue-ease-out);
-  }
-  
-  &:hover {
-    background: rgba(var(--primary-500-rgb), 0.1);
-    color: var(--primary-color);
-    
-    .icon {
-      transform: scale(1.1);
-    }
-  }
-  
-  &:active {
-    transform: scale(0.95);
-    
-    .icon {
-      transform: scale(0.95);
-    }
-  }
-  
-  &:focus-visible {
-    outline: 2px solid var(--primary-color);
-    outline-offset: 2px;
-  }
-}
+// Theme toggle uses global .icon-btn class
+// Only theme-specific animations here
 
-// Animation when theme changes
-[data-theme="light"] .theme-toggle {
-  .icon {
-    animation: rotate-in 0.3s var(--vue-ease-out);
-  }
-}
-
-:root:not([data-theme="light"]) .theme-toggle {
-  .icon {
-    animation: rotate-in 0.3s var(--vue-ease-out);
+.icon-btn {
+  svg {
+    // Animate icon change
+    animation: rotate-in 0.3s var(--vue-ease-out, ease-out);
   }
 }
 

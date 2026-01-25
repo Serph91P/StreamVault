@@ -1,6 +1,5 @@
 <template>
-  <GlassCard>
-    <div class="card-content">
+  <div class="card-content">
       <!-- Connection Status -->
       <div class="connection-status">
         <div class="status-header">
@@ -158,12 +157,10 @@
         </button>
       </div>
     </div>
-  </GlassCard>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import GlassCard from '@/components/cards/GlassCard.vue'
 import { useToast } from '@/composables/useToast'
 
 interface ConnectionStatus {
@@ -248,7 +245,7 @@ async function fetchConnectionStatus() {
   }
 }
 
-async function connectTwitch() {
+async function _connectTwitch() {
   try {
     isLoading.value = true
     
@@ -825,6 +822,8 @@ function formatExpiration(expiresAt: string): string {
   .connection-status {
     flex-direction: column;
     text-align: center;
+    padding: v.$spacing-3;
+    margin-bottom: v.$spacing-4;
   }
   
   .form-actions {
@@ -833,6 +832,22 @@ function formatExpiration(expiresAt: string): string {
     .btn {
       width: 100%;
     }
+  }
+}
+
+@include m.respond-below('sm') {
+  // Reduce padding in nested cards on mobile
+  .token-guide {
+    padding: v.$spacing-3;
+  }
+  
+  .guide-steps ol {
+    padding-left: v.$spacing-4;
+  }
+  
+  .info-banner,
+  .warning-banner {
+    padding: v.$spacing-3;
   }
 }
 </style>

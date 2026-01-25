@@ -1,5 +1,5 @@
 <template>
-  <div class="subscriptions-view">
+  <div class="page-view subscriptions-view">
     <!-- Header -->
     <div class="view-header">
       <div class="header-content">
@@ -39,7 +39,7 @@
           class="btn-action btn-danger"
           v-ripple
         >
-          <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <svg class="icon">
             <use href="#icon-trash-2" />
           </svg>
           <span>Delete All</span>
@@ -105,8 +105,9 @@
                   :disabled="loading"
                   class="btn-delete"
                   v-ripple
+                  title="Delete subscription"
                 >
-                  <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <svg class="icon">
                     <use href="#icon-trash" />
                   </svg>
                 </button>
@@ -197,7 +198,9 @@ function getStreamerName(twitchId: string): string {
 
 async function loadStreamers() {
   try {
-    const response = await fetch('/api/streamers')
+    const response = await fetch('/api/streamers', {
+      credentials: 'include' // CRITICAL: Required to send session cookie
+    })
     const data = await response.json()
 
     if (Array.isArray(data)) {
@@ -224,7 +227,9 @@ async function loadStreamers() {
 async function loadSubscriptions() {
   loading.value = true
   try {
-    const response = await fetch('/api/streamers/subscriptions')
+    const response = await fetch('/api/streamers/subscriptions', {
+      credentials: 'include' // CRITICAL: Required to send session cookie
+    })
     const data = await response.json()
     subscriptions.value = data.subscriptions
 
@@ -241,6 +246,7 @@ async function resubscribeAll() {
   try {
     const response = await fetch('/api/streamers/resubscribe-all', {
       method: 'POST',
+      credentials: 'include', // CRITICAL: Required to send session cookie
       headers: {
         'Accept': 'application/json'
       }
@@ -266,9 +272,15 @@ async function resubscribeAll() {
 }
 
 async function deleteSubscription(id: string) {
+  // Confirmation dialog
+  if (!confirm('Are you sure you want to delete this subscription? This action cannot be undone.')) {
+    return
+  }
+  
   try {
     const response = await fetch(`/api/streamers/subscriptions/${id}`, {
-      method: 'DELETE'
+      method: 'DELETE',
+      credentials: 'include' // CRITICAL: Required to send session cookie
     })
     if (!response.ok) throw new Error('Failed to delete subscription')
 
@@ -285,6 +297,7 @@ async function deleteAllSubscriptions() {
   try {
     const response = await fetch('/api/streamers/subscriptions', {
       method: 'DELETE',
+      credentials: 'include', // CRITICAL: Required to send session cookie
       headers: {
         'Accept': 'application/json'
       }
@@ -296,7 +309,7 @@ async function deleteAllSubscriptions() {
       throw new Error(`Failed to delete subscriptions: ${response.status}`)
     }
 
-    const data = await response.json()
+    const _data = await response.json()
     alert('All subscriptions successfully deleted!')
 
     subscriptions.value = []
@@ -317,7 +330,7 @@ onMounted(loadSubscriptions)
 /* Responsive - Use SCSS mixins for breakpoints */
 
 .subscriptions-view {
-  padding: var(--spacing-6);
+  // .page-view provides padding/sizing via global styles
   animation: fadeIn 0.3s ease-out;
 }
 
@@ -332,11 +345,18 @@ onMounted(loadSubscriptions)
 
 // Header
 .view-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
   margin-bottom: var(--spacing-8);
+  gap: var(--spacing-4);
+  flex-wrap: wrap;
 }
 
 .header-content {
   margin-bottom: var(--spacing-6);
+  flex: 1;
+  min-width: 200px;
 }
 
 .page-title {
@@ -382,7 +402,11 @@ onMounted(loadSubscriptions)
   .icon {
     width: 18px;
     height: 18px;
-    fill: currentColor;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
   }
 
   &:disabled {
@@ -587,7 +611,11 @@ onMounted(loadSubscriptions)
   .icon {
     width: 16px;
     height: 16px;
-    fill: var(--text-secondary);
+    stroke: var(--text-secondary);
+    fill: none;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
   }
 
   &:hover:not(:disabled) {
@@ -595,7 +623,7 @@ onMounted(loadSubscriptions)
     border-color: var(--color-error);
 
     .icon {
-      fill: var(--color-error);
+      stroke: var(--color-error);
     }
   }
 

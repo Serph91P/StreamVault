@@ -51,7 +51,9 @@ function removeToast(id: string) {
   pointer-events: none;
   
   @include m.respond-below('md') {
-    top: v.$spacing-3;
+    // Mobile: Position at bottom like background jobs panel
+    top: auto;
+    bottom: v.$spacing-3;
     right: v.$spacing-3;
     left: v.$spacing-3;
   }

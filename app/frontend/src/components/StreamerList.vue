@@ -94,13 +94,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, watch, ref } from 'vue'
+import { computed, onMounted, watch, ref } from 'vue'
 import { useSystemAndRecordingStatus } from '@/composables/useSystemAndRecordingStatus'
 import { useStreamers } from '@/composables/useStreamers'
 import { useRouter } from 'vue-router'
-import type { Ref } from 'vue'
 
-interface WebSocketMessage {
+interface _WebSocketMessage {
   type: string
   data: {
     streamer_id: string
@@ -111,7 +110,7 @@ interface WebSocketMessage {
   }
 }
 
-interface StreamerUpdateData {
+interface _StreamerUpdateData {
   is_live?: boolean
   title?: string
   category_name?: string
@@ -126,10 +125,10 @@ interface StreamerWithProfileImage {
 // Use hybrid status for real-time streamer updates
 const {
   streamersStatus,
-  isLoading,
-  error,
+  // isLoading - unused
+  // error - unused  
   fetchStreamersStatus,
-  isOnline: connectionStatus
+  isOnline: connectionStatus,
 } = useSystemAndRecordingStatus()
 
 // Keep useStreamers for delete operations

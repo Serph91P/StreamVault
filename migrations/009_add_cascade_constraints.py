@@ -17,6 +17,7 @@ from app.config.settings import settings
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
 def run_migration():
     """Update foreign key constraints to add CASCADE where needed"""
     session = None
@@ -25,48 +26,48 @@ def run_migration():
         engine = create_engine(settings.DATABASE_URL)
         Session = sessionmaker(bind=engine)
         session = Session()
-        
+
         logger.info("🔄 Updating foreign key constraints...")
-        
+
         # Helper function to update constraint
         def update_constraint(table_name, constraint_name, column_name, ref_table, ref_column="id"):
             try:
                 # Drop existing constraint
-                session.execute(text(f"""
-                    ALTER TABLE {table_name} 
+                session.execute(
+                    text(
+                        f"""
+                    ALTER TABLE {table_name}
                     DROP CONSTRAINT IF EXISTS {constraint_name}
-                """))
-                
+                """
+                    )
+                )
+
                 # Add new constraint with CASCADE
-                session.execute(text(f"""
-                    ALTER TABLE {table_name} 
-                    ADD CONSTRAINT {constraint_name} 
-                    FOREIGN KEY ({column_name}) 
-                    REFERENCES {ref_table}({ref_column}) 
+                session.execute(
+                    text(
+                        f"""
+                    ALTER TABLE {table_name}
+                    ADD CONSTRAINT {constraint_name}
+                    FOREIGN KEY ({column_name})
+                    REFERENCES {ref_table}({ref_column})
                     ON DELETE CASCADE
-                """))
+                """
+                    )
+                )
                 logger.info(f"✅ Updated {constraint_name} on {table_name}")
             except Exception as e:
                 logger.warning(f"Could not update {constraint_name}: {e}")
-        
+
         # Update active_recordings_state constraints
+        update_constraint("active_recordings_state", "active_recordings_state_stream_id_fkey", "stream_id", "streams")
+
         update_constraint(
-            "active_recordings_state", 
-            "active_recordings_state_stream_id_fkey",
-            "stream_id", 
-            "streams"
+            "active_recordings_state", "active_recordings_state_recording_id_fkey", "recording_id", "recordings"
         )
-        
-        update_constraint(
-            "active_recordings_state",
-            "active_recordings_state_recording_id_fkey", 
-            "recording_id",
-            "recordings"
-        )
-        
+
         session.commit()
         logger.info("🎉 Migration 009 completed successfully")
-        
+
     except Exception as e:
         logger.error(f"Migration 009 failed: {e}")
         if session:
@@ -75,6 +76,7 @@ def run_migration():
     finally:
         if session and session.is_active:
             session.close()
+
 
 if __name__ == "__main__":
     run_migration()

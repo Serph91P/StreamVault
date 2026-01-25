@@ -221,7 +221,7 @@ const filteredEvents = computed(() => {
   )
 })
 
-const displayError = computed(() => error.value || localError.value)
+const _displayError = computed(() => error.value || localError.value)
 
 // Methods
 const refreshNotifications = async () => {

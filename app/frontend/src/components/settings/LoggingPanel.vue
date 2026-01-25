@@ -158,7 +158,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useToast } from '@/composables/useToast'
 
 interface LogFile {
@@ -238,7 +238,9 @@ const formatDate = (dateString: string) => {
 
 const fetchStats = async () => {
   try {
-    const response = await fetch('/api/logging/stats')
+    const response = await fetch('/api/logging/stats', {
+      credentials: 'include' // CRITICAL: Required to send session cookie
+    })
     if (response.ok) {
       stats.value = await response.json()
     }
@@ -250,7 +252,9 @@ const fetchStats = async () => {
 const fetchLogs = async () => {
   try {
     isLoading.value = true
-    const response = await fetch('/api/logging/files')
+    const response = await fetch('/api/logging/files', {
+      credentials: 'include' // CRITICAL: Required to send session cookie
+    })
     if (response.ok) {
       logsData.value = await response.json()
     }
@@ -277,7 +281,8 @@ const refreshLogContent = async () => {
   try {
     isLoadingContent.value = true
     const response = await fetch(
-      `/api/logging/files/${viewingLogFile.value.type}/${viewingLogFile.value.filename}/tail?lines=${tailLines.value}`
+      `/api/logging/files/${viewingLogFile.value.type}/${viewingLogFile.value.filename}/tail?lines=${tailLines.value}`,
+      { credentials: 'include' } // CRITICAL: Required to send session cookie
     )
     if (response.ok) {
       const data = await response.json()
@@ -293,7 +298,9 @@ const refreshLogContent = async () => {
 
 const downloadLogFile = async (logFile: LogFile) => {
   try {
-    const response = await fetch(`/api/logging/files/${logFile.type}/${logFile.filename}`)
+    const response = await fetch(`/api/logging/files/${logFile.type}/${logFile.filename}`, {
+      credentials: 'include' // CRITICAL: Required to send session cookie
+    })
     if (response.ok) {
       const blob = await response.blob()
       const url = window.URL.createObjectURL(blob)
@@ -316,7 +323,8 @@ const deleteLogFile = async (logFile: LogFile) => {
   
   try {
     const response = await fetch(`/api/logging/files/${logFile.type}/${logFile.filename}`, {
-      method: 'DELETE'
+      method: 'DELETE',
+      credentials: 'include' // CRITICAL: Required to send session cookie
     })
     if (response.ok) {
       await refreshLogs()

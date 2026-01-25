@@ -1,5 +1,6 @@
 @use 'sass:map';
 @use 'variables' as v;
+@use 'mixins' as m;
 
 // Base layout structure with improved responsiveness
 .app {
@@ -57,6 +58,12 @@
     width: 100%;
     max-width: 100%;
     gap: v.$spacing-md;
+    
+    // Wrap on mobile for better layout
+    @include m.respond-below('sm') {
+      flex-wrap: wrap;
+      gap: v.$spacing-sm;
+    }
   }
   
   h1 {
@@ -123,8 +130,8 @@
 // Main content area with smoother transitions
 .main-content {
   flex: 1;
-  padding: v.$spacing-md;
-  padding-top: v.$spacing-lg;
+  padding: v.$spacing-sm;  // Reduced from md (16px to 12px) for mobile
+  padding-top: v.$spacing-md;  // Reduced from lg (24px to 16px)
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
@@ -139,9 +146,7 @@
 
   @media (min-width: map.get(v.$breakpoints, 'lg')) {
     padding: v.$spacing-xl;
-    max-width: v.$container-xl;
-    margin-left: auto;
-    margin-right: auto;
+    // No max-width - allow full width
   }
 }
 
@@ -155,33 +160,42 @@
   width: 100%;
   max-width: 100%;
   margin: 0 auto;
-  padding: v.$spacing-md;
+  padding: v.$spacing-sm;  // Reduced from md (16px to 12px) for mobile
   background: v.$background-card;
-  border-radius: v.$border-radius-lg;
-  box-shadow: v.$shadow-md;
+  border-radius: 0;  // Remove border radius on mobile
+  box-shadow: none;  // Remove shadow on mobile
   box-sizing: border-box;
   transition: transform v.$transition-base, box-shadow v.$transition-base;
-  border: 1px solid v.$border-color;
+  border: none;  // Remove border on mobile
   overflow: hidden; // Ensure content doesn't break the radius
   
-  &:hover {
-    box-shadow: v.$shadow-lg;
-  }
-
   @media (min-width: map.get(v.$breakpoints, 'md')) {
     padding: v.$spacing-lg;
+    border-radius: v.$border-radius-lg;
+    box-shadow: v.$shadow-md;
+    border: 1px solid v.$border-color;
+    
+    &:hover {
+      box-shadow: v.$shadow-lg;
+    }
   }
 
   &.narrow {
-    max-width: 600px;
+    @media (min-width: map.get(v.$breakpoints, 'md')) {
+      max-width: 600px;
+    }
   }
 
   &.medium {
-    max-width: 800px; 
+    @media (min-width: map.get(v.$breakpoints, 'md')) {
+      max-width: 800px;
+    }
   }
 
   &.wide {
-    max-width: 1200px;
+    @media (min-width: map.get(v.$breakpoints, 'md')) {
+      max-width: 1200px;
+    }
   }
 }
 
@@ -430,5 +444,560 @@
     &:hover:not(.router-link-active) {
       color: v.$text-primary;
     }
+  }
+}
+
+// ============================================================================
+// GRID SYSTEM - Responsive card/item grids for dashboards
+// ============================================================================
+
+// Base grid container
+.grid {
+  display: grid;
+  gap: v.$spacing-4;
+  width: 100%;
+  
+  // Responsive gap
+  @media (min-width: map.get(v.$breakpoints, 'md')) {
+    gap: v.$spacing-5;
+  }
+  
+  @media (min-width: map.get(v.$breakpoints, 'xl')) {
+    gap: v.$spacing-6;
+  }
+}
+
+// Card grid - for streamer cards, recording cards, etc.
+// Uses auto-fill to maximize columns based on available space
+.grid-cards {
+  display: grid;
+  gap: v.$spacing-4;
+  width: 100%;
+  
+  // Base: auto-fill with min 200px
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  
+  // Tablet+
+  @media (min-width: map.get(v.$breakpoints, 'sm')) {
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  }
+  
+  // Desktop
+  @media (min-width: map.get(v.$breakpoints, 'md')) {
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: v.$spacing-5;
+  }
+  
+  // Large desktop
+  @media (min-width: map.get(v.$breakpoints, 'xl')) {
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: v.$spacing-6;
+  }
+}
+
+// Streamer card grid - uses auto-fill for responsive columns
+// Match grid-scroll-hybrid sizing for consistent appearance
+.grid-streamers {
+  display: grid;
+  gap: v.$spacing-4;
+  width: 100%;
+  
+  // Base: match scroll-hybrid desktop sizing
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  
+  // Tablet+
+  @media (min-width: map.get(v.$breakpoints, 'sm')) {
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  }
+  
+  // Desktop: same as grid-scroll-hybrid
+  @media (min-width: map.get(v.$breakpoints, 'md')) {
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: v.$spacing-5;
+  }
+  
+  // Large desktop: same as grid-scroll-hybrid
+  @media (min-width: map.get(v.$breakpoints, 'xl')) {
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: v.$spacing-6;
+  }
+}
+
+// Recording/video card grid - landscape cards with thumbnails
+// Uses auto-fill for responsive column count
+.grid-recordings {
+  display: grid;
+  gap: v.$spacing-4;
+  width: 100%;
+  
+  // Base: min 240px for landscape cards
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  
+  // Tablet+: slightly larger
+  @media (min-width: map.get(v.$breakpoints, 'sm')) {
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  }
+  
+  // Desktop: comfortable sizing
+  @media (min-width: map.get(v.$breakpoints, 'md')) {
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: v.$spacing-5;
+  }
+  
+  // Large desktop
+  @media (min-width: map.get(v.$breakpoints, 'xl')) {
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: v.$spacing-6;
+  }
+}
+
+// Hybrid scroll-to-grid pattern
+// Mobile: horizontal scroll, Desktop: grid layout
+.grid-scroll-hybrid {
+  width: 100%;
+  
+  // MOBILE: Horizontal scroll
+  @media (max-width: #{map.get(v.$breakpoints, 'md') - 1px}) {
+    display: flex;
+    gap: v.$spacing-4;
+    overflow-x: auto;
+    overflow-y: visible;
+    padding: v.$spacing-2 v.$spacing-4 v.$spacing-6;
+    margin: 0 calc(v.$spacing-4 * -1);
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-x pan-y;
+    overscroll-behavior-x: contain;
+    scrollbar-width: thin;
+    scrollbar-color: var(--primary-color) var(--background-darker);
+    
+    &::-webkit-scrollbar {
+      height: 8px;
+    }
+    
+    &::-webkit-scrollbar-track {
+      background: var(--background-darker);
+      border-radius: var(--radius-full);
+    }
+    
+    &::-webkit-scrollbar-thumb {
+      background: var(--primary-color);
+      border-radius: var(--radius-full);
+      
+      &:hover {
+        background: var(--primary-600);
+      }
+    }
+    
+    // Direct children get fixed width for scroll
+    > * {
+      flex: 0 0 280px;
+      max-width: 280px;
+    }
+  }
+  
+  // Slightly larger cards on small mobile
+  @media (min-width: 400px) and (max-width: #{map.get(v.$breakpoints, 'md') - 1px}) {
+    > * {
+      flex: 0 0 320px;
+      max-width: 320px;
+    }
+  }
+  
+  // DESKTOP: Grid layout
+  @media (min-width: map.get(v.$breakpoints, 'md')) {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: v.$spacing-5;
+    overflow: visible;
+    padding: v.$spacing-2;
+    margin: 0;
+    
+    > * {
+      width: 100%;
+      max-width: none;
+    }
+  }
+  
+  // Large desktop
+  @media (min-width: map.get(v.$breakpoints, 'xl')) {
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: v.$spacing-6;
+  }
+}
+
+// Fixed column grids (explicit column counts)
+.grid-cols-2 {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: v.$spacing-4;
+}
+
+.grid-cols-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: v.$spacing-4;
+}
+
+.grid-cols-4 {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: v.$spacing-4;
+}
+
+// ============================================
+// UNIFIED PAGE VIEW LAYOUT SYSTEM
+// ============================================
+// All views should use .page-view as their root container
+// This ensures consistent padding, spacing, and responsiveness
+// across all pages including mobile and PWA
+// ============================================
+
+.page-view {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0; // Prevent overflow in flex/grid contexts
+  min-height: 100vh;
+  box-sizing: border-box;
+  
+  // Mobile-first padding
+  padding: v.$spacing-4 v.$spacing-3;
+  
+  // Tablet
+  @media (min-width: map.get(v.$breakpoints, 'sm')) {
+    padding: v.$spacing-5 v.$spacing-4;
+  }
+  
+  // Desktop
+  @media (min-width: map.get(v.$breakpoints, 'md')) {
+    padding: v.$spacing-6 v.$spacing-5;
+  }
+  
+  // Large desktop
+  @media (min-width: map.get(v.$breakpoints, 'lg')) {
+    padding: v.$spacing-6;
+  }
+  
+  // Extra large
+  @media (min-width: map.get(v.$breakpoints, 'xl')) {
+    padding: v.$spacing-8;
+  }
+  
+  // Ultra wide
+  @media (min-width: 1920px) {
+    padding: v.$spacing-8 v.$spacing-10;
+  }
+}
+
+// Page header - consistent across all views
+.page-view-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: v.$spacing-6;
+  gap: v.$spacing-4;
+  flex-wrap: wrap;
+  
+  @media (max-width: #{map.get(v.$breakpoints, 'sm') - 1px}) {
+    flex-direction: column;
+    gap: v.$spacing-3;
+    margin-bottom: v.$spacing-4;
+  }
+}
+
+.page-view-header-content {
+  flex: 1;
+  min-width: 200px;
+}
+
+.page-view-title {
+  display: flex;
+  align-items: center;
+  gap: v.$spacing-3;
+  font-size: v.$spacing-6; // ~24px
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 v.$spacing-2 0;
+  line-height: 1.2;
+  
+  .icon-title {
+    width: 28px;
+    height: 28px;
+    stroke: var(--primary-color);
+    fill: none;
+    flex-shrink: 0;
+  }
+  
+  @media (min-width: map.get(v.$breakpoints, 'md')) {
+    font-size: v.$spacing-8; // ~32px
+    
+    .icon-title {
+      width: 32px;
+      height: 32px;
+    }
+  }
+}
+
+.page-view-subtitle {
+  font-size: v.$spacing-4; // ~16px
+  color: var(--text-secondary);
+  margin: 0;
+  line-height: 1.5;
+  
+  @media (max-width: #{map.get(v.$breakpoints, 'sm') - 1px}) {
+    font-size: v.$text-sm; // 14px
+  }
+}
+
+.page-view-actions {
+  display: flex;
+  gap: v.$spacing-3;
+  flex-wrap: wrap;
+  
+  @media (max-width: #{map.get(v.$breakpoints, 'sm') - 1px}) {
+    width: 100%;
+    
+    > * {
+      flex: 1;
+      min-width: 120px;
+    }
+  }
+}
+
+// Controls bar (search, filters, view toggle)
+.page-view-controls {
+  display: flex;
+  gap: v.$spacing-3;
+  margin-bottom: v.$spacing-5;
+  flex-wrap: wrap;
+  align-items: center;
+  
+  @media (max-width: #{map.get(v.$breakpoints, 'md') - 1px}) {
+    flex-direction: column;
+    align-items: stretch;
+    gap: v.$spacing-3;
+  }
+}
+
+// Search box - unified styling
+.page-view-search {
+  display: flex;
+  align-items: center;
+  gap: v.$spacing-2;
+  padding: v.$spacing-3 v.$spacing-4;
+  background: var(--background-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  flex: 1;
+  min-width: 200px;
+  max-width: 400px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  
+  &:focus-within {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(var(--primary-color-rgb), 0.1);
+  }
+  
+  .icon {
+    width: 18px;
+    height: 18px;
+    stroke: var(--text-tertiary);
+    fill: none;
+    flex-shrink: 0;
+  }
+  
+  input {
+    flex: 1;
+    border: none;
+    background: transparent;
+    color: var(--text-primary);
+    font-size: v.$text-sm; // 14px
+    outline: none;
+    
+    &::placeholder {
+      color: var(--text-tertiary);
+    }
+  }
+  
+  .clear-btn {
+    padding: v.$spacing-1;
+    background: none;
+    border: none;
+    cursor: pointer;
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    
+    &:hover {
+      background: var(--background-darker);
+    }
+    
+    .icon {
+      width: 16px;
+      height: 16px;
+      stroke: var(--text-secondary);
+    }
+  }
+  
+  @media (max-width: #{map.get(v.$breakpoints, 'md') - 1px}) {
+    max-width: none;
+    width: 100%;
+  }
+}
+
+// View toggle (grid/list)
+.page-view-toggle {
+  display: flex;
+  background: var(--background-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  
+  .toggle-btn {
+    padding: v.$spacing-3 v.$spacing-3;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    
+    .icon {
+      width: 18px;
+      height: 18px;
+      stroke: var(--text-secondary);
+      fill: none;
+    }
+    
+    &:hover:not(.active) {
+      background: var(--background-darker);
+    }
+    
+    &.active {
+      background: var(--primary-color);
+      
+      .icon {
+        stroke: white;
+      }
+    }
+  }
+}
+
+// Filter tabs
+.page-view-filters {
+  display: flex;
+  gap: v.$spacing-2;
+  flex-wrap: wrap;
+  
+  .filter-tab {
+    padding: v.$spacing-2 v.$spacing-4;
+    background: var(--background-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-full);
+    font-size: v.$text-sm; // 14px
+    font-weight: 500;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: v.$spacing-2;
+    
+    &:hover:not(.active) {
+      border-color: var(--primary-color);
+      color: var(--primary-color);
+    }
+    
+    &.active {
+      background: var(--primary-color);
+      border-color: var(--primary-color);
+      color: white;
+    }
+    
+    .tab-badge {
+      background: rgba(255, 255, 255, 0.2);
+      padding: v.$spacing-1 v.$spacing-2;
+      border-radius: var(--radius-full);
+      font-size: v.$spacing-3; // 12px
+      font-weight: 600;
+    }
+    
+    &:not(.active) .tab-badge {
+      background: var(--background-darker);
+    }
+  }
+  
+  @media (max-width: #{map.get(v.$breakpoints, 'sm') - 1px}) {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    padding-bottom: v.$spacing-2;
+    margin-bottom: calc(v.$spacing-2 * -1);
+    -webkit-overflow-scrolling: touch;
+    
+    .filter-tab {
+      flex-shrink: 0;
+    }
+  }
+}
+
+// Content section wrapper
+.page-view-section {
+  margin-bottom: v.$spacing-8;
+  
+  &:last-child {
+    margin-bottom: 0;
+  }
+}
+
+.page-view-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: v.$spacing-4;
+  gap: v.$spacing-3;
+}
+
+.page-view-section-title {
+  font-size: v.$spacing-5; // ~20px
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: v.$spacing-2;
+  
+  .section-icon {
+    width: 24px;
+    height: 24px;
+    stroke: var(--primary-color);
+    fill: none;
+  }
+}
+
+// Empty state container
+.page-view-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: v.$spacing-10 v.$spacing-4;
+  color: var(--text-secondary);
+}
+
+// Quick stats grid (for dashboard)
+.page-view-stats {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: v.$spacing-4;
+  
+  @media (min-width: map.get(v.$breakpoints, 'sm')) {
+    grid-template-columns: repeat(4, 1fr);
+  }
+  
+  @media (min-width: map.get(v.$breakpoints, 'lg')) {
+    gap: v.$spacing-5;
   }
 }

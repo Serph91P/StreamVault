@@ -77,7 +77,9 @@ async function refresh() {
   error.value = null
   
   try {
-    const response = await fetch('/admin/websocket-connections')
+    const response = await fetch('/admin/websocket-connections', {
+      credentials: 'include' // CRITICAL: Required to send session cookie
+    })
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`)
     }

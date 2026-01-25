@@ -51,34 +51,34 @@ const mockStreamersApi = {
   }),
   deleteAllStreams: (streamerId: number) => mockResponse({ success: true, streamerId }),
   deleteStream: (streamerId: number, streamId: number) => mockResponse({ success: true, streamerId, streamId }),
-  getStreamChapters: (streamerId: number, streamId: number) => mockResponse({ chapters: [] }),
+  getStreamChapters: (_streamerId: number, _streamId: number) => mockResponse({ chapters: [] }),
   checkLiveStatus: (streamerId: number) => mockResponse({ streamer_id: streamerId, is_live: false }),
   getDebugLiveStatus: () => mockResponse({ live: 0, offline: mockStreamers.length }),
   getSubscriptions: () => mockResponse({ data: [] }),
   deleteSubscriptions: () => mockResponse({ success: true }),
   deleteSubscription: (subscriptionId: string) => mockResponse({ success: true, subscriptionId }),
   resubscribeAll: () => mockResponse({ success: true }),
-  forceRecord: (id: number) => mockResponse({ success: true, message: 'Recording started' })
+  forceRecord: (_id: number) => mockResponse({ success: true, message: 'Recording started' })
 }
 
 const mockVideoApi = {
   getAll: () => mockResponse(mockVideos),
   getById: (id: number) => mockResponse(mockVideos.find(v => v.id === id) || null),
-  delete: (id: number) => mockResponse({ success: true }),
+  delete: (_id: number) => mockResponse({ success: true }),
   deleteMultiple: (ids: number[]) => mockResponse({ success: true, count: ids.length }),
-  getChapters: (id: number) => mockResponse([]),
-  regenerateMetadata: (id: number) => mockResponse({ success: true })
+  getChapters: (_id: number) => mockResponse([]),
+  regenerateMetadata: (_id: number) => mockResponse({ success: true })
 }
 
 const mockRecordingApi = {
   getActiveRecordings: () => mockResponse(mockActiveRecordings),
-  stop: (streamerId: number) => mockResponse({ success: true }),
-  startRecording: (streamerId: number) => mockResponse({ success: true }),
-  stopRecording: (streamerId: number) => mockResponse({ success: true }),
+  stop: (_streamerId: number) => mockResponse({ success: true }),
+  startRecording: (_streamerId: number) => mockResponse({ success: true }),
+  stopRecording: (_streamerId: number) => mockResponse({ success: true }),
   getSettings: () => mockResponse({}),
-  updateSettings: (settings: any) => mockResponse({ success: true }),
-  getStreamerSettings: (streamerId: number) => mockResponse({}),
-  updateStreamerSettings: (streamerId: number, settings: any) => mockResponse({ success: true }),
+  updateSettings: (_settings: any) => mockResponse({ success: true }),
+  getStreamerSettings: (_streamerId: number) => mockResponse({}),
+  updateStreamerSettings: (_streamerId: number, _settings: any) => mockResponse({ success: true }),
   forceStartRecording: (streamerId: number) => mockResponse({ success: true, streamerId }),
   forceStopRecording: (recordingId: number) => mockResponse({ success: true, recordingId }),
   getRecordingStatus: (recordingId: number) => mockResponse({ recordingId, status: 'stopped' }),
@@ -103,14 +103,14 @@ const mockSettingsApi = {
   getAll: () => mockResponse(mockSettings),
   update: (data: any) => mockResponse({ ...mockSettings, ...data }),
   getRecordingSettings: () => mockResponse(mockSettings.recording || {}),
-  updateRecordingSettings: (data: any) => mockResponse({ success: true }),
+  updateRecordingSettings: (_data: any) => mockResponse({ success: true }),
   getNotificationSettings: () => mockResponse(mockSettings.notifications || {}),
-  updateNotificationSettings: (data: any) => mockResponse({ success: true })
+  updateNotificationSettings: (_data: any) => mockResponse({ success: true })
 }
 
 const mockNotificationApi = {
   getState: () => mockResponse({ last_read: null, last_cleared: null }),
-  markRead: (timestamp?: string) => mockResponse({ success: true }),
+  markRead: (_timestamp?: string) => mockResponse({ success: true }),
   clear: () => mockResponse({ success: true })
 }
 
@@ -118,8 +118,8 @@ const mockProxyApi = {
   getAll: () => mockResponse(mockProxies),
   create: (data: any) => mockResponse({ ...data, id: Date.now() }),
   update: (id: number, data: any) => mockResponse({ ...data, id }),
-  delete: (id: number) => mockResponse({ success: true }),
-  test: (id: number) => mockResponse({ success: true, latency: 123 }),
+  delete: (_id: number) => mockResponse({ success: true }),
+  test: (_id: number) => mockResponse({ success: true, latency: 123 }),
   healthCheck: () => mockResponse({ healthy: 3, unhealthy: 0 })
 }
 
@@ -151,8 +151,8 @@ const mockAuthApi = {
     { user_id: '123', user_login: 'mock1', user_name: 'Mock Channel 1' },
     { user_id: '456', user_login: 'mock2', user_name: 'Mock Channel 2' }
   ]),
-  importStreamers: (streamerIds: number[]) => mockResponse({ imported: streamerIds.length, total: streamerIds.length }),
-  login: (data: any) => mockResponse({ success: true, token: 'mock-token' }),
+  importStreamers: (_streamerIds: number[]) => mockResponse({ imported: 0, total: 0 }),
+  login: (_data: any) => mockResponse({ success: true, token: 'mock-token' }),
   logout: () => mockResponse({ success: true }),
   check: () => mockResponse({ authenticated: true }),
   setup: () => mockResponse({ setup_required: false }),
@@ -163,14 +163,14 @@ const mockAuthApi = {
     token_source: 'browser'
   }),
   getCallbackUrl: () => mockResponse({ callback_url: 'http://localhost:8000/auth/callback' }),
-  exchangeCode: (code: string) => mockResponse({ success: true }),
+  exchangeCode: (_code: string) => mockResponse({ success: true }),
   disconnect: () => mockResponse({ success: true }),
   importFollowedChannels: () => mockResponse({ imported: 0, total: 0 })
 }
 
 const mockImagesApi = {
-  getThumbnail: (videoId: number) => mockResponse(null),
-  getStreamerAvatar: (streamerId: number) => mockResponse(null)
+  getThumbnail: (_videoId: number) => mockResponse(null),
+  getStreamerAvatar: (_streamerId: number) => mockResponse(null)
 }
 
 const mockSubscriptionsApi = {
@@ -202,8 +202,8 @@ const mockCategoriesApi = {
 const mockFilenamePresetsApi = {
   getAll: () => mockResponse([]),
   create: (data: any) => mockResponse({ ...data, id: Date.now() }),
-  update: (id: number, data: any) => mockResponse({ success: true }),
-  delete: (id: number) => mockResponse({ success: true })
+  update: (_id: number, _data: any) => mockResponse({ success: true }),
+  delete: (_id: number) => mockResponse({ success: true })
 }
 
 // ============================================================================

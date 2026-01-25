@@ -16,6 +16,10 @@
   @include m.respond-below('md') {
     padding: v.$spacing-4;
   }
+  
+  @include m.respond-below('sm') {
+    padding: v.$spacing-2;
+  }
 }
 
 // ============================================================================
@@ -91,6 +95,13 @@
     font-size: v.$text-base;
     transition: v.$transition-all;
     
+    // Mobile: Larger touch targets and iOS zoom prevention
+    @include m.respond-below('md') {  // < 768px
+      padding: v.$spacing-3 v.$spacing-4;  // More horizontal padding for better touch
+      font-size: 16px !important;  // iOS zoom prevention
+      min-height: 44px;  // Touch-friendly height
+    }
+    
     &:focus {
       outline: none;
       border-color: var(--primary-color);
@@ -141,12 +152,19 @@
   align-items: center;
   gap: v.$spacing-2;
   margin-bottom: v.$spacing-3;
+  padding: v.$spacing-2 0;  // More vertical padding for touch
   
   input[type="checkbox"],
   input[type="radio"] {
     width: 18px;
     height: 18px;
     cursor: pointer;
+    
+    // Mobile: Larger touch targets
+    @include m.respond-below('md') {  // < 768px
+      width: 24px;
+      height: 24px;
+    }
   }
   
   label {
@@ -154,6 +172,11 @@
     cursor: pointer;
     color: var(--text-primary);
     font-size: v.$text-sm;
+    
+    // Mobile: More readable text
+    @include m.respond-below('md') {  // < 768px
+      font-size: v.$text-base;
+    }
   }
 }
 

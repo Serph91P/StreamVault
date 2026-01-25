@@ -43,20 +43,30 @@
   align-items: center;
   background: radial-gradient(circle at center, color.adjust(v.$background-dark, $lightness: -5%), color.adjust(v.$background-darker, $lightness: -3%));
   z-index: map.get(v.$z-layers, 'modal');
-  padding: v.$spacing-md;
+  padding: v.$spacing-sm;  // Reduced padding on mobile
   overflow-y: auto;
+  
+  @media (min-width: map.get(v.$breakpoints, 'md')) {
+    padding: v.$spacing-md;
+  }
 
   .auth-form {
     background: v.$background-card;
-    padding: v.$spacing-xl;
-    border-radius: v.$border-radius-lg;
+    padding: v.$spacing-lg;  // Reduced from xl on mobile
+    border-radius: v.$border-radius-md;  // Less rounded on mobile
     width: 100%;
     max-width: 350px;
-    box-shadow: v.$shadow-lg;
+    box-shadow: v.$shadow-md;  // Less shadow on mobile
     border: 1px solid rgba(v.$border-color, 0.5);
     animation: formAppear 0.5s v.$vue-ease-out forwards;
     position: relative;
     overflow: hidden;
+    
+    @media (min-width: map.get(v.$breakpoints, 'md')) {
+      padding: v.$spacing-xl;
+      border-radius: v.$border-radius-lg;
+      box-shadow: v.$shadow-lg;
+    }
 
     // Vue-style glow on hover
     &::after {
@@ -239,6 +249,8 @@
 // Content Views with Vue styling
 .content-view {
   width: 100%;
+  max-width: 100%;
+  min-width: 0; // Prevent overflow
   padding: v.$spacing-md 0;
   box-sizing: border-box;
   animation: fadeInContent 0.4s v.$vue-ease-out forwards;
@@ -264,48 +276,14 @@
   @extend .content-view;
 
   .add-streamer-container {
-    background: v.$background-card;
-    border-radius: v.$border-radius-lg;
-    padding: v.$spacing-md;
-    box-shadow: v.$shadow-md;
-    border: 1px solid v.$border-color;
+    // Simple layout container - no card styling (GlassCard components handle that)
     max-width: 800px;
     margin: 0 auto;
-    transition: box-shadow 0.2s v.$vue-ease;
-
-    &:focus-within {
-      box-shadow: v.$shadow-lg;
-      border-color: rgba(v.$primary-color, 0.3);
-    }
-
-    @media (min-width: map.get(v.$breakpoints, 'md')) {
-      padding: v.$spacing-lg;
-    }
-
-    h1 {
-      font-size: map.get(v.$font-scale, 'xl');
-      margin-bottom: v.$spacing-md;
-      color: v.$text-primary;
-      position: relative;
-      display: inline-block;
-
-      &::after {
-        content: "";
-        position: absolute;
-        bottom: -6px;
-        left: 0;
-        height: 2px;
-        width: 40px;
-        background: v.$primary-color;
-        border-radius: v.$border-radius-pill;
-      }
-    }
   }
 
   .import-section {
     margin-top: v.$spacing-xl;
     padding-top: v.$spacing-lg;
-    border-top: 1px solid v.$border-color;
     animation: fadeIn 0.6s v.$vue-ease-out;
     animation-fill-mode: both;
     animation-delay: 0.2s;
@@ -391,8 +369,8 @@
     padding: v.$spacing-md;
     box-shadow: v.$shadow-md;
     border: 1px solid v.$border-color;
-    max-width: 1200px;
-    margin: 0 auto;
+    width: 100%;
+    margin: 0;
 
     @media (min-width: map.get(v.$breakpoints, 'md')) {
       padding: v.$spacing-lg;
@@ -620,8 +598,8 @@
     padding: v.$spacing-md;
     box-shadow: v.$shadow-md;
     border: 1px solid v.$border-color;
-    max-width: 1200px;
-    margin: 0 auto;
+    width: 100%;
+    margin: 0;
 
     @media (min-width: map.get(v.$breakpoints, 'md')) {
       padding: v.$spacing-lg;
@@ -736,8 +714,8 @@
     padding: v.$spacing-md;
     box-shadow: v.$shadow-md;
     border: 1px solid v.$border-color;
-    max-width: 1200px;
-    margin: 0 auto;
+    width: 100%;
+    margin: 0;
 
     @media (min-width: map.get(v.$breakpoints, 'md')) {
       padding: v.$spacing-lg;

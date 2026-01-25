@@ -98,6 +98,20 @@
         <polyline points="12 5 19 12 12 19"/>
       </symbol>
       
+      <!-- Arrow Left -->
+      <symbol id="icon-arrow-left" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="19" y1="12" x2="5" y2="12"/>
+        <polyline points="12 19 5 12 12 5"/>
+      </symbol>
+      
+      <!-- User Plus (Add User) -->
+      <symbol id="icon-user-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+        <circle cx="8.5" cy="7" r="4"/>
+        <line x1="20" y1="8" x2="20" y2="14"/>
+        <line x1="23" y1="11" x2="17" y2="11"/>
+      </symbol>
+      
       <!-- Video Off -->
       <symbol id="icon-video-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M16 16v1a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2m5.66 0H14a2 2 0 0 1 2 2v3.34l1 1L23 7v10"/>
@@ -373,14 +387,12 @@
             
             <!-- Desktop: Full nav actions (≥ 768px) -->
             <div class="nav-actions desktop-only">
-              <div class="notification-bell-container">
-                <button @click="toggleNotifications" class="notification-bell" :class="{ 'has-unread': unreadCount > 0 }">
-                  <svg class="bell-icon">
-                    <use href="#icon-bell" />
-                  </svg>
-                  <span v-if="unreadCount > 0" class="notification-count">{{ unreadCount > 99 ? '99+' : unreadCount }}</span>
-                </button>
-              </div>
+              <button @click="toggleNotifications" class="icon-btn" :class="{ 'has-badge': unreadCount > 0 }">
+                <svg>
+                  <use href="#icon-bell" />
+                </svg>
+                <span v-if="unreadCount > 0" class="badge">{{ unreadCount > 99 ? '99+' : unreadCount }}</span>
+              </button>
               <!-- Theme Toggle -->
               <ThemeToggle />
               <button @click="logout" class="logout-btn">
@@ -406,15 +418,13 @@
             </button>
             
             <nav class="mobile-menu-nav">
-              <div class="notification-bell-container">
-                <button @click="handleMobileNotifications" class="notification-bell" :class="{ 'has-unread': unreadCount > 0 }">
-                  <svg class="bell-icon">
-                    <use href="#icon-bell" />
-                  </svg>
-                  <span class="nav-label">Notifications</span>
-                  <span v-if="unreadCount > 0" class="notification-count">{{ unreadCount > 99 ? '99+' : unreadCount }}</span>
-                </button>
-              </div>
+              <button @click="handleMobileNotifications" class="mobile-menu-btn" :class="{ 'has-unread': unreadCount > 0 }">
+                <svg class="menu-icon">
+                  <use href="#icon-bell" />
+                </svg>
+                <span class="nav-label">Notifications</span>
+                <span v-if="unreadCount > 0" class="badge">{{ unreadCount > 99 ? '99+' : unreadCount }}</span>
+              </button>
               
               <div class="mobile-theme-toggle">
                 <ThemeToggle />
@@ -430,14 +440,24 @@
           </div>
         </div>
       </Teleport>    
-      <!-- Notification overlay -->
-      <div v-if="showNotifications" class="notification-overlay">
-        <NotificationFeed 
-          @notifications-read="markAsRead" 
-          @close-panel="closeNotificationPanel"
-          @clear-all="clearAllNotifications"
-        />
-      </div>
+      <!-- Notification overlay with backdrop on mobile -->
+      <Teleport to="body">
+        <div v-if="showNotifications" class="notification-backdrop" @click="closeNotificationPanel"></div>
+        <div v-if="showNotifications" class="notification-overlay">
+          <div class="notification-panel-header">
+            <h3>Notifications</h3>
+            <button class="close-panel-btn" @click="closeNotificationPanel" aria-label="Close notifications">
+              <svg class="icon"><use href="#icon-x" /></svg>
+            </button>
+          </div>
+          <NotificationFeed 
+            @notifications-read="markAsRead" 
+            @close-panel="closeNotificationPanel"
+            @clear-all="clearAllNotifications"
+            @close="closeNotificationPanel"
+          />
+        </div>
+      </Teleport>
     </template>
     
     <!-- Toast notifications (always visible) -->
@@ -730,7 +750,7 @@ watch(() => messages.value.length, (newLength) => {
     const newCount = newLength - previousMessageCount
     const messagesToProcess = messages.value.slice(-newCount)
     
-    messagesToProcess.forEach((message, index) => {
+    messagesToProcess.forEach((message, _index) => {
       processWebSocketMessage(message)
     })
     
@@ -839,7 +859,7 @@ onMounted(async () => {
   
   // Process any existing WebSocket messages
   if (messages.value.length > 0) {
-    messages.value.forEach((message, index) => {
+    messages.value.forEach((message, _index) => {
       processWebSocketMessage(message)
     })
   }
@@ -847,7 +867,7 @@ onMounted(async () => {
   // Listen for clicks outside the notification area to close it
   document.addEventListener('click', (event) => {
     const notificationFeed = document.querySelector('.notification-feed')
-    const notificationBell = document.querySelector('.notification-bell')
+    const notificationBell = document.querySelector('.icon-btn.has-badge, .mobile-menu-btn')
 
     if (showNotifications.value && 
         notificationFeed && 
@@ -950,6 +970,13 @@ watch(messages, (newMessages) => {
   max-width: 100%;
   padding: 0 var(--spacing-6, 1.5rem);
   gap: var(--spacing-4, 1rem);
+}
+
+/* Left side of header - keeps logo aligned left */
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3, 0.75rem);
 }
 
 .app-logo {
@@ -1103,47 +1130,75 @@ watch(messages, (newMessages) => {
   flex-direction: column;
   gap: var(--spacing-2);
   padding: var(--spacing-4);
+}
+
+// Mobile menu button style (full-width menu items)
+.mobile-menu-btn {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  gap: var(--spacing-3);
+  padding: var(--spacing-3) var(--spacing-4);
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  color: var(--text-primary);
+  font-size: var(--text-base);
+  font-weight: var(--font-medium);
+  cursor: pointer;
+  transition: all 200ms ease-out;
   
-  .notification-bell-container {
-    width: 100%;
-    
-    .notification-bell {
-      width: 100%;
-      justify-content: flex-start;
-      gap: var(--spacing-3);
-      padding: var(--spacing-3) var(--spacing-4);
-      background: transparent;
-      border: 1px solid var(--border-color);
-      border-radius: var(--radius-lg);
-      transition: all 200ms ease-out;
-      
-      .nav-label {
-        flex: 1;
-        text-align: left;
-        font-size: var(--text-base);
-        font-weight: var(--font-medium);
-      }
-      
-      &:hover {
-        background: var(--background-hover);
-        border-color: var(--primary-500);
-      }
-      
-      &.has-unread {
-        border-color: var(--danger-500);
-      }
-    }
+  .menu-icon {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
   }
   
-  .mobile-theme-toggle {
+  .nav-label {
+    flex: 1;
+    text-align: left;
+  }
+  
+  .badge {
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 18px;
+    text-align: center;
+    color: white;
+    background: var(--danger-color);
+    border-radius: 9px;
+  }
+  
+  &:hover {
+    background: var(--background-hover);
+    border-color: var(--primary-500);
+  }
+  
+  &.has-unread {
+    border-color: var(--danger-500);
+  }
+}
+
+// Mobile theme toggle wrapper
+.mobile-theme-toggle {
+  width: 100%;
+  
+  :deep(.icon-btn) {
     width: 100%;
-    padding: var(--spacing-3) var(--spacing-4);
-    border: 1px solid var(--border-color);
     border-radius: var(--radius-lg);
-    background: transparent;
+    border: 1px solid var(--border-color);
+    padding: var(--spacing-3) var(--spacing-4);
+    justify-content: flex-start;
+    gap: var(--spacing-3);
     
-    :deep(.theme-toggle) {
-      width: 100%;
+    &:hover {
+      border-color: var(--primary-500);
     }
   }
 }
@@ -1209,10 +1264,6 @@ watch(messages, (newMessages) => {
   }
 }
 
-.notification-bell-container {
-  position: relative;
-}
-
 .logout-btn {
   display: flex;
   align-items: center;
@@ -1253,56 +1304,12 @@ watch(messages, (newMessages) => {
   }
 }
 
-.notification-bell {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-
-  /* Touch-friendly sizing */
-  min-width: 44px;
-  min-height: 44px;
-  width: 44px;
-  height: 44px;
-  padding: var(--spacing-2, 8px);
-
-  /* Style */
-  background: transparent;
-  border: none;
-  border-radius: 50%;
-  color: var(--text-primary);
-
-  /* Interaction */
-  cursor: pointer;
-  transition: all var(--duration-200, 200ms) var(--vue-ease-out);
-
-  .bell-icon {
-    width: 24px;
-    height: 24px;
-    stroke: currentColor;
-    fill: none;
-    transition: transform var(--duration-200, 200ms) var(--vue-ease-out);
-  }
-
-  &:hover {
-    background-color: rgba(var(--primary-500-rgb), 0.1);
-    color: var(--primary-color);
-
-    .bell-icon {
-      transform: scale(1.1);
-    }
-  }
-
-  &:focus-visible {
-    outline: 2px solid var(--primary-color);
-    outline-offset: 2px;
-  }
-}
-
-.notification-bell.has-unread .bell-icon {
-  color: var(--primary-500);
+// Notification bell uses global .icon-btn class
+// Bell shake animation for unread notifications
+.icon-btn.has-badge svg {
   animation: bell-shake 1s cubic-bezier(.36,.07,.19,.97) both;
   transform-origin: top center;
+  color: var(--primary-500);
 }
 
 @keyframes bell-shake {
@@ -1317,44 +1324,98 @@ watch(messages, (newMessages) => {
   100% { transform: rotate(0); }
 }
 
-.notification-count {
-  position: absolute;
-  top: 4px;
-  right: 4px;
-  background-color: var(--danger-500);
-  color: white;
-  border-radius: 50%;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 4px;
-  font-size: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: bold;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+/* Notification backdrop for mobile */
+.notification-backdrop {
+  display: none;
+  
+  @include m.respond-below('md') {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+    z-index: 9998;
+  }
+}
+
+/* Notification panel header for mobile */
+.notification-panel-header {
+  display: none;
+  
+  @include m.respond-below('md') {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--spacing-4) var(--spacing-4) 0;
+    margin-bottom: var(--spacing-2);
+    
+    h3 {
+      margin: 0;
+      font-size: var(--text-lg);
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+    
+    .close-panel-btn {
+      background: rgba(255, 255, 255, 0.1);
+      border: none;
+      border-radius: var(--radius-full);
+      width: 36px;
+      height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      
+      .icon {
+        width: 20px;
+        height: 20px;
+        stroke: var(--text-primary);
+        fill: none;
+      }
+      
+      &:hover {
+        background: rgba(255, 255, 255, 0.2);
+      }
+    }
+  }
 }
 
 /* Notification overlay positioning */
 .notification-overlay {
   position: fixed;
-  top: 70px; /* Below the header */
+  top: 70px;
   right: 20px;
   z-index: 1000;
   max-width: 400px;
   width: 90vw;
+  
+  /* Mobile: slide up from bottom like background jobs */
+  @include m.respond-below('md') {
+    position: fixed;
+    top: auto !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: 70vh;
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    overflow-y: auto;
+    background: var(--background-card);
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.3);
+    z-index: 9999;
+    
+    // Hide the internal feed header on mobile since we have our own
+    :deep(.feed-header) {
+      display: none;
+    }
+  }
 }
 
-/* Mobile specific notification overlay */
-@include m.respond-below('md') {  // < 767px
-  .notification-overlay {
-    top: 20px;
-    right: 10px;
-    left: 10px;
-    width: auto;
-    max-width: none;
-  }
-  
+/* Mobile header styles */
+@include m.respond-below('md') {
   .header-content {
     padding: 0 1rem;
   }

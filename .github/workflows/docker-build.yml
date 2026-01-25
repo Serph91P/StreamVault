@@ -1,7 +1,9 @@
-name: Docker Build and Push with Auto-Versioning (Optimized)
+name: Docker Build Test (Pull Request)
 
+# This workflow runs on pull requests only to validate Docker builds
+# For actual releases to registries, see release.yml
 on:
-  push:
+  pull_request:
     branches:
       - develop
       - main
@@ -10,367 +12,132 @@ on:
       - 'migrations/**'
       - 'docker/Dockerfile'
       - 'requirements.txt'
-      - '.github/workflows/docker-build.yml'
+      - '.github/workflows/*.yml'
 
-env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+# Prevent concurrent builds on the same PR
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  version:
+  # Run tests as a gate
+  test:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
-      contents: write
-    outputs:
-      new_version: ${{ steps.version.outputs.new_version }}
-      release_type: ${{ steps.semver.outputs.release_type }}
-      branch: ${{ steps.branch_name.outputs.branch }}
+      contents: read
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Get branch name
-        id: branch_name
-        run: echo "branch=${GITHUB_REF#refs/heads/}" >> $GITHUB_OUTPUT
       
-      - name: Get latest version tag
-        id: get_version
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          
+      - name: Install dependencies
         run: |
-          # Get latest version tag (filter out invalid tags like 'v' without version)
-          LATEST_TAG=$(git tag -l "v[0-9]*.[0-9]*.[0-9]*" --sort=-v:refname | head -n1 | sed 's/^v//')
-          if [ -z "$LATEST_TAG" ]; then
-            LATEST_TAG="1.0.0"
-            echo "⚠️ No valid version tags found (format: v1.0.0), starting with $LATEST_TAG"
-          else
-            echo "✅ Latest version tag: v$LATEST_TAG"
-          fi
-          echo "current_version=$LATEST_TAG" >> $GITHUB_OUTPUT
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio httpx
 
-      - name: Set final version
-        id: version
-        run: |
-          echo "=== Version Detection ==="
-          LATEST_TAG="${{ steps.get_version.outputs.current_version }}"
-          BRANCH_NAME="${{ steps.branch_name.outputs.branch }}"
-          echo "📦 Current version: $LATEST_TAG"
-          echo "🌿 Branch: $BRANCH_NAME"
+      - name: Run pytest
+        run: pytest tests/ -v --tb=short
           
-          # Parse version components
-          IFS='.' read -ra VERSION_PARTS <<< "$LATEST_TAG"
-          MAJOR=${VERSION_PARTS[0]}
-          MINOR=${VERSION_PARTS[1]}
-          PATCH=${VERSION_PARTS[2]:-0}
-          
-          # Get commit message
-          COMMIT_MSG=$(git log -1 --pretty=%B)
-          echo "📝 Commit message: $COMMIT_MSG"
-          
-          # Determine bump type based on commit message
-          if echo "$COMMIT_MSG" | grep -qiE '(BREAKING CHANGE|breaking:|MAJOR)'; then
-            # Major bump: 1.0.0 -> 2.0.0
-            NEW_VERSION="$((MAJOR + 1)).0.0"
-            echo "🚨 BREAKING CHANGE detected - Major bump to $NEW_VERSION"
-          elif echo "$COMMIT_MSG" | grep -qiE '(feat:|feature:|add:|refactor:|perf:|MINOR)'; then
-            # Minor bump: 1.0.0 -> 1.1.0
-            NEW_VERSION="$MAJOR.$((MINOR + 1)).0"
-            echo "✨ Feature detected - Minor bump to $NEW_VERSION"
-          else
-            # Patch bump: 1.0.0 -> 1.0.1
-            NEW_VERSION="$MAJOR.$MINOR.$((PATCH + 1))"
-            echo "🐛 Patch/fix - Patch bump to $NEW_VERSION"
-          fi
-          
-          # Add suffix for develop branch
-          if [ "$BRANCH_NAME" = "develop" ]; then
-            BUILD_NUMBER="${GITHUB_RUN_NUMBER}"
-            NEW_VERSION="${NEW_VERSION}-dev.${BUILD_NUMBER}"
-            echo "🔧 Develop branch - Adding suffix: $NEW_VERSION"
-          fi
-          
-          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
-          echo "=== ✅ Final version: v$NEW_VERSION ==="
+      - name: Check migrations
+        run: python -m app.migrations_init
 
-      - name: Create version tag
-        if: github.ref == 'refs/heads/main'
-        run: |
-          VERSION=${{ steps.version.outputs.new_version }}
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
-          git tag -a v$VERSION -m "Release v$VERSION"
-          git push origin v$VERSION
-
+  # Check for frontend changes
   check_changes:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
     outputs:
-      backend_changed: ${{ steps.changes.outputs.backend }}
       frontend_changed: ${{ steps.changes.outputs.frontend }}
     steps:
       - uses: actions/checkout@v4
       
       - name: Check for changes
-        uses: dorny/paths-filter@v3  # Updated to latest
+        uses: dorny/paths-filter@v3
         id: changes
         with:
           filters: |
-            backend:
-              - 'app/!(frontend)/**'
-              - 'migrations/**'
-              - 'docker/Dockerfile'
-              - 'requirements.txt'
             frontend:
               - 'app/frontend/**'
 
+  # Build Docker image (no push) to validate it builds correctly
   build:
-    needs: [version, check_changes]
+    needs: [test, check_changes]
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     permissions:
       contents: read
-      packages: write
-      security-events: write
-    steps:
-    - uses: actions/checkout@v4
-    
-    # Setup Node.js with caching
-    - name: Setup Node.js with caching
-      uses: actions/setup-node@v4
-      with:
-        node-version: 'lts/*'
-        cache: 'npm'
-        cache-dependency-path: 'app/frontend/package-lock.json'
-        
-    - name: Cache frontend build
-      uses: actions/cache@v4
-      with:
-        path: |
-          app/frontend/dist
-          app/frontend/node_modules
-        key: frontend-build-${{ hashFiles('app/frontend/**', '!app/frontend/node_modules/**', '!app/frontend/dist/**') }}
-        restore-keys: |
-          frontend-build-
-        
-    - name: Build Frontend (if changed)
-      if: needs.check_changes.outputs.frontend_changed == 'true'
-      working-directory: app/frontend
-      run: |
-        npm ci --prefer-offline
-        # Clean any existing dist directory to prevent ENOTEMPTY errors
-        rm -rf dist || true
-        # Update browserslist database to fix warning
-        npx update-browserslist-db@latest
-        # Build with error handling
-        npm run build || {
-          echo "Build failed, retrying after cleaning node_modules cache..."
-          rm -rf node_modules/.cache || true
-          npm run build
-        }
-        
-    - name: Restore cached frontend build (if unchanged)
-      if: needs.check_changes.outputs.frontend_changed != 'true'
-      run: |
-        if [ ! -d "app/frontend/dist" ]; then
-          echo "❌ No cached frontend build found, building anyway..."
-          cd app/frontend
-          npm ci --prefer-offline
-          npx update-browserslist-db@latest
-          npm run build
-        else
-          echo "✅ Using cached frontend build"
-        fi
-    
-    # Docker optimization
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3  # Updated to latest
-      with:
-        driver-opts: image=moby/buildkit:buildx-stable-1  # Latest buildkit
-        
-    - name: Login to GitHub Container Registry
-      uses: docker/login-action@v3  # Updated to latest
-      with:
-        registry: ${{ env.REGISTRY }}
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
-        
-    - name: Login to DockerHub
-      uses: docker/login-action@v3
-      with:
-        username: ${{ secrets.DOCKERHUB_USERNAME }}
-        password: ${{ secrets.DOCKERHUB_TOKEN }}
-        
-    - name: Extract metadata
-      id: meta
-      uses: docker/metadata-action@v5  # Updated to latest
-      with:
-        images: |
-          frequency2098/streamvault
-          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-        tags: |
-          type=raw,value=latest,enable={{is_default_branch}}
-          type=raw,value=develop,enable=${{ github.ref == 'refs/heads/develop' }}
-          type=raw,value=v${{ needs.version.outputs.new_version }},enable={{is_default_branch}}
-          type=raw,value=feat-latest,enable=${{ startsWith(github.ref, 'refs/heads/feat/') }}
-          type=raw,value=feature-latest,enable=${{ startsWith(github.ref, 'refs/heads/feature/') }}
-          type=sha,prefix={{branch}}-
-        labels: |
-          org.opencontainers.image.title=StreamVault
-          org.opencontainers.image.description=Automated Twitch stream recording and management system
-          org.opencontainers.image.vendor=StreamVault
-          org.opencontainers.image.version=v${{ needs.version.outputs.new_version }}
-          
-    - name: Build and push Docker image (optimized caching)
-      uses: docker/build-push-action@v5
-      with:
-        context: .
-        file: docker/Dockerfile
-        platforms: linux/amd64
-        push: true
-        tags: ${{ steps.meta.outputs.tags }}
-        labels: ${{ steps.meta.outputs.labels }}
-        build-args: |
-          VERSION=v${{ needs.version.outputs.new_version }}
-          BRANCH=${{ needs.version.outputs.branch }}
-          BUILD_DATE=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.created'] }}
-          FRONTEND_CHANGED=${{ needs.check_changes.outputs.frontend_changed }}
-          BACKEND_CHANGED=${{ needs.check_changes.outputs.backend_changed }}
-        cache-from: |
-          type=gha,scope=build-${{ github.ref_name }}
-          type=gha,scope=build-main
-        cache-to: type=gha,mode=max,scope=build-${{ github.ref_name }}
-        
-    # Enhanced security scanning
-    - name: Run Trivy vulnerability scanner on secure image
-      uses: aquasecurity/trivy-action@master
-      with:
-        image-ref: frequency2098/streamvault:latest
-        format: 'sarif'
-        output: 'trivy-results.sarif'
-        severity: 'CRITICAL,HIGH'  # Only scan for critical/high
-        
-    - name: Upload Trivy scan results to GitHub Security tab
-      uses: github/codeql-action/upload-sarif@v4
-      if: always()
-      with:
-        sarif_file: 'trivy-results.sarif'
-        category: 'trivy-secure'
-        
-    - name: Python dependency security check
-      run: |
-        python -m pip install --upgrade pip
-        pip install safety bandit
-        safety check --json --output safety-results.json || true
-        bandit -r app/ -f json -o bandit-results.json || true
-        
-    - name: Upload security scan artifacts
-      uses: actions/upload-artifact@v4
-      if: always()
-      with:
-        name: security-scan-results
-        path: |
-          safety-results.json
-          bandit-results.json
-          trivy-results.sarif
-
-  # Separate job for changelog (runs in parallel with security scan)
-  create-changelog:
-    needs: [version]
-    if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      
     steps:
       - uses: actions/checkout@v4
+    
+      # Setup Node.js with caching
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          fetch-depth: 0
-      
-      - name: Generate changelog and create release
-        uses: actions/github-script@v7
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: 'app/frontend/package-lock.json'
+          
+      - name: Cache frontend build
+        uses: actions/cache@v4
         with:
-          script: |
-            // Get commits since last release
-            let baseRef = 'HEAD~10';
-            try {
-              const latest = await github.rest.repos.getLatestRelease({
-                owner: context.repo.owner,
-                repo: context.repo.repo
-              });
-              baseRef = latest.data.tag_name;
-            } catch (error) {
-              console.log('No previous release found, using HEAD~10');
-            }
-            
-            const { data: comparison } = await github.rest.repos.compareCommits({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              base: baseRef,
-              head: 'HEAD'
-            });
-            
-            // Categorize commits
-            const features = [];
-            const fixes = [];
-            const other = [];
-            
-            comparison.commits.forEach(commit => {
-              const message = commit.commit.message.split('\n')[0];
-              const author = commit.author?.login || commit.commit.author.name;
-              const sha = commit.sha.substring(0, 7);
-              const line = '* ' + message + ' by @' + author + ' in ' + sha;
-              
-              if (message.toLowerCase().match(/(feat|feature|add|new|implement)/)) {
-                features.push(line);
-              } else if (message.toLowerCase().match(/(fix|bug|hotfix|patch)/)) {
-                fixes.push(line);
-              } else if (message.toLowerCase().match(/(breaking|major)/)) {
-                features.push('🚨 **BREAKING CHANGE**: ' + line);
-              } else {
-                other.push(line);
-              }
-            });
-            
-            // Build release notes
-            let releaseNotes = '## 🐳 StreamVault v${{ needs.version.outputs.new_version }}\n\n';
-            releaseNotes += '**Docker Images:**\n';
-            releaseNotes += '- `frequency2098/streamvault:latest`\n';
-            releaseNotes += '- `frequency2098/streamvault:v${{ needs.version.outputs.new_version }}`\n';
-            releaseNotes += '- `ghcr.io/${{ github.repository }}:latest`\n\n';
-            releaseNotes += '### Quick Update\n';
-            releaseNotes += '```bash\n';
-            releaseNotes += 'docker pull frequency2098/streamvault:latest\n';
-            releaseNotes += 'docker-compose pull && docker-compose up -d\n';
-            releaseNotes += '```\n\n';
-            
-            if (features.length > 0) {
-              releaseNotes += '## ✨ New Features\n' + features.join('\n') + '\n\n';
-            }
-            if (fixes.length > 0) {
-              releaseNotes += '## 🐛 Bug Fixes\n' + fixes.join('\n') + '\n\n';
-            }
-            if (other.length > 0) {
-              releaseNotes += '## 🔧 Other Changes\n' + other.join('\n') + '\n\n';
-            }
-            
-            releaseNotes += '**Full Changelog**: https://github.com/${{ github.repository }}/compare/' + baseRef + '...v${{ needs.version.outputs.new_version }}';
-            
-            // Create release
-            await github.rest.repos.createRelease({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              tag_name: 'v${{ needs.version.outputs.new_version }}',
-              name: 'StreamVault v${{ needs.version.outputs.new_version }}',
-              body: releaseNotes,
-              draft: false,
-              prerelease: false
-            });
-
-  # Optional: Deploy to staging/production
-  deploy:
-    needs: [build, version]
-    if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    # environment: production  # Uncomment when you create the production environment
-    steps:
-      - name: Deploy notification
+          path: |
+            app/frontend/dist
+            app/frontend/node_modules
+          key: frontend-build-${{ hashFiles('app/frontend/package-lock.json', 'app/frontend/src/**') }}
+          restore-keys: |
+            frontend-build-
+          
+      - name: Build Frontend
+        working-directory: app/frontend
         run: |
-          echo "🚀 StreamVault v${{ needs.version.outputs.new_version }} is ready for deployment!"
-          echo "Image: frequency2098/streamvault:v${{ needs.version.outputs.new_version }}"
+          npm ci --prefer-offline
+          rm -rf dist || true
+          npx update-browserslist-db@latest
+          npm run build
+    
+      # Docker build (no push)
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+          
+      - name: Build Docker image (validation only)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile
+          platforms: linux/amd64
+          push: false
+          tags: streamvault:pr-${{ github.event.pull_request.number }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          
+  # Security scanning on requirements
+  security:
+    needs: [test]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Python dependency security check
+        run: |
+          python -m pip install --upgrade pip
+          pip install safety bandit
+          echo "🔍 Running safety check..."
+          safety check || true
+          echo "🔍 Running bandit analysis..."
+          bandit -r app/ -ll || true

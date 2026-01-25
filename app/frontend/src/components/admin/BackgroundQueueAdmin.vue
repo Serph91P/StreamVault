@@ -184,7 +184,9 @@ export default {
     const refreshStatus = async () => {
       loading.value = true
       try {
-        const response = await fetch('/api/admin/background-queue/status')
+        const response = await fetch('/api/admin/background-queue/status', {
+          credentials: 'include' // CRITICAL: Required to send session cookie
+        })
         if (response.ok) {
           status.value = await response.json()
           console.log('Background queue status refreshed:', status.value)
@@ -208,7 +210,8 @@ export default {
       
       try {
         const response = await fetch(`/api/admin/background-queue/cleanup/${endpoint}`, {
-          method: 'POST'
+          method: 'POST',
+          credentials: 'include' // CRITICAL: Required to send session cookie
         })
         
         if (response.ok) {

@@ -55,7 +55,7 @@
       <!-- System Notification Settings (NEW) -->
       <div class="form-group">
         <h4>System Notification Settings</h4>
-        <p class="section-description">
+        <p class="section-description" style="margin-bottom: var(--spacing-4);">
           Configure which recording events trigger external notifications (Discord, Telegram, etc.)
         </p>
         <div class="checkbox-group">
@@ -194,7 +194,6 @@ import { ref, computed, onUnmounted } from 'vue'
 import { useToast } from '@/composables/useToast'
 import { UI } from '@/config/constants'
 import type { NotificationSettings, StreamerNotificationSettings } from '@/types/settings'
-import GlassCard from '@/components/cards/GlassCard.vue'
 
 // Props
 const props = defineProps({
@@ -497,15 +496,108 @@ const testWebSocketNotification = async () => {
 }
 
 // ============================================================================
+// CHECKBOX GROUP - Better spacing
+// ============================================================================
+
+.checkbox-group {
+  display: flex;
+  flex-direction: column;
+  gap: v.$spacing-4;  // More spacing between checkboxes
+  
+  label {
+    display: flex;
+    align-items: flex-start;
+    gap: v.$spacing-3;
+    padding: v.$spacing-3;
+    background: var(--background-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    transition: v.$transition-all;
+    cursor: pointer;
+    
+    &:hover {
+      border-color: var(--primary-color);
+      background: var(--background-hover);
+    }
+    
+    input[type="checkbox"] {
+      margin-top: 2px;  // Align with text
+      flex-shrink: 0;
+    }
+  }
+  
+  @include m.respond-below('md') {
+    gap: v.$spacing-3;
+    
+    label {
+      padding: v.$spacing-3;
+      min-height: 44px;  // Touch-friendly
+      flex-wrap: wrap;  // Allow content to wrap on mobile
+      
+      // Stack label text and hint vertically
+      .label-hint {
+        flex-basis: 100%;
+        margin-top: v.$spacing-1;
+        margin-left: calc(18px + v.$spacing-3);  // Align with text after checkbox
+      }
+    }
+  }
+}
+
+// ============================================================================
+// FORM ACTIONS - Better button alignment
+// ============================================================================
+
+.form-actions {
+  display: flex;
+  gap: v.$spacing-3;
+  flex-wrap: wrap;
+  
+  .btn {
+    flex: 1;
+    min-width: 150px;
+    
+    &:last-child {
+      margin-left: 0 !important;  // Remove inline margin
+    }
+  }
+}
+
+// ============================================================================
+// STREAMER NOTIFICATIONS TABLE - Better spacing
+// ============================================================================
+
+.streamer-notifications {
+  margin-top: v.$spacing-6;
+  
+  h3 {
+    margin-bottom: v.$spacing-4;
+  }
+  
+  .table-wrapper {
+    margin-top: v.$spacing-4;  // Space from table controls
+  }
+}
+
+// ============================================================================
 // RESPONSIVE
 // ============================================================================
 
 @include m.respond-below('md') {
   .form-actions {
     flex-direction: column;
+    gap: v.$spacing-3;
     
     .btn {
       width: 100%;
+      min-width: 100%;
+      flex: none;
+    }
+  }
+  
+  .streamer-notifications {
+    h3 {
+      font-size: v.$text-xl;
     }
   }
 }

@@ -12,7 +12,7 @@
  * ```
  */
 
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 
 export type Theme = 'dark' | 'light'
 

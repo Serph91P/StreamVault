@@ -1,5 +1,5 @@
 <template>
-  <div class="home-view">
+  <div class="page-view home-view">
     <!-- Live Now Section -->
     <section class="live-section">
       <div class="section-header">
@@ -15,12 +15,12 @@
       </div>
 
       <!-- Loading State -->
-      <div v-if="isLoadingStreamers" class="horizontal-scroll">
+      <div v-if="isLoadingStreamers" class="grid-scroll-hybrid">
         <LoadingSkeleton
           v-for="i in 4"
           :key="`skeleton-${i}`"
           type="streamer"
-          class="live-card-skeleton"
+          class="live-card"
         />
       </div>
 
@@ -47,12 +47,13 @@
       />
 
       <!-- Live Streamers -->
-      <div v-else class="horizontal-scroll">
+      <div v-else class="grid-scroll-hybrid">
         <StreamerCard
           v-for="streamer in liveStreamers"
           :key="streamer.id"
           :streamer="streamer"
           class="live-card"
+          @force-record="handleForceRecord"
         />
       </div>
     </section>
@@ -75,7 +76,7 @@
       </div>
 
       <!-- Loading State -->
-      <div v-if="isLoadingVideos" class="recordings-grid">
+      <div v-if="isLoadingVideos" class="grid-recordings">
         <LoadingSkeleton
           v-for="i in 6"
           :key="`skeleton-video-${i}`"
@@ -95,7 +96,7 @@
       />
 
       <!-- Recent Videos -->
-      <div v-else class="recordings-grid">
+      <div v-else class="grid-recordings">
         <VideoCard
           v-for="video in recentRecordings"
           :key="video.id"
@@ -154,6 +155,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { streamersApi, videoApi, recordingApi } from '@/services/api'
 import { useWebSocket } from '@/composables/useWebSocket'
+import { useForceRecording } from '@/composables/useForceRecording'
 import LoadingSkeleton from '@/components/LoadingSkeleton.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import StreamerCard from '@/components/cards/StreamerCard.vue'
@@ -164,6 +166,9 @@ const router = useRouter()
 
 // WebSocket for real-time updates
 const { messages } = useWebSocket()
+
+// Force recording composable
+const { forceStartRecording } = useForceRecording()
 
 // Loading states
 const isLoadingStreamers = ref(true)
@@ -181,8 +186,8 @@ const liveStreamers = computed(() => {
 })
 
 const recentRecordings = computed(() => {
-  // Sort by date (newest first) and limit to 6
-  return videos.value
+  // Sort by date (newest first) and limit to 6 - spread to avoid mutating original
+  return [...videos.value]
     .sort((a, b) => {
       const dateA = new Date(a.stream_date || a.created_at).getTime()
       const dateB = new Date(b.stream_date || b.created_at).getTime()
@@ -241,6 +246,14 @@ function navigateToAddStreamer() {
 
 function playVideo(video: any) {
   router.push(`/videos/${video.id}`)
+}
+
+// Handle force record action from StreamerCard dropdown
+async function handleForceRecord(streamer: any) {
+  await forceStartRecording(streamer.id, async () => {
+    // Refresh streamers after successful force record
+    await fetchStreamers()
+  })
 }
 
 // WebSocket: Real-time updates for streamer status
@@ -314,11 +327,9 @@ onMounted(async () => {
 @use '@/styles/variables' as v;
 @use '@/styles/mixins' as m;
 
+// .page-view provides padding/sizing via global styles
 .home-view {
-  padding: var(--spacing-6) var(--spacing-4);
-  max-width: 1400px;
-  margin: 0 auto;
-  min-height: 100vh;
+  // Page-specific overrides only
 }
 
 // Section Styling
@@ -423,99 +434,13 @@ section {
   }
 }
 
-// Horizontal Scroll (Live Streamers)
-.horizontal-scroll {
-  // DESKTOP: Grid layout with wrapping (no scroll)
-  @include m.respond-to('md') {  // >= 768px
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-    gap: var(--spacing-4);
-    overflow: visible;  // No scroll on desktop
-    padding: var(--spacing-2);
-    margin: 0;
-  }
-  
-  // MOBILE: Horizontal scroll
-  @include m.respond-below('md') {  // < 768px
-    display: flex;
-    gap: var(--spacing-4);
-    overflow-x: auto;
-    overflow-y: visible;  /* CRITICAL: Allow dropdown to overflow vertically */
-    padding: var(--spacing-2) var(--spacing-2) var(--spacing-6);  /* FIXED: Increased bottom padding for shadow */
-    margin: 0 calc(var(--spacing-4) * -1);
-    padding-left: var(--spacing-4);
-    padding-right: var(--spacing-4);
-    
-    // Smooth scroll behavior
-    scroll-behavior: smooth;
-    -webkit-overflow-scrolling: touch;
-    
-    // FIX: Prevent weird touch behavior - only horizontal scroll
-    touch-action: pan-x pan-y;  /* Allow both horizontal and vertical panning */
-    overscroll-behavior-x: contain;  /* Prevent scroll chaining */
-    
-    // Custom scrollbar styling (visible on mobile)
-    scrollbar-width: thin;
-    scrollbar-color: var(--primary-color) var(--background-darker);
-
-    &::-webkit-scrollbar {
-      height: 8px;
-    }
-
-    &::-webkit-scrollbar-track {
-      background: var(--background-darker);
-      border-radius: var(--radius-full);
-    }
-
-    &::-webkit-scrollbar-thumb {
-      background: var(--primary-color);
-      border-radius: var(--radius-full);
-      
-      &:hover {
-        background: var(--primary-600);
-      }
-    }
-  }
-}
-
-.live-card,
-.live-card-skeleton {
-  // Animation FIRST (before nested rules to avoid SASS deprecation warning)
+// Live card animation
+.live-card {
   animation: fade-in v.$duration-300 v.$ease-out;
-  
-  // DESKTOP: Full width in grid
-  @include m.respond-to('md') {  // >= 768px
-    width: 100%;  // Take full grid cell
-    max-width: none;
-  }
-  
-  // MOBILE: Fixed width for horizontal scroll
-  @include m.respond-below('md') {  // < 768px
-    flex: 0 0 320px;
-    max-width: 320px;
-  }
 
   @for $i from 1 through 10 {
     &:nth-child(#{$i}) {
       animation-delay: #{$i * 50}ms;
-    }
-  }
-}
-
-// Recordings Grid
-.recordings-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: var(--spacing-5);
-  padding: var(--spacing-2);
-
-  > * {
-    animation: fade-in v.$duration-300 v.$ease-out;
-
-    @for $i from 1 through 12 {
-      &:nth-child(#{$i}) {
-        animation-delay: #{$i * 50}ms;
-      }
     }
   }
 }
@@ -540,24 +465,12 @@ section {
 
 // Responsive Design - Use SCSS mixins for breakpoints
 @include m.respond-below('lg') {  // < 1024px
-  .home-view {
-    padding: var(--spacing-4) var(--spacing-3);
-  }
-
   .section-title {
     font-size: var(--text-xl);
-  }
-
-  .recordings-grid {
-    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-    gap: var(--spacing-4);
   }
 }
 
 @include m.respond-below('sm') {  // < 640px
-  .home-view {
-    padding: var(--spacing-3) var(--spacing-2);
-  }
 
   .section-header {
     flex-wrap: wrap;
@@ -568,26 +481,8 @@ section {
     font-size: var(--text-lg);
   }
 
-  // Center live cards on mobile and reduce size
-  .horizontal-scroll {
-    justify-content: flex-start;  // Start from left for natural scroll
-    padding-left: var(--spacing-4);  // Keep padding
-    padding-right: var(--spacing-4);
-  }
-
-  .live-card,
-  .live-card-skeleton {
-    flex: 0 0 280px;  // Slightly smaller on mobile
-    max-width: 280px;
-  }
-
-  .recordings-grid {
-    grid-template-columns: 1fr;
-    gap: var(--spacing-3);
-  }
-
   .stats-grid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: 1fr;  // Single column on mobile
     gap: var(--spacing-3);
   }
 }

@@ -38,14 +38,17 @@ import { ref } from 'vue'
 const subscriptions = ref([])
 
 async function loadSubscriptions() {
-  const response = await fetch('/api/streamers/subscriptions')
+  const response = await fetch('/api/streamers/subscriptions', {
+    credentials: 'include' // CRITICAL: Required to send session cookie
+  })
   const data = await response.json()
   subscriptions.value = data.subscriptions
 }
 
 async function deleteSubscription(id) {
   await fetch(`/api/streamers/subscriptions/${id}`, {
-    method: 'DELETE'
+    method: 'DELETE',
+    credentials: 'include' // CRITICAL: Required to send session cookie
   })
   await loadSubscriptions()
 }
@@ -54,7 +57,8 @@ async function deleteAllSubscriptions() {
   if (!confirm('Are you sure you want to delete all subscriptions?')) return
   
   await fetch('/api/streamers/subscriptions', {
-    method: 'DELETE'
+    method: 'DELETE',
+    credentials: 'include' // CRITICAL: Required to send session cookie
   })
   subscriptions.value = []
 }
@@ -64,7 +68,8 @@ async function resubscribeAll() {
   
   try {
     const response = await fetch('/api/streamers/resubscribe-all', {
-      method: 'POST'
+      method: 'POST',
+      credentials: 'include' // CRITICAL: Required to send session cookie
     })
     
     if (response.ok) {

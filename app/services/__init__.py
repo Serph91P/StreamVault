@@ -9,15 +9,15 @@ from app.services.recording.recording_service import RecordingService
 from app.services.recording.config_manager import ConfigManager
 from app.services.recording.process_manager import ProcessManager
 from app.services.recording.recording_logger import RecordingLogger
-from app.services.recording.file_operations import (
-    intelligent_ts_cleanup,
-    check_ffmpeg_processes_for_file
-)
+from app.services.recording.file_operations import intelligent_ts_cleanup, check_ffmpeg_processes_for_file
 from app.services.recording.notification_manager import NotificationManager
 from app.services.recording.stream_info_manager import StreamInfoManager
 from app.services.recording.exceptions import (
-    RecordingError, ProcessError, ConfigurationError, 
-    StreamUnavailableError, FileOperationError
+    RecordingError,
+    ProcessError,
+    ConfigurationError,
+    StreamUnavailableError,
+    FileOperationError,
 )
 
 # Re-export other services to maintain consistent imports
@@ -29,15 +29,19 @@ from app.services.media.metadata_service import MetadataService
 from app.services.communication.webpush_service import ModernWebPushService
 from app.services.system.cleanup_service import CleanupService
 from app.services.core.settings_service import SettingsService
+
 # Removed: CategoryImageService - now handled by unified_image_service
 from app.services.system.migration_service import MigrationService
 from app.services.media.thumbnail_service import ThumbnailService
 from app.services.media.artwork_service import ArtworkService
 from app.services.system.system_config_service import SystemConfigService
 from app.services.api.twitch_oauth_service import TwitchOAuthService
-from app.services.communication.webpush_service import ModernWebPushService  # Changed to correct class name
 from app.services.communication.websocket_manager import ConnectionManager
-from app.services.unified_image_service import UnifiedImageService
+
+# UnifiedImageService imported lazily to avoid directory creation at import time
+# Use: from app.services.unified_image_service import unified_image_service
+UnifiedImageService = None  # Lazy import marker
+
 # ProcessMonitor integration temporarily disabled for stability
 ProcessMonitor = None
 process_monitor = None
@@ -49,7 +53,6 @@ __all__ = [
     "NotificationService",
     "MetadataService",
     "AuthService",
-
     "MigrationService",
     "CleanupService",
     "ModernWebPushService",
@@ -77,7 +80,7 @@ __all__ = [
     "ProcessError",
     "ConfigurationError",
     "StreamUnavailableError",
-    "FileOperationError"
+    "FileOperationError",
 ]
 
 # Note: test_service is not imported here to avoid circular imports

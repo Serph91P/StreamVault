@@ -1,5 +1,5 @@
 <template>
-  <div class="admin-view">
+  <div class="page-view admin-view">
     <AdminPanel />
   </div>
 </template>
@@ -10,9 +10,9 @@ import AdminPanel from '../components/admin/AdminPanel.vue'
 
 <style scoped>
 .admin-view {
+  /* .page-view provides padding/sizing via global styles */
   min-height: 100vh;
   background: var(--color-background);
   color: var(--color-text);
-  padding-top: 20px;
 }
 </style>

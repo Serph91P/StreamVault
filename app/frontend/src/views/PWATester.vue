@@ -112,7 +112,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { useWebSocket } from '@/composables/useWebSocket'
 import { usePWA } from '@/composables/usePWA'
 

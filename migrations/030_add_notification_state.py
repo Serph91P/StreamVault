@@ -11,11 +11,14 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 def upgrade():
     """Create notification_state table"""
     with engine.begin() as connection:
         # Create notification_state table
-        connection.execute(text("""
+        connection.execute(
+            text(
+                """
             CREATE TABLE IF NOT EXISTS notification_state (
                 id SERIAL PRIMARY KEY,
                 user_id INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
@@ -24,14 +27,20 @@ def upgrade():
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
             )
-        """))
-        
+        """
+            )
+        )
+
         # Create index on user_id for fast lookups
-        connection.execute(text("""
-            CREATE INDEX IF NOT EXISTS idx_notification_state_user_id 
+        connection.execute(
+            text(
+                """
+            CREATE INDEX IF NOT EXISTS idx_notification_state_user_id
             ON notification_state(user_id)
-        """))
-        
+        """
+            )
+        )
+
         logger.info("✅ Created notification_state table with user_id index")
 
 

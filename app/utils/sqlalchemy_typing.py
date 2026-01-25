@@ -5,14 +5,13 @@ This module provides helper types and functions for properly typing SQLAlchemy m
 It should be used to ensure proper type checking in the codebase.
 """
 
-from typing import TypeVar, Generic, Type, Any, Dict, List, Optional, Union, cast
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey
+from typing import TypeVar, Any, Optional
 from sqlalchemy.orm import Session
 
 # We only need relationship in some specific places
 # Import it only where needed to avoid mypy errors
 try:
-    from sqlalchemy.orm import relationship
+    pass
 except ImportError:
     pass
 
@@ -27,72 +26,80 @@ except ImportError:
         # For mypy, define a placeholder type when neither import works
         class DeclarativeMeta(type):
             """Placeholder for SQLAlchemy's DeclarativeMeta for type checking"""
-            pass
+
 
 # Import other SQLAlchemy components
-from sqlalchemy.sql.expression import ClauseElement
 from datetime import datetime
 
 # Type variable for the model class
-T = TypeVar('T')
+T = TypeVar("T")
 
 # Type variable for model instance
-ModelT = TypeVar('ModelT')
+ModelT = TypeVar("ModelT")
 
 # Define a base class for type-safe model instance usage
+
+
 class TypedModel:
     """Base class for all models providing type-safe attribute access"""
+
     id: int
-    
+
     @classmethod
-    def get_by_id(cls, session: Session, id: int) -> Optional['TypedModel']:
+    def get_by_id(cls, session: Session, id: int) -> Optional["TypedModel"]:
         """Get a model instance by ID with proper typing"""
         return session.query(cls).filter(cls.id == id).first()
 
+
 # Helper function to properly type column access from a model instance
+
+
 def get_column_value(model: Any, column_name: str) -> Any:
     """
     Get a column value from a model instance with proper typing.
     Use this instead of direct attribute access in places where mypy complains.
-    
+
     Example:
         # Instead of this (which mypy flags as an error):
         user.username
-        
+
         # Use this:
         get_column_value(user, 'username')
     """
     return getattr(model, column_name)
 
+
 # Helper function to set column value with proper typing
+
+
 def set_column_value(model: Any, column_name: str, value: Any) -> None:
     """
     Set a column value on a model instance with proper typing.
     Use this instead of direct attribute assignment in places where mypy complains.
-    
+
     Example:
         # Instead of this (which mypy flags as an error):
         user.username = 'new_username'
-        
+
         # Use this:
         set_column_value(user, 'username', 'new_username')
     """
     setattr(model, column_name, value)
 
+
 # Example of how to properly type a model class
+
+
 class ExampleTypedUser(TypedModel):
     """Example of a typed SQLAlchemy model class"""
+
     username: str
     password: str
     is_admin: bool
     created_at: datetime
-    
+
     @classmethod
-    def create(cls, 
-              session: Session,
-              username: str,
-              password: str,
-              is_admin: bool = False) -> 'ExampleTypedUser':
+    def create(cls, session: Session, username: str, password: str, is_admin: bool = False) -> "ExampleTypedUser":
         """Create a new user with proper typing"""
         user = cls.__new__(cls)
         user.username = username
@@ -101,10 +108,8 @@ class ExampleTypedUser(TypedModel):
         session.add(user)
         session.commit()
         return user
-    
+
     @classmethod
-    def get_by_username(cls, 
-                       session: Session,
-                       username: str) -> Optional['ExampleTypedUser']:
+    def get_by_username(cls, session: Session, username: str) -> Optional["ExampleTypedUser"]:
         """Get a user by username with proper typing"""
         return session.query(cls).filter_by(username=username).first()

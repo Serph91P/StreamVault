@@ -341,6 +341,223 @@ nav {
 }
 
 // ============================================================================
+// ICON BUTTON - Circular icon-only buttons (header actions, close buttons)
+// ============================================================================
+
+.icon-btn {
+  // Reset
+  appearance: none;
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin: 0;
+  
+  // Layout - Perfect square, centered content
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  
+  // Style
+  border-radius: 50%;
+  color: var(--text-primary);
+  cursor: pointer;
+  
+  // Transition
+  transition: all var(--duration-200, 200ms) var(--vue-ease-out, ease-out);
+  
+  // Icon inside
+  svg,
+  .icon {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+    transition: transform var(--duration-200, 200ms) var(--vue-ease-out, ease-out);
+    
+    // Stroke-based icons (Lucide/Feather style)
+    &:not(.icon-fill) {
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    
+    // Fill-based icons
+    &.icon-fill {
+      fill: currentColor;
+      stroke: none;
+    }
+  }
+  
+  // Hover state
+  &:hover {
+    background-color: rgba(var(--primary-color-rgb), 0.1);
+    color: var(--primary-color);
+    
+    svg,
+    .icon {
+      transform: scale(1.1);
+    }
+  }
+  
+  // Active state
+  &:active {
+    transform: scale(0.95);
+    
+    svg,
+    .icon {
+      transform: scale(0.95);
+    }
+  }
+  
+  // Focus state
+  &:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
+  }
+  
+  // Disabled state
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    
+    &:hover {
+      background: transparent;
+      color: var(--text-primary);
+      
+      svg,
+      .icon {
+        transform: none;
+      }
+    }
+  }
+  
+  // Size variants
+  &-sm {
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    min-height: 32px;
+    
+    svg,
+    .icon {
+      width: 16px;
+      height: 16px;
+    }
+  }
+  
+  &-lg {
+    width: 56px;
+    height: 56px;
+    min-width: 56px;
+    min-height: 56px;
+    
+    svg,
+    .icon {
+      width: 24px;
+      height: 24px;
+    }
+  }
+  
+  // Color variants
+  &-primary {
+    color: var(--primary-color);
+    
+    &:hover {
+      background-color: rgba(var(--primary-color-rgb), 0.15);
+    }
+  }
+  
+  &-danger {
+    color: var(--danger-color);
+    
+    &:hover {
+      background-color: rgba(var(--danger-color-rgb), 0.15);
+      color: var(--danger-color);
+    }
+  }
+  
+  // With notification badge
+  &.has-badge {
+    position: relative;
+    
+    .badge {
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      min-width: 18px;
+      height: 18px;
+      padding: 0 5px;
+      font-size: 11px;
+      font-weight: 600;
+      line-height: 18px;
+      text-align: center;
+      color: white;
+      background: var(--danger-color);
+      border-radius: 9px;
+      border: 2px solid var(--background-dark);
+    }
+  }
+}
+
+// ============================================================================
+// CLOSE BUTTON - Text-based close button for modals/panels (uses × character)
+// ============================================================================
+
+.close-btn {
+  // Reset
+  appearance: none;
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin: 0;
+  
+  // Layout
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  min-height: 32px;
+  
+  // Style
+  border-radius: 50%;
+  color: var(--text-secondary);
+  cursor: pointer;
+  
+  // Typography (for × character)
+  font-size: 24px;
+  font-weight: 300;
+  line-height: 1;
+  
+  // Transition
+  transition: all var(--duration-200, 200ms) var(--vue-ease-out, ease-out);
+  
+  // Hover state
+  &:hover {
+    background-color: rgba(var(--danger-color-rgb), 0.15);
+    color: var(--danger-color);
+    transform: scale(1.1);
+  }
+  
+  // Active state
+  &:active {
+    transform: scale(0.95);
+  }
+  
+  // Focus state
+  &:focus-visible {
+    outline: 2px solid var(--danger-color);
+    outline-offset: 2px;
+  }
+}
+
+// ============================================================================
 // FORM SYSTEM - Modern Design
 // ============================================================================
 
@@ -445,6 +662,97 @@ label {
   &.required::after {
     content: " *";
     color: var(--danger-color);
+  }
+}
+
+// ============================================================================
+// INPUT WITH ICON - Reusable pattern for inputs with leading icons
+// ============================================================================
+
+.input-with-icon {
+  position: relative;
+  display: block;
+  width: 100%;
+  
+  // The input field
+  input,
+  .input-field {
+    width: 100%;
+    // Left padding: 16px (icon left) + 20px (icon width) + 20px (gap) = 56px
+    // Use !important to override global input styles in main.scss
+    padding: v.$spacing-3 v.$spacing-4 v.$spacing-3 56px !important;
+    background: var(--background-card);
+    border: 2px solid var(--border-color);
+    border-radius: v.$border-radius-md;
+    font-size: v.$text-base;
+    color: var(--text-primary);
+    transition: v.$transition-all;
+    box-sizing: border-box;
+    
+    // Mobile optimization
+    @include m.respond-below('sm') {
+      font-size: 16px;  // Prevents iOS zoom
+      min-height: 44px;  // Touch target
+    }
+    
+    &::placeholder {
+      color: var(--text-secondary);
+      opacity: 0.6;
+    }
+    
+    &:focus {
+      outline: none;
+      border-color: var(--primary-color);
+      box-shadow: v.$shadow-primary;
+      background: var(--background-darker);
+    }
+    
+    &:focus + .input-icon {
+      fill: var(--primary-color);
+      stroke: var(--primary-color);
+    }
+    
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      background: var(--background-dark);
+    }
+    
+    &.error {
+      border-color: var(--danger-color);
+      
+      &:focus {
+        box-shadow: v.$shadow-danger;
+      }
+    }
+  }
+  
+  // The icon inside the input
+  .input-icon {
+    position: absolute;
+    left: 16px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 20px;
+    height: 20px;
+    fill: var(--text-secondary);
+    stroke: var(--text-secondary);
+    stroke-width: 2;
+    pointer-events: none;
+    transition: fill 0.2s ease, stroke 0.2s ease;
+  }
+  
+  // Icon position variants
+  &.icon-right {
+    input,
+    .input-field {
+      padding: v.$spacing-3 56px v.$spacing-3 v.$spacing-4;
+    }
+    
+    .input-icon {
+      left: auto;
+      right: 16px;
+    }
   }
 }
 
@@ -690,13 +998,13 @@ input[type="radio"] {
 .settings-section--surface {
   border-radius: v.$border-radius-xl;
   padding: v.$spacing-6;
-  background: color.adjust(v.$slate-50, $alpha: -0.9);
+  // NO background - parent GlassCard handles this
   backdrop-filter: blur(16px);
+  border: 1px solid rgba(var(--primary-color-rgb), 0.15);
   box-shadow: v.$shadow-lg;
-  border: none;
 
   [data-theme="light"] & {
-    background: rgba(255, 255, 255, 0.9);
+    border: 1px solid rgba(0, 0, 0, 0.1);
     box-shadow: v.$shadow-md;
   }
 
@@ -782,6 +1090,11 @@ input[type="radio"] {
   @include m.respond-below('md') {
     width: 100%;
     justify-content: flex-start;
+  }
+  
+  // Prevent buttons from growing/stretching in flex container
+  .btn {
+    flex-shrink: 0;
   }
 }
 
@@ -910,7 +1223,7 @@ input[type="radio"] {
   @extend .card;
   display: flex;
   flex-direction: column;
-  min-height: 200px;
+  min-height: 160px;
   width: 100%;
   box-sizing: border-box;
   word-break: break-word;

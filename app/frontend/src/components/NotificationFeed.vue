@@ -4,7 +4,7 @@
       <div class="header-content">
         <div class="header-icon">
           <div class="icon-ring">
-            <span class="bell-icon">🔔</span>
+            <svg class="bell-svg"><use href="#icon-bell" /></svg>
           </div>
         </div>
         <div class="header-text">
@@ -23,8 +23,16 @@
         type="button"
         ref="clearButton"
       >
-        <span class="clear-icon" @click.stop="clearAllNotifications">🗑️</span>
+        <svg class="clear-svg" @click.stop="clearAllNotifications"><use href="#icon-trash-2" /></svg>
         <span class="clear-text" @click.stop="clearAllNotifications">Clear</span>
+      </button>
+      <button 
+        class="close-feed-btn"
+        @click="$emit('close')"
+        aria-label="Close notifications"
+        type="button"
+      >
+        <svg class="close-svg"><use href="#icon-x" /></svg>
       </button>
     </div>
     
@@ -32,7 +40,7 @@
       <div class="empty-state">
         <div class="empty-icon">
           <div class="icon-circle">
-            <span>📭</span>
+            <svg class="empty-svg"><use href="#icon-inbox" /></svg>
           </div>
         </div>
         <h3>All caught up!</h3>
@@ -50,19 +58,19 @@
         <div class="notification-icon">
           <div class="icon-wrapper" :class="getNotificationClass(notification.type, notification)">
             <!-- Toast notification icons -->
-            <span v-if="notification.type === 'toast_notification' && notification.data?.toast_type === 'success'">✅</span>
-            <span v-else-if="notification.type === 'toast_notification' && notification.data?.toast_type === 'error'">❌</span>
-            <span v-else-if="notification.type === 'toast_notification' && notification.data?.toast_type === 'warning'">⚠️</span>
-            <span v-else-if="notification.type === 'toast_notification' && notification.data?.toast_type === 'info'">ℹ️</span>
+            <svg v-if="notification.type === 'toast_notification' && notification.data?.toast_type === 'success'" class="notif-svg"><use href="#icon-check-circle" /></svg>
+            <svg v-else-if="notification.type === 'toast_notification' && notification.data?.toast_type === 'error'" class="notif-svg"><use href="#icon-x-circle" /></svg>
+            <svg v-else-if="notification.type === 'toast_notification' && notification.data?.toast_type === 'warning'" class="notif-svg"><use href="#icon-alert-triangle" /></svg>
+            <svg v-else-if="notification.type === 'toast_notification' && notification.data?.toast_type === 'info'" class="notif-svg"><use href="#icon-info" /></svg>
             <!-- Regular notification icons -->
-            <span v-else-if="notification.type === 'stream.online'">🔴</span>
-            <span v-else-if="notification.type === 'stream.offline'">⭕</span>
-            <span v-else-if="notification.type === 'channel.update' || notification.type === 'stream.update'">📝</span>
-            <span v-else-if="notification.type === 'recording.started'">🎥</span>
-            <span v-else-if="notification.type === 'recording.completed'">✅</span>
-            <span v-else-if="notification.type === 'recording.failed'">❌</span>
-            <span v-else-if="notification.type === 'test'">🧪</span>
-            <span v-else>ℹ️</span>
+            <svg v-else-if="notification.type === 'stream.online'" class="notif-svg"><use href="#icon-radio" /></svg>
+            <svg v-else-if="notification.type === 'stream.offline'" class="notif-svg"><use href="#icon-circle" /></svg>
+            <svg v-else-if="notification.type === 'channel.update' || notification.type === 'stream.update'" class="notif-svg"><use href="#icon-edit" /></svg>
+            <svg v-else-if="notification.type === 'recording.started'" class="notif-svg"><use href="#icon-video" /></svg>
+            <svg v-else-if="notification.type === 'recording.completed'" class="notif-svg"><use href="#icon-check-circle" /></svg>
+            <svg v-else-if="notification.type === 'recording.failed'" class="notif-svg"><use href="#icon-x-circle" /></svg>
+            <svg v-else-if="notification.type === 'test'" class="notif-svg"><use href="#icon-zap" /></svg>
+            <svg v-else class="notif-svg"><use href="#icon-info" /></svg>
           </div>
         </div>
         
@@ -102,12 +110,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch, defineEmits } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useWebSocket } from '@/composables/useWebSocket'
 import { useCategoryImages } from '@/composables/useCategoryImages'
 import { notificationApi } from '@/services/api'
 
-const emit = defineEmits(['notifications-read', 'close-panel', 'clear-all'])
+const emit = defineEmits(['notifications-read', 'close-panel', 'clear-all', 'close'])
 
 interface NotificationData {
   [key: string]: any;
@@ -633,8 +641,58 @@ onUnmounted(() => {
   margin-right: 10px;
 }
 
-.bell-icon {
-  font-size: 16px;
+.bell-svg {
+  width: 16px;
+  height: 16px;
+  stroke: var(--primary-color);
+  fill: none;
+}
+
+.clear-svg {
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
+  fill: none;
+}
+
+.close-feed-btn {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 8px;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  margin-left: 8px;
+  
+  &:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-primary);
+  }
+  
+  .close-svg {
+    width: 20px;
+    height: 20px;
+    stroke: currentColor;
+    fill: none;
+  }
+}
+
+.empty-svg {
+  width: 32px;
+  height: 32px;
+  stroke: var(--text-secondary);
+  fill: none;
+}
+
+.notif-svg {
+  width: 18px;
+  height: 18px;
+  stroke: currentColor;
+  fill: none;
 }
 
 .header-text {

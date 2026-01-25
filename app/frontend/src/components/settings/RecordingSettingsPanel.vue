@@ -339,15 +339,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, nextTick } from 'vue';
+import { ref, computed, watch, nextTick } from 'vue';
 import { useRecordingSettings } from '@/composables/useRecordingSettings';
 import { useFilenamePresets } from '@/composables/useFilenamePresets';
 import { useToast } from '@/composables/useToast';
 import { QUALITY_OPTIONS, FILENAME_VARIABLES } from '@/types/recording';
 import type { RecordingSettings, StreamerRecordingSettings } from '@/types/recording';
-import type { GlobalSettings } from '@/types/settings';
 import CleanupPolicyEditor from '@/components/CleanupPolicyEditor.vue';
-import GlassCard from '@/components/cards/GlassCard.vue';
 
 const props = defineProps<{
   settings: RecordingSettings | null;
@@ -398,7 +396,7 @@ const data = ref<RecordingSettings>({
   prefer_higher_quality: props.settings?.prefer_higher_quality !== false
 });
 
-const updateFilenameTemplate = () => {
+const _updateFilenameTemplate = () => {
   const preset = FILENAME_PRESETS.find((p: any) => p.value === data.value.filename_preset);
   if (preset) {
     data.value.filename_template = preset.description;
@@ -418,7 +416,7 @@ watch(() => props.settings, (newSettings: RecordingSettings | null) => {
 const isSaving = ref(false);
 
 // Preview filename with example data
-const previewFilename = computed(() => {
+const _previewFilename = computed(() => {
   if (!data.value.filename_template) return '';
 
   const now = new Date();
@@ -549,8 +547,8 @@ const formatDuration = (seconds: number) => {
   return `${hours}h ${minutes}m`;
 };
 
-const toggleStreamerRecording = (streamerId: number, enabled: boolean) => {
-  updateStreamerSetting(streamerId, { enabled });
+const _toggleStreamerRecording = (_streamerId: number, _enabled: boolean) => {
+  // updateStreamerSetting(streamerId, { enabled });
 };
 
 const handleCleanupPolicySaved = (policy: any) => {
@@ -574,7 +572,7 @@ const closeStreamerPolicyDialog = () => {
   selectedStreamer.value = null;
 };
 
-const handleStreamerPolicySaved = (policy: any) => {
+const handleStreamerPolicySaved = (_policy: any) => {
   
   closeStreamerPolicyDialog();
 };
@@ -1022,22 +1020,82 @@ const handleStreamerPolicySaved = (policy: any) => {
   .tab-navigation {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    gap: v.$spacing-1;
+    margin-bottom: v.$spacing-4;
+    padding-bottom: v.$spacing-2;
     
     &::-webkit-scrollbar {
-      height: 2px;
+      height: 4px;
+    }
+    
+    &::-webkit-scrollbar-thumb {
+      background: var(--border-color);
+      border-radius: 2px;
     }
   }
   
   .tab-button {
-    min-width: 100px;
+    min-width: 140px;  // Increased to show full text
     flex-shrink: 0;
+    padding: v.$spacing-3 v.$spacing-4;
+    font-size: v.$text-sm;
+    white-space: nowrap;  // Prevent text wrapping
+    
+    .tab-icon {
+      width: 18px;
+      height: 18px;
+    }
   }
   
   .form-actions {
     flex-direction: column;
+    gap: v.$spacing-3;
     
     .btn {
       width: 100%;
+    }
+  }
+}
+
+// ============================================================================
+// VARIABLE TAGS (Filename template variables)
+// ============================================================================
+
+.variables-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: v.$spacing-2;  // 8px gap between tags
+  margin-top: v.$spacing-3;  // 12px top margin
+  margin-bottom: v.$spacing-2;  // 8px bottom margin
+}
+
+.variable-tag {
+  display: inline-flex;
+  align-items: center;
+  background: var(--background-darker);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: v.$spacing-2 v.$spacing-3;  // 8px 12px
+  font-family: var(--font-mono);
+  font-size: v.$text-sm;
+  font-weight: v.$font-medium;
+  white-space: nowrap;
+  transition: v.$transition-all;
+  
+  &.clickable {
+    cursor: pointer;
+    
+    &:hover {
+      background: var(--primary-color);
+      color: white;
+      border-color: var(--primary-color);
+      transform: translateY(-1px);
+    }
+    
+    &:active {
+      transform: translateY(0);
     }
   }
 }

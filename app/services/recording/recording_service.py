@@ -22,11 +22,11 @@ logger = logging.getLogger("streamvault")
 
 class RecordingService:
     """Backward compatibility wrapper for the refactored recording services"""
-    
+
     def __init__(self, db=None):
         # Initialize the orchestrator which manages all refactored services
         self.orchestrator = RecordingOrchestrator(db)
-        
+
         # Legacy properties for compatibility
         self.db = self.orchestrator.database_service.db
         self.config_manager = self.orchestrator.config_manager
@@ -35,13 +35,14 @@ class RecordingService:
         self.notification_manager = self.orchestrator.notification_manager
         self.stream_info_manager = self.orchestrator.stream_info_manager
         self.logging_service = self.orchestrator.logging_service
-        
+
         # Legacy state properties
         self.active_recordings = self.orchestrator.state_manager.active_recordings
         self.recording_tasks = self.orchestrator.state_manager.recording_tasks
-        # Hardcoded Docker path - always /recordings in container
-        self.recordings_directory = "/recordings"
-        
+        # Use settings for recordings directory (supports Docker and local dev)
+        from app.config.settings import settings
+        self.recordings_directory = settings.RECORDING_DIRECTORY
+
         # Legacy shutdown properties
         self._shutdown_event = self.orchestrator.lifecycle_manager._shutdown_event
         self._is_shutting_down = False
@@ -68,7 +69,7 @@ class RecordingService:
         # Find active recording for this streamer
         active_recordings = self.get_active_recordings()
         for recording_id, recording_data in active_recordings.items():
-            if recording_data.get('streamer_id') == streamer_id:
+            if recording_data.get("streamer_id") == streamer_id:
                 return await self.stop_recording(recording_id, "manual_stop")
         return False
 
@@ -128,7 +129,7 @@ class RecordingService:
 
     async def graceful_shutdown(self, timeout: int | None = None) -> None:
         """Gracefully shutdown all recording operations
-        
+
         Args:
             timeout: Optional timeout hint (seconds) for underlying process termination.
         """

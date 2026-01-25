@@ -76,8 +76,7 @@ export default defineConfig({
             output: {
                 manualChunks: {
                     // Split vendor libraries for better caching
-                    'vue-vendor': ['vue', 'vue-router'],
-                    'chart-vendor': ['chart.js']
+                    'vue-vendor': ['vue', 'vue-router']
                 }
             }
         },

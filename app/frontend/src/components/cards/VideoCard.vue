@@ -1,11 +1,12 @@
 <template>
   <GlassCard
-    variant="medium"
+    variant="subtle"
     hoverable
     clickable
     :padding="false"
     @click="handleClick"
     class="video-card"
+    :class="{ 'list-mode': viewMode === 'list' }"
   >
     <!-- Thumbnail -->
     <div class="video-thumbnail">
@@ -32,8 +33,8 @@
         {{ statusBadge.text }}
       </div>
 
-      <!-- Hover Overlay -->
-      <div class="hover-overlay">
+      <!-- Hover Overlay (grid mode only) -->
+      <div v-if="viewMode !== 'list'" class="hover-overlay">
         <button class="play-button" @click.stop="handlePlay" aria-label="Play video">
           <svg class="icon-play">
             <use href="#icon-video" />
@@ -87,9 +88,12 @@ interface Video {
 
 interface Props {
   video: Video
+  viewMode?: 'grid' | 'list'
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  viewMode: 'grid'
+})
 const emit = defineEmits<{
   play: [video: Video]
 }>()
@@ -459,6 +463,116 @@ const handlePlay = () => {
     .icon-play {
       width: 28px;
       height: 28px;
+    }
+  }
+}
+
+/* ========================================
+   LIST MODE STYLES
+   Horizontal layout with thumbnail on left
+   ======================================== */
+.video-card.list-mode {
+  :deep(.glass-card-content) {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    padding: 0;
+  }
+
+  .video-thumbnail {
+    flex-shrink: 0;
+    width: 160px;
+    height: 90px;
+    padding-top: 0;
+    border-radius: var(--radius-lg) 0 0 var(--radius-lg);
+
+    img, .thumbnail-placeholder {
+      position: absolute;
+      top: 0;
+      left: 0;
+    }
+  }
+
+  .thumbnail-placeholder {
+    .icon-video {
+      width: 32px;
+      height: 32px;
+    }
+  }
+
+  .duration-badge {
+    bottom: 4px;
+    right: 4px;
+    font-size: 11px;
+    padding: 2px 4px;
+  }
+
+  .status-badge {
+    top: 4px;
+    left: 4px;
+    font-size: 10px;
+    padding: 2px 6px;
+  }
+
+  .video-info {
+    flex: 1;
+    min-width: 0;
+    padding: var(--spacing-3) var(--spacing-4);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: var(--spacing-1);
+  }
+
+  .video-title {
+    font-size: var(--text-sm);
+    margin: 0;
+    -webkit-line-clamp: 1;
+    line-clamp: 1;
+  }
+
+  .video-meta {
+    font-size: var(--text-xs);
+    margin: 0;
+  }
+
+  .video-stats {
+    font-size: var(--text-xs);
+  }
+
+  // Hover effect for list mode
+  &:hover {
+    .video-thumbnail {
+      &::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.3);
+        transition: opacity v.$duration-200 v.$ease-out;
+      }
+    }
+  }
+}
+
+// Responsive list mode
+@include m.respond-below('sm') {
+  .video-card.list-mode {
+    .video-thumbnail {
+      width: 120px;
+      height: 68px;
+    }
+
+    .video-info {
+      padding: var(--spacing-2) var(--spacing-3);
+    }
+
+    .video-title {
+      font-size: var(--text-xs);
+    }
+
+    .video-meta,
+    .video-stats {
+      font-size: 11px;
     }
   }
 }

@@ -29,10 +29,9 @@
           <!-- Username Input -->
           <div class="form-group">
             <label for="username" class="form-label">Username</label>
-            <div class="input-wrapper">
+            <div class="input-with-icon">
               <input
                 id="username"
-                class="form-input"
                 type="text"
                 v-model="username"
                 placeholder="Enter your username"
@@ -49,10 +48,9 @@
           <!-- Password Input -->
           <div class="form-group">
             <label for="password" class="form-label">Password</label>
-            <div class="input-wrapper">
+            <div class="input-with-icon">
               <input
                 id="password"
-                class="form-input"
                 type="password"
                 v-model="password"
                 placeholder="Enter your password"
@@ -69,12 +67,12 @@
           <!-- Submit Button -->
           <button
             type="submit"
-            class="btn-submit"
+            class="btn btn-primary btn-lg btn-block btn-with-icon"
             :disabled="isLoading"
             v-ripple
           >
             <span v-if="isLoading" class="spinner"></span>
-            <svg v-else class="btn-icon">
+            <svg v-else class="icon-stroke">
               <use href="#icon-log-in" />
             </svg>
             <span>{{ isLoading ? 'Signing in...' : 'Sign In' }}</span>
@@ -99,10 +97,8 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import { useRouter } from 'vue-router'
 import GlassCard from '@/components/cards/GlassCard.vue'
 
-const router = useRouter()
 const username = ref('')
 const password = ref('')
 const isLoading = ref(false)
@@ -197,7 +193,10 @@ const handleLogin = async () => {
   background: var(--gradient-primary);
   border-radius: var(--radius-2xl);
   margin-bottom: var(--spacing-4);
-  box-shadow: var(--shadow-lg);
+  box-shadow: 
+    var(--shadow-lg),
+    0 0 0 3px rgba(var(--primary-color-rgb), 0.3),  // Visible ring
+    0 0 20px rgba(var(--primary-color-rgb), 0.2);   // Glow effect
   animation: logoFloat 3s ease-in-out infinite;
 }
 
@@ -295,10 +294,8 @@ const handleLogin = async () => {
   fill: currentColor;
 }
 
-// Form Groups
+// Form Groups - Use global .form-group, just override spacing for login
 .form-group {
-  display: flex;
-  flex-direction: column;
   gap: var(--spacing-2);
 }
 
@@ -307,94 +304,6 @@ const handleLogin = async () => {
   font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
   margin: 0;
-}
-
-.input-wrapper {
-  position: relative;
-  display: block;
-}
-
-.input-icon {
-  position: absolute;
-  left: 16px; /* Fixed spacing instead of variable for precision */
-  top: 50%;
-  transform: translateY(-50%);
-  width: 20px;
-  height: 20px;
-  fill: var(--text-tertiary);
-  pointer-events: none;
-  transition: fill 0.2s ease;
-}
-
-.form-input {
-  width: 100%;
-  /* Left padding: 16px (icon left) + 20px (icon width) + 12px (gap) = 48px */
-  padding: 14px 16px 14px 48px;
-  background: var(--background-secondary);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-lg);
-  font-size: var(--font-size-base);
-  color: var(--text-primary);
-  transition: all 0.2s ease;
-
-  &::placeholder {
-    color: var(--text-tertiary);
-  }
-
-  &:focus {
-    outline: none;
-    border-color: var(--color-primary);
-    box-shadow: 0 0 0 3px rgba(var(--color-primary-rgb), 0.1);
-  }
-
-  &:focus + .input-icon {
-    fill: var(--color-primary);
-  }
-
-  &:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-  }
-}
-
-// Submit Button
-.btn-submit {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--spacing-2);
-  width: 100%;
-  padding: var(--spacing-4);
-  background: var(--gradient-primary);
-  color: white;
-  border: none;
-  border-radius: var(--radius-lg);
-  font-size: var(--font-size-base);
-  font-weight: var(--font-weight-semibold);
-  cursor: pointer;
-  transition: all 0.2s ease;
-  position: relative;
-  overflow: hidden;
-
-  &:hover:not(:disabled) {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-lg);
-  }
-
-  &:active:not(:disabled) {
-    transform: translateY(0);
-  }
-
-  &:disabled {
-    opacity: 0.7;
-    cursor: not-allowed;
-  }
-}
-
-.btn-icon {
-  width: 20px;
-  height: 20px;
-  fill: currentColor;
 }
 
 .spinner {

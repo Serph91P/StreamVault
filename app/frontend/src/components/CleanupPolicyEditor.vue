@@ -537,10 +537,8 @@ onMounted(() => {
 }
 
 .policy-card {
-  background-color: var(--background-darker, #1f1f23);
   padding: 20px;
   border-radius: var(--border-radius, 8px);
-  border: 1px solid var(--border-color, #303034);
   margin-bottom: 20px;
 }
 

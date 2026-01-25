@@ -203,9 +203,9 @@ const {
 const {
   queueStats,
   activeTasks,
-  recentTasks,
+  // recentTasks - unused
   isLoading: queueLoading,
-  connectionStatus,
+  // connectionStatus - unused
   forceRefreshFromAPI
 } = useBackgroundQueue()
 
@@ -227,7 +227,7 @@ const backgroundQueue = computed(() => ({
 const internalError = ref<string | null>(null)
 
 // Computed
-const displayError = computed(() => error.value || internalError.value)
+const _displayError = computed(() => error.value || internalError.value)
 
 // Methods
 const handleRefresh = async () => {

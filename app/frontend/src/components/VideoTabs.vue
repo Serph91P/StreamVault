@@ -276,11 +276,11 @@ const selectVideo = (video: VideoData) => {
   activeTab.value = 'player'
 }
 
-const onChapterChange = (chapter: any, index: number) => {
+const onChapterChange = (_chapter: any, _index: number) => {
   // Handle chapter changes
 }
 
-const onVideoReady = (duration: number) => {
+const onVideoReady = (_duration: number) => {
   // Handle video ready
 }
 
