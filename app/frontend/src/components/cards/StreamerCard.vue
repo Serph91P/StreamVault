@@ -1,9 +1,11 @@
 <template>
   <GlassCard
-    variant="medium"
+    variant="subtle"
     hoverable
     clickable
     @click="handleClick"
+    @touchstart.passive="handleTouchStart"
+    @touchmove.passive="handleTouchMove"
     class="streamer-card"
     :class="{ 'actions-open': showActions, 'is-live': isLive, 'is-recording': streamer.is_recording }"
   >
@@ -271,7 +273,32 @@ const _truncateText = (text: string, maxLength: number) => {
 }
 
 const handleClick = () => {
+  // Prevent navigation if user was scrolling (touch devices)
+  if (isTouchScrolling.value) {
+    isTouchScrolling.value = false
+    return
+  }
   router.push(`/streamers/${props.streamer.id}`)
+}
+
+// Touch scroll detection to prevent accidental clicks when swiping
+const isTouchScrolling = ref(false)
+const touchStartY = ref(0)
+const touchStartX = ref(0)
+const SCROLL_THRESHOLD = 10 // pixels of movement before considering it a scroll
+
+const handleTouchStart = (e: TouchEvent) => {
+  touchStartY.value = e.touches[0].clientY
+  touchStartX.value = e.touches[0].clientX
+  isTouchScrolling.value = false
+}
+
+const handleTouchMove = (e: TouchEvent) => {
+  const deltaY = Math.abs(e.touches[0].clientY - touchStartY.value)
+  const deltaX = Math.abs(e.touches[0].clientX - touchStartX.value)
+  if (deltaY > SCROLL_THRESHOLD || deltaX > SCROLL_THRESHOLD) {
+    isTouchScrolling.value = true
+  }
 }
 
 const toggleActions = () => {
@@ -332,9 +359,9 @@ onUnmounted(() => {
 .streamer-card {
   // Card-specific overrides
   :deep(.glass-card-content) {
-    padding: var(--spacing-5);
-    min-height: 280px;
-    max-height: 320px;
+    padding: var(--spacing-4);
+    min-height: 200px;
+    max-height: 260px;
     overflow: visible;
     display: flex;
     flex-direction: column;
@@ -343,11 +370,10 @@ onUnmounted(() => {
   // LIVE indicator: REMOVED - Red border now only on avatar (line 377)
   // Keeps card cleaner and less overwhelming
   
-  // RECORDING indicator: Pulsing border animation
+  // RECORDING indicator: Pulsing border animation on the card itself
   &.is-recording {
-    :deep(.glass-card-content) {
-      animation: pulse-recording 2s ease-in-out infinite;
-    }
+    animation: pulse-recording 2s ease-in-out infinite;
+    border-radius: var(--radius-xl);  /* Ensure rounded during animation */
   }
   
   // When actions dropdown is open, increase z-index to appear above other cards
@@ -378,8 +404,8 @@ onUnmounted(() => {
 
 .streamer-avatar {
   position: relative;
-  width: 100px;
-  height: 100px;
+  width: 72px;
+  height: 72px;
   flex-shrink: 0;
   border-radius: var(--radius-xl);
   overflow: hidden;
@@ -388,7 +414,7 @@ onUnmounted(() => {
 
   &.is-live {
     border-color: var(--danger-color);
-    box-shadow: 0 0 0 4px rgba(var(--danger-color-rgb), 0.2);
+    box-shadow: 0 0 0 3px rgba(var(--danger-color-rgb), 0.2);
   }
 
   img {
@@ -407,8 +433,8 @@ onUnmounted(() => {
   justify-content: center;
 
   .icon-user {
-    width: 40px;
-    height: 40px;
+    width: 32px;
+    height: 32px;
     stroke: var(--text-secondary);
     fill: none;
   }
@@ -424,7 +450,7 @@ onUnmounted(() => {
   color: white;
 
   padding: 2px 8px;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-full);  /* More rounded pill shape */
 
   display: flex;
   align-items: center;
@@ -439,6 +465,7 @@ onUnmounted(() => {
   /* Pulsing effect when recording */
   &.is-recording {
     animation: pulse-recording 2s ease-in-out infinite;
+    border-radius: var(--radius-full);  /* Pill shape for recording indicator */
   }
 }
 
@@ -837,12 +864,15 @@ onUnmounted(() => {
 @keyframes pulse-recording {
   0% {
     box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+    border-radius: var(--radius-xl);  /* Rounded during animation */
   }
   50% {
-    box-shadow: 0 0 0 10px rgba(239, 68, 68, 0);
+    box-shadow: 0 0 0 8px rgba(239, 68, 68, 0);
+    border-radius: var(--radius-xl);
   }
   100% {
     box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+    border-radius: var(--radius-xl);
   }
 }
 </style>
