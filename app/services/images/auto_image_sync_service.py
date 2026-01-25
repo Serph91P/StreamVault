@@ -18,9 +18,13 @@ logger = logging.getLogger("streamvault")
 class AutoImageSyncService:
     """Service for automatically syncing images when entities are created/updated"""
 
-    # Configuration constants
-    PROFILES_BASE_PATH = "/recordings/.media/profiles/"
+    # Configuration - base path set dynamically from settings
     TWITCH_PROFILE_URL_TEMPLATE = "https://static-cdn.jtvnw.net/jtv_user_pictures/{twitch_id}-profile_image-300x300.png"
+    
+    @property
+    def PROFILES_BASE_PATH(self):
+        from app.config.settings import settings
+        return f"{settings.RECORDING_DIRECTORY}/.media/profiles/"
 
     def __init__(self):
         self._sync_queue = asyncio.Queue()

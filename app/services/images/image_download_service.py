@@ -40,9 +40,9 @@ class ImageDownloadService:
         """Ensure the service is initialized (lazy initialization)"""
         if not self._initialized:
             try:
-                # Fixed Docker path - always /recordings in container
-                # Mapping to host is handled via Docker volumes
-                self.recordings_dir = Path("/recordings")
+                # Use settings for recordings directory (supports Docker and local dev)
+                from app.config.settings import settings
+                self.recordings_dir = Path(settings.RECORDING_DIRECTORY)
 
                 # Use unified .media directory instead of separate .images and .artwork
                 self.images_base_dir = self.recordings_dir / ".media"
