@@ -49,6 +49,8 @@ jobs:
     needs: [test]
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    permissions:
+      contents: read
     outputs:
       version: ${{ steps.version.outputs.version }}
       is_prerelease: ${{ steps.version.outputs.is_prerelease }}
