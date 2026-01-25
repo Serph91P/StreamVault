@@ -726,7 +726,7 @@ class UnifiedRecoveryService:
             # Resume the recording (this will create a new segment in the same directory)
             logger.info(f"🔄 Attempting to resume live recording for {streamer_name} (recording_id={recording_id})")
 
-            # Get stream_id from recording
+            # Get stream_id and streamer_id from recording
             with SessionLocal() as db:
                 recording = db.query(Recording).filter(Recording.id == recording_id).first()
                 if not recording:
@@ -734,9 +734,10 @@ class UnifiedRecoveryService:
                     return False
 
                 stream_id = recording.stream_id
+                streamer_id = recording.streamer_id
 
             # Start recording - this will automatically handle segment continuation
-            success = await recording_service.start_recording(stream_id)
+            success = await recording_service.start_recording(stream_id, streamer_id)
 
             if success:
                 logger.info(f"✅ Successfully resumed recording for {streamer_name}")

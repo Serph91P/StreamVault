@@ -32,6 +32,7 @@ class AuthMiddleware:
             "/auth/check",
             "/auth/logout",
             "/auth/keepalive",
+            "/api/health",  # Health check endpoints for Docker/Kubernetes
             "/eventsub",
             "/api/twitch/callback",  # Twitch OAuth callback - must be public for Twitch redirect
             "/api/twitch/auth-url",  # Twitch OAuth URL generation - public for initial auth flow
