@@ -453,12 +453,12 @@ const proxyUrlError = computed(() => {
 })
 
 // Helper methods
-function getHealthIcon(status: string): string {
+function getHealthIcon(_status: string): string {
   // Icons handled via CSS, return empty
   return ''
 }
 
-function getHealthBadgeClass(status: string): string {
+function _getHealthBadgeClass(status: string): string {
   switch (status) {
     case 'healthy': return 'success'
     case 'degraded': return 'warning'

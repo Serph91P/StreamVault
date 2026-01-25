@@ -752,7 +752,7 @@ def _get_logging_service():
 
 class _LazyLoggingService:
     """Lazy proxy for LoggingService to defer initialization until first use"""
-    
+
     def __getattr__(self, name):
         return getattr(_get_logging_service(), name)
 

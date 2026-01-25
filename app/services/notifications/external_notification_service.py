@@ -19,80 +19,80 @@ logger = logging.getLogger("streamvault")
 def optimize_profile_image_for_notification(url: str, target_size: int = 70) -> str:
     """
     Optimize Twitch profile image URL for notification avatars.
-    
+
     Twitch CDN supports these sizes: 70x70, 150x150, 300x300
     Apprise typically uses 32x32, 72x72, 128x128, 256x256 icons.
-    
+
     For notification avatars, 70x70 is ideal (close to Apprise's 72x72 standard)
     and reduces bandwidth/loading time.
-    
+
     Args:
         url: Original Twitch profile image URL (usually 300x300)
         target_size: Desired size (default 70 for notifications)
-        
+
     Returns:
         Optimized URL with smaller image size
     """
     if not url or not url.startswith("http"):
         return url
-    
+
     # Match Twitch CDN profile image pattern: -profile_image-{size}x{size}.png/jpg
     # Example: https://static-cdn.jtvnw.net/jtv_user_pictures/xxx-profile_image-300x300.png
     pattern = r"(-profile_image-)\d+x\d+(\.(?:png|jpg|jpeg|webp))"
     replacement = rf"\g<1>{target_size}x{target_size}\2"
-    
+
     optimized_url = re.sub(pattern, replacement, url, flags=re.IGNORECASE)
-    
+
     if optimized_url != url:
         logger.debug(f"Optimized profile image: {url} -> {optimized_url}")
-    
+
     return optimized_url
 
 
 def get_local_cached_profile_url(streamer: "Streamer") -> Optional[str]:
     """
     Get the public URL for a locally cached profile image.
-    
+
     This allows external notification services to fetch the profile image
     from our server instead of relying on Twitch CDN.
-    
+
     Benefits:
     - Works even if Twitch CDN is unreachable
     - Faster local access
     - Consistent image availability
-    
+
     Args:
         streamer: Streamer model with profile_image_url
-        
+
     Returns:
         Public HTTP URL for the cached image, or None if not cached locally
     """
     try:
         from app.config.settings import settings
-        
+
         # Check if the streamer has a locally cached profile image
         if not streamer.profile_image_url:
             return None
-            
+
         # Cached images have path format: /recordings/.media/profiles/profile_avatar_{twitch_id}.jpg
         if not streamer.profile_image_url.startswith("/recordings/.media/profiles/"):
             return None
-        
+
         # Extract filename from the local path
         # e.g., "/recordings/.media/profiles/profile_avatar_12345.jpg" -> "profile_avatar_12345.jpg"
         filename = streamer.profile_image_url.split("/")[-1]
-        
+
         if not filename or not filename.startswith("profile_avatar_"):
             return None
-        
+
         # Construct the public URL using BASE_URL
         # The /data/images/profiles/{filename} endpoint serves these files without auth
         base_url = settings.BASE_URL.rstrip("/")
         public_url = f"{base_url}/data/images/profiles/{filename}"
-        
+
         logger.debug(f"Using locally cached profile image: {public_url}")
         return public_url
-        
+
     except Exception as e:
         logger.debug(f"Could not get local cached profile URL: {e}")
         return None
@@ -308,12 +308,12 @@ class ExternalNotificationService:
         if "ntfy" in base_url:
             # Ntfy configuration via Apprise
             # See: https://github.com/caronc/apprise/wiki/Notify_ntfy
-            # 
+            #
             # Key parameters:
             # - avatar_url: Overrides the Apprise icon with streamer profile pic
             # - image: Defaults to 'yes' which attaches an image. Set to 'no' to disable
             # - icon: Native ntfy icon URL (separate from Apprise image handling)
-            
+
             params = [f"click={twitch_url}", f"priority={'high' if event_type == 'online' else 'default'}"]
 
             # Event-specific Tags (ntfy emoji shortcodes)
@@ -355,7 +355,7 @@ class ExternalNotificationService:
                 f"href={twitch_url}",
                 "format=markdown"
             ]
-            
+
             # Only add avatar_url if we have a valid HTTP profile image
             if profile_image and profile_image.startswith("http"):
                 params.append(f"avatar_url={profile_image}")
@@ -363,7 +363,7 @@ class ExternalNotificationService:
                 logger.debug(f"Discord notification using profile image: {profile_image}")
             else:
                 logger.debug("Discord notification will use default avatar (no HTTP profile image)")
-            
+
             final_url = f"{base_url}?{'&'.join(params)}"
             logger.debug(f"Generated discord URL: {final_url}")
             return final_url
@@ -372,12 +372,12 @@ class ExternalNotificationService:
             # Telegram configuration
             # Use 'image' parameter with the actual URL, not just yes/no
             params = ["format=markdown"]
-            
+
             if profile_image and profile_image.startswith("http"):
                 # Telegram can embed images via the image parameter with URL
                 params.append(f"image={profile_image}")
                 logger.debug(f"Telegram notification using profile image: {profile_image}")
-            
+
             final_url = f"{base_url}?{'&'.join(params)}" if params else base_url
             logger.debug(f"Generated telegram URL: {final_url}")
             return final_url
@@ -385,14 +385,14 @@ class ExternalNotificationService:
         elif "matrix" in base_url:
             # Matrix configuration
             params = ["msgtype=text", "format=markdown"]
-            
+
             if profile_image and profile_image.startswith("http"):
                 params.append("thumbnail=true")
                 params.append(f"image={profile_image}")
                 logger.debug(f"Matrix notification using profile image: {profile_image}")
             else:
                 params.append("thumbnail=false")
-            
+
             final_url = f"{base_url}?{'&'.join(params)}"
             logger.debug(f"Generated matrix URL: {final_url}")
             return final_url
@@ -401,14 +401,14 @@ class ExternalNotificationService:
             # Slack configuration
             # Slack uses 'image' and 'thumb' parameters for embedding images
             params = ["footer=yes"]
-            
+
             if profile_image and profile_image.startswith("http"):
                 params.append("image=yes")
                 params.append(f"thumb={profile_image}")  # Thumbnail in attachment
                 logger.debug(f"Slack notification using profile image: {profile_image}")
             else:
                 params.append("image=no")
-            
+
             final_url = f"{base_url}?{'&'.join(params)}"
             logger.debug(f"Generated slack URL: {final_url}")
             return final_url
@@ -421,11 +421,11 @@ class ExternalNotificationService:
                 f"url={twitch_url}",
                 "url_title=Watch Stream"
             ]
-            
+
             if profile_image and profile_image.startswith("http"):
                 params.append(f"attachment={profile_image}")
                 logger.debug(f"Pushover notification using profile image: {profile_image}")
-            
+
             final_url = f"{base_url}?{'&'.join(params)}"
             logger.debug(f"Generated pushover URL: {final_url}")
             return final_url
@@ -434,11 +434,11 @@ class ExternalNotificationService:
             # Gotify configuration
             # Gotify uses 'image' parameter for embedding images
             params = [f"priority={'8' if event_type == 'online' else '5'}"]
-            
+
             if profile_image and profile_image.startswith("http"):
                 params.append(f"image={profile_image}")
                 logger.debug(f"Gotify notification using profile image: {profile_image}")
-            
+
             final_url = f"{base_url}?{'&'.join(params)}"
             logger.debug(f"Generated gotify URL: {final_url}")
             return final_url
@@ -446,11 +446,11 @@ class ExternalNotificationService:
         elif "pbul" in base_url or "pushbullet" in base_url:
             # Pushbullet configuration
             params = ["format=text"]
-            
+
             if profile_image and profile_image.startswith("http"):
                 params.append(f"image={profile_image}")
                 logger.debug(f"Pushbullet notification using profile image: {profile_image}")
-            
+
             final_url = f"{base_url}?{'&'.join(params)}"
             logger.debug(f"Generated pushbullet URL: {final_url}")
             return final_url
@@ -458,11 +458,11 @@ class ExternalNotificationService:
         elif "msteams" in base_url or "teams" in base_url:
             # Microsoft Teams configuration
             params = []
-            
+
             if profile_image and profile_image.startswith("http"):
                 params.append(f"image={profile_image}")
                 logger.debug(f"Teams notification using profile image: {profile_image}")
-            
+
             final_url = f"{base_url}?{'&'.join(params)}" if params else base_url
             logger.debug(f"Generated teams URL: {final_url}")
             return final_url
@@ -532,7 +532,7 @@ class ExternalNotificationService:
                 # 2. Original Twitch HTTP URL (fallback)
                 # 3. EventSub details URL
                 profile_image_url = ""
-                
+
                 # Priority 1: Use locally cached profile image if available
                 local_cached_url = get_local_cached_profile_url(streamer)
                 if local_cached_url:

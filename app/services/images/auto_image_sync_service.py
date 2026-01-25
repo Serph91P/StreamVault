@@ -20,7 +20,7 @@ class AutoImageSyncService:
 
     # Configuration - base path set dynamically from settings
     TWITCH_PROFILE_URL_TEMPLATE = "https://static-cdn.jtvnw.net/jtv_user_pictures/{twitch_id}-profile_image-300x300.png"
-    
+
     @property
     def PROFILES_BASE_PATH(self):
         from app.config.settings import settings
