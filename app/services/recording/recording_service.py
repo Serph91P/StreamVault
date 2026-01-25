@@ -39,8 +39,9 @@ class RecordingService:
         # Legacy state properties
         self.active_recordings = self.orchestrator.state_manager.active_recordings
         self.recording_tasks = self.orchestrator.state_manager.recording_tasks
-        # Hardcoded Docker path - always /recordings in container
-        self.recordings_directory = "/recordings"
+        # Use settings for recordings directory (supports Docker and local dev)
+        from app.config.settings import settings
+        self.recordings_directory = settings.RECORDING_DIRECTORY
 
         # Legacy shutdown properties
         self._shutdown_event = self.orchestrator.lifecycle_manager._shutdown_event

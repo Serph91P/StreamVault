@@ -649,8 +649,9 @@ class RecordingLifecycleManager:
             # Add .ts extension
             filename += ".ts"
 
-            # Hardcoded Docker path - always /recordings in container
-            recordings_dir = "/recordings"
+            # Use settings for recordings directory (supports Docker and local dev)
+            from app.config.settings import settings
+            recordings_dir = settings.RECORDING_DIRECTORY
 
             # Create full path with streamer directory and season structure
             streamer_dir = Path(recordings_dir) / streamer.username
@@ -665,9 +666,10 @@ class RecordingLifecycleManager:
 
         except Exception as e:
             logger.error(f"🎬 GENERATE_PATH_ERROR: Failed to generate recording path: {e}", exc_info=True)
-            # Fallback path
+            # Fallback path using settings
+            from app.config.settings import settings
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            fallback_path = f"/recordings/recording_{streamer_id}_{stream_id}_{timestamp}.ts"
+            fallback_path = f"{settings.RECORDING_DIRECTORY}/recording_{streamer_id}_{stream_id}_{timestamp}.ts"
             logger.info(f"🎬 FALLBACK_PATH: {fallback_path}")
             return fallback_path
 

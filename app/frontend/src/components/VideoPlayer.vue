@@ -818,46 +818,19 @@ watch(() => props.chapters, (newChapters) => {
 <style scoped lang="scss">
 @use '@/styles/mixins' as m;
 /* ============================================================================
-   VIDEO PLAYER - Modern Glassmorphism Design (PWA Mobile-First)
-   Follows Complete Design Overhaul patterns
+   VIDEO PLAYER - Modern Design (PWA Mobile-First)
+   Note: Container styling handled by parent GlassCard in VideoPlayerView
    ============================================================================ */
 
 .video-player-container {
   position: relative;
-  /* Glassmorphism card effect */
-  background: rgba(var(--background-card-rgb), 0.8);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: var(--radius-xl);  /* 16px */
-  overflow: hidden;
   width: 100%;
   max-width: 100%;
-  box-shadow: var(--shadow-lg), 0 0 40px rgba(0, 0, 0, 0.1);
-  transition: var(--transition-all);
+  overflow: hidden;
   
-  // Mobile: Remove glassmorphism effects for full-width video
+  // Mobile: Allow controls to overflow
   @include m.respond-below('md') {  // < 768px
-    background: transparent;
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-    border: none;
-    border-radius: 0;  // Eckig auf mobile
-    box-shadow: none;
     overflow: visible;  // CRITICAL: Allow chapter menu and controls to overflow
-  }
-}
-
-.video-player-container:hover {
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-xl), 0 0 60px rgba(var(--primary-color-rgb), 0.15);
-  border-color: rgba(var(--primary-color-rgb), 0.2);
-  
-  // Mobile: No hover effects
-  @include m.respond-below('md') {  // < 768px
-    transform: none;
-    box-shadow: none;
-    border-color: transparent;
   }
 }
 

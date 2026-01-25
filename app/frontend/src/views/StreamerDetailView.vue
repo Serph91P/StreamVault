@@ -1,5 +1,5 @@
 <template>
-  <div class="streamer-detail-view">
+  <div class="page-view streamer-detail-view">
     <!-- Back Button -->
     <button @click="goBackToStreamers" class="back-button" v-ripple>
       <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -569,10 +569,8 @@ onMounted(async () => {
 @use '@/styles/variables' as v;
 @use '@/styles/mixins' as m;
 .streamer-detail-view {
-  padding: var(--spacing-4);
-  max-width: 1400px;
-  margin: 0 auto;
-  min-height: 100vh;
+  // .page-view provides padding/sizing via global styles
+  // Page-specific overrides only
 }
 
 // Back Button
@@ -802,13 +800,13 @@ onMounted(async () => {
   }
 
   &.btn-secondary {
-    background: rgba(255, 255, 255, 0.95);
+    background: var(--background-card);
     color: var(--text-primary);
-    border: 1px solid rgba(255, 255, 255, 0.3);
+    border: 1px solid var(--border-color);
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 
     &:hover:not(:disabled) {
-      background: rgba(255, 255, 255, 1);
+      background: var(--background-hover);
       border-color: var(--primary-color);
       transform: translateY(-2px);
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
@@ -854,12 +852,13 @@ onMounted(async () => {
 
 .select-wrapper {
   position: relative;
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
 }
 
 .select-icon {
   position: absolute;
-  left: var(--spacing-3);
+  left: 12px;
   top: 50%;
   transform: translateY(-50%);
   width: 16px;
@@ -868,11 +867,12 @@ onMounted(async () => {
   fill: none;
   pointer-events: none;  /* Let clicks pass through to select */
   z-index: 1;
+  flex-shrink: 0;
 }
 
 .sort-select {
   padding: var(--spacing-2) var(--spacing-4);
-  padding-left: var(--spacing-10);  /* Make room for icon */
+  padding-left: 38px;  /* Icon (16px) + gap (10px) + left offset (12px) */
   background: var(--background-card);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
@@ -882,6 +882,12 @@ onMounted(async () => {
   cursor: pointer;
   transition: all v.$duration-200 v.$ease-out;
   min-width: 160px;  /* Prevent layout shift */
+  
+  @include m.respond-below('sm') {
+    padding-left: 36px;  /* Slightly less on mobile */
+    min-width: 140px;
+    font-size: var(--text-xs);
+  }
 
   &:hover {
     border-color: var(--primary-color);

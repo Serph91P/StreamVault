@@ -67,6 +67,24 @@ body {
   line-height: 1.6;
   display: flex;
   flex-direction: column;
+  width: 100%;
+  overflow-x: hidden; // Prevent horizontal scroll
+}
+
+// Ensure all view containers fill available width
+.page-view,
+.content-view,
+.home-view,
+.videos-view,
+.streamers-view,
+.settings-view,
+.add-streamer-view,
+.streamer-detail-view,
+.subscriptions-view,
+.admin-view {
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
 }
 
 // Bessere Fokus-Stile 
@@ -149,6 +167,22 @@ button:not(.unstyled),
   cursor: pointer;
   transition: all v.$transition-fast;
   border: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: v.$spacing-2;
+  
+  // Icon sizing inside buttons
+  svg, .icon {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
   
   // Touch targets on mobile (Apple HIG: 44x44px minimum)
   @include m.respond-below('md') {  // < 768px
@@ -387,6 +421,28 @@ button:not(.unstyled),
     min-width: 44px;  // Touch target
     min-height: 44px;
   }
+  
+  // SVG icon styling inside buttons - handles both fill and stroke icons
+  svg {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+    
+    // For fill-based icons
+    &.icon-fill {
+      fill: currentColor;
+    }
+    
+    // For stroke-based icons (Lucide/Feather style)
+    &.icon-stroke,
+    &:not(.icon-fill) {
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+  }
 }
 
 // Button sizes
@@ -414,13 +470,43 @@ button:not(.unstyled),
 .btn-with-icon {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: v.$spacing-2;  // 8px between icon and text
+  
+  // SVG icons inside buttons
+  svg {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+  }
+  
+  // Stroke-based icons (Lucide/Feather style)
+  .icon-stroke {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  
+  // Fill-based icons
+  .icon-fill {
+    fill: currentColor;
+  }
 }
 
 // Full-width button (for mobile forms)
 .btn-block {
   width: 100%;
-  display: block;
+  
+  // When combined with btn-with-icon, use flex instead of block
+  &.btn-with-icon {
+    display: flex;
+  }
+  
+  &:not(.btn-with-icon) {
+    display: block;
+  }
 }
 
 // Link-Styling
@@ -515,8 +601,9 @@ img {
 // Verbesserte Safe-Area-Unterstützung für notch phones
 @supports (padding: max(0px)) {
   body, .mobile-nav-bottom, .main-content {
-    padding-left: max(v.$spacing-sm, env(safe-area-inset-left));
-    padding-right: max(v.$spacing-sm, env(safe-area-inset-right));
+    // Use safe-area insets, with a small minimum for non-notch devices
+    padding-left: max(0.25rem, env(safe-area-inset-left));
+    padding-right: max(0.25rem, env(safe-area-inset-right));
   }
   
   .mobile-nav-bottom {

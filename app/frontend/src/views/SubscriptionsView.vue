@@ -1,5 +1,5 @@
 <template>
-  <div class="subscriptions-view">
+  <div class="page-view subscriptions-view">
     <!-- Header -->
     <div class="view-header">
       <div class="header-content">
@@ -330,7 +330,7 @@ onMounted(loadSubscriptions)
 /* Responsive - Use SCSS mixins for breakpoints */
 
 .subscriptions-view {
-  padding: var(--spacing-6);
+  // .page-view provides padding/sizing via global styles
   animation: fadeIn 0.3s ease-out;
 }
 
@@ -345,11 +345,18 @@ onMounted(loadSubscriptions)
 
 // Header
 .view-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
   margin-bottom: var(--spacing-8);
+  gap: var(--spacing-4);
+  flex-wrap: wrap;
 }
 
 .header-content {
   margin-bottom: var(--spacing-6);
+  flex: 1;
+  min-width: 200px;
 }
 
 .page-title {

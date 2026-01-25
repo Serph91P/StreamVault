@@ -738,5 +738,24 @@ class LoggingService:
             logger.error(f"❌ Could not write stream event log {log_path}: {e}")
 
 
-# Global logging service instance (no permission testing for better startup performance)
-logging_service = LoggingService(test_permissions=False)
+# Lazy-initialized global logging service instance
+_logging_service_instance = None
+
+
+def _get_logging_service():
+    """Get or create the logging service instance (lazy initialization)"""
+    global _logging_service_instance
+    if _logging_service_instance is None:
+        _logging_service_instance = LoggingService(test_permissions=False)
+    return _logging_service_instance
+
+
+class _LazyLoggingService:
+    """Lazy proxy for LoggingService to defer initialization until first use"""
+    
+    def __getattr__(self, name):
+        return getattr(_get_logging_service(), name)
+
+
+# Global logging service instance (lazy-initialized for local dev compatibility)
+logging_service = _LazyLoggingService()

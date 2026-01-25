@@ -9,6 +9,10 @@ import type {
   ProxyHealthUpdateEvent
 } from '@/types/proxy'
 import { UI } from '@/config/constants'
+import { mockProxies } from '@/mocks/mockData'
+
+// Check for mock data mode
+const USE_MOCK_DATA = import.meta.env.VITE_USE_MOCK_DATA === 'true'
 
 /**
  * Composable for Multi-Proxy System Management
@@ -90,6 +94,13 @@ export function useProxySettings() {
     isLoading.value = true
     error.value = null
 
+    // Use mock data in development mode
+    if (USE_MOCK_DATA) {
+      proxies.value = mockProxies as ProxySettings[]
+      isLoading.value = false
+      return
+    }
+
     try {
       const response = await fetch('/api/proxy/list', {
         credentials: 'include'  // CRITICAL for session
@@ -99,7 +110,17 @@ export function useProxySettings() {
         throw new Error(`HTTP ${response.status}`)
       }
 
-      const data: ProxyListResponse = await response.json()
+      // Handle JSON parse errors gracefully
+      let data: ProxyListResponse
+      try {
+        const text = await response.text()
+        data = text ? JSON.parse(text) : { proxies: [], system_config: config.value }
+      } catch (parseError) {
+        console.warn('Failed to parse proxy response as JSON:', parseError)
+        proxies.value = []
+        return
+      }
+      
       proxies.value = data.proxies || []
       config.value = data.system_config
     } catch (e) {

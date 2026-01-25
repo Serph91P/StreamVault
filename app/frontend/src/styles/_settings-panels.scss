@@ -16,6 +16,10 @@
   @include m.respond-below('md') {
     padding: v.$spacing-4;
   }
+  
+  @include m.respond-below('sm') {
+    padding: v.$spacing-2;
+  }
 }
 
 // ============================================================================

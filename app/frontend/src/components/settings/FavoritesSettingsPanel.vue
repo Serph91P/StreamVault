@@ -2,7 +2,7 @@
   <div>
     
     <!-- Filter und Suche - Verbessert für Mobile -->
-    <div class="filter-container settings-section settings-section--surface">
+    <div class="filter-container">
       <div class="filter-row">
         <div class="search-box">
           <input 
@@ -35,12 +35,12 @@
     
     <!-- Kategorie-Liste -->
     <div class="categories-grid">
-      <div v-if="isLoading" class="loading settings-section settings-section--surface">
+      <div v-if="isLoading" class="loading">
         <div class="spinner"></div>
         <p>Loading categories...</p>
       </div>
       <template v-else>
-        <div v-if="filteredCategories.length === 0" class="no-categories settings-section settings-section--surface">
+        <div v-if="filteredCategories.length === 0" class="no-categories">
           <p v-if="showFavoritesOnly">You haven't marked any categories as favorites yet.</p>
           <p v-else-if="searchQuery">No categories found containing "{{ searchQuery }}".</p>
           <p v-else>
@@ -108,6 +108,10 @@ import { ref, computed, onMounted, nextTick } from 'vue';
 import { useCategoryImages } from '@/composables/useCategoryImages';
 import { useToast } from '@/composables/useToast';
 import { IMAGE_LOADING } from '@/config/constants';
+import { mockCategories } from '@/mocks/mockData';
+
+// Check if mock data should be used
+const USE_MOCK_DATA = import.meta.env.VITE_USE_MOCK_DATA === 'true';
 
 interface Category {
   id: string;
@@ -158,6 +162,13 @@ const fetchCategories = async () => {
   isLoading.value = true;
   error.value = null;
   
+  // Use mock data in development mode
+  if (USE_MOCK_DATA) {
+    categories.value = mockCategories;
+    isLoading.value = false;
+    return;
+  }
+  
   try {
     const response = await fetch('/api/categories', {
       credentials: 'include' // CRITICAL: Required to send session cookie
@@ -176,7 +187,16 @@ const fetchCategories = async () => {
       }
     }
     
-    const data = await response.json();
+    // Handle JSON parse errors gracefully
+    let data;
+    try {
+      const text = await response.text();
+      data = text ? JSON.parse(text) : { categories: [] };
+    } catch (parseError) {
+      console.warn('Failed to parse categories response as JSON:', parseError);
+      categories.value = [];
+      return;
+    }
     
     // Handle different response formats
     if (data.categories && Array.isArray(data.categories)) {
@@ -365,17 +385,17 @@ onMounted(() => {
 
 .category-cards {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));  // Optimal size for card proportions
-  gap: v.$spacing-4;  // Consistent spacing
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));  // Larger cards for better readability
+  gap: v.$spacing-5;  // More breathing room
   width: 100%;  // Force full width
   
   @include m.respond-below('lg') {  // < 1024px
-    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-    gap: v.$spacing-3;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: v.$spacing-4;
   }
   
   @include m.respond-below('md') {  // < 768px (tablet)
-    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
     gap: v.$spacing-3;
   }
   

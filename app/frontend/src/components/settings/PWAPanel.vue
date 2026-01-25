@@ -1,7 +1,7 @@
 <template>
   <div class="pwa-panel">
     <!-- PWA Installation -->
-    <div class="pwa-section settings-section settings-section--surface">
+    <div class="pwa-section settings-section">
       <h4>Progressive Web App</h4>
       
       <div class="setting-item settings-item">
@@ -41,7 +41,7 @@
     </div>
 
     <!-- Push Notifications -->
-    <div class="pwa-section settings-section settings-section--surface">
+    <div class="pwa-section settings-section">
       <h4>Push Notifications</h4>
       
       <div class="setting-item settings-item">
@@ -130,7 +130,7 @@
     </div>
 
     <!-- PWA Features -->
-    <div class="pwa-section settings-section settings-section--surface">
+    <div class="pwa-section settings-section">
       <h4>App Features</h4>
       
       <div class="setting-item settings-item">

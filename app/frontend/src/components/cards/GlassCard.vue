@@ -164,7 +164,7 @@ const handleClick = (event: MouseEvent) => {
     padding: var(--spacing-7);
     
     @media (max-width: 767px) {
-      padding: var(--spacing-4);
+      padding: var(--spacing-2);
     }
   }
 
@@ -172,7 +172,7 @@ const handleClick = (event: MouseEvent) => {
     padding: var(--spacing-8);
     
     @media (max-width: 767px) {
-      padding: var(--spacing-4);
+      padding: var(--spacing-2);
     }
   }
 }

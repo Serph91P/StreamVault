@@ -248,17 +248,83 @@ export const mockActiveRecordings = [
 export const mockCategories = [
   {
     id: '509658',
+    twitch_id: '509658',
     name: 'Just Chatting',
-    box_art_url: 'https://static-cdn.jtvnw.net/ttv-boxart/509658-{width}x{height}.jpg',
-    streams: 0,
-    is_favorite: true
+    box_art_url: 'https://static-cdn.jtvnw.net/ttv-boxart/509658-285x380.jpg',
+    stream_count: 24,
+    is_favorite: true,
+    first_seen: '2024-06-15T10:30:00Z',
+    last_seen: '2025-01-20T18:45:00Z'
   },
   {
     id: '2083908726',
+    twitch_id: '2083908726',
     name: 'Backpack Battles',
-    box_art_url: 'https://static-cdn.jtvnw.net/ttv-boxart/2083908726-{width}x{height}.jpg',
-    streams: 0,
-    is_favorite: true
+    box_art_url: 'https://static-cdn.jtvnw.net/ttv-boxart/2083908726-285x380.jpg',
+    stream_count: 8,
+    is_favorite: true,
+    first_seen: '2024-12-01T14:00:00Z',
+    last_seen: '2025-01-18T22:30:00Z'
+  },
+  {
+    id: '32982',
+    twitch_id: '32982',
+    name: 'Grand Theft Auto V',
+    box_art_url: 'https://static-cdn.jtvnw.net/ttv-boxart/32982_IGDB-285x380.jpg',
+    stream_count: 15,
+    is_favorite: false,
+    first_seen: '2024-08-10T20:00:00Z',
+    last_seen: '2025-01-15T16:00:00Z'
+  },
+  {
+    id: '21779',
+    twitch_id: '21779',
+    name: 'League of Legends',
+    box_art_url: 'https://static-cdn.jtvnw.net/ttv-boxart/21779-285x380.jpg',
+    stream_count: 42,
+    is_favorite: true,
+    first_seen: '2024-03-20T12:00:00Z',
+    last_seen: '2025-01-20T23:00:00Z'
+  },
+  {
+    id: '516575',
+    twitch_id: '516575',
+    name: 'VALORANT',
+    box_art_url: 'https://static-cdn.jtvnw.net/ttv-boxart/516575-285x380.jpg',
+    stream_count: 31,
+    is_favorite: false,
+    first_seen: '2024-05-10T18:30:00Z',
+    last_seen: '2025-01-19T21:15:00Z'
+  },
+  {
+    id: '27471',
+    twitch_id: '27471',
+    name: 'Minecraft',
+    box_art_url: 'https://static-cdn.jtvnw.net/ttv-boxart/27471_IGDB-285x380.jpg',
+    stream_count: 19,
+    is_favorite: true,
+    first_seen: '2024-04-01T09:00:00Z',
+    last_seen: '2025-01-17T14:30:00Z'
+  },
+  {
+    id: '33214',
+    twitch_id: '33214',
+    name: 'Fortnite',
+    box_art_url: 'https://static-cdn.jtvnw.net/ttv-boxart/33214-285x380.jpg',
+    stream_count: 27,
+    is_favorite: false,
+    first_seen: '2024-07-15T15:00:00Z',
+    last_seen: '2025-01-16T19:45:00Z'
+  },
+  {
+    id: '512710',
+    twitch_id: '512710',
+    name: 'Call of Duty: Warzone',
+    box_art_url: 'https://static-cdn.jtvnw.net/ttv-boxart/512710-285x380.jpg',
+    stream_count: 12,
+    is_favorite: false,
+    first_seen: '2024-09-05T11:00:00Z',
+    last_seen: '2025-01-14T20:00:00Z'
   }
 ]
 
@@ -331,33 +397,51 @@ export const mockSettings = {
 export const mockProxies = [
   {
     id: 1,
-    url: 'http://proxy1.example.com:8080',
-    username: null,
+    proxy_url: 'http://proxy1.example.com:8080',
+    masked_url: 'http://proxy1.example.com:8080',
+    priority: 1,
     enabled: true,
-    health_status: 'healthy',
+    health_status: 'healthy' as const,
     last_check: '2025-11-20T10:00:00Z',
     response_time_ms: 45,
-    consecutive_failures: 0
+    consecutive_failures: 0,
+    last_error: null,
+    total_requests: 150,
+    successful_requests: 150,
+    failed_requests: 0,
+    created_at: '2025-11-01T00:00:00Z'
   },
   {
     id: 2,
-    url: 'http://proxy2.example.com:8080',
-    username: 'user',
+    proxy_url: 'http://user:***@proxy2.example.com:8080',
+    masked_url: 'http://user:***@proxy2.example.com:8080',
+    priority: 2,
     enabled: true,
-    health_status: 'degraded',
+    health_status: 'degraded' as const,
     last_check: '2025-11-20T09:55:00Z',
     response_time_ms: 250,
-    consecutive_failures: 1
+    consecutive_failures: 1,
+    last_error: 'Timeout after 5000ms',
+    total_requests: 100,
+    successful_requests: 95,
+    failed_requests: 5,
+    created_at: '2025-11-05T00:00:00Z'
   },
   {
     id: 3,
-    url: 'http://proxy3.example.com:8080',
-    username: null,
+    proxy_url: 'http://proxy3.example.com:8080',
+    masked_url: 'http://proxy3.example.com:8080',
+    priority: 3,
     enabled: false,
-    health_status: 'failed',
+    health_status: 'failed' as const,
     last_check: '2025-11-20T09:50:00Z',
     response_time_ms: null,
-    consecutive_failures: 3
+    consecutive_failures: 3,
+    last_error: 'Connection refused',
+    total_requests: 50,
+    successful_requests: 40,
+    failed_requests: 10,
+    created_at: '2025-11-10T00:00:00Z'
   }
 ]
 

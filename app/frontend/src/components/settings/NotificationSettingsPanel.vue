@@ -55,7 +55,7 @@
       <!-- System Notification Settings (NEW) -->
       <div class="form-group">
         <h4>System Notification Settings</h4>
-        <p class="section-description">
+        <p class="section-description" style="margin-bottom: var(--spacing-4);">
           Configure which recording events trigger external notifications (Discord, Telegram, etc.)
         </p>
         <div class="checkbox-group">
@@ -530,8 +530,16 @@ const testWebSocketNotification = async () => {
     gap: v.$spacing-3;
     
     label {
-      padding: v.$spacing-4;
+      padding: v.$spacing-3;
       min-height: 44px;  // Touch-friendly
+      flex-wrap: wrap;  // Allow content to wrap on mobile
+      
+      // Stack label text and hint vertically
+      .label-hint {
+        flex-basis: 100%;
+        margin-top: v.$spacing-1;
+        margin-left: calc(18px + v.$spacing-3);  // Align with text after checkbox
+      }
     }
   }
 }

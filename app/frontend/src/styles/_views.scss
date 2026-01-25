@@ -249,6 +249,8 @@
 // Content Views with Vue styling
 .content-view {
   width: 100%;
+  max-width: 100%;
+  min-width: 0; // Prevent overflow
   padding: v.$spacing-md 0;
   box-sizing: border-box;
   animation: fadeInContent 0.4s v.$vue-ease-out forwards;
@@ -367,8 +369,8 @@
     padding: v.$spacing-md;
     box-shadow: v.$shadow-md;
     border: 1px solid v.$border-color;
-    max-width: 1200px;
-    margin: 0 auto;
+    width: 100%;
+    margin: 0;
 
     @media (min-width: map.get(v.$breakpoints, 'md')) {
       padding: v.$spacing-lg;
@@ -596,8 +598,8 @@
     padding: v.$spacing-md;
     box-shadow: v.$shadow-md;
     border: 1px solid v.$border-color;
-    max-width: 1200px;
-    margin: 0 auto;
+    width: 100%;
+    margin: 0;
 
     @media (min-width: map.get(v.$breakpoints, 'md')) {
       padding: v.$spacing-lg;
@@ -712,8 +714,8 @@
     padding: v.$spacing-md;
     box-shadow: v.$shadow-md;
     border: 1px solid v.$border-color;
-    max-width: 1200px;
-    margin: 0 auto;
+    width: 100%;
+    margin: 0;
 
     @media (min-width: map.get(v.$breakpoints, 'md')) {
       padding: v.$spacing-lg;

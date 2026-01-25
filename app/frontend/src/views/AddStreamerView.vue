@@ -1,5 +1,5 @@
 <template>
-  <div class="add-streamer-view">
+  <div class="page-view add-streamer-view">
     <!-- Header -->
     <div class="view-header">
       <button @click="goBack" class="btn-back" v-ripple>
@@ -108,7 +108,7 @@ const handleStreamersImported = () => {
 /* Responsive - Use SCSS mixins for breakpoints */
 
 .add-streamer-view {
-  padding: var(--spacing-6);
+  // .page-view provides padding/sizing via global styles
   animation: fadeIn 0.3s ease-out;
 }
 

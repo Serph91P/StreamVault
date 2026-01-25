@@ -1,5 +1,5 @@
 <template>
-  <div class="streamers-view">
+  <div class="page-view streamers-view">
     <!-- Header -->
     <div class="view-header">
       <div class="header-content">
@@ -128,7 +128,7 @@
     </div>
 
     <!-- Loading State -->
-    <div v-if="isLoading" class="streamers-container" :class="`view-${viewMode}`">
+    <div v-if="isLoading" class="streamers-container" :class="[`view-${viewMode}`, viewMode === 'grid' ? 'grid-streamers' : '']">
       <LoadingSkeleton
         v-for="i in 6"
         :key="i"
@@ -158,7 +158,7 @@
     />
 
     <!-- Streamers Grid/List -->
-    <div v-else class="streamers-container" :class="`view-${viewMode}`">
+    <div v-else class="streamers-container" :class="[`view-${viewMode}`, viewMode === 'grid' ? 'grid-streamers' : '']">
       <div
         v-for="(streamer, index) in filteredAndSortedStreamers"
         :key="streamer.id"
@@ -492,10 +492,8 @@ onUnmounted(() => {
 @use '@/styles/variables' as v;
 @use '@/styles/mixins' as m;
 .streamers-view {
-  padding: var(--spacing-6) var(--spacing-4);
-  max-width: 1600px;
-  margin: 0 auto;
-  min-height: 100vh;
+  // .page-view provides padding/sizing via global styles
+  // Page-specific overrides only
 }
 
 // Header
@@ -511,6 +509,11 @@ onUnmounted(() => {
 .header-content {
   flex: 1;
   min-width: 250px;
+  
+  @include m.respond-below('sm') {
+    min-width: 100%;
+    flex-basis: 100%;
+  }
 }
 
 .page-title {
@@ -875,11 +878,9 @@ onUnmounted(() => {
 
 // Streamers Container
 .streamers-container {
+  // Grid mode uses global .grid-streamers class
   &.view-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));  /* INCREASED from 320px */
-    gap: var(--spacing-5);
-    align-items: start;  /* CRITICAL: Prevent cards from stretching */
+    align-items: start;  // Prevent cards from stretching
   }
 
   &.view-list {
@@ -1004,8 +1005,5 @@ onUnmounted(() => {
     padding: var(--spacing-3);
   }
 
-  .streamers-container.view-grid {
-    grid-template-columns: 1fr;
-  }
 }
 </style>

@@ -1,5 +1,5 @@
 <template>
-  <div class="videos-view">
+  <div class="page-view videos-view">
     <!-- Header with Actions -->
     <div class="view-header">
       <div class="header-content">
@@ -167,7 +167,7 @@
     </div>
 
     <!-- Loading State -->
-    <div v-if="isLoading" class="videos-container" :class="`view-${viewMode}`">
+    <div v-if="isLoading" class="videos-container" :class="[`view-${viewMode}`, viewMode === 'grid' ? 'grid-recordings' : '']">
       <LoadingSkeleton
         v-for="i in 12"
         :key="i"
@@ -186,7 +186,7 @@
     />
 
     <!-- Videos Grid/List -->
-    <div v-else class="videos-container" :class="`view-${viewMode}`">
+    <div v-else class="videos-container" :class="[`view-${viewMode}`, viewMode === 'grid' ? 'grid-recordings' : '']">
       <div
         v-for="video in filteredAndSortedVideos"
         :key="video.id"
@@ -446,10 +446,8 @@ onMounted(() => {
 @use '@/styles/mixins' as m;
 
 .videos-view {
-  padding: var(--spacing-6) var(--spacing-4);
-  max-width: 1600px;
-  margin: 0 auto;
-  min-height: 100vh;
+  // .page-view provides padding/sizing via global styles
+  // Page-specific overrides only
 }
 
 // Header
@@ -465,6 +463,11 @@ onMounted(() => {
 .header-content {
   flex: 1;
   min-width: 250px;
+  
+  @include m.respond-below('sm') {
+    min-width: 100%;
+    flex-basis: 100%;
+  }
 }
 
 .page-title {
@@ -826,12 +829,8 @@ onMounted(() => {
 
 // Videos Container
 .videos-container {
-  &.view-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-    gap: var(--spacing-5);
-  }
-
+  // Grid mode uses global .grid-recordings class
+  
   &.view-list {
     display: flex;
     flex-direction: column;
@@ -852,42 +851,43 @@ onMounted(() => {
 
 .select-checkbox {
   position: absolute;
-  top: var(--spacing-3);
-  left: var(--spacing-3);
+  top: var(--spacing-2);
+  left: var(--spacing-2);
   z-index: 10;
-  min-width: 32px;
-  min-height: 32px;
+  min-width: 28px;
+  min-height: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.7);
+  background: rgba(0, 0, 0, 0.8);
   backdrop-filter: blur(8px);
-  border: 2px solid rgba(255, 255, 255, 0.2);
-  border-radius: var(--radius-md);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: var(--radius-sm);
   cursor: pointer;
   transition: all v.$duration-200 v.$ease-out;
 
   &:hover {
-    background: rgba(0, 0, 0, 0.8);
+    background: rgba(0, 0, 0, 0.9);
     border-color: var(--primary-color);
     transform: scale(1.05);
   }
 
   input[type="checkbox"] {
-    width: 20px;
-    height: 20px;
+    width: 16px;
+    height: 16px;
     cursor: pointer;
     accent-color: var(--primary-color);
+    margin: 0;
   }
 
   // Mobile: Larger touch target
   @include m.respond-below('md') {  // < 768px
-    min-width: 44px;
-    min-height: 44px;
+    min-width: 36px;
+    min-height: 36px;
     
     input[type="checkbox"] {
-      width: 24px;
-      height: 24px;
+      width: 20px;
+      height: 20px;
     }
   }
 }
@@ -995,8 +995,5 @@ onMounted(() => {
     }
   }
 
-  .videos-container.view-grid {
-    grid-template-columns: 1fr;
-  }
 }
 </style>

@@ -1,6 +1,7 @@
 import logging
 import logging.handlers
 import sys
+import os
 import json
 from datetime import datetime
 from pathlib import Path
@@ -58,8 +59,9 @@ def setup_logging():
     console_handler.setFormatter(formatter)
     logger.addHandler(console_handler)
 
-    # Ensure log directories exist
-    logs_dir = Path("/app/logs")
+    # Ensure log directories exist - use environment variable or fallback
+    logs_base = os.environ.get("LOGS_BASE_DIR") or os.environ.get("LOG_DIR") or "/app/logs"
+    logs_dir = Path(logs_base)
     app_logs_dir = logs_dir / "app"
     app_logs_dir.mkdir(parents=True, exist_ok=True)
 

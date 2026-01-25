@@ -958,11 +958,17 @@ except Exception as e:
     except Exception as e:
         logger.error(f"Failed to mount PWA assets: {e}")
 
-app.mount("/data", StaticFiles(directory="/app/data"), name="data")
+# Mount data directory - use local path if Docker path doesn't exist
+data_dir = "/app/data" if os.path.exists("/app/data") else "app/data"
+try:
+    os.makedirs(data_dir, exist_ok=True)
+    app.mount("/data", StaticFiles(directory=data_dir), name="data")
+except Exception as e:
+    logger.warning(f"Could not mount /data directory: {e}")
 
 # Mount images directory for unified image service
-# Hardcoded Docker path - always /recordings in container
-recordings_dir = "/recordings"
+# Use settings for recordings directory (supports both Docker and local dev)
+recordings_dir = settings.RECORDING_DIRECTORY
 images_dir = Path(recordings_dir) / ".media"
 # Create the directory if it doesn't exist
 images_dir.mkdir(parents=True, exist_ok=True)

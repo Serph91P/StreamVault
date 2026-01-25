@@ -734,12 +734,18 @@ const formatTime = (timestamp?: string) => {
   }
   
   .queue-panel {
-    width: calc(100vw - var(--spacing-4));  /* FIXED: Full width minus padding */
-    max-width: 400px;
-    left: var(--spacing-2);  /* FIXED: Align to left with padding */
-    right: var(--spacing-2);  /* FIXED: Align to right with padding */
-    transform: none;  /* FIXED: Remove centering transform */
-    margin: 0 auto;  /* FIXED: Center with auto margins */
+    position: fixed;
+    top: auto;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    max-width: 100%;
+    max-height: 70vh;
+    border-radius: var(--border-radius-lg) var(--border-radius-lg) 0 0;
+    margin-top: 0;
+    overflow-y: auto;
+    transform: none;
   }
   
   .stats-section {

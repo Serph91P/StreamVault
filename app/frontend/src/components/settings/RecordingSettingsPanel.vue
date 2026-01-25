@@ -1058,6 +1058,48 @@ const handleStreamerPolicySaved = (_policy: any) => {
   }
 }
 
+// ============================================================================
+// VARIABLE TAGS (Filename template variables)
+// ============================================================================
+
+.variables-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: v.$spacing-2;  // 8px gap between tags
+  margin-top: v.$spacing-3;  // 12px top margin
+  margin-bottom: v.$spacing-2;  // 8px bottom margin
+}
+
+.variable-tag {
+  display: inline-flex;
+  align-items: center;
+  background: var(--background-darker);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: v.$spacing-2 v.$spacing-3;  // 8px 12px
+  font-family: var(--font-mono);
+  font-size: v.$text-sm;
+  font-weight: v.$font-medium;
+  white-space: nowrap;
+  transition: v.$transition-all;
+  
+  &.clickable {
+    cursor: pointer;
+    
+    &:hover {
+      background: var(--primary-color);
+      color: white;
+      border-color: var(--primary-color);
+      transform: translateY(-1px);
+    }
+    
+    &:active {
+      transform: translateY(0);
+    }
+  }
+}
+
 @include m.respond-below('xs') {
   .variable-tag {
     font-size: v.$text-xs;

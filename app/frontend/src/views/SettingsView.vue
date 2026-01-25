@@ -1,5 +1,5 @@
 <template>
-  <div class="settings-view">
+  <div class="page-view settings-view">
     <!-- Header -->
     <div class="view-header">
       <div class="header-content">
@@ -77,7 +77,9 @@
             </p>
           </div>
 
-          <TwitchConnectionPanel />
+          <GlassCard variant="strong" padding="lg">
+            <TwitchConnectionPanel />
+          </GlassCard>
         </div>
 
         <!-- Notifications Settings -->
@@ -94,7 +96,7 @@
             </p>
           </div>
 
-          <GlassCard padding="lg">
+          <GlassCard variant="strong" padding="lg">
             <NotificationSettingsPanel
               :settings="notificationSettings || defaultNotificationSettings"
               :streamer-settings="notificationStreamerSettings"
@@ -119,7 +121,7 @@
             </p>
           </div>
 
-          <GlassCard padding="lg">
+          <GlassCard variant="strong" padding="lg">
             <RecordingSettingsPanel
               :settings="recordingSettings"
               :streamer-settings="recordingStreamerSettings"
@@ -145,7 +147,7 @@
             </p>
           </div>
 
-          <GlassCard padding="lg">
+          <GlassCard variant="strong" padding="lg">
             <ProxySettingsPanel />
           </GlassCard>
         </div>
@@ -164,7 +166,7 @@
             </p>
           </div>
 
-          <GlassCard padding="lg">
+          <GlassCard variant="strong" padding="lg">
             <FavoritesSettingsPanel />
           </GlassCard>
         </div>
@@ -183,7 +185,7 @@
             </p>
           </div>
 
-          <GlassCard padding="lg">
+          <GlassCard variant="strong" padding="lg">
             <PWAPanel />
           </GlassCard>
         </div>
@@ -202,7 +204,7 @@
             </p>
           </div>
 
-          <GlassCard>
+          <GlassCard variant="strong">
             <div class="card-content">
               <div class="about-content">
                 <div class="about-logo">
@@ -562,10 +564,8 @@ onMounted(() => {
 @use '@/styles/variables' as v;
 @use '@/styles/mixins' as m;
 .settings-view {
-  padding: var(--spacing-6) var(--spacing-4);
-  max-width: 1600px;
-  margin: 0 auto;
-  min-height: 100vh;
+  // .page-view provides padding/sizing via global styles
+  // Page-specific overrides only
 }
 
 // Header
@@ -789,17 +789,28 @@ onMounted(() => {
   margin: 0;
 }
 
-// Settings Cards
+// Settings Cards - NO background, uses GlassCard component for glassmorphism
 .settings-card {
-  background: var(--background-card);
+  // NO background - GlassCard handles this
   border: 1px solid var(--border-color);
   border-radius: var(--radius-xl);
   overflow: hidden;
   margin-bottom: var(--spacing-5);
+  
+  // Reduce margins on mobile
+  @include m.respond-below('sm') {
+    margin-bottom: var(--spacing-3);
+    border-radius: var(--radius-lg);
+  }
 }
 
 .card-content {
   padding: var(--spacing-6);
+  
+  // Mobile: Reduce padding for better content visibility
+  @include m.respond-below('sm') {
+    padding: var(--spacing-3);
+  }
 }
 
 .setting-item {
@@ -1184,6 +1195,11 @@ onMounted(() => {
   .nav-label {
     font-size: var(--text-sm);
     font-weight: 600;
+  }
+
+  // Reduce card-content padding on mobile for better content visibility
+  .card-content {
+    padding: var(--spacing-3);
   }
 
   .setting-item {

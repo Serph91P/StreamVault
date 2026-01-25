@@ -168,7 +168,10 @@ const handleAction = () => {
 .status-icon {
   width: 48px;
   height: 48px;
+  min-width: 48px;  /* Prevent shrinking */
+  max-width: 48px;  /* Prevent growing */
   flex-shrink: 0;
+  flex-grow: 0;
 
   display: flex;
   align-items: center;
@@ -338,6 +341,10 @@ const handleAction = () => {
 
 // Responsive
 @include m.respond-below('sm') {  // < 640px
+  .status-card-content {
+    gap: var(--spacing-3);
+  }
+  
   .status-value {
     font-size: var(--text-2xl);
   }
@@ -345,6 +352,8 @@ const handleAction = () => {
   .status-icon {
     width: 40px;
     height: 40px;
+    min-width: 40px;
+    max-width: 40px;
 
     .icon {
       width: 20px;
