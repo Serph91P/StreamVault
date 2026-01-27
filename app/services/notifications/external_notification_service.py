@@ -316,21 +316,21 @@ class ExternalNotificationService:
 
             params = [f"click={twitch_url}", f"priority={'high' if event_type == 'online' else 'default'}"]
 
-            # Event-specific Tags (ntfy emoji shortcodes)
+            # Event-specific tags (text only to avoid duplicate emoji)
             if event_type == "online":
-                params.append("tags=red_circle,live")
+                params.append("tags=live")
             elif event_type == "offline":
-                params.append("tags=white_circle,offline")
+                params.append("tags=offline")
             elif event_type == "update":
-                params.append("tags=pencil,update")
+                params.append("tags=update")
             elif event_type == "recording_started":
-                params.append("tags=movie_camera,recording")
+                params.append("tags=recording")
             elif event_type == "recording_completed":
-                params.append("tags=white_check_mark,complete")
+                params.append("tags=recording_complete")
             elif event_type == "recording_failed":
-                params.append("tags=x,failed")
+                params.append("tags=recording_failed")
             else:
-                params.append("tags=bell,notification")
+                params.append("tags=notification")
 
             # Use avatar_url to override the Apprise notification icon with streamer profile
             # Also set image=no to prevent duplicate image attachment
