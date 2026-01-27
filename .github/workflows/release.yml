@@ -92,15 +92,23 @@ jobs:
 
           if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
             VERSION=${GITHUB_REF#refs/tags/v}
-            if echo "$VERSION" | grep -qi "dev"; then
+            if echo "$VERSION" | grep -qi "^dev\.|^vdev\."; then
+              VERSION=${VERSION#v}
+              VERSION=${VERSION#dev.}
+              VERSION="dev.${VERSION}"
               IS_PRERELEASE=true
+              RELEASE_TAG="vdev.${VERSION#dev.}"
+            elif echo "$VERSION" | grep -qi "dev"; then
+              IS_PRERELEASE=true
+              RELEASE_TAG=${GITHUB_REF#refs/tags/}
             else
               IS_PRERELEASE=false
+              RELEASE_TAG=${GITHUB_REF#refs/tags/}
             fi
-            RELEASE_TAG=${GITHUB_REF#refs/tags/}
           elif [[ "${{ github.ref }}" == refs/heads/main ]]; then
             if [ -n "$LATEST_DEV_TAG" ]; then
               VERSION=${LATEST_DEV_TAG#v}
+              VERSION=${VERSION#dev.}
               VERSION=${VERSION%-dev.*}
             else
               VERSION="$MAJOR.$MINOR.$((PATCH + COMMITS_SINCE_TAG))"
@@ -108,9 +116,9 @@ jobs:
             IS_PRERELEASE=false
             RELEASE_TAG="v${VERSION}"
           elif [[ "${{ github.ref }}" == refs/heads/develop ]]; then
-            VERSION="$MAJOR.$MINOR.$((PATCH + COMMITS_SINCE_TAG))-dev.${COMMITS_SINCE_TAG}"
+            VERSION="dev.$MAJOR.$MINOR.$((PATCH + COMMITS_SINCE_TAG))"
             IS_PRERELEASE=true
-            RELEASE_TAG="v${VERSION}"
+            RELEASE_TAG="vdev.${VERSION#dev.}"
           else
             VERSION="dev.${COMMITS_SINCE_TAG}"
             IS_PRERELEASE=true
