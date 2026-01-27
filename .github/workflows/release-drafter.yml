@@ -17,10 +17,6 @@ jobs:
       pull-requests: write
     runs-on: ubuntu-latest
     steps:
-      # Checkout repository to access config file
-      - name: Checkout
-        uses: actions/checkout@v4
-        
       - uses: release-drafter/release-drafter@v6
         with:
           config-name: release-drafter.yml
