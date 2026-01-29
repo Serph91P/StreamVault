@@ -104,7 +104,7 @@ async def _check_for_updates() -> dict:
             current_version = VERSION.replace("v", "")
 
             # Skip comparison if running dev build
-            if current_version == "dev":
+            if "dev" in current_version.lower() or BRANCH == "develop":
                 result["update_available"] = False
             else:
                 # Parse versions (e.g., "1.2.3" -> [1, 2, 3])
