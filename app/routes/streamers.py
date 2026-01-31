@@ -119,6 +119,101 @@ async def delete_files_async(files_to_delete: list) -> tuple[list, int]:
     return deleted_files, len(deleted_files)
 
 
+def collect_stream_files_for_deletion(
+    stream: Stream, metadata: StreamMetadata, db: Session
+) -> tuple[list[str], set[str]]:
+    """
+    Collect files to delete for a stream using safe deletion logic.
+    
+    IMPORTANT: Uses the same safe deletion logic as cleanup_service:
+    - tvshow.nfo is NEVER deleted (belongs to streamer, not stream)
+    - season.nfo is only deleted if this is the LAST stream in that season
+    
+    Returns:
+        tuple: (files_to_delete, directories_to_check)
+    """
+    files_to_delete = []
+    directories_to_check = set()
+    
+    # Get the base directory for this recording
+    recording_dir = None
+    if stream.recording_path:
+        recording_dir = os.path.dirname(stream.recording_path)
+        if recording_dir and os.path.exists(recording_dir):
+            directories_to_check.add(recording_dir)
+    elif metadata and metadata.nfo_path:
+        recording_dir = os.path.dirname(metadata.nfo_path)
+        if recording_dir and os.path.exists(recording_dir):
+            directories_to_check.add(recording_dir)
+    
+    if metadata:
+        # Per-stream files (unique to this stream, safe to delete)
+        per_stream_attrs = [
+            "thumbnail_path",
+            "json_path",
+            "nfo_path",  # Episode-specific NFO (not tvshow.nfo!)
+            "chapters_vtt_path",
+            "chapters_srt_path",
+            "chapters_ffmpeg_path",
+            "chapters_xml_path",
+        ]
+        
+        for attr in per_stream_attrs:
+            path = getattr(metadata, attr, None)
+            if path:
+                files_to_delete.append(path)
+        
+        # SHARED FILES HANDLING (same logic as cleanup_service):
+        # - tvshow.nfo: NEVER delete during stream deletion (belongs to streamer)
+        if metadata.tvshow_nfo_path:
+            logger.debug(f"Preserving tvshow.nfo (belongs to streamer): {metadata.tvshow_nfo_path}")
+        
+        # - season.nfo: Only delete if this is the LAST stream in that season
+        if metadata.season_nfo_path and os.path.exists(metadata.season_nfo_path):
+            season_dir = os.path.dirname(metadata.season_nfo_path)
+            other_streams_in_season = (
+                db.query(Stream)
+                .join(StreamMetadata)
+                .filter(
+                    Stream.streamer_id == stream.streamer_id,
+                    Stream.id != stream.id,
+                    StreamMetadata.season_nfo_path.like(f"{season_dir}%"),
+                )
+                .count()
+            )
+            if other_streams_in_season == 0:
+                files_to_delete.append(metadata.season_nfo_path)
+                logger.debug(f"Last stream in season, will delete season.nfo: {metadata.season_nfo_path}")
+            else:
+                logger.debug(f"Keeping shared season.nfo ({other_streams_in_season} other streams)")
+        
+        # Handle segments directory from metadata
+        if hasattr(metadata, 'segments_dir_path') and metadata.segments_dir_path:
+            if os.path.exists(metadata.segments_dir_path):
+                files_to_delete.append(metadata.segments_dir_path)
+    
+    # Add main recording file and related files
+    if stream.recording_path and os.path.exists(stream.recording_path):
+        files_to_delete.append(stream.recording_path)
+        
+        # Check for .ts/.mp4 versions and segment directories
+        stream_file = Path(stream.recording_path)
+        if stream_file.suffix == ".mp4":
+            ts_version = stream_file.with_suffix(".ts")
+            if ts_version.exists():
+                files_to_delete.append(str(ts_version))
+        elif stream_file.suffix == ".ts":
+            mp4_version = stream_file.with_suffix(".mp4")
+            if mp4_version.exists():
+                files_to_delete.append(str(mp4_version))
+        
+        segments_dir = stream_file.parent / f"{stream_file.stem}_segments"
+        if segments_dir.exists() and segments_dir.is_dir():
+            files_to_delete.append(str(segments_dir))
+    
+    return files_to_delete, directories_to_check
+
+
 @router.get("")
 async def get_streamers(streamer_service: StreamerService = Depends(get_streamer_service)):
     """Get all streamers with their current status
@@ -836,25 +931,15 @@ async def delete_stream(streamer_id: int, stream_id: int, db: Session = Depends(
 
         # Get metadata to find associated files
         metadata = db.query(StreamMetadata).filter(StreamMetadata.stream_id == stream_id).first()
-        files_to_delete = []
+        
+        # Use safe deletion logic (same as cleanup_service)
+        # - tvshow.nfo is NEVER deleted (belongs to streamer)
+        # - season.nfo is only deleted if this is the LAST stream in that season
+        files_to_delete, directories_to_check = collect_stream_files_for_deletion(
+            stream, metadata, db
+        )
 
         if metadata:
-            # Collect all metadata files that need to be deleted (only actually generated files)
-            for attr in [
-                "thumbnail_path",
-                "json_path",
-                "nfo_path",
-                "tvshow_nfo_path",
-                "season_nfo_path",
-                "chapters_vtt_path",
-                "chapters_srt_path",
-                "chapters_ffmpeg_path",
-                "chapters_xml_path",
-            ]:
-                path = getattr(metadata, attr, None)
-                if path:
-                    files_to_delete.append(path)
-
             # Delete metadata record first (foreign key constraint)
             db.delete(metadata)
 
@@ -865,32 +950,6 @@ async def delete_stream(streamer_id: int, stream_id: int, db: Session = Depends(
                 files_to_delete.append(recording.path)
             # Delete recording record
             db.delete(recording)
-
-        # Also check stream.recording_path and add all related files
-        if stream.recording_path:
-            files_to_delete.append(stream.recording_path)
-
-            # Add all possible related files based on the recording path
-            base_path = os.path.splitext(stream.recording_path)[0]
-            related_files = [
-                f"{base_path}-thumb.jpg",  # Thumbnail
-                f"{base_path}.info.json",  # JSON metadata
-                f"{base_path}.json",  # Alternative JSON metadata
-                f"{base_path}.srt",  # Subtitle files
-                f"{base_path}.vtt",  # WebVTT files
-                f"{base_path}.xml",  # XML metadata
-                f"{base_path}-ffmpeg-chapters.txt",  # FFmpeg chapter files
-                f"{base_path}-chapters.txt",  # Alternative chapter markers
-                f"{base_path}-chapters.vtt",  # WebVTT chapters
-                f"{base_path}-chapters.srt",  # SRT chapters
-                f"{base_path}.nfo",  # NFO metadata
-                f"{base_path}_thumbnail.jpg",  # Alternative thumbnail naming
-            ]
-
-            # Add all related files that exist
-            for related_file in related_files:
-                if os.path.exists(related_file):
-                    files_to_delete.append(related_file)
 
         # Delete all stream events
         db.query(StreamEvent).filter(StreamEvent.stream_id == stream_id).delete()
@@ -904,6 +963,16 @@ async def delete_stream(streamer_id: int, stream_id: int, db: Session = Depends(
 
         # Now delete all the files
         deleted_files, deleted_count = await delete_files_async(files_to_delete)
+        
+        # Clean up empty directories
+        for dir_path in directories_to_check:
+            try:
+                if os.path.exists(dir_path) and os.path.isdir(dir_path):
+                    if not os.listdir(dir_path):
+                        os.rmdir(dir_path)
+                        logger.info(f"Removed empty directory: {dir_path}")
+            except Exception as e:
+                logger.warning(f"Failed to remove directory {dir_path}: {e}")
 
         return {
             "success": True,
@@ -1163,8 +1232,11 @@ async def delete_all_streams(streamer_id: int, exclude_active: bool = True, db: 
                 "deleted_files_count": 0,
             }
 
-        # Collect all metadata files that need to be deleted
+        # Collect all metadata files that need to be deleted using safe deletion logic
+        # - tvshow.nfo is NEVER deleted (belongs to streamer)
+        # - season.nfo is only deleted if this is the LAST stream in that season
         files_to_delete = []
+        directories_to_check = set()
         deleted_stream_ids = []
 
         for stream in streams:
@@ -1176,23 +1248,12 @@ async def delete_all_streams(streamer_id: int, exclude_active: bool = True, db: 
             # Get metadata for this stream
             metadata = db.query(StreamMetadata).filter(StreamMetadata.stream_id == stream.id).first()
 
-            if metadata:
-                # Collect all metadata files that need to be deleted (only actually generated files)
-                for attr in [
-                    "thumbnail_path",
-                    "json_path",
-                    "nfo_path",
-                    "tvshow_nfo_path",
-                    "season_nfo_path",
-                    "chapters_vtt_path",
-                    "chapters_srt_path",
-                    "chapters_ffmpeg_path",
-                    "chapters_xml_path",
-                ]:
-                    path = getattr(metadata, attr, None)
-                    if path:
-                        files_to_delete.append(path)
+            # Use safe deletion logic (same as cleanup_service)
+            stream_files, stream_dirs = collect_stream_files_for_deletion(stream, metadata, db)
+            files_to_delete.extend(stream_files)
+            directories_to_check.update(stream_dirs)
 
+            if metadata:
                 # Delete metadata record (foreign key constraint)
                 db.delete(metadata)
 
@@ -1225,6 +1286,16 @@ async def delete_all_streams(streamer_id: int, exclude_active: bool = True, db: 
 
         # Now delete all the files
         deleted_files, deleted_count = await delete_files_async(files_to_delete)
+
+        # Clean up empty directories
+        for dir_path in directories_to_check:
+            try:
+                if os.path.exists(dir_path) and os.path.isdir(dir_path):
+                    if not os.listdir(dir_path):
+                        os.rmdir(dir_path)
+                        logger.info(f"Removed empty directory: {dir_path}")
+            except Exception as e:
+                logger.warning(f"Failed to remove directory {dir_path}: {e}")
 
         return {
             "success": True,
