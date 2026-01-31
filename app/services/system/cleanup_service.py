@@ -59,11 +59,20 @@ class CleanupService:
         config_manager = ConfigManager()
         max_streams = config_manager.get_max_streams(streamer_id)
 
-        # Return default policy
-        logger.debug(f"Using default cleanup policy for streamer {streamer_id}")
+        # CRITICAL FIX: max_streams = 0 means "unlimited" (no cleanup)
+        # Previously, 0 was incorrectly treated as "not set" and defaulted to threshold=10
+        # which caused all recordings beyond 10 to be automatically deleted!
+        if max_streams == 0:
+            # No cleanup policy configured and max_streams is unlimited
+            # Return None to indicate no cleanup should be performed
+            logger.debug(f"No cleanup policy for streamer {streamer_id} (max_streams=0 means unlimited)")
+            return None
+
+        # Return default policy only when max_streams is explicitly set to a positive value
+        logger.debug(f"Using default cleanup policy for streamer {streamer_id}: count-based with threshold {max_streams}")
         return {
             "type": CleanupPolicyType.COUNT.value,
-            "threshold": max_streams if max_streams > 0 else 10,
+            "threshold": max_streams,
             "preserve_favorites": True,
             "preserve_categories": [],
         }
@@ -97,6 +106,13 @@ class CleanupService:
         try:
             # Get the policy to apply
             policy = custom_policy or CleanupService._get_effective_cleanup_policy(streamer_id, db)
+            
+            # CRITICAL: If no policy is configured (None), skip cleanup entirely
+            # This happens when max_streams=0 (unlimited) and no explicit cleanup policy is set
+            if policy is None:
+                logger.debug(f"No cleanup policy for streamer {streamer_id}, skipping cleanup (unlimited retention)")
+                return 0, []
+            
             policy_type = policy.get("type", CleanupPolicyType.COUNT.value)
             threshold = policy.get("threshold", 10)
             preserve_favorites = policy.get("preserve_favorites", True)
@@ -484,79 +500,70 @@ class CleanupService:
                     files_to_delete.append(stream.recording_path)
 
                 # Add all metadata files from database (only actually generated files)
+                # NOTE: We use ONLY database paths - NO pattern matching!
+                # This prevents accidental deletion of files belonging to other streams
                 if metadata:
-                    metadata_files = [
+                    # Per-stream files (unique to this stream, safe to delete)
+                    per_stream_files = [
                         metadata.thumbnail_path,
                         metadata.json_path,
-                        metadata.nfo_path,
-                        metadata.tvshow_nfo_path,
-                        metadata.season_nfo_path,
+                        metadata.nfo_path,  # Episode-specific NFO
                         metadata.chapters_vtt_path,
                         metadata.chapters_srt_path,
                         metadata.chapters_ffmpeg_path,
                         metadata.chapters_xml_path,
                     ]
 
-                    # Add existing metadata files to deletion list
-                    for file_path in metadata_files:
+                    # Add existing per-stream files to deletion list
+                    for file_path in per_stream_files:
                         if file_path and os.path.exists(file_path):
                             files_to_delete.append(file_path)
 
-                # Find ALL related files in the recording directory by pattern matching
-                if recording_dir and os.path.exists(recording_dir):
-                    # Try to get base filename from recording_path or construct it from stream data
-                    base_name = None
-                    if stream.recording_path:
-                        base_name = os.path.splitext(os.path.basename(stream.recording_path))[0]
-                    elif metadata and metadata.nfo_path:
-                        # Construct from NFO path
-                        base_name = os.path.splitext(os.path.basename(metadata.nfo_path))[0]
-                    elif stream.started_at:
-                        # Last resort: construct from stream data (Streamer - SYYYYMME## pattern)
-                        streamer = db.query(Streamer).filter(Streamer.id == stream.streamer_id).first()
-                        if streamer:
-                            season_num = stream.started_at.strftime("%Y%m")
-                            # Safe access to episode_number with hasattr check
-                            episode_num = (
-                                f"{int(stream.episode_number):02d}"
-                                if hasattr(stream, "episode_number") and stream.episode_number
-                                else stream.started_at.strftime("%d")
+                    # SHARED FILES HANDLING:
+                    # - tvshow.nfo: Belongs to STREAMER, not streams. NEVER delete during stream cleanup.
+                    #               Only delete when the STREAMER is deleted (handled in streamer deletion route)
+                    # - season.nfo: Belongs to SEASON. Only delete if this is the LAST stream in that season.
+                    if metadata.tvshow_nfo_path:
+                        # NEVER delete tvshow.nfo during stream cleanup - it belongs to the streamer
+                        logger.debug(
+                            f"Preserving tvshow.nfo (belongs to streamer, not stream): {metadata.tvshow_nfo_path}"
+                        )
+
+                    if metadata.season_nfo_path and os.path.exists(metadata.season_nfo_path):
+                        # Check if other streams exist in the same season directory
+                        season_dir = os.path.dirname(metadata.season_nfo_path)
+                        other_streams_in_season = (
+                            db.query(Stream)
+                            .join(StreamMetadata)
+                            .filter(
+                                Stream.streamer_id == stream.streamer_id,
+                                Stream.id != stream.id,
+                                StreamMetadata.season_nfo_path.like(f"{season_dir}%"),
                             )
-                            base_name = f"{streamer.username} - S{season_num}E{episode_num}"
+                            .count()
+                        )
+                        if other_streams_in_season == 0:
+                            files_to_delete.append(metadata.season_nfo_path)
+                            logger.debug(f"Last stream in season, will delete season.nfo: {metadata.season_nfo_path}")
+                        else:
+                            logger.debug(
+                                f"Keeping shared season.nfo (other streams in season): {metadata.season_nfo_path}"
+                            )
 
-                    if base_name:
-                        # Find all files matching this recording
-                        for filename in os.listdir(recording_dir):
-                            file_path = os.path.join(recording_dir, filename)
+                    # Add segments directory from database if tracked
+                    if hasattr(metadata, "segments_dir_path") and metadata.segments_dir_path:
+                        if os.path.exists(metadata.segments_dir_path) and os.path.isdir(metadata.segments_dir_path):
+                            directories_to_check.add(metadata.segments_dir_path)
+                            logger.debug(f"Will check segments directory from DB: {metadata.segments_dir_path}")
 
-                            # Skip directories for now
-                            if os.path.isdir(file_path):
-                                # Check if it's a segment directory for this recording
-                                if filename.startswith(base_name) and filename.endswith("_segments"):
-                                    directories_to_check.add(file_path)
-                                continue
+                # Fallback: Derive segments directory from recording_path if not in DB
+                if stream.recording_path:
+                    segments_dir_derived = stream.recording_path.replace(".mp4", "_segments").replace(".ts", "_segments")
+                    if os.path.exists(segments_dir_derived) and os.path.isdir(segments_dir_derived):
+                        directories_to_check.add(segments_dir_derived)
+                        logger.debug(f"Will check segments directory (derived): {segments_dir_derived}")
 
-                            # Check if this file belongs to the recording
-                            if filename.startswith(base_name):
-                                # Include all variations: .nfo, .tbn, .jpg, -thumb.jpg, _thumbnail.jpg, etc.
-                                if file_path not in files_to_delete and os.path.exists(file_path):
-                                    files_to_delete.append(file_path)
-
-                            # Also check for symlinks that point to this recording's files
-                            if os.path.islink(file_path):
-                                try:
-                                    link_target = os.readlink(file_path)
-                                    # Check if the symlink points to any of our files
-                                    target_base = os.path.splitext(os.path.basename(link_target))[0]
-                                    if base_name in target_base or target_base in base_name:
-                                        if file_path not in files_to_delete:
-                                            files_to_delete.append(file_path)
-                                except (OSError, ValueError):
-                                    # Ignore broken symlinks or permission errors during readlink
-                                    # These will be handled by the orphaned files cleanup
-                                    pass
-
-                # Delete all collected files
+                # Delete all collected files (using exact DB paths only)
                 for file_path in files_to_delete:
                     try:
                         if os.path.exists(file_path) or os.path.islink(file_path):
@@ -568,34 +575,15 @@ class CleanupService:
 
                 # Delete segment directories if they exist and are not actively being used
                 for dir_path in directories_to_check:
+                    # Skip if not a segments directory (recording_dir may be added for other checks)
+                    if not dir_path.endswith("_segments"):
+                        continue
+
                     if os.path.exists(dir_path) and os.path.isdir(dir_path):
-                        # Safety check: Don't delete if this is an active recording
-                        if dir_path.endswith("_segments"):
-                            # Check if this stream is currently recording
-                            if stream.ended_at is None:
-                                logger.warning(
-                                    f"Skipping deletion of segment directory for active recording: {dir_path}"
-                                )
-                                continue
-
-                            # Additional check: see if there's a corresponding stream that's still active
-                            active_stream = (
-                                db.query(Stream)
-                                .filter(
-                                    Stream.streamer_id == stream.streamer_id,
-                                    Stream.ended_at.is_(None),
-                                    Stream.id != stream.id,
-                                )
-                                .first()
-                            )
-
-                            if active_stream:
-                                # Check if the segment directory name matches the active stream
-                                if base_name and base_name in os.path.basename(dir_path):
-                                    logger.warning(
-                                        f"Skipping deletion of segment directory - may belong to active recording: {dir_path}"
-                                    )
-                                    continue
+                        # Safety check: Don't delete if this stream is still active
+                        if stream.ended_at is None:
+                            logger.warning(f"Skipping deletion of segment directory for active recording: {dir_path}")
+                            continue
 
                         try:
                             shutil.rmtree(dir_path)
@@ -627,87 +615,84 @@ class CleanupService:
                 dir_count = len(directories_to_check)
                 logger.info(f"Deleted stream {stream.id} with {file_count} files and {dir_count} directories")
 
-                # Check if the parent directory (episode directory) is now empty, and if so, delete it
+                # ARCHITECTURE NOTE: StreamVault stores recordings directly in Season folders
+                # Structure: /recordings/{Streamer}/Season YYYY-MM/{Episode files}
+                # There is NO separate episode folder - all episode files are in the Season folder
+                #
+                # recording_dir = Season folder (e.g., /recordings/GRONKH/Season 2026-01/)
+                # We should ONLY delete the Season folder if it's completely empty (no other recordings)
+                
+                # Check if the Season directory is now completely empty (no other recordings remain)
                 if recording_dir and os.path.exists(recording_dir):
                     try:
-                        remaining_files = []
-                        for root, dirs, files in os.walk(recording_dir):
-                            # Ignore hidden directories like .media
-                            dirs[:] = [d for d in dirs if not d.startswith(".")]
-                            remaining_files.extend([os.path.join(root, f) for f in files])
-
-                        # Only delete if completely empty (ignoring system files like poster.jpg, season-poster.jpg in parent)
-                        if not remaining_files:
-                            # Get parent (Season directory) before deleting episode directory
-                            season_dir = os.path.dirname(recording_dir)
-
-                            shutil.rmtree(recording_dir)
-                            logger.info(f"Removed empty episode directory: {recording_dir}")
-
-                            # SECURITY: Validate season_dir is within safe boundaries before operations
-                            # While recording_dir is validated earlier, the parent could be manipulated via symlinks
-                            try:
-                                safe_season_dir = validate_path_security(season_dir, "read")
-                            except Exception as e:
-                                logger.warning(
-                                    f"🚨 SECURITY: Season directory {season_dir} is outside safe path, skipping cleanup: {e}"
-                                )
+                        # Count remaining recordings in the Season folder
+                        # Look for .mp4, .ts, .mkv files (actual recordings, not metadata)
+                        recording_extensions = {'.mp4', '.ts', '.mkv', '.avi', '.mov'}
+                        remaining_recordings = []
+                        
+                        for item in os.listdir(recording_dir):
+                            item_path = os.path.join(recording_dir, item)
+                            
+                            # Skip hidden files/dirs
+                            if item.startswith('.'):
                                 continue
-
-                            # NOW check if the Season directory is also empty
-                            if safe_season_dir and os.path.exists(safe_season_dir):
+                                
+                            # Check if it's a recording file
+                            if os.path.isfile(item_path):
+                                _, ext = os.path.splitext(item.lower())
+                                if ext in recording_extensions:
+                                    remaining_recordings.append(item)
+                            
+                            # Check if it's a segments directory (indicates active/incomplete recording)
+                            elif os.path.isdir(item_path) and item.endswith('_segments'):
+                                remaining_recordings.append(item)
+                        
+                        if remaining_recordings:
+                            # Other recordings still exist in this Season folder - keep it!
+                            logger.debug(
+                                f"Season directory {recording_dir} still has {len(remaining_recordings)} recordings, keeping it"
+                            )
+                        else:
+                            # Season folder is truly empty of recordings - safe to delete
+                            # But first check for any non-metadata files
+                            metadata_files = {
+                                'poster.jpg', 'fanart.jpg', 'season-poster.jpg', 'banner.jpg',
+                                'season.nfo', 'tvshow.nfo', 'folder.jpg'
+                            }
+                            
+                            all_items = [f for f in os.listdir(recording_dir) if not f.startswith('.')]
+                            non_metadata_items = [f for f in all_items if f.lower() not in metadata_files]
+                            
+                            if not non_metadata_items:
+                                # Only metadata files remain - safe to delete Season folder
+                                # SECURITY: Validate path before deletion
                                 try:
-                                    # Check if Season directory only contains metadata files (poster.jpg, etc.) or is completely empty
-                                    season_files = []
-                                    season_dirs = []
-
-                                    for item in os.listdir(safe_season_dir):
-                                        item_path = os.path.join(safe_season_dir, item)
-
-                                        # Skip hidden files/dirs
-                                        if item.startswith("."):
-                                            continue
-
-                                        if os.path.isdir(item_path):
-                                            season_dirs.append(item)
-                                        else:
-                                            season_files.append(item)
-
-                                    # Season directory is eligible for deletion if:
-                                    # 1. No subdirectories (all episodes deleted)
-                                    # 2. Only metadata files remain (poster.jpg, fanart.jpg, season-poster.jpg, 0b symlinks)
-                                    metadata_files = {"poster.jpg", "fanart.jpg", "season-poster.jpg", "banner.jpg"}
-
-                                    if len(season_dirs) == 0:
-                                        # No subdirectories - check if only metadata or completely empty
-                                        non_metadata_files = [
-                                            f
-                                            for f in season_files
-                                            if f not in metadata_files
-                                            and os.path.getsize(os.path.join(safe_season_dir, f)) > 0
+                                    safe_season_dir = validate_path_security(recording_dir, "delete")
+                                    shutil.rmtree(safe_season_dir)
+                                    logger.info(f"🗂️ Removed empty Season directory: {safe_season_dir}")
+                                    
+                                    # Now check if the Streamer folder is also empty
+                                    streamer_dir = os.path.dirname(safe_season_dir)
+                                    if os.path.exists(streamer_dir):
+                                        streamer_items = [
+                                            f for f in os.listdir(streamer_dir) 
+                                            if not f.startswith('.') and f.lower() not in metadata_files
                                         ]
-
-                                        if len(non_metadata_files) == 0:
-                                            # Safe to delete - only metadata (or empty)
-                                            shutil.rmtree(safe_season_dir)
-                                            logger.info(
-                                                f"🗂️ Removed empty Season directory: {safe_season_dir} (had {len(season_files)} metadata files)"
-                                            )
-                                        else:
-                                            logger.debug(
-                                                f"Season directory {safe_season_dir} still has {len(non_metadata_files)} non-metadata files, keeping it"
-                                            )
-                                    else:
-                                        logger.debug(
-                                            f"Season directory {safe_season_dir} still has {len(season_dirs)} subdirectories, keeping it"
-                                        )
-
-                                except Exception as season_error:
-                                    logger.debug(
-                                        f"Could not check/remove Season directory {safe_season_dir}: {season_error}"
-                                    )
+                                        if not streamer_items:
+                                            try:
+                                                safe_streamer_dir = validate_path_security(streamer_dir, "delete")
+                                                shutil.rmtree(safe_streamer_dir)
+                                                logger.info(f"🗂️ Removed empty Streamer directory: {safe_streamer_dir}")
+                                            except Exception as e:
+                                                logger.debug(f"Could not remove Streamer directory: {e}")
+                                except Exception as e:
+                                    logger.warning(f"Could not remove Season directory {recording_dir}: {e}")
+                            else:
+                                logger.debug(
+                                    f"Season directory {recording_dir} has non-metadata items: {non_metadata_items[:5]}..."
+                                )
                     except Exception as e:
-                        logger.debug(f"Could not remove directory {recording_dir}: {e}")
+                        logger.debug(f"Could not check Season directory {recording_dir}: {e}")
 
             except Exception as e:
                 logger.error(f"Error deleting stream {stream.id}: {e}", exc_info=True)
@@ -789,35 +774,42 @@ class CleanupService:
                     # Check if the streamer has a cleanup policy
                     try:
                         policy = CleanupService._get_effective_cleanup_policy(streamer.id, db)
-                        if policy:
-                            policy_type = policy.get("type", "count")
-                            threshold = policy.get("threshold", 0)
+                        if policy is None:
+                            # No cleanup policy configured (max_streams=0 means unlimited)
+                            logger.debug(
+                                f"Skipping streamer {streamer.username} ({processed_count}/{len(streamers)}) "
+                                f"- no cleanup policy (unlimited retention)"
+                            )
+                            continue
+                            
+                        policy_type = policy.get("type", "count")
+                        threshold = policy.get("threshold", 0)
+                        logger.info(
+                            f"Processing streamer {streamer.username} ({processed_count}/{len(streamers)}) "
+                            f"with policy {policy_type} (threshold: {threshold})"
+                        )
+
+                        # Get current storage stats before cleanup
+                        storage_before = await CleanupService.get_storage_usage(streamer.id)
+
+                        # Run the cleanup
+                        deleted_count, deleted_paths = await CleanupService.cleanup_old_recordings(streamer.id, db)
+
+                        if deleted_count > 0:
+                            # Get storage stats after cleanup
+                            storage_after = await CleanupService.get_storage_usage(streamer.id)
+                            freed_space = storage_before["totalSize"] - storage_after["totalSize"]
+                            freed_space_mb = freed_space / (1024 * 1024)  # Convert to MB
+
                             logger.info(
-                                f"Processing streamer {streamer.username} ({processed_count}/{len(streamers)}) "
-                                f"with policy {policy_type} (threshold: {threshold})"
+                                f"Cleaned up {deleted_count} recordings for streamer {streamer.username}, "
+                                f"freed {freed_space_mb:.2f} MB of space"
                             )
 
-                            # Get current storage stats before cleanup
-                            storage_before = await CleanupService.get_storage_usage(streamer.id)
-
-                            # Run the cleanup
-                            deleted_count, deleted_paths = await CleanupService.cleanup_old_recordings(streamer.id, db)
-
-                            if deleted_count > 0:
-                                # Get storage stats after cleanup
-                                storage_after = await CleanupService.get_storage_usage(streamer.id)
-                                freed_space = storage_before["totalSize"] - storage_after["totalSize"]
-                                freed_space_mb = freed_space / (1024 * 1024)  # Convert to MB
-
-                                logger.info(
-                                    f"Cleaned up {deleted_count} recordings for streamer {streamer.username}, "
-                                    f"freed {freed_space_mb:.2f} MB of space"
-                                )
-
-                                cleanup_count += 1
-                                total_deleted_count += deleted_count
-                            else:
-                                logger.info(f"No recordings to clean up for streamer {streamer.username}")
+                            cleanup_count += 1
+                            total_deleted_count += deleted_count
+                        else:
+                            logger.debug(f"No recordings to clean up for streamer {streamer.username}")
                     except Exception as e:
                         logger.error(f"Error during cleanup for streamer {streamer.username}: {e}", exc_info=True)
 
@@ -851,6 +843,12 @@ class CleanupService:
         try:
             # Get the policy to apply
             policy = custom_policy or CleanupService._get_effective_cleanup_policy(streamer_id, db)
+            
+            # If no policy is configured, nothing would be deleted
+            if policy is None:
+                logger.debug(f"No cleanup policy for streamer {streamer_id}, nothing to simulate")
+                return 0, []
+            
             policy_type = policy.get("type", CleanupPolicyType.COUNT.value)
             threshold = policy.get("threshold", 10)
             preserve_favorites = policy.get("preserve_favorites", True)
