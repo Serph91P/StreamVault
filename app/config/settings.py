@@ -1,4 +1,4 @@
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import Optional
 import secrets
 from typing import List
@@ -372,8 +372,7 @@ class Settings(BaseSettings):
             # Default to secure for safety
             self.USE_SECURE_COOKIES = True
 
-    class Config:
-        env_file = ".env"
+    model_config = SettingsConfigDict(env_file=".env")
 
 
 settings = Settings()

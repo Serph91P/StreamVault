@@ -4,6 +4,7 @@ Centralized retry utility for handling transient errors across the application.
 
 import asyncio
 import functools
+import inspect
 import logging
 import random
 from typing import Any, Callable, List, Optional, Type
@@ -147,7 +148,7 @@ def with_retry(
             raise last_exception
 
         # Return appropriate wrapper based on whether the function is async
-        if asyncio.iscoroutinefunction(func):
+        if inspect.iscoroutinefunction(func):
             return async_wrapper
         else:
             return sync_wrapper

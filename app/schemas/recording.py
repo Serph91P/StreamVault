@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from typing import Optional, List, Dict
 from enum import Enum
 
@@ -26,6 +26,7 @@ class CleanupPolicySchema(BaseModel):
 
 
 class RecordingSettingsSchema(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
     enabled: bool = Field(default=True, description="Enable recording globally")
     output_directory: str = Field(default="/recordings", description="Directory to save recordings")
     filename_template: str = Field(
@@ -43,11 +44,9 @@ class RecordingSettingsSchema(BaseModel):
     )
     cleanup_policy: Optional[CleanupPolicySchema] = None
 
-    class Config:
-        from_attributes = True
-
 
 class StreamerRecordingSettingsSchema(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
     streamer_id: int
     username: Optional[str] = None
     profile_image_url: Optional[str] = None
@@ -58,9 +57,6 @@ class StreamerRecordingSettingsSchema(BaseModel):
     cleanup_policy: Optional[CleanupPolicySchema] = None
     use_global_cleanup_policy: bool = True  # Use global cleanup policy or streamer-specific
     supported_codecs: Optional[str] = None  # Per-streamer codec preference (NULL = use global)
-
-    class Config:
-        from_attributes = True
 
 
 class ActiveRecordingSchema(BaseModel):

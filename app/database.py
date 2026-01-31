@@ -3,8 +3,7 @@ import sys
 import time
 import logging
 from sqlalchemy import create_engine, text
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import declarative_base, sessionmaker
 
 # Get DATABASE_URL from environment (will be used by settings)
 # This is a fallback if settings are not available during early initialization

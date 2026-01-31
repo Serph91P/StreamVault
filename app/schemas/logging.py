@@ -1,7 +1,9 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class LoggingSettingsSchema(BaseModel):
+    model_config = ConfigDict(json_encoders={})
+
     """Logging settings configuration"""
 
     # Streamlink logging
@@ -22,11 +24,6 @@ class LoggingSettingsSchema(BaseModel):
     enable_auto_retry: bool = True
     max_retry_attempts: int = 3
     retry_delay_seconds: int = 30
-
-    class Config:
-        json_encoders = {
-            # Add any custom encoders if needed
-        }
 
 
 class LogFileSchema(BaseModel):

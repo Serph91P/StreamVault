@@ -1,8 +1,9 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from typing import Optional
 
 
 class GlobalSettingsSchema(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
     notification_url: Optional[str] = Field(
         default="",
         description=(
@@ -34,11 +35,9 @@ class GlobalSettingsSchema(BaseModel):
     )
     apprise_docs_url: str = "https://github.com/caronc/apprise/wiki"
 
-    class Config:
-        from_attributes = True
-
 
 class StreamerNotificationSettingsSchema(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
     streamer_id: int
     username: str | None = None
     profile_image_url: str | None = None
@@ -47,17 +46,12 @@ class StreamerNotificationSettingsSchema(BaseModel):
     notify_update: bool = True
     notify_favorite_category: bool = True
 
-    class Config:
-        from_attributes = True
-
 
 class StreamerNotificationSettingsUpdateSchema(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
     """Schema für partielle Updates der Streamer-Benachrichtigungseinstellungen"""
 
     notify_online: Optional[bool] = None
     notify_offline: Optional[bool] = None
     notify_update: Optional[bool] = None
     notify_favorite_category: Optional[bool] = None
-
-    class Config:
-        from_attributes = True
