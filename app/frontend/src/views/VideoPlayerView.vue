@@ -132,11 +132,11 @@
               Actions
             </h3>
             <div class="action-buttons">
-              <button class="action-btn" v-ripple>
+              <button class="action-btn" @click="downloadVideo" :disabled="isDownloading" v-ripple>
                 <svg class="action-icon"><use href="#icon-download" /></svg>
-                Download
+                {{ isDownloading ? 'Downloading...' : 'Download' }}
               </button>
-              <button class="action-btn" v-ripple>
+              <button class="action-btn" @click="shareVideo" :disabled="isSharing" v-ripple>
                 <svg class="action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <circle cx="18" cy="5" r="3"/>
                   <circle cx="6" cy="12" r="3"/>
@@ -144,16 +144,47 @@
                   <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
                   <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
                 </svg>
-                Share
+                {{ isSharing ? 'Generating...' : 'Share' }}
               </button>
-              <button class="action-btn danger" v-ripple>
+              <button class="action-btn danger" @click="confirmDelete" :disabled="isDeleting" v-ripple>
                 <svg class="action-icon"><use href="#icon-trash-2" /></svg>
-                Delete
+                {{ isDeleting ? 'Deleting...' : 'Delete' }}
               </button>
+            </div>
+            
+            <!-- Share URL Display (shown after generating) -->
+            <div v-if="shareUrl" class="share-url-container">
+              <p class="share-label">Share URL (expires in 24h):</p>
+              <div class="share-url-box">
+                <input type="text" :value="shareUrl" readonly class="share-url-input" ref="shareUrlInput" />
+                <button class="copy-btn" @click="copyShareUrl" v-ripple>
+                  <svg class="copy-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                  </svg>
+                  {{ copied ? 'Copied!' : 'Copy' }}
+                </button>
+              </div>
+              <p class="share-hint">Use this URL in VLC or any media player</p>
             </div>
           </GlassCard>
         </aside>
       </div>
+    </div>
+    
+    <!-- Delete Confirmation Modal -->
+    <div v-if="showDeleteModal" class="modal-overlay" @click.self="showDeleteModal = false">
+      <GlassCard variant="strong" class="delete-modal">
+        <h3 class="modal-title">Delete Recording</h3>
+        <p class="modal-text">Are you sure you want to delete this recording? This action cannot be undone.</p>
+        <p class="modal-warning">All associated files including metadata, thumbnails, and chapters will be permanently deleted.</p>
+        <div class="modal-actions">
+          <button class="modal-btn cancel" @click="showDeleteModal = false" v-ripple>Cancel</button>
+          <button class="modal-btn confirm" @click="deleteVideo" :disabled="isDeleting" v-ripple>
+            {{ isDeleting ? 'Deleting...' : 'Delete Forever' }}
+          </button>
+        </div>
+      </GlassCard>
     </div>
   </div>
 </template>
@@ -204,6 +235,15 @@ const streamerName = computed(() => route.query.streamerName as string)
 const chapterData = ref<ChapterData | null>(null)
 const isLoading = ref(true)
 const error = ref<string | null>(null)
+
+// Action button states
+const isDownloading = ref(false)
+const isSharing = ref(false)
+const isDeleting = ref(false)
+const shareUrl = ref<string | null>(null)
+const copied = ref(false)
+const showDeleteModal = ref(false)
+const shareUrlInput = ref<HTMLInputElement | null>(null)
 
 const loadChapterData = async () => {
   try {
@@ -308,6 +348,150 @@ const currentChapterIndex = ref(0)
 const seekToChapter = (chapter: any) => {
   console.log('Seeking to chapter:', chapter.title)
   // The VideoPlayer component handles actual seeking
+}
+
+// ============================================================================
+// ACTION BUTTON HANDLERS
+// ============================================================================
+
+/**
+ * Download the video file
+ */
+const downloadVideo = async () => {
+  if (isDownloading.value) return
+  
+  try {
+    isDownloading.value = true
+    
+    // Create a temporary link to trigger download
+    const downloadUrl = `/api/videos/${streamId.value}/stream`
+    const link = document.createElement('a')
+    link.href = downloadUrl
+    link.download = `${streamerName.value || 'stream'}_${streamId.value}.mp4`
+    link.style.display = 'none'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    
+  } catch (err) {
+    console.error('Download failed:', err)
+    error.value = 'Failed to start download'
+  } finally {
+    // Reset after a short delay to show the button state change
+    setTimeout(() => {
+      isDownloading.value = false
+    }, 1000)
+  }
+}
+
+/**
+ * Generate and display a share URL for the video
+ */
+const shareVideo = async () => {
+  if (isSharing.value) return
+  
+  try {
+    isSharing.value = true
+    shareUrl.value = null
+    copied.value = false
+    
+    const response = await fetch(`/api/videos/${streamId.value}/share-token`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    })
+    
+    if (!response.ok) {
+      throw new Error(`Failed to generate share token: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    
+    if (data.success && data.share_url) {
+      shareUrl.value = data.share_url
+    } else {
+      throw new Error(data.error || 'Failed to generate share URL')
+    }
+    
+  } catch (err) {
+    console.error('Share failed:', err)
+    error.value = err instanceof Error ? err.message : 'Failed to generate share URL'
+  } finally {
+    isSharing.value = false
+  }
+}
+
+/**
+ * Copy the share URL to clipboard
+ */
+const copyShareUrl = async () => {
+  if (!shareUrl.value) return
+  
+  try {
+    await navigator.clipboard.writeText(shareUrl.value)
+    copied.value = true
+    
+    // Reset copied state after 2 seconds
+    setTimeout(() => {
+      copied.value = false
+    }, 2000)
+  } catch (err) {
+    console.error('Copy failed:', err)
+    // Fallback: select the input text
+    if (shareUrlInput.value) {
+      shareUrlInput.value.select()
+      document.execCommand('copy')
+      copied.value = true
+      setTimeout(() => {
+        copied.value = false
+      }, 2000)
+    }
+  }
+}
+
+/**
+ * Show delete confirmation modal
+ */
+const confirmDelete = () => {
+  showDeleteModal.value = true
+}
+
+/**
+ * Delete the video and associated files
+ */
+const deleteVideo = async () => {
+  if (isDeleting.value) return
+  
+  try {
+    isDeleting.value = true
+    
+    const response = await fetch(`/api/streams/${streamId.value}`, {
+      method: 'DELETE',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    })
+    
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}))
+      throw new Error(data.detail || `Failed to delete: ${response.status}`)
+    }
+    
+    // Success - close modal and navigate back
+    showDeleteModal.value = false
+    
+    // Navigate back to videos list or streamer page
+    router.push({ name: 'Videos' })
+    
+  } catch (err) {
+    console.error('Delete failed:', err)
+    error.value = err instanceof Error ? err.message : 'Failed to delete video'
+  } finally {
+    isDeleting.value = false
+  }
 }
 
 onMounted(() => {
@@ -669,15 +853,172 @@ onMounted(() => {
     fill: none;
   }
   
-  &:hover {
+  &:hover:not(:disabled) {
     background: var(--primary-color);
     border-color: var(--primary-color);
     color: white;
   }
   
-  &.danger:hover {
+  &.danger:hover:not(:disabled) {
     background: var(--danger-color);
     border-color: var(--danger-color);
+  }
+  
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+}
+
+// ============================================================================
+// SHARE URL CONTAINER
+// ============================================================================
+
+.share-url-container {
+  margin-top: var(--spacing-4);
+  padding-top: var(--spacing-4);
+  border-top: 1px solid var(--border-color);
+}
+
+.share-label {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  margin-bottom: var(--spacing-2);
+}
+
+.share-url-box {
+  display: flex;
+  gap: var(--spacing-2);
+}
+
+.share-url-input {
+  flex: 1;
+  padding: var(--spacing-2) var(--spacing-3);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--surface-elevated);
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  font-family: monospace;
+  
+  &:focus {
+    outline: none;
+    border-color: var(--primary-color);
+  }
+}
+
+.copy-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  padding: var(--spacing-2) var(--spacing-3);
+  border: 1px solid var(--primary-color);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--primary-color);
+  font-size: var(--text-sm);
+  font-weight: v.$font-medium;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  
+  .copy-icon {
+    width: 14px;
+    height: 14px;
+    stroke: currentColor;
+    fill: none;
+  }
+  
+  &:hover {
+    background: var(--primary-color);
+    color: white;
+  }
+}
+
+.share-hint {
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+  margin-top: var(--spacing-2);
+}
+
+// ============================================================================
+// DELETE CONFIRMATION MODAL
+// ============================================================================
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(4px);
+}
+
+.delete-modal {
+  width: 100%;
+  max-width: 400px;
+  margin: var(--spacing-4);
+  padding: var(--spacing-6);
+}
+
+.modal-title {
+  font-size: var(--text-lg);
+  font-weight: v.$font-bold;
+  color: var(--text-primary);
+  margin-bottom: var(--spacing-3);
+}
+
+.modal-text {
+  font-size: var(--text-base);
+  color: var(--text-secondary);
+  margin-bottom: var(--spacing-2);
+}
+
+.modal-warning {
+  font-size: var(--text-sm);
+  color: var(--danger-color);
+  margin-bottom: var(--spacing-4);
+}
+
+.modal-actions {
+  display: flex;
+  gap: var(--spacing-3);
+  justify-content: flex-end;
+}
+
+.modal-btn {
+  padding: var(--spacing-2) var(--spacing-4);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  font-weight: v.$font-medium;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  
+  &.cancel {
+    background: transparent;
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    
+    &:hover {
+      background: var(--surface-hover);
+    }
+  }
+  
+  &.confirm {
+    background: var(--danger-color);
+    border: 1px solid var(--danger-color);
+    color: white;
+    
+    &:hover:not(:disabled) {
+      filter: brightness(1.1);
+    }
+    
+    &:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
   }
 }
 
@@ -688,6 +1029,19 @@ onMounted(() => {
 @include m.respond-below('md') {
   .player-main {
     gap: var(--spacing-3);
+  }
+  
+  .share-url-box {
+    flex-direction: column;
+  }
+  
+  .modal-actions {
+    flex-direction: column-reverse;
+    
+    .modal-btn {
+      width: 100%;
+      text-align: center;
+    }
   }
 }
 
@@ -704,6 +1058,10 @@ onMounted(() => {
   .player-container {
     height: 100vh;
     aspect-ratio: auto;
+  }
+  
+  .modal-overlay {
+    display: none;
   }
 }
 </style>
