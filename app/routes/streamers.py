@@ -431,17 +431,34 @@ async def delete_streamer(
         deleted_files_count = 0
         if delete_recordings:
             try:
+                from app.config.settings import get_settings
+                from app.models import StreamMetadata
+                import shutil
+
+                settings = get_settings()
+
                 # Get all streams for this streamer
                 streams = db.query(Stream).filter(Stream.streamer_id == streamer_id).all()
 
                 files_to_delete = []
+                dirs_to_delete = set()
+                streamer_dir = None
+
                 for stream in streams:
+                    # Get metadata for this stream
+                    metadata = db.query(StreamMetadata).filter(StreamMetadata.stream_id == stream.id).first()
+
                     if stream.recording_path:
                         recording_path = Path(stream.recording_path)
 
                         # Main recording file (.ts or .mp4)
                         if recording_path.exists():
                             files_to_delete.append(recording_path)
+
+                        # Track streamer directory (for tvshow.nfo deletion later)
+                        if streamer_dir is None:
+                            # Streamer dir is 2 levels up from recording: /recordings/{Streamer}/Season X/file.mp4
+                            streamer_dir = recording_path.parent.parent
 
                         # Companion files (.nfo, -thumb.jpg, etc.)
                         if recording_path.exists():
@@ -458,10 +475,91 @@ async def delete_streamer(
                             if thumb_path.exists():
                                 files_to_delete.append(thumb_path)
 
+                    # Also delete files tracked in StreamMetadata
+                    if metadata:
+                        metadata_paths = [
+                            metadata.thumbnail_path,
+                            metadata.json_path,
+                            metadata.nfo_path,
+                            metadata.chapters_vtt_path,
+                            metadata.chapters_srt_path,
+                            metadata.chapters_ffmpeg_path,
+                            metadata.chapters_xml_path,
+                            metadata.season_nfo_path,  # Season NFO can be deleted since streamer is being deleted
+                        ]
+                        for path in metadata_paths:
+                            if path and Path(path).exists():
+                                files_to_delete.append(Path(path))
+
+                        # Add segments directory
+                        if hasattr(metadata, "segments_dir_path") and metadata.segments_dir_path:
+                            if Path(metadata.segments_dir_path).exists():
+                                dirs_to_delete.add(metadata.segments_dir_path)
+
                 # Delete all collected files
                 deleted_files, deleted_count = await delete_files_async(files_to_delete)
                 deleted_files_count = deleted_count
-                logger.info(f"Deleted {deleted_count} recording files for streamer {streamer_username}")
+
+                # Delete segment directories
+                for dir_path in dirs_to_delete:
+                    try:
+                        if os.path.exists(dir_path) and os.path.isdir(dir_path):
+                            shutil.rmtree(dir_path)
+                            deleted_files_count += 1
+                            logger.info(f"Deleted segments directory: {dir_path}")
+                    except Exception as e:
+                        logger.warning(f"Failed to delete directory {dir_path}: {e}")
+
+                # Delete tvshow.nfo (belongs to streamer, so delete when streamer is deleted)
+                if streamer_dir and streamer_dir.exists():
+                    tvshow_nfo = streamer_dir / "tvshow.nfo"
+                    if tvshow_nfo.exists():
+                        try:
+                            tvshow_nfo.unlink()
+                            deleted_files_count += 1
+                            logger.info(f"Deleted tvshow.nfo: {tvshow_nfo}")
+                        except Exception as e:
+                            logger.warning(f"Failed to delete tvshow.nfo: {e}")
+
+                    # Also delete streamer-level artwork (poster.jpg, fanart.jpg)
+                    for artwork in ["poster.jpg", "fanart.jpg", "banner.jpg"]:
+                        artwork_path = streamer_dir / artwork
+                        if artwork_path.exists():
+                            try:
+                                artwork_path.unlink()
+                                deleted_files_count += 1
+                                logger.info(f"Deleted streamer artwork: {artwork_path}")
+                            except Exception as e:
+                                logger.warning(f"Failed to delete {artwork}: {e}")
+
+                    # Try to delete empty Season folders and streamer folder
+                    try:
+                        for season_dir in streamer_dir.iterdir():
+                            if season_dir.is_dir() and season_dir.name.startswith("Season"):
+                                # Delete season-level files
+                                for item in ["season.nfo", "poster.jpg"]:
+                                    item_path = season_dir / item
+                                    if item_path.exists():
+                                        item_path.unlink()
+                                        deleted_files_count += 1
+                                # Try to remove if empty
+                                try:
+                                    season_dir.rmdir()
+                                    logger.info(f"Removed empty Season directory: {season_dir}")
+                                except OSError:
+                                    pass  # Not empty, that's fine
+
+                        # Try to remove streamer folder if empty
+                        try:
+                            streamer_dir.rmdir()
+                            logger.info(f"Removed empty streamer directory: {streamer_dir}")
+                        except OSError:
+                            pass  # Not empty, that's fine
+
+                    except Exception as e:
+                        logger.debug(f"Could not clean up empty directories: {e}")
+
+                logger.info(f"Deleted {deleted_files_count} files/directories for streamer {streamer_username}")
 
             except Exception as e:
                 logger.error(f"Error deleting recording files for streamer {streamer_id}: {e}", exc_info=True)
