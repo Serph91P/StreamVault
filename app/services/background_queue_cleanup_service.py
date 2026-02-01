@@ -12,7 +12,7 @@ from typing import Dict, Any
 from datetime import datetime, timezone
 
 # Configuration constants
-STUCK_TASK_THRESHOLD_HOURS = 3  # Hours after which a task is considered stuck
+STUCK_TASK_THRESHOLD_HOURS = 1  # Hours after which a task is considered stuck (reduced from 3)
 
 logger = logging.getLogger("streamvault")
 

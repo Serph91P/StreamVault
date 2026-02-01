@@ -720,6 +720,7 @@ class UnifiedRecoveryService:
         try:
             # Get recording service to resume recording
             from app.services.recording.recording_service import RecordingService
+            from datetime import datetime, timezone
 
             recording_service = RecordingService()
 
@@ -735,6 +736,16 @@ class UnifiedRecoveryService:
 
                 stream_id = recording.stream_id
                 streamer_id = recording.streamer_id
+
+                # CRITICAL FIX: Mark OLD recording as "stopped" BEFORE starting a new one
+                # This prevents duplicate jobs appearing in the Background Jobs UI
+                now_utc = datetime.now(timezone.utc)
+                recording.status = "stopped"
+                recording.end_time = now_utc
+                if recording.start_time:
+                    recording.duration_seconds = int((now_utc - recording.start_time).total_seconds())
+                db.commit()
+                logger.info(f"📝 Marked old recording {recording_id} as stopped before resuming")
 
             # Start recording - this will automatically handle segment continuation
             success = await recording_service.start_recording(stream_id, streamer_id)

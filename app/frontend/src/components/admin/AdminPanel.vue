@@ -333,6 +333,11 @@
           <i class="fas fa-broom"></i>
           {{ cleaningProcessOrphaned ? 'Cleaning...' : 'Cleanup Process Orphaned' }}
         </button>
+        
+        <button @click="cleanupZombieRecordings" :disabled="cleaningZombies" class="btn btn-warning">
+          <i class="fas fa-ghost"></i>
+          {{ cleaningZombies ? 'Cleaning...' : 'Cleanup Zombie Recordings' }}
+        </button>
       </div>
     </div>    <!-- Logs Modal -->
     <div v-if="showLogsModal" class="modal-overlay" @click="showLogsModal = false">
@@ -554,6 +559,7 @@ const showVideosDebugModal = ref(false)
 const fixingRecordings = ref(false)
 const cleaningOrphaned = ref(false)
 const cleaningProcessOrphaned = ref(false)
+const cleaningZombies = ref(false)
 const showRecordingsDirectoryModal = ref(false)
 
 // Computed
@@ -852,6 +858,38 @@ const cleanupProcessOrphanedRecordings = async () => {
     alert('Failed to cleanup process orphaned recordings: ' + String(error))
   } finally {
     cleaningProcessOrphaned.value = false
+  }
+}
+
+/**
+ * Clean up zombie recordings that are stuck in 'recording' status
+ * but have no active process running (e.g., after app restart)
+ */
+const cleanupZombieRecordings = async () => {
+  if (!confirm('This will clean up recordings stuck in "recording" status with no active process.\n\nContinue?')) {
+    return
+  }
+  
+  cleaningZombies.value = true
+  try {
+    const response = await fetch('/api/admin/recordings/cleanup-zombies', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' }
+    })
+    
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+    }
+    
+    const result = await response.json()
+    alert(`Zombie recording cleanup complete!\n\nCleaned: ${result.cleaned_count} recordings`)
+    
+  } catch (error) {
+    console.error('Failed to cleanup zombie recordings:', error)
+    alert('Failed to cleanup zombie recordings: ' + String(error))
+  } finally {
+    cleaningZombies.value = false
   }
 }
 
