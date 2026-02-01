@@ -524,19 +524,55 @@ class UnifiedRecoveryService:
             return None
 
     async def _batch_find_recordings_by_paths(self, file_paths: List[str]) -> Dict[str, Optional[int]]:
-        """Batch find recording IDs by file paths for improved performance"""
+        """Batch find recording IDs by file paths for improved performance
+
+        Enhanced lookup strategy:
+        1. Try exact path match first
+        2. If no match, try matching by filename pattern in the same directory
+        3. As last resort, create a new Recording entry if we can match streamer/stream
+        """
         result = {}
         try:
             with SessionLocal() as db:
-                # Query all recordings with matching paths in one go
+                # Query all recordings with matching paths in one go (exact match)
                 recordings = db.query(Recording).filter(Recording.path.in_(file_paths)).all()
 
                 # Create a mapping of path -> recording_id
                 path_to_id = {r.path: r.id for r in recordings}
 
-                # Fill result dict with all requested paths
+                # For paths still not found, try filename-based lookup
                 for path in file_paths:
-                    result[path] = path_to_id.get(path)
+                    if path in path_to_id:
+                        result[path] = path_to_id[path]
+                        continue
+
+                    # Try to find by filename pattern (without extension)
+                    filename_stem = Path(path).stem
+                    if filename_stem:
+                        # Search for recordings with similar filename in same season folder
+                        parent_dir = str(Path(path).parent)
+                        matching_rec = (
+                            db.query(Recording)
+                            .filter(
+                                Recording.path.ilike(f"%{parent_dir}%"),
+                                Recording.path.ilike(f"%{filename_stem}%"),
+                            )
+                            .first()
+                        )
+                        if matching_rec:
+                            result[path] = matching_rec.id
+                            logger.info(
+                                f"Found recording {matching_rec.id} via filename pattern match for {path}"
+                            )
+                            continue
+
+                    # Last resort: try to create recording from segments directory info
+                    recording_id = await self._create_recording_from_orphaned_path(db, path)
+                    if recording_id:
+                        result[path] = recording_id
+                        logger.info(f"Created new recording {recording_id} for orphaned path {path}")
+                    else:
+                        result[path] = None
 
         except Exception as e:
             logger.error(f"Error in batch recording lookup: {e}")
@@ -545,6 +581,84 @@ class UnifiedRecoveryService:
                 result[path] = None
 
         return result
+
+    async def _create_recording_from_orphaned_path(self, db, file_path: str) -> Optional[int]:
+        """Create a new Recording entry for an orphaned segments directory
+
+        This is needed when:
+        - Segments exist on disk but no Recording entry in DB
+        - Usually happens after server restart during recording
+        """
+        try:
+            path = Path(file_path)
+            # Extract streamer name from path: /recordings/StreamerName/Season .../filename.ts
+            parts = path.parts
+
+            # Find recordings directory in path
+            rec_idx = None
+            for i, part in enumerate(parts):
+                if part == "recordings" and i + 1 < len(parts):
+                    rec_idx = i
+                    break
+
+            if rec_idx is None or rec_idx + 1 >= len(parts):
+                logger.debug(f"Cannot extract streamer from path: {file_path}")
+                return None
+
+            streamer_name = parts[rec_idx + 1]
+
+            # Find streamer in database
+            streamer = db.query(Streamer).filter(Streamer.username.ilike(streamer_name)).first()
+            if not streamer:
+                logger.warning(f"Streamer '{streamer_name}' not found in database for path {file_path}")
+                return None
+
+            # Find most recent stream for this streamer that doesn't have a completed recording
+            recent_stream = (
+                db.query(Stream)
+                .filter(Stream.streamer_id == streamer.id)
+                .outerjoin(Recording, Recording.stream_id == Stream.id)
+                .filter(Recording.id.is_(None) | (Recording.status != "completed"))
+                .order_by(Stream.started_at.desc())
+                .first()
+            )
+
+            if not recent_stream:
+                # Create a new stream entry for this orphaned recording
+                logger.info(f"Creating new stream entry for orphaned recording of {streamer_name}")
+                recent_stream = Stream(
+                    streamer_id=streamer.id,
+                    title=path.stem,  # Use filename as title
+                    started_at=datetime.now(),
+                    is_live=False,
+                )
+                db.add(recent_stream)
+                db.flush()
+
+            # Create recording entry
+            new_recording = Recording(
+                stream_id=recent_stream.id,
+                path=file_path,
+                status="stopped",  # Will be updated to completed after concatenation
+                start_time=datetime.now(),
+            )
+            db.add(new_recording)
+            db.commit()
+
+            logger.info(
+                f"Created Recording id={new_recording.id} for orphaned segments: "
+                f"streamer={streamer_name}, stream_id={recent_stream.id}"
+            )
+
+            return new_recording.id
+
+        except Exception as e:
+            logger.error(f"Error creating recording from orphaned path: {e}", exc_info=True)
+            try:
+                db.rollback()
+            except Exception:
+                pass
+            return None
 
     async def _update_recording_after_concatenation(self, recording_id: int, file_path: str):
         """Update recording in database after successful concatenation"""
