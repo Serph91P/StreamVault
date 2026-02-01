@@ -738,6 +738,7 @@ class PostProcessingTaskHandlers:
 
         try:
             removed_files = []
+            segments_dirs_removed = []
             for file_path in files_to_remove:
                 if os.path.exists(file_path):
                     try:
@@ -746,6 +747,9 @@ class PostProcessingTaskHandlers:
                         )
                         # Check if it's a directory
                         if os.path.isdir(file_path):
+                            # Track segments directories for DB update
+                            if file_path.endswith("_segments"):
+                                segments_dirs_removed.append(file_path)
                             # Remove directory and all its contents
                             import shutil
 
@@ -769,6 +773,37 @@ class PostProcessingTaskHandlers:
                         logger.warning(f"Failed to remove {file_path}: {e}")
                 else:
                     logger.debug(f"🧹 CLEANUP_SKIP_MISSING: path={file_path}")
+
+            # Update StreamMetadata with segments directory tracking
+            if segments_dirs_removed and not is_deletion_cleanup:
+                try:
+                    with SessionLocal() as db:
+                        from app.models import StreamMetadata
+
+                        metadata = db.query(StreamMetadata).filter(StreamMetadata.stream_id == stream_id).first()
+                        if metadata:
+                            # Store the first segments directory path (usually there's only one)
+                            if hasattr(metadata, "segments_dir_path"):
+                                metadata.segments_dir_path = segments_dirs_removed[0]
+                            if hasattr(metadata, "segments_removed"):
+                                metadata.segments_removed = True
+                            db.commit()
+                            logger.debug(
+                                f"Updated StreamMetadata for stream {stream_id}: segments_removed=True, "
+                                f"segments_dir_path={segments_dirs_removed[0]}"
+                            )
+                        else:
+                            # Create metadata record if it doesn't exist
+                            metadata = StreamMetadata(stream_id=stream_id)
+                            if hasattr(metadata, "segments_dir_path"):
+                                metadata.segments_dir_path = segments_dirs_removed[0]
+                            if hasattr(metadata, "segments_removed"):
+                                metadata.segments_removed = True
+                            db.add(metadata)
+                            db.commit()
+                            logger.debug(f"Created StreamMetadata for stream {stream_id} with segments tracking")
+                except Exception as meta_err:
+                    logger.debug(f"Could not update StreamMetadata with segments info: {meta_err}")
 
             log_with_context(
                 logger,

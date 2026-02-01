@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import Optional
 from datetime import datetime
 
@@ -12,12 +12,11 @@ class StreamerCreate(StreamerBase):
 
 
 class Streamer(StreamerBase):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     display_name: Optional[str] = None
     created_at: Optional[datetime] = None
-
-    class Config:
-        from_attributes = True
 
 
 class StreamerStatus(Streamer):

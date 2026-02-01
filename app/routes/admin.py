@@ -1271,6 +1271,42 @@ async def fix_unknown_task_names():
 # Share Token Management Endpoints
 
 
+@router.post("/recordings/cleanup-zombies")
+async def cleanup_zombie_recordings() -> Dict[str, Any]:
+    """
+    🧹 Clean Up Zombie Recordings
+    
+    Manually triggers cleanup of recordings that are stuck in 'recording' status
+    but have no active Streamlink process running.
+    
+    This is useful after app restarts/updates when recordings may be left in
+    an invalid state.
+    
+    A recording is considered a zombie if:
+    1. Status is 'recording' in the database
+    2. No active Streamlink process exists for this recording
+    3. The streamer is offline OR the recording is older than 12 hours
+    """
+    try:
+        from app.services.init.startup_init import _cleanup_zombie_recordings_now
+        
+        logger.info("🧹 ADMIN_ZOMBIE_CLEANUP: Manual zombie recording cleanup triggered")
+        
+        cleaned_count = await _cleanup_zombie_recordings_now()
+        
+        logger.info(f"🧹 ADMIN_ZOMBIE_CLEANUP: Cleaned {cleaned_count} zombie recordings")
+        
+        return {
+            "success": True,
+            "message": f"Cleaned up {cleaned_count} zombie recordings",
+            "cleaned_count": cleaned_count,
+        }
+        
+    except Exception as e:
+        logger.error(f"Error in zombie recording cleanup: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Zombie cleanup failed: {str(e)}")
+
+
 @router.get("/share-tokens/stats")
 async def get_share_tokens_stats(db: Session = Depends(get_db)) -> Dict[str, Any]:
     """

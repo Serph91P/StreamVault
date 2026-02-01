@@ -1,6 +1,6 @@
 ---
 description: 'Debug your application to find and fix a bug'
-tools: ['edit/editFiles', 'search', 'execute/getTerminalOutput', 'execute/runInTerminal', 'read/terminalLastCommand', 'read/terminalSelection', 'search/usages', 'read/problems', 'execute/testFailure', 'web/fetch', 'web/githubRepo', 'execute/runTests']
+tools: ['vscode', 'execute', 'read', 'edit', 'search', 'web', 'github/create_branch', 'github/create_or_update_file', 'github/create_pull_request', 'github/delete_file', 'github/get_commit', 'github/get_file_contents', 'github/get_latest_release', 'github/get_release_by_tag', 'github/get_tag', 'github/list_branches', 'github/list_commits', 'github/list_pull_requests', 'github/list_releases', 'github/list_tags', 'github/pull_request_read', 'github/pull_request_review_write', 'github/push_files', 'github/search_code', 'github/search_pull_requests', 'github/search_repositories', 'github/update_pull_request', 'github/update_pull_request_branch', 'io.github.upstash/context7/*', 'agent', 'pylance-mcp-server/*', 'ms-azuretools.vscode-containers/containerToolsConfig', 'ms-python.python/getPythonEnvironmentInfo', 'ms-python.python/getPythonExecutableCommand', 'ms-python.python/installPythonPackage', 'ms-python.python/configurePythonEnvironment', 'todo']
 ---
 
 # Debug Mode Instructions

@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 
@@ -12,6 +12,8 @@ class StreamerCreate(StreamerBase):
 
 
 class StreamerResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     twitch_id: str
     username: str
@@ -31,9 +33,6 @@ class StreamerResponse(BaseModel):
     last_stream_category_name: Optional[str] = None
     last_stream_viewer_count: Optional[int] = None
     last_stream_ended_at: Optional[datetime] = None
-
-    class Config:
-        from_attributes = True
 
 
 class StreamerList(BaseModel):

@@ -353,6 +353,10 @@ class StreamMetadata(Base):
     chapters_ffmpeg_path = Column(String)
     chapters_xml_path = Column(String)  # XML chapters for Emby/Jellyfin
 
+    # Segments directory tracking (for cleanup)
+    segments_dir_path = Column(String)  # Path to _segments directory during recording
+    segments_removed = Column(Boolean, default=False)  # Whether segments were cleaned up
+
     # Stream info stats
     avg_viewers = Column(Integer)
     max_viewers = Column(Integer)

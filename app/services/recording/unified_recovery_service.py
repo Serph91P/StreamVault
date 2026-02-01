@@ -524,19 +524,55 @@ class UnifiedRecoveryService:
             return None
 
     async def _batch_find_recordings_by_paths(self, file_paths: List[str]) -> Dict[str, Optional[int]]:
-        """Batch find recording IDs by file paths for improved performance"""
+        """Batch find recording IDs by file paths for improved performance
+
+        Enhanced lookup strategy:
+        1. Try exact path match first
+        2. If no match, try matching by filename pattern in the same directory
+        3. As last resort, create a new Recording entry if we can match streamer/stream
+        """
         result = {}
         try:
             with SessionLocal() as db:
-                # Query all recordings with matching paths in one go
+                # Query all recordings with matching paths in one go (exact match)
                 recordings = db.query(Recording).filter(Recording.path.in_(file_paths)).all()
 
                 # Create a mapping of path -> recording_id
                 path_to_id = {r.path: r.id for r in recordings}
 
-                # Fill result dict with all requested paths
+                # For paths still not found, try filename-based lookup
                 for path in file_paths:
-                    result[path] = path_to_id.get(path)
+                    if path in path_to_id:
+                        result[path] = path_to_id[path]
+                        continue
+
+                    # Try to find by filename pattern (without extension)
+                    filename_stem = Path(path).stem
+                    if filename_stem:
+                        # Search for recordings with similar filename in same season folder
+                        parent_dir = str(Path(path).parent)
+                        matching_rec = (
+                            db.query(Recording)
+                            .filter(
+                                Recording.path.ilike(f"%{parent_dir}%"),
+                                Recording.path.ilike(f"%{filename_stem}%"),
+                            )
+                            .first()
+                        )
+                        if matching_rec:
+                            result[path] = matching_rec.id
+                            logger.info(
+                                f"Found recording {matching_rec.id} via filename pattern match for {path}"
+                            )
+                            continue
+
+                    # Last resort: try to create recording from segments directory info
+                    recording_id = await self._create_recording_from_orphaned_path(db, path)
+                    if recording_id:
+                        result[path] = recording_id
+                        logger.info(f"Created new recording {recording_id} for orphaned path {path}")
+                    else:
+                        result[path] = None
 
         except Exception as e:
             logger.error(f"Error in batch recording lookup: {e}")
@@ -545,6 +581,224 @@ class UnifiedRecoveryService:
                 result[path] = None
 
         return result
+
+    def _parse_timestamp_from_filename(self, filename: str) -> Optional[datetime]:
+        """Extract stream start timestamp from filename
+
+        Expected format: "StreamerName - S202601E19 - 2026-01-08T22-00-00.ts"
+        The timestamp at the end represents when the stream started.
+        """
+        import re
+
+        # Pattern for ISO-like timestamp: YYYY-MM-DDTHH-MM-SS
+        pattern = r"(\d{4})-(\d{2})-(\d{2})T(\d{2})-(\d{2})-(\d{2})"
+        match = re.search(pattern, filename)
+
+        if match:
+            try:
+                year, month, day, hour, minute, second = map(int, match.groups())
+                return datetime(year, month, day, hour, minute, second)
+            except ValueError:
+                pass
+
+        return None
+
+    def _parse_episode_info_from_filename(self, filename: str) -> Optional[Dict[str, Any]]:
+        """Extract season and episode info from filename
+
+        Expected format: "StreamerName - S202601E19 - 2026-01-08T22-00-00.ts"
+        S202601 = Season (Year 2026, Month 01)
+        E19 = Episode number 19
+
+        Returns dict with: year, month, episode_number
+        """
+        import re
+
+        # Pattern for season/episode: S[YYYYMM]E[number]
+        pattern = r"S(\d{4})(\d{2})E(\d+)"
+        match = re.search(pattern, filename)
+
+        if match:
+            try:
+                year = int(match.group(1))
+                month = int(match.group(2))
+                episode = int(match.group(3))
+                return {
+                    "year": year,
+                    "month": month,
+                    "episode_number": episode,
+                }
+            except ValueError:
+                pass
+
+        return None
+
+    async def _create_recording_from_orphaned_path(self, db, file_path: str) -> Optional[int]:
+        """Create a new Recording entry for an orphaned segments directory
+
+        This is needed when:
+        - Segments exist on disk but no Recording entry in DB
+        - Usually happens after server restart during recording
+
+        Matching logic (in order of priority):
+        1. BEST: Match by episode_number + year/month from filename (S202601E19)
+           - If Stream with same episode_number exists in that month, use it
+        2. GOOD: Match by timestamp within ±15 minutes
+        3. FALLBACK: Match newest incomplete stream (if no filename info)
+        4. LAST RESORT: Create new Stream entry
+        """
+        try:
+            path = Path(file_path)
+            # Extract streamer name from path: /recordings/StreamerName/Season .../filename.ts
+            parts = path.parts
+
+            # Find recordings directory in path
+            rec_idx = None
+            for i, part in enumerate(parts):
+                if part == "recordings" and i + 1 < len(parts):
+                    rec_idx = i
+                    break
+
+            if rec_idx is None or rec_idx + 1 >= len(parts):
+                logger.debug(f"Cannot extract streamer from path: {file_path}")
+                return None
+
+            streamer_name = parts[rec_idx + 1]
+
+            # Find streamer in database
+            streamer = db.query(Streamer).filter(Streamer.username.ilike(streamer_name)).first()
+            if not streamer:
+                logger.warning(f"Streamer '{streamer_name}' not found in database for path {file_path}")
+                return None
+
+            # Extract info from filename
+            filename_timestamp = self._parse_timestamp_from_filename(path.name)
+            episode_info = self._parse_episode_info_from_filename(path.name)
+            matched_stream = None
+
+            # PRIORITY 1: Match by episode number (most reliable)
+            if episode_info:
+                episode_num = episode_info["episode_number"]
+                year = episode_info["year"]
+                month = episode_info["month"]
+
+                # Find stream with matching episode number in the same month
+                # The month boundaries help ensure we don't match wrong streams
+                month_start = datetime(year, month, 1)
+                if month == 12:
+                    month_end = datetime(year + 1, 1, 1)
+                else:
+                    month_end = datetime(year, month + 1, 1)
+
+                matched_stream = (
+                    db.query(Stream)
+                    .filter(
+                        Stream.streamer_id == streamer.id,
+                        Stream.episode_number == episode_num,
+                        Stream.started_at >= month_start,
+                        Stream.started_at < month_end,
+                    )
+                    .outerjoin(Recording, Recording.stream_id == Stream.id)
+                    .filter(Recording.id.is_(None) | (Recording.status != "completed"))
+                    .first()
+                )
+
+                if matched_stream:
+                    logger.info(
+                        f"✅ Matched orphaned recording by EPISODE NUMBER: Stream {matched_stream.id} "
+                        f"(episode={episode_num}, month={year}-{month:02d})"
+                    )
+
+            # PRIORITY 2: Match by timestamp if episode didn't match
+            if not matched_stream and filename_timestamp:
+                # Look for a stream that started within ±15 minutes of the filename timestamp
+                time_tolerance = timedelta(minutes=15)
+                min_time = filename_timestamp - time_tolerance
+                max_time = filename_timestamp + time_tolerance
+
+                matched_stream = (
+                    db.query(Stream)
+                    .filter(
+                        Stream.streamer_id == streamer.id,
+                        Stream.started_at >= min_time,
+                        Stream.started_at <= max_time,
+                    )
+                    .outerjoin(Recording, Recording.stream_id == Stream.id)
+                    .filter(Recording.id.is_(None) | (Recording.status != "completed"))
+                    .order_by(Stream.started_at.desc())
+                    .first()
+                )
+
+                if matched_stream:
+                    logger.info(
+                        f"✅ Matched orphaned recording by TIMESTAMP: Stream {matched_stream.id} "
+                        f"(filename_ts={filename_timestamp}, stream_started={matched_stream.started_at})"
+                    )
+
+            # PRIORITY 3: Fallback - newest incomplete stream (only if no info in filename)
+            if not matched_stream and not filename_timestamp and not episode_info:
+                logger.debug(f"No info in filename, falling back to newest incomplete stream")
+                matched_stream = (
+                    db.query(Stream)
+                    .filter(Stream.streamer_id == streamer.id)
+                    .outerjoin(Recording, Recording.stream_id == Stream.id)
+                    .filter(Recording.id.is_(None) | (Recording.status != "completed"))
+                    .order_by(Stream.started_at.desc())
+                    .first()
+                )
+
+                if matched_stream:
+                    logger.info(
+                        f"⚠️ Matched orphaned recording by FALLBACK (newest incomplete): "
+                        f"Stream {matched_stream.id}"
+                    )
+
+            # LAST RESORT: Create new stream
+            if not matched_stream:
+                stream_started_at = filename_timestamp if filename_timestamp else datetime.now()
+                episode_num_for_new = episode_info["episode_number"] if episode_info else None
+
+                logger.info(
+                    f"📝 Creating NEW Stream entry for orphaned recording of {streamer_name} "
+                    f"(started_at={stream_started_at}, episode={episode_num_for_new})"
+                )
+                matched_stream = Stream(
+                    streamer_id=streamer.id,
+                    title=path.stem,  # Use filename as title
+                    started_at=stream_started_at,
+                    episode_number=episode_num_for_new,
+                    is_live=False,
+                )
+                db.add(matched_stream)
+                db.flush()
+
+            # Create recording entry with proper timestamp
+            recording_start_time = filename_timestamp if filename_timestamp else datetime.now()
+
+            new_recording = Recording(
+                stream_id=matched_stream.id,
+                path=file_path,
+                status="stopped",  # Will be updated to completed after concatenation
+                start_time=recording_start_time,
+            )
+            db.add(new_recording)
+            db.commit()
+
+            logger.info(
+                f"Created Recording id={new_recording.id} for orphaned segments: "
+                f"streamer={streamer_name}, stream_id={matched_stream.id}, "
+                f"episode={matched_stream.episode_number}, start_time={recording_start_time}"
+            )
+
+            return new_recording.id
+
+        except Exception as e:
+            logger.error(f"Error creating recording from orphaned path: {e}", exc_info=True)
+            try:
+                db.rollback()
+            except Exception:
+                pass
+            return None
 
     async def _update_recording_after_concatenation(self, recording_id: int, file_path: str):
         """Update recording in database after successful concatenation"""
@@ -720,6 +974,7 @@ class UnifiedRecoveryService:
         try:
             # Get recording service to resume recording
             from app.services.recording.recording_service import RecordingService
+            from datetime import datetime, timezone
 
             recording_service = RecordingService()
 
@@ -735,6 +990,16 @@ class UnifiedRecoveryService:
 
                 stream_id = recording.stream_id
                 streamer_id = recording.streamer_id
+
+                # CRITICAL FIX: Mark OLD recording as "stopped" BEFORE starting a new one
+                # This prevents duplicate jobs appearing in the Background Jobs UI
+                now_utc = datetime.now(timezone.utc)
+                recording.status = "stopped"
+                recording.end_time = now_utc
+                if recording.start_time:
+                    recording.duration_seconds = int((now_utc - recording.start_time).total_seconds())
+                db.commit()
+                logger.info(f"📝 Marked old recording {recording_id} as stopped before resuming")
 
             # Start recording - this will automatically handle segment continuation
             success = await recording_service.start_recording(stream_id, streamer_id)

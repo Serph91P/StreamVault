@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import Optional, List
 from datetime import datetime
 
@@ -14,13 +14,12 @@ class CategoryCreate(CategoryBase):
 
 
 class CategoryResponse(CategoryBase):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     first_seen: datetime
     last_seen: datetime
     is_favorite: bool = False  # Wird vom Backend gefüllt
-
-    class Config:
-        from_attributes = True
 
 
 class CategoryList(BaseModel):
@@ -32,10 +31,9 @@ class FavoriteCategoryCreate(BaseModel):
 
 
 class FavoriteCategoryResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     user_id: int
     category_id: int
     category: CategoryResponse
-
-    class Config:
-        from_attributes = True

@@ -629,6 +629,15 @@ class ProcessManager:
                                 )
 
                                 if stream and stream.streamer and stream.recording_path:
+                                    # Get quality from streamer recording settings
+                                    from app.models import StreamerRecordingSettings
+                                    recording_settings = (
+                                        db.query(StreamerRecordingSettings)
+                                        .filter(StreamerRecordingSettings.streamer_id == stream.streamer_id)
+                                        .first()
+                                    )
+                                    quality = recording_settings.quality if recording_settings and recording_settings.quality else "best"
+
                                     # Calculate recording duration from stream timestamps
                                     duration_seconds = 0
                                     if stream.started_at and stream.ended_at:
@@ -650,7 +659,7 @@ class ProcessManager:
                                             "hours": hours,
                                             "minutes": minutes,
                                             "file_size_mb": f"{file_size_mb:.2f}",
-                                            "quality": stream.quality or "best",
+                                            "quality": quality,
                                         },
                                     )
 
@@ -760,6 +769,15 @@ class ProcessManager:
                         )
 
                         if stream and stream.streamer:
+                            # Get quality from streamer recording settings
+                            from app.models import StreamerRecordingSettings
+                            recording_settings = (
+                                db.query(StreamerRecordingSettings)
+                                .filter(StreamerRecordingSettings.streamer_id == stream.streamer_id)
+                                .first()
+                            )
+                            quality = recording_settings.quality if recording_settings and recording_settings.quality else "best"
+
                             # Calculate recording duration
                             if segment_info.get("segment_start_time"):
                                 duration_seconds = int(
@@ -782,7 +800,7 @@ class ProcessManager:
                                     "hours": hours,
                                     "minutes": minutes,
                                     "file_size_mb": f"{file_size_mb:.2f}",
-                                    "quality": stream.quality or "best",
+                                    "quality": quality,
                                 },
                             )
 

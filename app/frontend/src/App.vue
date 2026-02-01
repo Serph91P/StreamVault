@@ -615,14 +615,17 @@ function removeToast(toastId) {
 function processToastNotification(message) {
   if (message.type === 'toast_notification') {
     const { 
+      toast_type = 'info',    // Backend sends "toast_type", not "type"
+      title = '',
       message: toastMessage, 
-      type = 'info', 
-      duration = 5000, 
-      data = null 
+      duration = 5000
     } = message.data || {}
     
-    if (toastMessage) {
-      addToast(toastMessage, type, duration, data)
+    // Combine title and message for display
+    const displayMessage = title ? `${title}: ${toastMessage}` : toastMessage
+    
+    if (displayMessage) {
+      addToast(displayMessage, toast_type, duration, message.data)
     }
   }
   
