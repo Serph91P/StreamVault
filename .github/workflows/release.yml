@@ -66,69 +66,91 @@ jobs:
       - name: Determine version
         id: version
         run: |
-          # Base version from latest stable tag
-          LATEST_STABLE_TAG=$(git tag -l "v[0-9]*.[0-9]*.[0-9]*" --sort=-v:refname | grep -v -E "dev" | head -n1 || echo "")
-          if [ -z "$LATEST_STABLE_TAG" ]; then
-            LATEST_STABLE_TAG="v1.0.0"
-          fi
-
-          STABLE_VERSION=${LATEST_STABLE_TAG#v}
-          IFS='.' read -ra VERSION_PARTS <<< "$STABLE_VERSION"
-          MAJOR=${VERSION_PARTS[0]:-1}
-          MINOR=${VERSION_PARTS[1]:-0}
-          PATCH=${VERSION_PARTS[2]:-0}
-
-          if git rev-parse "$LATEST_STABLE_TAG" >/dev/null 2>&1; then
-            COMMITS_SINCE_TAG=$(git rev-list --count "${LATEST_STABLE_TAG}"..HEAD)
+          # =============================================================
+          # Version Calculation Strategy:
+          # - Single continuous version number across main and develop
+          # - develop: vdev.X.Y.Z (pre-release)
+          # - main: vX.Y.Z (stable release)
+          # - Both branches increment from the HIGHEST existing version
+          # =============================================================
+          
+          # Find latest stable tag (v2.0.29 format, exclude vdev.*)
+          LATEST_STABLE_TAG=$(git tag -l "v[0-9]*.[0-9]*.[0-9]*" | grep -v "vdev" | \
+            sed 's/^v//' | sort -t. -k1,1n -k2,2n -k3,3n | tail -n1 || echo "")
+          if [ -n "$LATEST_STABLE_TAG" ]; then
+            STABLE_PATCH=$(echo "$LATEST_STABLE_TAG" | cut -d. -f3)
+            echo "Latest stable tag: v${LATEST_STABLE_TAG} (patch: ${STABLE_PATCH})"
           else
-            COMMITS_SINCE_TAG=$(git rev-list --count HEAD)
+            STABLE_PATCH=0
+            echo "No stable tags found"
           fi
-
-          if [ "$COMMITS_SINCE_TAG" -lt 1 ]; then
-            COMMITS_SINCE_TAG=1
+          
+          # Find latest dev tag (vdev.2.0.27 format)
+          LATEST_DEV_TAG=$(git tag -l "vdev.[0-9]*.[0-9]*.[0-9]*" | \
+            sed 's/^vdev\.//' | sort -t. -k1,1n -k2,2n -k3,3n | tail -n1 || echo "")
+          if [ -n "$LATEST_DEV_TAG" ]; then
+            DEV_PATCH=$(echo "$LATEST_DEV_TAG" | cut -d. -f3)
+            echo "Latest dev tag: vdev.${LATEST_DEV_TAG} (patch: ${DEV_PATCH})"
+          else
+            DEV_PATCH=0
+            echo "No dev tags found"
           fi
-
-          LATEST_DEV_TAG=$(git tag -l "v[0-9]*.[0-9]*.[0-9]*-dev.*" --sort=-v:refname | head -n1 || echo "")
+          
+          # Use the HIGHER patch number as base (continuous versioning)
+          if [ "$STABLE_PATCH" -gt "$DEV_PATCH" ]; then
+            CURRENT_PATCH=$STABLE_PATCH
+            echo "Using stable patch as base: ${CURRENT_PATCH}"
+          else
+            CURRENT_PATCH=$DEV_PATCH
+            echo "Using dev patch as base: ${CURRENT_PATCH}"
+          fi
+          
+          # Next version is always current + 1
+          NEXT_PATCH=$((CURRENT_PATCH + 1))
+          
+          # Major.Minor is fixed at 2.0 for now (change when needed)
+          MAJOR=2
+          MINOR=0
+          
+          echo "Next patch version: ${NEXT_PATCH}"
 
           if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            # Manual tag push - use the tag as-is
             VERSION=${GITHUB_REF#refs/tags/v}
-            if echo "$VERSION" | grep -qi "^dev\.|^vdev\."; then
-              VERSION=${VERSION#v}
+            if echo "$VERSION" | grep -qi "^dev\."; then
               VERSION=${VERSION#dev.}
               VERSION="dev.${VERSION}"
               IS_PRERELEASE=true
               RELEASE_TAG="vdev.${VERSION#dev.}"
-            elif echo "$VERSION" | grep -qi "dev"; then
-              IS_PRERELEASE=true
-              RELEASE_TAG=${GITHUB_REF#refs/tags/}
             else
               IS_PRERELEASE=false
               RELEASE_TAG=${GITHUB_REF#refs/tags/}
             fi
           elif [[ "${{ github.ref }}" == refs/heads/main ]]; then
-            if [ -n "$LATEST_DEV_TAG" ]; then
-              VERSION=${LATEST_DEV_TAG#v}
-              VERSION=${VERSION#dev.}
-              VERSION=${VERSION%-dev.*}
-            else
-              VERSION="$MAJOR.$MINOR.$((PATCH + COMMITS_SINCE_TAG))"
-            fi
+            # Main branch: stable release
+            VERSION="${MAJOR}.${MINOR}.${NEXT_PATCH}"
             IS_PRERELEASE=false
             RELEASE_TAG="v${VERSION}"
+            echo "Main branch release: ${VERSION}"
           elif [[ "${{ github.ref }}" == refs/heads/develop ]]; then
-            VERSION="dev.$MAJOR.$MINOR.$((PATCH + COMMITS_SINCE_TAG))"
+            # Develop branch: pre-release
+            VERSION="dev.${MAJOR}.${MINOR}.${NEXT_PATCH}"
             IS_PRERELEASE=true
-            RELEASE_TAG="vdev.${VERSION#dev.}"
+            RELEASE_TAG="vdev.${MAJOR}.${MINOR}.${NEXT_PATCH}"
+            echo "Develop branch release: ${VERSION}"
           else
-            VERSION="dev.${COMMITS_SINCE_TAG}"
+            # Other branches - shouldn't happen with current trigger config
+            VERSION="dev.${MAJOR}.${MINOR}.${NEXT_PATCH}"
             IS_PRERELEASE=true
-            RELEASE_TAG="v${VERSION}"
+            RELEASE_TAG="vdev.${MAJOR}.${MINOR}.${NEXT_PATCH}"
           fi
 
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
           echo "is_prerelease=${IS_PRERELEASE}" >> $GITHUB_OUTPUT
           echo "release_tag=${RELEASE_TAG}" >> $GITHUB_OUTPUT
-          echo "Version: ${VERSION}, Prerelease: ${IS_PRERELEASE}, Tag: ${RELEASE_TAG}"
+          echo "=========================================="
+          echo "Final: Version=${VERSION}, Prerelease=${IS_PRERELEASE}, Tag=${RELEASE_TAG}"
+          echo "=========================================="
 
       - name: Docker metadata
         id: docker_meta

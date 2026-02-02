@@ -1,0 +1,323 @@
+
+@github-actions github-actions
+8.1.2
+d39113c
+Streamlink 8.1.2 Latest
+
+    Fixed: warnings when parsing HLS playlists with private-use language subtags (#6780)
+    Updated plugins:
+        youtube: fixed live streams (#6777)
+
+📦 Download and Installation
+
+Please see the installation instructions for a list of available install methods and packages on the supported operating systems.
+⚙️ Configuration and Usage
+
+Please see the CLI documentation for how to configure and use Streamlink.
+❤️ Support
+
+If you think that Streamlink is useful and if you want to keep the project alive, then please consider supporting its maintainers by sending a small and optionally recurring tip via the available options.
+Your support is very much appreciated, thank you!
+🙏 Contributors
+
+    2: @bastimeyer
+
+🗒️ Full changelog
+
+bastimeyer <mail@bastimeyer.de> (2):
+      plugins.youtube: fix live streams
+      stream.hls: rm warning on private language subtags
+
+Contributors
+
+    @bastimeyer
+
+bastimeyer
+Assets 4
+
+    streamlink-8.1.2.tar.gz
+    sha256:d08099fa1b169bad4a991d31b2ab89f04ba08b1319ed1f5bd0ead8547d4c5ad3
+    804 KB 2 weeks ago
+    streamlink-8.1.2.tar.gz.asc
+    sha256:890de91e5f4d7cf64ae0881765783011537bb96dbbb7ccf0cb1f9df68af0c521
+    228 Bytes 2 weeks ago
+    Source code (zip)
+    2 weeks ago
+    Source code (tar.gz)
+    2 weeks ago
+
+10 people reacted
+Streamlink 8.1.1
+2 weeks ago
+@github-actions github-actions
+8.1.1
+f7dbcca
+Streamlink 8.1.1
+
+    Fixed: --stream-segmented-queue-deadline not being applied correctly to the Streamlink session options (#6758)
+    Changed: --hls-segment-ignore-names to not hardcode .ts HLS segment file name extensions (#6747)
+    Updated plugins:
+        dailymotion: fixed 403 HLS playlist responses (#6773)
+        pluto: fixed url matchers and ad detection (#6767)
+        soop: fixed CDN mapping for ld_cdn based regions (#6749)
+    Build: removed unneeded wheel dependency from build-system.requires and the build dependency group (#6754)
+
+📦 Download and Installation
+
+Please see the installation instructions for a list of available install methods and packages on the supported operating systems.
+⚙️ Configuration and Usage
+
+Please see the CLI documentation for how to configure and use Streamlink.
+❤️ Support
+
+If you think that Streamlink is useful and if you want to keep the project alive, then please consider supporting its maintainers by sending a small and optionally recurring tip via the available options.
+Your support is very much appreciated, thank you!
+🙏 Contributors
+
+    26: @bastimeyer
+    1: @qwer-lives
+    1: @streamlinkbot
+    1: @yayokorea
+
+🗒️ Full changelog
+
+bastimeyer <mail@bastimeyer.de> (26):
+      tools: bump mypy to 1.19.1
+      tools: bump ruff to 0.14.10 and fix issues
+      chore: fix setuptools typing issues
+      build: remove wheel from build-system.requires
+      build: remove wheel from build dependency group
+      chore: fix setuptools typing issues again
+      cli: fix --stream-segmented-queue-deadline option
+      ci.github: bump actions/checkout to v6
+      ci.github: bump actions/setup-python to v6
+      ci.github: bump python-version to 3.14
+      ci.github: bump codecov/codecov-action to v5
+      ci.github: bump actions/upload-artifact to v6
+      ci.github: bump actions/download-artifact to v7
+      ci.github: bump peter-evans/create-pull-request
+      2026
+      ci.github: always run all lint steps
+      plugins.pluto: fix urlmatchers
+      plugins.pluto: rewrite ad detection
+      tools: bump ruff to 0.14.11 and fix issues
+      chore: reformat streamlink init module
+      stream.dash: fix DASHStreamWriter.write signature
+      validate: fix callable validation
+      validate: fix length validator
+      validate: fix various parse validators
+      tests: fix typing in validate package tests
+      plugins.dailymotion: fix 403 HLS playlist response
+
+qwer-lives <jordigonzalezminombre@gmail.com> (1):
+      stream.hls: remove .ts ext from ignore_names regex
+
+streamlinkbot <streamlinkbot@users.noreply.github.com> (1):
+      session.http_useragents: update useragents
+
+yayo <jiwoowatch@gmail.com> (1):
+      plugins.soop: fix return_type for lg_cdn
+
+Contributors
+
+    @bastimeyer
+    @streamlinkbot
+    @yayokorea
+    @qwer-lives
+
+bastimeyer, streamlinkbot, and 2 other contributors
+Assets 4
+10 people reacted
+Streamlink 8.1.0
+Dec 14, 2025
+@github-actions github-actions
+8.1.0
+890f5b4
+Streamlink 8.1.0
+
+    Deprecated: --hls-segment-queue-threshold in favor of --stream-segmented-queue-deadline (#6734)
+    Improved: debug logging of segmented streams (#6730)
+    Updated plugins:
+        twitch: fixed clips GQL API query (#6744)
+    Tests: removed accidental pytest_cov dependency when running tests (#6727)
+
+📦 Download and Installation
+
+Please see the installation instructions for a list of available install methods and packages on the supported operating systems.
+⚙️ Configuration and Usage
+
+Please see the CLI documentation for how to configure and use Streamlink.
+❤️ Support
+
+If you think that Streamlink is useful and if you want to keep the project alive, then please consider supporting its maintainers by sending a small and optionally recurring tip via the available options.
+Your support is very much appreciated, thank you!
+🙏 Contributors
+
+    18: @bastimeyer
+    1: @streamlinkbot
+
+🗒️ Full changelog
+
+bastimeyer <mail@bastimeyer.de> (18):
+      tests: only load pytest_cov plugin in CI runners
+      stream.hls: turn NamedTuples into dataclasses
+      stream.segmented: hide repr of some segment attrs
+      utils: add FormattedDataclass meta class
+      stream.segmented: log queued segment in base class
+      plugins.twitch: fix redundant ad trace logging
+      stream.segmented: log fileext Segment property
+      tools: bump ruff to 0.14.6
+      stream.hls: refactor queue deadline logic
+      stream.hls: rename --hls-segment-queue-threshold
+      stream.segmented: move check_queue_deadline()
+      stream.segmented: fix _queue_last attr init
+      stream.segmented: send queued status to generator
+      stream.hls: refactor wait_and_reload()
+      tools: bump mypy to 1.19.0
+      tools: bump ruff to 0.14.7 and fix issues
+      stream.dash: improve representation lookup
+      plugins.twitch: fix clips GQL persisted query
+
+streamlinkbot <streamlinkbot@users.noreply.github.com> (1):
+      session.http_useragents: update useragents
+
+Contributors
+
+    @bastimeyer
+    @streamlinkbot
+
+bastimeyer and streamlinkbot
+Assets 4
+14 people reacted
+Streamlink 8.0.0
+Nov 11, 2025
+@github-actions github-actions
+8.0.0
+4f97a93
+Streamlink 8.0.0
+
+    BREAKING: dropped support for EOL Python 3.9 (#6674)
+    BREAKING/API: removed deprecated url_master from HLSStream/MuxedHLSStream (#6688)
+    BREAKING/dependencies: bumped version requirement of urllib3 to >=2.0.0 (#6686)
+    Added: --stream-segmented-duration in favor of --hls-duration (now deprecated), which affects HLS, DASH and other segmented stream types (#6705)
+    Added: duration parameter to dash:// streams (DASHStream) (#6705)
+    Added: --ffmpeg-validation-timeout for being able to increase the time for validating the FFmpeg executable (--ffmpeg-ffmpeg) (#6716)
+    Added: Flatpak player detection for VLC and mpv (#6717, #6723)
+    Refactored: parts of the internal SegmentedStream, HLSStream and DASHStream implementations (WIP) (#6696, #6707, #6709)
+    Updated plugins:
+        aloula: fixed livestream schema (#6662)
+        btv: rewritten and fixed plugin (#6691)
+        chzzk: added support for in-progress VODs via live-rewind streams (#6675)
+        dlive: fixed streams expiring after 5 minutes (#6695)
+        goodgame: updated matches, switched API endpoints (#6714)
+        nhkworld: removed plugin (#6677)
+        rtve: fixed validation schema (#6701)
+        twitch: fixed access token acquirement and various persisted GraphQL query IDs (#6720, #6721)
+        twitch: added --twitch-supported-codecs for access to higher quality streams (#5769)
+    Dependencies: dropped optional zstandard dependency on Python 3.14 and above (#6683)
+    Tests: bumped version requirement of pytest to >=8.4.0 (#6612)
+    Docs: refactored docs config and custom Sphinx extensions, added make options for disabling various components for offline building (#6668, #6669)
+    Docs: fixed compatibility with docutils==0.22.2 (#6699)
+
+📦 Download and Installation
+
+Please see the installation instructions for a list of available install methods and packages on the supported operating systems.
+⚙️ Configuration and Usage
+
+Please see the CLI documentation for how to configure and use Streamlink.
+❤️ Support
+
+If you think that Streamlink is useful and if you want to keep the project alive, then please consider supporting its maintainers by sending a small and optionally recurring tip via the available options.
+Your support is very much appreciated, thank you!
+🙏 Contributors
+
+    68: @bastimeyer
+    2: @streamlinkbot
+    1: @amurzeau
+    1: @oliviernes
+    1: @rishubil
+
+🗒️ Full changelog
+
+Alexis Murzeau <amubtdx@gmail.com> (1):
+      docs: fix compatibility with docutils==0.22.2
+
+Nesswit <rishubil@gmail.com> (1):
+      plugins.chzzk: live-rewind for in-progress VODs
+
+bastimeyer <mail@bastimeyer.de> (68):
+      tools: bump ruff to 0.13.0
+      chore: add "TC" rules to ruff config
+      tools: bump mypy to 1.18.1
+      session: fix HTTPSession typing
+      plugins.aloula: fix livestream schema
+      docs: reformat and clean up Sphinx's conf.py
+      docs: move custom extensions to docs/sphinxext
+      docs: remove ignored linting rules and fix issues
+      docs: bump furo to 2025.09.25
+      docs: add NO_ACKNOWLEDGEMENTS make option
+      docs: add NO_INTERSPHINX make option
+      docs: add NO_GITHUB_BUTTONS make option
+      docs: reformat acknowledgements section
+      docs: add JetBrains link to acknowledgements
+      tools: bump ruff to 0.13.2 and fix issues
+      tools: bump mypy to 1.18.2
+      stream.segmented: fix typing of writer queue
+      plugins.nhkworld: remove plugin
+      ci.github: remove -dev suffix from py314 runners
+      docs: use neutral example input URLs
+      tools: bump ruff to 0.14.1
+      ci.github: pycryptodome wheels on cp314-cp314t
+      plugins.btv: rewrite and fix plugin
+      plugins.dlive: refresh signed HLS playlist URL
+      cli: disable colored CLI usage text output
+      session.http: turn valid req args into a hashmap
+      stream.hls: refactor playlist reload
+      plugins.rtve: use xpath for data-setup attr
+      docs: replace debian bookworm with trixie
+      chore: drop support for Python 3.9
+      chore: fix typing issues after Python 3.9 drop
+      chore: fix linting issues after Python 3.9 drop
+      chore: drop static method dummy context bindings
+      cli: remove unneeded Path.resolve() workaround
+      utils.url: replace implicit URI scheme regex
+      chore: from typing import TypeAlias
+      stream.hls: remove deprecated url_master arg+attr
+      build: bump min version of urllib3 to 2.0.0
+      session.http: remove urllib3 1.x workaround
+      session.http: remove urllib3 1.x fallback import
+      session.http: remove urllib3 1.x pct enc override
+      tests.session.http: update percent encoding tests
+      build: skip urllib3[zstd] on py>=314
+      ci.github: drop zstandard temp-dep on cp314{,t}
+      tests: req pytest>=8.4.0, load plugins explicitly
+      ci.github: print pytest config in test runners
+      stream.segmented: count duration in worker
+      stream.segmented: add --stream-segmented-duration
+      stream.dash: add duration parameter
+      plugins.twitch: set ad segment duration to zero
+      stream.hls: move sequence counter to base class
+      stream.segmented: refactor sequence gap warning
+      stream.dash: use worker sequence, check gaps
+      stream.segmented: move check_sequence_gap()
+      stream.segmented: kw_only dataclasses
+      stream.segmented: move init+discontinuity attrs
+      stream.file: switch to pathlib
+      ci.github: use upstream brotli wheel on cp314
+      plugins.goodgame: fix plugin
+      plugins.twitch: new access_token GQL query
+      plugins.twitch: fix live stream and VOD metadata
+      plugins.twitch: fix clips metadata
+      cli.output.player: refactor PlayerArgs factory
+      cli.output.player: add flatpak detection
+      plugins.twitch: add --twitch-supported-codecs
+      stream.hls: warn on playlist_sequence access
+      docs: add flatpak section to players page
+      stream: fix HLS and DASH docstrings
+
+oliviernes <olivier.nesme@gmail.com> (1):
+      cli: add --ffmpeg-validation-timeout option
+
+streamlinkbot <streamlinkbot@users.noreply.github.com> (2):
+      session.http_useragents: update useragents
+      session.http_useragents: update useragents

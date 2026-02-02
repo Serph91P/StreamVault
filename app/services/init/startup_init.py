@@ -488,6 +488,35 @@ async def cleanup_zombie_recordings():
                             f"Stream still live after app restart (recording_id={recording.id}, stream_id={stream.id})"
                         )
 
+                        # CRITICAL: Find the existing segments directory to resume into
+                        # This ensures all segments end up in the same directory for later concatenation
+                        resume_segments_dir = None
+                        
+                        # Try to find segments directory from StreamMetadata
+                        try:
+                            from app.models import StreamMetadata
+                            metadata = db.query(StreamMetadata).filter(
+                                StreamMetadata.stream_id == stream.id
+                            ).first()
+                            
+                            if metadata and metadata.segments_dir_path:
+                                from pathlib import Path
+                                if Path(metadata.segments_dir_path).exists():
+                                    resume_segments_dir = metadata.segments_dir_path
+                                    logger.info(f"📂 Found segments directory from metadata: {resume_segments_dir}")
+                        except Exception as e:
+                            logger.debug(f"Could not get segments dir from metadata: {e}")
+                        
+                        # Fallback: Try to derive from recording path
+                        if not resume_segments_dir and recording.path:
+                            from pathlib import Path
+                            potential_dir = Path(recording.path).with_suffix('').parent / (
+                                Path(recording.path).stem + "_segments"
+                            )
+                            if potential_dir.exists():
+                                resume_segments_dir = str(potential_dir)
+                                logger.info(f"📂 Found segments directory from recording path: {resume_segments_dir}")
+
                         # CRITICAL FIX: Mark OLD recording as "stopped" BEFORE starting a new one
                         # This prevents duplicate jobs appearing in the Background Jobs UI
                         now_utc = datetime.now(timezone.utc)
@@ -499,14 +528,19 @@ async def cleanup_zombie_recordings():
                         logger.info(f"📝 Marked old recording {recording.id} as stopped before resuming")
 
                         try:
-                            # Resume recording through RecordingService (creates NEW recording entry)
+                            # Resume recording through RecordingService
+                            # Pass resume_segments_dir to continue in the same segments folder
                             await recording_service.start_recording(
                                 stream_id=stream.id,
                                 streamer_id=streamer.id,
                                 force_mode=True,  # Force resume even if recording "exists"
+                                resume_segments_dir=resume_segments_dir,  # Continue in same segments folder!
                             )
                             resumed_count += 1
-                            logger.info(f"✅ Successfully resumed recording for {streamer.username}")
+                            if resume_segments_dir:
+                                logger.info(f"✅ Successfully resumed recording for {streamer.username} in existing segments folder")
+                            else:
+                                logger.info(f"✅ Successfully started new recording for {streamer.username} (no existing segments found)")
                         except Exception as resume_error:
                             logger.error(f"❌ Failed to resume recording for {streamer.username}: {resume_error}")
                             # Old recording is already stopped, just log the error

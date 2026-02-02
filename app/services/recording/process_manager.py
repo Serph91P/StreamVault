@@ -80,7 +80,8 @@ class ProcessManager:
         self._is_shutting_down = False
 
     async def start_recording_process(
-        self, stream: Stream, output_path: str, quality: str, recording_id: Optional[int] = None
+        self, stream: Stream, output_path: str, quality: str, recording_id: Optional[int] = None,
+        resume_segments_dir: Optional[str] = None
     ) -> Optional[asyncio.subprocess.Process]:
         """Start a streamlink recording process for a specific stream
 
@@ -89,13 +90,16 @@ class ProcessManager:
             output_path: Path where the recording should be saved
             quality: Quality setting for the stream
             recording_id: ID of the recording entry (optional, for segmented recording tracking)
+            resume_segments_dir: Existing segments directory to resume into (for app restart recovery)
 
         Returns:
             Process object or None if failed
         """
         try:
             # Initialize segmented recording for long streams
-            segment_info = await self._initialize_segmented_recording(stream, output_path, quality, recording_id)
+            segment_info = await self._initialize_segmented_recording(
+                stream, output_path, quality, recording_id, resume_segments_dir
+            )
 
             # Start the first segment
             process = await self._start_segment(stream, segment_info["current_segment_path"], quality, segment_info)
@@ -112,16 +116,64 @@ class ProcessManager:
             raise ProcessError(f"Failed to start recording: {e}")
 
     async def _initialize_segmented_recording(
-        self, stream: Stream, output_path: str, quality: str, recording_id: Optional[int] = None
+        self, stream: Stream, output_path: str, quality: str, recording_id: Optional[int] = None,
+        resume_segments_dir: Optional[str] = None
     ) -> Dict:
-        """Initialize segmented recording structure for long streams"""
+        """Initialize segmented recording structure for long streams
+        
+        Args:
+            stream: Stream object to record
+            output_path: Path where the final recording should be saved
+            quality: Quality setting for the stream
+            recording_id: ID of the recording entry (optional)
+            resume_segments_dir: Existing segments directory to resume into (for app restart recovery)
+                                 If provided, new segments will be added to this directory with 
+                                 the next available segment number.
+        """
         base_path = Path(output_path)
-        segment_dir = base_path.parent / f"{base_path.stem}_segments"
-        segment_dir.mkdir(parents=True, exist_ok=True)
+        
+        if resume_segments_dir and Path(resume_segments_dir).exists():
+            # RESUME MODE: Use existing segments directory
+            segment_dir = Path(resume_segments_dir)
+            
+            # Find the next segment number by checking existing files
+            existing_segments = list(segment_dir.glob(f"*{self.SEGMENT_PART_IDENTIFIER}*.ts"))
+            if existing_segments:
+                # Parse existing segment numbers
+                segment_numbers = []
+                for seg in existing_segments:
+                    match = re.search(rf"{re.escape(self.SEGMENT_PART_IDENTIFIER)}(\d+)\.ts$", seg.name)
+                    if match:
+                        segment_numbers.append(int(match.group(1)))
+                next_segment_num = max(segment_numbers) + 1 if segment_numbers else 1
+            else:
+                next_segment_num = 1
+            
+            # Derive base stem from existing segments or directory name
+            if existing_segments:
+                # Use stem from first segment file
+                first_seg = existing_segments[0].name
+                base_stem = first_seg.rsplit(self.SEGMENT_PART_IDENTIFIER, 1)[0]
+            else:
+                # Fallback to directory name without _segments suffix
+                base_stem = segment_dir.name.replace("_segments", "")
+            
+            segment_filename = f"{base_stem}{self.SEGMENT_PART_IDENTIFIER}{next_segment_num:03d}.ts"
+            current_segment_path = segment_dir / segment_filename
+            
+            logger.info(
+                f"🔄 RESUME_SEGMENTS: Found {len(existing_segments)} existing segments in {segment_dir}, "
+                f"starting new segment {next_segment_num}"
+            )
+        else:
+            # NORMAL MODE: Create new segments directory
+            segment_dir = base_path.parent / f"{base_path.stem}_segments"
+            segment_dir.mkdir(parents=True, exist_ok=True)
 
-        # Create first segment path
-        segment_filename = f"{base_path.stem}{self.SEGMENT_PART_IDENTIFIER}001.ts"
-        current_segment_path = segment_dir / segment_filename
+            # Create first segment path
+            segment_filename = f"{base_path.stem}{self.SEGMENT_PART_IDENTIFIER}001.ts"
+            current_segment_path = segment_dir / segment_filename
+            next_segment_num = 1
 
         segment_info = {
             "stream_id": stream.id,
@@ -129,7 +181,7 @@ class ProcessManager:
             "base_output_path": str(output_path),
             "segment_dir": str(segment_dir),
             "current_segment_path": str(current_segment_path),
-            "segment_count": 1,
+            "segment_count": next_segment_num,
             "segment_start_time": datetime.now(),
             "total_segments": [],
             "monitor_task": None,
@@ -720,11 +772,31 @@ class ProcessManager:
             if segment_info["monitor_task"]:
                 segment_info["monitor_task"].cancel()
 
-            # Get all segment files
+            # Get all segment files from the directory (not just from total_segments)
+            # This ensures we capture ALL segments including those from previous sessions
+            # (e.g., after app restart during an ongoing stream)
+            segment_dir = Path(segment_info["segment_dir"])
             segment_files = []
-            for segment in segment_info["total_segments"]:
-                if await async_file.exists(segment["path"]) and await async_file.getsize(segment["path"]) > 0:
-                    segment_files.append(segment["path"])
+            
+            if segment_dir.exists():
+                # Find all .ts files matching the segment pattern, sorted by name
+                # Pattern: *_partNNN.ts
+                all_ts_files = sorted(segment_dir.glob("*_part*.ts"), key=lambda x: x.name)
+                
+                for ts_file in all_ts_files:
+                    if await async_file.exists(str(ts_file)) and await async_file.getsize(str(ts_file)) > 0:
+                        segment_files.append(str(ts_file))
+                
+                logger.info(
+                    f"📦 Found {len(segment_files)} segment files in directory "
+                    f"(tracked: {len(segment_info['total_segments'])}, from disk: {len(all_ts_files)})"
+                )
+            else:
+                # Fallback to tracked segments if directory doesn't exist
+                logger.warning(f"Segment directory not found, using tracked segments only")
+                for segment in segment_info["total_segments"]:
+                    if await async_file.exists(segment["path"]) and await async_file.getsize(segment["path"]) > 0:
+                        segment_files.append(segment["path"])
 
             if not segment_files:
                 logger.error(f"No valid segment files found for stream {segment_info['stream_id']}")
