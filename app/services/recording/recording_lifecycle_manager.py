@@ -141,6 +141,7 @@ class RecordingLifecycleManager:
             streamer = await self.database_service.get_streamer_by_id(streamer_id)
             streamer_name = streamer.username if streamer else f"streamer_{streamer_id}"
             quality = kwargs.get("quality", "best")
+            resume_segments_dir = kwargs.get("resume_segments_dir")
 
             # Log recording start to dedicated file
             if hasattr(self, "recording_logger"):
@@ -148,8 +149,10 @@ class RecordingLifecycleManager:
                     streamer_id=streamer_id, streamer_name=streamer_name, quality=quality, output_path=file_path
                 )
 
-            # Start recording process
-            success = await self._start_recording_process(recording_id, file_path, streamer_id)
+            # Start recording process (with optional resume_segments_dir for app restart recovery)
+            success = await self._start_recording_process(
+                recording_id, file_path, streamer_id, resume_segments_dir=resume_segments_dir
+            )
 
             if success:
                 # Invalidate active recordings cache
@@ -399,10 +402,22 @@ class RecordingLifecycleManager:
             logger.error(f"Error in recording monitoring task {recording_id}: {e}")
             await self._handle_recording_error(recording_id, str(e))
 
-    async def _start_recording_process(self, recording_id: int, file_path: str, streamer_id: int) -> bool:
-        """Start the actual recording process"""
+    async def _start_recording_process(
+        self, recording_id: int, file_path: str, streamer_id: int, 
+        resume_segments_dir: Optional[str] = None
+    ) -> bool:
+        """Start the actual recording process
+        
+        Args:
+            recording_id: ID of the recording entry
+            file_path: Path where the recording should be saved
+            streamer_id: ID of the streamer
+            resume_segments_dir: Existing segments directory to resume into (for app restart recovery)
+        """
         try:
             logger.info(f"🎬 LIFECYCLE_START_PROCESS: recording_id={recording_id}, file_path={file_path}")
+            if resume_segments_dir:
+                logger.info(f"🔄 RESUME_MODE: Using existing segments directory: {resume_segments_dir}")
 
             if not self.process_manager:
                 logger.error("🎬 NO_PROCESS_MANAGER: Process manager not available")
@@ -423,7 +438,8 @@ class RecordingLifecycleManager:
 
             # Use the new ProcessManager API with proper parameters
             process = await self.process_manager.start_recording_process(
-                stream=stream, output_path=file_path, quality="best"  # TODO: Get quality from recording settings
+                stream=stream, output_path=file_path, quality="best",  # TODO: Get quality from recording settings
+                resume_segments_dir=resume_segments_dir
             )
 
             success = process is not None
