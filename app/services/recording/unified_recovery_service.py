@@ -333,18 +333,39 @@ class UnifiedRecoveryService:
                 logger.info(f"📡 Streamer {streamer_name} is still LIVE - resuming recording")
                 logger.info("📌 Existing segments will be merged when stream ends (normal workflow)")
 
-                success = await self._resume_live_recording(recording_id, segments_dir, streamer_name)
-                if success:
-                    logger.info("✅ Recording resumed - segments will be handled by ProcessManager")
-                    # DO NOT trigger post-processing here - it happens when recording stops!
-                    return True
+                # First check if there's already an active recording for this stream
+                # If so, we should NOT try to resume - instead concatenate the old segments
+                has_active_recording = await self._check_if_stream_has_active_recording(recording_id)
+                
+                if has_active_recording:
+                    # Another recording is already running for this stream
+                    # The old segments belong to a previous episode - concatenate them now
+                    logger.info(f"📡 Stream already has an active recording - processing old segments separately")
+                    logger.info("📌 Old segments will be concatenated as a separate episode")
+                    # Fall through to concatenation logic below
                 else:
-                    logger.warning(f"⚠️ Failed to resume recording for {streamer_name}")
-                    logger.info("📌 Segments remain on disk - will retry on next recovery scan")
-                    return False
+                    success = await self._resume_live_recording(recording_id, segments_dir, streamer_name)
+                    if success:
+                        logger.info("✅ Recording resumed - segments will be handled by ProcessManager")
+                        # DO NOT trigger post-processing here - it happens when recording stops!
+                        return True
+                    else:
+                        logger.warning(f"⚠️ Failed to resume recording for {streamer_name}")
+                        # If resume failed, check if maybe a recording started in the meantime
+                        has_active_now = await self._check_if_stream_has_active_recording(recording_id)
+                        if has_active_now:
+                            logger.info("📡 Another recording started - processing old segments separately")
+                            # Fall through to concatenation logic below
+                        else:
+                            logger.info("📌 Segments remain on disk - will retry on next recovery scan")
+                            return False
 
-            # STEP 2: Streamer is OFFLINE - post-process orphaned segments NOW
-            logger.info(f"🛑 Streamer {streamer_name} is OFFLINE - starting post-processing for orphaned segments")
+            # STEP 2: Streamer is OFFLINE or has a different recording running
+            # Post-process these orphaned segments NOW
+            if not is_still_live:
+                logger.info(f"🛑 Streamer {streamer_name} is OFFLINE - starting post-processing for orphaned segments")
+            else:
+                logger.info(f"🛑 Streamer {streamer_name} has active recording - processing old segments as separate episode")
             logger.info(f"📦 This will concatenate {len(list(segments_dir.glob('*.ts')))} segments in background")
 
             # Log to dedicated file
@@ -968,6 +989,63 @@ class UnifiedRecoveryService:
         except Exception as e:
             logger.error(f"❌ Error checking live status for recording {recording_id}: {e}")
             return False  # Assume offline on error
+
+    async def _check_if_stream_has_active_recording(self, orphaned_recording_id: int) -> bool:
+        """Check if the stream already has a different active recording running.
+        
+        This is important when we find orphaned segments but a new recording
+        has already started for the same stream. In this case, we should NOT
+        try to resume (which would fail), but instead concatenate the old
+        segments immediately.
+        """
+        try:
+            with SessionLocal() as db:
+                # Get the stream_id for the orphaned recording
+                orphaned_recording = db.query(Recording).filter(
+                    Recording.id == orphaned_recording_id
+                ).first()
+                
+                if not orphaned_recording:
+                    return False
+                
+                stream_id = orphaned_recording.stream_id
+                
+                # Check if there's another recording with status='recording' for this stream
+                # that is NOT the orphaned recording
+                active_recording = db.query(Recording).filter(
+                    Recording.stream_id == stream_id,
+                    Recording.id != orphaned_recording_id,
+                    Recording.status == "recording"
+                ).first()
+                
+                if active_recording:
+                    logger.info(
+                        f"🔍 Found active recording {active_recording.id} for stream {stream_id} "
+                        f"(orphaned recording: {orphaned_recording_id})"
+                    )
+                    return True
+                
+                # Also check via RecordingService for in-memory active recordings
+                try:
+                    from app.services.recording.recording_service import RecordingService
+                    recording_service = RecordingService()
+                    active_recordings = recording_service.get_active_recordings()
+                    
+                    for rec_id, rec_data in active_recordings.items():
+                        if rec_data.get("stream_id") == stream_id and rec_id != orphaned_recording_id:
+                            logger.info(
+                                f"🔍 Found in-memory active recording {rec_id} for stream {stream_id} "
+                                f"(orphaned recording: {orphaned_recording_id})"
+                            )
+                            return True
+                except Exception as e:
+                    logger.debug(f"Could not check in-memory recordings: {e}")
+                
+                return False
+                
+        except Exception as e:
+            logger.error(f"❌ Error checking for active recording: {e}")
+            return False
 
     async def _resume_live_recording(self, recording_id: int, segments_dir: Path, streamer_name: str) -> bool:
         """Resume a live recording that was interrupted"""
