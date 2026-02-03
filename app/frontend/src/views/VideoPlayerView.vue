@@ -508,6 +508,10 @@ onMounted(() => {
 // ============================================================================
 
 .video-player-view {
+  // Prevent horizontal overflow on mobile
+  overflow-x: hidden;
+  max-width: 100%;
+  
   // Override page-view padding for more immersive video experience on mobile
   @include m.respond-below('sm') {
     padding: var(--spacing-2) var(--spacing-2);
@@ -555,6 +559,8 @@ onMounted(() => {
 .player-layout {
   display: flex;
   flex-direction: column;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 // ============================================================================
@@ -566,6 +572,8 @@ onMounted(() => {
   grid-template-columns: 1fr 300px;
   gap: var(--spacing-4);
   align-items: start;
+  max-width: 100%;
+  overflow: hidden;
   
   @include m.respond-below('xl') {
     grid-template-columns: 1fr 280px;
@@ -573,6 +581,10 @@ onMounted(() => {
   
   @include m.respond-below('lg') {
     grid-template-columns: 1fr;
+  }
+  
+  @include m.respond-below('sm') {
+    gap: var(--spacing-2);
   }
 }
 
@@ -678,6 +690,8 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-3);
+  min-width: 0;  // Allow flex item to shrink below content size
+  max-width: 100%;
   
   @include m.respond-below('lg') {
     flex-direction: row;
@@ -694,14 +708,24 @@ onMounted(() => {
     gap: var(--spacing-2);
     
     .info-card {
-      min-width: 100%;
+      min-width: 0;
       width: 100%;
+      max-width: 100%;
     }
   }
 }
 
 .info-card {
   flex-shrink: 0;
+  min-width: 0;  // Allow shrinking below content size
+  max-width: 100%;
+  overflow: hidden;
+  
+  // Ensure GlassCard content doesn't overflow
+  :deep(.glass-card-content) {
+    max-width: 100%;
+    overflow: hidden;
+  }
 }
 
 .info-title {
@@ -776,7 +800,10 @@ onMounted(() => {
   flex-direction: column;
   gap: var(--spacing-1);
   overflow-y: auto;
+  overflow-x: hidden;
   flex: 1;
+  min-width: 0;
+  max-width: 100%;
   
   &::-webkit-scrollbar {
     width: 4px;
@@ -801,6 +828,9 @@ onMounted(() => {
   border-radius: var(--radius-sm);
   cursor: pointer;
   transition: all v.$duration-150 v.$ease-out;
+  min-width: 0;  // Allow flex item to shrink
+  max-width: 100%;
+  overflow: hidden;
   
   &:hover {
     background: rgba(var(--primary-500-rgb), 0.15);
@@ -834,6 +864,8 @@ onMounted(() => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  min-width: 0;  // Allow text to shrink
+  flex: 1;  // Take remaining space but allow shrinking
   
   @include m.respond-below('sm') {
     white-space: normal;
@@ -841,6 +873,7 @@ onMounted(() => {
     -webkit-line-clamp: 2;
     line-clamp: 2;
     -webkit-box-orient: vertical;
+    word-break: break-word;
   }
 }
 
@@ -852,6 +885,7 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-2);
+  max-width: 100%;
   
   @include m.respond-below('sm') {
     gap: var(--spacing-1-5);
@@ -872,12 +906,16 @@ onMounted(() => {
   font-weight: v.$font-medium;
   cursor: pointer;
   transition: all v.$duration-200 v.$ease-out;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
   
   .action-icon {
     width: 16px;
     height: 16px;
     stroke: currentColor;
     fill: none;
+    flex-shrink: 0;
   }
   
   &:hover:not(:disabled) {
@@ -905,6 +943,8 @@ onMounted(() => {
   margin-top: var(--spacing-4);
   padding-top: var(--spacing-4);
   border-top: 1px solid var(--border-color);
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .share-label {
@@ -916,10 +956,16 @@ onMounted(() => {
 .share-url-box {
   display: flex;
   gap: var(--spacing-2);
+  max-width: 100%;
+  
+  @include m.respond-below('sm') {
+    flex-direction: column;
+  }
 }
 
 .share-url-input {
   flex: 1;
+  min-width: 0;  // Allow shrinking
   padding: var(--spacing-2) var(--spacing-3);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
@@ -927,6 +973,8 @@ onMounted(() => {
   color: var(--text-primary);
   font-size: var(--text-sm);
   font-family: monospace;
+  max-width: 100%;
+  box-sizing: border-box;
   
   &:focus {
     outline: none;
