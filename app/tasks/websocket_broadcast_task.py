@@ -58,29 +58,25 @@ class WebSocketBroadcastTask:
     async def _broadcast_loop(self):
         """Main broadcast loop that runs with optimized frequency"""
         try:
-            recording_update_counter = 0
-            queue_update_counter = 0
-            cleanup_counter = 0
+            cycle_counter = 0
 
             while self.is_running:
                 try:
-                    # Broadcast active recordings every 30 seconds (reduced from 10)
-                    if recording_update_counter % 3 == 0:
+                    # Broadcast active recordings every 30 seconds (fallback - events are primary)
+                    if cycle_counter % 3 == 0:
                         await self._broadcast_active_recordings()
 
-                    # Broadcast background queue status every 60 seconds (reduced from 10)
-                    if queue_update_counter % 6 == 0:
+                    # Broadcast background queue status every 30 seconds (fallback - events are primary)
+                    if cycle_counter % 3 == 0:
                         await self._broadcast_background_queue_status()
 
                     # Auto-cleanup stuck tasks every 5 minutes (CLEANUP_INTERVAL_CYCLES cycles of 10 seconds)
-                    if cleanup_counter % CLEANUP_INTERVAL_CYCLES == 0 and cleanup_counter > 0:
+                    if cycle_counter % CLEANUP_INTERVAL_CYCLES == 0 and cycle_counter > 0:
                         await self._auto_cleanup_stuck_tasks()
 
-                    recording_update_counter += 1
-                    queue_update_counter += 1
-                    cleanup_counter += 1
+                    cycle_counter += 1
 
-                    # Wait 10 seconds before next cycle (only counters change)
+                    # Wait 10 seconds before next cycle
                     await asyncio.sleep(ASYNC_DELAYS.WEBSOCKET_BROADCAST_ERROR_LONG)
 
                 except Exception as e:

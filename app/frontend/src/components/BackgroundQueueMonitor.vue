@@ -115,9 +115,9 @@ import { useBackgroundQueue } from '@/composables/useBackgroundQueue'
 import { useSystemAndRecordingStatus } from '@/composables/useSystemAndRecordingStatus'
 
 // Constants
-// REDUCED: 1 hour is reasonable - zombie cleanup runs every 5 minutes now
-// and will mark recordings as stopped if streamer is offline or process has no active state
-const STALE_RECORDING_THRESHOLD_HOURS = 1; // Hours before a recording is hidden from active tasks
+// INCREASED: 24 hours to support long streams (marathons, etc.)
+// Backend zombie cleanup handles truly stuck recordings
+const STALE_RECORDING_THRESHOLD_HOURS = 24; // Hours before a recording is hidden from active tasks
 
 // Use WebSocket-only background queue
 const {
