@@ -1,15 +1,6 @@
 <template>
   <div class="background-queue-admin">
-    <div class="admin-section">
-      <div class="section-header">
-        <h3>🔧 Background Queue Management</h3>
-        <p class="section-description">
-          Automatically fix Background Queue issues:
-          Recording jobs that get stuck, continuous Orphaned Recovery, and "Unknown" task names.
-        </p>
-      </div>
-
-      <!-- Status Overview -->
+    <!-- Status Overview -->
       <div class="status-card" v-if="status">
         <h4>📊 Current Status</h4>
         <div class="status-grid">
@@ -167,7 +158,6 @@
           </div>
         </div>
       </div>
-    </div>
   </div>
 </template>
 
@@ -267,250 +257,199 @@ export default {
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/variables' as v;
+@use '@/styles/mixins' as m;
+
 .background-queue-admin {
-  max-width: 1000px;
-  margin: 0 auto;
-  padding: 20px;
-}
-
-.admin-section {
-  background: var(--bg-secondary);
-  border-radius: 8px;
-  padding: 24px;
-  margin-bottom: 20px;
-}
-
-.section-header {
-  margin-bottom: 24px;
-}
-
-.section-header h3 {
-  margin: 0 0 8px 0;
-  color: var(--text-primary);
-  font-size: 1.5rem;
-}
-
-.section-description {
-  color: var(--text-secondary);
-  margin: 0;
-  line-height: 1.5;
+  width: 100%;
 }
 
 .status-card {
-  background: var(--bg-primary);
-  border-radius: 8px;
-  padding: 20px;
-  margin-bottom: 20px;
+  background: var(--background-tertiary);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-5);
+  margin-bottom: var(--spacing-5);
   border: 1px solid var(--border-color);
 }
 
 .status-card h4 {
-  margin: 0 0 16px 0;
+  margin: 0 0 var(--spacing-4) 0;
   color: var(--text-primary);
 }
 
 .status-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 12px;
-  margin-bottom: 16px;
+  gap: var(--spacing-3);
+  margin-bottom: var(--spacing-4);
 }
 
 .status-item {
   display: flex;
   justify-content: space-between;
-  padding: 8px 12px;
-  background: var(--bg-secondary);
-  border-radius: 4px;
+  padding: var(--spacing-2) var(--spacing-3);
+  background: var(--background-card);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
 }
 
 .status-item.error {
-  background: var(--error-bg, #fee);
-  /* Border color handled by .status-border-* classes */
+  background: var(--danger-bg-color);
+  border-color: var(--danger-border-color);
 }
 
 .status-item .label {
   color: var(--text-secondary);
-  font-weight: 500;
+  font-weight: var(--font-medium);
 }
 
 .status-item .value {
   color: var(--text-primary);
-  font-weight: bold;
+  font-weight: var(--font-bold);
 }
 
 .total-issues {
   text-align: center;
-  margin-top: 16px;
+  margin-top: var(--spacing-4);
 }
 
 .issues-badge {
   display: inline-block;
-  padding: 8px 16px;
-  border-radius: 20px;
-  font-weight: bold;
+  padding: var(--spacing-2) var(--spacing-4);
+  border-radius: var(--radius-full);
+  font-weight: var(--font-bold);
 }
 
 .issues-badge.error {
-  background: var(--error-color, #dc3545);
-  color: white;
+  background: var(--danger-color);
+  color: var(--text-on-primary);
 }
 
 .issues-badge.success {
-  background: var(--success-color, #28a745);
-  color: white;
+  background: var(--success-color);
+  color: var(--text-on-primary);
 }
 
 .problem-details {
-  background: var(--bg-primary);
-  border-radius: 8px;
-  padding: 20px;
-  margin-bottom: 20px;
+  background: var(--background-tertiary);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-5);
+  margin-bottom: var(--spacing-5);
   border: 1px solid var(--border-color);
 }
 
 .problem-details h4 {
-  margin: 0 0 16px 0;
+  margin: 0 0 var(--spacing-4) 0;
   color: var(--text-primary);
 }
 
 .problem-section {
-  margin-bottom: 16px;
+  margin-bottom: var(--spacing-4);
 }
 
 .problem-section h5 {
-  margin: 0 0 8px 0;
+  margin: 0 0 var(--spacing-2) 0;
   color: var(--text-primary);
-  font-size: 1rem;
+  font-size: var(--text-base);
 }
 
 .task-list {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--spacing-2);
 }
 
 .task-item {
-  background: var(--bg-secondary);
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-family: monospace;
-  font-size: 0.85rem;
+  background: var(--background-card);
+  padding: var(--spacing-1) var(--spacing-2);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
   color: var(--text-secondary);
+  border: 1px solid var(--border-color);
 }
 
 .action-buttons {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
-  margin-bottom: 20px;
+  gap: var(--spacing-3);
+  margin-bottom: var(--spacing-5);
 }
 
-.btn {
-  padding: 10px 16px;
-  border: none;
-  border-radius: 6px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s;
-  min-width: 140px;
-}
-
-.btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.btn-primary {
-  background: var(--primary-color, #007bff);
-  color: white;
-}
-
-.btn-primary:hover:not(:disabled) {
-  background: var(--primary-hover, #0056b3);
-}
-
-.btn-secondary {
-  background: var(--secondary-color, #6c757d);
-  color: white;
-}
-
-.btn-secondary:hover:not(:disabled) {
-  background: var(--secondary-hover, #545b62);
-}
-
-.btn-warning {
-  background: var(--warning-color, #ffc107);
-  color: #212529;
-}
-
-.btn-warning:hover:not(:disabled) {
-  background: var(--warning-hover, #e0a800);
-}
+/* Using global .btn classes from main.scss */
 
 .result-messages {
-  margin-top: 20px;
+  margin-top: var(--spacing-5);
 }
 
 .result-message {
-  padding: 16px;
-  border-radius: 8px;
-  /* Border color handled by .status-border-* classes */
+  padding: var(--spacing-4);
+  border-radius: var(--radius-md);
 }
 
 .result-message.success {
-  background: var(--success-bg, #d4edda);
-  /* Border color handled by .status-border-* classes */
+  background: var(--success-bg-color);
+  border: 1px solid var(--success-border-color);
 }
 
 .result-message.error {
-  background: var(--error-bg, #f8d7da);
-  /* Border color handled by .status-border-* classes */
+  background: var(--danger-bg-color);
+  border: 1px solid var(--danger-border-color);
 }
 
 .result-message h5 {
-  margin: 0 0 8px 0;
+  margin: 0 0 var(--spacing-2) 0;
   color: var(--text-primary);
 }
 
 .result-message p {
-  margin: 0 0 12px 0;
+  margin: 0 0 var(--spacing-3) 0;
   color: var(--text-primary);
 }
 
 .result-details {
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
   color: var(--text-secondary);
 }
 
 .result-details > div {
-  margin-bottom: 4px;
+  margin-bottom: var(--spacing-1);
 }
 
 .total-fixed {
-  margin-top: 8px;
-  padding-top: 8px;
+  margin-top: var(--spacing-2);
+  padding-top: var(--spacing-2);
   border-top: 1px solid var(--border-color);
 }
 
 .error-details {
-  margin-top: 12px;
-  padding-top: 12px;
+  margin-top: var(--spacing-3);
+  padding-top: var(--spacing-3);
   border-top: 1px solid var(--border-color);
 }
 
 .error-details h6 {
-  margin: 0 0 8px 0;
-  color: var(--error-color, #dc3545);
+  margin: 0 0 var(--spacing-2) 0;
+  color: var(--danger-color);
 }
 
 .error-details ul {
   margin: 0;
-  padding-left: 20px;
+  padding-left: var(--spacing-5);
 }
 
 .error-details li {
   color: var(--text-secondary);
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
+}
+
+@include m.respond-below('md') {
+  .action-buttons {
+    flex-direction: column;
+  }
+  
+  .status-grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

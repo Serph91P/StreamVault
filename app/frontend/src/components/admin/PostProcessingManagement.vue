@@ -1,10 +1,5 @@
 <template>
   <div class="post-processing-management">
-    <div class="section-header">
-      <h3>🔄 Post-Processing Management</h3>
-      <p>Manually restart post-processing for failed recordings and cleanup orphaned files.</p>
-    </div>
-
     <!-- Statistics Card -->
     <div class="stats-section">
       <div class="card stats-card">
@@ -411,37 +406,20 @@ onMounted(() => {
 /* Responsive - Use SCSS mixins for breakpoints */
 
 .post-processing-management {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: var(--spacing-5);
-}
-
-.section-header {
-  margin-bottom: 30px;
-}
-
-.section-header h3 {
-  margin: 0 0 10px 0;
-  color: var(--color-heading);
-}
-
-.section-header p {
-  margin: 0;
-  color: var(--color-text-light);
+  width: 100%;
 }
 
 .card {
-  background: var(--color-background-soft);
+  background: var(--background-tertiary);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
-  margin-bottom: 20px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  margin-bottom: var(--spacing-5);
 }
 
 .card-header {
   padding: var(--spacing-4) var(--spacing-5);
   border-bottom: 1px solid var(--border-color);
-  background: var(--color-background-mute);
+  background: var(--background-card);
   border-radius: var(--radius-md) var(--radius-md) 0 0;
   display: flex;
   justify-content: space-between;
@@ -450,7 +428,7 @@ onMounted(() => {
 
 .card-header h4 {
   margin: 0;
-  color: var(--color-text);
+  color: var(--text-primary);
 }
 
 .card-body {
@@ -467,34 +445,34 @@ onMounted(() => {
 .stat-item {
   text-align: center;
   padding: var(--spacing-4);
-  background: var(--color-background-mute);
+  background: var(--background-card);
   border-radius: var(--radius-sm);
   border: 1px solid var(--border-color);
 }
 
 .stat-value {
-  font-size: 2em;
-  font-weight: bold;
-  color: var(--color-heading);
-  margin-bottom: 5px;
+  font-size: var(--text-3xl);
+  font-weight: var(--font-bold);
+  color: var(--text-primary);
+  margin-bottom: var(--spacing-1);
 }
 
 .stat-label {
-  font-size: 0.9em;
-  color: var(--color-text-light);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
 }
 
 .streamer-breakdown {
-  margin-top: 20px;
-  padding-top: 20px;
+  margin-top: var(--spacing-5);
+  padding-top: var(--spacing-5);
   border-top: 1px solid var(--border-color);
 }
 
 .streamer-list {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 10px;
-  margin-top: 10px;
+  gap: var(--spacing-3);
+  margin-top: var(--spacing-3);
 }
 
 .streamer-item {
@@ -502,52 +480,54 @@ onMounted(() => {
   justify-content: space-between;
   align-items: center;
   padding: var(--spacing-2) var(--spacing-3);
-  background: var(--color-background-mute);
+  background: var(--background-card);
   border-radius: var(--radius-sm);
   border: 1px solid var(--border-color);
 }
 
 .streamer-name {
-  font-weight: 500;
-  color: var(--color-text);
+  font-weight: var(--font-medium);
+  color: var(--text-primary);
 }
 
 .streamer-stats {
-  font-size: 0.9em;
-  color: var(--color-text-light);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
 }
 
 .action-buttons {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 15px;
-  margin-bottom: 20px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-3);
+  margin-bottom: var(--spacing-5);
 }
 
 .settings-row {
   display: flex;
-  gap: 20px;
+  gap: var(--spacing-5);
   align-items: center;
-  padding-top: 15px;
+  padding-top: var(--spacing-4);
   border-top: 1px solid var(--border-color);
 }
 
 .settings-row label {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-weight: 500;
-  color: var(--color-text);
+  gap: var(--spacing-2);
+  font-weight: var(--font-medium);
+  color: var(--text-primary);
 }
 
 .form-input {
-  padding: var(--spacing-1_5) var(--spacing-2_5);
+  padding: var(--spacing-2) var(--spacing-3);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
   width: 80px;
-  background: var(--color-background);
-  color: var(--color-text);
+  background: var(--background-card);
+  color: var(--text-primary);
 }
+
+/* Using global .btn classes from main.scss */
 
 .btn {
   padding: var(--spacing-2_5) var(--spacing-5);
@@ -583,9 +563,9 @@ onMounted(() => {
 
 .list-controls {
   display: flex;
-  gap: 10px;
-  margin-bottom: 15px;
-  padding-bottom: 15px;
+  gap: var(--spacing-3);
+  margin-bottom: var(--spacing-4);
+  padding-bottom: var(--spacing-4);
   border-bottom: 1px solid var(--border-color);
 }
 
@@ -595,28 +575,28 @@ onMounted(() => {
 }
 
 .recording-item {
-  margin-bottom: 10px;
+  margin-bottom: var(--spacing-3);
 }
 
 .recording-checkbox {
   display: flex;
   align-items: flex-start;
-  gap: 10px;
+  gap: var(--spacing-3);
   padding: var(--spacing-3);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
   cursor: pointer;
   transition: all 0.2s;
-  background: var(--color-background);
+  background: var(--background-card);
 }
 
 .recording-checkbox:hover {
-  background: var(--color-background-soft);
+  background: var(--background-tertiary);
   border-color: var(--primary-color);
 }
 
 .recording-checkbox input[type="checkbox"] {
-  margin-top: 4px;
+  margin-top: var(--spacing-1);
 }
 
 .recording-info {
@@ -626,92 +606,92 @@ onMounted(() => {
 .recording-header {
   display: flex;
   align-items: center;
-  gap: 15px;
-  margin-bottom: 8px;
+  gap: var(--spacing-4);
+  margin-bottom: var(--spacing-2);
 }
 
 .recording-id {
-  font-weight: bold;
+  font-weight: var(--font-bold);
   color: var(--primary-color);
 }
 
 .streamer-name {
-  font-weight: 500;
-  color: var(--color-text);
+  font-weight: var(--font-medium);
+  color: var(--text-primary);
 }
 
 .file-size {
-  font-size: 0.9em;
-  color: var(--color-text-light);
-  background: var(--color-background-mute);
-  padding: var(--spacing-0_5) var(--spacing-1_5);
-  border-radius: 3px;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  background: var(--background-tertiary);
+  padding: var(--spacing-1) var(--spacing-2);
+  border-radius: var(--radius-sm);
 }
 
 .recording-details {
-  font-size: 0.9em;
+  font-size: var(--text-sm);
 }
 
 .stream-title {
-  color: var(--color-text);
-  margin-bottom: 4px;
-  font-weight: 500;
+  color: var(--text-primary);
+  margin-bottom: var(--spacing-1);
+  font-weight: var(--font-medium);
 }
 
 .file-path {
-  color: var(--color-text-light);
-  font-family: monospace;
-  margin-bottom: 4px;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  margin-bottom: var(--spacing-1);
   word-break: break-all;
 }
 
 .recording-meta {
-  color: var(--color-text-light);
+  color: var(--text-secondary);
 }
 
 .text-success { color: var(--success-color) !important; }
 .text-danger { color: var(--danger-color) !important; }
 
 .result-summary {
-  margin-bottom: 20px;
+  margin-bottom: var(--spacing-5);
 }
 
 .result-message {
-  padding: var(--spacing-3);
-  border-radius: var(--radius-sm);
-  margin-bottom: var(--spacing-2_5);
-  font-weight: 500;
+  padding: var(--spacing-4);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--spacing-3);
+  font-weight: var(--font-medium);
 }
 
 .result-message.success {
-  background: rgba(40, 167, 69, 0.1);
+  background: var(--success-bg-color);
   color: var(--success-color);
-  border: 1px solid rgba(40, 167, 69, 0.3);
+  border: 1px solid var(--success-border-color);
 }
 
 .result-message.error {
-  background: rgba(220, 53, 69, 0.1);
+  background: var(--danger-bg-color);
   color: var(--danger-color);
-  border: 1px solid rgba(220, 53, 69, 0.3);
+  border: 1px solid var(--danger-border-color);
 }
 
 .result-stats {
-  font-size: 0.9em;
-  color: var(--color-text-light);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
 }
 
 .errors-list {
-  margin-bottom: 20px;
+  margin-bottom: var(--spacing-5);
 }
 
 .errors-list ul {
-  margin: 10px 0;
-  padding-left: 20px;
+  margin: var(--spacing-3) 0;
+  padding-left: var(--spacing-5);
 }
 
 .errors-list li {
   color: var(--danger-color);
-  margin-bottom: 5px;
+  margin-bottom: var(--spacing-1);
 }
 
 .details-grid {
@@ -722,21 +702,21 @@ onMounted(() => {
 .detail-item {
   display: grid;
   grid-template-columns: auto 1fr auto auto;
-  gap: 15px;
+  gap: var(--spacing-4);
   align-items: center;
   padding: var(--spacing-2) var(--spacing-3);
-  background: var(--color-background-mute);
+  background: var(--background-card);
   border-radius: var(--radius-sm);
   border: 1px solid var(--border-color);
 }
 
 .detail-id {
-  font-weight: bold;
-  color: var(--color-heading);
+  font-weight: var(--font-bold);
+  color: var(--text-primary);
 }
 
 .detail-streamer {
-  color: var(--color-text);
+  color: var(--text-primary);
 }
 
 .detail-status.success {
@@ -748,26 +728,26 @@ onMounted(() => {
 }
 
 .detail-error {
-  font-size: 0.8em;
+  font-size: var(--text-xs);
   color: var(--danger-color);
 }
 
 .loading {
   text-align: center;
   padding: var(--spacing-10);
-  color: var(--color-text-light);
+  color: var(--text-secondary);
 }
 
 .no-data {
   text-align: center;
   padding: var(--spacing-10);
-  color: var(--color-text-light);
+  color: var(--text-secondary);
   font-style: italic;
 }
 
-@include m.respond-below('md') {  // < 768px
+@include m.respond-below('md') {
   .action-buttons {
-    grid-template-columns: 1fr;
+    flex-direction: column;
   }
   
   .stats-grid {
@@ -777,12 +757,12 @@ onMounted(() => {
   .recording-header {
     flex-direction: column;
     align-items: flex-start;
-    gap: 5px;
+    gap: var(--spacing-1);
   }
   
   .detail-item {
     grid-template-columns: 1fr;
-    gap: 5px;
+    gap: var(--spacing-1);
   }
 }
 </style>
