@@ -3,6 +3,9 @@ RecordingStateManager - Active recordings tracking and persistence
 
 Extracted from recording_service.py ULTRA-BOSS (1084 lines)
 Handles active recordings state, task tracking, and recovery after restarts.
+
+IMPORTANT: Use the global singleton `recording_state_manager` for all state operations.
+This ensures all RecordingService instances share the same state.
 """
 
 import logging
@@ -16,14 +19,37 @@ logger = logging.getLogger("streamvault")
 
 
 class RecordingStateManager:
-    """Manages active recording state and persistence"""
+    """Manages active recording state and persistence
+    
+    SINGLETON PATTERN: Use `recording_state_manager` global instance.
+    Do NOT create new instances unless you have a specific reason.
+    """
+
+    _instance: Optional["RecordingStateManager"] = None
+    _initialized: bool = False
+
+    def __new__(cls, config_manager=None):
+        """Singleton pattern - return existing instance if available"""
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
 
     def __init__(self, config_manager=None):
+        # Only initialize once (singleton)
+        if RecordingStateManager._initialized:
+            # Update config_manager if provided (for compatibility)
+            if config_manager is not None:
+                self.config_manager = config_manager
+            return
+            
         self.config_manager = config_manager
 
         # Active recordings tracking
         self.active_recordings: Dict[int, Dict[str, Any]] = {}
         self.recording_tasks: Dict[int, asyncio.Task] = {}
+        
+        RecordingStateManager._initialized = True
+        logger.debug("RecordingStateManager singleton initialized")
 
     def add_active_recording(self, recording_id: int, recording_data: Dict[str, Any]) -> None:
         """Add recording to active tracking"""
@@ -253,3 +279,8 @@ class RecordingStateManager:
         self.active_recordings.clear()
         self.recording_tasks.clear()
         logger.info("Cleared all recording state")
+
+
+# Global singleton instance - use this for all state operations
+# This ensures all RecordingService instances share the same state
+recording_state_manager = RecordingStateManager()
