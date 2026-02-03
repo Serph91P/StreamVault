@@ -688,6 +688,16 @@ onMounted(() => {
       min-width: 280px;
     }
   }
+  
+  @include m.respond-below('sm') {
+    flex-direction: column;
+    gap: var(--spacing-2);
+    
+    .info-card {
+      min-width: 100%;
+      width: 100%;
+    }
+  }
 }
 
 .info-card {
@@ -811,6 +821,11 @@ onMounted(() => {
   background: rgba(var(--primary-500-rgb), 0.1);
   padding: 2px 6px;
   border-radius: var(--radius-sm);
+  
+  @include m.respond-below('sm') {
+    font-size: 10px;
+    padding: 2px 4px;
+  }
 }
 
 .chapter-title {
@@ -819,6 +834,14 @@ onMounted(() => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  
+  @include m.respond-below('sm') {
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
 }
 
 // ============================================================================
@@ -829,6 +852,10 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-2);
+  
+  @include m.respond-below('sm') {
+    gap: var(--spacing-1-5);
+  }
 }
 
 .action-btn {
@@ -1042,6 +1069,114 @@ onMounted(() => {
       width: 100%;
       text-align: center;
     }
+  }
+}
+
+// ============================================================================
+// SMALL MOBILE LAYOUT (< 480px)
+// ============================================================================
+
+@include m.respond-below('sm') {
+  .player-header {
+    padding: var(--spacing-2);
+    gap: var(--spacing-2);
+  }
+  
+  .back-button {
+    padding: var(--spacing-1-5) var(--spacing-2);
+    font-size: var(--text-xs);
+    
+    .icon {
+      width: 14px;
+      height: 14px;
+    }
+  }
+  
+  .video-title {
+    font-size: var(--text-sm);
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    order: 3;
+    flex-basis: 100%;
+    margin-top: var(--spacing-1);
+  }
+  
+  .streamer-badge {
+    padding: var(--spacing-0-5) var(--spacing-2);
+    font-size: var(--text-xs);
+    
+    .icon-streamer {
+      width: 12px;
+      height: 12px;
+    }
+  }
+  
+  .info-title {
+    font-size: var(--text-sm);
+    margin-bottom: var(--spacing-2);
+    
+    .info-icon {
+      width: 16px;
+      height: 16px;
+    }
+  }
+  
+  .info-row {
+    padding: var(--spacing-1-5) 0;
+  }
+  
+  .info-label,
+  .info-value {
+    font-size: var(--text-xs);
+  }
+  
+  .chapters-card {
+    max-height: 200px;
+  }
+  
+  .chapter-item {
+    padding: var(--spacing-1-5);
+    gap: var(--spacing-1-5);
+  }
+  
+  .action-btn {
+    padding: var(--spacing-2);
+    font-size: var(--text-xs);
+    
+    .action-icon {
+      width: 14px;
+      height: 14px;
+    }
+  }
+  
+  .share-url-input {
+    font-size: var(--text-xs);
+    padding: var(--spacing-1-5) var(--spacing-2);
+  }
+  
+  .copy-btn {
+    padding: var(--spacing-1-5) var(--spacing-2);
+    font-size: var(--text-xs);
+  }
+  
+  .delete-modal {
+    margin: var(--spacing-2);
+    padding: var(--spacing-4);
+  }
+  
+  .modal-title {
+    font-size: var(--text-base);
+  }
+  
+  .modal-text {
+    font-size: var(--text-sm);
+  }
+  
+  .modal-warning {
+    font-size: var(--text-xs);
   }
 }
 

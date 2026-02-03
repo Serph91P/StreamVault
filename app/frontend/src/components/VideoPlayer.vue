@@ -1016,11 +1016,20 @@ watch(() => props.chapters, (newChapters) => {
   
   @include m.respond-below('md') {  // < 768px (mobile)
     width: calc(100% - 32px);  /* Full width on mobile with padding */
-    bottom: 120px;  /* More space above controls */
+    bottom: 100px;  /* More space above controls */
     right: var(--spacing-4);
     left: var(--spacing-4);  /* Center horizontally */
-    max-height: 60vh;  /* Responsive height - prevent cut-off */
+    max-height: 50vh;  /* Responsive height - prevent cut-off */
     max-width: none;  /* Override desktop constraint */
+  }
+  
+  @include m.respond-below('sm') {  // < 480px (small mobile)
+    bottom: 80px;
+    left: var(--spacing-2);
+    right: var(--spacing-2);
+    width: calc(100% - 16px);
+    max-height: 45vh;  /* Smaller on very small screens */
+    border-radius: var(--radius-md);
   }
 }
 
@@ -1104,6 +1113,10 @@ watch(() => props.chapters, (newChapters) => {
   font-weight: var(--font-semibold);  /* 600 */
   color: var(--text-primary);
   line-height: var(--leading-tight);
+  
+  @include m.respond-below('sm') {
+    font-size: var(--text-base);
+  }
 }
 
 .close-btn {
@@ -1166,17 +1179,32 @@ watch(() => props.chapters, (newChapters) => {
 .chapter-placeholder {
   // Use reusable list-item-thumbnail mixin from design system
   @include m.list-item-thumbnail(80px, 96px);
+  
+  @include m.respond-below('sm') {
+    width: 50px;
+    min-width: 50px;
+    height: 50px;
+    border-radius: var(--radius-sm);
+  }
 }
 
 .chapter-placeholder {
   font-size: var(--text-2xl);  /* 24px */
   color: var(--text-secondary);
+  
+  @include m.respond-below('sm') {
+    font-size: var(--text-lg);
+  }
 }
 
 .chapter-info {
   flex: 1;
   min-width: 0;
   padding-right: 40px;  /* Space for play icon on active items */
+  
+  @include m.respond-below('sm') {
+    padding-right: 24px;
+  }
 }
 
 .chapter-title {
@@ -1192,9 +1220,14 @@ watch(() => props.chapters, (newChapters) => {
   overflow: hidden;
   
   @include m.respond-below('md') {  // < 768px
-    font-size: 16px;  /* Mobile: Larger, more readable */
-    font-weight: var(--font-bold);  /* Bolder on mobile */
+    font-size: 14px;  /* Mobile: Slightly smaller */
+    font-weight: var(--font-semibold);
     -webkit-line-clamp: 2;  /* Allow 2 lines on mobile */
+  }
+  
+  @include m.respond-below('sm') {  // < 480px
+    font-size: 13px;
+    margin-bottom: var(--spacing-0-5);
   }
 }
 
