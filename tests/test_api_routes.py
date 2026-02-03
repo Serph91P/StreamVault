@@ -50,10 +50,10 @@ def test_route_imports():
         print(f"\nFAILED ROUTES ({len(failed_routes)}):")
         for route, error in failed_routes:
             print(f"  - {route}: {error[:100]}...")
-        return False
+        assert False, f"Failed to import {len(failed_routes)} routes"
     else:
         print("ALL ROUTES IMPORT SUCCESSFULLY!")
-        return True
+        assert True
 
 
 if __name__ == "__main__":
