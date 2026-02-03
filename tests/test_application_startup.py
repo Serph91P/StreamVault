@@ -18,26 +18,18 @@ def test_application_startup():
         print("  OK: FastAPI app import")
 
         # Check that app is created
-        if app is not None:
-            print("  OK: FastAPI app created")
-        else:
-            print("  FAIL: FastAPI app is None")
-            return False
+        assert app is not None, "FastAPI app is None"
+        print("  OK: FastAPI app created")
 
         # Check routes are registered
         routes = len(app.routes)
-        if routes > 0:
-            print(f"  OK: {routes} routes registered")
-        else:
-            print("  FAIL: No routes registered")
-            return False
+        assert routes > 0, "No routes registered"
+        print(f"  OK: {routes} routes registered")
 
         print("\nAPPLICATION STARTUP: SUCCESS!")
-        return True
 
     except Exception as e:
-        print(f"  FAIL: Application startup failed: {e}")
-        return False
+        assert False, f"Application startup failed: {e}"
 
 
 if __name__ == "__main__":

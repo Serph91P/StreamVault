@@ -27,7 +27,7 @@ from .recording_service import RecordingService
 
 # Refactored services (new architecture)
 from .recording_orchestrator import RecordingOrchestrator
-from .recording_state_manager import RecordingStateManager
+from .recording_state_manager import RecordingStateManager, recording_state_manager
 from .recording_database_service import RecordingDatabaseService
 from .recording_websocket_service import RecordingWebSocketService
 from .post_processing_coordinator import PostProcessingCoordinator
@@ -35,7 +35,7 @@ from .recording_lifecycle_manager import RecordingLifecycleManager
 
 # Original focused managers (kept as-is)
 from .config_manager import ConfigManager
-from .process_manager import ProcessManager
+from .process_manager import ProcessManager, process_manager
 from .recording_logger import RecordingLogger
 from .notification_manager import NotificationManager
 from .stream_info_manager import StreamInfoManager
@@ -46,6 +46,7 @@ __all__ = [
     # Refactored services
     "RecordingOrchestrator",
     "RecordingStateManager",
+    "recording_state_manager",  # Singleton instance
     "RecordingDatabaseService",
     "RecordingWebSocketService",
     "PostProcessingCoordinator",
@@ -53,6 +54,7 @@ __all__ = [
     # Original managers
     "ConfigManager",
     "ProcessManager",
+    "process_manager",  # Singleton instance
     "RecordingLogger",
     "NotificationManager",
     "StreamInfoManager",

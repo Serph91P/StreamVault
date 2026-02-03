@@ -4,12 +4,12 @@ This file is auto-populated during Docker build with build args.
 """
 
 import os
-from datetime import datetime
+from datetime import datetime, UTC
 
 # Build-time information (injected by Docker build)
 VERSION = os.getenv("STREAMVAULT_VERSION", "dev")
 BRANCH = os.getenv("STREAMVAULT_BRANCH", "unknown")
-BUILD_DATE = os.getenv("STREAMVAULT_BUILD_DATE", datetime.utcnow().isoformat())
+BUILD_DATE = os.getenv("STREAMVAULT_BUILD_DATE", datetime.now(UTC).isoformat())
 COMMIT_SHA = os.getenv("STREAMVAULT_COMMIT_SHA", "unknown")
 
 # Application metadata

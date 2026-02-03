@@ -92,10 +92,10 @@ def test_service_imports():
         print(f"\nFAILED SERVICES ({len(failed_services)}):")
         for service, error in failed_services:
             print(f"  - {service}: {error[:100]}...")
-        return False
+        assert False, f"Failed to import {len(failed_services)} services"
     else:
         print("ALL SERVICES IMPORT SUCCESSFULLY!")
-        return True
+        assert True
 
 
 if __name__ == "__main__":

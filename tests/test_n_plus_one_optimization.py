@@ -49,11 +49,10 @@ def test_eager_loading_syntax():
             print(f"  - {pattern}")
 
         # Success if we found at least some patterns
-        return len(found_patterns) > 0
+        assert len(found_patterns) > 0, "No eager loading patterns found in code"
 
     except Exception as e:
-        print(f"✗ Error testing eager loading patterns: {e}")
-        return False
+        assert False, f"Error testing eager loading patterns: {e}"
 
 
 def test_optimization_locations():
@@ -90,7 +89,7 @@ def test_optimization_locations():
             print(f"✗ File not found: {filepath}")
             all_found = False
 
-    return all_found
+    assert all_found, "Some optimization comments are missing"
 
 
 def test_joinedload_usage():
@@ -119,7 +118,7 @@ def test_joinedload_usage():
             print(f"✗ File not found: {filepath}")
             all_correct = False
 
-    return all_correct
+    assert all_correct, "Joinedload usage is missing in some files"
 
 
 def test_no_n_plus_one_patterns():
@@ -157,7 +156,8 @@ def test_no_n_plus_one_patterns():
     else:
         print(f"⚠ Found {issues_found} potential N+1 patterns (may need review)")
 
-    return True  # Don't fail on warnings
+    # Don't fail on warnings, just assert True
+    assert True
 
 
 if __name__ == "__main__":
