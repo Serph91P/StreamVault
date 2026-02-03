@@ -17,24 +17,54 @@ logger = logging.getLogger("streamvault")
 class EnhancedPushService:
     def __init__(self):
         self.settings = settings
+        # Lazy initialization - web_push_service will be created on first use
+        self._web_push_service: Optional[ModernWebPushService] = None
+        self._initialization_attempted = False
 
-        # Get VAPID keys from settings
-        vapid_private_key = getattr(self.settings, "VAPID_PRIVATE_KEY", None)
-        self.vapid_public_key = getattr(self.settings, "VAPID_PUBLIC_KEY", None)
+    @property
+    def web_push_service(self) -> Optional[ModernWebPushService]:
+        """Lazy initialization of web push service - loads VAPID keys on first use"""
+        if self._web_push_service is not None:
+            return self._web_push_service
+        
+        if self._initialization_attempted:
+            return None  # Already tried and failed
+        
+        self._initialization_attempted = True
+        
+        # Get VAPID keys from settings (may trigger database load)
+        vapid_keys = self.settings.get_vapid_keys()
+        vapid_private_key = vapid_keys.get("private_key")
+        vapid_public_key = vapid_keys.get("public_key")
+
+        if not vapid_private_key or not vapid_public_key:
+            logger.warning("VAPID keys not available, web push service will be disabled")
+            return None
 
         # VAPID claims for the sender
-        vapid_claims = {"sub": getattr(self.settings, "VAPID_CLAIMS_SUB", "mailto:admin@streamvault.local")}
+        vapid_claims = {"sub": vapid_keys.get("claims_sub", "mailto:admin@streamvault.local")}
 
-        # Initialize web push service if keys are available
-        self.web_push_service = None
-        if vapid_private_key and self.vapid_public_key:
-            try:
-                self.web_push_service = ModernWebPushService(
-                    vapid_private_key=vapid_private_key, vapid_claims=vapid_claims
-                )
-                logger.info("Enhanced Web Push Service initialized successfully")
-            except Exception as e:
-                logger.error(f"Failed to initialize Web Push Service: {e}")
+        try:
+            self._web_push_service = ModernWebPushService(
+                vapid_private_key=vapid_private_key, vapid_claims=vapid_claims
+            )
+            logger.info("Enhanced Web Push Service initialized successfully (lazy)")
+            return self._web_push_service
+        except Exception as e:
+            logger.error(f"Failed to initialize Web Push Service: {e}")
+            return None
+
+    @property
+    def vapid_public_key(self) -> Optional[str]:
+        """Get VAPID public key from settings"""
+        vapid_keys = self.settings.get_vapid_keys()
+        return vapid_keys.get("public_key")
+
+    def reset_initialization(self):
+        """Reset initialization state to allow retry after VAPID keys become available"""
+        self._web_push_service = None
+        self._initialization_attempted = False
+        logger.info("EnhancedPushService initialization state reset")
 
     async def send_notification(
         self, subscription: Union[Dict[str, Any], str], notification_data: Dict[str, Any]
