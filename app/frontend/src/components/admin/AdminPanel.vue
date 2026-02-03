@@ -1,12 +1,12 @@
 <template>
   <div class="admin-panel">
-    <div class="header">
+    <div class="page-header">
       <h1>StreamVault Admin Panel</h1>
       <p class="subtitle">System Testing & Diagnostics</p>
     </div>
 
     <!-- Quick Health Check -->
-    <div class="health-section">
+    <GlassCard variant="medium" :padding="true" class="admin-section">
       <div class="section-header">
         <h2>System Health</h2>
         <button 
@@ -51,10 +51,10 @@
           </div>
         </div>
       </div>
-    </div>
+    </GlassCard>
 
     <!-- System Information -->
-    <div class="system-info-section">
+    <GlassCard variant="medium" :padding="true" class="admin-section">
       <div class="section-header">
         <h2>System Information</h2>
         <button @click="loadSystemInfo" :disabled="systemInfoLoading" class="btn btn-secondary">
@@ -73,7 +73,7 @@
           </ul>
         </div>
 
-        <div class="info-card status-border status-border-info">
+        <div class="info-card">
           <h3>Resources</h3>
           <ul>
             <li><strong>CPU Cores:</strong> {{ systemInfo.resources.cpu_count }}</li>
@@ -82,7 +82,7 @@
           </ul>
         </div>
 
-        <div class="info-card status-border status-border-info">
+        <div class="info-card">
           <h3>Storage</h3>
           <div v-if="systemInfo.storage.recording_drive">
             <ul>
@@ -97,7 +97,7 @@
           </div>
         </div>
 
-        <div class="info-card status-border status-border-info">
+        <div class="info-card">
           <h3>Configuration</h3>
           <ul>
             <li><strong>Recording Dir:</strong> {{ systemInfo.settings.recording_directory }}</li>
@@ -106,27 +106,27 @@
           </ul>
         </div>
       </div>
-    </div>
+    </GlassCard>
 
     <!-- WebSocket Monitoring -->
-    <div class="websocket-section">
+    <GlassCard variant="medium" :padding="true" class="admin-section">
       <div class="section-header">
         <h2>WebSocket Connections</h2>
       </div>
       <WebSocketMonitor />
-    </div>
+    </GlassCard>
 
     <!-- Background Queue Monitoring -->
-    <div class="background-queue-section">
+    <GlassCard variant="medium" :padding="true" class="admin-section">
       <div class="section-header">
         <h2>Background Jobs & Services</h2>
         <p class="section-description">Real-time monitoring of background tasks, recording services, and system processes</p>
       </div>
       <BackgroundQueueMonitor />
-    </div>
+    </GlassCard>
 
     <!-- Background Queue Management & Cleanup -->
-    <div class="background-queue-admin-section">
+    <GlassCard variant="medium" :padding="true" class="admin-section">
       <div class="section-header">
         <h2>🔧 Background Queue Management</h2>
         <p class="section-description">
@@ -134,10 +134,10 @@
         </p>
       </div>
       <BackgroundQueueAdmin />
-    </div>
+    </GlassCard>
 
     <!-- Post-Processing Management -->
-    <div class="post-processing-admin-section">
+    <GlassCard variant="medium" :padding="true" class="admin-section">
       <div class="section-header">
         <h2>🔄 Post-Processing Management</h2>
         <p class="section-description">
@@ -145,10 +145,10 @@
         </p>
       </div>
       <PostProcessingManagement />
-    </div>
+    </GlassCard>
 
     <!-- Test Suite -->
-    <div class="test-suite-section">
+    <GlassCard variant="medium" :padding="true" class="admin-section">
       <div class="section-header">
         <h2>Comprehensive Test Suite</h2>
         <div class="test-controls">
@@ -266,10 +266,10 @@
           </div>
         </div>
       </div>
-    </div>
+    </GlassCard>
 
     <!-- Maintenance -->
-    <div class="maintenance-section">
+    <GlassCard variant="medium" :padding="true" class="admin-section">
       <div class="section-header">
         <h2>Maintenance</h2>
       </div>
@@ -299,10 +299,10 @@
           </li>
         </ul>
       </div>
-    </div>
+    </GlassCard>
 
     <!-- Video Debug Section -->
-    <div class="video-debug-section">
+    <GlassCard variant="medium" :padding="true" class="admin-section">
       <div class="section-header">
         <h2>Video & Recording Debug</h2>
         <p class="section-description">Debug video availability and recording file system status</p>
@@ -339,7 +339,9 @@
           {{ cleaningZombies ? 'Cleaning...' : 'Cleanup Zombie Recordings' }}
         </button>
       </div>
-    </div>    <!-- Logs Modal -->
+    </GlassCard>
+
+    <!-- Logs Modal -->
     <div v-if="showLogsModal" class="modal-overlay" @click="showLogsModal = false">
       <div class="modal" @click.stop>
         <div class="modal-header">
@@ -527,6 +529,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import GlassCard from '../cards/GlassCard.vue'
 import WebSocketMonitor from '../WebSocketMonitor.vue'
 import BackgroundQueueMonitor from '../BackgroundQueueMonitor.vue'
 import BackgroundQueueAdmin from './BackgroundQueueAdmin.vue'
@@ -947,36 +950,43 @@ onMounted(() => {
   margin: 0 auto;
 }
 
-.header {
+.page-header {
   text-align: center;
-  margin-bottom: var(--spacing-8);  /* 32px */
+  margin-bottom: var(--spacing-8);
 }
 
-.header h1 {
+.page-header h1 {
   color: var(--text-primary);
-  margin-bottom: var(--spacing-1);  /* 4px */
-  font-size: var(--text-3xl);  /* 30px */
-  font-weight: var(--font-bold);  /* 700 */
+  margin-bottom: var(--spacing-1);
+  font-size: var(--text-3xl);
+  font-weight: var(--font-bold);
 }
 
 .subtitle {
   color: var(--text-secondary);
-  font-size: var(--text-lg);  /* 18px */
+  font-size: var(--text-lg);
   line-height: var(--leading-normal);
+}
+
+/* Admin Sections - GlassCard wrappers */
+.admin-section {
+  margin-bottom: var(--spacing-6);
 }
 
 .section-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: var(--spacing-5);  /* 20px */
+  margin-bottom: var(--spacing-5);
+  flex-wrap: wrap;
+  gap: var(--spacing-3);
 }
 
 .section-header h2 {
   color: var(--text-primary);
   margin: 0;
-  font-size: var(--text-2xl);  /* 24px */
-  font-weight: var(--font-semibold);  /* 600 */
+  font-size: var(--text-xl);
+  font-weight: var(--font-semibold);
 }
 
 /* Buttons use global .btn classes, minimal overrides */
@@ -985,19 +995,10 @@ onMounted(() => {
 }
 
 /* Health Status */
-.health-section {
-  background: var(--background-card);
-  border-radius: var(--radius-lg);  /* 12px */
-  padding: var(--spacing-5);  /* 20px */
-  margin-bottom: var(--spacing-8);  /* 32px */
-  box-shadow: var(--shadow-md);
-  border: 1px solid var(--border-color);
-}
-
 .health-status {
-  margin-top: var(--spacing-5);  /* 20px */
-  padding: var(--spacing-4);  /* 16px */
-  border-radius: var(--radius-md);  /* 10px */
+  margin-top: var(--spacing-5);
+  padding: var(--spacing-4);
+  border-radius: var(--radius-md);
 }
 
 .health-status.healthy { 
@@ -1089,15 +1090,6 @@ onMounted(() => {
 }
 
 /* System Info */
-.system-info-section {
-  background: var(--background-card);
-  border-radius: var(--radius-lg);  /* 12px */
-  padding: var(--spacing-5);  /* 20px */
-  margin-bottom: var(--spacing-8);  /* 32px */
-  box-shadow: var(--shadow-md);
-  border: 1px solid var(--border-color);
-}
-
 .system-info-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
@@ -1131,26 +1123,9 @@ onMounted(() => {
   line-height: var(--leading-relaxed);
 }
 
-/* Test Suite */
-.test-suite-section {
-  background: var(--background-card);
-  border-radius: var(--radius-lg);  /* 12px */
-  padding: var(--spacing-5);  /* 20px */
-  margin-bottom: var(--spacing-8);  /* 32px */
-  box-shadow: var(--shadow-md);
-  border: 1px solid var(--border-color);
-}
+/* Test Suite - no wrapper class needed, GlassCard handles it */
 
-/* WebSocket and Background Queue Sections */
-.websocket-section,
-.background-queue-section {
-  background: var(--background-card);
-  border-radius: var(--radius-lg);  /* 12px */
-  padding: var(--spacing-5);  /* 20px */
-  margin-bottom: var(--spacing-8);  /* 32px */
-  box-shadow: var(--shadow-md);
-  border: 1px solid var(--border-color);
-}
+/* WebSocket and Background Queue - no wrapper classes needed, GlassCard handles it */
 
 .section-description {
   color: var(--text-secondary);
@@ -1529,7 +1504,7 @@ onMounted(() => {
     padding: var(--spacing-2);
   }
   
-  .header h1 {
+  .page-header h1 {
     font-size: var(--text-2xl);
   }
   
