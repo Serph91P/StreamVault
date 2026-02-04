@@ -1319,17 +1319,16 @@ watch(messages, (newMessages) => {
   100% { transform: rotate(0); }
 }
 
-/* Notification backdrop for mobile */
+/* Notification backdrop - visible on all screen sizes */
 .notification-backdrop {
-  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.3);
+  z-index: 10000;  /* Just below notification overlay */
   
   @include m.respond-below('md') {
-    display: block;
-    position: fixed;
-    inset: 0;
     background: rgba(0, 0, 0, 0.5);
     backdrop-filter: blur(4px);
-    z-index: 9998;
   }
 }
 
@@ -1382,9 +1381,10 @@ watch(messages, (newMessages) => {
   position: fixed;
   top: 70px;
   right: 20px;
-  z-index: 1000;
+  z-index: 10001;  /* Above navigation (1000) and mobile menu (9999) */
   max-width: 400px;
   width: 90vw;
+  pointer-events: auto;  /* Ensure clicks are captured */
   
   /* Mobile: slide up from bottom like background jobs */
   @include m.respond-below('md') {
@@ -1400,7 +1400,7 @@ watch(messages, (newMessages) => {
     overflow-y: auto;
     background: var(--background-card);
     box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.3);
-    z-index: 9999;
+    z-index: 10001;
     
     // Hide the internal feed header on mobile since we have our own
     :deep(.feed-header) {
