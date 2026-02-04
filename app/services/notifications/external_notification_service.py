@@ -17,19 +17,19 @@ from .notification_formatter import NotificationFormatter
 logger = logging.getLogger("streamvault")
 
 
-def optimize_profile_image_for_notification(url: str, target_size: int = 70) -> str:
+def optimize_profile_image_for_notification(url: str, target_size: int = 150) -> str:
     """
     Optimize Twitch profile image URL for notification avatars.
 
     Twitch CDN supports these sizes: 70x70, 150x150, 300x300
     Apprise typically uses 32x32, 72x72, 128x128, 256x256 icons.
 
-    For notification avatars, 70x70 is ideal (close to Apprise's 72x72 standard)
-    and reduces bandwidth/loading time.
+    For notification avatars, 150x150 provides good quality for most services
+    while keeping bandwidth reasonable. 70x70 was too small for some services.
 
     Args:
         url: Original Twitch profile image URL (usually 300x300)
-        target_size: Desired size (default 70 for notifications)
+        target_size: Desired size (default 150 for good quality on mobile)
 
     Returns:
         Optimized URL with smaller image size
@@ -342,11 +342,12 @@ class ExternalNotificationService:
 
             # Use avatar_url to override the Apprise notification icon with streamer profile
             # Also set image=no to prevent duplicate image attachment
-            # NOTE: avatar_url must be URL-encoded to properly pass special characters
+            # NOTE: For ntfy via Apprise, the URL should NOT be double-encoded
+            # Apprise handles URL encoding internally
             if profile_image and profile_image.startswith("http"):
-                # URL-encode the avatar_url to handle special characters like / : ? =
-                encoded_avatar_url = quote(profile_image, safe='')
-                params.append(f"avatar_url={encoded_avatar_url}")  # Override Apprise icon
+                # Don't encode the URL - Apprise handles this internally
+                # Double-encoding causes the URL to become invalid
+                params.append(f"avatar_url={profile_image}")  # Override Apprise icon
                 params.append("image=no")  # Disable automatic image attachment (prevents duplicate)
                 logger.debug(f"Set ntfy avatar_url to streamer profile: {profile_image}")
             else:
