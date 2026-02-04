@@ -1131,6 +1131,7 @@ async def serve_workbox_files(filename: str):
     # Step 1: Create whitelist of allowed workbox files (hardcoded, no user input)
     ALLOWED_WORKBOX_FILES = {
         # Common workbox filenames - add more as needed
+        "66610c77.js": "workbox-66610c77.js",
         "74f2ef77.js": "workbox-74f2ef77.js",
         "core.js": "workbox-core.js",
         "sw.js": "workbox-sw.js",
