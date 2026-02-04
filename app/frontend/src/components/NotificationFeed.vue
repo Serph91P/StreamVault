@@ -110,12 +110,25 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
-import { useWebSocket } from '@/composables/useWebSocket'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useCategoryImages } from '@/composables/useCategoryImages'
 import { notificationApi } from '@/services/api'
 
 const emit = defineEmits(['notifications-read', 'close-panel', 'clear-all', 'close'])
+
+/**
+ * NotificationFeed Component
+ * 
+ * ARCHITECTURE NOTE:
+ * This component ONLY reads from localStorage. All WebSocket message processing
+ * is handled centrally in App.vue, which stores notifications in localStorage.
+ * This ensures:
+ * 1. Notifications are captured even when this panel is closed
+ * 2. No duplicate processing of messages
+ * 3. Consistent state across the app
+ * 
+ * The component listens for 'notificationsUpdated' events to refresh its view.
+ */
 
 interface NotificationData {
   [key: string]: any;
@@ -131,19 +144,9 @@ interface Notification {
 }
 
 const notifications = ref<Notification[]>([])
-const { messages } = useWebSocket()
 const { getCategoryImage } = useCategoryImages()
 
 const MAX_NOTIFICATIONS = 100
-
-// Debounce mechanism to prevent rapid duplicate notifications
-const recentNotifications = new Map<string, number>()
-const DEBOUNCE_TIME = 2000 // 2 seconds
-
-// Function to generate a unique key for notifications
-const generateNotificationKey = (notification: Notification): string => {
-  return `${notification.type}_${notification.streamer_username}_${notification.data?.title || ''}`
-}
 
 // Sort notifications by timestamp (newest first)
 const sortedNotifications = computed(() => {
@@ -275,103 +278,6 @@ const getNotificationClass = (type: string, notification?: Notification): string
   }
 }
 
-// Add a new notification - IMPROVED VERSION
-const addNotification = (message: any): void => {
-  try {
-    const id = message.data?.test_id || `${message.type}_${Date.now()}_${Math.random()}`
-    
-    const timestamp = message.data?.timestamp 
-      ? new Date(parseInt(message.data.timestamp) || message.data.timestamp).toISOString()
-      : new Date().toISOString()
-    
-    const streamer_username = message.data?.username || 
-                             message.data?.streamer_name || 
-                             'Unknown'
-    
-    const newNotification: Notification = {
-      id,
-      type: message.type,
-      timestamp,
-      streamer_username,
-      data: message.data || {}
-    }
-    
-    // Check debounce to prevent rapid duplicates
-    const notificationKey = generateNotificationKey(newNotification)
-    const now = Date.now()
-    const lastTime = recentNotifications.get(notificationKey)
-    
-    if (lastTime && (now - lastTime) < DEBOUNCE_TIME) {
-      return
-    }
-    
-    // Update debounce tracker
-    recentNotifications.set(notificationKey, now)
-    
-    // Clean up old debounce entries (older than 5 minutes)
-    for (const [key, time] of recentNotifications.entries()) {
-      if (now - time > 300000) { // 5 minutes
-        recentNotifications.delete(key)
-      }
-    }
-    
-    // Enhanced duplicate detection
-    const isDuplicate = (existing: Notification, incoming: Notification): boolean => {
-      // Same type and streamer
-      if (existing.type !== incoming.type || existing.streamer_username !== incoming.streamer_username) {
-        return false
-      }
-      
-      // For stream updates, check if title/content is the same
-      if (incoming.type === 'channel.update' || incoming.type === 'stream.update') {
-        const existingTitle = existing.data?.title || ''
-        const incomingTitle = incoming.data?.title || ''
-        
-        // If same title and within 30 seconds, it's a duplicate
-        const timeDiff = Math.abs(new Date(existing.timestamp).getTime() - new Date(incoming.timestamp).getTime())
-        if (existingTitle === incomingTitle && timeDiff < 30000) {
-          return true
-        }
-      }
-      
-      // For stream.online, check within 10 seconds
-      if (incoming.type === 'stream.online') {
-        const timeDiff = Math.abs(new Date(existing.timestamp).getTime() - new Date(incoming.timestamp).getTime())
-        return timeDiff < 10000
-      }
-      
-      // For recording events, check within 5 seconds
-      if (incoming.type.startsWith('recording.')) {
-        const timeDiff = Math.abs(new Date(existing.timestamp).getTime() - new Date(incoming.timestamp).getTime())
-        return timeDiff < 5000
-      }
-      
-      return false
-    }
-    
-    // Find existing duplicate
-    const existingIndex = notifications.value.findIndex(n => isDuplicate(n, newNotification))
-    
-    if (existingIndex >= 0) {
-      notifications.value[existingIndex] = newNotification
-    } else {
-      // Add to beginning
-      notifications.value.unshift(newNotification)
-    }
-    
-    // Limit notifications
-    if (notifications.value.length > MAX_NOTIFICATIONS) {
-      notifications.value = notifications.value.slice(0, MAX_NOTIFICATIONS)
-    }
-    
-    // Save to localStorage
-    saveNotifications()
-    
-  } catch (error) {
-    console.error('❌ NotificationFeed: Error adding notification:', error)
-  }
-}
-
 // Remove a specific notification
 const removeNotification = (id: string): void => {
   notifications.value = notifications.value.filter(n => n.id !== id)
@@ -448,7 +354,6 @@ const loadNotifications = (): void => {
       }
     } else {
       notifications.value = []
-
     }
   } catch (error) {
     console.error('❌ NotificationFeed: Error loading notifications:', error)
@@ -456,65 +361,8 @@ const loadNotifications = (): void => {
   }
 }
 
-// Process WebSocket message
-const processMessage = (message: any): void => {
-  if (!message || !message.type) {
-    return
-  }
-  
-  // Skip connection status messages
-  if (message.type === 'connection.status') {
-    console.log('⏭️ NotificationFeed: Skipping connection status')
-    return
-  }
-  
-  // Valid notification types
-  const validTypes = [
-    'stream.online', 
-    'stream.offline',
-    'channel.update',
-    'stream.update',
-    'recording.started',
-    'recording.completed',
-    'recording.failed',
-    'toast_notification', // Add toast notification support
-    'test' // Add test type
-  ]
-  
-  if (validTypes.includes(message.type)) {
-    console.log('✅ NotificationFeed: Valid message type, adding notification')
-    addNotification(message)
-  } else {
-    console.log('❌ NotificationFeed: Invalid message type:', message.type)
-  }
-}
-
-// Track previous message count to detect actual changes
-const previousMessageCount = ref(0)
-
-// Watch for new messages - IMPROVED VERSION
-watch(() => messages.value.length, (newLength: number) => {
-  console.log('🔥 NotificationFeed: Message count changed to', newLength, 'from', previousMessageCount.value)
-  
-  if (newLength > previousMessageCount.value) {
-    console.log('🔥 NotificationFeed: NEW MESSAGES DETECTED!')
-    
-    // Process only the new messages since last check
-    const newCount = newLength - previousMessageCount.value
-    const messagesToProcess = messages.value.slice(-newCount)
-    console.log('🔥 NotificationFeed: Processing', messagesToProcess.length, 'new messages')
-    
-    messagesToProcess.forEach((message: any, index: number) => {
-      console.log(`🔥 NotificationFeed: Processing new message ${index + 1}:`, message)
-      processMessage(message)
-    })
-    
-    // Update our counter for next time
-    previousMessageCount.value = newLength
-  }
-}, { immediate: false }) // Don't process immediately to avoid double processing
-
-// On mount
+// On mount - simplified: only loads from localStorage
+// WebSocket processing is handled centrally in App.vue
 onMounted(async () => {
   console.log('🚀 NotificationFeed: Component mounted')
   
@@ -530,7 +378,7 @@ onMounted(async () => {
     console.error('❌ NotificationFeed: Failed to load backend state:', error)
   }
   
-  // Load existing notifications from localStorage FIRST
+  // Load existing notifications from localStorage
   loadNotifications()
   
   // Filter out notifications that were cleared on backend
@@ -547,22 +395,10 @@ onMounted(async () => {
     }
   }
   
-  // Set the initial message count to current messages length
-  previousMessageCount.value = messages.value.length
-  console.log('🚀 NotificationFeed: Set initial message count to', previousMessageCount.value)
+  console.log('🚀 NotificationFeed: Loaded', notifications.value.length, 'notifications from localStorage')
   
-  // Process ALL existing WebSocket messages (they may not be in localStorage yet)
-  console.log('🚀 NotificationFeed: Processing', messages.value.length, 'existing WebSocket messages')
-  messages.value.forEach((message: any, index: number) => {
-    console.log(`🚀 NotificationFeed: Processing existing message ${index + 1}:`, message)
-    processMessage(message)
-  })
-  console.log('🚀 NotificationFeed: Component fully loaded with', notifications.value.length, 'notifications')
-  
-  // Listen for external notification updates (like clear all from App.vue)
+  // Listen for external notification updates (from App.vue WebSocket processing)
   window.addEventListener('notificationsUpdated', handleNotificationsUpdated)
-  
-  // DON'T auto-mark as read - let the user see the notifications until they manually close the panel
 })
 
 // Handle external notification updates

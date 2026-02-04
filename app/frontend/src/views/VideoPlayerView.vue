@@ -508,6 +508,10 @@ onMounted(() => {
 // ============================================================================
 
 .video-player-view {
+  // Prevent horizontal overflow on mobile
+  overflow-x: hidden;
+  max-width: 100%;
+  
   // Override page-view padding for more immersive video experience on mobile
   @include m.respond-below('sm') {
     padding: var(--spacing-2) var(--spacing-2);
@@ -555,6 +559,8 @@ onMounted(() => {
 .player-layout {
   display: flex;
   flex-direction: column;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 // ============================================================================
@@ -566,6 +572,8 @@ onMounted(() => {
   grid-template-columns: 1fr 300px;
   gap: var(--spacing-4);
   align-items: start;
+  max-width: 100%;
+  overflow: hidden;
   
   @include m.respond-below('xl') {
     grid-template-columns: 1fr 280px;
@@ -573,6 +581,10 @@ onMounted(() => {
   
   @include m.respond-below('lg') {
     grid-template-columns: 1fr;
+  }
+  
+  @include m.respond-below('sm') {
+    gap: var(--spacing-2);
   }
 }
 
@@ -678,6 +690,8 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-3);
+  min-width: 0;  // Allow flex item to shrink below content size
+  max-width: 100%;
   
   @include m.respond-below('lg') {
     flex-direction: row;
@@ -688,10 +702,30 @@ onMounted(() => {
       min-width: 280px;
     }
   }
+  
+  @include m.respond-below('sm') {
+    flex-direction: column;
+    gap: var(--spacing-2);
+    
+    .info-card {
+      min-width: 0;
+      width: 100%;
+      max-width: 100%;
+    }
+  }
 }
 
 .info-card {
   flex-shrink: 0;
+  min-width: 0;  // Allow shrinking below content size
+  max-width: 100%;
+  overflow: hidden;
+  
+  // Ensure GlassCard content doesn't overflow
+  :deep(.glass-card-content) {
+    max-width: 100%;
+    overflow: hidden;
+  }
 }
 
 .info-title {
@@ -766,7 +800,10 @@ onMounted(() => {
   flex-direction: column;
   gap: var(--spacing-1);
   overflow-y: auto;
+  overflow-x: hidden;
   flex: 1;
+  min-width: 0;
+  max-width: 100%;
   
   &::-webkit-scrollbar {
     width: 4px;
@@ -791,6 +828,9 @@ onMounted(() => {
   border-radius: var(--radius-sm);
   cursor: pointer;
   transition: all v.$duration-150 v.$ease-out;
+  min-width: 0;  // Allow flex item to shrink
+  max-width: 100%;
+  overflow: hidden;
   
   &:hover {
     background: rgba(var(--primary-500-rgb), 0.15);
@@ -811,6 +851,11 @@ onMounted(() => {
   background: rgba(var(--primary-500-rgb), 0.1);
   padding: 2px 6px;
   border-radius: var(--radius-sm);
+  
+  @include m.respond-below('sm') {
+    font-size: 10px;
+    padding: 2px 4px;
+  }
 }
 
 .chapter-title {
@@ -819,6 +864,17 @@ onMounted(() => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  min-width: 0;  // Allow text to shrink
+  flex: 1;  // Take remaining space but allow shrinking
+  
+  @include m.respond-below('sm') {
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    word-break: break-word;
+  }
 }
 
 // ============================================================================
@@ -829,6 +885,11 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-2);
+  max-width: 100%;
+  
+  @include m.respond-below('sm') {
+    gap: var(--spacing-1-5);
+  }
 }
 
 .action-btn {
@@ -845,12 +906,16 @@ onMounted(() => {
   font-weight: v.$font-medium;
   cursor: pointer;
   transition: all v.$duration-200 v.$ease-out;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
   
   .action-icon {
     width: 16px;
     height: 16px;
     stroke: currentColor;
     fill: none;
+    flex-shrink: 0;
   }
   
   &:hover:not(:disabled) {
@@ -878,6 +943,8 @@ onMounted(() => {
   margin-top: var(--spacing-4);
   padding-top: var(--spacing-4);
   border-top: 1px solid var(--border-color);
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .share-label {
@@ -889,10 +956,16 @@ onMounted(() => {
 .share-url-box {
   display: flex;
   gap: var(--spacing-2);
+  max-width: 100%;
+  
+  @include m.respond-below('sm') {
+    flex-direction: column;
+  }
 }
 
 .share-url-input {
   flex: 1;
+  min-width: 0;  // Allow shrinking
   padding: var(--spacing-2) var(--spacing-3);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
@@ -900,6 +973,8 @@ onMounted(() => {
   color: var(--text-primary);
   font-size: var(--text-sm);
   font-family: monospace;
+  max-width: 100%;
+  box-sizing: border-box;
   
   &:focus {
     outline: none;
@@ -1042,6 +1117,114 @@ onMounted(() => {
       width: 100%;
       text-align: center;
     }
+  }
+}
+
+// ============================================================================
+// SMALL MOBILE LAYOUT (< 480px)
+// ============================================================================
+
+@include m.respond-below('sm') {
+  .player-header {
+    padding: var(--spacing-2);
+    gap: var(--spacing-2);
+  }
+  
+  .back-button {
+    padding: var(--spacing-1-5) var(--spacing-2);
+    font-size: var(--text-xs);
+    
+    .icon {
+      width: 14px;
+      height: 14px;
+    }
+  }
+  
+  .video-title {
+    font-size: var(--text-sm);
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    order: 3;
+    flex-basis: 100%;
+    margin-top: var(--spacing-1);
+  }
+  
+  .streamer-badge {
+    padding: var(--spacing-0-5) var(--spacing-2);
+    font-size: var(--text-xs);
+    
+    .icon-streamer {
+      width: 12px;
+      height: 12px;
+    }
+  }
+  
+  .info-title {
+    font-size: var(--text-sm);
+    margin-bottom: var(--spacing-2);
+    
+    .info-icon {
+      width: 16px;
+      height: 16px;
+    }
+  }
+  
+  .info-row {
+    padding: var(--spacing-1-5) 0;
+  }
+  
+  .info-label,
+  .info-value {
+    font-size: var(--text-xs);
+  }
+  
+  .chapters-card {
+    max-height: 200px;
+  }
+  
+  .chapter-item {
+    padding: var(--spacing-1-5);
+    gap: var(--spacing-1-5);
+  }
+  
+  .action-btn {
+    padding: var(--spacing-2);
+    font-size: var(--text-xs);
+    
+    .action-icon {
+      width: 14px;
+      height: 14px;
+    }
+  }
+  
+  .share-url-input {
+    font-size: var(--text-xs);
+    padding: var(--spacing-1-5) var(--spacing-2);
+  }
+  
+  .copy-btn {
+    padding: var(--spacing-1-5) var(--spacing-2);
+    font-size: var(--text-xs);
+  }
+  
+  .delete-modal {
+    margin: var(--spacing-2);
+    padding: var(--spacing-4);
+  }
+  
+  .modal-title {
+    font-size: var(--text-base);
+  }
+  
+  .modal-text {
+    font-size: var(--text-sm);
+  }
+  
+  .modal-warning {
+    font-size: var(--text-xs);
   }
 }
 

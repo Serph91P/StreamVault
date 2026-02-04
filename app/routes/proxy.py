@@ -11,7 +11,7 @@ import logging
 from typing import List, Optional
 
 from fastapi import APIRouter, HTTPException, Depends
-from pydantic import BaseModel, validator
+from pydantic import BaseModel, field_validator
 
 from app.database import SessionLocal
 from app.models import ProxySettings, RecordingSettings
@@ -33,8 +33,9 @@ class ProxyAddRequest(BaseModel):
     proxy_url: str
     priority: int = 0
 
-    @validator("proxy_url")
-    def validate_proxy_url(cls, v):
+    @field_validator("proxy_url")
+    @classmethod
+    def validate_proxy_url(cls, v: str) -> str:
         """Validate proxy URL format"""
         if not v or not v.strip():
             raise ValueError("Proxy URL cannot be empty")

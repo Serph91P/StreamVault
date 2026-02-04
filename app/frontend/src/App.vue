@@ -460,17 +460,6 @@
       </Teleport>
     </template>
     
-    <!-- Toast notifications (always visible) -->
-    <ToastNotification 
-      v-for="toast in activeToasts" 
-      :key="toast.id"
-      :message="toast.message"
-      :type="toast.type"
-      :duration="toast.duration"
-      :data="toast.data"
-      @dismiss="removeToast"
-    />
-    
     <!-- Navigation Wrapper with Bottom Nav + Sidebar (only on authenticated pages) -->
     <NavigationWrapper v-if="!isAuthPage">
       <router-view v-slot="{ Component }">
@@ -499,7 +488,6 @@
 import NotificationFeed from '@/components/NotificationFeed.vue'
 import PWAInstallPrompt from '@/components/PWAInstallPrompt.vue'
 import BackgroundQueueMonitor from '@/components/BackgroundQueueMonitor.vue'
-import ToastNotification from '@/components/ToastNotification.vue'
 import ToastContainer from '@/components/ToastContainer.vue'
 import ThemeToggle from '@/components/ThemeToggle.vue'
 import NavigationWrapper from '@/components/navigation/NavigationWrapper.vue'
@@ -517,7 +505,7 @@ import { notificationApi } from '@/services/api'
 const { initializeTheme } = useTheme()
 initializeTheme()
 
-// Initialize toast system
+// Initialize toast system (centralized - handles all toast notifications via useToast)
 const toast = useToast()
 
 // Check if current route is an auth page
@@ -569,9 +557,6 @@ const showNotifications = ref(false)
 const unreadCount = ref(0)
 const lastReadTimestamp = ref(localStorage.getItem('lastReadTimestamp') || '0')
 
-// Toast notification management
-const activeToasts = ref([])
-
 const { messages } = useWebSocket()
 const { logout: authLogout, checkStoredAuth } = useAuth()
 
@@ -582,36 +567,7 @@ async function logout() {
   }
 }
 
-// Toast notification functions
-function addToast(message, type = 'info', duration = 5000, data = null) {
-  const id = `toast_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-  
-  const toast = {
-    id,
-    message,
-    type,
-    duration,
-    data
-  }
-  
-  activeToasts.value.push(toast)
-  
-  // Auto-remove after duration (unless duration is 0 for persistent toasts)
-  if (duration > 0) {
-    setTimeout(() => {
-      removeToast(id)
-    }, duration)
-  }
-}
-
-function removeToast(toastId) {
-  const index = activeToasts.value.findIndex(toast => toast.id === toastId)
-  if (index > -1) {
-    activeToasts.value.splice(index, 1)
-  }
-}
-
-// Process toast notifications from WebSocket
+// Process toast notifications from WebSocket - uses unified useToast system
 function processToastNotification(message) {
   if (message.type === 'toast_notification') {
     const { 
@@ -625,7 +581,8 @@ function processToastNotification(message) {
     const displayMessage = title ? `${title}: ${toastMessage}` : toastMessage
     
     if (displayMessage) {
-      addToast(displayMessage, toast_type, duration, message.data)
+      // Use unified toast system
+      toast.show(displayMessage, toast_type, duration)
     }
   }
   
@@ -683,7 +640,7 @@ const processWebSocketMessage = (message) => {
   }
 }
 
-// Add notification to localStorage - similar to NotificationFeed logic
+// Add notification to localStorage with duplicate detection
 const addNotificationToStorage = (message) => {
   try {
     const id = message.data?.test_id || `${message.type}_${Date.now()}_${Math.random()}`
@@ -704,8 +661,6 @@ const addNotificationToStorage = (message) => {
       data: message.data || {}
     }
     
-
-    
     // Get existing notifications
     let notifications = []
     try {
@@ -717,8 +672,47 @@ const addNotificationToStorage = (message) => {
       notifications = []
     }
     
-    // Add new notification to beginning
-    notifications.unshift(newNotification)
+    // Duplicate detection function
+    const isDuplicate = (existing, incoming) => {
+      // Same type and streamer
+      if (existing.type !== incoming.type || existing.streamer_username !== incoming.streamer_username) {
+        return false
+      }
+      
+      const timeDiff = Math.abs(new Date(existing.timestamp).getTime() - new Date(incoming.timestamp).getTime())
+      
+      // For stream updates, check if title is the same within 30 seconds
+      if (incoming.type === 'channel.update' || incoming.type === 'stream.update') {
+        const existingTitle = existing.data?.title || ''
+        const incomingTitle = incoming.data?.title || ''
+        if (existingTitle === incomingTitle && timeDiff < 30000) {
+          return true
+        }
+      }
+      
+      // For stream.online/offline, check within 10 seconds
+      if (incoming.type === 'stream.online' || incoming.type === 'stream.offline') {
+        return timeDiff < 10000
+      }
+      
+      // For recording events, check within 5 seconds
+      if (incoming.type.startsWith('recording.')) {
+        return timeDiff < 5000
+      }
+      
+      return false
+    }
+    
+    // Check for duplicate
+    const existingIndex = notifications.findIndex(n => isDuplicate(n, newNotification))
+    
+    if (existingIndex >= 0) {
+      // Update existing notification instead of adding duplicate
+      notifications[existingIndex] = newNotification
+    } else {
+      // Add new notification to beginning
+      notifications.unshift(newNotification)
+    }
     
     // Limit notifications
     if (notifications.length > 100) {
@@ -728,12 +722,10 @@ const addNotificationToStorage = (message) => {
     // Save back to localStorage
     localStorage.setItem('streamvault_notifications', JSON.stringify(notifications))
     
-
-    
     // Update unread count
     updateUnreadCountFromStorage()
     
-    // Dispatch event for other components
+    // Dispatch event for other components (NotificationFeed will reload from localStorage)
     window.dispatchEvent(new CustomEvent('notificationsUpdated', {
       detail: { count: notifications.length }
     }))
@@ -1327,17 +1319,16 @@ watch(messages, (newMessages) => {
   100% { transform: rotate(0); }
 }
 
-/* Notification backdrop for mobile */
+/* Notification backdrop - visible on all screen sizes */
 .notification-backdrop {
-  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.3);
+  z-index: 10000;  /* Just below notification overlay */
   
   @include m.respond-below('md') {
-    display: block;
-    position: fixed;
-    inset: 0;
     background: rgba(0, 0, 0, 0.5);
     backdrop-filter: blur(4px);
-    z-index: 9998;
   }
 }
 
@@ -1390,9 +1381,10 @@ watch(messages, (newMessages) => {
   position: fixed;
   top: 70px;
   right: 20px;
-  z-index: 1000;
+  z-index: 10001;  /* Above navigation (1000) and mobile menu (9999) */
   max-width: 400px;
   width: 90vw;
+  pointer-events: auto;  /* Ensure clicks are captured */
   
   /* Mobile: slide up from bottom like background jobs */
   @include m.respond-below('md') {
@@ -1408,7 +1400,7 @@ watch(messages, (newMessages) => {
     overflow-y: auto;
     background: var(--background-card);
     box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.3);
-    z-index: 9999;
+    z-index: 10001;
     
     // Hide the internal feed header on mobile since we have our own
     :deep(.feed-header) {

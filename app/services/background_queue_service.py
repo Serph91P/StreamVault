@@ -23,9 +23,30 @@ process_monitor = None
 
 
 class BackgroundQueueService:
-    """Backward compatibility wrapper for the refactored queue services"""
+    """Backward compatibility wrapper for the refactored queue services
+    
+    SINGLETON PATTERN: Use `background_queue_service` global instance.
+    All parts of the application share the same queue to ensure consistent job tracking.
+    """
+
+    # Singleton instance tracking
+    _instance: Optional["BackgroundQueueService"] = None
+    _initialized: bool = False
+
+    def __new__(cls, max_workers: int = 3, websocket_manager=None):
+        """Singleton pattern - return existing instance if available"""
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
 
     def __init__(self, max_workers: int = 3, websocket_manager=None):
+        # Only initialize once (singleton)
+        if BackgroundQueueService._initialized:
+            # Update websocket_manager if provided (for late binding)
+            if websocket_manager is not None and hasattr(self, 'queue_manager'):
+                self.queue_manager.progress_tracker.websocket_manager = websocket_manager
+            return
+            
         # Initialize the refactored queue manager with streamer isolation enabled for production
         self.queue_manager = TaskQueueManager(
             max_workers=max_workers,
@@ -50,6 +71,9 @@ class BackgroundQueueService:
         self.dependency_manager = self.queue_manager.dependency_manager
         self.dependency_worker = None
         self.stats = self.queue_manager.progress_tracker.stats
+        
+        BackgroundQueueService._initialized = True
+        logger.debug("BackgroundQueueService singleton initialized")
 
     async def start(self):
         """Start the background queue service"""

@@ -61,6 +61,9 @@ class ArtworkService:
     async def save_streamer_artwork(self, streamer: Streamer) -> bool:
         """Save all artwork files for a streamer in the artwork directory
 
+        Uses profile image for portrait artwork (poster, logo) and
+        banner/offline image for landscape artwork (fanart, banner).
+
         Args:
             streamer: Streamer object
 
@@ -68,17 +71,28 @@ class ArtworkService:
             bool: True if successful, False otherwise
         """
         try:
-            if not streamer.profile_image_url:
+            # Get the best available profile image URL
+            profile_url = (
+                getattr(streamer, 'original_profile_image_url', None) or
+                getattr(streamer, 'profile_image_url', None)
+            )
+            
+            if not profile_url:
                 logger.warning(f"No profile image URL for streamer {streamer.username}")
                 return False
 
+            # Get banner/offline image URL (for landscape artwork)
+            # Twitch provides this as "offline_image_url" - shown when streamer is offline
+            banner_url = (
+                getattr(streamer, 'original_offline_image_url', None) or
+                getattr(streamer, 'offline_image_url', None)
+            )
+
             artwork_dir = self.get_streamer_artwork_dir(streamer.username)
 
-            # Standard media server image names
-            image_files = {
+            # Portrait artwork (square profile image works well)
+            portrait_files = {
                 "poster.jpg": "Main poster for the show",
-                "banner.jpg": "Banner image",
-                "fanart.jpg": "Background image",
                 "logo.jpg": "Logo image",
                 "clearlogo.jpg": "Clear logo image",
                 "season.jpg": "Season poster",
@@ -87,11 +101,26 @@ class ArtworkService:
                 "show.jpg": "Show image",
             }
 
-            # Download and save each image format
+            # Landscape artwork (banner/fanart - use offline_image if available)
+            landscape_files = {
+                "banner.jpg": "Banner image",
+                "fanart.jpg": "Background image",
+            }
+
             success_count = 0
-            for filename, description in image_files.items():
+
+            # Download portrait artwork from profile image
+            for filename, description in portrait_files.items():
                 target_path = artwork_dir / filename
-                if await self._download_image(streamer.profile_image_url, target_path):
+                if await self._download_image(profile_url, target_path):
+                    success_count += 1
+                    logger.debug(f"Saved {description} for {streamer.username} at {target_path}")
+
+            # Download landscape artwork from banner (or fallback to profile)
+            landscape_url = banner_url if banner_url else profile_url
+            for filename, description in landscape_files.items():
+                target_path = artwork_dir / filename
+                if await self._download_image(landscape_url, target_path):
                     success_count += 1
                     logger.debug(f"Saved {description} for {streamer.username} at {target_path}")
 
@@ -130,9 +159,12 @@ class ArtworkService:
     async def _create_tvshow_nfo(self, streamer: Streamer, nfo_path: Path):
         """Create tvshow.nfo file for the streamer"""
         try:
-            artwork_dir = self.get_streamer_artwork_dir(streamer.username)
+            # Use relative paths for artwork - media servers expect paths relative to the NFO
+            # Artwork is stored in .media/artwork/{username}/ at the recordings root
+            safe_username = self._sanitize_filename(streamer.username)
+            artwork_rel_path = f".media/artwork/{safe_username}"
 
-            # Create XML content
+            # Create XML content with relative paths
             tvshow_content = f"""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <tvshow>
     <title>{streamer.username}</title>
@@ -144,10 +176,10 @@ class ArtworkService:
     <genre>Gaming</genre>
     <genre>Entertainment</genre>
     <status>Continuing</status>
-    <thumb aspect="poster">{artwork_dir / 'poster.jpg'}</thumb>
-    <thumb aspect="banner">{artwork_dir / 'banner.jpg'}</thumb>
+    <thumb aspect="poster">{artwork_rel_path}/poster.jpg</thumb>
+    <thumb aspect="banner">{artwork_rel_path}/banner.jpg</thumb>
     <fanart>
-        <thumb>{artwork_dir / 'fanart.jpg'}</thumb>
+        <thumb>{artwork_rel_path}/fanart.jpg</thumb>
     </fanart>
     <uniqueid type="twitch">{streamer.id}</uniqueid>
 </tvshow>"""
@@ -158,7 +190,7 @@ class ArtworkService:
             logger.debug(f"Created tvshow.nfo: {nfo_path}")
 
         except Exception as e:
-            logger.error(f"Error creating tvshow.nfo: {e}", exc_info=True)
+            logger.error(f"Error creating tvshow.nfo: {e}")
 
     async def _create_season_metadata_files(self, streamer: Streamer, metadata_dir: Path):
         """Create season metadata files for all seasons (year-month combinations)"""
@@ -189,7 +221,9 @@ class ArtworkService:
     async def _create_season_nfo(self, streamer: Streamer, year: int, month: int, nfo_path: Path):
         """Create season.nfo file for a specific year-month combination"""
         try:
-            artwork_dir = self.get_streamer_artwork_dir(streamer.username)
+            # Use relative paths for artwork
+            safe_username = self._sanitize_filename(streamer.username)
+            artwork_rel_path = f".media/artwork/{safe_username}"
 
             season_content = f"""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <season>
@@ -197,9 +231,9 @@ class ArtworkService:
     <plot>Streams from {streamer.username} in {year}-{month:02d}</plot>
     <seasonnumber>{year}{month:02d}</seasonnumber>
     <premiered>{year}-{month:02d}-01</premiered>
-    <thumb aspect="poster">{artwork_dir / 'season.jpg'}</thumb>
+    <thumb aspect="poster">{artwork_rel_path}/season.jpg</thumb>
     <fanart>
-        <thumb>{artwork_dir / 'fanart.jpg'}</thumb>
+        <thumb>{artwork_rel_path}/fanart.jpg</thumb>
     </fanart>
 </season>"""
 
@@ -209,7 +243,7 @@ class ArtworkService:
             logger.debug(f"Created season.nfo: {nfo_path}")
 
         except Exception as e:
-            logger.error(f"Error creating season.nfo: {e}", exc_info=True)
+            logger.error(f"Error creating season.nfo: {e}")
 
     async def _download_image(self, url: str, target_path: Path) -> bool:
         """Download an image from a URL or copy from local path to a target path

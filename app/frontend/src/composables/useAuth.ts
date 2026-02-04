@@ -13,6 +13,11 @@ export function useAuth() {
   // Check if we have a stored session (for PWA)
   const checkStoredAuth = async () => {
     const storedToken = localStorage.getItem('streamvault_session')
+    
+    // Check current path to determine if we're on a protected page
+    const currentPath = window.location.pathname
+    const isAuthPage = currentPath.startsWith('/auth/') || currentPath === '/welcome' || currentPath === '/setup'
+    
     if (storedToken) {
       sessionToken.value = storedToken
       
@@ -31,13 +36,30 @@ export function useAuth() {
           if (data.user) {
             user.value = data.user
           }
+          // If authenticated but got false from server, redirect
+          if (!data.authenticated && !isAuthPage) {
+            console.warn('Session invalid, redirecting to login...')
+            window.location.href = '/auth/login'
+            return
+          }
         } else {
-          // Invalid stored token, clear it
+          // Invalid stored token, clear it and redirect if on protected page
           clearAuth()
+          if (!isAuthPage) {
+            console.warn('Auth check failed (non-OK response), redirecting to login...')
+            window.location.href = '/auth/login'
+          }
         }
       } catch (error) {
         console.error('Auth check failed:', error)
         clearAuth()
+        // Don't redirect on network errors - might be temporary
+      }
+    } else {
+      // No stored token and on protected page - redirect to login
+      if (!isAuthPage) {
+        console.warn('No session token found, redirecting to login...')
+        window.location.href = '/auth/login'
       }
     }
   }

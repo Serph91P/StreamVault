@@ -40,14 +40,38 @@ ProcessStatus = None
 
 
 class ProcessManager:
-    """Manages subprocess execution and cleanup for recording processes"""
+    """Manages subprocess execution and cleanup for recording processes
+    
+    SINGLETON PATTERN: Use `process_manager` global instance.
+    All RecordingOrchestrator instances share the same ProcessManager
+    to ensure consistent process tracking across the application.
+    """
 
     # Constants for segment file patterns (must match RecordingLifecycleManager)
     SEGMENT_PART_IDENTIFIER = "_part"
+    
+    # Singleton instance tracking
+    _instance: Optional["ProcessManager"] = None
+    _initialized: bool = False
+
+    def __new__(cls, config_manager=None, post_processing_callback: Optional[Callable[[int, str], Awaitable[None]]] = None):
+        """Singleton pattern - return existing instance if available"""
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
 
     def __init__(
         self, config_manager=None, post_processing_callback: Optional[Callable[[int, str], Awaitable[None]]] = None
     ):
+        # Only initialize once (singleton)
+        if ProcessManager._initialized:
+            # Update config_manager and callback if provided (for compatibility)
+            if config_manager is not None:
+                self.config_manager = config_manager
+            if post_processing_callback is not None:
+                self.post_processing_callback = post_processing_callback
+            return
+            
         self.active_processes = {}
         self.long_stream_processes = {}  # Track processes that need segmentation
         self.lock = asyncio.Lock()
@@ -78,6 +102,9 @@ class ProcessManager:
 
         # Shutdown management
         self._is_shutting_down = False
+        
+        ProcessManager._initialized = True
+        logger.debug("ProcessManager singleton initialized")
 
     async def start_recording_process(
         self, stream: Stream, output_path: str, quality: str, recording_id: Optional[int] = None,
@@ -1428,3 +1455,8 @@ class ProcessManager:
         """
         self.post_processing_callback = callback
         logger.info("Post-processing callback set for ProcessManager")
+
+
+# Global singleton instance - use this for all process management operations
+# This ensures all RecordingOrchestrator/RecordingService instances share the same process state
+process_manager = ProcessManager()

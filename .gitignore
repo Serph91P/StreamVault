@@ -104,3 +104,9 @@ Thumbs.db
 CLAUDE.md
 AGENT.md
 /scripts
+
+recordings/
+temp_logs
+logs_local
+data_local
+.pytest_cache

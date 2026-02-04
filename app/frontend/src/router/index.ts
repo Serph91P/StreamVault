@@ -161,8 +161,34 @@ router.beforeEach(async (to, from, next) => {
         },
       });
 
-      if (!authResponse.ok && to.path !== '/auth/login') {
+      // Check both HTTP status AND response body for authentication
+      if (!authResponse.ok) {
+        if (to.path !== '/auth/login') {
+          return next('/auth/login');
+        }
+        return next();
+      }
+
+      // Parse response body to check authenticated status
+      let authData;
+      try {
+        authData = await authResponse.json();
+      } catch (jsonError) {
+        console.error('Failed to parse auth response as JSON:', jsonError);
+        if (to.path !== '/auth/login') {
+          return next('/auth/login');
+        }
+        return next();
+      }
+
+      // If not authenticated, redirect to login (unless already there)
+      if (!authData.authenticated && to.path !== '/auth/login') {
         return next('/auth/login');
+      }
+
+      // If authenticated but trying to access login page, redirect to home
+      if (authData.authenticated && to.path === '/auth/login') {
+        return next('/');
       }
 
       return next();
