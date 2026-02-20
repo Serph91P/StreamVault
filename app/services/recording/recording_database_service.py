@@ -8,6 +8,7 @@ Handles all database operations, session management, and data persistence for re
 import logging
 from typing import Optional, List, Dict, Any
 from datetime import datetime
+from sqlalchemy import text
 from sqlalchemy.orm import joinedload
 from app.models import Recording, Stream, Streamer
 from app.database import get_db
@@ -23,8 +24,24 @@ class RecordingDatabaseService:
         self.db = db
 
     def _ensure_db_session(self):
-        """Ensure we have a valid database session"""
+        """Ensure we have a valid database session, recovering from broken transactions"""
         if not self.db:
+            self.db = next(get_db())
+            return
+
+        # Check if session is in an invalid state and recover
+        try:
+            self.db.execute(text("SELECT 1"))
+        except Exception:
+            logger.warning("Database session in invalid state, rolling back and recreating")
+            try:
+                self.db.rollback()
+            except Exception:
+                pass
+            try:
+                self.db.close()
+            except Exception:
+                pass
             self.db = next(get_db())
 
     @database_retry
@@ -94,13 +111,18 @@ class RecordingDatabaseService:
     @database_retry
     def get_recording(self, recording_id: int) -> Optional[Recording]:
         """Get a single recording by ID with eager loading of relationships."""
-        self._ensure_db_session()
-        return (
-            self.db.query(Recording)
-            .options(joinedload(Recording.stream).joinedload(Stream.streamer))
-            .filter(Recording.id == recording_id)
-            .first()
-        )
+        try:
+            self._ensure_db_session()
+            return (
+                self.db.query(Recording)
+                .options(joinedload(Recording.stream).joinedload(Stream.streamer))
+                .filter(Recording.id == recording_id)
+                .first()
+            )
+        except Exception as e:
+            self.db.rollback()
+            logger.error(f"Failed to get recording {recording_id}: {e}")
+            raise RetryableError(f"Database error: {e}")
 
     # Alias for compatibility
     def get_recording_by_id(self, recording_id: int) -> Optional[Recording]:
@@ -114,6 +136,7 @@ class RecordingDatabaseService:
             self._ensure_db_session()
             return self.db.query(Recording).filter(Recording.status.in_(["recording", "processing"])).all()
         except Exception as e:
+            self.db.rollback()
             logger.error(f"Failed to get active recordings: {e}")
             raise RetryableError(f"Database error: {e}")
 
@@ -149,6 +172,7 @@ class RecordingDatabaseService:
             return result if result else None
 
         except Exception as e:
+            self.db.rollback()
             logger.error(f"Failed to get stream_id={stream_id} with streamer details: {e}")
             raise RetryableError(f"Database error: {e}")
 
@@ -159,6 +183,7 @@ class RecordingDatabaseService:
             self._ensure_db_session()
             return self.db.query(Recording).filter(Recording.status == status).all()
         except Exception as e:
+            self.db.rollback()
             logger.error(f"Failed to get recordings by status {status}: {e}")
             raise RetryableError(f"Database error: {e}")
 
@@ -220,6 +245,7 @@ class RecordingDatabaseService:
             self._ensure_db_session()
             return self.db.query(Streamer).filter(Streamer.id == streamer_id).first()
         except Exception as e:
+            self.db.rollback()
             logger.error(f"Failed to get streamer {streamer_id}: {e}")
             raise RetryableError(f"Database error: {e}")
 
@@ -230,6 +256,7 @@ class RecordingDatabaseService:
             self._ensure_db_session()
             return self.db.query(Stream).filter(Stream.id == stream_id).first()
         except Exception as e:
+            self.db.rollback()
             logger.error(f"Failed to get stream {stream_id}: {e}")
             raise RetryableError(f"Database error: {e}")
 
@@ -237,10 +264,12 @@ class RecordingDatabaseService:
     async def get_stream_by_twitch_stream_id(self, twitch_stream_id: str) -> Optional[Stream]:
         """Get stream by Twitch stream ID for consistency with database field name"""
         try:
+            self._ensure_db_session()
             return self.db.query(Stream).filter(Stream.twitch_stream_id == twitch_stream_id).first()
         except Exception as e:
+            self.db.rollback()
             logger.error(f"Failed to get stream by Twitch stream ID {twitch_stream_id}: {e}")
-            return None
+            raise RetryableError(f"Database error: {e}")
 
     @database_retry
     async def create_stream(self, stream_data: Dict[str, Any]) -> Optional[Stream]:

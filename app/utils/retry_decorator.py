@@ -189,11 +189,10 @@ def database_retry(func: Callable) -> Callable:
         retry_on=[
             ConnectionError,
             OSError,
-            # Add specific database error types as needed
+            RetryableError,
         ],
         stop_on=[
             NonRetryableError,
-            # Add database-specific non-retryable errors
         ],
         log_attempts=True,
     )(func)
