@@ -99,7 +99,7 @@ async def get_all_streamer_settings():
             ]
     except Exception as e:
         logger.error(f"Error processing request: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/streamer/{streamer_id}", response_model=StreamerNotificationSettingsSchema)
@@ -140,7 +140,7 @@ async def update_streamer_settings(streamer_id: int, settings_data: StreamerNoti
             )
     except Exception as e:
         logger.error(f"Error updating streamer settings: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/streamers")
@@ -210,7 +210,7 @@ async def test_notification():
         raise
     except Exception as e:
         logger.error(f"Error sending test notification: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/test-websocket-notification")
@@ -260,7 +260,7 @@ async def test_websocket_notification():
         }
     except Exception as e:
         logger.error(f"Error sending test WebSocket notification: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("", response_model=GlobalSettingsSchema)
@@ -333,7 +333,7 @@ async def update_settings(settings_data: GlobalSettingsSchema):
             return GlobalSettingsSchema.model_validate(settings)
     except Exception as e:
         logger.error(f"Error updating settings: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/quality-options")
@@ -361,7 +361,7 @@ async def get_quality_options():
         }
     except Exception as e:
         logger.error(f"Error getting quality options: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/codec-options")
@@ -421,4 +421,4 @@ async def get_codec_options():
         }
     except Exception as e:
         logger.error(f"Error getting codec options: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")

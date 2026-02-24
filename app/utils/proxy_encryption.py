@@ -114,7 +114,7 @@ class ProxyEncryption:
             encrypted_bytes = self._cipher.encrypt(plaintext.encode("utf-8"))
             encrypted_str = encrypted_bytes.decode("utf-8")
 
-            logger.debug(f"🔒 Encrypted proxy URL: {plaintext[:20]}... → {encrypted_str[:20]}...")
+            logger.debug(f"🔒 Proxy URL encrypted successfully (length: {len(encrypted_str)})")
             return encrypted_str
 
         except Exception as e:

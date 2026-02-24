@@ -346,7 +346,7 @@ async def resubscribe_all(
 
     except Exception as e:
         logger.error(f"Error in resubscribe_all: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/debug-live-status")
@@ -374,7 +374,7 @@ async def debug_live_status(streamer_service: StreamerService = Depends(get_stre
         return {"streamers": debug_info}
     except Exception as e:
         logger.error(f"Error in debug_live_status: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/{streamer_id}/live-status")
@@ -419,7 +419,7 @@ async def check_streamer_live_status(
         except Exception as notification_error:
             logger.error(f"Failed to send error notification: {notification_error}")
 
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/{username}")
@@ -495,7 +495,7 @@ async def add_streamer(
         raise
     except Exception as e:
         logger.error(f"Error adding streamer: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.delete("/{streamer_id}")
@@ -825,7 +825,7 @@ async def list_subscriptions(event_registry: EventHandlerRegistry = Depends(get_
 
     except Exception as e:
         logger.error(f"Error listing subscriptions: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.delete("/subscriptions/{subscription_id}")
@@ -836,7 +836,7 @@ async def delete_subscription(subscription_id: str, event_registry: EventHandler
         return {"success": True, "message": f"Subscription {subscription_id} deleted"}
     except Exception as e:
         logger.error(f"Error deleting subscription: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/{streamer_id}/streams", response_model=dict)

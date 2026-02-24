@@ -586,7 +586,8 @@ const runQuickHealthCheck = async () => {
   try {
     const response = await fetch('/api/admin/tests/quick-health', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' }
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include'
     })
     healthStatus.value = await response.json()
   } catch (error) {

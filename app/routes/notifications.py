@@ -65,7 +65,7 @@ async def mark_notifications_read(request: NotificationMarkReadRequest, db: Sess
     except Exception as e:
         logger.error(f"Error marking notifications as read: {e}", exc_info=True)
         db.rollback()
-        raise HTTPException(status_code=500, detail=f"Failed to mark notifications as read: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to mark notifications as read")
 
 
 @router.post("/clear")
@@ -98,7 +98,7 @@ async def clear_notifications(request: NotificationClearRequest, db: Session = D
     except Exception as e:
         logger.error(f"Error clearing notifications: {e}", exc_info=True)
         db.rollback()
-        raise HTTPException(status_code=500, detail=f"Failed to clear notifications: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to clear notifications")
 
 
 @router.get("/state")
@@ -130,4 +130,4 @@ async def get_notification_state(db: Session = Depends(get_db)):
 
     except Exception as e:
         logger.error(f"Error getting notification state: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to get notification state: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to get notification state")

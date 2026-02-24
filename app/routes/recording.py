@@ -76,7 +76,7 @@ async def get_recording_settings():
             return response
     except Exception as e:
         logger.error(f"Error fetching recording settings: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/settings", response_model=RecordingSettingsSchema)
@@ -147,7 +147,7 @@ async def update_recording_settings(settings_data: RecordingSettingsSchema):
             )
     except Exception as e:
         logger.error(f"Error updating recording settings: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/streamers", response_model=List[StreamerRecordingSettingsSchema])
@@ -203,7 +203,7 @@ async def get_all_streamer_recording_settings():
             return result
     except Exception as e:
         logger.error(f"Error fetching streamer recording settings: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e)) @ router.post(
+        raise HTTPException(status_code=500, detail="Internal server error") @ router.post(
             "/streamers/{streamer_id}", response_model=StreamerRecordingSettingsSchema
         )
 
@@ -236,7 +236,7 @@ async def get_all_streamer_recording_settings():
 #             )
 #     except Exception as e:
 #         logger.error(f"Error updating streamer recording settings: {e}")
-#         raise HTTPException(status_code=500, detail=str(e))
+#         raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/active", response_model=List[ActiveRecordingSchema])
@@ -406,7 +406,7 @@ async def stop_recording(streamer_id: int):
         except Exception as notification_error:
             logger.error(f"Failed to send error notification: {notification_error}")
 
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/streamers/{streamer_id}", response_model=StreamerRecordingSettingsSchema)
@@ -493,7 +493,7 @@ async def update_streamer_recording_settings(
     except Exception as e:
         db.rollback()
         logger.error(f"Error updating streamer recording settings: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/force-start/{streamer_id}")
@@ -567,7 +567,7 @@ async def force_start_recording(streamer_id: int):
         except Exception as notification_error:
             logger.error(f"Failed to send error notification: {notification_error}")
 
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/cleanup/{streamer_id}")
@@ -602,7 +602,7 @@ async def cleanup_old_recordings(streamer_id: int):
     except Exception as e:
         logging_service.log_recording_error(streamer_id, f"Streamer {streamer_id}", "CLEANUP_ERROR", str(e))
         logger.error(f"Error cleaning up recordings: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/cleanup/{streamer_id}/custom", response_model=Dict)
@@ -626,7 +626,7 @@ async def run_custom_cleanup(streamer_id: int, policy: CleanupPolicySchema):
         }
     except Exception as e:
         logger.error(f"Error running custom cleanup: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/storage/{streamer_id}", response_model=StorageUsageSchema)
@@ -639,7 +639,7 @@ async def get_storage_usage(streamer_id: int):
         return usage
     except Exception as e:
         logger.error(f"Error getting storage usage: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/streamers/{streamer_id}/cleanup-policy", response_model=Dict)
@@ -685,7 +685,7 @@ async def update_streamer_cleanup_policy(streamer_id: int, request_data: Dict, d
     except Exception as e:
         db.rollback()
         logger.error(f"Error updating streamer cleanup policy: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/filename-presets")
@@ -700,4 +700,4 @@ async def get_filename_presets():
         return {"status": "success", "data": presets}
     except Exception as e:
         logger.error(f"Error getting filename presets: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")

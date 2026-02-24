@@ -169,4 +169,4 @@ async def force_stop_recording(request_data: dict):
         except Exception as notification_error:
             logger.error(f"Failed to send error notification: {notification_error}")
 
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")

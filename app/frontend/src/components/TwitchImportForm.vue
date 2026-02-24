@@ -303,6 +303,7 @@ onMounted(async () => {
   // Check if we've returned from Twitch auth
   const tokenParam = route.query.token as string | undefined
   const errorParam = route.query.error as string | undefined
+  const authSuccess = route.query.auth_success as string | undefined
   
   if (errorParam) {
     if (errorParam === 'redirect_mismatch') {
@@ -314,12 +315,14 @@ onMounted(async () => {
     }
   }
   
-  if (tokenParam) {
-    accessToken.value = tokenParam
-    // Clear the token from URL for security
+  if (tokenParam || authSuccess === 'true') {
+    if (tokenParam) {
+      accessToken.value = tokenParam
+    }
+    // SECURITY: Clear token from URL immediately to prevent leakage via browser history/Referer
     router.replace({ query: {} })
-    // Load followed channels
-    await loadFollowedChannels(tokenParam)
+    // Load followed channels (token retrieved from DB server-side)
+    await loadFollowedChannels(tokenParam || '')
   }
 })
 </script>

@@ -80,7 +80,7 @@ async def run_tests(request: TestRequest = TestRequest()) -> TestResponse:
 
     except Exception as e:
         logger.error(f"Error running tests: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Test execution failed: {str(e)}")
+        raise HTTPException(status_code=500, detail="Test execution failed")
 
 
 @router.get("/tests/available")
@@ -175,7 +175,7 @@ async def get_system_info() -> Dict[str, Any]:
 
     except Exception as e:
         logger.error(f"Error getting system info: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to get system info: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to get system info")
 
 
 @router.post("/tests/quick-health")
@@ -254,7 +254,7 @@ async def quick_health_check() -> Dict[str, Any]:
 
     except Exception as e:
         logger.error(f"Error in quick health check: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Health check failed: {str(e)}")
+        raise HTTPException(status_code=500, detail="Health check failed")
 
 
 @router.post("/maintenance/cleanup-temp")
@@ -312,7 +312,7 @@ async def cleanup_temp_files() -> Dict[str, Any]:
 
     except Exception as e:
         logger.error(f"Error in cleanup: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Cleanup failed: {str(e)}")
+        raise HTTPException(status_code=500, detail="Cleanup failed")
 
 
 @router.get("/logs/recent")
@@ -325,7 +325,7 @@ async def get_recent_logs(lines: int = 100, level: str = "INFO") -> Dict[str, An
         from pathlib import Path
 
         # Try to get logs from the application log file
-        log_files = ["/app/logs/app.log", "/home/maxe/Dokumente/private_projects/StreamVault/app.log", "app.log"]
+        log_files = ["/app/logs/app.log", "logs/app/app.log", "app.log"]
 
         log_content = []
         log_file_used = None
@@ -359,7 +359,7 @@ async def get_recent_logs(lines: int = 100, level: str = "INFO") -> Dict[str, An
 
     except Exception as e:
         logger.error(f"Error getting logs: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to get logs: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to get logs")
 
 
 # If you need test functionality, create it as a dependency or initialize it properly in the route
@@ -373,7 +373,7 @@ async def run_test(test_name: str, db: Session = Depends(get_db)):
         # For now, let's just return a message
         return {"status": "error", "message": "Test service is currently disabled due to initialization issues"}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 # Orphaned Recording Recovery endpoints
@@ -390,7 +390,7 @@ async def get_orphaned_statistics(max_age_hours: int = 168) -> Dict[str, Any]:
 
     except Exception as e:
         logger.error(f"Failed to get orphaned statistics: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to get statistics: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to get statistics")
 
 
 @router.post("/orphaned/scan")
@@ -412,7 +412,7 @@ async def scan_orphaned_recordings(max_age_hours: int = 48, dry_run: bool = Fals
 
     except Exception as e:
         logger.error(f"Failed to scan orphaned recordings: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to scan: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to scan")
 
 
 @router.post("/orphaned/recover/{recording_id}")
@@ -458,7 +458,7 @@ async def recover_specific_recording(recording_id: int) -> Dict[str, Any]:
         raise
     except Exception as e:
         logger.error(f"Failed to recover recording {recording_id}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to recover recording: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to recover recording")
 
 
 # Video Debug Endpoints
@@ -600,7 +600,7 @@ async def debug_videos_database(db: Session = Depends(get_db)) -> Dict[str, Any]
 
     except Exception as e:
         logger.error(f"Error in videos database debug: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Videos debug failed: {str(e)}")
+        raise HTTPException(status_code=500, detail="Videos debug failed")
 
 
 @router.get("/debug/recordings-directory")
@@ -668,7 +668,7 @@ async def debug_recordings_directory() -> Dict[str, Any]:
 
     except Exception as e:
         logger.error(f"Error in recordings directory debug: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Directory debug failed: {str(e)}")
+        raise HTTPException(status_code=500, detail="Directory debug failed")
 
 
 @router.post("/debug/check-stream-recordings")
@@ -748,7 +748,7 @@ async def debug_check_stream_recordings(stream_ids: List[int], db: Session = Dep
 
     except Exception as e:
         logger.error(f"Error checking stream recordings: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Stream recording check failed: {str(e)}")
+        raise HTTPException(status_code=500, detail="Stream recording check failed")
 
 
 @router.post("/recordings/fix-availability")
@@ -866,7 +866,7 @@ async def fix_recording_availability(streamer_id: Optional[int] = None, dry_run:
 
     except Exception as e:
         logger.error(f"Error fixing recording availability: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Recording fix failed: {str(e)}")
+        raise HTTPException(status_code=500, detail="Recording fix failed")
 
 
 @router.post("/recordings/cleanup-orphaned-db")
@@ -947,7 +947,7 @@ async def cleanup_orphaned_database_recordings(max_age_hours: int = 48, dry_run:
 
     except Exception as e:
         logger.error(f"Error cleaning orphaned recordings: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Orphaned cleanup failed: {str(e)}")
+        raise HTTPException(status_code=500, detail="Orphaned cleanup failed")
 
 
 @router.post("/recordings/cleanup-process-orphaned")
@@ -1040,7 +1040,7 @@ async def cleanup_process_orphaned_recordings(dry_run: bool = True) -> Dict[str,
 
     except Exception as e:
         logger.error(f"Error cleaning process-orphaned recordings: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Process orphaned cleanup failed: {str(e)}")
+        raise HTTPException(status_code=500, detail="Process orphaned cleanup failed")
 
 
 # ===== BACKGROUND QUEUE CLEANUP ENDPOINTS =====
@@ -1123,7 +1123,7 @@ async def get_background_queue_status():
 
     except Exception as e:
         logger.error(f"Error getting background queue status: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Status check failed: {str(e)}")
+        raise HTTPException(status_code=500, detail="Status check failed")
 
 
 @router.post("/background-queue/cleanup/all", response_model=BackgroundQueueCleanupResponse)
@@ -1169,7 +1169,7 @@ async def fix_all_background_queue_issues():
 
     except Exception as e:
         logger.error(f"Error in comprehensive background queue cleanup: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Cleanup failed: {str(e)}")
+        raise HTTPException(status_code=500, detail="Cleanup failed")
 
 
 @router.post("/background-queue/cleanup/stuck-recordings", response_model=BackgroundQueueCleanupResponse)
@@ -1201,7 +1201,7 @@ async def fix_stuck_recordings():
 
     except Exception as e:
         logger.error(f"Error fixing stuck recordings: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Stuck recordings cleanup failed: {str(e)}")
+        raise HTTPException(status_code=500, detail="Stuck recordings cleanup failed")
 
 
 @router.post("/background-queue/cleanup/orphaned-recovery", response_model=BackgroundQueueCleanupResponse)
@@ -1233,7 +1233,7 @@ async def stop_orphaned_recovery():
 
     except Exception as e:
         logger.error(f"Error stopping orphaned recovery: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Orphaned recovery stop failed: {str(e)}")
+        raise HTTPException(status_code=500, detail="Orphaned recovery stop failed")
 
 
 @router.post("/background-queue/cleanup/task-names", response_model=BackgroundQueueCleanupResponse)
@@ -1265,7 +1265,7 @@ async def fix_unknown_task_names():
 
     except Exception as e:
         logger.error(f"Error fixing unknown task names: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Task names fix failed: {str(e)}")
+        raise HTTPException(status_code=500, detail="Task names fix failed")
 
 
 # Share Token Management Endpoints
@@ -1304,7 +1304,7 @@ async def cleanup_zombie_recordings() -> Dict[str, Any]:
         
     except Exception as e:
         logger.error(f"Error in zombie recording cleanup: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Zombie cleanup failed: {str(e)}")
+        raise HTTPException(status_code=500, detail="Zombie cleanup failed")
 
 
 @router.get("/share-tokens/stats")
@@ -1346,7 +1346,7 @@ async def get_share_tokens_stats(db: Session = Depends(get_db)) -> Dict[str, Any
 
     except Exception as e:
         logger.error(f"Error getting share token stats: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to get share token stats: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to get share token stats")
 
 
 @router.post("/share-tokens/cleanup")
@@ -1369,7 +1369,7 @@ async def cleanup_share_tokens(db: Session = Depends(get_db)) -> Dict[str, Any]:
 
     except Exception as e:
         logger.error(f"Error cleaning up share tokens: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to cleanup share tokens: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to cleanup share tokens")
 
 
 @router.delete("/share-tokens/{token_id}")
@@ -1402,4 +1402,4 @@ async def delete_share_token(token_id: int, db: Session = Depends(get_db)) -> Di
         raise
     except Exception as e:
         logger.error(f"Error deleting share token {token_id}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to delete share token: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to delete share token")

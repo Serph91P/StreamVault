@@ -2,6 +2,7 @@ from sqlalchemy.orm import Session as DBSession
 from app.models import User, Session
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError
+import hashlib
 import secrets
 import logging
 from typing import Optional
@@ -11,6 +12,15 @@ from datetime import datetime, timedelta, timezone
 logger = logging.getLogger("streamvault")
 
 ph = PasswordHasher()
+
+
+def _hash_token(token: str) -> str:
+    """SECURITY: Hash session token with SHA-256 before DB storage.
+
+    If the database is compromised, attackers cannot hijack sessions
+    because only hashes are stored, not the raw tokens (CWE-312).
+    """
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
 class AuthService:
@@ -40,15 +50,19 @@ class AuthService:
 
     async def create_session(self, user_id: int) -> str:
         token = secrets.token_urlsafe(32)
-        session = Session(user_id=user_id, token=token)
+        # SECURITY: Store SHA-256 hash of token, not the raw token
+        token_hash = _hash_token(token)
+        session = Session(user_id=user_id, token=token_hash)
         self.db.add(session)
         self.db.commit()
+        # Return raw token to client (sent via cookie)
         return token
 
     async def validate_session(self, token: str) -> bool:
         """Validate session with automatic cleanup of expired sessions"""
         try:
-            session = self.db.query(Session).filter_by(token=token).first()
+            token_hash = _hash_token(token)
+            session = self.db.query(Session).filter_by(token=token_hash).first()
             if not session:
                 return False
 
@@ -58,7 +72,7 @@ class AuthService:
                 # Session is expired, delete it immediately
                 self.db.delete(session)
                 self.db.commit()
-                logger.debug(f"Removed expired session for token {token[:10]}...")
+                logger.debug("Removed expired session")
                 return False
 
             return True
@@ -70,7 +84,8 @@ class AuthService:
     async def refresh_session(self, token: str) -> bool:
         """Refresh a valid session by updating its created_at to now (sliding expiration)."""
         try:
-            session = self.db.query(Session).filter_by(token=token).first()
+            token_hash = _hash_token(token)
+            session = self.db.query(Session).filter_by(token=token_hash).first()
             if not session:
                 return False
 
@@ -118,11 +133,12 @@ class AuthService:
     async def delete_session(self, token: str) -> bool:
         """Delete a specific session token"""
         try:
-            session = self.db.query(Session).filter_by(token=token).first()
+            token_hash = _hash_token(token)
+            session = self.db.query(Session).filter_by(token=token_hash).first()
             if session:
                 self.db.delete(session)
                 self.db.commit()
-                logger.debug(f"Deleted session for token {token[:10]}...")
+                logger.debug("Deleted session")
                 return True
             return False
         except Exception as e:
