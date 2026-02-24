@@ -247,7 +247,7 @@ def validate_path_security(user_path: str, operation_type: str = "access") -> st
         elif operation_type == "write":
             parent_dir = os.path.dirname(normalized_path)
             if not os.path.isdir(parent_dir):
-                raise HTTPException(status_code=400, detail=f"Parent directory does not exist: {parent_dir}")
+                raise HTTPException(status_code=400, detail="Parent directory does not exist")
             if os.path.exists(normalized_path) and os.path.isdir(normalized_path):
                 raise HTTPException(status_code=400, detail=f"Cannot write to directory: {user_path}")
 

@@ -764,8 +764,7 @@ async def eventsub_callback(request: Request):
         # Debug logging
         logger.debug(f"Message ID: {message_id}")
         logger.debug(f"Timestamp: {timestamp}")
-        logger.debug(f"Received signature: {received_signature}")
-        logger.debug(f"Raw body: {body.decode()}")
+        # SECURITY: Do not log signatures or raw body — CWE-532
 
         # Validate required headers
         if not all([message_id, timestamp, received_signature, message_type]):
@@ -780,13 +779,22 @@ async def eventsub_callback(request: Request):
 
         # Debug HMAC calculation (without exposing sensitive data)
         logger.debug(f"HMAC message length: {len(hmac_message)}")
-        logger.debug(f"Calculated signature: {calculated_signature}")
-        logger.debug(f"Secret length: {len(settings.EVENTSUB_SECRET)}")
 
         if not hmac.compare_digest(received_signature, calculated_signature):
             logger.error(
                 f"Signature mismatch. Got: {received_signature[:16]}..., Expected: {calculated_signature[:16]}..."
             )
+            return Response(status_code=403)
+
+        # SECURITY: Reject messages older than 10 minutes to prevent replay attacks
+        try:
+            from datetime import datetime as _dt, timezone as _tz, timedelta as _td
+            msg_time = _dt.fromisoformat(timestamp.replace("Z", "+00:00"))
+            if abs((_dt.now(_tz.utc) - msg_time).total_seconds()) > 600:
+                logger.warning(f"EventSub message too old (timestamp: {timestamp}), rejecting replay")
+                return Response(status_code=403)
+        except (ValueError, TypeError):
+            logger.error(f"Invalid EventSub timestamp format: {timestamp}")
             return Response(status_code=403)
 
         # Process webhook message based on message_type

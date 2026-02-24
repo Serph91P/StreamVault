@@ -339,7 +339,7 @@ async def resubscribe_all(
                 results.append({"streamer": streamer.username, "status": "success", "twitch_id": twitch_id})
             except Exception as e:
                 logger.error(f"Failed to resubscribe for {streamer.username}: {e}")
-                results.append({"streamer": streamer.username, "status": "failed", "error": str(e)})
+                results.append({"streamer": streamer.username, "status": "failed", "error": "Resubscription failed"})
 
         return {
             "success": True,

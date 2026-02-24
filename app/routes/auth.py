@@ -95,10 +95,11 @@ async def login(
     auth_service: AuthService = Depends(get_auth_service),
 ):
     try:
-        # SECURITY: Per-IP brute-force protection (CWE-307)
+        # SECURITY: Only trust X-Forwarded-For behind a reverse proxy.
+        # Use request.client.host as primary; X-Forwarded-For only supplements.
         client_ip = "unknown"
         if http_request:
-            client_ip = http_request.headers.get("X-Forwarded-For", "").split(",")[0].strip() or http_request.client.host if http_request.client else "unknown"
+            client_ip = http_request.client.host if http_request.client else "unknown"
         _check_login_rate_limit(client_ip)
 
         # Validate input

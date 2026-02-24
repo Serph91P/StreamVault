@@ -134,7 +134,7 @@ async def run_comprehensive_recovery() -> Dict[str, Any]:
             logger.info(f"✅ Simple recovery: {simple_result.get('total_recoveries', 0)} tasks created")
         except Exception as e:
             logger.error(f"❌ Simple recovery failed: {e}")
-            results["simple_recovery"] = {"success": False, "error": str(e)}
+            results["simple_recovery"] = {"success": False, "error": "Simple recovery failed"}
 
         # 2. Unified Recovery (most comprehensive analysis - if dependencies work)
         logger.info("🔧 Starting unified recovery...")
@@ -157,7 +157,7 @@ async def run_comprehensive_recovery() -> Dict[str, Any]:
             )
         except Exception as e:
             logger.error(f"❌ Unified recovery failed: {e}")
-            results["unified_recovery"] = {"success": False, "error": str(e)}
+            results["unified_recovery"] = {"success": False, "error": "Unified recovery failed"}
 
         # 3. Orphaned Recovery (additional for orphaned segments)
         logger.info("🔧 Starting orphaned recovery...")
@@ -177,7 +177,7 @@ async def run_comprehensive_recovery() -> Dict[str, Any]:
             logger.info(f"✅ Orphaned recovery: {orphaned_result.get('recovery_triggered', 0)} triggered")
         except Exception as e:
             logger.error(f"❌ Orphaned recovery failed: {e}")
-            results["orphaned_recovery"] = {"success": False, "error": str(e)}
+            results["orphaned_recovery"] = {"success": False, "error": "Orphaned recovery failed"}
 
         # 4. Failed Recovery (specific for failed post-processing)
         logger.info("🔧 Starting failed recovery...")
@@ -196,7 +196,7 @@ async def run_comprehensive_recovery() -> Dict[str, Any]:
             logger.info(f"✅ Failed recovery: {failed_result.get('recovery_triggered', 0)} triggered")
         except Exception as e:
             logger.error(f"❌ Failed recovery failed: {e}")
-            results["failed_recovery"] = {"success": False, "error": str(e)}
+            results["failed_recovery"] = {"success": False, "error": "Failed recovery failed"}
 
         results["end_time"] = datetime.now(timezone.utc).isoformat()
         results["success"] = True
@@ -423,7 +423,7 @@ async def test_recovery_services():
             "total_size_gb": unified_stats.total_size_gb,
         }
     except Exception as e:
-        results["unified_recovery"] = {"available": False, "error": str(e)}
+        results["unified_recovery"] = {"available": False, "error": "Service unavailable"}
 
     # Test Orphaned Recovery
     try:
@@ -433,7 +433,7 @@ async def test_recovery_services():
         orphaned_result = await orphaned_service.scan_and_recover_orphaned_recordings(max_age_hours=48, dry_run=True)
         results["orphaned_recovery"] = {"available": True, "orphaned_found": orphaned_result.get("orphaned_found", 0)}
     except Exception as e:
-        results["orphaned_recovery"] = {"available": False, "error": str(e)}
+        results["orphaned_recovery"] = {"available": False, "error": "Service unavailable"}
 
     # Test Failed Recovery
     try:
@@ -447,7 +447,7 @@ async def test_recovery_services():
             "recoverable_found": failed_result.get("recoverable_found", 0),
         }
     except Exception as e:
-        results["failed_recovery"] = {"available": False, "error": str(e)}
+        results["failed_recovery"] = {"available": False, "error": "Service unavailable"}
 
     return {
         "success": True,

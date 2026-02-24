@@ -197,7 +197,7 @@ async def quick_health_check() -> Dict[str, Any]:
                 db.execute(text("SELECT 1"))
             health["checks"]["database"] = {"status": "healthy", "message": "Connection successful"}
         except Exception as e:
-            health["checks"]["database"] = {"status": "error", "message": str(e)}
+            health["checks"]["database"] = {"status": "error", "message": "Database connection failed"}
             health["overall_status"] = "unhealthy"
 
         # FFmpeg check
@@ -209,7 +209,7 @@ async def quick_health_check() -> Dict[str, Any]:
                 health["checks"]["ffmpeg"] = {"status": "error", "message": "Command failed"}
                 health["overall_status"] = "warning"
         except Exception as e:
-            health["checks"]["ffmpeg"] = {"status": "error", "message": str(e)}
+            health["checks"]["ffmpeg"] = {"status": "error", "message": "FFmpeg not available"}
             health["overall_status"] = "unhealthy"
 
         # Streamlink check
@@ -221,7 +221,7 @@ async def quick_health_check() -> Dict[str, Any]:
                 health["checks"]["streamlink"] = {"status": "error", "message": "Command failed"}
                 health["overall_status"] = "warning"
         except Exception as e:
-            health["checks"]["streamlink"] = {"status": "error", "message": str(e)}
+            health["checks"]["streamlink"] = {"status": "error", "message": "Streamlink not available"}
             health["overall_status"] = "unhealthy"
 
         # Disk space check
@@ -243,7 +243,7 @@ async def quick_health_check() -> Dict[str, Any]:
                 health["checks"]["disk_space"] = {"status": "error", "message": f"Critical: {free_gb:.1f}GB free"}
                 health["overall_status"] = "unhealthy"
         except Exception as e:
-            health["checks"]["disk_space"] = {"status": "error", "message": str(e)}
+            health["checks"]["disk_space"] = {"status": "error", "message": "Disk space check failed"}
             health["overall_status"] = "unhealthy"
 
         from datetime import datetime
