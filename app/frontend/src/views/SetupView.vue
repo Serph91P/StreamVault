@@ -245,6 +245,7 @@ const handleSetup = async () => {
         'Accept': 'application/json',
         'X-Requested-With': 'XMLHttpRequest'
       },
+      credentials: 'include',
       body: JSON.stringify({
         username: username.value,
         password: password.value
