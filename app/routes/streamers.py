@@ -1,5 +1,6 @@
 from typing import List, Dict, Any
 from datetime import datetime, timezone
+import os
 from fastapi import APIRouter, Depends, HTTPException, Body
 from fastapi.responses import JSONResponse
 from app.services.streamer_service import StreamerService
@@ -26,6 +27,9 @@ import re
 from app.utils import async_file
 
 logger = logging.getLogger("streamvault")
+
+# SECURITY: Debug endpoints are only available in development mode
+_IS_DEVELOPMENT = os.getenv("ENVIRONMENT", "").lower() == "development"
 
 router = APIRouter(prefix="/api/streamers", tags=["streamers"])
 
@@ -352,6 +356,9 @@ async def resubscribe_all(
 @router.get("/debug-live-status")
 async def debug_live_status(streamer_service: StreamerService = Depends(get_streamer_service)):
     """Debug endpoint to check live status of all streamers in database"""
+    # SECURITY: Only available in development mode
+    if not _IS_DEVELOPMENT:
+        raise HTTPException(status_code=404, detail="Not found")
     try:
         streamers = await streamer_service.get_all_streamers()
         debug_info = []

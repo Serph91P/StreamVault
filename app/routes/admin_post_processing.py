@@ -357,12 +357,12 @@ async def enqueue_manual_post_processing(
 
         # Validate file exists
         if not Path(normalized_path).exists():
-            raise HTTPException(status_code=400, detail=f"File not found: {ts_file_path}")
+            raise HTTPException(status_code=400, detail="File not found")
 
         # Check if MP4 already exists (unless forced)
         mp4_path = normalized_path.replace(".ts", ".mp4")
         if Path(mp4_path).exists() and not force:
-            raise HTTPException(status_code=400, detail=f"MP4 already exists: {mp4_path}. Use force=true to override.")
+            raise HTTPException(status_code=400, detail="MP4 already exists. Use force=true to override.")
 
         # Prepare parameters
         output_dir = os.path.dirname(normalized_path)

@@ -34,7 +34,7 @@ async def get_orphaned_statistics(max_age_hours: int = 168) -> Dict[str, Any]:
 
     except Exception as e:
         logger.error(f"Failed to get orphaned statistics: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to get statistics: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to get statistics")
 
 
 @router.post("/scan")
@@ -64,7 +64,7 @@ async def scan_orphaned_recordings(
 
     except Exception as e:
         logger.error(f"Failed to scan orphaned recordings: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to scan: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to scan")
 
 
 @router.post("/recover-all")
@@ -83,7 +83,7 @@ async def recover_all_orphaned(background_tasks: BackgroundTasks, max_age_hours:
 
     except Exception as e:
         logger.error(f"Failed to start orphaned recovery: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to start recovery: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to start recovery")
 
 
 @router.post("/recover-recording/{recording_id}")
@@ -129,7 +129,7 @@ async def recover_specific_recording(recording_id: int) -> Dict[str, Any]:
         raise
     except Exception as e:
         logger.error(f"Failed to recover recording {recording_id}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to recover recording: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to recover recording")
 
 
 async def _background_orphaned_recovery(recovery_service, max_age_hours: int):

@@ -34,7 +34,7 @@ async def get_failed_recovery_stats() -> Dict[str, Any]:
 
     except Exception as e:
         logger.error(f"Failed to get failed recovery stats: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to get stats: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to get stats")
 
 
 @router.post("/scan")
@@ -70,7 +70,7 @@ async def scan_failed_recordings(
 
     except Exception as e:
         logger.error(f"Failed to scan failed recordings: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to scan: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to scan")
 
 
 @router.post("/recover/{recording_id}")
@@ -97,7 +97,7 @@ async def recover_specific_recording(recording_id: int) -> Dict[str, Any]:
 
     except Exception as e:
         logger.error(f"Failed to recover recording {recording_id}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to recover recording: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to recover recording")
 
 
 async def _background_failed_recovery(recovery_service):

@@ -351,18 +351,21 @@ async def get_videos(request: Request, db: Session = Depends(get_db)):
 @router.get("/videos/debug/{stream_id}")
 async def debug_video_access(stream_id: int, request: Request, db: Session = Depends(get_db)):
     """Debug endpoint to test video access without streaming"""
+    # SECURITY: Only available in development mode
+    if not _IS_DEVELOPMENT:
+        raise HTTPException(status_code=404, detail="Not found")
     try:
         logger.info(f"DEBUG VIDEO ACCESS: stream_id={stream_id}")
-        logger.info(f"DEBUG: Request headers: {dict(request.headers)}")
-        logger.info(f"DEBUG: Request cookies: {dict(request.cookies)}")
+        logger.debug(f"DEBUG: Request headers (keys): {list(request.headers.keys())}")
+        # SECURITY: Never log cookie values - CWE-532
 
         # Check authentication via session cookie
         session_token = request.cookies.get("session")
         if not session_token:
             logger.error("DEBUG: No session token found")
-            return {"error": "No session token", "headers": dict(request.headers)}
+            return {"error": "No session token"}
 
-        logger.info(f"DEBUG: Session token found: {session_token[:20]}...")
+        logger.debug("DEBUG: Session token found")
 
         # Validate session
         auth_service = AuthService(db)
@@ -371,7 +374,7 @@ async def debug_video_access(stream_id: int, request: Request, db: Session = Dep
 
         if not session_valid:
             logger.error("DEBUG: Session validation failed")
-            return {"error": "Session validation failed", "token": session_token[:20]}
+            return {"error": "Session validation failed"}
 
         # Get stream from database
         stream = db.query(Stream).filter(Stream.id == stream_id).first()
@@ -565,7 +568,7 @@ async def stream_video_public(
 ):
     """Stream video with token-based authentication for external players like VLC"""
     try:
-        logger.info(f"Public video stream request for stream_id: {stream_id} with token: {token[:20]}...")
+        logger.info(f"Public video stream request for stream_id: {stream_id}")
 
         # Validate the share token
         token_stream_id = validate_share_token(token)
@@ -678,8 +681,7 @@ async def stream_video_by_id(stream_id: int, request: Request, db: Session = Dep
     """Stream a video file by stream ID with range request support"""
     try:
         logger.info(f"Video stream request for stream_id: {stream_id}")
-        logger.info(f"Request headers: {dict(request.headers)}")
-        logger.info(f"Cookies: {request.cookies}")
+        # SECURITY: Never log headers or cookies - CWE-532
 
         # Check authentication via session cookie
         session_token = request.cookies.get("session")
@@ -687,7 +689,7 @@ async def stream_video_by_id(stream_id: int, request: Request, db: Session = Dep
             logger.error("No session token found in cookies")
             raise HTTPException(status_code=401, detail="Authentication required")
 
-        logger.info(f"Session token found: {session_token[:10]}...")
+        logger.debug("Session token found")
 
         # Validate session
         try:

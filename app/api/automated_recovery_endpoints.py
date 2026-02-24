@@ -283,7 +283,7 @@ async def start_automated_recovery(interval_minutes: int = 5):
 
     except Exception as e:
         logger.error(f"Failed to start automated recovery: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to start recovery: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to start recovery")
 
 
 @router.post("/stop")
@@ -300,7 +300,7 @@ async def stop_automated_recovery():
 
     except Exception as e:
         logger.error(f"Failed to stop automated recovery: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to stop recovery: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to stop recovery")
 
 
 @router.post("/run-once")
@@ -314,7 +314,7 @@ async def run_manual_recovery():
 
     except Exception as e:
         logger.error(f"Manual comprehensive recovery failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Recovery failed: {str(e)}")
+        raise HTTPException(status_code=500, detail="Recovery failed")
 
 
 @router.post("/run-simple")
@@ -340,7 +340,7 @@ async def run_simple_recovery():
     except Exception as e:
         await recovery_state.increment_failed_runs(str(e))
         logger.error(f"❌ Simple recovery failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Simple recovery failed: {str(e)}")
+        raise HTTPException(status_code=500, detail="Simple recovery failed")
 
 
 @router.get("/status")
@@ -398,7 +398,7 @@ async def configure_recovery(interval_minutes: int = None):
         raise
     except Exception as e:
         logger.error(f"Failed to configure recovery: {e}")
-        raise HTTPException(status_code=500, detail=f"Configuration failed: {str(e)}")
+        raise HTTPException(status_code=500, detail="Configuration failed")
 
 
 @router.get("/test-services")

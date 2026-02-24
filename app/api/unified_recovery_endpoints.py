@@ -41,7 +41,7 @@ async def get_recovery_statistics(max_age_hours: int = 72) -> Dict[str, Any]:
         }
     except Exception as e:
         logger.error(f"Error getting recovery statistics: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Failed to get recovery statistics")
 
 
 @router.post("/scan")
@@ -86,7 +86,7 @@ async def comprehensive_recovery_scan(
 
     except Exception as e:
         logger.error(f"Error in comprehensive recovery scan: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Failed to run recovery scan")
 
 
 @router.get("/status")
@@ -104,4 +104,4 @@ async def get_recovery_status() -> Dict[str, Any]:
         }
     except Exception as e:
         logger.error(f"Error getting recovery status: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Failed to get recovery status")
