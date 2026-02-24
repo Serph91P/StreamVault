@@ -9,6 +9,7 @@ from app.database import get_db
 from sqlalchemy.orm import Session, joinedload
 from typing import Dict, Any, List, Optional
 from pydantic import BaseModel
+from app.routes.admin_post_processing import router as post_processing_router
 
 # Import test service locally to avoid initialization issues
 # from app.services.test_service import test_service  # REMOVED
@@ -36,8 +37,6 @@ def get_background_queue_service():
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
 # Include post-processing management routes
-from app.routes.admin_post_processing import router as post_processing_router
-
 router.include_router(post_processing_router)
 
 logger = logging.getLogger("streamvault")

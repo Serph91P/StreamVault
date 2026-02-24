@@ -9,6 +9,7 @@ import asyncio
 from typing import Dict, Any
 from cachetools import TTLCache
 from app.config.constants import CACHE_CONFIG
+from app.models import Stream
 
 # Try to import notification utilities
 logger = logging.getLogger("streamvault")
@@ -25,9 +26,6 @@ except ImportError as e:
     async def send_push_notification(title="", body="", data=None, **kwargs):
         logger.info(f"[FALLBACK] Would send notification: {title} - {body}")
         return {"sent": 0, "failed": 0, "skipped": 1, "fallback": True}
-
-
-from app.models import Stream
 
 
 class NotificationManager:

@@ -4,7 +4,7 @@ Sets up the background queue service with task handlers and dependency managemen
 """
 
 import logging
-from typing import Optional
+from typing import Any, Optional
 
 from app.services.background_queue_service import background_queue_service
 from app.services.processing.post_processing_task_handlers import post_processing_task_handlers
@@ -148,7 +148,6 @@ def get_background_queue_service():
 
 
 # For backward compatibility
-from typing import Any
 
 
 async def enqueue_recording_post_processing(

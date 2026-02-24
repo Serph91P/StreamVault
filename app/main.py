@@ -15,6 +15,13 @@ from app.routes import streams
 from app.routes import status
 from app.routes import health
 from app.routes import notifications  # Notification tracking API
+from app.routes import proxy as proxy_router
+from app.routes import push as push_router
+from app.routes import admin as admin_router
+from app.routes import migration as migration_router
+from app.routes import version as version_router
+from app.api import unified_recovery_endpoints
+from app.api import automated_recovery_endpoints
 from app.services.system.development_test_runner import run_development_tests
 from app.config.constants import TIMEOUTS, ASYNC_DELAYS
 import hmac
@@ -22,12 +29,14 @@ import hashlib
 import json
 import asyncio
 import os
+import time
+from dataclasses import dataclass
 from pathlib import Path
 
 from contextlib import asynccontextmanager
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
-from typing import Optional
+from typing import Dict, Optional, Tuple
 
 from app.config.logging_config import setup_logging
 from app.database import engine, SessionLocal
@@ -549,9 +558,6 @@ async def add_request_id(request: Request, call_next):
 
 
 # Adaptive rate limiting middleware (token-bucket with soft-wait)
-from dataclasses import dataclass
-from typing import Dict, Tuple
-import time
 
 
 @dataclass
@@ -904,38 +910,24 @@ app.include_router(status.router, prefix="/api")  # Status API routes - independ
 app.include_router(notifications.router)  # Notification tracking API
 
 # Proxy management routes (Multi-Proxy System)
-from app.routes import proxy as proxy_router
-
 app.include_router(proxy_router.router)
 
 # Unified recovery routes (replaces old orphaned + failed recovery)
-from app.api import unified_recovery_endpoints
-
 app.include_router(unified_recovery_endpoints.router)
 
 # Automated recovery routes
-from app.api import automated_recovery_endpoints
-
 app.include_router(automated_recovery_endpoints.router)
 
 # Push notification routes
-from app.routes import push as push_router
-
 app.include_router(push_router.router)
 
 # Admin routes
-from app.routes import admin as admin_router
-
 app.include_router(admin_router.router)
 
 # Migration routes
-from app.routes import migration as migration_router
-
 app.include_router(migration_router.router)
 
 # Version routes
-from app.routes import version as version_router
-
 app.include_router(version_router.router, prefix="/api")
 
 # Explicit SPA routes - these must come after API routes but before static files
