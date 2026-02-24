@@ -75,6 +75,13 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> Optiona
     from datetime import datetime, timedelta, timezone
 
     session_token = request.cookies.get("session")
+    
+    # PWA fallback: check Authorization header if no cookie
+    if not session_token:
+        auth_header = request.headers.get("authorization", "")
+        if auth_header.startswith("Bearer "):
+            session_token = auth_header[7:]
+    
     if not session_token:
         raise HTTPException(status_code=401, detail="Authentication required")
 
