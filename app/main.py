@@ -1,4 +1,4 @@
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, HTTPException
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, HTTPException, Depends
 from fastapi.responses import Response, FileResponse
 from fastapi.staticfiles import StaticFiles
 from app.routes import streamers, auth
@@ -30,9 +30,10 @@ from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from typing import Optional
 
 from app.config.logging_config import setup_logging
-from app.database import engine
+from app.database import engine, SessionLocal
+from app.services.core.auth_service import AuthService
 import app.models as models
-from app.dependencies import websocket_manager, get_event_registry
+from app.dependencies import websocket_manager, get_event_registry, get_current_user
 from app.services.images.image_sync_service import image_sync_service
 from app.middleware.error_handler import error_handler
 from app.middleware.logging import logging_middleware
@@ -194,6 +195,31 @@ async def lifespan(app: FastAPI):
             logger.info("Recording cleanup service started")
         except Exception as e:
             logger.error(f"Failed to start recording cleanup service: {e}")
+
+        # Start expired session cleanup service
+        try:
+            async def scheduled_session_cleanup():
+                """Periodically clean up expired sessions to prevent table bloat."""
+                while True:
+                    try:
+                        await asyncio.sleep(6 * 3600)  # Run every 6 hours
+                        db = SessionLocal()
+                        try:
+                            auth_service = AuthService(db=db)
+                            expired_count = await auth_service.cleanup_expired_sessions()
+                            if expired_count > 0:
+                                logger.info(f"🧹 Cleaned up {expired_count} expired sessions")
+                        finally:
+                            db.close()
+                    except asyncio.CancelledError:
+                        break
+                    except Exception as e:
+                        logger.error(f"Error in session cleanup: {e}", exc_info=True)
+
+            session_cleanup_task = asyncio.create_task(scheduled_session_cleanup())
+            logger.info("✅ Session cleanup service started (runs every 6 hours)")
+        except Exception as e:
+            logger.error(f"Failed to start session cleanup service: {e}")
 
         # Wait a moment for migrations to fully complete before starting services
         await asyncio.sleep(ASYNC_DELAYS.BRIEF_PAUSE)
@@ -701,7 +727,7 @@ async def health_check():
 
 
 @app.get("/admin/websocket-connections")
-async def get_websocket_connections():
+async def get_websocket_connections(current_user=Depends(get_current_user)):
     """Admin endpoint to monitor WebSocket connections"""
     connections = []
     async with websocket_manager._lock:
