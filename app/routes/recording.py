@@ -401,7 +401,7 @@ async def stop_recording(streamer_id: int):
             await websocket_manager.send_toast_notification(
                 toast_type="error",
                 title=f"Stop Recording - {streamer_name}",
-                message=f"Failed to stop recording: {str(e)}",
+                message="Failed to stop recording",
             )
         except Exception as notification_error:
             logger.error(f"Failed to send error notification: {notification_error}")
@@ -562,7 +562,7 @@ async def force_start_recording(streamer_id: int):
                 streamer_name = streamer.username if streamer else f"Streamer {streamer_id}"
 
             await websocket_manager.send_force_recording_feedback(
-                success=False, streamer_name=streamer_name, message=f"Internal error: {str(e)}"
+                success=False, streamer_name=streamer_name, message="An internal error occurred"
             )
         except Exception as notification_error:
             logger.error(f"Failed to send error notification: {notification_error}")

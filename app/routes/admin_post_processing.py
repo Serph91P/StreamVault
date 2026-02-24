@@ -175,7 +175,7 @@ async def retry_specific_recordings(request: PostProcessingRetryRequest) -> Post
 
                 except Exception as e:
                     result["recovery_failed"] += 1
-                    result["errors"].append(f"Recording {recording_id}: {str(e)}")
+                    result["errors"].append(f"Recording {recording_id}: recovery failed")
                     logger.error(f"Error processing recording {recording_id}: {e}", exc_info=True)
 
         message = f"{'Would trigger' if request.dry_run else 'Triggered'} recovery for {result['recovery_triggered']} recordings"

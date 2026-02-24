@@ -180,7 +180,7 @@ async def send_test_notification(db: Session = Depends(get_db)):
             except Exception as e:
                 failed_count += 1
                 endpoint = subscription.endpoint[:50] if subscription.endpoint else "unknown"
-                failed_endpoints.append(f"{endpoint} (error: {str(e)[:30]})")
+                failed_endpoints.append(f"{endpoint} (error: delivery failed)")
                 logger.error(f"🧪 TEST_EXCEPTION: {endpoint}: {e}")
 
         logger.info(

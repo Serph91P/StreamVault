@@ -122,7 +122,7 @@ async def _check_for_updates() -> dict:
         result["update_check_error"] = "GitHub API timeout"
         logger.warning("GitHub update check timed out")
     except Exception as e:
-        result["update_check_error"] = str(e)
+        result["update_check_error"] = "Failed to check for updates"
         logger.error(f"Failed to check for updates: {e}")
 
     # Cache result for 5 minutes

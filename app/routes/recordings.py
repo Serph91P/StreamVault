@@ -164,7 +164,7 @@ async def force_stop_recording(request_data: dict):
             await websocket_manager.send_toast_notification(
                 toast_type="error",
                 title=f"Force Stop Recording - {streamer_name}",
-                message=f"Failed to force stop recording: {str(e)}",
+                message="Failed to force stop recording",
             )
         except Exception as notification_error:
             logger.error(f"Failed to send error notification: {notification_error}")

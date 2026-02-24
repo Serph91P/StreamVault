@@ -421,7 +421,7 @@ async def check_streamer_live_status(
         # Send error toast notification
         try:
             await websocket_manager.send_toast_notification(
-                toast_type="error", title="Live Status Check Failed", message=f"Failed to check live status: {str(e)}"
+                toast_type="error", title="Live Status Check Failed", message="Failed to check live status"
             )
         except Exception as notification_error:
             logger.error(f"Failed to send error notification: {notification_error}")

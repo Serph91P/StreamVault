@@ -169,7 +169,7 @@ async def get_system_info() -> Dict[str, Any]:
                     "percent_used": round((used_gb / total_gb) * 100, 1) if total_gb > 0 else 0,
                 }
         except Exception as e:
-            info["storage"]["error"] = str(e)
+            info["storage"]["error"] = "Storage check failed"
 
         return info
 
@@ -298,9 +298,9 @@ async def cleanup_temp_files() -> Dict[str, Any]:
                         except HTTPException as e:
                             cleanup_stats["errors"].append(f"Security: Skipped {file_path}: {e.detail}")
                         except Exception as e:
-                            cleanup_stats["errors"].append(f"Failed to remove {file_path}: {str(e)}")
+                            cleanup_stats["errors"].append(f"Failed to remove file")
             except Exception as e:
-                cleanup_stats["errors"].append(f"Error with pattern {pattern}: {str(e)}")
+                cleanup_stats["errors"].append(f"Error processing cleanup pattern")
 
         cleanup_stats["space_freed_mb"] = round(cleanup_stats["space_freed_mb"], 2)
 
@@ -501,7 +501,7 @@ async def debug_videos_database(db: Session = Depends(get_db)) -> Dict[str, Any]
                     if path.exists():
                         stream_info["recording_path_size"] = path.stat().st_size
                 except Exception as e:
-                    stream_info["recording_path_error"] = str(e)
+                    stream_info["recording_path_error"] = "Path check failed"
 
             result["streams"].append(stream_info)
 
@@ -543,7 +543,7 @@ async def debug_videos_database(db: Session = Depends(get_db)) -> Dict[str, Any]
                         recording_info["mp4_path"] = str(mp4_path)
 
                 except Exception as e:
-                    recording_info["path_check_error"] = str(e)
+                    recording_info["path_check_error"] = "Path check failed"
 
             result["recordings"].append(recording_info)
 
@@ -582,7 +582,7 @@ async def debug_videos_database(db: Session = Depends(get_db)) -> Dict[str, Any]
 
                 result["filesystem_check"]["subdirectories"] = subdirs
             except Exception as e:
-                result["filesystem_check"]["error"] = str(e)
+                result["filesystem_check"]["error"] = "Filesystem check failed"
         else:
             result["filesystem_check"]["recordings_dir_exists"] = False
 
@@ -850,7 +850,7 @@ async def fix_recording_availability(streamer_id: Optional[int] = None, dry_run:
                 except Exception as e:
                     logger.error(f"Error checking stream {stream.id}: {e}")
                     results["errors"] += 1
-                    stream_result["error"] = str(e)
+                    stream_result["error"] = "Check failed"
                     results["details"].append(stream_result)
 
             if not dry_run:
@@ -931,7 +931,7 @@ async def cleanup_orphaned_database_recordings(max_age_hours: int = 48, dry_run:
                 except Exception as e:
                     logger.error(f"Error processing recording {recording.id}: {e}")
                     results["errors"] += 1
-                    recording_result["error"] = str(e)
+                    recording_result["error"] = "Processing failed"
                     results["details"].append(recording_result)
 
             if not dry_run:
@@ -1024,7 +1024,7 @@ async def cleanup_process_orphaned_recordings(dry_run: bool = True) -> Dict[str,
                 except Exception as e:
                     logger.error(f"Error processing recording {recording.id}: {e}")
                     results["errors"] += 1
-                    recording_result["error"] = str(e)
+                    recording_result["error"] = "Processing failed"
                     results["details"].append(recording_result)
 
             if not dry_run:

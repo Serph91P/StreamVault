@@ -167,8 +167,7 @@ async def _background_orphaned_recovery(recovery_service, max_age_hours: int):
                 await websocket_service.send_system_notification(
                     {
                         "type": "orphaned_recovery_error",
-                        "message": f"Orphaned recovery failed: {str(e)}",
-                        "error": str(e),
+                        "message": "Orphaned recovery failed",
                     }
                 )
         except Exception as e2:
