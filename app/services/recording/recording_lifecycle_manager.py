@@ -403,11 +403,11 @@ class RecordingLifecycleManager:
             await self._handle_recording_error(recording_id, str(e))
 
     async def _start_recording_process(
-        self, recording_id: int, file_path: str, streamer_id: int, 
+        self, recording_id: int, file_path: str, streamer_id: int,
         resume_segments_dir: Optional[str] = None
     ) -> bool:
         """Start the actual recording process
-        
+
         Args:
             recording_id: ID of the recording entry
             file_path: Path where the recording should be saved

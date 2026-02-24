@@ -89,10 +89,10 @@ class OrphanedRecoveryService:
         """Find orphaned recordings from database (compatibility wrapper)"""
         from datetime import datetime, timedelta
         from sqlalchemy.orm import joinedload
-        from app.models import Recording, Stream, Streamer
-        
+        from app.models import Recording, Stream
+
         cutoff_time = datetime.utcnow() - timedelta(hours=max_age_hours)
-        
+
         # Find recordings that are in 'recording' or 'processing' status but older than cutoff
         orphaned = db.query(Recording).options(
             joinedload(Recording.stream).joinedload(Stream.streamer)
@@ -100,28 +100,27 @@ class OrphanedRecoveryService:
             Recording.status.in_(["recording", "processing", "failed"]),
             Recording.created_at < cutoff_time
         ).all()
-        
+
         return orphaned
 
     async def _validate_orphaned_recording(self, recording) -> Dict[str, Any]:
         """Validate if a recording is truly orphaned and can be recovered"""
-        import os
         from pathlib import Path
         from datetime import datetime
-        
+
         result = {
             "valid": False,
             "reason": None,
             "file_size": 0,
             "file_age_seconds": 0,
         }
-        
+
         if not recording.path:
             result["reason"] = "No file path"
             return result
-            
+
         file_path = Path(recording.path)
-        
+
         # Check if TS file exists
         if not file_path.exists():
             # Check for segments directory
@@ -132,23 +131,23 @@ class OrphanedRecoveryService:
                 return result
             result["reason"] = "File not found"
             return result
-        
+
         # Get file info
         stat = file_path.stat()
         result["file_size"] = stat.st_size
         result["file_age_seconds"] = (datetime.now() - datetime.fromtimestamp(stat.st_mtime)).total_seconds()
-        
+
         # Check if file is too small
         if stat.st_size < 1024:  # Less than 1KB
             result["reason"] = "File too small"
             return result
-        
+
         # Check if MP4 already exists
         mp4_path = file_path.with_suffix(".mp4")
         if mp4_path.exists():
             result["reason"] = "MP4 already exists"
             return result
-        
+
         result["valid"] = True
         return result
 
@@ -157,24 +156,24 @@ class OrphanedRecoveryService:
         from app.services.init.background_queue_init import enqueue_recording_post_processing
         from datetime import datetime
         import os
-        
+
         try:
             if not recording.path:
                 return False
-                
+
             # Prepare post-processing payload
             streamer_name = "Unknown"
             if recording.stream and recording.stream.streamer:
                 streamer_name = recording.stream.streamer.username
-            
+
             stream_id = recording.stream_id if recording.stream_id else (recording.stream.id if recording.stream else None)
-            
+
             if not stream_id:
                 logger.error(f"Cannot trigger recovery for recording {recording.id}: no stream_id")
                 return False
-            
+
             output_dir = os.path.dirname(recording.path)
-            
+
             await enqueue_recording_post_processing(
                 stream_id=stream_id,
                 recording_id=recording.id,
@@ -184,10 +183,10 @@ class OrphanedRecoveryService:
                 started_at=datetime.now().isoformat(),
                 cleanup_ts_file=True,
             )
-            
+
             logger.info(f"Triggered recovery for recording {recording.id}")
             return True
-            
+
         except Exception as e:
             logger.error(f"Failed to trigger recovery for recording {recording.id}: {e}")
             return False
@@ -197,31 +196,30 @@ class OrphanedRecoveryService:
         from pathlib import Path
         from datetime import datetime, timedelta
         import shutil
-        
+
         recordings_root = Path(self._service.recordings_base_path)
         cutoff_time = datetime.now() - timedelta(hours=max_age_hours)
-        
+
         if not recordings_root.exists():
             return
-        
+
         # Find all _segments directories
         for segments_dir in recordings_root.rglob("*_segments"):
             if not segments_dir.is_dir():
                 continue
-                
+
             try:
                 # Check if directory is old enough
                 dir_stat = segments_dir.stat()
                 dir_time = datetime.fromtimestamp(dir_stat.st_mtime)
                 if dir_time > cutoff_time:
                     continue
-                
+
                 # Check if corresponding MP4 exists
                 parent_dir = segments_dir.parent
                 base_name = segments_dir.name.replace("_segments", "")
                 mp4_path = parent_dir / f"{base_name}.mp4"
-                ts_path = parent_dir / f"{base_name}.ts"
-                
+
                 # Only cleanup if MP4 exists (post-processing completed)
                 if mp4_path.exists():
                     if not dry_run:
@@ -229,7 +227,7 @@ class OrphanedRecoveryService:
                         logger.info(f"Cleaned up segments directory: {segments_dir}")
                     result["segments_cleaned"] += 1
                     result.get("segments_cleaned_list", []).append(str(segments_dir))
-                    
+
             except Exception as e:
                 logger.error(f"Error cleaning segments directory {segments_dir}: {e}")
                 result["segments_cleanup_failed"] = result.get("segments_cleanup_failed", 0) + 1

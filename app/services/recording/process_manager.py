@@ -18,6 +18,7 @@ Dependency Injection:
 
 import logging
 import asyncio
+import re
 import shutil
 from datetime import datetime, timedelta
 from typing import Dict, Optional, Callable, Awaitable
@@ -41,7 +42,7 @@ ProcessStatus = None
 
 class ProcessManager:
     """Manages subprocess execution and cleanup for recording processes
-    
+
     SINGLETON PATTERN: Use `process_manager` global instance.
     All RecordingOrchestrator instances share the same ProcessManager
     to ensure consistent process tracking across the application.
@@ -49,7 +50,7 @@ class ProcessManager:
 
     # Constants for segment file patterns (must match RecordingLifecycleManager)
     SEGMENT_PART_IDENTIFIER = "_part"
-    
+
     # Singleton instance tracking
     _instance: Optional["ProcessManager"] = None
     _initialized: bool = False
@@ -71,7 +72,7 @@ class ProcessManager:
             if post_processing_callback is not None:
                 self.post_processing_callback = post_processing_callback
             return
-            
+
         self.active_processes = {}
         self.long_stream_processes = {}  # Track processes that need segmentation
         self.lock = asyncio.Lock()
@@ -102,7 +103,7 @@ class ProcessManager:
 
         # Shutdown management
         self._is_shutting_down = False
-        
+
         ProcessManager._initialized = True
         logger.debug("ProcessManager singleton initialized")
 
@@ -147,22 +148,22 @@ class ProcessManager:
         resume_segments_dir: Optional[str] = None
     ) -> Dict:
         """Initialize segmented recording structure for long streams
-        
+
         Args:
             stream: Stream object to record
             output_path: Path where the final recording should be saved
             quality: Quality setting for the stream
             recording_id: ID of the recording entry (optional)
             resume_segments_dir: Existing segments directory to resume into (for app restart recovery)
-                                 If provided, new segments will be added to this directory with 
+                                 If provided, new segments will be added to this directory with
                                  the next available segment number.
         """
         base_path = Path(output_path)
-        
+
         if resume_segments_dir and Path(resume_segments_dir).exists():
             # RESUME MODE: Use existing segments directory
             segment_dir = Path(resume_segments_dir)
-            
+
             # Find the next segment number by checking existing files
             existing_segments = list(segment_dir.glob(f"*{self.SEGMENT_PART_IDENTIFIER}*.ts"))
             if existing_segments:
@@ -175,7 +176,7 @@ class ProcessManager:
                 next_segment_num = max(segment_numbers) + 1 if segment_numbers else 1
             else:
                 next_segment_num = 1
-            
+
             # Derive base stem from existing segments or directory name
             if existing_segments:
                 # Use stem from first segment file
@@ -184,10 +185,10 @@ class ProcessManager:
             else:
                 # Fallback to directory name without _segments suffix
                 base_stem = segment_dir.name.replace("_segments", "")
-            
+
             segment_filename = f"{base_stem}{self.SEGMENT_PART_IDENTIFIER}{next_segment_num:03d}.ts"
             current_segment_path = segment_dir / segment_filename
-            
+
             logger.info(
                 f"🔄 RESUME_SEGMENTS: Found {len(existing_segments)} existing segments in {segment_dir}, "
                 f"starting new segment {next_segment_num}"
@@ -804,23 +805,23 @@ class ProcessManager:
             # (e.g., after app restart during an ongoing stream)
             segment_dir = Path(segment_info["segment_dir"])
             segment_files = []
-            
+
             if segment_dir.exists():
                 # Find all .ts files matching the segment pattern, sorted by name
                 # Pattern: *_partNNN.ts
                 all_ts_files = sorted(segment_dir.glob("*_part*.ts"), key=lambda x: x.name)
-                
+
                 for ts_file in all_ts_files:
                     if await async_file.exists(str(ts_file)) and await async_file.getsize(str(ts_file)) > 0:
                         segment_files.append(str(ts_file))
-                
+
                 logger.info(
                     f"📦 Found {len(segment_files)} segment files in directory "
                     f"(tracked: {len(segment_info['total_segments'])}, from disk: {len(all_ts_files)})"
                 )
             else:
                 # Fallback to tracked segments if directory doesn't exist
-                logger.warning(f"Segment directory not found, using tracked segments only")
+                logger.warning("Segment directory not found, using tracked segments only")
                 for segment in segment_info["total_segments"]:
                     if await async_file.exists(segment["path"]) and await async_file.getsize(segment["path"]) > 0:
                         segment_files.append(segment["path"])

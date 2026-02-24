@@ -9,7 +9,7 @@ logger = logging.getLogger("streamvault")
 
 def _extract_bearer_token(headers: list) -> str | None:
     """Extract Bearer token from Authorization header (PWA fallback).
-    
+
     SECURITY: In PWA standalone mode, cookies may not persist across app restarts.
     The frontend stores the session token in localStorage and sends it as a Bearer token.
     This provides a fallback authentication method for PWA users.
@@ -35,20 +35,20 @@ class AuthMiddleware:
             from starlette.websockets import WebSocket as StarletteWebSocket
             ws = StarletteWebSocket(scope, receive, send)
             session_token = ws.cookies.get("session")
-            
+
             # PWA fallback: check Authorization header if no cookie
             if not session_token:
                 session_token = _extract_bearer_token(scope.get("headers", []))
-            
+
             if not session_token:
-                logger.warning(f"WebSocket connection rejected: no session cookie or Bearer token")
+                logger.warning("WebSocket connection rejected: no session cookie or Bearer token")
                 await ws.close(code=4001, reason="Authentication required")
                 return
             db = SessionLocal()
             try:
                 auth_service = AuthService(db=db)
                 if not await auth_service.validate_session(session_token):
-                    logger.warning(f"WebSocket connection rejected: invalid session")
+                    logger.warning("WebSocket connection rejected: invalid session")
                     await ws.close(code=4001, reason="Invalid session")
                     return
             except Exception as e:
@@ -115,13 +115,13 @@ class AuthMiddleware:
                     return await RedirectResponse(url="/auth/setup", status_code=307)(scope, receive, send)
 
             session_token = request.cookies.get("session")
-            
+
             # PWA fallback: check Authorization header if no cookie
             if not session_token:
                 auth_header = request.headers.get("authorization", "")
                 if auth_header.startswith("Bearer "):
                     session_token = auth_header[7:]
-            
+
             if not session_token:
                 logger.debug(f"No session cookie or Bearer token for {request.url.path}")
                 if not request.url.path.startswith("/auth/login"):

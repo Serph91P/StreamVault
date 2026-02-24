@@ -20,7 +20,6 @@ from app.models import (
 )
 from sqlalchemy.orm import Session, joinedload
 import logging
-import os
 from pathlib import Path
 import json
 import re
@@ -128,17 +127,17 @@ def collect_stream_files_for_deletion(
 ) -> tuple[list[str], set[str]]:
     """
     Collect files to delete for a stream using safe deletion logic.
-    
+
     IMPORTANT: Uses the same safe deletion logic as cleanup_service:
     - tvshow.nfo is NEVER deleted (belongs to streamer, not stream)
     - season.nfo is only deleted if this is the LAST stream in that season
-    
+
     Returns:
         tuple: (files_to_delete, directories_to_check)
     """
     files_to_delete = []
     directories_to_check = set()
-    
+
     # Get the base directory for this recording
     recording_dir = None
     if stream.recording_path:
@@ -149,7 +148,7 @@ def collect_stream_files_for_deletion(
         recording_dir = os.path.dirname(metadata.nfo_path)
         if recording_dir and os.path.exists(recording_dir):
             directories_to_check.add(recording_dir)
-    
+
     if metadata:
         # Per-stream files (unique to this stream, safe to delete)
         per_stream_attrs = [
@@ -161,17 +160,17 @@ def collect_stream_files_for_deletion(
             "chapters_ffmpeg_path",
             "chapters_xml_path",
         ]
-        
+
         for attr in per_stream_attrs:
             path = getattr(metadata, attr, None)
             if path:
                 files_to_delete.append(path)
-        
+
         # SHARED FILES HANDLING (same logic as cleanup_service):
         # - tvshow.nfo: NEVER delete during stream deletion (belongs to streamer)
         if metadata.tvshow_nfo_path:
             logger.debug(f"Preserving tvshow.nfo (belongs to streamer): {metadata.tvshow_nfo_path}")
-        
+
         # - season.nfo: Only delete if this is the LAST stream in that season
         if metadata.season_nfo_path and os.path.exists(metadata.season_nfo_path):
             season_dir = os.path.dirname(metadata.season_nfo_path)
@@ -190,16 +189,16 @@ def collect_stream_files_for_deletion(
                 logger.debug(f"Last stream in season, will delete season.nfo: {metadata.season_nfo_path}")
             else:
                 logger.debug(f"Keeping shared season.nfo ({other_streams_in_season} other streams)")
-        
+
         # Handle segments directory from metadata
         if hasattr(metadata, 'segments_dir_path') and metadata.segments_dir_path:
             if os.path.exists(metadata.segments_dir_path):
                 files_to_delete.append(metadata.segments_dir_path)
-    
+
     # Add main recording file and related files
     if stream.recording_path and os.path.exists(stream.recording_path):
         files_to_delete.append(stream.recording_path)
-        
+
         # Check for .ts/.mp4 versions and segment directories
         stream_file = Path(stream.recording_path)
         if stream_file.suffix == ".mp4":
@@ -210,11 +209,11 @@ def collect_stream_files_for_deletion(
             mp4_version = stream_file.with_suffix(".mp4")
             if mp4_version.exists():
                 files_to_delete.append(str(mp4_version))
-        
+
         segments_dir = stream_file.parent / f"{stream_file.stem}_segments"
         if segments_dir.exists() and segments_dir.is_dir():
             files_to_delete.append(str(segments_dir))
-    
+
     return files_to_delete, directories_to_check
 
 
@@ -537,7 +536,7 @@ async def delete_streamer(
                 from app.models import StreamMetadata
                 import shutil
 
-                settings = get_settings()
+                get_settings()
 
                 # Get all streams for this streamer
                 streams = db.query(Stream).filter(Stream.streamer_id == streamer_id).all()
@@ -938,7 +937,7 @@ async def delete_stream(streamer_id: int, stream_id: int, db: Session = Depends(
 
         # Get metadata to find associated files
         metadata = db.query(StreamMetadata).filter(StreamMetadata.stream_id == stream_id).first()
-        
+
         # Use safe deletion logic (same as cleanup_service)
         # - tvshow.nfo is NEVER deleted (belongs to streamer)
         # - season.nfo is only deleted if this is the LAST stream in that season
@@ -970,7 +969,7 @@ async def delete_stream(streamer_id: int, stream_id: int, db: Session = Depends(
 
         # Now delete all the files
         deleted_files, deleted_count = await delete_files_async(files_to_delete)
-        
+
         # Clean up empty directories
         for dir_path in directories_to_check:
             try:

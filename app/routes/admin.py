@@ -168,7 +168,7 @@ async def get_system_info() -> Dict[str, Any]:
                     "free_gb": round(free_gb, 2),
                     "percent_used": round((used_gb / total_gb) * 100, 1) if total_gb > 0 else 0,
                 }
-        except Exception as e:
+        except Exception:
             info["storage"]["error"] = "Storage check failed"
 
         return info
@@ -196,7 +196,7 @@ async def quick_health_check() -> Dict[str, Any]:
             with SessionLocal() as db:
                 db.execute(text("SELECT 1"))
             health["checks"]["database"] = {"status": "healthy", "message": "Connection successful"}
-        except Exception as e:
+        except Exception:
             health["checks"]["database"] = {"status": "error", "message": "Database connection failed"}
             health["overall_status"] = "unhealthy"
 
@@ -208,7 +208,7 @@ async def quick_health_check() -> Dict[str, Any]:
             else:
                 health["checks"]["ffmpeg"] = {"status": "error", "message": "Command failed"}
                 health["overall_status"] = "warning"
-        except Exception as e:
+        except Exception:
             health["checks"]["ffmpeg"] = {"status": "error", "message": "FFmpeg not available"}
             health["overall_status"] = "unhealthy"
 
@@ -220,7 +220,7 @@ async def quick_health_check() -> Dict[str, Any]:
             else:
                 health["checks"]["streamlink"] = {"status": "error", "message": "Command failed"}
                 health["overall_status"] = "warning"
-        except Exception as e:
+        except Exception:
             health["checks"]["streamlink"] = {"status": "error", "message": "Streamlink not available"}
             health["overall_status"] = "unhealthy"
 
@@ -242,7 +242,7 @@ async def quick_health_check() -> Dict[str, Any]:
             else:
                 health["checks"]["disk_space"] = {"status": "error", "message": f"Critical: {free_gb:.1f}GB free"}
                 health["overall_status"] = "unhealthy"
-        except Exception as e:
+        except Exception:
             health["checks"]["disk_space"] = {"status": "error", "message": "Disk space check failed"}
             health["overall_status"] = "unhealthy"
 
@@ -295,12 +295,12 @@ async def cleanup_temp_files() -> Dict[str, Any]:
                             Path(validated_file).unlink()
                             cleanup_stats["files_removed"] += 1
                             cleanup_stats["space_freed_mb"] += file_size / (1024 * 1024)
-                        except HTTPException as e:
-                            cleanup_stats["errors"].append(f"Security: Skipped {file_path}: {e.detail}")
-                        except Exception as e:
-                            cleanup_stats["errors"].append(f"Failed to remove file")
-            except Exception as e:
-                cleanup_stats["errors"].append(f"Error processing cleanup pattern")
+                        except HTTPException as he:
+                            cleanup_stats["errors"].append(f"Security: Skipped {file_path}: {he.detail}")
+                        except Exception:
+                            cleanup_stats["errors"].append("Failed to remove file")
+            except Exception:
+                cleanup_stats["errors"].append("Error processing cleanup pattern")
 
         cleanup_stats["space_freed_mb"] = round(cleanup_stats["space_freed_mb"], 2)
 
@@ -372,7 +372,7 @@ async def run_test(test_name: str, db: Session = Depends(get_db)):
         # Initialize test service here if needed, with proper dependencies
         # For now, let's just return a message
         return {"status": "error", "message": "Test service is currently disabled due to initialization issues"}
-    except Exception as e:
+    except Exception:
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
@@ -500,7 +500,7 @@ async def debug_videos_database(db: Session = Depends(get_db)) -> Dict[str, Any]
                     stream_info["recording_path_exists"] = path.exists()
                     if path.exists():
                         stream_info["recording_path_size"] = path.stat().st_size
-                except Exception as e:
+                except Exception:
                     stream_info["recording_path_error"] = "Path check failed"
 
             result["streams"].append(stream_info)
@@ -542,7 +542,7 @@ async def debug_videos_database(db: Session = Depends(get_db)) -> Dict[str, Any]
                         recording_info["mp4_path_size"] = mp4_path.stat().st_size
                         recording_info["mp4_path"] = str(mp4_path)
 
-                except Exception as e:
+                except Exception:
                     recording_info["path_check_error"] = "Path check failed"
 
             result["recordings"].append(recording_info)
@@ -581,7 +581,7 @@ async def debug_videos_database(db: Session = Depends(get_db)) -> Dict[str, Any]
                         subdirs.append(streamer_info)
 
                 result["filesystem_check"]["subdirectories"] = subdirs
-            except Exception as e:
+            except Exception:
                 result["filesystem_check"]["error"] = "Filesystem check failed"
         else:
             result["filesystem_check"]["recordings_dir_exists"] = False
@@ -1275,13 +1275,13 @@ async def fix_unknown_task_names():
 async def cleanup_zombie_recordings() -> Dict[str, Any]:
     """
     🧹 Clean Up Zombie Recordings
-    
+
     Manually triggers cleanup of recordings that are stuck in 'recording' status
     but have no active Streamlink process running.
-    
+
     This is useful after app restarts/updates when recordings may be left in
     an invalid state.
-    
+
     A recording is considered a zombie if:
     1. Status is 'recording' in the database
     2. No active Streamlink process exists for this recording
@@ -1289,19 +1289,19 @@ async def cleanup_zombie_recordings() -> Dict[str, Any]:
     """
     try:
         from app.services.init.startup_init import _cleanup_zombie_recordings_now
-        
+
         logger.info("🧹 ADMIN_ZOMBIE_CLEANUP: Manual zombie recording cleanup triggered")
-        
+
         cleaned_count = await _cleanup_zombie_recordings_now()
-        
+
         logger.info(f"🧹 ADMIN_ZOMBIE_CLEANUP: Cleaned {cleaned_count} zombie recordings")
-        
+
         return {
             "success": True,
             "message": f"Cleaned up {cleaned_count} zombie recordings",
             "cleaned_count": cleaned_count,
         }
-        
+
     except Exception as e:
         logger.error(f"Error in zombie recording cleanup: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Zombie cleanup failed")

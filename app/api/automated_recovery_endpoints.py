@@ -422,7 +422,7 @@ async def test_recovery_services():
             "failed_post_processing": unified_stats.failed_post_processing,
             "total_size_gb": unified_stats.total_size_gb,
         }
-    except Exception as e:
+    except Exception:
         results["unified_recovery"] = {"available": False, "error": "Service unavailable"}
 
     # Test Orphaned Recovery
@@ -432,7 +432,7 @@ async def test_recovery_services():
         orphaned_service = await get_orphaned_recovery_service()
         orphaned_result = await orphaned_service.scan_and_recover_orphaned_recordings(max_age_hours=48, dry_run=True)
         results["orphaned_recovery"] = {"available": True, "orphaned_found": orphaned_result.get("orphaned_found", 0)}
-    except Exception as e:
+    except Exception:
         results["orphaned_recovery"] = {"available": False, "error": "Service unavailable"}
 
     # Test Failed Recovery
@@ -446,7 +446,7 @@ async def test_recovery_services():
             "failed_found": failed_result.get("failed_found", 0),
             "recoverable_found": failed_result.get("recoverable_found", 0),
         }
-    except Exception as e:
+    except Exception:
         results["failed_recovery"] = {"available": False, "error": "Service unavailable"}
 
     return {

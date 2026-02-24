@@ -76,7 +76,7 @@ class ArtworkService:
                 getattr(streamer, 'original_profile_image_url', None) or
                 getattr(streamer, 'profile_image_url', None)
             )
-            
+
             if not profile_url:
                 logger.warning(f"No profile image URL for streamer {streamer.username}")
                 return False

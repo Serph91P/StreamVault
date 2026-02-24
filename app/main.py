@@ -216,7 +216,7 @@ async def lifespan(app: FastAPI):
                     except Exception as e:
                         logger.error(f"Error in session cleanup: {e}", exc_info=True)
 
-            session_cleanup_task = asyncio.create_task(scheduled_session_cleanup())
+            asyncio.create_task(scheduled_session_cleanup())
             logger.info("✅ Session cleanup service started (runs every 6 hours)")
         except Exception as e:
             logger.error(f"Failed to start session cleanup service: {e}")
@@ -814,7 +814,7 @@ async def eventsub_callback(request: Request):
 
         # SECURITY: Reject messages older than 10 minutes to prevent replay attacks
         try:
-            from datetime import datetime as _dt, timezone as _tz, timedelta as _td
+            from datetime import datetime as _dt, timezone as _tz
             msg_time = _dt.fromisoformat(timestamp.replace("Z", "+00:00"))
             if abs((_dt.now(_tz.utc) - msg_time).total_seconds()) > 600:
                 logger.warning(f"EventSub message too old (timestamp: {timestamp}), rejecting replay")

@@ -86,12 +86,12 @@ async def start_session_cleanup_service():
 
 async def start_zombie_recording_cleanup_service():
     """Start periodic zombie recording cleanup service.
-    
+
     This service runs every 5 minutes to detect and clean up recordings that are
     stuck in 'recording' status but have no active Streamlink process.
-    
+
     This is essential for production reliability after app restarts/updates.
-    
+
     Detection Logic:
     1. If recording has no active Streamlink process AND is older than 30 minutes → Zombie
     2. If recording has no active process AND streamer is offline → Zombie (regardless of age)
@@ -110,7 +110,7 @@ async def start_zombie_recording_cleanup_service():
             while True:
                 try:
                     await asyncio.sleep(ZOMBIE_CLEANUP_INTERVAL)
-                    
+
                     cleaned_count = await _cleanup_zombie_recordings_now()
                     if cleaned_count > 0:
                         logger.info(f"🧹 Periodic zombie cleanup: cleaned {cleaned_count} zombie recordings")
@@ -130,33 +130,33 @@ async def start_zombie_recording_cleanup_service():
 
 async def _cleanup_zombie_recordings_now() -> int:
     """Clean up zombie recordings that are stuck in 'recording' status.
-    
+
     A recording is considered a zombie if:
     1. Status is 'recording' in the database
     2. No active Streamlink process exists for this recording
     3. The streamer is offline (checked via Twitch API) OR the recording is older than 30 minutes
-    
+
     This runs every 5 minutes and catches:
     - Recordings left after app restart (if EventSub offline event was missed)
     - Recordings where the process crashed
     - Any other stuck recordings
-    
+
     Returns:
         Number of cleaned up recordings
     """
     try:
         from app.database import SessionLocal
-        from app.models import Recording, Stream, Streamer
+        from app.models import Recording, Stream
         from app.services.recording.recording_state_manager import recording_state_manager
         from datetime import datetime, timezone
         from sqlalchemy.orm import joinedload
 
         cleaned_count = 0
-        
+
         # Get active recording IDs from the GLOBAL singleton state manager
         # This is the authoritative source of which recordings are actually running
         active_recording_ids = set(recording_state_manager.get_active_recordings().keys())
-        
+
         with SessionLocal() as db:
             # Find all recordings with 'recording' status
             zombie_candidates = (
@@ -165,19 +165,19 @@ async def _cleanup_zombie_recordings_now() -> int:
                 .filter(Recording.status == "recording")
                 .all()
             )
-            
+
             if not zombie_candidates:
                 return 0
-                
+
             logger.debug(f"🔍 Checking {len(zombie_candidates)} recordings for zombie status")
-            
+
             for recording in zombie_candidates:
                 try:
                     # Skip if this recording is actually active (has running process)
                     if recording.id in active_recording_ids:
                         logger.debug(f"Recording {recording.id} is active (has running process), skipping")
                         continue
-                    
+
                     # Calculate age
                     now_utc = datetime.now(timezone.utc)
                     recording_age_minutes = 0
@@ -187,7 +187,7 @@ async def _cleanup_zombie_recordings_now() -> int:
                         else:
                             start_time = recording.start_time
                         recording_age_minutes = (now_utc - start_time).total_seconds() / 60
-                    
+
                     # If recording is older than 30 minutes and no active process, it's definitely a zombie
                     # This catches recordings after app restarts where the process never resumed
                     if recording_age_minutes > 30:
@@ -203,17 +203,17 @@ async def _cleanup_zombie_recordings_now() -> int:
                         recording_state_manager.remove_active_recording(recording.id)
                         cleaned_count += 1
                         continue
-                    
+
                     # For younger recordings (< 30 min), check if streamer is actually offline
                     if recording.stream and recording.stream.streamer:
                         streamer = recording.stream.streamer
-                        
+
                         # Quick check via Twitch API
                         try:
                             from app.api.twitch_api import twitch_api
                             streams = await twitch_api.get_streams(user_ids=[streamer.twitch_id])
                             is_live = bool(streams)
-                            
+
                             if not is_live:
                                 logger.info(f"🧹 Zombie detected: Recording {recording.id} for offline streamer {streamer.username} (age: {recording_age_minutes:.0f}min)")
                                 recording.status = "stopped"
@@ -246,17 +246,17 @@ async def _cleanup_zombie_recordings_now() -> int:
                             logger.debug(f"Could not check live status for {streamer.username}: {api_error}")
                             # On API error, don't clean up to be safe
                             continue
-                    
+
                 except Exception as rec_error:
                     logger.warning(f"Error processing zombie candidate {recording.id}: {rec_error}")
                     continue
-            
+
             if cleaned_count > 0:
                 db.commit()
                 logger.info(f"🧹 Committed cleanup of {cleaned_count} zombie recordings")
-        
+
         return cleaned_count
-        
+
     except Exception as e:
         logger.error(f"Error in zombie recording cleanup: {e}")
         return 0
@@ -506,14 +506,14 @@ async def cleanup_zombie_recordings():
                         # CRITICAL: Find the existing segments directory to resume into
                         # This ensures all segments end up in the same directory for later concatenation
                         resume_segments_dir = None
-                        
+
                         # Try to find segments directory from StreamMetadata
                         try:
                             from app.models import StreamMetadata
                             metadata = db.query(StreamMetadata).filter(
                                 StreamMetadata.stream_id == stream.id
                             ).first()
-                            
+
                             if metadata and metadata.segments_dir_path:
                                 from pathlib import Path
                                 if Path(metadata.segments_dir_path).exists():
@@ -521,7 +521,7 @@ async def cleanup_zombie_recordings():
                                     logger.info(f"📂 Found segments directory from metadata: {resume_segments_dir}")
                         except Exception as e:
                             logger.debug(f"Could not get segments dir from metadata: {e}")
-                        
+
                         # Fallback: Try to derive from recording path
                         if not resume_segments_dir and recording.path:
                             from pathlib import Path

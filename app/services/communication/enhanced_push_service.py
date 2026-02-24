@@ -26,12 +26,12 @@ class EnhancedPushService:
         """Lazy initialization of web push service - loads VAPID keys on first use"""
         if self._web_push_service is not None:
             return self._web_push_service
-        
+
         if self._initialization_attempted:
             return None  # Already tried and failed
-        
+
         self._initialization_attempted = True
-        
+
         # Get VAPID keys from settings (may trigger database load)
         vapid_keys = self.settings.get_vapid_keys()
         vapid_private_key = vapid_keys.get("private_key")

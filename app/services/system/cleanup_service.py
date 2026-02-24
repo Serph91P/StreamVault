@@ -106,13 +106,13 @@ class CleanupService:
         try:
             # Get the policy to apply
             policy = custom_policy or CleanupService._get_effective_cleanup_policy(streamer_id, db)
-            
+
             # CRITICAL: If no policy is configured (None), skip cleanup entirely
             # This happens when max_streams=0 (unlimited) and no explicit cleanup policy is set
             if policy is None:
                 logger.debug(f"No cleanup policy for streamer {streamer_id}, skipping cleanup (unlimited retention)")
                 return 0, []
-            
+
             policy_type = policy.get("type", CleanupPolicyType.COUNT.value)
             threshold = policy.get("threshold", 10)
             preserve_favorites = policy.get("preserve_favorites", True)
@@ -484,7 +484,6 @@ class CleanupService:
 
                 # Get the base directory for this recording
                 recording_dir = None
-                base_name = None
                 if stream.recording_path:
                     recording_dir = os.path.dirname(stream.recording_path)
                     if recording_dir and os.path.exists(recording_dir):
@@ -621,7 +620,7 @@ class CleanupService:
                 #
                 # recording_dir = Season folder (e.g., /recordings/GRONKH/Season 2026-01/)
                 # We should ONLY delete the Season folder if it's completely empty (no other recordings)
-                
+
                 # Check if the Season directory is now completely empty (no other recordings remain)
                 if recording_dir and os.path.exists(recording_dir):
                     try:
@@ -629,24 +628,24 @@ class CleanupService:
                         # Look for .mp4, .ts, .mkv files (actual recordings, not metadata)
                         recording_extensions = {'.mp4', '.ts', '.mkv', '.avi', '.mov'}
                         remaining_recordings = []
-                        
+
                         for item in os.listdir(recording_dir):
                             item_path = os.path.join(recording_dir, item)
-                            
+
                             # Skip hidden files/dirs
                             if item.startswith('.'):
                                 continue
-                                
+
                             # Check if it's a recording file
                             if os.path.isfile(item_path):
                                 _, ext = os.path.splitext(item.lower())
                                 if ext in recording_extensions:
                                     remaining_recordings.append(item)
-                            
+
                             # Check if it's a segments directory (indicates active/incomplete recording)
                             elif os.path.isdir(item_path) and item.endswith('_segments'):
                                 remaining_recordings.append(item)
-                        
+
                         if remaining_recordings:
                             # Other recordings still exist in this Season folder - keep it!
                             logger.debug(
@@ -659,10 +658,10 @@ class CleanupService:
                                 'poster.jpg', 'fanart.jpg', 'season-poster.jpg', 'banner.jpg',
                                 'season.nfo', 'tvshow.nfo', 'folder.jpg'
                             }
-                            
+
                             all_items = [f for f in os.listdir(recording_dir) if not f.startswith('.')]
                             non_metadata_items = [f for f in all_items if f.lower() not in metadata_files]
-                            
+
                             if not non_metadata_items:
                                 # Only metadata files remain - safe to delete Season folder
                                 # SECURITY: Validate path before deletion
@@ -670,12 +669,12 @@ class CleanupService:
                                     safe_season_dir = validate_path_security(recording_dir, "delete")
                                     shutil.rmtree(safe_season_dir)
                                     logger.info(f"🗂️ Removed empty Season directory: {safe_season_dir}")
-                                    
+
                                     # Now check if the Streamer folder is also empty
                                     streamer_dir = os.path.dirname(safe_season_dir)
                                     if os.path.exists(streamer_dir):
                                         streamer_items = [
-                                            f for f in os.listdir(streamer_dir) 
+                                            f for f in os.listdir(streamer_dir)
                                             if not f.startswith('.') and f.lower() not in metadata_files
                                         ]
                                         if not streamer_items:
@@ -781,7 +780,7 @@ class CleanupService:
                                 f"- no cleanup policy (unlimited retention)"
                             )
                             continue
-                            
+
                         policy_type = policy.get("type", "count")
                         threshold = policy.get("threshold", 0)
                         logger.info(
@@ -843,12 +842,12 @@ class CleanupService:
         try:
             # Get the policy to apply
             policy = custom_policy or CleanupService._get_effective_cleanup_policy(streamer_id, db)
-            
+
             # If no policy is configured, nothing would be deleted
             if policy is None:
                 logger.debug(f"No cleanup policy for streamer {streamer_id}, nothing to simulate")
                 return 0, []
-            
+
             policy_type = policy.get("type", CleanupPolicyType.COUNT.value)
             threshold = policy.get("threshold", 10)
             preserve_favorites = policy.get("preserve_favorites", True)

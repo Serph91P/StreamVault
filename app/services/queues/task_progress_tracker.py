@@ -255,7 +255,7 @@ class TaskProgressTracker:
         )
         self.external_tasks[task_id] = task
         logger.debug(f"External task {task_id} ({task_type}) added to tracking")
-        
+
         # Send immediate WebSocket notification
         self._create_background_task(self._send_task_update(task))
 
@@ -294,10 +294,10 @@ class TaskProgressTracker:
             # Mark as completed before removing so frontend knows it's done
             task.status = TaskStatus.COMPLETED
             task.completed_at = datetime.now(timezone.utc)
-            
+
             # Send WebSocket notification before removing
             self._create_background_task(self._send_task_update(task))
-            
+
             del self.external_tasks[task_id]
             logger.debug(f"External task {task_id} removed from tracking")
 

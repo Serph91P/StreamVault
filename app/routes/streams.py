@@ -16,7 +16,7 @@ router = APIRouter(prefix="/api/streams", tags=["streams"])
 @router.delete("/{stream_id}")
 async def delete_stream(request: Request, stream_id: int, db: Session = Depends(get_db)):
     """Delete a specific stream and all associated metadata.
-    
+
     IMPORTANT: Uses the same safe deletion logic as cleanup_service:
     - tvshow.nfo is NEVER deleted (belongs to streamer, not stream)
     - season.nfo is only deleted if this is the LAST stream in that season
@@ -60,7 +60,7 @@ async def delete_stream(request: Request, stream_id: int, db: Session = Depends(
                 "chapters_ffmpeg_path",
                 "chapters_xml_path",
             ]
-            
+
             for attr in per_stream_attrs:
                 path = getattr(metadata, attr, None)
                 if path:
@@ -74,10 +74,10 @@ async def delete_stream(request: Request, stream_id: int, db: Session = Depends(
             # SHARED FILES HANDLING (same logic as cleanup_service):
             # - tvshow.nfo: NEVER delete during stream deletion (belongs to streamer)
             # - season.nfo: Only delete if this is the LAST stream in that season
-            
+
             if metadata.tvshow_nfo_path:
                 logger.debug(f"Preserving tvshow.nfo (belongs to streamer, not stream): {metadata.tvshow_nfo_path}")
-            
+
             if metadata.season_nfo_path and os.path.exists(metadata.season_nfo_path):
                 # Check if other streams exist in the same season directory
                 season_dir = os.path.dirname(metadata.season_nfo_path)
@@ -100,7 +100,7 @@ async def delete_stream(request: Request, stream_id: int, db: Session = Depends(
                         logger.warning(f"🚨 SECURITY: Skipping invalid season.nfo path: {e.detail}")
                 else:
                     logger.debug(f"Keeping shared season.nfo ({other_streams_in_season} other streams in season)")
-            
+
             # Handle segments directory from metadata
             if metadata.segments_dir_path and os.path.exists(metadata.segments_dir_path):
                 try:

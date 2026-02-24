@@ -336,11 +336,11 @@ class UnifiedRecoveryService:
                 # First check if there's already an active recording for this stream
                 # If so, we should NOT try to resume - instead concatenate the old segments
                 has_active_recording = await self._check_if_stream_has_active_recording(recording_id)
-                
+
                 if has_active_recording:
                     # Another recording is already running for this stream
                     # The old segments belong to a previous episode - concatenate them now
-                    logger.info(f"📡 Stream already has an active recording - processing old segments separately")
+                    logger.info("📡 Stream already has an active recording - processing old segments separately")
                     logger.info("📌 Old segments will be concatenated as a separate episode")
                     # Fall through to concatenation logic below
                 else:
@@ -758,7 +758,7 @@ class UnifiedRecoveryService:
 
             # PRIORITY 3: Fallback - newest incomplete stream (only if no info in filename)
             if not matched_stream and not filename_timestamp and not episode_info:
-                logger.debug(f"No info in filename, falling back to newest incomplete stream")
+                logger.debug("No info in filename, falling back to newest incomplete stream")
                 matched_stream = (
                     db.query(Stream)
                     .filter(Stream.streamer_id == streamer.id)
@@ -992,7 +992,7 @@ class UnifiedRecoveryService:
 
     async def _check_if_stream_has_active_recording(self, orphaned_recording_id: int) -> bool:
         """Check if the stream already has a different active recording running.
-        
+
         This is important when we find orphaned segments but a new recording
         has already started for the same stream. In this case, we should NOT
         try to resume (which would fail), but instead concatenate the old
@@ -1004,12 +1004,12 @@ class UnifiedRecoveryService:
                 orphaned_recording = db.query(Recording).filter(
                     Recording.id == orphaned_recording_id
                 ).first()
-                
+
                 if not orphaned_recording:
                     return False
-                
+
                 stream_id = orphaned_recording.stream_id
-                
+
                 # Check if there's another recording with status='recording' for this stream
                 # that is NOT the orphaned recording
                 active_recording = db.query(Recording).filter(
@@ -1017,20 +1017,20 @@ class UnifiedRecoveryService:
                     Recording.id != orphaned_recording_id,
                     Recording.status == "recording"
                 ).first()
-                
+
                 if active_recording:
                     logger.info(
                         f"🔍 Found active recording {active_recording.id} for stream {stream_id} "
                         f"(orphaned recording: {orphaned_recording_id})"
                     )
                     return True
-                
+
                 # Also check via RecordingService for in-memory active recordings
                 try:
                     from app.services.recording.recording_service import RecordingService
                     recording_service = RecordingService()
                     active_recordings = recording_service.get_active_recordings()
-                    
+
                     for rec_id, rec_data in active_recordings.items():
                         if rec_data.get("stream_id") == stream_id and rec_id != orphaned_recording_id:
                             logger.info(
@@ -1040,9 +1040,9 @@ class UnifiedRecoveryService:
                             return True
                 except Exception as e:
                     logger.debug(f"Could not check in-memory recordings: {e}")
-                
+
                 return False
-                
+
         except Exception as e:
             logger.error(f"❌ Error checking for active recording: {e}")
             return False
