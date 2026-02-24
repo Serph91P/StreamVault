@@ -68,7 +68,7 @@ async def get_orphaned_recordings_stats(
 
     except Exception as e:
         logger.error(f"Error getting orphaned recordings stats: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to get stats: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to get stats")
 
 
 @router.post("/retry-all", response_model=PostProcessingRetryResponse)
@@ -109,7 +109,7 @@ async def retry_all_failed_post_processing(
 
     except Exception as e:
         logger.error(f"Error retrying post-processing: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to retry post-processing: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to retry post-processing")
 
 
 @router.post("/retry-specific", response_model=PostProcessingRetryResponse)
@@ -194,7 +194,7 @@ async def retry_specific_recordings(request: PostProcessingRetryRequest) -> Post
 
     except Exception as e:
         logger.error(f"Error retrying specific recordings: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to retry specific recordings: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to retry specific recordings")
 
 
 @router.post("/cleanup-segments")
@@ -231,7 +231,7 @@ async def cleanup_orphaned_segments(
 
     except Exception as e:
         logger.error(f"Error cleaning orphaned segments: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to cleanup segments: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to cleanup segments")
 
 
 @router.post("/cleanup-orphaned-files")
@@ -264,7 +264,7 @@ async def cleanup_orphaned_files() -> Dict[str, Any]:
 
     except Exception as e:
         logger.error(f"Error cleaning orphaned files: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to cleanup orphaned files: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to cleanup orphaned files")
 
 
 @router.get("/orphaned-list")
@@ -326,7 +326,7 @@ async def get_orphaned_recordings_list(
 
     except Exception as e:
         logger.error(f"Error getting orphaned recordings list: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to get orphaned list: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to get orphaned list")
 
 
 @router.post("/enqueue-manual")
@@ -349,10 +349,11 @@ async def enqueue_manual_post_processing(
 
         logger.info(f"⚡ ADMIN_MANUAL_ENQUEUE: recording_id={recording_id}, file={ts_file_path}")
 
-        # Validate and secure the file path
-        normalized_path = os.path.normpath(os.path.join(RECORDINGS_ROOT, ts_file_path))
-        if not normalized_path.startswith(RECORDINGS_ROOT):
-            raise HTTPException(status_code=400, detail="Invalid file path: outside allowed directory")
+        # SECURITY: Use validate_path_security() instead of startswith() (CWE-22)
+        from app.utils.security import validate_path_security
+        normalized_path = validate_path_security(
+            os.path.join(RECORDINGS_ROOT, ts_file_path), "read"
+        )
 
         # Validate file exists
         if not Path(normalized_path).exists():
@@ -395,4 +396,4 @@ async def enqueue_manual_post_processing(
 
     except Exception as e:
         logger.error(f"Error enqueuing manual post-processing: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to enqueue post-processing: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to enqueue post-processing")

@@ -15,8 +15,28 @@ class AuthMiddleware:
         if scope["type"] not in ("http", "websocket"):
             return await self.app(scope, receive, send)
 
-        # Handle WebSocket connections directly
+        # SECURITY: Validate WebSocket connections with session cookie
         if scope["type"] == "websocket":
+            from starlette.websockets import WebSocket as StarletteWebSocket
+            ws = StarletteWebSocket(scope, receive, send)
+            session_token = ws.cookies.get("session")
+            if not session_token:
+                logger.warning(f"WebSocket connection rejected: no session cookie")
+                await ws.close(code=4001, reason="Authentication required")
+                return
+            db = SessionLocal()
+            try:
+                auth_service = AuthService(db=db)
+                if not await auth_service.validate_session(session_token):
+                    logger.warning(f"WebSocket connection rejected: invalid session")
+                    await ws.close(code=4001, reason="Invalid session")
+                    return
+            except Exception as e:
+                logger.error(f"WebSocket auth error: {e}")
+                await ws.close(code=4003, reason="Authentication service unavailable")
+                return
+            finally:
+                db.close()
             return await self.app(scope, receive, send)
 
         # Process HTTP requests
@@ -95,6 +115,15 @@ class AuthMiddleware:
             return await self.app(scope, receive, send)
         except Exception as e:
             logger.error(f"Auth middleware error for {request.url.path}: {e}")
-            return await self.app(scope, receive, send)
+            # SECURITY: Fail closed — deny access when auth cannot be verified (CWE-280)
+            if is_json_request:
+                return await JSONResponse(
+                    {"error": "Authentication service unavailable"},
+                    status_code=503
+                )(scope, receive, send)
+            return await JSONResponse(
+                {"error": "Authentication service unavailable"},
+                status_code=503
+            )(scope, receive, send)
         finally:
             db.close()

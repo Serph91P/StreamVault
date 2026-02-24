@@ -479,7 +479,7 @@ async def add_security_headers(request: Request, call_next):
             # Default CSP
             csp_directives = [
                 "default-src 'self'",
-                "script-src 'self' 'unsafe-inline' 'unsafe-eval'",  # Required for Vue.js
+                "script-src 'self' 'unsafe-inline'",  # Required for Vue.js; unsafe-eval removed for XSS protection
                 "style-src 'self' 'unsafe-inline'",  # Required for inline styles
                 "img-src 'self' data: https: blob:",  # Allow images from various sources
                 "font-src 'self' data:",

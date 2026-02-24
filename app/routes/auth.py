@@ -1,4 +1,6 @@
 import logging
+import time
+from collections import defaultdict
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse, RedirectResponse, FileResponse
 from app.services.core.auth_service import AuthService
@@ -9,6 +11,41 @@ from app.config.settings import get_settings
 logger = logging.getLogger("streamvault")
 
 router = APIRouter(tags=["auth"])
+
+# SECURITY: Per-IP login rate limiting to prevent brute-force attacks (CWE-307)
+_login_attempts: dict[str, list[float]] = defaultdict(list)
+_LOGIN_MAX_ATTEMPTS = 5  # Max attempts per window
+_LOGIN_WINDOW_SECONDS = 300  # 5-minute sliding window
+_LOGIN_LOCKOUT_SECONDS = 900  # 15-minute lockout after exceeding limit
+
+
+def _check_login_rate_limit(client_ip: str) -> None:
+    """Check if the IP has exceeded the login rate limit."""
+    now = time.monotonic()
+    attempts = _login_attempts[client_ip]
+
+    # Remove attempts outside the window
+    _login_attempts[client_ip] = [t for t in attempts if now - t < _LOGIN_WINDOW_SECONDS]
+    attempts = _login_attempts[client_ip]
+
+    if len(attempts) >= _LOGIN_MAX_ATTEMPTS:
+        # Check if still in lockout period from the last attempt
+        oldest_in_window = min(attempts) if attempts else now
+        lockout_remaining = _LOGIN_LOCKOUT_SECONDS - (now - oldest_in_window)
+        if lockout_remaining > 0:
+            logger.warning(f"🚨 SECURITY: Login rate limit exceeded for IP {client_ip}")
+            raise HTTPException(
+                status_code=429,
+                detail="Too many login attempts. Please try again later.",
+                headers={"Retry-After": str(int(lockout_remaining))},
+            )
+        # Lockout expired, clear old attempts
+        _login_attempts[client_ip] = []
+
+
+def _record_login_attempt(client_ip: str) -> None:
+    """Record a failed login attempt."""
+    _login_attempts[client_ip].append(time.monotonic())
 
 
 @router.api_route("/setup", methods=["GET", "HEAD"])
@@ -52,8 +89,18 @@ async def setup_admin(request: UserCreate, auth_service: AuthService = Depends(g
 
 
 @router.post("/login")
-async def login(request: UserCreate, auth_service: AuthService = Depends(get_auth_service)):
+async def login(
+    request: UserCreate,
+    http_request: Request = None,
+    auth_service: AuthService = Depends(get_auth_service),
+):
     try:
+        # SECURITY: Per-IP brute-force protection (CWE-307)
+        client_ip = "unknown"
+        if http_request:
+            client_ip = http_request.headers.get("X-Forwarded-For", "").split(",")[0].strip() or http_request.client.host if http_request.client else "unknown"
+        _check_login_rate_limit(client_ip)
+
         # Validate input
         if not request.username or not request.password:
             logger.warning(
@@ -63,6 +110,8 @@ async def login(request: UserCreate, auth_service: AuthService = Depends(get_aut
 
         user = await auth_service.validate_login(request.username, request.password)
         if not user:
+            # Record failed attempt for rate limiting
+            _record_login_attempt(client_ip)
             logger.warning(f"Failed login attempt for username: {request.username}")
             raise HTTPException(status_code=401, detail="Invalid credentials")
 

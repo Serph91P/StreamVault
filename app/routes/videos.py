@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException, Request, Depends, Query
 from fastapi.responses import StreamingResponse, FileResponse, JSONResponse
+import os
 import urllib.parse
 from typing import List, Optional
 import logging
@@ -17,6 +18,9 @@ from app.utils.token_store import store_share_token, validate_share_token, clean
 from app.services.core.auth_service import AuthService
 
 logger = logging.getLogger("streamvault")
+
+# SECURITY: Debug endpoints are only available in development mode
+_IS_DEVELOPMENT = os.getenv("ENVIRONMENT", "").lower() == "development"
 
 # Constants for share tokens and chapters
 TOKEN_EXPIRATION_HOURS = 24  # Share token expiration time
@@ -583,7 +587,7 @@ async def stream_video_public(
             validate_file_type(validated_path, ALLOWED_VIDEO_EXTENSIONS)
         except ValueError as e:
             logger.error(f"Invalid file type: {e}")
-            raise HTTPException(status_code=400, detail=str(e))
+            raise HTTPException(status_code=400, detail="Internal server error")
         file_path = Path(validated_path)
 
         # Verify file exists
@@ -725,7 +729,7 @@ async def stream_video_by_id(stream_id: int, request: Request, db: Session = Dep
             validate_file_type(validated_path, ALLOWED_VIDEO_EXTENSIONS)
         except ValueError as e:
             logger.error(f"Invalid file type for stream {stream_id}: {e}")
-            raise HTTPException(status_code=400, detail=str(e))
+            raise HTTPException(status_code=400, detail="Internal server error")
         file_path = Path(validated_path)
 
         # Handle both regular files and segmented recordings
@@ -1307,7 +1311,10 @@ async def stream_video_by_filename(filename: str, request: Request, db: Session 
 
 @router.get("/videos/test/{stream_id}")
 async def test_video_access(stream_id: int, request: Request, db: Session = Depends(get_db)):
-    """Test endpoint to debug video access issues"""
+    """Test endpoint to debug video access issues — DEVELOPMENT ONLY"""
+    # SECURITY: Gate debug endpoints behind environment check (CWE-489)
+    if not _IS_DEVELOPMENT:
+        raise HTTPException(status_code=404, detail="Not found")
     try:
         logger.info(f"Test video access for stream_id: {stream_id}")
 
@@ -1471,7 +1478,10 @@ async def debug_videos_database(
     db: Session = Depends(get_db),
     streamer_username: str = Query(None, description="Filter by specific streamer username"),
 ):
-    """Debug endpoint to see what's in the database vs filesystem"""
+    """Debug endpoint to see what's in the database vs filesystem — DEVELOPMENT ONLY"""
+    # SECURITY: Gate debug endpoints behind environment check (CWE-489)
+    if not _IS_DEVELOPMENT:
+        raise HTTPException(status_code=404, detail="Not found")
 
     result = {
         "streams": [],
@@ -1632,7 +1642,10 @@ async def debug_videos_database(
 async def debug_recordings_directory(
     streamer_username: str = Query(None, description="Filter by specific streamer username")
 ):
-    """Debug endpoint to list contents of recordings directory"""
+    """Debug endpoint to list contents of recordings directory — DEVELOPMENT ONLY"""
+    # SECURITY: Gate debug endpoints behind environment check (CWE-489)
+    if not _IS_DEVELOPMENT:
+        raise HTTPException(status_code=404, detail="Not found")
 
     result = {
         "base_recordings_dir": "/recordings",

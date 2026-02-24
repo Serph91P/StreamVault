@@ -42,7 +42,7 @@ async def migrate_images(background_tasks: BackgroundTasks):
         return MigrationResponse(success=True, message="Image migration completed successfully", stats=stats)
     except Exception as e:
         logger.error(f"Error during image migration: {e}")
-        raise HTTPException(status_code=500, detail=f"Migration failed: {str(e)}")
+        raise HTTPException(status_code=500, detail="Migration failed")
 
 
 @router.get("/images/status")
@@ -63,7 +63,7 @@ async def get_migration_status():
         }
     except Exception as e:
         logger.error(f"Error checking migration status: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to check status: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to check status")
 
 
 @router.post("/images/refresh", response_model=MigrationResponse)
@@ -84,7 +84,7 @@ async def refresh_missing_images(background_tasks: BackgroundTasks):
         return MigrationResponse(success=True, message="Image refresh completed successfully", stats=stats)
     except Exception as e:
         logger.error(f"Error during image refresh: {e}")
-        raise HTTPException(status_code=500, detail=f"Image refresh failed: {str(e)}")
+        raise HTTPException(status_code=500, detail="Image refresh failed")
 
 
 @router.post("/images/refresh/streamer/{streamer_id}")
@@ -102,7 +102,7 @@ async def refresh_streamer_images(streamer_id: int):
 
     except Exception as e:
         logger.error(f"Error refreshing streamer images: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to refresh streamer images: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to refresh streamer images")
 
 
 @router.post("/images/refresh/category/{category_name}")
@@ -120,4 +120,4 @@ async def refresh_category_image(category_name: str):
 
     except Exception as e:
         logger.error(f"Error refreshing category image: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to refresh category image: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to refresh category image")

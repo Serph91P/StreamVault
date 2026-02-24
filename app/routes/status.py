@@ -7,7 +7,7 @@ This ensures the frontend can always get current state, regardless of WebSocket 
 
 from fastapi import APIRouter, HTTPException
 from sqlalchemy.orm import joinedload
-from sqlalchemy import and_
+from sqlalchemy import and_, text
 from typing import Dict, Any
 import logging
 from datetime import datetime, timezone
@@ -234,7 +234,7 @@ async def get_health_status() -> Dict[str, Any]:
     try:
         # Basic database connectivity test
         with SessionLocal() as db:
-            db.execute("SELECT 1")
+            db.execute(text("SELECT 1"))
 
         db_status = "healthy"
     except Exception as e:
@@ -347,7 +347,7 @@ async def get_streamers_status() -> Dict[str, Any]:
 
     except Exception as e:
         logger.error(f"Failed to get streamers status: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to get streamers status: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to get streamers status")
 
 
 @router.get("/streams")
@@ -417,7 +417,7 @@ async def get_streams_status() -> Dict[str, Any]:
 
     except Exception as e:
         logger.error(f"Failed to get streams status: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to get streams status: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to get streams status")
 
 
 @router.get("/notifications")
@@ -480,4 +480,4 @@ async def get_notifications_status() -> Dict[str, Any]:
 
     except Exception as e:
         logger.error(f"Failed to get notifications status: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to get notifications status: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to get notifications status")

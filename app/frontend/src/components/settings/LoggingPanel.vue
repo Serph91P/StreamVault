@@ -344,7 +344,8 @@ const cleanupLogs = async () => {
   try {
     isCleaningUp.value = true
     const response = await fetch(`/api/logging/cleanup?days_to_keep=${daysToKeep.value}`, {
-      method: 'POST'
+      method: 'POST',
+      credentials: 'include'
     })
     if (response.ok) {
       showCleanupDialog.value = false

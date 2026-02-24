@@ -74,7 +74,7 @@ async def list_log_files():
 
     except Exception as e:
         logger.error(f"Error listing log files: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/files/{log_type}/{filename}")
@@ -119,7 +119,7 @@ async def download_log_file(log_type: str, filename: str):
         raise
     except Exception as e:
         logger.error(f"Error downloading log file: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/files/{log_type}/{filename}/tail")
@@ -166,7 +166,7 @@ async def tail_log_file(
         raise
     except Exception as e:
         logger.error(f"Error tailing log file: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.delete("/files/{log_type}/{filename}")
@@ -204,7 +204,7 @@ async def delete_log_file(log_type: str, filename: str):
         raise
     except Exception as e:
         logger.error(f"Error deleting log file: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/cleanup")
@@ -216,7 +216,7 @@ async def cleanup_old_logs(days_to_keep: int = Query(30, description="Days of lo
 
     except Exception as e:
         logger.error(f"Error cleaning up logs: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/stats")
@@ -254,4 +254,4 @@ async def get_logging_stats():
 
     except Exception as e:
         logger.error(f"Error getting logging stats: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")

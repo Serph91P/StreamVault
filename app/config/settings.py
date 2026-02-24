@@ -155,7 +155,7 @@ class Settings(BaseSettings):
     # CORS settings
     CORS_ALLOW_CREDENTIALS: bool = True
     CORS_ALLOW_METHODS: List[str] = ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"]
-    CORS_ALLOW_HEADERS: List[str] = ["*"]
+    CORS_ALLOW_HEADERS: List[str] = ["Content-Type", "Authorization", "X-Requested-With", "Accept", "Origin"]
     CORS_MAX_AGE: int = 86400  # 24 hours
 
     # Additional allowed origins (comma-separated in env)
