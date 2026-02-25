@@ -34,7 +34,12 @@ class AutomatedRecoveryState:
         self._running = False
         self._interval = DEFAULT_RECOVERY_INTERVAL
         self._last_run = None
-        self._stats = {"total_runs": 0, "successful_runs": 0, "failed_runs": 0, "last_error": None}
+        self._stats = {
+            "total_runs": 0,
+            "successful_runs": 0,
+            "failed_runs": 0,
+            "last_error": None,
+        }
         self._task: Optional[asyncio.Task] = None
 
     async def is_running(self) -> bool:
@@ -131,18 +136,27 @@ async def run_comprehensive_recovery() -> Dict[str, Any]:
             simple_result = await run_simple_reliable_recovery()
             results["simple_recovery"] = simple_result.get("simple_recovery", {})
             results["total_recoveries"] += simple_result.get("total_recoveries", 0)
-            logger.info(f"✅ Simple recovery: {simple_result.get('total_recoveries', 0)} tasks created")
+            logger.info(
+                f"✅ Simple recovery: {simple_result.get('total_recoveries', 0)} tasks created"
+            )
         except Exception as e:
             logger.error(f"❌ Simple recovery failed: {e}")
-            results["simple_recovery"] = {"success": False, "error": str(e)}
+            results["simple_recovery"] = {
+                "success": False,
+                "error": "Simple recovery failed",
+            }
 
         # 2. Unified Recovery (most comprehensive analysis - if dependencies work)
         logger.info("🔧 Starting unified recovery...")
         try:
-            from ..services.recording.unified_recovery_service import get_unified_recovery_service
+            from ..services.recording.unified_recovery_service import (
+                get_unified_recovery_service,
+            )
 
             unified_service = await get_unified_recovery_service()
-            unified_stats = await unified_service.comprehensive_recovery_scan(max_age_hours=72, dry_run=False)
+            unified_stats = await unified_service.comprehensive_recovery_scan(
+                max_age_hours=72, dry_run=False
+            )
             results["unified_recovery"] = {
                 "success": True,
                 "orphaned_segments": unified_stats.orphaned_segments,
@@ -151,22 +165,32 @@ async def run_comprehensive_recovery() -> Dict[str, Any]:
                 "triggered_post_processing": unified_stats.triggered_post_processing,
                 "total_size_gb": unified_stats.total_size_gb,
             }
-            results["total_recoveries"] += unified_stats.recovered_recordings + unified_stats.triggered_post_processing
+            results["total_recoveries"] += (
+                unified_stats.recovered_recordings
+                + unified_stats.triggered_post_processing
+            )
             logger.info(
                 f"✅ Unified recovery: {unified_stats.recovered_recordings} recovered, {unified_stats.triggered_post_processing} triggered"
             )
         except Exception as e:
             logger.error(f"❌ Unified recovery failed: {e}")
-            results["unified_recovery"] = {"success": False, "error": str(e)}
+            results["unified_recovery"] = {
+                "success": False,
+                "error": "Unified recovery failed",
+            }
 
         # 3. Orphaned Recovery (additional for orphaned segments)
         logger.info("🔧 Starting orphaned recovery...")
         try:
-            from ..services.recording.orphaned_recovery_service import get_orphaned_recovery_service
+            from ..services.recording.orphaned_recovery_service import (
+                get_orphaned_recovery_service,
+            )
 
             orphaned_service = await get_orphaned_recovery_service()
-            orphaned_result = await orphaned_service.scan_and_recover_orphaned_recordings(
-                max_age_hours=48, dry_run=False
+            orphaned_result = (
+                await orphaned_service.scan_and_recover_orphaned_recordings(
+                    max_age_hours=48, dry_run=False
+                )
             )
             results["orphaned_recovery"] = {
                 "success": True,
@@ -174,18 +198,27 @@ async def run_comprehensive_recovery() -> Dict[str, Any]:
                 "orphaned_found": orphaned_result.get("orphaned_found", 0),
             }
             results["total_recoveries"] += orphaned_result.get("recovery_triggered", 0)
-            logger.info(f"✅ Orphaned recovery: {orphaned_result.get('recovery_triggered', 0)} triggered")
+            logger.info(
+                f"✅ Orphaned recovery: {orphaned_result.get('recovery_triggered', 0)} triggered"
+            )
         except Exception as e:
             logger.error(f"❌ Orphaned recovery failed: {e}")
-            results["orphaned_recovery"] = {"success": False, "error": str(e)}
+            results["orphaned_recovery"] = {
+                "success": False,
+                "error": "Orphaned recovery failed",
+            }
 
         # 4. Failed Recovery (specific for failed post-processing)
         logger.info("🔧 Starting failed recovery...")
         try:
-            from ..services.recording.failed_recording_recovery_service import get_failed_recovery_service
+            from ..services.recording.failed_recording_recovery_service import (
+                get_failed_recovery_service,
+            )
 
             failed_service = await get_failed_recovery_service()
-            failed_result = await failed_service.scan_and_recover_failed_recordings(dry_run=False)
+            failed_result = await failed_service.scan_and_recover_failed_recordings(
+                dry_run=False
+            )
             results["failed_recovery"] = {
                 "success": True,
                 "recovery_triggered": failed_result.get("recovery_triggered", 0),
@@ -193,16 +226,23 @@ async def run_comprehensive_recovery() -> Dict[str, Any]:
                 "recoverable_found": failed_result.get("recoverable_found", 0),
             }
             results["total_recoveries"] += failed_result.get("recovery_triggered", 0)
-            logger.info(f"✅ Failed recovery: {failed_result.get('recovery_triggered', 0)} triggered")
+            logger.info(
+                f"✅ Failed recovery: {failed_result.get('recovery_triggered', 0)} triggered"
+            )
         except Exception as e:
             logger.error(f"❌ Failed recovery failed: {e}")
-            results["failed_recovery"] = {"success": False, "error": str(e)}
+            results["failed_recovery"] = {
+                "success": False,
+                "error": "Failed recovery failed",
+            }
 
         results["end_time"] = datetime.now(timezone.utc).isoformat()
         results["success"] = True
         await recovery_state.increment_successful_runs()
 
-        logger.info(f"🎉 Comprehensive recovery completed: {results['total_recoveries']} total recoveries")
+        logger.info(
+            f"🎉 Comprehensive recovery completed: {results['total_recoveries']} total recoveries"
+        )
         return results
 
     except Exception as e:
@@ -230,9 +270,13 @@ async def automated_recovery_loop():
             result = await run_comprehensive_recovery()
 
             if result["success"]:
-                logger.info(f"✅ Recovery cycle completed: {result['total_recoveries']} total recoveries")
+                logger.info(
+                    f"✅ Recovery cycle completed: {result['total_recoveries']} total recoveries"
+                )
             else:
-                logger.error(f"❌ Recovery cycle failed: {result.get('error', 'Unknown error')}")
+                logger.error(
+                    f"❌ Recovery cycle failed: {result.get('error', 'Unknown error')}"
+                )
 
             # Aktuelle Interval-Zeit abrufen (könnte geändert worden sein)
             current_interval = await recovery_state.get_interval()
@@ -259,9 +303,15 @@ async def start_automated_recovery(interval_minutes: int = 5):
     """
     try:
         if await recovery_state.is_running():
-            return {"success": False, "message": "Automated recovery is already running"}
+            return {
+                "success": False,
+                "message": "Automated recovery is already running",
+            }
 
-        if interval_minutes < MIN_INTERVAL_MINUTES or interval_minutes > MAX_INTERVAL_MINUTES:
+        if (
+            interval_minutes < MIN_INTERVAL_MINUTES
+            or interval_minutes > MAX_INTERVAL_MINUTES
+        ):
             raise HTTPException(
                 status_code=400,
                 detail=f"Interval must be between {MIN_INTERVAL_MINUTES} and {MAX_INTERVAL_MINUTES} minutes",
@@ -283,7 +333,7 @@ async def start_automated_recovery(interval_minutes: int = 5):
 
     except Exception as e:
         logger.error(f"Failed to start automated recovery: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to start recovery: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to start recovery")
 
 
 @router.post("/stop")
@@ -300,7 +350,7 @@ async def stop_automated_recovery():
 
     except Exception as e:
         logger.error(f"Failed to stop automated recovery: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to stop recovery: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to stop recovery")
 
 
 @router.post("/run-once")
@@ -314,7 +364,7 @@ async def run_manual_recovery():
 
     except Exception as e:
         logger.error(f"Manual comprehensive recovery failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Recovery failed: {str(e)}")
+        raise HTTPException(status_code=500, detail="Recovery failed")
 
 
 @router.post("/run-simple")
@@ -334,13 +384,15 @@ async def run_simple_recovery():
         result = await run_simple_reliable_recovery()
 
         await recovery_state.increment_successful_runs()
-        logger.info(f"✅ Simple recovery completed: {result.get('total_recoveries', 0)} tasks created")
+        logger.info(
+            f"✅ Simple recovery completed: {result.get('total_recoveries', 0)} tasks created"
+        )
         return result
 
     except Exception as e:
         await recovery_state.increment_failed_runs(str(e))
         logger.error(f"❌ Simple recovery failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Simple recovery failed: {str(e)}")
+        raise HTTPException(status_code=500, detail="Simple recovery failed")
 
 
 @router.get("/status")
@@ -357,7 +409,12 @@ async def get_recovery_status():
             "interval_minutes": interval // 60,
             "last_run": last_run.isoformat() if last_run else None,
             "statistics": stats,
-            "services": ["simple_recovery", "unified_recovery", "orphaned_recovery", "failed_recovery"],
+            "services": [
+                "simple_recovery",
+                "unified_recovery",
+                "orphaned_recovery",
+                "failed_recovery",
+            ],
             "primary_service": "simple_recovery",
             "description": "Simple recovery runs first as it's most reliable (no dependency chains)",
         },
@@ -376,7 +433,10 @@ async def configure_recovery(interval_minutes: int = None):
     """
     try:
         if interval_minutes is not None:
-            if interval_minutes < MIN_INTERVAL_MINUTES or interval_minutes > MAX_INTERVAL_MINUTES:
+            if (
+                interval_minutes < MIN_INTERVAL_MINUTES
+                or interval_minutes > MAX_INTERVAL_MINUTES
+            ):
                 raise HTTPException(
                     status_code=400,
                     detail=f"Interval must be between {MIN_INTERVAL_MINUTES} and {MAX_INTERVAL_MINUTES} minutes",
@@ -398,7 +458,7 @@ async def configure_recovery(interval_minutes: int = None):
         raise
     except Exception as e:
         logger.error(f"Failed to configure recovery: {e}")
-        raise HTTPException(status_code=500, detail=f"Configuration failed: {str(e)}")
+        raise HTTPException(status_code=500, detail="Configuration failed")
 
 
 @router.get("/test-services")
@@ -408,49 +468,79 @@ async def test_recovery_services():
 
     Nützlich um zu prüfen ob alle Services verfügbar sind
     """
-    results = {"unified_recovery": None, "orphaned_recovery": None, "failed_recovery": None}
+    results = {
+        "unified_recovery": None,
+        "orphaned_recovery": None,
+        "failed_recovery": None,
+    }
 
     # Test Unified Recovery
     try:
-        from ..services.recording.unified_recovery_service import get_unified_recovery_service
+        from ..services.recording.unified_recovery_service import (
+            get_unified_recovery_service,
+        )
 
         unified_service = await get_unified_recovery_service()
-        unified_stats = await unified_service.comprehensive_recovery_scan(max_age_hours=72, dry_run=True)
+        unified_stats = await unified_service.comprehensive_recovery_scan(
+            max_age_hours=72, dry_run=True
+        )
         results["unified_recovery"] = {
             "available": True,
             "orphaned_segments": unified_stats.orphaned_segments,
             "failed_post_processing": unified_stats.failed_post_processing,
             "total_size_gb": unified_stats.total_size_gb,
         }
-    except Exception as e:
-        results["unified_recovery"] = {"available": False, "error": str(e)}
+    except Exception:
+        results["unified_recovery"] = {
+            "available": False,
+            "error": "Service unavailable",
+        }
 
     # Test Orphaned Recovery
     try:
-        from ..services.recording.orphaned_recovery_service import get_orphaned_recovery_service
+        from ..services.recording.orphaned_recovery_service import (
+            get_orphaned_recovery_service,
+        )
 
         orphaned_service = await get_orphaned_recovery_service()
-        orphaned_result = await orphaned_service.scan_and_recover_orphaned_recordings(max_age_hours=48, dry_run=True)
-        results["orphaned_recovery"] = {"available": True, "orphaned_found": orphaned_result.get("orphaned_found", 0)}
-    except Exception as e:
-        results["orphaned_recovery"] = {"available": False, "error": str(e)}
+        orphaned_result = await orphaned_service.scan_and_recover_orphaned_recordings(
+            max_age_hours=48, dry_run=True
+        )
+        results["orphaned_recovery"] = {
+            "available": True,
+            "orphaned_found": orphaned_result.get("orphaned_found", 0),
+        }
+    except Exception:
+        results["orphaned_recovery"] = {
+            "available": False,
+            "error": "Service unavailable",
+        }
 
     # Test Failed Recovery
     try:
-        from ..services.recording.failed_recording_recovery_service import get_failed_recovery_service
+        from ..services.recording.failed_recording_recovery_service import (
+            get_failed_recovery_service,
+        )
 
         failed_service = await get_failed_recovery_service()
-        failed_result = await failed_service.scan_and_recover_failed_recordings(dry_run=True)
+        failed_result = await failed_service.scan_and_recover_failed_recordings(
+            dry_run=True
+        )
         results["failed_recovery"] = {
             "available": True,
             "failed_found": failed_result.get("failed_found", 0),
             "recoverable_found": failed_result.get("recoverable_found", 0),
         }
-    except Exception as e:
-        results["failed_recovery"] = {"available": False, "error": str(e)}
+    except Exception:
+        results["failed_recovery"] = {
+            "available": False,
+            "error": "Service unavailable",
+        }
 
     return {
         "success": True,
         "services": results,
-        "all_available": all(service.get("available", False) for service in results.values()),
+        "all_available": all(
+            service.get("available", False) for service in results.values()
+        ),
     }

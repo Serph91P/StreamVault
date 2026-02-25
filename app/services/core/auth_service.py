@@ -33,7 +33,9 @@ class AuthService:
 
     async def create_admin(self, user_data: UserCreate) -> UserResponse:
         hashed_password = ph.hash(user_data.password)
-        admin = User(username=user_data.username, password=hashed_password, is_admin=True)
+        admin = User(
+            username=user_data.username, password=hashed_password, is_admin=True
+        )
         self.db.add(admin)
         self.db.commit()
         return UserResponse.model_validate(admin)
@@ -67,7 +69,9 @@ class AuthService:
                 return False
 
             # Check if session is expired (production fix for multi-user auth issues)
-            cutoff_time = datetime.now(timezone.utc) - timedelta(hours=self.session_timeout_hours)
+            cutoff_time = datetime.now(timezone.utc) - timedelta(
+                hours=self.session_timeout_hours
+            )
             if session.created_at < cutoff_time:
                 # Session is expired, delete it immediately
                 self.db.delete(session)
@@ -89,7 +93,9 @@ class AuthService:
             if not session:
                 return False
 
-            cutoff_time = datetime.now(timezone.utc) - timedelta(hours=self.session_timeout_hours)
+            cutoff_time = datetime.now(timezone.utc) - timedelta(
+                hours=self.session_timeout_hours
+            )
             if session.created_at < cutoff_time:
                 # Expired - remove and reject
                 self.db.delete(session)
@@ -110,9 +116,13 @@ class AuthService:
     async def cleanup_expired_sessions(self) -> int:
         """Clean up expired sessions (can be called periodically)"""
         try:
-            cutoff_time = datetime.now(timezone.utc) - timedelta(hours=self.session_timeout_hours)
+            cutoff_time = datetime.now(timezone.utc) - timedelta(
+                hours=self.session_timeout_hours
+            )
 
-            expired_sessions = self.db.query(Session).filter(Session.created_at < cutoff_time).all()
+            expired_sessions = (
+                self.db.query(Session).filter(Session.created_at < cutoff_time).all()
+            )
 
             expired_count = len(expired_sessions)
 

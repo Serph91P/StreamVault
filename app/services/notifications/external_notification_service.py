@@ -73,7 +73,7 @@ def get_local_cached_profile_url(streamer: "Streamer") -> Optional[str]:
 
         # Cast to str for type safety (SQLAlchemy Column -> str at runtime)
         # Use getattr to safely get the value and check if it's truthy
-        profile_url_raw = getattr(streamer, 'profile_image_url', None)
+        profile_url_raw = getattr(streamer, "profile_image_url", None)
         profile_url = str(profile_url_raw) if profile_url_raw else None
         if not profile_url:
             return None
@@ -139,7 +139,9 @@ class ExternalNotificationService:
             logger.error(f"Error initializing Apprise: {e}")
             self._notification_url = None
 
-    async def send_notification(self, message: str, title: str = "StreamVault Notification") -> bool:
+    async def send_notification(
+        self, message: str, title: str = "StreamVault Notification"
+    ) -> bool:
         """Send a basic notification"""
         with SessionLocal() as db:
             settings = db.query(GlobalSettings).first()
@@ -165,10 +167,14 @@ class ExternalNotificationService:
             logger.error(f"Error sending notification: {str(e)}", exc_info=True)
             return False
 
-    async def send_stream_notification(self, streamer_name: str, event_type: str, details: dict) -> bool:
+    async def send_stream_notification(
+        self, streamer_name: str, event_type: str, details: dict
+    ) -> bool:
         """Send external notification via Apprise for stream events"""
         try:
-            logger.debug(f"Starting send_stream_notification for {streamer_name}, event type: {event_type}")
+            logger.debug(
+                f"Starting send_stream_notification for {streamer_name}, event type: {event_type}"
+            )
 
             with SessionLocal() as db:
                 settings = db.query(GlobalSettings).first()
@@ -177,7 +183,11 @@ class ExternalNotificationService:
                     return False
 
                 # Case insensitive search for streamer
-                streamer = db.query(Streamer).filter(Streamer.username.ilike(streamer_name)).first()
+                streamer = (
+                    db.query(Streamer)
+                    .filter(Streamer.username.ilike(streamer_name))
+                    .first()
+                )
 
                 if not streamer:
                     logger.debug(f"Streamer {streamer_name} not found in database")
@@ -193,36 +203,58 @@ class ExternalNotificationService:
                 profile_image_url = ""
 
                 # Cast SQLAlchemy columns to str for type safety
-                original_url = str(streamer.original_profile_image_url) if getattr(streamer, 'original_profile_image_url', None) else ""
-                current_url = str(streamer.profile_image_url) if getattr(streamer, 'profile_image_url', None) else ""
+                original_url = (
+                    str(streamer.original_profile_image_url)
+                    if getattr(streamer, "original_profile_image_url", None)
+                    else ""
+                )
+                current_url = (
+                    str(streamer.profile_image_url)
+                    if getattr(streamer, "profile_image_url", None)
+                    else ""
+                )
 
                 # Priority 1: Use locally cached profile image if available
                 # This serves the image from our server via /data/images/profiles/{filename}
                 local_cached_url = get_local_cached_profile_url(streamer)
                 if local_cached_url:
                     profile_image_url = local_cached_url
-                    logger.debug(f"Using locally cached profile image: {profile_image_url}")
+                    logger.debug(
+                        f"Using locally cached profile image: {profile_image_url}"
+                    )
 
                 # Priority 2: Use original Twitch URL (always HTTP, always works)
                 elif original_url and original_url.startswith("http"):
                     profile_image_url = original_url
-                    logger.debug(f"Using original Twitch profile URL: {profile_image_url}")
+                    logger.debug(
+                        f"Using original Twitch profile URL: {profile_image_url}"
+                    )
                     # Optimize image size for Twitch CDN URLs
-                    profile_image_url = optimize_profile_image_for_notification(profile_image_url)
+                    profile_image_url = optimize_profile_image_for_notification(
+                        profile_image_url
+                    )
 
                 # Priority 3: If details has HTTP URL (from EventSub notification)
-                elif details.get("profile_image_url") and str(details["profile_image_url"]).startswith("http"):
+                elif details.get("profile_image_url") and str(
+                    details["profile_image_url"]
+                ).startswith("http"):
                     profile_image_url = str(details["profile_image_url"])
-                    logger.debug(f"Using profile URL from EventSub details: {profile_image_url}")
+                    logger.debug(
+                        f"Using profile URL from EventSub details: {profile_image_url}"
+                    )
                     # Optimize image size for Twitch CDN URLs
-                    profile_image_url = optimize_profile_image_for_notification(profile_image_url)
+                    profile_image_url = optimize_profile_image_for_notification(
+                        profile_image_url
+                    )
 
                 # Priority 4: Current streamer profile URL (if HTTP)
                 elif current_url and current_url.startswith("http"):
                     profile_image_url = current_url
                     logger.debug(f"Using current profile URL: {profile_image_url}")
                     # Optimize image size for Twitch CDN URLs
-                    profile_image_url = optimize_profile_image_for_notification(profile_image_url)
+                    profile_image_url = optimize_profile_image_for_notification(
+                        profile_image_url
+                    )
 
                 # If no suitable URL found, leave empty (notification will use service default icon)
                 if not profile_image_url:
@@ -241,7 +273,9 @@ class ExternalNotificationService:
                 # Create new Apprise instance
                 apprise = Apprise()
                 if not apprise.add(notification_url):
-                    logger.error(f"Failed to initialize notification URL: {notification_url}")
+                    logger.error(
+                        f"Failed to initialize notification URL: {notification_url}"
+                    )
                     return False
 
                 # Format message using formatter
@@ -250,8 +284,12 @@ class ExternalNotificationService:
                 )
 
                 # Send notification
-                logger.debug(f"Sending notification with title: {title}, message: {message[:50]}...")
-                result = await apprise.async_notify(title=title, body=message, body_format=NotifyFormat.TEXT)
+                logger.debug(
+                    f"Sending notification with title: {title}, message: {message[:50]}..."
+                )
+                result = await apprise.async_notify(
+                    title=title, body=message, body_format=NotifyFormat.TEXT
+                )
 
                 if not result:
                     logger.error("Apprise notification failed to send")
@@ -298,7 +336,12 @@ class ExternalNotificationService:
             return False
 
     def _get_service_specific_url(
-        self, base_url: str, twitch_url: str, profile_image: str, streamer_name: str, event_type: str
+        self,
+        base_url: str,
+        twitch_url: str,
+        profile_image: str,
+        streamer_name: str,
+        event_type: str,
     ) -> str:
         """
         Configure service-specific parameters based on the notification service.
@@ -322,7 +365,10 @@ class ExternalNotificationService:
             # - image: Defaults to 'yes' which attaches an image. Set to 'no' to disable
             # - icon: Native ntfy icon URL (separate from Apprise image handling)
 
-            params = [f"click={twitch_url}", f"priority={'high' if event_type == 'online' else 'default'}"]
+            params = [
+                f"click={twitch_url}",
+                f"priority={'high' if event_type == 'online' else 'default'}",
+            ]
 
             # Event-specific tags (text only to avoid duplicate emoji)
             if event_type == "online":
@@ -348,11 +394,19 @@ class ExternalNotificationService:
                 # Don't encode the URL - Apprise handles this internally
                 # Double-encoding causes the URL to become invalid
                 params.append(f"avatar_url={profile_image}")  # Override Apprise icon
-                params.append("image=no")  # Disable automatic image attachment (prevents duplicate)
-                logger.debug(f"Set ntfy avatar_url to streamer profile: {profile_image}")
+                params.append(
+                    "image=no"
+                )  # Disable automatic image attachment (prevents duplicate)
+                logger.debug(
+                    f"Set ntfy avatar_url to streamer profile: {profile_image}"
+                )
             else:
-                params.append("image=no")  # Still disable image since we have no profile
-                logger.debug("No valid HTTP profile image, notification will use default icon")
+                params.append(
+                    "image=no"
+                )  # Still disable image since we have no profile
+                logger.debug(
+                    "No valid HTTP profile image, notification will use default icon"
+                )
 
             final_url = f"{base_url}?{'&'.join(params)}"
             logger.debug(f"Generated ntfy URL: {final_url}")
@@ -362,21 +416,21 @@ class ExternalNotificationService:
             # Discord configuration
             # avatar_url sets the webhook avatar (streamer profile pic)
             # image=yes enables image embedding in the message
-            params = [
-                f"title={title}",
-                f"href={twitch_url}",
-                "format=markdown"
-            ]
+            params = [f"title={title}", f"href={twitch_url}", "format=markdown"]
 
             # Only add avatar_url if we have a valid HTTP profile image
             # NOTE: avatar_url must be URL-encoded to properly pass special characters
             if profile_image and profile_image.startswith("http"):
-                encoded_avatar_url = quote(profile_image, safe='')
+                encoded_avatar_url = quote(profile_image, safe="")
                 params.append(f"avatar_url={encoded_avatar_url}")
                 params.append("image=yes")  # Enable image embedding
-                logger.debug(f"Discord notification using profile image: {profile_image}")
+                logger.debug(
+                    f"Discord notification using profile image: {profile_image}"
+                )
             else:
-                logger.debug("Discord notification will use default avatar (no HTTP profile image)")
+                logger.debug(
+                    "Discord notification will use default avatar (no HTTP profile image)"
+                )
 
             final_url = f"{base_url}?{'&'.join(params)}"
             logger.debug(f"Generated discord URL: {final_url}")
@@ -389,9 +443,11 @@ class ExternalNotificationService:
 
             if profile_image and profile_image.startswith("http"):
                 # Telegram can embed images via the image parameter with URL
-                encoded_image_url = quote(profile_image, safe='')
+                encoded_image_url = quote(profile_image, safe="")
                 params.append(f"image={encoded_image_url}")
-                logger.debug(f"Telegram notification using profile image: {profile_image}")
+                logger.debug(
+                    f"Telegram notification using profile image: {profile_image}"
+                )
 
             final_url = f"{base_url}?{'&'.join(params)}" if params else base_url
             logger.debug(f"Generated telegram URL: {final_url}")
@@ -402,10 +458,12 @@ class ExternalNotificationService:
             params = ["msgtype=text", "format=markdown"]
 
             if profile_image and profile_image.startswith("http"):
-                encoded_image_url = quote(profile_image, safe='')
+                encoded_image_url = quote(profile_image, safe="")
                 params.append("thumbnail=true")
                 params.append(f"image={encoded_image_url}")
-                logger.debug(f"Matrix notification using profile image: {profile_image}")
+                logger.debug(
+                    f"Matrix notification using profile image: {profile_image}"
+                )
             else:
                 params.append("thumbnail=false")
 
@@ -419,7 +477,7 @@ class ExternalNotificationService:
             params = ["footer=yes"]
 
             if profile_image and profile_image.startswith("http"):
-                encoded_image_url = quote(profile_image, safe='')
+                encoded_image_url = quote(profile_image, safe="")
                 params.append("image=yes")
                 params.append(f"thumb={encoded_image_url}")  # Thumbnail in attachment
                 logger.debug(f"Slack notification using profile image: {profile_image}")
@@ -436,13 +494,15 @@ class ExternalNotificationService:
             params = [
                 f"priority={'high' if event_type == 'online' else 'normal'}",
                 f"url={twitch_url}",
-                "url_title=Watch Stream"
+                "url_title=Watch Stream",
             ]
 
             if profile_image and profile_image.startswith("http"):
-                encoded_image_url = quote(profile_image, safe='')
+                encoded_image_url = quote(profile_image, safe="")
                 params.append(f"attachment={encoded_image_url}")
-                logger.debug(f"Pushover notification using profile image: {profile_image}")
+                logger.debug(
+                    f"Pushover notification using profile image: {profile_image}"
+                )
 
             final_url = f"{base_url}?{'&'.join(params)}"
             logger.debug(f"Generated pushover URL: {final_url}")
@@ -454,9 +514,11 @@ class ExternalNotificationService:
             params = [f"priority={'8' if event_type == 'online' else '5'}"]
 
             if profile_image and profile_image.startswith("http"):
-                encoded_image_url = quote(profile_image, safe='')
+                encoded_image_url = quote(profile_image, safe="")
                 params.append(f"image={encoded_image_url}")
-                logger.debug(f"Gotify notification using profile image: {profile_image}")
+                logger.debug(
+                    f"Gotify notification using profile image: {profile_image}"
+                )
 
             final_url = f"{base_url}?{'&'.join(params)}"
             logger.debug(f"Generated gotify URL: {final_url}")
@@ -467,9 +529,11 @@ class ExternalNotificationService:
             params = ["format=text"]
 
             if profile_image and profile_image.startswith("http"):
-                encoded_image_url = quote(profile_image, safe='')
+                encoded_image_url = quote(profile_image, safe="")
                 params.append(f"image={encoded_image_url}")
-                logger.debug(f"Pushbullet notification using profile image: {profile_image}")
+                logger.debug(
+                    f"Pushbullet notification using profile image: {profile_image}"
+                )
 
             final_url = f"{base_url}?{'&'.join(params)}"
             logger.debug(f"Generated pushbullet URL: {final_url}")
@@ -480,7 +544,7 @@ class ExternalNotificationService:
             params = []
 
             if profile_image and profile_image.startswith("http"):
-                encoded_image_url = quote(profile_image, safe='')
+                encoded_image_url = quote(profile_image, safe="")
                 params.append(f"image={encoded_image_url}")
                 logger.debug(f"Teams notification using profile image: {profile_image}")
 
@@ -492,15 +556,23 @@ class ExternalNotificationService:
         # Many Apprise services support these common parameters
         if profile_image and profile_image.startswith("http"):
             separator = "&" if "?" in base_url else "?"
-            encoded_avatar_url = quote(profile_image, safe='')
-            final_url = f"{base_url}{separator}avatar_url={encoded_avatar_url}&image=yes"
-            logger.debug(f"Using default avatar_url/image for unknown service: {final_url}")
+            encoded_avatar_url = quote(profile_image, safe="")
+            final_url = (
+                f"{base_url}{separator}avatar_url={encoded_avatar_url}&image=yes"
+            )
+            logger.debug(
+                f"Using default avatar_url/image for unknown service: {final_url}"
+            )
             return final_url
 
-        logger.debug(f"No specific configuration for this service, using base URL: {base_url}")
+        logger.debug(
+            f"No specific configuration for this service, using base URL: {base_url}"
+        )
         return base_url
 
-    async def send_recording_notification(self, streamer_name: str, event_type: str, details: dict = None) -> bool:
+    async def send_recording_notification(
+        self, streamer_name: str, event_type: str, details: dict = None
+    ) -> bool:
         """
         Send notification for recording events (started/failed/completed)
 
@@ -533,18 +605,31 @@ class ExternalNotificationService:
                     return False
 
                 # Check event-specific toggle
-                if event_type == "recording_started" and not settings.notify_recording_started:
+                if (
+                    event_type == "recording_started"
+                    and not settings.notify_recording_started
+                ):
                     logger.debug("Recording started notifications disabled")
                     return False
-                elif event_type == "recording_failed" and not settings.notify_recording_failed:
+                elif (
+                    event_type == "recording_failed"
+                    and not settings.notify_recording_failed
+                ):
                     logger.debug("Recording failed notifications disabled")
                     return False
-                elif event_type == "recording_completed" and not settings.notify_recording_completed:
+                elif (
+                    event_type == "recording_completed"
+                    and not settings.notify_recording_completed
+                ):
                     logger.debug("Recording completed notifications disabled")
                     return False
 
                 # Get streamer for profile image
-                streamer = db.query(Streamer).filter(Streamer.username == streamer_name).first()
+                streamer = (
+                    db.query(Streamer)
+                    .filter(Streamer.username == streamer_name)
+                    .first()
+                )
                 if not streamer:
                     logger.debug(f"Streamer {streamer_name} not found")
                     return False
@@ -556,21 +641,33 @@ class ExternalNotificationService:
                 profile_image_url = ""
 
                 # Cast SQLAlchemy columns to str for type safety
-                original_url = str(streamer.original_profile_image_url) if getattr(streamer, 'original_profile_image_url', None) else ""
+                original_url = (
+                    str(streamer.original_profile_image_url)
+                    if getattr(streamer, "original_profile_image_url", None)
+                    else ""
+                )
 
                 # Priority 1: Use locally cached profile image if available
                 local_cached_url = get_local_cached_profile_url(streamer)
                 if local_cached_url:
                     profile_image_url = local_cached_url
-                    logger.debug(f"Using locally cached profile image: {profile_image_url}")
+                    logger.debug(
+                        f"Using locally cached profile image: {profile_image_url}"
+                    )
                 # Priority 2: Original Twitch URL
                 elif original_url and original_url.startswith("http"):
                     profile_image_url = original_url
-                    profile_image_url = optimize_profile_image_for_notification(profile_image_url)
+                    profile_image_url = optimize_profile_image_for_notification(
+                        profile_image_url
+                    )
                 # Priority 3: From notification details
-                elif details and str(details.get("profile_image_url", "")).startswith("http"):
+                elif details and str(details.get("profile_image_url", "")).startswith(
+                    "http"
+                ):
                     profile_image_url = str(details["profile_image_url"])
-                    profile_image_url = optimize_profile_image_for_notification(profile_image_url)
+                    profile_image_url = optimize_profile_image_for_notification(
+                        profile_image_url
+                    )
 
                 twitch_url = f"https://twitch.tv/{streamer_name}"
 
@@ -593,17 +690,27 @@ class ExternalNotificationService:
 
                 # Format message
                 title, message = self.formatter.format_recording_notification(
-                    streamer_name=streamer_name, event_type=event_type, details=details or {}
+                    streamer_name=streamer_name,
+                    event_type=event_type,
+                    details=details or {},
                 )
 
                 # Send notification
-                logger.debug(f"Sending recording notification: {event_type} for {streamer_name}")
-                result = await apprise.async_notify(title=title, body=message, body_format=NotifyFormat.TEXT)
+                logger.debug(
+                    f"Sending recording notification: {event_type} for {streamer_name}"
+                )
+                result = await apprise.async_notify(
+                    title=title, body=message, body_format=NotifyFormat.TEXT
+                )
 
                 if result:
-                    logger.info(f"✅ Recording notification sent: {event_type} - {streamer_name}")
+                    logger.info(
+                        f"✅ Recording notification sent: {event_type} - {streamer_name}"
+                    )
                 else:
-                    logger.error(f"❌ Failed to send recording notification: {event_type}")
+                    logger.error(
+                        f"❌ Failed to send recording notification: {event_type}"
+                    )
 
                 return result
 

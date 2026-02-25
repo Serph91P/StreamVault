@@ -19,7 +19,9 @@ logger = logging.getLogger("streamvault")
 class SessionCleanupService:
     """Service for managing session lifecycle and cleanup"""
 
-    def __init__(self, session_timeout_hours: int = 24, cleanup_interval_minutes: int = 60):
+    def __init__(
+        self, session_timeout_hours: int = 24, cleanup_interval_minutes: int = 60
+    ):
         self.session_timeout_hours = session_timeout_hours
         self.cleanup_interval_minutes = cleanup_interval_minutes
         self.is_running = False
@@ -78,10 +80,14 @@ class SessionCleanupService:
             db = SessionLocal()
 
             # Calculate cutoff time
-            cutoff_time = datetime.now(timezone.utc) - timedelta(hours=self.session_timeout_hours)
+            cutoff_time = datetime.now(timezone.utc) - timedelta(
+                hours=self.session_timeout_hours
+            )
 
             # Find expired sessions
-            expired_sessions = db.query(Session).filter(Session.created_at < cutoff_time).all()
+            expired_sessions = (
+                db.query(Session).filter(Session.created_at < cutoff_time).all()
+            )
 
             if expired_sessions:
                 expired_count = len(expired_sessions)
@@ -111,7 +117,9 @@ class SessionCleanupService:
                 return False
 
             # Check if session is expired
-            cutoff_time = datetime.now(timezone.utc) - timedelta(hours=self.session_timeout_hours)
+            cutoff_time = datetime.now(timezone.utc) - timedelta(
+                hours=self.session_timeout_hours
+            )
             if session.created_at < cutoff_time:
                 # Session is expired, delete it immediately
                 db.delete(session)
@@ -132,8 +140,12 @@ class SessionCleanupService:
 
             total_sessions = db.query(Session).count()
 
-            cutoff_time = datetime.now(timezone.utc) - timedelta(hours=self.session_timeout_hours)
-            expired_sessions = db.query(Session).filter(Session.created_at < cutoff_time).count()
+            cutoff_time = datetime.now(timezone.utc) - timedelta(
+                hours=self.session_timeout_hours
+            )
+            expired_sessions = (
+                db.query(Session).filter(Session.created_at < cutoff_time).count()
+            )
 
             return {
                 "total_sessions": total_sessions,

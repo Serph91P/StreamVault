@@ -15,7 +15,9 @@ class NotificationFormatter:
     """Formats notification messages and titles for different event types"""
 
     @staticmethod
-    def format_notification_message(streamer_name: str, event_type: str, details: dict) -> Tuple[str, str]:
+    def format_notification_message(
+        streamer_name: str, event_type: str, details: dict
+    ) -> Tuple[str, str]:
         """Format notification message and title based on event type"""
         title = "StreamVault Notification"
 
@@ -62,7 +64,9 @@ class NotificationFormatter:
         }
 
     @staticmethod
-    def format_recording_notification(streamer_name: str, event_type: str, details: dict) -> Tuple[str, str]:
+    def format_recording_notification(
+        streamer_name: str, event_type: str, details: dict
+    ) -> Tuple[str, str]:
         """Format recording event notifications
 
         Args:

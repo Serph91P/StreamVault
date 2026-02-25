@@ -34,7 +34,9 @@ def create_engine_with_retry(url, max_retries=10, retry_delay=3):
     for attempt in range(max_retries):
         try:
             if url.startswith("sqlite"):
-                engine = create_engine(url, future=True, connect_args={"check_same_thread": False})
+                engine = create_engine(
+                    url, future=True, connect_args={"check_same_thread": False}
+                )
             else:
                 engine = create_engine(
                     url,
@@ -44,19 +46,26 @@ def create_engine_with_retry(url, max_retries=10, retry_delay=3):
                     pool_size=20,  # Reduce pool size for better resource management
                     max_overflow=50,  # Reduce overflow but still handle spikes
                     pool_timeout=15,  # Reduce timeout to fail faster and free resources
-                    connect_args={"connect_timeout": 5, "application_name": "StreamVault"},  # Reduce connect timeout
+                    connect_args={
+                        "connect_timeout": 5,
+                        "application_name": "StreamVault",
+                    },  # Reduce connect timeout
                 )
 
             # Test the connection
             with engine.connect() as conn:
                 conn.execute(text("SELECT 1"))
 
-            logger.info(f"✅ Database connection established successfully on attempt {attempt + 1}")
+            logger.info(
+                f"✅ Database connection established successfully on attempt {attempt + 1}"
+            )
             return engine
 
         except Exception as e:
             if attempt == max_retries - 1:
-                logger.error(f"❌ Failed to connect to database after {max_retries} attempts: {e}")
+                logger.error(
+                    f"❌ Failed to connect to database after {max_retries} attempts: {e}"
+                )
                 raise
 
             logger.warning(f"⚠️ Database connection attempt {attempt + 1} failed: {e}")
@@ -103,7 +112,9 @@ def get_database_url():
 
     # Validate the DATABASE_URL
     if not url:
-        logger.error("DATABASE_URL is not set. Ensure the environment variable is configured.")
+        logger.error(
+            "DATABASE_URL is not set. Ensure the environment variable is configured."
+        )
         raise ValueError("DATABASE_URL is not set.")
 
     # Environment-specific overrides

@@ -57,11 +57,14 @@ class ModernWebPushService:
 
         # Get the public key in uncompressed format
         public_key_bytes = public_key.public_bytes(
-            encoding=serialization.Encoding.X962, format=serialization.PublicFormat.UncompressedPoint
+            encoding=serialization.Encoding.X962,
+            format=serialization.PublicFormat.UncompressedPoint,
         )
 
         # Deserialize the receiver's public key
-        receiver_public_key = ec.EllipticCurvePublicKey.from_encoded_point(ec.SECP256R1(), p256dh)
+        receiver_public_key = ec.EllipticCurvePublicKey.from_encoded_point(
+            ec.SECP256R1(), p256dh
+        )
 
         # Perform ECDH
         shared_key = private_key.exchange(ec.ECDH(), receiver_public_key)
@@ -114,7 +117,10 @@ class ModernWebPushService:
             raise TypeError("Data must be string, dict, or bytes")
 
     def send_notification(
-        self, subscription_info: Dict[str, Any], data: Union[str, Dict, bytes], ttl: int = 30
+        self,
+        subscription_info: Dict[str, Any],
+        data: Union[str, Dict, bytes],
+        ttl: int = 30,
     ) -> bool:
         """Send a web push notification
 
@@ -137,19 +143,25 @@ class ModernWebPushService:
         if isinstance(subscription_info, str):
             try:
                 subscription_info = json.loads(subscription_info)
-                logger.debug(f"Parsed subscription_info from string: {subscription_info}")
+                logger.debug(
+                    f"Parsed subscription_info from string: {subscription_info}"
+                )
             except json.JSONDecodeError as e:
                 logger.error(f"Failed to parse subscription_info JSON: {e}")
                 return False
 
         # Ensure subscription_info is a dictionary
         if not isinstance(subscription_info, dict):
-            logger.error(f"subscription_info must be a dictionary, got {type(subscription_info)}")
+            logger.error(
+                f"subscription_info must be a dictionary, got {type(subscription_info)}"
+            )
             return False
 
         endpoint = subscription_info.get("endpoint")
         if not endpoint:
-            logger.error(f"No endpoint provided in subscription info: {subscription_info}")
+            logger.error(
+                f"No endpoint provided in subscription info: {subscription_info}"
+            )
             return False
 
         # Parse the endpoint URL
@@ -172,7 +184,9 @@ class ModernWebPushService:
                 # Handle different subscription data structures
                 keys = subscription_info.get("keys")
                 if not keys:
-                    logger.error(f"No keys found in subscription info: {subscription_info}")
+                    logger.error(
+                        f"No keys found in subscription info: {subscription_info}"
+                    )
                     return False
 
                 auth_key = keys.get("auth")
@@ -204,8 +218,12 @@ class ModernWebPushService:
             response = conn.getresponse()
 
             if response.status >= 400:
-                logger.error(f"Push notification failed with status {response.status}: {response.read()}")
-                raise WebPushException(f"Push failed with status {response.status}", response=response)
+                logger.error(
+                    f"Push notification failed with status {response.status}: {response.read()}"
+                )
+                raise WebPushException(
+                    f"Push failed with status {response.status}", response=response
+                )
 
             conn.close()
             return True

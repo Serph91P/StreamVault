@@ -59,7 +59,9 @@ async def get_episode_number(streamer_id: int, now: datetime) -> str:
                 max_episode_num = max_episode[0] if max_episode else 0
             except Exception as e:
                 # If episode_number column doesn't exist, fall back to old method
-                logger.debug(f"episode_number column not available, using fallback method: {e}")
+                logger.debug(
+                    f"episode_number column not available, using fallback method: {e}"
+                )
                 max_episode_num = 0
 
             # If no database episode numbers found, try to extract from existing recording paths as fallback
@@ -83,12 +85,18 @@ async def get_episode_number(streamer_id: int, now: datetime) -> str:
                 current_month_year = f"{now.year}{now.month:02d}"
 
                 for recording in recordings:
-                    if recording.path and "S" in recording.path and "E" in recording.path:
+                    if (
+                        recording.path
+                        and "S" in recording.path
+                        and "E" in recording.path
+                    ):
                         try:
                             # Extract episode number from path like "S202507E02"
                             import re
 
-                            match = re.search(rf"S{current_month_year}E(\d+)", recording.path)
+                            match = re.search(
+                                rf"S{current_month_year}E(\d+)", recording.path
+                            )
                             if match:
                                 episode_num = int(match.group(1))
                                 max_episode_num = max(max_episode_num, episode_num)
@@ -101,26 +109,42 @@ async def get_episode_number(streamer_id: int, now: datetime) -> str:
                         from app.config.settings import get_settings
 
                         settings = get_settings()
-                        output_directory = getattr(settings, "output_directory", "/recordings")
+                        output_directory = getattr(
+                            settings, "output_directory", "/recordings"
+                        )
 
                         # Get streamer name
                         from app.models import Streamer
 
-                        streamer = db.query(Streamer).filter(Streamer.id == streamer_id).first()
+                        streamer = (
+                            db.query(Streamer)
+                            .filter(Streamer.id == streamer_id)
+                            .first()
+                        )
                         if streamer:
-                            streamer_dir = await async_file.join(output_directory, streamer.username)
-                            season_dir = await async_file.join(streamer_dir, f"Season {now.year}-{now.month:02d}")
+                            streamer_dir = await async_file.join(
+                                output_directory, streamer.username
+                            )
+                            season_dir = await async_file.join(
+                                streamer_dir, f"Season {now.year}-{now.month:02d}"
+                            )
 
                             if await async_file.exists(season_dir):
                                 import re
 
                                 for filename in await async_file.listdir(season_dir):
-                                    match = re.search(rf"S{current_month_year}E(\d+)", filename)
+                                    match = re.search(
+                                        rf"S{current_month_year}E(\d+)", filename
+                                    )
                                     if match:
                                         episode_num = int(match.group(1))
-                                        max_episode_num = max(max_episode_num, episode_num)
+                                        max_episode_num = max(
+                                            max_episode_num, episode_num
+                                        )
                     except Exception as fs_error:
-                        logger.debug(f"Could not check filesystem for episodes: {fs_error}")
+                        logger.debug(
+                            f"Could not check filesystem for episodes: {fs_error}"
+                        )
 
             # Next episode number
             episode_number = max_episode_num + 1
@@ -135,7 +159,9 @@ async def get_episode_number(streamer_id: int, now: datetime) -> str:
         return "01"  # Default value
 
 
-async def generate_filename(streamer: Any, stream_data: Dict[str, Any], template: str, sanitize_func=None) -> str:
+async def generate_filename(
+    streamer: Any, stream_data: Dict[str, Any], template: str, sanitize_func=None
+) -> str:
     """
     Generate a filename from template with variables.
 
@@ -206,13 +232,25 @@ async def generate_filename(streamer: Any, stream_data: Dict[str, Any], template
             for fmt in formats_to_try:
                 if fmt in filename:
                     try:
-                        if fmt.endswith(":02d}") and isinstance(value, str) and value.isdigit():
+                        if (
+                            fmt.endswith(":02d}")
+                            and isinstance(value, str)
+                            and value.isdigit()
+                        ):
                             # For numbers as strings with 02d format
                             filename = filename.replace(fmt, f"{int(value):02d}")
-                        elif fmt.endswith(":d}") and isinstance(value, str) and value.isdigit():
+                        elif (
+                            fmt.endswith(":d}")
+                            and isinstance(value, str)
+                            and value.isdigit()
+                        ):
                             # For numbers as strings with simple d format
                             filename = filename.replace(fmt, f"{int(value)}")
-                        elif fmt.endswith(":2d}") and isinstance(value, str) and value.isdigit():
+                        elif (
+                            fmt.endswith(":2d}")
+                            and isinstance(value, str)
+                            and value.isdigit()
+                        ):
                             # For numbers as strings with 2d format
                             filename = filename.replace(fmt, f"{int(value):2d}")
                         else:
@@ -220,7 +258,9 @@ async def generate_filename(streamer: Any, stream_data: Dict[str, Any], template
                             filename = filename.replace(fmt, str(value))
                     except Exception as format_error:
                         # Last resort, just use the string value
-                        logger.warning(f"Format replacement error with {fmt}: {format_error}")
+                        logger.warning(
+                            f"Format replacement error with {fmt}: {format_error}"
+                        )
                         filename = filename.replace(fmt, str(value))
 
     # Ensure the filename ends with .mp4
@@ -246,11 +286,17 @@ async def update_recording_path(stream_id: int, new_path: str):
                 old_path = stream.recording_path
                 stream.recording_path = new_path
                 db.commit()
-                logger.info(f"Updated recording_path for stream {stream_id}: {old_path} -> {new_path}")
+                logger.info(
+                    f"Updated recording_path for stream {stream_id}: {old_path} -> {new_path}"
+                )
             else:
-                logger.warning(f"Stream {stream_id} not found for recording_path update")
+                logger.warning(
+                    f"Stream {stream_id} not found for recording_path update"
+                )
     except Exception as e:
-        logger.error(f"Error updating recording_path for stream {stream_id}: {e}", exc_info=True)
+        logger.error(
+            f"Error updating recording_path for stream {stream_id}: {e}", exc_info=True
+        )
 
 
 async def update_episode_number(stream_id: int, episode_number: int):
@@ -271,11 +317,19 @@ async def update_episode_number(stream_id: int, episode_number: int):
                 try:
                     stream.episode_number = episode_number
                     db.commit()
-                    logger.info(f"Updated episode_number for stream {stream_id}: {episode_number}")
+                    logger.info(
+                        f"Updated episode_number for stream {stream_id}: {episode_number}"
+                    )
                 except Exception as col_error:
                     # If column doesn't exist, log debug message and continue
-                    logger.debug(f"Could not set episode_number (column may not exist): {col_error}")
+                    logger.debug(
+                        f"Could not set episode_number (column may not exist): {col_error}"
+                    )
             else:
-                logger.warning(f"Stream {stream_id} not found for episode_number update")
+                logger.warning(
+                    f"Stream {stream_id} not found for episode_number update"
+                )
     except Exception as e:
-        logger.error(f"Error updating episode_number for stream {stream_id}: {e}", exc_info=True)
+        logger.error(
+            f"Error updating episode_number for stream {stream_id}: {e}", exc_info=True
+        )

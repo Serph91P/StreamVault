@@ -20,27 +20,43 @@ class PreserveTimeframeSchema(BaseModel):
 class CleanupPolicySchema(BaseModel):
     type: CleanupPolicyType = CleanupPolicyType.COUNT
     threshold: int = Field(default=10, description="Threshold value for the policy")
-    preserve_favorites: bool = Field(default=True, description="Preserve recordings of favorite categories")
-    preserve_categories: Optional[List[str]] = Field(default=None, description="Categories to preserve")
-    preserve_timeframe: Optional[PreserveTimeframeSchema] = Field(default=None, description="Timeframe to preserve")
+    preserve_favorites: bool = Field(
+        default=True, description="Preserve recordings of favorite categories"
+    )
+    preserve_categories: Optional[List[str]] = Field(
+        default=None, description="Categories to preserve"
+    )
+    preserve_timeframe: Optional[PreserveTimeframeSchema] = Field(
+        default=None, description="Timeframe to preserve"
+    )
 
 
 class RecordingSettingsSchema(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     enabled: bool = Field(default=True, description="Enable recording globally")
-    output_directory: str = Field(default="/recordings", description="Directory to save recordings")
+    output_directory: str = Field(
+        default="/recordings", description="Directory to save recordings"
+    )
     filename_template: str = Field(
         default="{streamer}/{streamer}_{year}-{month}-{day}_{hour}-{minute}_{title}_{game}",
         description="Template for recording filenames",
     )
-    filename_preset: Optional[str] = Field(default="default", description="Preset template for recording filenames")
-    default_quality: str = Field(default="best", description="Default recording quality")
-    use_chapters: bool = Field(default=True, description="Create chapters based on stream events")
+    filename_preset: Optional[str] = Field(
+        default="default", description="Preset template for recording filenames"
+    )
+    default_quality: str = Field(
+        default="best", description="Default recording quality"
+    )
+    use_chapters: bool = Field(
+        default=True, description="Create chapters based on stream events"
+    )
     use_category_as_chapter_title: bool = Field(
-        default=False, description="Use category name as chapter title instead of stream title"
+        default=False,
+        description="Use category name as chapter title instead of stream title",
     )
     max_streams_per_streamer: int = Field(
-        default=0, description="Maximum number of streams to keep per streamer (0 = unlimited)"
+        default=0,
+        description="Maximum number of streams to keep per streamer (0 = unlimited)",
     )
     cleanup_policy: Optional[CleanupPolicySchema] = None
 
@@ -55,8 +71,12 @@ class StreamerRecordingSettingsSchema(BaseModel):
     custom_filename: Optional[str] = None
     max_streams: Optional[int] = None
     cleanup_policy: Optional[CleanupPolicySchema] = None
-    use_global_cleanup_policy: bool = True  # Use global cleanup policy or streamer-specific
-    supported_codecs: Optional[str] = None  # Per-streamer codec preference (NULL = use global)
+    use_global_cleanup_policy: bool = (
+        True  # Use global cleanup policy or streamer-specific
+    )
+    supported_codecs: Optional[str] = (
+        None  # Per-streamer codec preference (NULL = use global)
+    )
 
 
 class ActiveRecordingSchema(BaseModel):

@@ -38,7 +38,9 @@ class StreamArtworkService:
         streamer_dir.mkdir(parents=True, exist_ok=True)
         return streamer_dir
 
-    async def download_stream_artwork(self, stream_id: int, streamer_id: int, thumbnail_url: str) -> Optional[str]:
+    async def download_stream_artwork(
+        self, stream_id: int, streamer_id: int, thumbnail_url: str
+    ) -> Optional[str]:
         """
         Download and cache stream artwork/thumbnail
 
@@ -66,22 +68,34 @@ class StreamArtworkService:
             if file_path.exists():
                 return f"/data/images/artwork/streamer_{streamer_id}/{filename}"
 
-            success = await self.download_service.download_image(thumbnail_url, file_path)
+            success = await self.download_service.download_image(
+                thumbnail_url, file_path
+            )
             if success:
-                relative_path = f"/data/images/artwork/streamer_{streamer_id}/{filename}"
-                logger.info(f"Successfully cached stream artwork for stream {stream_id}")
+                relative_path = (
+                    f"/data/images/artwork/streamer_{streamer_id}/{filename}"
+                )
+                logger.info(
+                    f"Successfully cached stream artwork for stream {stream_id}"
+                )
                 return relative_path
             else:
-                logger.warning(f"Failed to download stream artwork for stream {stream_id}")
+                logger.warning(
+                    f"Failed to download stream artwork for stream {stream_id}"
+                )
                 self.download_service.mark_download_failed(thumbnail_url)
                 return None
 
         except Exception as e:
-            logger.error(f"Error downloading stream artwork for stream {stream_id}: {e}")
+            logger.error(
+                f"Error downloading stream artwork for stream {stream_id}: {e}"
+            )
             self.download_service.mark_download_failed(thumbnail_url)
             return None
 
-    def get_cached_stream_artwork(self, stream_id: int, streamer_id: int) -> Optional[str]:
+    def get_cached_stream_artwork(
+        self, stream_id: int, streamer_id: int
+    ) -> Optional[str]:
         """Get cached stream artwork path"""
         streamer_dir = self._get_streamer_artwork_dir(streamer_id)
         filename = f"stream_{stream_id}.jpg"
@@ -101,7 +115,9 @@ class StreamArtworkService:
                     return False
 
                 # Download the image
-                cached_path = await self.download_stream_artwork(stream_id, stream.streamer_id, thumbnail_url)
+                cached_path = await self.download_stream_artwork(
+                    stream_id, stream.streamer_id, thumbnail_url
+                )
 
                 if cached_path:
                     # Ensure stream has metadata
@@ -142,7 +158,9 @@ class StreamArtworkService:
 
                     if thumbnail_url and thumbnail_url.startswith("http"):
                         # This is a Twitch URL, download and cache it
-                        cached_path = await self.download_stream_artwork(stream.id, stream.streamer_id, thumbnail_url)
+                        cached_path = await self.download_stream_artwork(
+                            stream.id, stream.streamer_id, thumbnail_url
+                        )
                         if cached_path:
                             # Update to use cached path
                             stream.stream_metadata.thumbnail_url = cached_path
@@ -172,7 +190,9 @@ class StreamArtworkService:
             if not all([stream_id, streamer_id, thumbnail_url]):
                 continue
 
-            cached_path = await self.download_stream_artwork(stream_id, streamer_id, thumbnail_url)
+            cached_path = await self.download_stream_artwork(
+                stream_id, streamer_id, thumbnail_url
+            )
             if cached_path:
                 stats["downloaded"] += 1
             else:
@@ -198,12 +218,20 @@ class StreamArtworkService:
                 "cached_artworks": total_files,
                 "streamers_with_artwork": streamer_count,
                 "failed_downloads": len(
-                    [url for url in self.download_service._failed_downloads if "thumbnail" in url or "artwork" in url]
+                    [
+                        url
+                        for url in self.download_service._failed_downloads
+                        if "thumbnail" in url or "artwork" in url
+                    ]
                 ),
             }
         except Exception as e:
             logger.error(f"Error getting artwork cache stats: {e}")
-            return {"cached_artworks": 0, "streamers_with_artwork": 0, "failed_downloads": 0}
+            return {
+                "cached_artworks": 0,
+                "streamers_with_artwork": 0,
+                "failed_downloads": 0,
+            }
 
     async def cleanup_old_artwork(self, days_old: int = 30) -> int:
         """Remove artwork files older than specified days"""
@@ -220,21 +248,29 @@ class StreamArtworkService:
                     for artwork_file in streamer_dir.glob("*.jpg"):
                         try:
                             # Check file modification time
-                            file_time = datetime.fromtimestamp(artwork_file.stat().st_mtime)
+                            file_time = datetime.fromtimestamp(
+                                artwork_file.stat().st_mtime
+                            )
                             if file_time < cutoff_date:
                                 artwork_file.unlink()
                                 cleaned_count += 1
                                 logger.debug(f"Removed old artwork: {artwork_file}")
                         except Exception as e:
-                            logger.error(f"Error checking/removing artwork file {artwork_file}: {e}")
+                            logger.error(
+                                f"Error checking/removing artwork file {artwork_file}: {e}"
+                            )
 
                     # Remove empty directories
                     try:
                         if not any(streamer_dir.iterdir()):
                             streamer_dir.rmdir()
-                            logger.debug(f"Removed empty artwork directory: {streamer_dir}")
+                            logger.debug(
+                                f"Removed empty artwork directory: {streamer_dir}"
+                            )
                     except Exception as e:
-                        logger.error(f"Error removing empty directory {streamer_dir}: {e}")
+                        logger.error(
+                            f"Error removing empty directory {streamer_dir}: {e}"
+                        )
 
         except Exception as e:
             logger.error(f"Error during artwork cleanup: {e}")
@@ -262,9 +298,13 @@ class StreamArtworkService:
                             if stream_id not in active_stream_ids:
                                 artwork_file.unlink()
                                 cleaned_count += 1
-                                logger.debug(f"Removed unused artwork: {artwork_file.name}")
+                                logger.debug(
+                                    f"Removed unused artwork: {artwork_file.name}"
+                                )
                         except Exception as e:
-                            logger.error(f"Error removing artwork file {artwork_file}: {e}")
+                            logger.error(
+                                f"Error removing artwork file {artwork_file}: {e}"
+                            )
 
         except Exception as e:
             logger.error(f"Error during artwork cleanup: {e}")

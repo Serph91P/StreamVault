@@ -16,11 +16,17 @@ def get_file_paths(filename: str, include_dist: bool = False) -> List[str]:
     Returns:
         List of potential file paths to try
     """
-    base_paths = ["app/frontend/public", "/app/app/frontend/public"]  # Development  # Production Docker
+    base_paths = [
+        "app/frontend/public",
+        "/app/app/frontend/public",
+    ]  # Development  # Production Docker
 
     if include_dist:
         base_paths.extend(
-            ["app/frontend/dist", "/app/app/frontend/dist"]  # Development built  # Production Docker built
+            [
+                "app/frontend/dist",
+                "/app/app/frontend/dist",
+            ]  # Development built  # Production Docker built
         )
 
     return [f"{base_path}/{filename}" for base_path in base_paths]

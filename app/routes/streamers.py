@@ -1,5 +1,6 @@
 from typing import List, Dict, Any
 from datetime import datetime, timezone
+import os
 from fastapi import APIRouter, Depends, HTTPException, Body
 from fastapi.responses import JSONResponse
 from app.services.streamer_service import StreamerService
@@ -19,13 +20,15 @@ from app.models import (
 )
 from sqlalchemy.orm import Session, joinedload
 import logging
-import os
 from pathlib import Path
 import json
 import re
 from app.utils import async_file
 
 logger = logging.getLogger("streamvault")
+
+# SECURITY: Debug endpoints are only available in development mode
+_IS_DEVELOPMENT = os.getenv("ENVIRONMENT", "").lower() == "development"
 
 router = APIRouter(prefix="/api/streamers", tags=["streamers"])
 
@@ -59,7 +62,10 @@ async def delete_files_async(files_to_delete: list) -> tuple[list, int]:
 
                 for ext in companion_extensions:
                     companion = base_path.with_suffix(ext)
-                    if await async_file.path_exists(companion) and companion != path_obj:
+                    if (
+                        await async_file.path_exists(companion)
+                        and companion != path_obj
+                    ):
                         await async_file.path_unlink(companion)
                         deleted_files.append(str(companion))
                         logger.info(f"Deleted companion file: {companion}")
@@ -104,13 +110,19 @@ async def delete_files_async(files_to_delete: list) -> tuple[list, int]:
                     # Most files follow the pattern: "streamer - date - title.ext"
                     if " - " in base_filename:
                         streamer_name = base_filename.split(" - ")[0]
-                        streamer_thumbnail = parent_dir / f"{streamer_name}_thumbnail.jpg"
+                        streamer_thumbnail = (
+                            parent_dir / f"{streamer_name}_thumbnail.jpg"
+                        )
                         if await async_file.path_exists(streamer_thumbnail):
                             await async_file.path_unlink(streamer_thumbnail)
                             deleted_files.append(str(streamer_thumbnail))
-                            logger.info(f"Deleted streamer thumbnail file: {streamer_thumbnail}")
+                            logger.info(
+                                f"Deleted streamer thumbnail file: {streamer_thumbnail}"
+                            )
                 except Exception as e:
-                    logger.debug(f"Could not extract streamer name from filename {base_filename}: {e}")
+                    logger.debug(
+                        f"Could not extract streamer name from filename {base_filename}: {e}"
+                    )
             else:
                 logger.warning(f"File not found: {file_path}")
         except Exception as file_error:
@@ -124,17 +136,17 @@ def collect_stream_files_for_deletion(
 ) -> tuple[list[str], set[str]]:
     """
     Collect files to delete for a stream using safe deletion logic.
-    
+
     IMPORTANT: Uses the same safe deletion logic as cleanup_service:
     - tvshow.nfo is NEVER deleted (belongs to streamer, not stream)
     - season.nfo is only deleted if this is the LAST stream in that season
-    
+
     Returns:
         tuple: (files_to_delete, directories_to_check)
     """
     files_to_delete = []
     directories_to_check = set()
-    
+
     # Get the base directory for this recording
     recording_dir = None
     if stream.recording_path:
@@ -145,7 +157,7 @@ def collect_stream_files_for_deletion(
         recording_dir = os.path.dirname(metadata.nfo_path)
         if recording_dir and os.path.exists(recording_dir):
             directories_to_check.add(recording_dir)
-    
+
     if metadata:
         # Per-stream files (unique to this stream, safe to delete)
         per_stream_attrs = [
@@ -157,17 +169,19 @@ def collect_stream_files_for_deletion(
             "chapters_ffmpeg_path",
             "chapters_xml_path",
         ]
-        
+
         for attr in per_stream_attrs:
             path = getattr(metadata, attr, None)
             if path:
                 files_to_delete.append(path)
-        
+
         # SHARED FILES HANDLING (same logic as cleanup_service):
         # - tvshow.nfo: NEVER delete during stream deletion (belongs to streamer)
         if metadata.tvshow_nfo_path:
-            logger.debug(f"Preserving tvshow.nfo (belongs to streamer): {metadata.tvshow_nfo_path}")
-        
+            logger.debug(
+                f"Preserving tvshow.nfo (belongs to streamer): {metadata.tvshow_nfo_path}"
+            )
+
         # - season.nfo: Only delete if this is the LAST stream in that season
         if metadata.season_nfo_path and os.path.exists(metadata.season_nfo_path):
             season_dir = os.path.dirname(metadata.season_nfo_path)
@@ -183,19 +197,23 @@ def collect_stream_files_for_deletion(
             )
             if other_streams_in_season == 0:
                 files_to_delete.append(metadata.season_nfo_path)
-                logger.debug(f"Last stream in season, will delete season.nfo: {metadata.season_nfo_path}")
+                logger.debug(
+                    f"Last stream in season, will delete season.nfo: {metadata.season_nfo_path}"
+                )
             else:
-                logger.debug(f"Keeping shared season.nfo ({other_streams_in_season} other streams)")
-        
+                logger.debug(
+                    f"Keeping shared season.nfo ({other_streams_in_season} other streams)"
+                )
+
         # Handle segments directory from metadata
-        if hasattr(metadata, 'segments_dir_path') and metadata.segments_dir_path:
+        if hasattr(metadata, "segments_dir_path") and metadata.segments_dir_path:
             if os.path.exists(metadata.segments_dir_path):
                 files_to_delete.append(metadata.segments_dir_path)
-    
+
     # Add main recording file and related files
     if stream.recording_path and os.path.exists(stream.recording_path):
         files_to_delete.append(stream.recording_path)
-        
+
         # Check for .ts/.mp4 versions and segment directories
         stream_file = Path(stream.recording_path)
         if stream_file.suffix == ".mp4":
@@ -206,16 +224,18 @@ def collect_stream_files_for_deletion(
             mp4_version = stream_file.with_suffix(".mp4")
             if mp4_version.exists():
                 files_to_delete.append(str(mp4_version))
-        
+
         segments_dir = stream_file.parent / f"{stream_file.stem}_segments"
         if segments_dir.exists() and segments_dir.is_dir():
             files_to_delete.append(str(segments_dir))
-    
+
     return files_to_delete, directories_to_check
 
 
 @router.get("")
-async def get_streamers(streamer_service: StreamerService = Depends(get_streamer_service)):
+async def get_streamers(
+    streamer_service: StreamerService = Depends(get_streamer_service),
+):
     """Get all streamers with their current status
 
     Returns a dictionary with 'streamers' key for frontend compatibility.
@@ -235,18 +255,30 @@ async def get_streamers(streamer_service: StreamerService = Depends(get_streamer
                 "is_recording": streamer.is_recording,
                 "recording_enabled": streamer.recording_enabled,
                 "active_stream_id": streamer.active_stream_id,
-                "title": streamer.title if streamer.is_live else None,  # Only show title when live
-                "category_name": streamer.category_name if streamer.is_live else None,  # Only show game when live
+                "title": streamer.title
+                if streamer.is_live
+                else None,  # Only show title when live
+                "category_name": streamer.category_name
+                if streamer.is_live
+                else None,  # Only show game when live
                 "language": streamer.language,
-                "last_updated": streamer.last_updated.isoformat() if streamer.last_updated else None,
+                "last_updated": streamer.last_updated.isoformat()
+                if streamer.last_updated
+                else None,
                 "profile_image_url": unified_image_service.get_profile_image_url(
                     streamer.id, streamer.profile_image_url
                 ),
                 "original_profile_image_url": streamer.original_profile_image_url,
                 # Last stream info (shown when offline)
-                "last_stream_title": streamer.last_stream_title if not streamer.is_live else None,
-                "last_stream_category_name": streamer.last_stream_category_name if not streamer.is_live else None,
-                "last_stream_viewer_count": streamer.last_stream_viewer_count if not streamer.is_live else None,
+                "last_stream_title": streamer.last_stream_title
+                if not streamer.is_live
+                else None,
+                "last_stream_category_name": streamer.last_stream_category_name
+                if not streamer.is_live
+                else None,
+                "last_stream_viewer_count": streamer.last_stream_viewer_count
+                if not streamer.is_live
+                else None,
                 "last_stream_ended_at": (
                     streamer.last_stream_ended_at.isoformat()
                     if streamer.last_stream_ended_at and not streamer.is_live
@@ -260,14 +292,18 @@ async def get_streamers(streamer_service: StreamerService = Depends(get_streamer
 
 
 @router.delete("/subscriptions", status_code=200)
-async def delete_all_subscriptions(event_registry: EventHandlerRegistry = Depends(get_event_registry)):
+async def delete_all_subscriptions(
+    event_registry: EventHandlerRegistry = Depends(get_event_registry),
+):
     """Delete all EventSub subscriptions"""
     try:
         logger.debug("Attempting to delete all subscriptions")
 
         # Get all existing subscriptions
         existing_subs = await event_registry.list_subscriptions()
-        logger.debug(f"Found {len(existing_subs.get('data', []))} subscriptions to delete")
+        logger.debug(
+            f"Found {len(existing_subs.get('data', []))} subscriptions to delete"
+        )
 
         # Delete each subscription
         results = []
@@ -277,7 +313,10 @@ async def delete_all_subscriptions(event_registry: EventHandlerRegistry = Depend
                 logger.info(f"Deleted subscription {sub['id']}")
                 results.append({"id": sub["id"], "status": "deleted"})
             except Exception as sub_error:
-                logger.error(f"Failed to delete subscription {sub['id']}: {sub_error}", exc_info=True)
+                logger.error(
+                    f"Failed to delete subscription {sub['id']}: {sub_error}",
+                    exc_info=True,
+                )
                 results.append(
                     {
                         "id": sub["id"],  # FIXED: closed the string literal properly
@@ -290,13 +329,19 @@ async def delete_all_subscriptions(event_registry: EventHandlerRegistry = Depend
         return {
             "success": True,
             "deleted_subscriptions": results,
-            "total_deleted": len([res for res in results if res.get("status") == "deleted"]),
-            "total_failed": len([res for res in results if res.get("status") == "failed"]),
+            "total_deleted": len(
+                [res for res in results if res.get("status") == "deleted"]
+            ),
+            "total_failed": len(
+                [res for res in results if res.get("status") == "failed"]
+            ),
         }
 
     except Exception as e:
         logger.error(f"Error deleting all subscriptions: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to delete subscriptions. Please try again.")
+        raise HTTPException(
+            status_code=500, detail="Failed to delete subscriptions. Please try again."
+        )
 
 
 @router.post("/resubscribe-all")
@@ -326,16 +371,30 @@ async def resubscribe_all(
 
             # Skip if already subscribed
             if twitch_id in existing_user_ids:
-                logger.debug(f"Skipping {streamer.username} - already has subscriptions")
+                logger.debug(
+                    f"Skipping {streamer.username} - already has subscriptions"
+                )
                 continue
 
             try:
                 logger.debug(f"Resubscribing to events for {streamer.username}")
                 await event_registry.subscribe_to_events(twitch_id)
-                results.append({"streamer": streamer.username, "status": "success", "twitch_id": twitch_id})
+                results.append(
+                    {
+                        "streamer": streamer.username,
+                        "status": "success",
+                        "twitch_id": twitch_id,
+                    }
+                )
             except Exception as e:
                 logger.error(f"Failed to resubscribe for {streamer.username}: {e}")
-                results.append({"streamer": streamer.username, "status": "failed", "error": str(e)})
+                results.append(
+                    {
+                        "streamer": streamer.username,
+                        "status": "failed",
+                        "error": "Resubscription failed",
+                    }
+                )
 
         return {
             "success": True,
@@ -350,8 +409,13 @@ async def resubscribe_all(
 
 
 @router.get("/debug-live-status")
-async def debug_live_status(streamer_service: StreamerService = Depends(get_streamer_service)):
+async def debug_live_status(
+    streamer_service: StreamerService = Depends(get_streamer_service),
+):
     """Debug endpoint to check live status of all streamers in database"""
+    # SECURITY: Only available in development mode
+    if not _IS_DEVELOPMENT:
+        raise HTTPException(status_code=404, detail="Not found")
     try:
         streamers = await streamer_service.get_all_streamers()
         debug_info = []
@@ -366,7 +430,9 @@ async def debug_live_status(streamer_service: StreamerService = Depends(get_stre
                     "title": streamer.title,
                     "category_name": streamer.category_name,
                     "language": streamer.language,
-                    "last_updated": streamer.last_updated.isoformat() if streamer.last_updated else None,
+                    "last_updated": streamer.last_updated.isoformat()
+                    if streamer.last_updated
+                    else None,
                     "active_stream_id": streamer.active_stream_id,
                 }
             )
@@ -379,14 +445,19 @@ async def debug_live_status(streamer_service: StreamerService = Depends(get_stre
 
 @router.get("/{streamer_id}/live-status")
 async def check_streamer_live_status(
-    streamer_id: int, db: Session = Depends(get_db), streamer_service: StreamerService = Depends(get_streamer_service)
+    streamer_id: int,
+    db: Session = Depends(get_db),
+    streamer_service: StreamerService = Depends(get_streamer_service),
 ):
     """Check if a specific streamer is currently live via Twitch API"""
     try:
         # Get streamer from database (exclude test data)
         streamer = (
             db.query(Streamer)
-            .filter(Streamer.id == streamer_id, (Streamer.is_test_data.is_(False)) | (Streamer.is_test_data.is_(None)))
+            .filter(
+                Streamer.id == streamer_id,
+                (Streamer.is_test_data.is_(False)) | (Streamer.is_test_data.is_(None)),
+            )
             .first()
         )
         if not streamer:
@@ -396,7 +467,9 @@ async def check_streamer_live_status(
         is_live = await streamer_service.check_streamer_live_status(streamer.twitch_id)
 
         # Send live status feedback via WebSocket
-        await websocket_manager.send_live_status_feedback(streamer_name=streamer.username, is_live=is_live)
+        await websocket_manager.send_live_status_feedback(
+            streamer_name=streamer.username, is_live=is_live
+        )
 
         return {
             "streamer_id": streamer_id,
@@ -404,17 +477,23 @@ async def check_streamer_live_status(
             "twitch_id": streamer.twitch_id,
             "is_live": is_live,
             "database_is_live": streamer.is_live,  # What the database thinks
-            "last_updated": streamer.last_updated.isoformat() if streamer.last_updated else None,
+            "last_updated": streamer.last_updated.isoformat()
+            if streamer.last_updated
+            else None,
         }
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error checking live status for streamer {streamer_id}: {e}", exc_info=True)
+        logger.error(
+            f"Error checking live status for streamer {streamer_id}: {e}", exc_info=True
+        )
 
         # Send error toast notification
         try:
             await websocket_manager.send_toast_notification(
-                toast_type="error", title="Live Status Check Failed", message=f"Failed to check live status: {str(e)}"
+                toast_type="error",
+                title="Live Status Check Failed",
+                message="Failed to check live status",
             )
         except Exception as notification_error:
             logger.error(f"Failed to send error notification: {notification_error}")
@@ -459,18 +538,27 @@ async def add_streamer(
             )
 
             if not streamer_recording_settings:
-                streamer_recording_settings = StreamerRecordingSettings(streamer_id=new_streamer.id)
+                streamer_recording_settings = StreamerRecordingSettings(
+                    streamer_id=new_streamer.id
+                )
                 db.add(streamer_recording_settings)
 
             # Update recording settings
             streamer_recording_settings.enabled = recording_enabled
             if "quality" in recording_settings and recording_settings["quality"]:
                 streamer_recording_settings.quality = recording_settings["quality"]
-            if "custom_filename" in recording_settings and recording_settings["custom_filename"]:
-                streamer_recording_settings.custom_filename = recording_settings["custom_filename"]
+            if (
+                "custom_filename" in recording_settings
+                and recording_settings["custom_filename"]
+            ):
+                streamer_recording_settings.custom_filename = recording_settings[
+                    "custom_filename"
+                ]
 
             db.commit()
-            logger.info(f"Set recording settings for streamer {new_streamer.username}: enabled={recording_enabled}")
+            logger.info(
+                f"Set recording settings for streamer {new_streamer.username}: enabled={recording_enabled}"
+            )
 
         # Convert to response format
         return {
@@ -487,7 +575,9 @@ async def add_streamer(
             "title": new_streamer.title,
             "category_name": new_streamer.category_name,
             "language": new_streamer.language,
-            "last_updated": new_streamer.last_updated.isoformat() if new_streamer.last_updated else None,
+            "last_updated": new_streamer.last_updated.isoformat()
+            if new_streamer.last_updated
+            else None,
             "original_profile_image_url": new_streamer.original_profile_image_url,
         }
 
@@ -530,10 +620,12 @@ async def delete_streamer(
                 from app.models import StreamMetadata
                 import shutil
 
-                settings = get_settings()
+                get_settings()
 
                 # Get all streams for this streamer
-                streams = db.query(Stream).filter(Stream.streamer_id == streamer_id).all()
+                streams = (
+                    db.query(Stream).filter(Stream.streamer_id == streamer_id).all()
+                )
 
                 files_to_delete = []
                 dirs_to_delete = set()
@@ -541,7 +633,11 @@ async def delete_streamer(
 
                 for stream in streams:
                     # Get metadata for this stream
-                    metadata = db.query(StreamMetadata).filter(StreamMetadata.stream_id == stream.id).first()
+                    metadata = (
+                        db.query(StreamMetadata)
+                        .filter(StreamMetadata.stream_id == stream.id)
+                        .first()
+                    )
 
                     if stream.recording_path:
                         recording_path = Path(stream.recording_path)
@@ -587,7 +683,10 @@ async def delete_streamer(
                                 files_to_delete.append(Path(path))
 
                         # Add segments directory
-                        if hasattr(metadata, "segments_dir_path") and metadata.segments_dir_path:
+                        if (
+                            hasattr(metadata, "segments_dir_path")
+                            and metadata.segments_dir_path
+                        ):
                             if Path(metadata.segments_dir_path).exists():
                                 dirs_to_delete.add(metadata.segments_dir_path)
 
@@ -630,7 +729,9 @@ async def delete_streamer(
                     # Try to delete empty Season folders and streamer folder
                     try:
                         for season_dir in streamer_dir.iterdir():
-                            if season_dir.is_dir() and season_dir.name.startswith("Season"):
+                            if season_dir.is_dir() and season_dir.name.startswith(
+                                "Season"
+                            ):
                                 # Delete season-level files
                                 for item in ["season.nfo", "poster.jpg"]:
                                     item_path = season_dir / item
@@ -640,24 +741,33 @@ async def delete_streamer(
                                 # Try to remove if empty
                                 try:
                                     season_dir.rmdir()
-                                    logger.info(f"Removed empty Season directory: {season_dir}")
+                                    logger.info(
+                                        f"Removed empty Season directory: {season_dir}"
+                                    )
                                 except OSError:
                                     pass  # Not empty, that's fine
 
                         # Try to remove streamer folder if empty
                         try:
                             streamer_dir.rmdir()
-                            logger.info(f"Removed empty streamer directory: {streamer_dir}")
+                            logger.info(
+                                f"Removed empty streamer directory: {streamer_dir}"
+                            )
                         except OSError:
                             pass  # Not empty, that's fine
 
                     except Exception as e:
                         logger.debug(f"Could not clean up empty directories: {e}")
 
-                logger.info(f"Deleted {deleted_files_count} files/directories for streamer {streamer_username}")
+                logger.info(
+                    f"Deleted {deleted_files_count} files/directories for streamer {streamer_username}"
+                )
 
             except Exception as e:
-                logger.error(f"Error deleting recording files for streamer {streamer_id}: {e}", exc_info=True)
+                logger.error(
+                    f"Error deleting recording files for streamer {streamer_id}: {e}",
+                    exc_info=True,
+                )
                 # Continue with deletion even if file deletion fails
 
         # Delete EventSub subscriptions
@@ -667,7 +777,9 @@ async def delete_streamer(
                 for sub in subscriptions["data"]:
                     if sub.get("condition", {}).get("broadcaster_user_id") == twitch_id:
                         await event_registry.delete_subscription(sub["id"])
-                        logger.info(f"Deleted subscription {sub['id']} for streamer {twitch_id}")
+                        logger.info(
+                            f"Deleted subscription {sub['id']} for streamer {twitch_id}"
+                        )
         except Exception as e:
             logger.error(f"Error deleting subscriptions for streamer: {e}")
 
@@ -686,37 +798,54 @@ async def delete_streamer(
         else:
             message += " (recording files kept)"
 
-        return {"success": True, "message": message, "deleted_files": deleted_files_count}
+        return {
+            "success": True,
+            "message": message,
+            "deleted_files": deleted_files_count,
+        }
 
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Error deleting streamer: {e}", exc_info=True)
         return JSONResponse(
-            status_code=500, content={"success": False, "message": "Failed to delete streamer. Please try again."}
+            status_code=500,
+            content={
+                "success": False,
+                "message": "Failed to delete streamer. Please try again.",
+            },
         )
 
 
 @router.get("/streamer/{streamer_id}")
 async def get_streamer(
-    streamer_id: str, streamer_service: StreamerService = Depends(get_streamer_service), db: Session = Depends(get_db)
+    streamer_id: str,
+    streamer_service: StreamerService = Depends(get_streamer_service),
+    db: Session = Depends(get_db),
 ):
     """Get detailed information about a specific streamer"""
     # Get streamer from database first (exclude test data)
     streamer = (
         db.query(Streamer)
-        .filter(Streamer.id == int(streamer_id), (Streamer.is_test_data.is_(False)) | (Streamer.is_test_data.is_(None)))
+        .filter(
+            Streamer.id == int(streamer_id),
+            (Streamer.is_test_data.is_(False)) | (Streamer.is_test_data.is_(None)),
+        )
         .first()
     )
     if not streamer:
         raise HTTPException(status_code=404, detail="Streamer not found")
 
     # Get cached profile image URL
-    profile_image_url = unified_image_service.get_profile_image_url(streamer.id, streamer.profile_image_url)
+    profile_image_url = unified_image_service.get_profile_image_url(
+        streamer.id, streamer.profile_image_url
+    )
 
     # Get actual recording settings (not deprecated auto_record column)
     recording_settings = (
-        db.query(StreamerRecordingSettings).filter(StreamerRecordingSettings.streamer_id == streamer.id).first()
+        db.query(StreamerRecordingSettings)
+        .filter(StreamerRecordingSettings.streamer_id == streamer.id)
+        .first()
     )
 
     # Return normalized format for frontend
@@ -731,26 +860,35 @@ async def get_streamer(
         # FIXED: Use StreamerRecordingSettings, not auto_record
         "recording_enabled": recording_settings.enabled if recording_settings else True,
         "recording_quality": recording_settings.quality if recording_settings else None,
-        "custom_filename": recording_settings.custom_filename if recording_settings else None,
+        "custom_filename": recording_settings.custom_filename
+        if recording_settings
+        else None,
         "title": streamer.title if streamer.is_live else None,
         "category_name": streamer.category_name if streamer.is_live else None,
         "profile_image_url": profile_image_url,
         "original_profile_image_url": streamer.profile_image_url,
         "description": None,  # TODO: Store description in DB if needed
-        "last_updated": streamer.last_updated.isoformat() if streamer.last_updated else None,
+        "last_updated": streamer.last_updated.isoformat()
+        if streamer.last_updated
+        else None,
     }
 
 
 @router.put("/streamer/{streamer_id}/settings")
 async def update_streamer_settings(
-    streamer_id: int, settings: Dict[str, Any] = Body(...), db: Session = Depends(get_db)
+    streamer_id: int,
+    settings: Dict[str, Any] = Body(...),
+    db: Session = Depends(get_db),
 ):
     """Update recording settings for a specific streamer"""
     try:
         # Verify streamer exists
         streamer = (
             db.query(Streamer)
-            .filter(Streamer.id == streamer_id, (Streamer.is_test_data.is_(False)) | (Streamer.is_test_data.is_(None)))
+            .filter(
+                Streamer.id == streamer_id,
+                (Streamer.is_test_data.is_(False)) | (Streamer.is_test_data.is_(None)),
+            )
             .first()
         )
         if not streamer:
@@ -758,25 +896,37 @@ async def update_streamer_settings(
 
         # Get or create StreamerRecordingSettings
         recording_settings = (
-            db.query(StreamerRecordingSettings).filter(StreamerRecordingSettings.streamer_id == streamer_id).first()
+            db.query(StreamerRecordingSettings)
+            .filter(StreamerRecordingSettings.streamer_id == streamer_id)
+            .first()
         )
 
         if not recording_settings:
-            recording_settings = StreamerRecordingSettings(streamer_id=streamer_id, enabled=True, quality="best")
+            recording_settings = StreamerRecordingSettings(
+                streamer_id=streamer_id, enabled=True, quality="best"
+            )
             db.add(recording_settings)
 
         # Update settings from request body
         if "autoRecord" in settings:
             recording_settings.enabled = settings["autoRecord"]
-            logger.info(f"Updated recording enabled for {streamer.username}: {recording_settings.enabled}")
+            logger.info(
+                f"Updated recording enabled for {streamer.username}: {recording_settings.enabled}"
+            )
 
         if "quality" in settings and settings["quality"]:
             recording_settings.quality = settings["quality"]
-            logger.info(f"Updated recording quality for {streamer.username}: {recording_settings.quality}")
+            logger.info(
+                f"Updated recording quality for {streamer.username}: {recording_settings.quality}"
+            )
 
         if "filenameTemplate" in settings:
-            recording_settings.custom_filename = settings["filenameTemplate"] if settings["filenameTemplate"] else None
-            logger.info(f"Updated custom filename for {streamer.username}: {recording_settings.custom_filename}")
+            recording_settings.custom_filename = (
+                settings["filenameTemplate"] if settings["filenameTemplate"] else None
+            )
+            logger.info(
+                f"Updated custom filename for {streamer.username}: {recording_settings.custom_filename}"
+            )
 
         db.commit()
         db.refresh(recording_settings)
@@ -800,7 +950,9 @@ async def update_streamer_settings(
 
 
 @router.get("/subscriptions")
-async def list_subscriptions(event_registry: EventHandlerRegistry = Depends(get_event_registry)):
+async def list_subscriptions(
+    event_registry: EventHandlerRegistry = Depends(get_event_registry),
+):
     """List all EventSub subscriptions"""
     try:
         subscriptions = await event_registry.list_subscriptions()
@@ -819,7 +971,10 @@ async def list_subscriptions(event_registry: EventHandlerRegistry = Depends(get_
                     }
                 )
 
-            return {"total": subscriptions.get("total", 0), "subscriptions": formatted_subs}
+            return {
+                "total": subscriptions.get("total", 0),
+                "subscriptions": formatted_subs,
+            }
 
         return {"total": 0, "subscriptions": []}
 
@@ -829,7 +984,10 @@ async def list_subscriptions(event_registry: EventHandlerRegistry = Depends(get_
 
 
 @router.delete("/subscriptions/{subscription_id}")
-async def delete_subscription(subscription_id: str, event_registry: EventHandlerRegistry = Depends(get_event_registry)):
+async def delete_subscription(
+    subscription_id: str,
+    event_registry: EventHandlerRegistry = Depends(get_event_registry),
+):
     """Delete a specific EventSub subscription"""
     try:
         await event_registry.delete_subscription(subscription_id)
@@ -846,11 +1004,16 @@ async def get_streams_by_streamer_id(streamer_id: int, db: Session = Depends(get
         # Überprüfen, ob der Streamer existiert (exclude test data)
         streamer = (
             db.query(Streamer)
-            .filter(Streamer.id == streamer_id, (Streamer.is_test_data.is_(False)) | (Streamer.is_test_data.is_(None)))
+            .filter(
+                Streamer.id == streamer_id,
+                (Streamer.is_test_data.is_(False)) | (Streamer.is_test_data.is_(None)),
+            )
             .first()
         )
         if not streamer:
-            raise HTTPException(status_code=404, detail=f"Streamer with ID {streamer_id} not found")
+            raise HTTPException(
+                status_code=404, detail=f"Streamer with ID {streamer_id} not found"
+            )
 
         # PERF: Eager load stream_events to prevent N+1 queries
         # Alle Streams für diesen Streamer abrufen, nach Startdatum absteigend sortiert
@@ -868,7 +1031,8 @@ async def get_streams_by_streamer_id(streamer_id: int, db: Session = Depends(get
             # Format events for the response (already loaded via joinedload)
             formatted_events = []
             for event in sorted(
-                stream.stream_events, key=lambda e: e.timestamp or datetime.min.replace(tzinfo=timezone.utc)
+                stream.stream_events,
+                key=lambda e: e.timestamp or datetime.min.replace(tzinfo=timezone.utc),
             ):
                 formatted_events.append(
                     {
@@ -877,7 +1041,9 @@ async def get_streams_by_streamer_id(streamer_id: int, db: Session = Depends(get
                         "title": event.title,
                         "category_name": event.category_name,
                         "language": event.language,
-                        "timestamp": event.timestamp.isoformat() if event.timestamp else None,
+                        "timestamp": event.timestamp.isoformat()
+                        if event.timestamp
+                        else None,
                     }
                 )
 
@@ -885,8 +1051,12 @@ async def get_streams_by_streamer_id(streamer_id: int, db: Session = Depends(get
                 {
                     "id": stream.id,
                     "streamer_id": stream.streamer_id,
-                    "started_at": stream.started_at.isoformat() if stream.started_at else None,
-                    "ended_at": stream.ended_at.isoformat() if stream.ended_at else None,
+                    "started_at": stream.started_at.isoformat()
+                    if stream.started_at
+                    else None,
+                    "ended_at": stream.ended_at.isoformat()
+                    if stream.ended_at
+                    else None,
                     "title": stream.title,
                     "category_name": stream.category_name,
                     "language": stream.language,
@@ -910,28 +1080,47 @@ async def get_streams_by_streamer_id(streamer_id: int, db: Session = Depends(get
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error retrieving streams for streamer {streamer_id}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to retrieve streams. Please try again.")
+        logger.error(
+            f"Error retrieving streams for streamer {streamer_id}: {e}", exc_info=True
+        )
+        raise HTTPException(
+            status_code=500, detail="Failed to retrieve streams. Please try again."
+        )
 
 
 @router.delete("/{streamer_id}/streams/{stream_id}")
-async def delete_stream(streamer_id: int, stream_id: int, db: Session = Depends(get_db)):
+async def delete_stream(
+    streamer_id: int, stream_id: int, db: Session = Depends(get_db)
+):
     """Delete a stream and all associated metadata files for a streamer"""
     try:
         # Check if the streamer exists
         streamer = db.query(Streamer).filter(Streamer.id == streamer_id).first()
         if not streamer:
-            raise HTTPException(status_code=404, detail=f"Streamer with ID {streamer_id} not found")
+            raise HTTPException(
+                status_code=404, detail=f"Streamer with ID {streamer_id} not found"
+            )
 
         # Check if the stream exists and belongs to the streamer
-        stream = db.query(Stream).filter(Stream.id == stream_id, Stream.streamer_id == streamer_id).first()
+        stream = (
+            db.query(Stream)
+            .filter(Stream.id == stream_id, Stream.streamer_id == streamer_id)
+            .first()
+        )
 
         if not stream:
-            raise HTTPException(status_code=404, detail=f"Stream with ID {stream_id} not found for this streamer")
+            raise HTTPException(
+                status_code=404,
+                detail=f"Stream with ID {stream_id} not found for this streamer",
+            )
 
         # Get metadata to find associated files
-        metadata = db.query(StreamMetadata).filter(StreamMetadata.stream_id == stream_id).first()
-        
+        metadata = (
+            db.query(StreamMetadata)
+            .filter(StreamMetadata.stream_id == stream_id)
+            .first()
+        )
+
         # Use safe deletion logic (same as cleanup_service)
         # - tvshow.nfo is NEVER deleted (belongs to streamer)
         # - season.nfo is only deleted if this is the LAST stream in that season
@@ -955,7 +1144,9 @@ async def delete_stream(streamer_id: int, stream_id: int, db: Session = Depends(
         db.query(StreamEvent).filter(StreamEvent.stream_id == stream_id).delete()
 
         # Delete any active recording state entries for this stream
-        db.query(ActiveRecordingState).filter(ActiveRecordingState.stream_id == stream_id).delete()
+        db.query(ActiveRecordingState).filter(
+            ActiveRecordingState.stream_id == stream_id
+        ).delete()
 
         # Delete the stream record itself
         db.delete(stream)
@@ -963,7 +1154,7 @@ async def delete_stream(streamer_id: int, stream_id: int, db: Session = Depends(
 
         # Now delete all the files
         deleted_files, deleted_count = await delete_files_async(files_to_delete)
-        
+
         # Clean up empty directories
         for dir_path in directories_to_check:
             try:
@@ -985,11 +1176,15 @@ async def delete_stream(streamer_id: int, stream_id: int, db: Session = Depends(
     except Exception as e:
         db.rollback()
         logger.error(f"Error deleting stream {stream_id}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to delete stream. Please try again.")
+        raise HTTPException(
+            status_code=500, detail="Failed to delete stream. Please try again."
+        )
 
 
 @router.get("/validate/{username}")
-async def validate_streamer(username: str, streamer_service: StreamerService = Depends(get_streamer_service)):
+async def validate_streamer(
+    username: str, streamer_service: StreamerService = Depends(get_streamer_service)
+):
     """Überprüft, ob ein Twitch-Benutzername gültig ist"""
     try:
         # Überprüfe, ob der Streamer bereits in der Datenbank existiert
@@ -1014,7 +1209,10 @@ async def validate_streamer(username: str, streamer_service: StreamerService = D
         user_data = await streamer_service.get_user_data(username)
 
         if not user_data:
-            return {"valid": False, "message": f"Streamer '{username}' not found on Twitch"}
+            return {
+                "valid": False,
+                "message": f"Streamer '{username}' not found on Twitch",
+            }
 
         # Extrahiere die relevanten Informationen aus dem Twitch-Benutzer
         streamer_info = {
@@ -1026,24 +1224,41 @@ async def validate_streamer(username: str, streamer_service: StreamerService = D
             "description": user_data.get("description", ""),
         }
 
-        return {"valid": True, "message": "Valid Twitch username", "streamer_info": streamer_info}
+        return {
+            "valid": True,
+            "message": "Valid Twitch username",
+            "streamer_info": streamer_info,
+        }
     except Exception as e:
         logger.error(f"Error validating streamer: {e}", exc_info=True)
-        return {"valid": False, "message": "Failed to validate streamer. Please try again."}
+        return {
+            "valid": False,
+            "message": "Failed to validate streamer. Please try again.",
+        }
 
 
 @router.get("/{streamer_id}/streams/{stream_id}/chapters")
-async def get_stream_chapters(streamer_id: int, stream_id: int, db: Session = Depends(get_db)):
+async def get_stream_chapters(
+    streamer_id: int, stream_id: int, db: Session = Depends(get_db)
+):
     """Get chapter data for a specific stream"""
     try:
         # First verify the stream exists for this streamer
-        stream = db.query(Stream).filter(Stream.id == stream_id, Stream.streamer_id == streamer_id).first()
+        stream = (
+            db.query(Stream)
+            .filter(Stream.id == stream_id, Stream.streamer_id == streamer_id)
+            .first()
+        )
 
         if not stream:
             raise HTTPException(status_code=404, detail="Stream not found")
 
         # Get metadata for the stream
-        metadata = db.query(StreamMetadata).filter(StreamMetadata.stream_id == stream_id).first()
+        metadata = (
+            db.query(StreamMetadata)
+            .filter(StreamMetadata.stream_id == stream_id)
+            .first()
+        )
 
         if not metadata:
             return {"chapters": [], "message": "No metadata found for this stream"}
@@ -1065,7 +1280,8 @@ async def get_stream_chapters(streamer_id: int, stream_id: int, db: Session = De
             events = (
                 db.query(StreamEvent)
                 .filter(
-                    StreamEvent.stream_id == stream_id, StreamEvent.event_type.in_(["stream.online", "channel.update"])
+                    StreamEvent.stream_id == stream_id,
+                    StreamEvent.event_type.in_(["stream.online", "channel.update"]),
                 )
                 .order_by(StreamEvent.timestamp)
                 .all()
@@ -1073,7 +1289,9 @@ async def get_stream_chapters(streamer_id: int, stream_id: int, db: Session = De
 
             for event in events:
                 try:
-                    event_data = json.loads(event.event_data) if event.event_data else {}
+                    event_data = (
+                        json.loads(event.event_data) if event.event_data else {}
+                    )
                     title = "Stream Event"
 
                     if event.event_type == "stream.online":
@@ -1084,7 +1302,13 @@ async def get_stream_chapters(streamer_id: int, stream_id: int, db: Session = De
                         if len(title) > 50:
                             title = title[:47] + "..."
 
-                    chapters.append({"start_time": event.timestamp.isoformat(), "title": title, "type": "event"})
+                    chapters.append(
+                        {
+                            "start_time": event.timestamp.isoformat(),
+                            "title": title,
+                            "type": "event",
+                        }
+                    )
                 except Exception as e:
                     logger.warning(f"Failed to process event {event.id}: {e}")
 
@@ -1093,7 +1317,11 @@ async def get_stream_chapters(streamer_id: int, stream_id: int, db: Session = De
         # If still no chapters, create a basic chapter for the stream start
         if not chapters and stream.started_at:
             chapters.append(
-                {"start_time": stream.started_at.isoformat(), "title": stream.title or "Stream", "type": "stream"}
+                {
+                    "start_time": stream.started_at.isoformat(),
+                    "title": stream.title or "Stream",
+                    "type": "stream",
+                }
             )
 
         # Return chapter data with metadata
@@ -1123,17 +1351,30 @@ async def get_stream_chapters(streamer_id: int, stream_id: int, db: Session = De
             "video_url": video_url,
             "video_file": stream.recording_path,
             "metadata": {
-                "has_vtt": bool(metadata.chapters_vtt_path and Path(metadata.chapters_vtt_path).exists()),
-                "has_srt": bool(metadata.chapters_srt_path and Path(metadata.chapters_srt_path).exists()),
-                "has_ffmpeg": bool(metadata.chapters_ffmpeg_path and Path(metadata.chapters_ffmpeg_path).exists()),
+                "has_vtt": bool(
+                    metadata.chapters_vtt_path
+                    and Path(metadata.chapters_vtt_path).exists()
+                ),
+                "has_srt": bool(
+                    metadata.chapters_srt_path
+                    and Path(metadata.chapters_srt_path).exists()
+                ),
+                "has_ffmpeg": bool(
+                    metadata.chapters_ffmpeg_path
+                    and Path(metadata.chapters_ffmpeg_path).exists()
+                ),
             },
         }
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error getting chapters for stream {stream_id}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to load stream chapters. Please try again.")
+        logger.error(
+            f"Error getting chapters for stream {stream_id}: {e}", exc_info=True
+        )
+        raise HTTPException(
+            status_code=500, detail="Failed to load stream chapters. Please try again."
+        )
 
 
 def parse_webvtt_chapters(vtt_content: str) -> List[Dict[str, Any]]:
@@ -1152,7 +1393,9 @@ def parse_webvtt_chapters(vtt_content: str) -> List[Dict[str, Any]]:
             continue
 
         # Look for timestamp lines (format: 00:00:00.000 --> 00:00:00.000)
-        timestamp_match = re.match(r"(\d{2}:\d{2}:\d{2}\.\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2}\.\d{3})", line)
+        timestamp_match = re.match(
+            r"(\d{2}:\d{2}:\d{2}\.\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2}\.\d{3})", line
+        )
         if timestamp_match:
             # Add the previous chapter before starting a new one
             if current_chapter and current_chapter.get("title"):
@@ -1176,13 +1419,17 @@ def parse_webvtt_chapters(vtt_content: str) -> List[Dict[str, Any]]:
 
 
 @router.delete("/{streamer_id}/streams")
-async def delete_all_streams(streamer_id: int, exclude_active: bool = True, db: Session = Depends(get_db)):
+async def delete_all_streams(
+    streamer_id: int, exclude_active: bool = True, db: Session = Depends(get_db)
+):
     """Delete all streams and all associated metadata files for a streamer"""
     try:
         # Check if the streamer exists
         streamer = db.query(Streamer).filter(Streamer.id == streamer_id).first()
         if not streamer:
-            raise HTTPException(status_code=404, detail=f"Streamer with ID {streamer_id} not found")
+            raise HTTPException(
+                status_code=404, detail=f"Streamer with ID {streamer_id} not found"
+            )
 
         # Get all streams for this streamer
         streams = db.query(Stream).filter(Stream.streamer_id == streamer_id).all()
@@ -1210,18 +1457,26 @@ async def delete_all_streams(streamer_id: int, exclude_active: bool = True, db: 
                         continue
                     if lh.tzinfo not in now_map:
                         # Cache now() per tzinfo to avoid repeated calls
-                        now_map[lh.tzinfo] = datetime.now(lh.tzinfo) if lh.tzinfo else datetime.utcnow()
+                        now_map[lh.tzinfo] = (
+                            datetime.now(lh.tzinfo) if lh.tzinfo else datetime.utcnow()
+                        )
                     now = now_map[lh.tzinfo]
                     age_seconds = (now - lh).total_seconds()
                     if age_seconds <= 300 and state.status in ("active", "stopping"):
                         active_stream_ids.add(state.stream_id)
-                skipped_active_stream_ids = [s.id for s in streams if s.id in active_stream_ids]
+                skipped_active_stream_ids = [
+                    s.id for s in streams if s.id in active_stream_ids
+                ]
             except Exception as e:
                 # If any issue occurs determining active states, default to not skipping
-                logger.warning(f"Failed to determine active recording states for streamer {streamer_id}: {e}")
+                logger.warning(
+                    f"Failed to determine active recording states for streamer {streamer_id}: {e}"
+                )
 
         # Also handle orphaned recordings with null stream_id for this streamer
-        orphaned_recordings = db.query(Recording).filter(Recording.stream_id.is_(None)).all()
+        orphaned_recordings = (
+            db.query(Recording).filter(Recording.stream_id.is_(None)).all()
+        )
 
         if not streams and not orphaned_recordings:
             return {
@@ -1246,10 +1501,16 @@ async def delete_all_streams(streamer_id: int, exclude_active: bool = True, db: 
             deleted_stream_ids.append(stream.id)
 
             # Get metadata for this stream
-            metadata = db.query(StreamMetadata).filter(StreamMetadata.stream_id == stream.id).first()
+            metadata = (
+                db.query(StreamMetadata)
+                .filter(StreamMetadata.stream_id == stream.id)
+                .first()
+            )
 
             # Use safe deletion logic (same as cleanup_service)
-            stream_files, stream_dirs = collect_stream_files_for_deletion(stream, metadata, db)
+            stream_files, stream_dirs = collect_stream_files_for_deletion(
+                stream, metadata, db
+            )
             files_to_delete.extend(stream_files)
             directories_to_check.update(stream_dirs)
 
@@ -1258,7 +1519,9 @@ async def delete_all_streams(streamer_id: int, exclude_active: bool = True, db: 
                 db.delete(metadata)
 
             # Check for recordings associated with this stream and collect their paths
-            recordings = db.query(Recording).filter(Recording.stream_id == stream.id).all()
+            recordings = (
+                db.query(Recording).filter(Recording.stream_id == stream.id).all()
+            )
             for recording in recordings:
                 if recording.path:
                     files_to_delete.append(recording.path)
@@ -1269,7 +1532,9 @@ async def delete_all_streams(streamer_id: int, exclude_active: bool = True, db: 
             db.query(StreamEvent).filter(StreamEvent.stream_id == stream.id).delete()
 
             # Delete active recording state for this stream
-            db.query(ActiveRecordingState).filter(ActiveRecordingState.stream_id == stream.id).delete()
+            db.query(ActiveRecordingState).filter(
+                ActiveRecordingState.stream_id == stream.id
+            ).delete()
 
             # Delete the stream record itself
             db.delete(stream)
@@ -1317,5 +1582,9 @@ async def delete_all_streams(streamer_id: int, exclude_active: bool = True, db: 
         raise
     except Exception as e:
         db.rollback()
-        logger.error(f"Error deleting all streams for streamer {streamer_id}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to delete all streams. Please try again.")
+        logger.error(
+            f"Error deleting all streams for streamer {streamer_id}: {e}", exc_info=True
+        )
+        raise HTTPException(
+            status_code=500, detail="Failed to delete all streams. Please try again."
+        )

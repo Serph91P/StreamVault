@@ -27,7 +27,9 @@ def get_streamlink_version() -> str:
         String containing the version of Streamlink
     """
     try:
-        result = subprocess.run(["streamlink", "--version"], capture_output=True, text=True, check=True)
+        result = subprocess.run(
+            ["streamlink", "--version"], capture_output=True, text=True, check=True
+        )
         # Extract version number from the output
         version_line = result.stdout.strip()
         # Usually outputs something like "streamlink 5.5.1"
@@ -44,7 +46,9 @@ def get_streamlink_version() -> str:
         return "Error"
 
 
-def check_proxy_connectivity(proxy_settings: Optional[Dict[str, str]] = None) -> Tuple[bool, str]:
+def check_proxy_connectivity(
+    proxy_settings: Optional[Dict[str, str]] = None,
+) -> Tuple[bool, str]:
     """
     Check if proxy is reachable before attempting to record.
 
@@ -112,7 +116,9 @@ def check_proxy_connectivity(proxy_settings: Optional[Dict[str, str]] = None) ->
         return False, error_msg
 
 
-def get_stream_info(streamer_name: str, proxy_settings: Optional[Dict[str, str]] = None) -> Tuple[bool, Dict[str, Any]]:
+def get_stream_info(
+    streamer_name: str, proxy_settings: Optional[Dict[str, str]] = None
+) -> Tuple[bool, Dict[str, Any]]:
     """
     Get information about a stream using Streamlink.
 
@@ -128,11 +134,17 @@ def get_stream_info(streamer_name: str, proxy_settings: Optional[Dict[str, str]]
     if proxy_settings and any(proxy_settings.values()):
         is_reachable, proxy_error = check_proxy_connectivity(proxy_settings)
         if not is_reachable:
-            logger.error(f"🔴 PROXY_DOWN: Cannot get stream info for {streamer_name} - {proxy_error}")
+            logger.error(
+                f"🔴 PROXY_DOWN: Cannot get stream info for {streamer_name} - {proxy_error}"
+            )
             return False, {
                 "error": "Proxy connection failed",
                 "details": proxy_error,
-                "proxy_settings": {k: v[:50] + "..." if len(v) > 50 else v for k, v in proxy_settings.items() if v},
+                "proxy_settings": {
+                    k: v[:50] + "..." if len(v) > 50 else v
+                    for k, v in proxy_settings.items()
+                    if v
+                },
             }
 
     cmd = ["streamlink", "--json", f"twitch.tv/{streamer_name}"]
@@ -148,8 +160,12 @@ def get_stream_info(streamer_name: str, proxy_settings: Optional[Dict[str, str]]
         # SECURITY: Sanitize command for logging to prevent token exposure (CWE-532)
         from app.utils.security import sanitize_command_for_logging
 
-        logger.debug(f"Running stream info command: {sanitize_command_for_logging(cmd)}")
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=30)
+        logger.debug(
+            f"Running stream info command: {sanitize_command_for_logging(cmd)}"
+        )
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, check=True, timeout=30
+        )
 
         # Parse the JSON output
         stream_info = json.loads(result.stdout)
@@ -165,14 +181,20 @@ def get_stream_info(streamer_name: str, proxy_settings: Optional[Dict[str, str]]
 
         # Check if this is a proxy-related error
         stderr_lower = (e.stderr or "").lower()
-        if any(pattern in stderr_lower for pattern in ["proxy", "connection refused", "network unreachable"]):
+        if any(
+            pattern in stderr_lower
+            for pattern in ["proxy", "connection refused", "network unreachable"]
+        ):
             return False, {
                 "error": "Proxy or network connection failed",
                 "stderr": e.stderr,
                 "details": "Check proxy settings or network connectivity",
             }
 
-        return False, {"error": str(e), "stderr": e.stderr if hasattr(e, "stderr") else "No error output"}
+        return False, {
+            "error": str(e),
+            "stderr": e.stderr if hasattr(e, "stderr") else "No error output",
+        }
     except json.JSONDecodeError as e:
         logger.error(f"Failed to parse JSON output from Streamlink: {e}")
         return False, {
@@ -286,7 +308,9 @@ def get_streamlink_command(
     return cmd
 
 
-def _add_proxy_settings(cmd: List[str], proxy_settings: Dict[str, str], force_mode: bool) -> List[str]:
+def _add_proxy_settings(
+    cmd: List[str], proxy_settings: Dict[str, str], force_mode: bool
+) -> List[str]:
     """
     Add proxy settings to the Streamlink command.
 
@@ -303,7 +327,10 @@ def _add_proxy_settings(cmd: List[str], proxy_settings: Dict[str, str], force_mo
         proxy_url = proxy_settings["http"].strip()
         # Validate that the proxy URL has the correct protocol prefix
         if not proxy_url.startswith(("http://", "https://")):
-            error_msg = f"HTTP proxy URL must start with 'http://' or 'https://'. " f"Current value: {proxy_url}"
+            error_msg = (
+                f"HTTP proxy URL must start with 'http://' or 'https://'. "
+                f"Current value: {proxy_url}"
+            )
             logger.error(f"PROXY_VALIDATION_FAILED: {error_msg}")
             raise ValueError(error_msg)
 
@@ -341,7 +368,10 @@ def _add_proxy_settings(cmd: List[str], proxy_settings: Dict[str, str], force_mo
         proxy_url = proxy_settings["https"].strip()
         # Validate that the proxy URL has the correct protocol prefix
         if not proxy_url.startswith(("http://", "https://")):
-            error_msg = f"HTTPS proxy URL must start with 'http://' or 'https://'. " f"Current value: {proxy_url}"
+            error_msg = (
+                f"HTTPS proxy URL must start with 'http://' or 'https://'. "
+                f"Current value: {proxy_url}"
+            )
             logger.error(f"PROXY_VALIDATION_FAILED: {error_msg}")
             raise ValueError(error_msg)
 
@@ -442,7 +472,10 @@ def get_streamlink_vod_command(
 
 
 def get_streamlink_clip_command(
-    clip_url: str, quality: str, output_path: str, proxy_settings: Optional[Dict[str, str]] = None
+    clip_url: str,
+    quality: str,
+    output_path: str,
+    proxy_settings: Optional[Dict[str, str]] = None,
 ) -> List[str]:
     """
     Generate a Streamlink command for downloading a Twitch clip.
@@ -480,7 +513,10 @@ def get_streamlink_clip_command(
             "--loglevel",
             "debug",
             "--logfile",
-            os.path.join(Path(output_path).parent, f"streamlink_clip_{Path(output_path).stem}.log"),
+            os.path.join(
+                Path(output_path).parent,
+                f"streamlink_clip_{Path(output_path).stem}.log",
+            ),
         ]
     )
 

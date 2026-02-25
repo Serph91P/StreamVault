@@ -25,7 +25,9 @@ class ShareTokenModel(Base):
     token = Column(String, unique=True, nullable=False)
     stream_id = Column(Integer, nullable=False)
     expires_at = Column(DateTime(timezone=True), nullable=False)
-    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    created_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
 
 
 def store_share_token(token: str, stream_id: int, expiration_seconds: int) -> None:
@@ -40,11 +42,15 @@ def store_share_token(token: str, stream_id: int, expiration_seconds: int) -> No
                 db.delete(existing)
 
             # Create new token
-            share_token = ShareTokenModel(token=token, stream_id=stream_id, expires_at=expires_at)
+            share_token = ShareTokenModel(
+                token=token, stream_id=stream_id, expires_at=expires_at
+            )
             db.add(share_token)
             db.commit()
 
-            logger.info(f"Stored share token for stream {stream_id}, " f"expires at {expires_at}")
+            logger.info(
+                f"Stored share token for stream {stream_id}, expires at {expires_at}"
+            )
 
         except Exception as e:
             db.rollback()
@@ -85,13 +91,17 @@ def cleanup_expired_tokens() -> int:
             now = datetime.now(timezone.utc)
 
             # Find expired tokens
-            expired_tokens = db.query(ShareTokenModel).filter(ShareTokenModel.expires_at < now).all()
+            expired_tokens = (
+                db.query(ShareTokenModel).filter(ShareTokenModel.expires_at < now).all()
+            )
 
             expired_count = len(expired_tokens)
 
             if expired_count > 0:
                 # Delete expired tokens
-                db.query(ShareTokenModel).filter(ShareTokenModel.expires_at < now).delete()
+                db.query(ShareTokenModel).filter(
+                    ShareTokenModel.expires_at < now
+                ).delete()
 
                 db.commit()
                 logger.info(f"Cleaned up {expired_count} expired share tokens")
@@ -109,7 +119,11 @@ def get_token_count() -> int:
     with SessionLocal() as db:
         try:
             now = datetime.now(timezone.utc)
-            count = db.query(ShareTokenModel).filter(ShareTokenModel.expires_at > now).count()
+            count = (
+                db.query(ShareTokenModel)
+                .filter(ShareTokenModel.expires_at > now)
+                .count()
+            )
             return count
         except Exception as e:
             logger.error(f"Error getting token count: {e}")
@@ -123,7 +137,10 @@ def get_tokens_for_stream(stream_id: int) -> list:
             now = datetime.now(timezone.utc)
             tokens = (
                 db.query(ShareTokenModel)
-                .filter(ShareTokenModel.stream_id == stream_id, ShareTokenModel.expires_at > now)
+                .filter(
+                    ShareTokenModel.stream_id == stream_id,
+                    ShareTokenModel.expires_at > now,
+                )
                 .all()
             )
 
@@ -143,7 +160,9 @@ def get_tokens_for_stream(stream_id: int) -> list:
 def get_all_tokens(db: Session) -> list:
     """Get all share tokens (for admin purposes)"""
     try:
-        tokens = db.query(ShareTokenModel).order_by(ShareTokenModel.created_at.desc()).all()
+        tokens = (
+            db.query(ShareTokenModel).order_by(ShareTokenModel.created_at.desc()).all()
+        )
         return tokens
     except Exception as e:
         logger.error(f"Error getting all tokens: {e}")

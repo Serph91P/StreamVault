@@ -75,7 +75,9 @@ def with_retry(
 
                     if not should_retry or attempt == max_attempts - 1:
                         if log_attempts:
-                            logger.error(f"Final attempt failed for {func.__name__}: {e}")
+                            logger.error(
+                                f"Final attempt failed for {func.__name__}: {e}"
+                            )
                         raise
 
                     # Calculate delay for next attempt
@@ -121,7 +123,9 @@ def with_retry(
 
                     if not should_retry or attempt == max_attempts - 1:
                         if log_attempts:
-                            logger.error(f"Final attempt failed for {func.__name__}: {e}")
+                            logger.error(
+                                f"Final attempt failed for {func.__name__}: {e}"
+                            )
                         raise
 
                     # Calculate delay for next attempt

@@ -12,7 +12,9 @@ from typing import Dict, Any
 from datetime import datetime, timezone
 
 # Configuration constants
-STUCK_TASK_THRESHOLD_HOURS = 1  # Hours after which a task is considered stuck (reduced from 3)
+STUCK_TASK_THRESHOLD_HOURS = (
+    1  # Hours after which a task is considered stuck (reduced from 3)
+)
 
 logger = logging.getLogger("streamvault")
 
@@ -34,9 +36,13 @@ class BackgroundQueueCleanupService:
             errors = []
 
             # Get all external tasks (where recording tasks are stored)
-            external_tasks = getattr(self.background_queue_service, "external_tasks", {})
+            external_tasks = getattr(
+                self.background_queue_service, "external_tasks", {}
+            )
 
-            logger.info(f"🧹 CLEANUP_START: Found {len(external_tasks)} external tasks to check")
+            logger.info(
+                f"🧹 CLEANUP_START: Found {len(external_tasks)} external tasks to check"
+            )
 
             for task_id, task in list(external_tasks.items()):
                 try:
@@ -44,11 +50,13 @@ class BackgroundQueueCleanupService:
                     is_recording_task = (
                         task_id.startswith("recording_")
                         or task.task_type == "recording"
-                        or (hasattr(task, "task_name") and "recording" in str(task.task_name).lower())
+                        or (
+                            hasattr(task, "task_name")
+                            and "recording" in str(task.task_name).lower()
+                        )
                     )
 
                     if is_recording_task:
-
                         # Check if task is stuck
                         now = datetime.now(timezone.utc)
 
@@ -57,13 +65,17 @@ class BackgroundQueueCleanupService:
                             task_started = task.started_at
                             if task_started.tzinfo is None:
                                 task_started = task_started.replace(tzinfo=timezone.utc)
-                            task_age = (now - task_started).total_seconds() / 3600  # hours
+                            task_age = (
+                                now - task_started
+                            ).total_seconds() / 3600  # hours
                         elif hasattr(task, "created_at") and task.created_at:
                             # Fall back to created_at if started_at is not available
                             task_created = task.created_at
                             if task_created.tzinfo is None:
                                 task_created = task_created.replace(tzinfo=timezone.utc)
-                            task_age = (now - task_created).total_seconds() / 3600  # hours
+                            task_age = (
+                                now - task_created
+                            ).total_seconds() / 3600  # hours
 
                         is_stuck = False
                         reason = ""
@@ -93,7 +105,11 @@ class BackgroundQueueCleanupService:
                                     from app.models import Recording
 
                                     with SessionLocal() as db:
-                                        recording = db.query(Recording).filter(Recording.id == recording_id).first()
+                                        recording = (
+                                            db.query(Recording)
+                                            .filter(Recording.id == recording_id)
+                                            .first()
+                                        )
                                         if recording and recording.stream:
                                             # If the stream is ended, then the recording should be completed
                                             if recording.stream.ended_at:
@@ -108,7 +124,9 @@ class BackgroundQueueCleanupService:
                                                     f"🧹 RECORDING_STILL_LIVE: {task_id} - stream still live, not stuck"
                                                 )
                                 except Exception as e:
-                                    logger.warning(f"Could not verify recording status: {e}")
+                                    logger.warning(
+                                        f"Could not verify recording status: {e}"
+                                    )
 
                         if is_stuck:
                             logger.info(f"🧹 CLEANUP_STUCK_TASK: {task_id} ({reason})")
@@ -120,14 +138,18 @@ class BackgroundQueueCleanupService:
                                 and hasattr(task, "status")
                                 and str(task.status).lower() == "running"
                             ):
-
                                 logger.info(
                                     f"🧹 COMPLETING_TASK: Marking {task_id} as completed (was at 100% but running)"
                                 )
 
                                 # Mark as completed through proper channels
-                                if hasattr(self.background_queue_service, "complete_external_task"):
-                                    self.background_queue_service.complete_external_task(task_id, success=True)
+                                if hasattr(
+                                    self.background_queue_service,
+                                    "complete_external_task",
+                                ):
+                                    self.background_queue_service.complete_external_task(
+                                        task_id, success=True
+                                    )
                                     logger.info(
                                         f"✅ TASK_COMPLETED: {task_id} marked as completed via complete_external_task"
                                     )
@@ -135,20 +157,31 @@ class BackgroundQueueCleanupService:
                                 # Update task status directly if it has status attribute
                                 if hasattr(task, "status"):
                                     try:
-                                        from app.services.processing.task_dependency_manager import TaskStatus
+                                        from app.services.processing.task_dependency_manager import (
+                                            TaskStatus,
+                                        )
 
                                         if isinstance(task.status, TaskStatus):
                                             task.status = TaskStatus.COMPLETED
                                         else:
                                             task.status = "completed"
-                                        logger.info(f"✅ STATUS_UPDATED: {task_id} status updated to completed")
+                                        logger.info(
+                                            f"✅ STATUS_UPDATED: {task_id} status updated to completed"
+                                        )
                                     except Exception as e:
-                                        logger.warning(f"Could not update task status directly: {e}")
+                                        logger.warning(
+                                            f"Could not update task status directly: {e}"
+                                        )
 
                                 # Set completed_at timestamp if not set
-                                if not hasattr(task, "completed_at") or not task.completed_at:
+                                if (
+                                    not hasattr(task, "completed_at")
+                                    or not task.completed_at
+                                ):
                                     task.completed_at = datetime.now(timezone.utc)
-                                    logger.info(f"✅ TIMESTAMP_SET: {task_id} completed_at timestamp set")
+                                    logger.info(
+                                        f"✅ TIMESTAMP_SET: {task_id} completed_at timestamp set"
+                                    )
 
                             # For tasks running too long (likely Streamlink didn't signal completion)
                             elif task_age and task_age > 0.5:  # 30 minutes
@@ -157,8 +190,13 @@ class BackgroundQueueCleanupService:
                                 )
 
                                 # Mark as completed since Streamlink often doesn't signal completion properly
-                                if hasattr(self.background_queue_service, "complete_external_task"):
-                                    self.background_queue_service.complete_external_task(task_id, success=True)
+                                if hasattr(
+                                    self.background_queue_service,
+                                    "complete_external_task",
+                                ):
+                                    self.background_queue_service.complete_external_task(
+                                        task_id, success=True
+                                    )
                                     logger.info(
                                         f"✅ STREAMLINK_COMPLETED: {task_id} marked as completed (Streamlink timeout)"
                                     )
@@ -166,7 +204,9 @@ class BackgroundQueueCleanupService:
                                 # Update task status
                                 if hasattr(task, "status"):
                                     try:
-                                        from app.services.processing.task_dependency_manager import TaskStatus
+                                        from app.services.processing.task_dependency_manager import (
+                                            TaskStatus,
+                                        )
 
                                         if isinstance(task.status, TaskStatus):
                                             task.status = TaskStatus.COMPLETED
@@ -176,42 +216,70 @@ class BackgroundQueueCleanupService:
                                             f"✅ STREAMLINK_STATUS_UPDATED: {task_id} status updated to completed"
                                         )
                                     except Exception as e:
-                                        logger.warning(f"Could not update Streamlink task status: {e}")
+                                        logger.warning(
+                                            f"Could not update Streamlink task status: {e}"
+                                        )
 
                                 # Set completed timestamp
-                                if not hasattr(task, "completed_at") or not task.completed_at:
+                                if (
+                                    not hasattr(task, "completed_at")
+                                    or not task.completed_at
+                                ):
                                     task.completed_at = datetime.now(timezone.utc)
-                                    logger.info(f"✅ STREAMLINK_TIMESTAMP_SET: {task_id} completed_at timestamp set")
+                                    logger.info(
+                                        f"✅ STREAMLINK_TIMESTAMP_SET: {task_id} completed_at timestamp set"
+                                    )
 
                             else:
                                 # For tasks running too long, remove them as they're likely stuck
-                                logger.info(f"🧹 REMOVING_STUCK_TASK: {task_id} running too long, removing")
+                                logger.info(
+                                    f"🧹 REMOVING_STUCK_TASK: {task_id} running too long, removing"
+                                )
 
-                                if hasattr(self.background_queue_service, "complete_external_task"):
-                                    self.background_queue_service.complete_external_task(task_id, success=True)
+                                if hasattr(
+                                    self.background_queue_service,
+                                    "complete_external_task",
+                                ):
+                                    self.background_queue_service.complete_external_task(
+                                        task_id, success=True
+                                    )
 
                                 # Remove from external_tasks directly if method doesn't work
                                 if task_id in external_tasks:
                                     del external_tasks[task_id]
-                                    logger.info(f"🧹 CLEANUP_REMOVED: Directly removed {task_id} from external_tasks")
+                                    logger.info(
+                                        f"🧹 CLEANUP_REMOVED: Directly removed {task_id} from external_tasks"
+                                    )
 
                             # Remove from progress tracking to prevent UI showing as stuck
-                            if hasattr(self.background_queue_service, "progress_tracker"):
+                            if hasattr(
+                                self.background_queue_service, "progress_tracker"
+                            ):
                                 try:
-                                    self.background_queue_service.progress_tracker.remove_external_task(task_id)
-                                    logger.info(f"🧹 TRACKING_REMOVED: Removed {task_id} from progress tracker")
+                                    self.background_queue_service.progress_tracker.remove_external_task(
+                                        task_id
+                                    )
+                                    logger.info(
+                                        f"🧹 TRACKING_REMOVED: Removed {task_id} from progress tracker"
+                                    )
                                 except Exception as e:
-                                    logger.warning(f"Could not remove from progress tracker: {e}")
+                                    logger.warning(
+                                        f"Could not remove from progress tracker: {e}"
+                                    )
 
                             cleaned_count += 1
-                            logger.info(f"✅ CLEANUP_SUCCESS: Processed stuck recording task {task_id}")
+                            logger.info(
+                                f"✅ CLEANUP_SUCCESS: Processed stuck recording task {task_id}"
+                            )
 
                 except Exception as e:
                     error_msg = f"Failed to cleanup task {task_id}: {str(e)}"
                     errors.append(error_msg)
                     logger.error(f"❌ CLEANUP_ERROR: {error_msg}")
 
-            logger.info(f"🧹 CLEANUP_COMPLETE: Processed {cleaned_count} stuck recording tasks")
+            logger.info(
+                f"🧹 CLEANUP_COMPLETE: Processed {cleaned_count} stuck recording tasks"
+            )
 
             return {
                 "cleaned": cleaned_count,
@@ -234,7 +302,9 @@ class BackgroundQueueCleanupService:
 
             # Check active tasks for orphaned recovery checks
             active_tasks = getattr(self.background_queue_service, "active_tasks", {})
-            external_tasks = getattr(self.background_queue_service, "external_tasks", {})
+            external_tasks = getattr(
+                self.background_queue_service, "external_tasks", {}
+            )
 
             logger.info(
                 f"🛑 ORPHANED_CLEANUP_START: Found {len(active_tasks)} active tasks and {len(external_tasks)} external tasks to check"
@@ -245,9 +315,15 @@ class BackgroundQueueCleanupService:
                 try:
                     # Check if it's an orphaned recovery task
                     is_orphaned_task = (
-                        (hasattr(task, "task_type") and task.task_type == "orphaned_recovery_check")
+                        (
+                            hasattr(task, "task_type")
+                            and task.task_type == "orphaned_recovery_check"
+                        )
                         or "orphaned" in task_id.lower()
-                        or (hasattr(task, "task_name") and "orphaned" in str(task.task_name).lower())
+                        or (
+                            hasattr(task, "task_name")
+                            and "orphaned" in str(task.task_name).lower()
+                        )
                     )
 
                     if is_orphaned_task:
@@ -258,44 +334,67 @@ class BackgroundQueueCleanupService:
                             status_value = str(task_status).lower()
 
                         if status_value in ["pending", "running"]:
-                            logger.info(f"🛑 STOPPING_ORPHANED_TASK: {task_id} (status: {status_value})")
+                            logger.info(
+                                f"🛑 STOPPING_ORPHANED_TASK: {task_id} (status: {status_value})"
+                            )
 
                             # Try to complete the task properly first
                             try:
-                                if hasattr(self.background_queue_service, "queue_manager"):
+                                if hasattr(
+                                    self.background_queue_service, "queue_manager"
+                                ):
                                     # Mark as completed rather than cancelled for orphaned recovery tasks
                                     await self.background_queue_service.queue_manager.mark_task_completed(
                                         task_id, success=True
                                     )
-                                    logger.info(f"🛑 TASK_COMPLETED: {task_id} marked as completed via queue manager")
+                                    logger.info(
+                                        f"🛑 TASK_COMPLETED: {task_id} marked as completed via queue manager"
+                                    )
 
                                 # Update task status directly
                                 if hasattr(task, "status"):
                                     try:
-                                        from app.services.processing.task_dependency_manager import TaskStatus
+                                        from app.services.processing.task_dependency_manager import (
+                                            TaskStatus,
+                                        )
 
                                         if isinstance(task.status, TaskStatus):
                                             task.status = TaskStatus.COMPLETED
                                         else:
                                             task.status = "completed"
-                                        logger.info(f"🛑 STATUS_UPDATED: {task_id} status updated to completed")
+                                        logger.info(
+                                            f"🛑 STATUS_UPDATED: {task_id} status updated to completed"
+                                        )
                                     except Exception as e:
-                                        logger.warning(f"Could not update task status directly: {e}")
+                                        logger.warning(
+                                            f"Could not update task status directly: {e}"
+                                        )
 
                                 # Set completed timestamp
-                                if not hasattr(task, "completed_at") or not task.completed_at:
+                                if (
+                                    not hasattr(task, "completed_at")
+                                    or not task.completed_at
+                                ):
                                     task.completed_at = datetime.now(timezone.utc)
-                                    logger.info(f"🛑 TIMESTAMP_SET: {task_id} completed_at timestamp set")
+                                    logger.info(
+                                        f"🛑 TIMESTAMP_SET: {task_id} completed_at timestamp set"
+                                    )
 
                             except Exception as e:
-                                logger.warning(f"Could not complete task via queue manager: {e}")
+                                logger.warning(
+                                    f"Could not complete task via queue manager: {e}"
+                                )
                                 # Fall back to direct removal if completion fails
                                 if task_id in active_tasks:
                                     del active_tasks[task_id]
-                                    logger.info(f"🛑 FALLBACK_REMOVED: Directly removed {task_id} from active_tasks")
+                                    logger.info(
+                                        f"🛑 FALLBACK_REMOVED: Directly removed {task_id} from active_tasks"
+                                    )
 
                             stopped_count += 1
-                            logger.info(f"🛑 STOPPED_ORPHANED_CHECK: Processed orphaned recovery task {task_id}")
+                            logger.info(
+                                f"🛑 STOPPED_ORPHANED_CHECK: Processed orphaned recovery task {task_id}"
+                            )
 
                 except Exception as e:
                     error_msg = f"Failed to stop orphaned task {task_id}: {str(e)}"
@@ -307,9 +406,15 @@ class BackgroundQueueCleanupService:
                 try:
                     # Check if it's an orphaned recovery task
                     is_orphaned_task = (
-                        (hasattr(task, "task_type") and task.task_type == "orphaned_recovery_check")
+                        (
+                            hasattr(task, "task_type")
+                            and task.task_type == "orphaned_recovery_check"
+                        )
                         or "orphaned" in task_id.lower()
-                        or (hasattr(task, "task_name") and "orphaned" in str(task.task_name).lower())
+                        or (
+                            hasattr(task, "task_name")
+                            and "orphaned" in str(task.task_name).lower()
+                        )
                     )
 
                     if is_orphaned_task:
@@ -320,25 +425,43 @@ class BackgroundQueueCleanupService:
                             status_value = str(task_status).lower()
 
                         if status_value in ["pending", "running"]:
-                            logger.info(f"🛑 STOPPING_EXTERNAL_ORPHANED_TASK: {task_id} (status: {status_value})")
+                            logger.info(
+                                f"🛑 STOPPING_EXTERNAL_ORPHANED_TASK: {task_id} (status: {status_value})"
+                            )
 
                             # Complete external task
-                            if hasattr(self.background_queue_service, "complete_external_task"):
-                                self.background_queue_service.complete_external_task(task_id, success=True)
-                                logger.info(f"🛑 EXTERNAL_TASK_COMPLETED: {task_id} marked as completed")
+                            if hasattr(
+                                self.background_queue_service, "complete_external_task"
+                            ):
+                                self.background_queue_service.complete_external_task(
+                                    task_id, success=True
+                                )
+                                logger.info(
+                                    f"🛑 EXTERNAL_TASK_COMPLETED: {task_id} marked as completed"
+                                )
 
                             # Remove from external_tasks directly
                             if task_id in external_tasks:
                                 del external_tasks[task_id]
-                                logger.info(f"🛑 EXTERNAL_REMOVED: Directly removed {task_id} from external_tasks")
+                                logger.info(
+                                    f"🛑 EXTERNAL_REMOVED: Directly removed {task_id} from external_tasks"
+                                )
 
                             # Remove from progress tracking
-                            if hasattr(self.background_queue_service, "progress_tracker"):
+                            if hasattr(
+                                self.background_queue_service, "progress_tracker"
+                            ):
                                 try:
-                                    self.background_queue_service.progress_tracker.remove_external_task(task_id)
-                                    logger.info(f"🛑 TRACKING_REMOVED: Removed {task_id} from progress tracker")
+                                    self.background_queue_service.progress_tracker.remove_external_task(
+                                        task_id
+                                    )
+                                    logger.info(
+                                        f"🛑 TRACKING_REMOVED: Removed {task_id} from progress tracker"
+                                    )
                                 except Exception as e:
-                                    logger.warning(f"Could not remove from progress tracker: {e}")
+                                    logger.warning(
+                                        f"Could not remove from progress tracker: {e}"
+                                    )
 
                             stopped_count += 1
                             logger.info(
@@ -346,11 +469,15 @@ class BackgroundQueueCleanupService:
                             )
 
                 except Exception as e:
-                    error_msg = f"Failed to stop external orphaned task {task_id}: {str(e)}"
+                    error_msg = (
+                        f"Failed to stop external orphaned task {task_id}: {str(e)}"
+                    )
                     errors.append(error_msg)
                     logger.error(f"❌ EXTERNAL_ORPHANED_CLEANUP_ERROR: {error_msg}")
 
-            logger.info(f"🛑 ORPHANED_CLEANUP_COMPLETE: Stopped {stopped_count} orphaned recovery tasks")
+            logger.info(
+                f"🛑 ORPHANED_CLEANUP_COMPLETE: Stopped {stopped_count} orphaned recovery tasks"
+            )
 
             return {
                 "stopped": stopped_count,
@@ -371,7 +498,9 @@ class BackgroundQueueCleanupService:
             fixed_count = 0
 
             # Check external tasks first
-            external_tasks = getattr(self.background_queue_service, "external_tasks", {})
+            external_tasks = getattr(
+                self.background_queue_service, "external_tasks", {}
+            )
             for task_id, task in external_tasks.items():
                 if not task.task_type or task.task_type in ["unknown", ""]:
                     # Try to infer task type from task_id
@@ -401,7 +530,10 @@ class BackgroundQueueCleanupService:
                     fixed_count += 1
                     logger.info(f"🔧 FIXED_TASK_TYPE: {task_id} -> {task.task_type}")
 
-            return {"fixed": fixed_count, "message": f"Fixed {fixed_count} unknown task names"}
+            return {
+                "fixed": fixed_count,
+                "message": f"Fixed {fixed_count} unknown task names",
+            }
 
         except Exception as e:
             logger.error(f"Error fixing unknown task names: {e}", exc_info=True)
@@ -410,7 +542,9 @@ class BackgroundQueueCleanupService:
     async def comprehensive_cleanup(self) -> Dict[str, Any]:
         """Run all cleanup operations"""
         try:
-            logger.info("🧹 COMPREHENSIVE_CLEANUP_START: Running all background queue fixes")
+            logger.info(
+                "🧹 COMPREHENSIVE_CLEANUP_START: Running all background queue fixes"
+            )
 
             results = {}
 
@@ -427,10 +561,14 @@ class BackgroundQueueCleanupService:
             results["task_names"] = name_fixes
 
             total_cleaned = (
-                recording_cleanup.get("cleaned", 0) + orphaned_cleanup.get("stopped", 0) + name_fixes.get("fixed", 0)
+                recording_cleanup.get("cleaned", 0)
+                + orphaned_cleanup.get("stopped", 0)
+                + name_fixes.get("fixed", 0)
             )
 
-            logger.info(f"🧹 COMPREHENSIVE_CLEANUP_COMPLETE: Fixed {total_cleaned} issues total")
+            logger.info(
+                f"🧹 COMPREHENSIVE_CLEANUP_COMPLETE: Fixed {total_cleaned} issues total"
+            )
 
             results["summary"] = {
                 "total_issues_fixed": total_cleaned,

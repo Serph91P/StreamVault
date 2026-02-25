@@ -20,7 +20,7 @@ logger = logging.getLogger("streamvault")
 
 class RecordingStateManager:
     """Manages active recording state and persistence
-    
+
     SINGLETON PATTERN: Use `recording_state_manager` global instance.
     Do NOT create new instances unless you have a specific reason.
     """
@@ -41,17 +41,19 @@ class RecordingStateManager:
             if config_manager is not None:
                 self.config_manager = config_manager
             return
-            
+
         self.config_manager = config_manager
 
         # Active recordings tracking
         self.active_recordings: Dict[int, Dict[str, Any]] = {}
         self.recording_tasks: Dict[int, asyncio.Task] = {}
-        
+
         RecordingStateManager._initialized = True
         logger.debug("RecordingStateManager singleton initialized")
 
-    def add_active_recording(self, recording_id: int, recording_data: Dict[str, Any]) -> None:
+    def add_active_recording(
+        self, recording_id: int, recording_data: Dict[str, Any]
+    ) -> None:
         """Add recording to active tracking"""
         self.active_recordings[recording_id] = {
             **recording_data,
@@ -71,7 +73,9 @@ class RecordingStateManager:
         """Get active recording data"""
         return self.active_recordings.get(recording_id)
 
-    def update_active_recording(self, recording_id: int, update_data: Dict[str, Any]) -> None:
+    def update_active_recording(
+        self, recording_id: int, update_data: Dict[str, Any]
+    ) -> None:
         """Update active recording data"""
         if recording_id in self.active_recordings:
             self.active_recordings[recording_id].update(update_data)
@@ -152,12 +156,17 @@ class RecordingStateManager:
                 logger.warning("State persistence service not available")
                 return
 
-            persistence_data = {"active_recordings": {}, "timestamp": datetime.utcnow().isoformat()}
+            persistence_data = {
+                "active_recordings": {},
+                "timestamp": datetime.utcnow().isoformat(),
+            }
 
             # Convert active recordings to serializable format
             for recording_id, recording_data in self.active_recordings.items():
                 persistence_data["active_recordings"][str(recording_id)] = {
-                    k: v for k, v in recording_data.items() if isinstance(v, (str, int, float, bool, type(None)))
+                    k: v
+                    for k, v in recording_data.items()
+                    if isinstance(v, (str, int, float, bool, type(None)))
                 }
 
             # Note: save_state method removed - persistence now happens via ActiveRecordingState table
@@ -186,7 +195,9 @@ class RecordingStateManager:
             logger.error(f"Failed to load state from persistence: {e}")
             return {}
 
-    async def recover_active_recordings_from_persistence(self, database_service) -> List[int]:
+    async def recover_active_recordings_from_persistence(
+        self, database_service
+    ) -> List[int]:
         """Recover active recordings from persistence"""
         recovered_recordings = []
 
@@ -199,7 +210,9 @@ class RecordingStateManager:
                 return recovered_recordings
 
             # Get active recordings from database
-            active_db_recordings = await database_service.get_active_recordings_from_db()
+            active_db_recordings = (
+                await database_service.get_active_recordings_from_db()
+            )
             active_db_ids = {r.id for r in active_db_recordings}
 
             # Recover recordings that are both in persistence and database
@@ -209,21 +222,31 @@ class RecordingStateManager:
 
                     if recording_id in active_db_ids:
                         # Recovery logic for individual recording
-                        success = await self._recover_single_recording(recording_id, recording_data, database_service)
+                        success = await self._recover_single_recording(
+                            recording_id, recording_data, database_service
+                        )
 
                         if success:
                             recovered_recordings.append(recording_id)
-                            logger.info(f"Successfully recovered recording {recording_id}")
+                            logger.info(
+                                f"Successfully recovered recording {recording_id}"
+                            )
                         else:
-                            logger.warning(f"Failed to recover recording {recording_id}")
+                            logger.warning(
+                                f"Failed to recover recording {recording_id}"
+                            )
                     else:
-                        logger.info(f"Recording {recording_id} not found in database, skipping recovery")
+                        logger.info(
+                            f"Recording {recording_id} not found in database, skipping recovery"
+                        )
 
                 except Exception as e:
                     logger.error(f"Error recovering recording {recording_id_str}: {e}")
 
             if recovered_recordings:
-                logger.info(f"Recovered {len(recovered_recordings)} recordings from persistence")
+                logger.info(
+                    f"Recovered {len(recovered_recordings)} recordings from persistence"
+                )
 
         except Exception as e:
             logger.error(f"Failed to recover recordings from persistence: {e}")
@@ -246,7 +269,9 @@ class RecordingStateManager:
             if file_path and not Path(file_path).exists():
                 logger.warning(f"Recording file {file_path} no longer exists")
                 # Mark recording as failed
-                await database_service.mark_recording_failed(recording_id, "Recording file lost during recovery")
+                await database_service.mark_recording_failed(
+                    recording_id, "Recording file lost during recovery"
+                )
                 return False
 
             # Add to active recordings
@@ -254,7 +279,9 @@ class RecordingStateManager:
                 recording_id,
                 {
                     "file_path": file_path,
-                    "streamer_id": recording.stream.streamer_id if recording.stream else None,
+                    "streamer_id": recording.stream.streamer_id
+                    if recording.stream
+                    else None,
                     "stream_id": recording.stream_id,
                     "recovered": True,
                     **recording_data,

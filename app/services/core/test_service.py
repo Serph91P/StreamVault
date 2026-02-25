@@ -28,7 +28,13 @@ logger = logging.getLogger("streamvault.test")
 
 
 class TestResult:
-    def __init__(self, test_name: str, success: bool, message: str, details: Optional[Dict] = None):
+    def __init__(
+        self,
+        test_name: str,
+        success: bool,
+        message: str,
+        details: Optional[Dict] = None,
+    ):
         self.test_name = test_name
         self.success = success
         self.message = message
@@ -89,7 +95,9 @@ class StreamVaultTestService:
             "total_tests": total_tests,
             "passed": passed_tests,
             "failed": failed_tests,
-            "success_rate": (passed_tests / total_tests * 100) if total_tests > 0 else 0,
+            "success_rate": (passed_tests / total_tests * 100)
+            if total_tests > 0
+            else 0,
             "results": [
                 {
                     "test_name": result.test_name,
@@ -118,19 +126,35 @@ class StreamVaultTestService:
             try:
                 result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
                 if result.returncode == 0:
-                    version = result.stdout.split("\n")[0] if result.stdout else "Unknown version"
+                    version = (
+                        result.stdout.split("\n")[0]
+                        if result.stdout
+                        else "Unknown version"
+                    )
                     self.test_results.append(
-                        TestResult(f"dependency_{dep_name}", True, f"{dep_name} is available", {"version": version})
+                        TestResult(
+                            f"dependency_{dep_name}",
+                            True,
+                            f"{dep_name} is available",
+                            {"version": version},
+                        )
                     )
                 else:
                     self.test_results.append(
                         TestResult(
-                            f"dependency_{dep_name}", False, f"{dep_name} command failed", {"stderr": result.stderr}
+                            f"dependency_{dep_name}",
+                            False,
+                            f"{dep_name} command failed",
+                            {"stderr": result.stderr},
                         )
                     )
             except Exception as e:
                 self.test_results.append(
-                    TestResult(f"dependency_{dep_name}", False, f"{dep_name} not found or error: {str(e)}")
+                    TestResult(
+                        f"dependency_{dep_name}",
+                        False,
+                        f"{dep_name} not found or error: {str(e)}",
+                    )
                 )
 
     async def _test_database_connection(self):
@@ -146,11 +170,20 @@ class StreamVaultTestService:
                         "database_connection",
                         True,
                         "Database connection successful",
-                        {"streamer_count": streamer_count, "stream_count": stream_count},
+                        {
+                            "streamer_count": streamer_count,
+                            "stream_count": stream_count,
+                        },
                     )
                 )
         except Exception as e:
-            self.test_results.append(TestResult("database_connection", False, f"Database connection failed: {str(e)}"))
+            self.test_results.append(
+                TestResult(
+                    "database_connection",
+                    False,
+                    f"Database connection failed: {str(e)}",
+                )
+            )
 
     async def _test_file_permissions(self):
         """Test file system permissions in recording directory"""
@@ -181,7 +214,11 @@ class StreamVaultTestService:
                 )
             )
         except Exception as e:
-            self.test_results.append(TestResult("file_permissions", False, f"File permission test failed: {str(e)}"))
+            self.test_results.append(
+                TestResult(
+                    "file_permissions", False, f"File permission test failed: {str(e)}"
+                )
+            )
 
     async def _test_streamlink_functionality(self):
         """Test streamlink with a known working stream"""
@@ -202,7 +239,9 @@ class StreamVaultTestService:
                 "1",
             ]
 
-            result = subprocess.run(test_cmd, capture_output=True, text=True, timeout=30)
+            result = subprocess.run(
+                test_cmd, capture_output=True, text=True, timeout=30
+            )
 
             if result.returncode == 0 or "No playable streams found" in result.stderr:
                 # Both cases are acceptable - means streamlink is working
@@ -211,20 +250,37 @@ class StreamVaultTestService:
                         "streamlink_functionality",
                         True,
                         "Streamlink is working properly",
-                        {"output": result.stdout[:200] if result.stdout else result.stderr[:200]},
+                        {
+                            "output": result.stdout[:200]
+                            if result.stdout
+                            else result.stderr[:200]
+                        },
                     )
                 )
             else:
                 self.test_results.append(
                     TestResult(
-                        "streamlink_functionality", False, "Streamlink test failed", {"stderr": result.stderr[:500]}
+                        "streamlink_functionality",
+                        False,
+                        "Streamlink test failed",
+                        {"stderr": result.stderr[:500]},
                     )
                 )
 
         except subprocess.TimeoutExpired:
-            self.test_results.append(TestResult("streamlink_functionality", False, "Streamlink test timed out"))
+            self.test_results.append(
+                TestResult(
+                    "streamlink_functionality", False, "Streamlink test timed out"
+                )
+            )
         except Exception as e:
-            self.test_results.append(TestResult("streamlink_functionality", False, f"Streamlink test error: {str(e)}"))
+            self.test_results.append(
+                TestResult(
+                    "streamlink_functionality",
+                    False,
+                    f"Streamlink test error: {str(e)}",
+                )
+            )
 
     async def _test_ffmpeg_functionality(self):
         """Test FFmpeg with sample operations"""
@@ -257,13 +313,25 @@ class StreamVaultTestService:
                     str(test_video),
                 ]
 
-                result = subprocess.run(create_cmd, capture_output=True, text=True, timeout=30)
+                result = subprocess.run(
+                    create_cmd, capture_output=True, text=True, timeout=30
+                )
 
                 if result.returncode == 0 and test_video.exists():
                     # Test remuxing
-                    remux_cmd = ["ffmpeg", "-i", str(test_video), "-c", "copy", "-y", str(test_output)]
+                    remux_cmd = [
+                        "ffmpeg",
+                        "-i",
+                        str(test_video),
+                        "-c",
+                        "copy",
+                        "-y",
+                        str(test_output),
+                    ]
 
-                    remux_result = subprocess.run(remux_cmd, capture_output=True, text=True, timeout=20)
+                    remux_result = subprocess.run(
+                        remux_cmd, capture_output=True, text=True, timeout=20
+                    )
 
                     if remux_result.returncode == 0 and test_output.exists():
                         file_size = test_output.stat().st_size
@@ -295,14 +363,22 @@ class StreamVaultTestService:
                     )
 
         except Exception as e:
-            self.test_results.append(TestResult("ffmpeg_functionality", False, f"FFmpeg test error: {str(e)}"))
+            self.test_results.append(
+                TestResult(
+                    "ffmpeg_functionality", False, f"FFmpeg test error: {str(e)}"
+                )
+            )
 
     async def _test_recording_workflow(self):
         """Test the complete recording workflow with mock data"""
         try:
             with SessionLocal() as db:
                 # Find a test streamer or create one
-                test_streamer = db.query(Streamer).filter(Streamer.username == "test_streamer").first()
+                test_streamer = (
+                    db.query(Streamer)
+                    .filter(Streamer.username == "test_streamer")
+                    .first()
+                )
                 if not test_streamer:
                     test_streamer = Streamer(
                         username="test_streamer",
@@ -339,7 +415,9 @@ class StreamVaultTestService:
                         str(test_ts),
                     ]
 
-                    result = subprocess.run(create_cmd, capture_output=True, text=True, timeout=20)
+                    result = subprocess.run(
+                        create_cmd, capture_output=True, text=True, timeout=20
+                    )
 
                     if result.returncode == 0 and test_ts.exists():
                         # Test remux functionality
@@ -349,7 +427,9 @@ class StreamVaultTestService:
 
                         if remux_success and test_mp4.exists():
                             # Test validation
-                            is_valid = await self.recording_service._validate_mp4(str(test_mp4))
+                            is_valid = await self.recording_service._validate_mp4(
+                                str(test_mp4)
+                            )
 
                             self.test_results.append(
                                 TestResult(
@@ -359,12 +439,20 @@ class StreamVaultTestService:
                                     {
                                         "remux_success": remux_success,
                                         "file_valid": is_valid,
-                                        "file_size": test_mp4.stat().st_size if test_mp4.exists() else 0,
+                                        "file_size": test_mp4.stat().st_size
+                                        if test_mp4.exists()
+                                        else 0,
                                     },
                                 )
                             )
                         else:
-                            self.test_results.append(TestResult("recording_workflow", False, "Remux operation failed"))
+                            self.test_results.append(
+                                TestResult(
+                                    "recording_workflow",
+                                    False,
+                                    "Remux operation failed",
+                                )
+                            )
                     else:
                         self.test_results.append(
                             TestResult(
@@ -377,7 +465,11 @@ class StreamVaultTestService:
 
         except Exception as e:
             self.test_results.append(
-                TestResult("recording_workflow", False, f"Recording workflow test error: {str(e)}")
+                TestResult(
+                    "recording_workflow",
+                    False,
+                    f"Recording workflow test error: {str(e)}",
+                )
             )
 
     async def _test_metadata_generation(self):
@@ -385,7 +477,11 @@ class StreamVaultTestService:
         try:
             with SessionLocal() as db:
                 # Create or find test data
-                test_streamer = db.query(Streamer).filter(Streamer.username == "test_streamer").first()
+                test_streamer = (
+                    db.query(Streamer)
+                    .filter(Streamer.username == "test_streamer")
+                    .first()
+                )
                 if not test_streamer:
                     test_streamer = Streamer(
                         username="test_streamer",
@@ -446,12 +542,16 @@ class StreamVaultTestService:
                         str(test_mp4),
                     ]
 
-                    result = subprocess.run(create_cmd, capture_output=True, text=True, timeout=20)
+                    result = subprocess.run(
+                        create_cmd, capture_output=True, text=True, timeout=20
+                    )
 
                     if result.returncode == 0 and test_mp4.exists():
                         # Test metadata generation
-                        metadata_success = await self.metadata_service.generate_metadata_for_stream(
-                            test_stream.id, str(test_mp4)
+                        metadata_success = (
+                            await self.metadata_service.generate_metadata_for_stream(
+                                test_stream.id, str(test_mp4)
+                            )
                         )
 
                         # Check for expected files
@@ -480,7 +580,11 @@ class StreamVaultTestService:
                         )
                     else:
                         self.test_results.append(
-                            TestResult("metadata_generation", False, "Test video creation failed for metadata test")
+                            TestResult(
+                                "metadata_generation",
+                                False,
+                                "Test video creation failed for metadata test",
+                            )
                         )
 
                 # Clean up test data
@@ -490,7 +594,11 @@ class StreamVaultTestService:
 
         except Exception as e:
             self.test_results.append(
-                TestResult("metadata_generation", False, f"Metadata generation test error: {str(e)}")
+                TestResult(
+                    "metadata_generation",
+                    False,
+                    f"Metadata generation test error: {str(e)}",
+                )
             )
 
     async def _test_media_server_structure(self):
@@ -510,7 +618,9 @@ class StreamVaultTestService:
 
                 # Test structure creation
                 try:
-                    from app.services.processing.media_server_structure_service import MediaServerStructureService
+                    from app.services.processing.media_server_structure_service import (
+                        MediaServerStructureService,
+                    )
 
                     _ = MediaServerStructureService()  # Verify import works
 
@@ -527,7 +637,9 @@ class StreamVaultTestService:
 
                 expected_dirs = [
                     temp_path / mock_stream_data["streamer_username"],
-                    temp_path / mock_stream_data["streamer_username"] / "Season 2025-06",
+                    temp_path
+                    / mock_stream_data["streamer_username"]
+                    / "Season 2025-06",
                 ]
 
                 dirs_exist = all(d.exists() for d in expected_dirs)
@@ -540,14 +652,20 @@ class StreamVaultTestService:
                         {
                             "structure_created": structure_created,
                             "directories_exist": dirs_exist,
-                            "created_dirs": [str(d) for d in expected_dirs if d.exists()],
+                            "created_dirs": [
+                                str(d) for d in expected_dirs if d.exists()
+                            ],
                         },
                     )
                 )
 
         except Exception as e:
             self.test_results.append(
-                TestResult("media_server_structure", False, f"Media server structure test error: {str(e)}")
+                TestResult(
+                    "media_server_structure",
+                    False,
+                    f"Media server structure test error: {str(e)}",
+                )
             )
 
     async def _test_push_notifications(self):
@@ -555,7 +673,11 @@ class StreamVaultTestService:
         try:
             if not self.push_service.web_push_service:
                 self.test_results.append(
-                    TestResult("push_notifications", False, "Push service not configured (VAPID keys missing)")
+                    TestResult(
+                        "push_notifications",
+                        False,
+                        "Push service not configured (VAPID keys missing)",
+                    )
                 )
                 return
 
@@ -573,10 +695,15 @@ class StreamVaultTestService:
 
             # This will likely fail with mock data, but tests the code path
             try:
-                result = await self.push_service.send_notification(mock_subscription, test_notification)
+                result = await self.push_service.send_notification(
+                    mock_subscription, test_notification
+                )
                 self.test_results.append(
                     TestResult(
-                        "push_notifications", True, "Push notification system is functional", {"test_result": result}
+                        "push_notifications",
+                        True,
+                        "Push notification system is functional",
+                        {"test_result": result},
                     )
                 )
             except Exception as push_error:
@@ -591,7 +718,13 @@ class StreamVaultTestService:
                 )
 
         except Exception as e:
-            self.test_results.append(TestResult("push_notifications", False, f"Push notification test error: {str(e)}"))
+            self.test_results.append(
+                TestResult(
+                    "push_notifications",
+                    False,
+                    f"Push notification test error: {str(e)}",
+                )
+            )
 
     async def _test_websocket_functionality(self):
         """Test WebSocket functionality"""
@@ -612,11 +745,19 @@ class StreamVaultTestService:
                 )
             except ImportError:
                 self.test_results.append(
-                    TestResult("websocket_functionality", False, "WebSocket manager not available")
+                    TestResult(
+                        "websocket_functionality",
+                        False,
+                        "WebSocket manager not available",
+                    )
                 )
 
         except Exception as e:
-            self.test_results.append(TestResult("websocket_functionality", False, f"WebSocket test error: {str(e)}"))
+            self.test_results.append(
+                TestResult(
+                    "websocket_functionality", False, f"WebSocket test error: {str(e)}"
+                )
+            )
 
     async def _test_disk_space(self):
         """Test available disk space"""
@@ -647,7 +788,9 @@ class StreamVaultTestService:
             )
 
         except Exception as e:
-            self.test_results.append(TestResult("disk_space", False, f"Disk space test error: {str(e)}"))
+            self.test_results.append(
+                TestResult("disk_space", False, f"Disk space test error: {str(e)}")
+            )
 
     async def _test_proxy_connection(self):
         """Test proxy connection if configured"""
@@ -666,12 +809,17 @@ class StreamVaultTestService:
                     "-I",
                 ]
 
-                result = subprocess.run(test_cmd, capture_output=True, text=True, timeout=20)
+                result = subprocess.run(
+                    test_cmd, capture_output=True, text=True, timeout=20
+                )
 
                 if result.returncode == 0:
                     self.test_results.append(
                         TestResult(
-                            "proxy_connection", True, "Proxy connection is working", {"proxy": settings.HTTP_PROXY}
+                            "proxy_connection",
+                            True,
+                            "Proxy connection is working",
+                            {"proxy": settings.HTTP_PROXY},
                         )
                     )
                 else:
@@ -680,16 +828,25 @@ class StreamVaultTestService:
                             "proxy_connection",
                             False,
                             "Proxy connection failed",
-                            {"proxy": settings.HTTP_PROXY, "error": result.stderr[:200]},
+                            {
+                                "proxy": settings.HTTP_PROXY,
+                                "error": result.stderr[:200],
+                            },
                         )
                     )
             else:
                 self.test_results.append(
-                    TestResult("proxy_connection", True, "No proxy configured (direct connection)")
+                    TestResult(
+                        "proxy_connection",
+                        True,
+                        "No proxy configured (direct connection)",
+                    )
                 )
 
         except Exception as e:
-            self.test_results.append(TestResult("proxy_connection", False, f"Proxy test error: {str(e)}"))
+            self.test_results.append(
+                TestResult("proxy_connection", False, f"Proxy test error: {str(e)}")
+            )
 
     async def cleanup(self):
         """Clean up resources"""
@@ -738,12 +895,19 @@ class StreamVaultTestService:
                         "api_videos_endpoint",
                         False,
                         f"Videos API returned unexpected status: {response.status_code}",
-                        {"status_code": response.status_code, "body": response.text[:200]},
+                        {
+                            "status_code": response.status_code,
+                            "body": response.text[:200],
+                        },
                     )
                 )
 
         except Exception as e:
-            self.test_results.append(TestResult("api_videos_endpoint", False, f"Videos API test error: {str(e)}"))
+            self.test_results.append(
+                TestResult(
+                    "api_videos_endpoint", False, f"Videos API test error: {str(e)}"
+                )
+            )
 
     async def _test_api_streamers_endpoint(self):
         """Test /api/streamers endpoint functionality"""
@@ -785,7 +949,13 @@ class StreamVaultTestService:
                 )
 
         except Exception as e:
-            self.test_results.append(TestResult("api_streamers_endpoint", False, f"Streamers API test error: {str(e)}"))
+            self.test_results.append(
+                TestResult(
+                    "api_streamers_endpoint",
+                    False,
+                    f"Streamers API test error: {str(e)}",
+                )
+            )
 
     async def _test_api_auth_endpoint(self):
         """Test authentication endpoints"""
@@ -806,7 +976,10 @@ class StreamVaultTestService:
                         "api_auth_endpoint",
                         True,
                         f"Auth API working - {'authenticated' if is_authenticated else 'not authenticated'}",
-                        {"status_code": response.status_code, "authenticated": is_authenticated},
+                        {
+                            "status_code": response.status_code,
+                            "authenticated": is_authenticated,
+                        },
                     )
                 )
             else:
@@ -820,12 +993,16 @@ class StreamVaultTestService:
                 )
 
         except Exception as e:
-            self.test_results.append(TestResult("api_auth_endpoint", False, f"Auth API test error: {str(e)}"))
+            self.test_results.append(
+                TestResult("api_auth_endpoint", False, f"Auth API test error: {str(e)}")
+            )
 
     async def _test_background_queue(self):
         """Test background queue system"""
         try:
-            from app.services.processing.background_queue_service import background_queue
+            from app.services.processing.background_queue_service import (
+                background_queue,
+            )
 
             # Get queue stats
             stats = background_queue.get_queue_stats()
@@ -839,12 +1016,20 @@ class StreamVaultTestService:
                     "background_queue",
                     True,
                     f"Background queue operational - {total_tasks} active tasks, {external_tasks} external",
-                    {"active_tasks": total_tasks, "external_tasks": external_tasks, "stats": stats},
+                    {
+                        "active_tasks": total_tasks,
+                        "external_tasks": external_tasks,
+                        "stats": stats,
+                    },
                 )
             )
 
         except Exception as e:
-            self.test_results.append(TestResult("background_queue", False, f"Background queue test error: {str(e)}"))
+            self.test_results.append(
+                TestResult(
+                    "background_queue", False, f"Background queue test error: {str(e)}"
+                )
+            )
 
     async def _test_post_processing_pipeline(self):
         """Test post-processing pipeline components"""
@@ -866,10 +1051,16 @@ class StreamVaultTestService:
 
         except Exception as e:
             self.test_results.append(
-                TestResult("post_processing_pipeline", False, f"Post-processing pipeline test error: {str(e)}")
+                TestResult(
+                    "post_processing_pipeline",
+                    False,
+                    f"Post-processing pipeline test error: {str(e)}",
+                )
             )
 
-    async def _generate_test_stream_segments(self, output_dir: Path, duration: int = 10) -> List[Path]:
+    async def _generate_test_stream_segments(
+        self, output_dir: Path, duration: int = 10
+    ) -> List[Path]:
         """
         Generate fake TS segments to simulate Streamlink recording output.
         This creates realistic test data without needing an actual Twitch stream.
@@ -913,10 +1104,14 @@ class StreamVaultTestService:
                     str(segment_path),
                 ]
 
-                result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=30)
+                result = subprocess.run(
+                    cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=30
+                )
 
                 if result.returncode != 0:
-                    raise Exception(f"FFmpeg segment generation failed: {result.stderr.decode()}")
+                    raise Exception(
+                        f"FFmpeg segment generation failed: {result.stderr.decode()}"
+                    )
 
                 segments.append(segment_path)
                 logger.info(f"Generated test segment: {segment_path.name}")
@@ -953,7 +1148,9 @@ class StreamVaultTestService:
 
             # Step 2: Generate mock stream segments
             logger.info("Generating mock stream segments...")
-            segments = await self._generate_test_stream_segments(segments_dir, duration=10)
+            segments = await self._generate_test_stream_segments(
+                segments_dir, duration=10
+            )
 
             if not segments or len(segments) == 0:
                 raise Exception("No test segments generated")
@@ -988,7 +1185,10 @@ class StreamVaultTestService:
 
                 # Step 4: Create test recording
                 test_recording = Recording(
-                    stream_id=test_stream.id, start_time=datetime.now(), status="recording", created_at=datetime.now()
+                    stream_id=test_stream.id,
+                    start_time=datetime.now(),
+                    status="recording",
+                    created_at=datetime.now(),
                 )
                 db.add(test_recording)
                 db.commit()
@@ -1018,7 +1218,9 @@ class StreamVaultTestService:
                 str(output_mp4),
             ]
 
-            result = subprocess.run(concat_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=60)
+            result = subprocess.run(
+                concat_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=60
+            )
 
             if result.returncode != 0:
                 raise Exception(f"Concatenation failed: {result.stderr.decode()}")
@@ -1055,10 +1257,14 @@ class StreamVaultTestService:
                 str(thumbnail_path),
             ]
 
-            result = subprocess.run(thumb_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=30)
+            result = subprocess.run(
+                thumb_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=30
+            )
 
             if result.returncode != 0:
-                raise Exception(f"Thumbnail generation failed: {result.stderr.decode()}")
+                raise Exception(
+                    f"Thumbnail generation failed: {result.stderr.decode()}"
+                )
 
             # Step 8: Validate all artifacts exist
             artifacts = {
@@ -1079,7 +1285,11 @@ class StreamVaultTestService:
 
             # Step 9: Update recording status
             with SessionLocal() as db:
-                recording = db.query(Recording).filter(Recording.id == test_recording.id).first()
+                recording = (
+                    db.query(Recording)
+                    .filter(Recording.id == test_recording.id)
+                    .first()
+                )
                 if recording:
                     recording.status = "completed"
                     recording.end_time = datetime.now()
@@ -1112,7 +1322,11 @@ class StreamVaultTestService:
 
         except Exception as e:
             logger.error(f"Full recording pipeline test failed: {e}")
-            self.test_results.append(TestResult("full_recording_pipeline", False, f"Pipeline test error: {str(e)}"))
+            self.test_results.append(
+                TestResult(
+                    "full_recording_pipeline", False, f"Pipeline test error: {str(e)}"
+                )
+            )
 
         finally:
             # CRITICAL: Cleanup test data from database
@@ -1128,7 +1342,9 @@ class StreamVaultTestService:
                 except Exception as e:
                     logger.warning(f"Failed to cleanup test directory: {e}")
 
-    async def _cleanup_test_data(self, test_streamer=None, test_stream=None, test_recording=None):
+    async def _cleanup_test_data(
+        self, test_streamer=None, test_stream=None, test_recording=None
+    ):
         """
         Clean up test data from database.
         Removes test streamer, streams, and recordings to prevent them appearing in frontend.
@@ -1137,7 +1353,9 @@ class StreamVaultTestService:
             with SessionLocal() as db:
                 # Delete in correct order (respect foreign keys)
                 if test_recording:
-                    db.query(Recording).filter(Recording.id == test_recording.id).delete()
+                    db.query(Recording).filter(
+                        Recording.id == test_recording.id
+                    ).delete()
                     logger.info(f"Deleted test recording (ID: {test_recording.id})")
 
                 if test_stream:
@@ -1149,10 +1367,14 @@ class StreamVaultTestService:
                     logger.info(f"Deleted test streamer (ID: {test_streamer.id})")
 
                 # Also cleanup any orphaned test data (safety net)
-                deleted_orphaned = db.query(Streamer).filter(Streamer.is_test_data.is_(True)).delete()
+                deleted_orphaned = (
+                    db.query(Streamer).filter(Streamer.is_test_data.is_(True)).delete()
+                )
 
                 if deleted_orphaned > 0:
-                    logger.info(f"Cleaned up {deleted_orphaned} orphaned test streamers")
+                    logger.info(
+                        f"Cleaned up {deleted_orphaned} orphaned test streamers"
+                    )
 
                 db.commit()
 

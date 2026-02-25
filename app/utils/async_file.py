@@ -30,7 +30,9 @@ async def isdir(path: Union[str, Path]) -> bool:
     return await asyncio.to_thread(os.path.isdir, str(path))
 
 
-async def mkdir(path: Union[str, Path], parents: bool = True, exist_ok: bool = True) -> None:
+async def mkdir(
+    path: Union[str, Path], parents: bool = True, exist_ok: bool = True
+) -> None:
     """Create directory asynchronously."""
 
     def _mkdir():

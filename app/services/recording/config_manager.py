@@ -44,7 +44,9 @@ class ConfigManager:
         self._streamer_settings = {}
         self.last_refresh = datetime.min
 
-    def _categorize_database_error(self, error: Exception, table_name: str) -> Optional[str]:
+    def _categorize_database_error(
+        self, error: Exception, table_name: str
+    ) -> Optional[str]:
         """Categorize database errors for better handling.
 
         Args:
@@ -59,7 +61,9 @@ class ConfigManager:
         # Check for table/relation doesn't exist
         if "relation" in error_msg and "does not exist" in error_msg:
             logger.warning(f"{table_name} table doesn't exist yet: {error}")
-            logger.info(f"Using default settings - {table_name} table may not exist yet during migration")
+            logger.info(
+                f"Using default settings - {table_name} table may not exist yet during migration"
+            )
             return "table_not_exists"
 
         # Check for connection issues
@@ -87,11 +91,18 @@ class ConfigManager:
                     self.last_refresh = datetime.now()
             except Exception as e:
                 error_category = self._categorize_database_error(e, "RecordingSettings")
-                if error_category in ["table_not_exists", "connection_error", "schema_error", "unexpected_error"]:
+                if error_category in [
+                    "table_not_exists",
+                    "connection_error",
+                    "schema_error",
+                    "unexpected_error",
+                ]:
                     return None
         return self._global_settings
 
-    def get_streamer_settings(self, streamer_id: int) -> Optional[StreamerRecordingSettings]:
+    def get_streamer_settings(
+        self, streamer_id: int
+    ) -> Optional[StreamerRecordingSettings]:
         """Get streamer-specific recording settings, using cache if valid"""
         if streamer_id not in self._streamer_settings or not self._is_cache_valid():
             try:
@@ -103,8 +114,15 @@ class ConfigManager:
                     )
                     self.last_refresh = datetime.now()
             except Exception as e:
-                error_category = self._categorize_database_error(e, "StreamerRecordingSettings")
-                if error_category in ["table_not_exists", "connection_error", "schema_error", "unexpected_error"]:
+                error_category = self._categorize_database_error(
+                    e, "StreamerRecordingSettings"
+                )
+                if error_category in [
+                    "table_not_exists",
+                    "connection_error",
+                    "schema_error",
+                    "unexpected_error",
+                ]:
                     return None
         return self._streamer_settings.get(streamer_id)
 
@@ -147,7 +165,11 @@ class ConfigManager:
     def get_max_streams(self, streamer_id: int) -> int:
         """Get the maximum number of streams for a streamer"""
         streamer_settings = self.get_streamer_settings(streamer_id)
-        if streamer_settings and streamer_settings.max_streams is not None and streamer_settings.max_streams > 0:
+        if (
+            streamer_settings
+            and streamer_settings.max_streams is not None
+            and streamer_settings.max_streams > 0
+        ):
             return streamer_settings.max_streams
 
         global_settings = self.get_global_settings()

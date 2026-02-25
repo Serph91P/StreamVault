@@ -9,6 +9,7 @@ import asyncio
 from typing import Dict, Any
 from cachetools import TTLCache
 from app.config.constants import CACHE_CONFIG
+from app.models import Stream
 
 # Try to import notification utilities
 logger = logging.getLogger("streamvault")
@@ -27,9 +28,6 @@ except ImportError as e:
         return {"sent": 0, "failed": 0, "skipped": 1, "fallback": True}
 
 
-from app.models import Stream
-
-
 class NotificationManager:
     """Manager for sending notifications about recordings"""
 
@@ -43,16 +41,21 @@ class NotificationManager:
         self.notifications_enabled = self._get_notifications_enabled()
         # TTLCache automatically evicts old entries (prevents memory leaks)
         self.notification_debounce = TTLCache(
-            maxsize=CACHE_CONFIG.DEFAULT_CACHE_SIZE, ttl=CACHE_CONFIG.NOTIFICATION_DEBOUNCE_TTL
+            maxsize=CACHE_CONFIG.DEFAULT_CACHE_SIZE,
+            ttl=CACHE_CONFIG.NOTIFICATION_DEBOUNCE_TTL,
         )
 
     def _get_notifications_enabled(self) -> bool:
         """Check if notifications are enabled in config"""
         if self.config_manager:
-            return self.config_manager.get_config_value("notifications_enabled", default=True)
+            return self.config_manager.get_config_value(
+                "notifications_enabled", default=True
+            )
         return True  # Default to enabled if no config manager
 
-    async def notify_recording_started(self, stream: Stream, metadata: Dict[str, Any]) -> None:
+    async def notify_recording_started(
+        self, stream: Stream, metadata: Dict[str, Any]
+    ) -> None:
         """Send notification that recording has started
 
         Args:
@@ -69,7 +72,9 @@ class NotificationManager:
             last_notif_time = self.notification_debounce.get(f"start_{stream_id}", 0)
 
             if current_time - last_notif_time < 300:  # 5 minutes in seconds
-                logger.debug(f"Skipping start notification for stream {stream_id} (debounced)")
+                logger.debug(
+                    f"Skipping start notification for stream {stream_id} (debounced)"
+                )
                 return
 
             self.notification_debounce[f"start_{stream_id}"] = current_time
@@ -97,7 +102,11 @@ class NotificationManager:
             logger.error(f"Error sending start notification: {e}", exc_info=True)
 
     async def notify_recording_completed(
-        self, stream: Stream, duration_seconds: int, file_path: str, success: bool = True
+        self,
+        stream: Stream,
+        duration_seconds: int,
+        file_path: str,
+        success: bool = True,
     ) -> None:
         """Send notification that recording has completed
 
@@ -133,7 +142,9 @@ class NotificationManager:
 
             # Send notification
             await send_push_notification(title=title, body=body, data=data)
-            logger.info(f"Sent recording completion notification for stream {streamer_name}")
+            logger.info(
+                f"Sent recording completion notification for stream {streamer_name}"
+            )
 
         except Exception as e:
             logger.error(f"Error sending completion notification: {e}", exc_info=True)

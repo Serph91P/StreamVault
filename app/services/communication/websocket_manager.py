@@ -40,7 +40,8 @@ class ConnectionManager:
             existing_from_client = sum(
                 1
                 for ws_id, ws in self.active_connections.items()
-                if hasattr(ws, "_client_identifier") and ws._client_identifier == client_identifier
+                if hasattr(ws, "_client_identifier")
+                and ws._client_identifier == client_identifier
             )
 
             # Store client identifier in websocket for tracking
@@ -91,7 +92,8 @@ class ConnectionManager:
                 remaining_from_client = sum(
                     1
                     for ws_id, ws in self.active_connections.items()
-                    if hasattr(ws, "_client_identifier") and ws._client_identifier == client_identifier
+                    if hasattr(ws, "_client_identifier")
+                    and ws._client_identifier == client_identifier
                 )
 
                 logger.info(
@@ -105,7 +107,10 @@ class ConnectionManager:
             # Check if the connection is still active
             try:
                 # Use the proper enum value instead of string comparison
-                if not hasattr(ws, "client_state") or ws.client_state != WebSocketState.CONNECTED:
+                if (
+                    not hasattr(ws, "client_state")
+                    or ws.client_state != WebSocketState.CONNECTED
+                ):
                     stale_connections.append(connection_id)
             except AttributeError:
                 # Connection is likely closed due to missing client_state
@@ -118,10 +123,15 @@ class ConnectionManager:
         if stale_connections:
             logger.info(f"🧹 Cleaned up {len(stale_connections)} stale connections")
 
-    async def send_notification_to_socket(self, websocket: WebSocket, message: Dict[str, Any]):
+    async def send_notification_to_socket(
+        self, websocket: WebSocket, message: Dict[str, Any]
+    ):
         try:
             # Check if the connection is still active using proper enum comparison
-            if hasattr(websocket, "client_state") and websocket.client_state == WebSocketState.CONNECTED:
+            if (
+                hasattr(websocket, "client_state")
+                and websocket.client_state == WebSocketState.CONNECTED
+            ):
                 await websocket.send_json(message)
                 return True
         except Exception as e:
@@ -138,7 +148,9 @@ class ConnectionManager:
         )
 
         if should_log:
-            logger.debug(f"WebSocketManager: Attempting to send notification: {message}")
+            logger.debug(
+                f"WebSocketManager: Attempting to send notification: {message}"
+            )
 
         async with self._lock:
             active_sockets = list(self.active_connections.values())
@@ -158,7 +170,9 @@ class ConnectionManager:
                 # Remove failed connection
                 await self.disconnect(ws)
 
-    async def send_active_recordings_update(self, active_recordings: List[Dict[str, Any]]):
+    async def send_active_recordings_update(
+        self, active_recordings: List[Dict[str, Any]]
+    ):
         """Send active recordings update to all connected clients"""
         message = {
             "type": "active_recordings_update",
@@ -168,11 +182,17 @@ class ConnectionManager:
         await self.send_notification(message)
         # Only log when there are active recordings or few clients
         if active_recordings or len(self.active_connections) <= 2:
-            logger.debug(f"WebSocketManager: Sent active recordings update to {len(self.active_connections)} clients")
+            logger.debug(
+                f"WebSocketManager: Sent active recordings update to {len(self.active_connections)} clients"
+            )
 
     async def send_recording_started(self, recording_info: Dict[str, Any]):
         """Send recording started notification"""
-        message = {"type": "recording_started", "data": recording_info, "timestamp": datetime.utcnow().isoformat()}
+        message = {
+            "type": "recording_started",
+            "data": recording_info,
+            "timestamp": datetime.utcnow().isoformat(),
+        }
         await self.send_notification(message)
         logger.info(
             f"WebSocketManager: Sent recording started notification for {recording_info.get('streamer_name', 'unknown')}"
@@ -180,7 +200,11 @@ class ConnectionManager:
 
     async def send_recording_stopped(self, recording_info: Dict[str, Any]):
         """Send recording stopped notification"""
-        message = {"type": "recording_stopped", "data": recording_info, "timestamp": datetime.utcnow().isoformat()}
+        message = {
+            "type": "recording_stopped",
+            "data": recording_info,
+            "timestamp": datetime.utcnow().isoformat(),
+        }
         await self.send_notification(message)
         logger.info(
             f"WebSocketManager: Sent recording stopped notification for {recording_info.get('streamer_name', 'unknown')}"
@@ -188,17 +212,29 @@ class ConnectionManager:
 
     async def send_queue_stats_update(self, stats: Dict[str, Any]):
         """Send background queue stats update"""
-        message = {"type": "queue_stats_update", "data": stats, "timestamp": datetime.utcnow().isoformat()}
+        message = {
+            "type": "queue_stats_update",
+            "data": stats,
+            "timestamp": datetime.utcnow().isoformat(),
+        }
         await self.send_notification(message)
         logger.debug(f"WebSocketManager: Sent queue stats update: {stats}")
 
     async def send_task_status_update(self, task_info: Dict[str, Any]):
         """Send task status update"""
-        message = {"type": "task_status_update", "data": task_info, "timestamp": datetime.utcnow().isoformat()}
+        message = {
+            "type": "task_status_update",
+            "data": task_info,
+            "timestamp": datetime.utcnow().isoformat(),
+        }
         await self.send_notification(message)
-        logger.debug(f"WebSocketManager: Sent task status update for task {task_info.get('id')}")
+        logger.debug(
+            f"WebSocketManager: Sent task status update for task {task_info.get('id')}"
+        )
 
-    async def send_task_progress_update(self, task_id: str, progress: float, message_text: str = None):
+    async def send_task_progress_update(
+        self, task_id: str, progress: float, message_text: str = None
+    ):
         """Send task progress update"""
         message = {
             "type": "task_progress_update",
@@ -206,16 +242,29 @@ class ConnectionManager:
             "timestamp": datetime.utcnow().isoformat(),
         }
         await self.send_notification(message)
-        logger.debug(f"WebSocketManager: Sent progress update for task {task_id}: {progress}%")
+        logger.debug(
+            f"WebSocketManager: Sent progress update for task {task_id}: {progress}%"
+        )
 
     async def send_recording_job_update(self, recording_info: Dict[str, Any]):
         """Send recording job update (streamlink/ffmpeg status)"""
-        message = {"type": "recording_job_update", "data": recording_info, "timestamp": datetime.utcnow().isoformat()}
+        message = {
+            "type": "recording_job_update",
+            "data": recording_info,
+            "timestamp": datetime.utcnow().isoformat(),
+        }
         await self.send_notification(message)
-        logger.debug(f"WebSocketManager: Sent recording job update for {recording_info.get('streamer_name')}")
+        logger.debug(
+            f"WebSocketManager: Sent recording job update for {recording_info.get('streamer_name')}"
+        )
 
     async def send_toast_notification(
-        self, toast_type: str, title: str, message: str, duration: int = 5000, extra_data: Dict[str, Any] = None
+        self,
+        toast_type: str,
+        title: str,
+        message: str,
+        duration: int = 5000,
+        extra_data: Dict[str, Any] = None,
     ):
         """Send toast notification to all connected clients"""
         notification = {
@@ -233,7 +282,11 @@ class ConnectionManager:
         logger.info(f"WebSocketManager: Sent {toast_type} toast: {title} - {message}")
 
     async def send_force_recording_feedback(
-        self, success: bool, streamer_name: str, message: str, extra_data: Dict[str, Any] = None
+        self,
+        success: bool,
+        streamer_name: str,
+        message: str,
+        extra_data: Dict[str, Any] = None,
     ):
         """Send force recording feedback as toast notification"""
         toast_type = "success" if success else "error"
@@ -252,7 +305,9 @@ class ConnectionManager:
             },
         )
 
-    async def send_live_status_feedback(self, streamer_name: str, is_live: bool, extra_data: Dict[str, Any] = None):
+    async def send_live_status_feedback(
+        self, streamer_name: str, is_live: bool, extra_data: Dict[str, Any] = None
+    ):
         """Send live status check feedback as toast notification"""
         title = f"Live Status - {streamer_name}"
         if is_live:

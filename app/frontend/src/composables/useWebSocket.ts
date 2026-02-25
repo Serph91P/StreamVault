@@ -131,6 +131,15 @@ class WebSocketManager {
       this.connectionStatus.value = 'disconnected'
       this.ws = null
       
+      // SECURITY: Don't reconnect on auth failures (code 4001/4003)
+      // These indicate the session is invalid/expired — redirect to login
+      if (event.code === 4001 || event.code === 4003) {
+        console.warn('🔒 WebSocket auth failed — session invalid or expired')
+        this.connectionStatus.value = 'auth_failed'
+        window.location.href = '/auth/login'
+        return
+      }
+      
       // Only attempt reconnection if we still have subscribers
       if (this.subscribers.size > 0) {
         this.attemptReconnect()

@@ -24,7 +24,7 @@ process_monitor = None
 
 class BackgroundQueueService:
     """Backward compatibility wrapper for the refactored queue services
-    
+
     SINGLETON PATTERN: Use `background_queue_service` global instance.
     All parts of the application share the same queue to ensure consistent job tracking.
     """
@@ -43,10 +43,12 @@ class BackgroundQueueService:
         # Only initialize once (singleton)
         if BackgroundQueueService._initialized:
             # Update websocket_manager if provided (for late binding)
-            if websocket_manager is not None and hasattr(self, 'queue_manager'):
-                self.queue_manager.progress_tracker.websocket_manager = websocket_manager
+            if websocket_manager is not None and hasattr(self, "queue_manager"):
+                self.queue_manager.progress_tracker.websocket_manager = (
+                    websocket_manager
+                )
             return
-            
+
         # Initialize the refactored queue manager with streamer isolation enabled for production
         self.queue_manager = TaskQueueManager(
             max_workers=max_workers,
@@ -71,7 +73,7 @@ class BackgroundQueueService:
         self.dependency_manager = self.queue_manager.dependency_manager
         self.dependency_worker = None
         self.stats = self.queue_manager.progress_tracker.stats
-        
+
         BackgroundQueueService._initialized = True
         logger.debug("BackgroundQueueService singleton initialized")
 
@@ -107,7 +109,9 @@ class BackgroundQueueService:
         max_retries: int = 3,
     ) -> str:
         """Enqueue a new background task"""
-        return await self.queue_manager.enqueue_task(task_type, payload, priority, max_retries)
+        return await self.queue_manager.enqueue_task(
+            task_type, payload, priority, max_retries
+        )
 
     async def enqueue_task_with_dependencies(
         self,
@@ -165,7 +169,9 @@ class BackgroundQueueService:
                     {
                         "process_monitor": process_stats,
                         "active_processes": process_stats.get("active_processes", 0),
-                        "recording_active": process_stats.get("recording_active", False),
+                        "recording_active": process_stats.get(
+                            "recording_active", False
+                        ),
                     }
                 )
             except Exception as e:
@@ -301,7 +307,9 @@ class BackgroundQueueService:
             DeprecationWarning,
             stacklevel=2,
         )
-        raise NotImplementedError("Legacy _dependency_worker method is no longer supported")
+        raise NotImplementedError(
+            "Legacy _dependency_worker method is no longer supported"
+        )
 
 
 # Legacy exports for compatibility

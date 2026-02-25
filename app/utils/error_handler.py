@@ -10,7 +10,10 @@ logger = logging.getLogger(__name__)
 
 
 def handle_api_error(
-    exception: Exception, operation: str, status_code: int = 500, public_message: Optional[str] = None
+    exception: Exception,
+    operation: str,
+    status_code: int = 500,
+    public_message: Optional[str] = None,
 ) -> HTTPException:
     """
     Handle API errors securely without exposing internal details
@@ -37,7 +40,9 @@ def handle_api_error(
 
 
 def create_error_response(
-    success: bool = False, message: str = "An error occurred", error_code: Optional[str] = None
+    success: bool = False,
+    message: str = "An error occurred",
+    error_code: Optional[str] = None,
 ) -> dict:
     """
     Create a standardized error response for non-HTTP endpoints

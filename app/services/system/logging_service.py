@@ -90,7 +90,11 @@ class LoggingService:
         """Create log directories if they don't exist, including streamer subdirectories"""
         try:
             # Create base directories
-            for log_dir in [self.streamlink_logs_dir, self.ffmpeg_logs_dir, self.app_logs_dir]:
+            for log_dir in [
+                self.streamlink_logs_dir,
+                self.ffmpeg_logs_dir,
+                self.app_logs_dir,
+            ]:
                 log_dir.mkdir(parents=True, exist_ok=True)
                 logger.info(f"✅ Log directory ensured: {log_dir}")
 
@@ -125,7 +129,9 @@ class LoggingService:
         if not streamer_name:
             return base_dir
 
-        safe_streamer_name = "".join(c for c in streamer_name if c.isalnum() or c in ("-", "_")).lower()
+        safe_streamer_name = "".join(
+            c for c in streamer_name if c.isalnum() or c in ("-", "_")
+        ).lower()
         streamer_dir = base_dir / safe_streamer_name
 
         try:
@@ -138,7 +144,9 @@ class LoggingService:
             logger.warning(f"⚠️ Falling back to base directory: {base_dir}")
             return base_dir
         except Exception as e:
-            logger.error(f"❌ Unexpected error creating streamer directory {streamer_dir}: {e}")
+            logger.error(
+                f"❌ Unexpected error creating streamer directory {streamer_dir}: {e}"
+            )
             return base_dir
 
     def _test_write_permissions(self, log_dir: Path) -> bool:
@@ -153,13 +161,19 @@ class LoggingService:
             logger.error(f"❌ No write permissions for {log_dir}: {e}")
             return False
         except Exception as e:
-            logger.error(f"❌ Unexpected error testing write permissions for {log_dir}: {e}")
+            logger.error(
+                f"❌ Unexpected error testing write permissions for {log_dir}: {e}"
+            )
             return False
 
     def _test_all_permissions(self):
         """Test write permissions for all log directories (optional performance check)"""
         current_time = time.time()
-        for log_dir in [self.streamlink_logs_dir, self.ffmpeg_logs_dir, self.app_logs_dir]:
+        for log_dir in [
+            self.streamlink_logs_dir,
+            self.ffmpeg_logs_dir,
+            self.app_logs_dir,
+        ]:
             result = self._test_write_permissions(log_dir)
             self._permission_test_results[str(log_dir)] = (result, current_time)
 
@@ -175,7 +189,9 @@ class LoggingService:
 
             # If the cached result was successful and recent, use it
             if cached_result and time_since_test < self._permission_retest_interval:
-                logger.debug(f"Using cached permission result for {log_dir}: {cached_result}")
+                logger.debug(
+                    f"Using cached permission result for {log_dir}: {cached_result}"
+                )
                 return cached_result
 
             # If the cached result was a failure, or it's been too long, re-test
@@ -212,9 +228,15 @@ class LoggingService:
         # Streamlink logger
         self.streamlink_logger = logging.getLogger("streamvault.streamlink")
         streamlink_handler = TimedRotatingFileHandler(
-            self.streamlink_logs_dir / "streamlink.log", when="midnight", interval=1, backupCount=30, encoding="utf-8"
+            self.streamlink_logs_dir / "streamlink.log",
+            when="midnight",
+            interval=1,
+            backupCount=30,
+            encoding="utf-8",
         )
-        streamlink_handler.setFormatter(logging.Formatter("[{asctime}][{name}][{levelname}] {message}", style="{"))
+        streamlink_handler.setFormatter(
+            logging.Formatter("[{asctime}][{name}][{levelname}] {message}", style="{")
+        )
         self.streamlink_logger.addHandler(streamlink_handler)
         self.streamlink_logger.setLevel(logging.DEBUG)
 
@@ -227,16 +249,24 @@ class LoggingService:
             backupCount=7,  # Reduced from 30 days since streamer-specific logs are primary
             encoding="utf-8",
         )
-        ffmpeg_handler.setFormatter(logging.Formatter("[{asctime}][{name}][{levelname}] {message}", style="{"))
+        ffmpeg_handler.setFormatter(
+            logging.Formatter("[{asctime}][{name}][{levelname}] {message}", style="{")
+        )
         self.ffmpeg_logger.addHandler(ffmpeg_handler)
         self.ffmpeg_logger.setLevel(logging.INFO)  # Changed to INFO to reduce noise
 
         # Recording logger for recording activities
         self.recording_logger = logging.getLogger("streamvault.recording")
         recording_handler = TimedRotatingFileHandler(
-            self.app_logs_dir / "recording.log", when="midnight", interval=1, backupCount=30, encoding="utf-8"
+            self.app_logs_dir / "recording.log",
+            when="midnight",
+            interval=1,
+            backupCount=30,
+            encoding="utf-8",
         )
-        recording_handler.setFormatter(logging.Formatter("[{asctime}][{name}][{levelname}] {message}", style="{"))
+        recording_handler.setFormatter(
+            logging.Formatter("[{asctime}][{name}][{levelname}] {message}", style="{")
+        )
         self.recording_logger.addHandler(recording_handler)
         self.recording_logger.setLevel(logging.DEBUG)
 
@@ -246,7 +276,9 @@ class LoggingService:
             streamer_name = "unknown"
 
         # Use streamer-specific directory
-        streamer_dir = self.get_streamer_log_dir(self.streamlink_logs_dir, streamer_name)
+        streamer_dir = self.get_streamer_log_dir(
+            self.streamlink_logs_dir, streamer_name
+        )
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         # Sanitize streamer name for filename (reserved for future use)
@@ -285,7 +317,9 @@ class LoggingService:
             log_file = self.app_logs_dir / f"{operation}_{today}.log"
             return str(log_file)
 
-    def log_streamlink_start(self, streamer_name: str, quality: str, output_path: str, cmd: List[str]) -> str:
+    def log_streamlink_start(
+        self, streamer_name: str, quality: str, output_path: str, cmd: List[str]
+    ) -> str:
         """
         Log streamlink command start with streamer-specific file
 
@@ -307,10 +341,18 @@ class LoggingService:
 
         try:
             with open(log_path, "w", encoding="utf-8") as f:
-                f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Starting recording for {streamer_name}\n")
-                f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Quality: {quality}\n")
-                f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Output: {output_path}\n")
-                f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Command: {safe_cmd}\n")
+                f.write(
+                    f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Starting recording for {streamer_name}\n"
+                )
+                f.write(
+                    f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Quality: {quality}\n"
+                )
+                f.write(
+                    f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Output: {output_path}\n"
+                )
+                f.write(
+                    f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Command: {safe_cmd}\n"
+                )
 
             logger.debug(f"✅ Streamlink start logged to: {log_path}")
         except Exception as e:
@@ -325,13 +367,20 @@ class LoggingService:
         return log_path
 
     def log_streamlink_output(
-        self, streamer_name: str, stdout: bytes, stderr: bytes, exit_code: int, log_path: str = None
+        self,
+        streamer_name: str,
+        stdout: bytes,
+        stderr: bytes,
+        exit_code: int,
+        log_path: str = None,
     ):
         """Log streamlink process output to streamer-specific file"""
         if not streamer_name:
             streamer_name = "unknown"
 
-        logger.debug(f"🎯 Logging streamlink output for {streamer_name} (exit code: {exit_code})")
+        logger.debug(
+            f"🎯 Logging streamlink output for {streamer_name} (exit code: {exit_code})"
+        )
 
         # Get log path if not provided
         if not log_path:
@@ -345,11 +394,15 @@ class LoggingService:
 
                 if stdout:
                     stdout_text = stdout.decode("utf-8", errors="ignore")
-                    f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] STDOUT:\n{stdout_text}\n")
+                    f.write(
+                        f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] STDOUT:\n{stdout_text}\n"
+                    )
 
                 if stderr:
                     stderr_text = stderr.decode("utf-8", errors="ignore")
-                    f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] STDERR:\n{stderr_text}\n")
+                    f.write(
+                        f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] STDERR:\n{stderr_text}\n"
+                    )
 
             logger.debug(f"✅ Streamlink output logged to: {log_path}")
         except Exception as e:
@@ -365,11 +418,15 @@ class LoggingService:
             if exit_code == 0:
                 self.streamlink_logger.info(f"[{streamer_name}] STDERR:\n{stderr_text}")
             else:
-                self.streamlink_logger.error(f"[{streamer_name}] STDERR (exit {exit_code}):\n{stderr_text}")
+                self.streamlink_logger.error(
+                    f"[{streamer_name}] STDERR (exit {exit_code}):\n{stderr_text}"
+                )
 
         logger.debug(f"✅ Streamlink output logged for {streamer_name}")
 
-    def log_streamlink_error(self, streamer_name: str, error_message: str, log_path: str = None):
+    def log_streamlink_error(
+        self, streamer_name: str, error_message: str, log_path: str = None
+    ):
         """
         Log streamlink errors (e.g., proxy failures) to streamer-specific file
 
@@ -381,7 +438,9 @@ class LoggingService:
         if not streamer_name:
             streamer_name = "unknown"
 
-        logger.error(f"🔴 Logging streamlink error for {streamer_name}: {error_message}")
+        logger.error(
+            f"🔴 Logging streamlink error for {streamer_name}: {error_message}"
+        )
 
         # Get log path if not provided
         if not log_path:
@@ -389,7 +448,9 @@ class LoggingService:
 
         try:
             with open(log_path, "a", encoding="utf-8") as f:
-                f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] ERROR: {error_message}\n")
+                f.write(
+                    f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] ERROR: {error_message}\n"
+                )
                 f.write("=" * 80 + "\n")
 
             logger.debug(f"✅ Streamlink error logged to: {log_path}")
@@ -408,7 +469,9 @@ class LoggingService:
 
         safe_cmd = sanitize_command_for_logging(cmd)
 
-        self.ffmpeg_logger.info(f"Starting {operation} operation for streamer: {streamer_name}")
+        self.ffmpeg_logger.info(
+            f"Starting {operation} operation for streamer: {streamer_name}"
+        )
         self.ffmpeg_logger.info(f"Command: {safe_cmd}")
 
         # Generate a streamer-specific log filename for this operation
@@ -418,14 +481,18 @@ class LoggingService:
         # Create a per-streamer log file for this operation
         log_dir = Path(log_path).parent
         if not self._ensure_write_permission(log_dir):
-            logger.warning(f"⚠️ Write permission issue for {log_dir}, attempting to create log anyway")
+            logger.warning(
+                f"⚠️ Write permission issue for {log_dir}, attempting to create log anyway"
+            )
 
         try:
             with open(log_path, "w", encoding="utf-8") as f:
                 f.write(
                     f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Starting {operation} operation for streamer: {streamer_name}\n"
                 )
-                f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Command: {safe_cmd}\n")
+                f.write(
+                    f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Command: {safe_cmd}\n"
+                )
             logger.debug(f"✅ FFmpeg per-streamer log created: {log_path}")
         except (OSError, PermissionError) as e:
             logger.error(f"❌ Could not create per-streamer log file {log_path}: {e}")
@@ -433,12 +500,21 @@ class LoggingService:
             if not self._force_permission_retest(log_dir):
                 logger.error(f"❌ Confirmed: No write permissions for {log_dir}")
         except Exception as e:
-            logger.error(f"❌ Unexpected error creating per-streamer log file {log_path}: {e}")
+            logger.error(
+                f"❌ Unexpected error creating per-streamer log file {log_path}: {e}"
+            )
 
         logger.debug(f"✅ FFmpeg start logged for {streamer_name}")
         return log_path
 
-    def log_ffmpeg_output(self, operation: str, stdout: bytes, stderr: bytes, exit_code: int, streamer_name: str):
+    def log_ffmpeg_output(
+        self,
+        operation: str,
+        stdout: bytes,
+        stderr: bytes,
+        exit_code: int,
+        streamer_name: str,
+    ):
         """Log FFmpeg process output to per-streamer files only (not app logs)
 
         FFmpeg stdout/stderr is written ONLY to /app/logs/ffmpeg/{streamer_name}/
@@ -456,25 +532,47 @@ class LoggingService:
                 )
 
                 if stdout:
-                    stdout_text = stdout.decode("utf-8", errors="ignore") if isinstance(stdout, bytes) else stdout
-                    f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] STDOUT:\n{stdout_text}\n")
+                    stdout_text = (
+                        stdout.decode("utf-8", errors="ignore")
+                        if isinstance(stdout, bytes)
+                        else stdout
+                    )
+                    f.write(
+                        f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] STDOUT:\n{stdout_text}\n"
+                    )
                     # Only log summary to app logs at DEBUG level
-                    self.ffmpeg_logger.debug(f"{prefix} STDOUT written to {log_path} ({len(stdout_text)} chars)")
+                    self.ffmpeg_logger.debug(
+                        f"{prefix} STDOUT written to {log_path} ({len(stdout_text)} chars)"
+                    )
 
                 if stderr:
-                    stderr_text = stderr.decode("utf-8", errors="ignore") if isinstance(stderr, bytes) else stderr
-                    f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] STDERR:\n{stderr_text}\n")
+                    stderr_text = (
+                        stderr.decode("utf-8", errors="ignore")
+                        if isinstance(stderr, bytes)
+                        else stderr
+                    )
+                    f.write(
+                        f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] STDERR:\n{stderr_text}\n"
+                    )
                     # Only log summary to app logs at DEBUG level (or ERROR if failed)
                     if exit_code == 0:
-                        self.ffmpeg_logger.debug(f"{prefix} STDERR written to {log_path} ({len(stderr_text)} chars)")
+                        self.ffmpeg_logger.debug(
+                            f"{prefix} STDERR written to {log_path} ({len(stderr_text)} chars)"
+                        )
                     else:
-                        self.ffmpeg_logger.error(f"{prefix} Failed with exit code {exit_code} - see {log_path}")
+                        self.ffmpeg_logger.error(
+                            f"{prefix} Failed with exit code {exit_code} - see {log_path}"
+                        )
 
             # Log success summary to app logs (INFO level, concise)
             if exit_code == 0:
-                logger.info(f"✅ {operation} completed for {streamer_name} - logs: {log_path}")
+                logger.info(
+                    f"✅ {operation} completed for {streamer_name} - logs: {log_path}"
+                )
             else:
-                logger.error(f"❌ {operation} failed for {streamer_name} (exit {exit_code}) - logs: {log_path}")
+                logger.error(
+                    f"❌ {operation} failed for {streamer_name} (exit {exit_code}) - logs: {log_path}"
+                )
 
         except (OSError, PermissionError) as e:
             logger.error(f"Could not write to per-streamer log file {log_path}: {e}")
@@ -483,7 +581,9 @@ class LoggingService:
             if not self._force_permission_retest(log_dir):
                 logger.error(f"❌ Confirmed: No write permissions for {log_dir}")
         except Exception as e:
-            logger.error(f"Unexpected error writing to per-streamer log file {log_path}: {e}")
+            logger.error(
+                f"Unexpected error writing to per-streamer log file {log_path}: {e}"
+            )
 
     def cleanup_old_logs(self):
         """Clean up old log files based on retention settings.
@@ -500,16 +600,24 @@ class LoggingService:
 
             # Clean FFmpeg logs
             self._cleanup_directory(
-                self.ffmpeg_logs_dir, self.streamer_log_retention_days, self.system_log_retention_days
+                self.ffmpeg_logs_dir,
+                self.streamer_log_retention_days,
+                self.system_log_retention_days,
             )
 
             # Clean Streamlink logs
             self._cleanup_directory(
-                self.streamlink_logs_dir, self.streamer_log_retention_days, self.system_log_retention_days
+                self.streamlink_logs_dir,
+                self.streamer_log_retention_days,
+                self.system_log_retention_days,
             )
 
             # Clean App logs (all considered system logs)
-            self._cleanup_directory(self.app_logs_dir, self.system_log_retention_days, self.system_log_retention_days)
+            self._cleanup_directory(
+                self.app_logs_dir,
+                self.system_log_retention_days,
+                self.system_log_retention_days,
+            )
 
             logger.info("Log cleanup completed")
         except (OSError, PermissionError) as e:
@@ -538,7 +646,9 @@ class LoggingService:
 
         return False
 
-    def _cleanup_directory(self, directory: Path, streamer_retention_days: int, system_retention_days: int):
+    def _cleanup_directory(
+        self, directory: Path, streamer_retention_days: int, system_retention_days: int
+    ):
         """Clean up log files in a directory based on retention days.
 
         Args:
@@ -577,9 +687,14 @@ class LoggingService:
             except (OSError, PermissionError) as e:
                 logger.error(f"Error processing log file {log_file} (permissions): {e}")
             except Exception as e:
-                logger.error(f"Unexpected error processing log file {log_file}: {e}", exc_info=True)
+                logger.error(
+                    f"Unexpected error processing log file {log_file}: {e}",
+                    exc_info=True,
+                )
 
-        logger.info(f"Cleaned {directory}: deleted {deleted_count} log files, kept {skipped_count}")
+        logger.info(
+            f"Cleaned {directory}: deleted {deleted_count} log files, kept {skipped_count}"
+        )
 
     async def _schedule_cleanup(self, interval_hours: int = 24):
         """Schedule periodic log cleanup.
@@ -596,7 +711,13 @@ class LoggingService:
 
     # === Recording Activity Logging Methods ===
 
-    def log_recording_activity(self, activity_type: str, streamer_name: str, details: str = "", level: str = "info"):
+    def log_recording_activity(
+        self,
+        activity_type: str,
+        streamer_name: str,
+        details: str = "",
+        level: str = "info",
+    ):
         """Log recording activities with detailed context"""
         message = f"[{activity_type}] {streamer_name}"
         if details:
@@ -611,38 +732,63 @@ class LoggingService:
         else:
             self.recording_logger.info(message)
 
-    def log_recording_start(self, streamer_id: int, streamer_name: str, quality: str, output_path: str):
+    def log_recording_start(
+        self, streamer_id: int, streamer_name: str, quality: str, output_path: str
+    ):
         """Log recording start with all relevant details"""
-        self.recording_logger.info(f"[RECORDING_START] {streamer_name} (ID: {streamer_id})")
+        self.recording_logger.info(
+            f"[RECORDING_START] {streamer_name} (ID: {streamer_id})"
+        )
         self.recording_logger.info(f"[RECORDING_START] Quality: {quality}")
         self.recording_logger.info(f"[RECORDING_START] Output: {output_path}")
 
     def log_recording_stop(
-        self, streamer_id: int, streamer_name: str, duration: float, output_path: str, reason: str = "manual"
+        self,
+        streamer_id: int,
+        streamer_name: str,
+        duration: float,
+        output_path: str,
+        reason: str = "manual",
     ):
         """Log recording stop with duration and details"""
-        self.recording_logger.info(f"[RECORDING_STOP] {streamer_name} (ID: {streamer_id})")
+        self.recording_logger.info(
+            f"[RECORDING_STOP] {streamer_name} (ID: {streamer_id})"
+        )
         self.recording_logger.info(f"[RECORDING_STOP] Duration: {duration:.2f} seconds")
         self.recording_logger.info(f"[RECORDING_STOP] Output: {output_path}")
         self.recording_logger.info(f"[RECORDING_STOP] Reason: {reason}")
 
-    def log_recording_error(self, streamer_id: int, streamer_name: str, error_type: str, error_message: str):
+    def log_recording_error(
+        self, streamer_id: int, streamer_name: str, error_type: str, error_message: str
+    ):
         """Log recording errors with context"""
         self.recording_logger.error(
             f"[RECORDING_ERROR] {streamer_name} (ID: {streamer_id}) - {error_type}: {error_message}"
         )
 
-    def log_stream_detection(self, streamer_name: str, is_live: bool, stream_info: Optional[Dict[str, Any]] = None):
+    def log_stream_detection(
+        self,
+        streamer_name: str,
+        is_live: bool,
+        stream_info: Optional[Dict[str, Any]] = None,
+    ):
         """Log stream detection results"""
         status = "LIVE" if is_live else "OFFLINE"
         self.recording_logger.info(f"[STREAM_DETECTION] {streamer_name}: {status}")
         if stream_info and is_live:
             title = stream_info.get("title", "Unknown")
             category = stream_info.get("category_name", "Unknown")
-            self.recording_logger.info(f"[STREAM_DETECTION] {streamer_name} - Title: {title}, Category: {category}")
+            self.recording_logger.info(
+                f"[STREAM_DETECTION] {streamer_name} - Title: {title}, Category: {category}"
+            )
 
     def log_file_operation(
-        self, operation: str, file_path: str, success: bool, details: str = "", size_mb: Optional[float] = None
+        self,
+        operation: str,
+        file_path: str,
+        success: bool,
+        details: str = "",
+        size_mb: Optional[float] = None,
     ):
         """Log file operations (remux, conversion, cleanup, etc.)"""
         status = "SUCCESS" if success else "FAILED"
@@ -657,13 +803,25 @@ class LoggingService:
         else:
             self.recording_logger.error(message)
 
-    def log_configuration_change(self, setting: str, old_value: str, new_value: str, streamer_id: Optional[int] = None):
+    def log_configuration_change(
+        self,
+        setting: str,
+        old_value: str,
+        new_value: str,
+        streamer_id: Optional[int] = None,
+    ):
         """Log configuration changes"""
         target = "Global" if streamer_id is None else f"Streamer {streamer_id}"
-        self.recording_logger.info(f"[CONFIG_CHANGE] {target}: {setting} changed from '{old_value}' to '{new_value}'")
+        self.recording_logger.info(
+            f"[CONFIG_CHANGE] {target}: {setting} changed from '{old_value}' to '{new_value}'"
+        )
 
     def log_recording_activity_to_file(
-        self, activity_type: str, streamer_name: str, details: str = "", level: str = "info"
+        self,
+        activity_type: str,
+        streamer_name: str,
+        details: str = "",
+        level: str = "info",
     ):
         """Log recording activity to streamer-specific file"""
         if not streamer_name:
@@ -720,7 +878,9 @@ class LoggingService:
         except Exception as e:
             logger.error(f"❌ Could not write post-processing log {log_path}: {e}")
 
-    def log_stream_event_to_file(self, event_type: str, streamer_name: str, details: str = ""):
+    def log_stream_event_to_file(
+        self, event_type: str, streamer_name: str, details: str = ""
+    ):
         """Log stream events (online/offline) to streamer-specific files"""
         if not streamer_name:
             streamer_name = "unknown"

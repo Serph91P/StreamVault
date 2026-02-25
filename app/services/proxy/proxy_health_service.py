@@ -117,7 +117,9 @@ class ProxyHealthService:
         try:
             with SessionLocal() as db:
                 settings = db.query(RecordingSettings).first()
-                if settings and hasattr(settings, "proxy_health_check_interval_seconds"):
+                if settings and hasattr(
+                    settings, "proxy_health_check_interval_seconds"
+                ):
                     return settings.proxy_health_check_interval_seconds
         except Exception as e:
             logger.error(f"Error getting check interval: {e}")
@@ -150,7 +152,11 @@ class ProxyHealthService:
 
             with SessionLocal() as db:
                 # Get all enabled proxies
-                proxies = db.query(ProxySettings).filter(ProxySettings.enabled.is_(True)).all()
+                proxies = (
+                    db.query(ProxySettings)
+                    .filter(ProxySettings.enabled.is_(True))
+                    .all()
+                )
 
                 if not proxies:
                     logger.debug("ℹ️ No enabled proxies to check")
@@ -166,7 +172,9 @@ class ProxyHealthService:
                         # Update proxy health in database
                         proxy.last_health_check = datetime.now(timezone.utc)
                         proxy.health_status = health_result["status"]
-                        proxy.average_response_time_ms = health_result.get("response_time_ms")
+                        proxy.average_response_time_ms = health_result.get(
+                            "response_time_ms"
+                        )
 
                         # Update consecutive failures counter
                         if health_result["status"] == "failed":
@@ -194,15 +202,21 @@ class ProxyHealthService:
                             )
 
                             # Broadcast notification
-                            await self._broadcast_proxy_status(proxy, auto_disabled=True)
+                            await self._broadcast_proxy_status(
+                                proxy, auto_disabled=True
+                            )
                         else:
                             # Broadcast normal status update
-                            await self._broadcast_proxy_status(proxy, auto_disabled=False)
+                            await self._broadcast_proxy_status(
+                                proxy, auto_disabled=False
+                            )
 
                         db.commit()
 
                     except Exception as e:
-                        logger.error(f"Error checking proxy {proxy.id}: {e}", exc_info=True)
+                        logger.error(
+                            f"Error checking proxy {proxy.id}: {e}", exc_info=True
+                        )
                         db.rollback()
 
                 logger.info("✅ Proxy health checks completed")
@@ -264,7 +278,11 @@ class ProxyHealthService:
                     access_token = token_data.get("access_token")
 
                     if not access_token:
-                        return {"status": "failed", "response_time_ms": None, "error": "No access token received"}
+                        return {
+                            "status": "failed",
+                            "response_time_ms": None,
+                            "error": "No access token received",
+                        }
 
         except Exception as e:
             # Log full exception details server-side, but return only a generic error message to the client.
@@ -284,11 +302,16 @@ class ProxyHealthService:
             # Create proxy connector for aiohttp
             connector = aiohttp.TCPConnector()
 
-            async with aiohttp.ClientSession(connector=connector, timeout=timeout) as client:
+            async with aiohttp.ClientSession(
+                connector=connector, timeout=timeout
+            ) as client:
                 # Test with Twitch API streams endpoint (authenticated)
                 async with client.get(
                     self.test_endpoint,
-                    headers={"Client-ID": settings.TWITCH_APP_ID, "Authorization": f"Bearer {access_token}"},
+                    headers={
+                        "Client-ID": settings.TWITCH_APP_ID,
+                        "Authorization": f"Bearer {access_token}",
+                    },
                     proxy=proxy_url,  # Use proxy for this request
                     allow_redirects=True,
                 ) as response:
@@ -299,7 +322,11 @@ class ProxyHealthService:
                     if response.status == 200:
                         # Healthy if fast response
                         if response_time_ms < 2000:  # < 2s
-                            return {"status": "healthy", "response_time_ms": response_time_ms, "error": None}
+                            return {
+                                "status": "healthy",
+                                "response_time_ms": response_time_ms,
+                                "error": None,
+                            }
                         else:
                             # Slow but working
                             return {
@@ -309,13 +336,19 @@ class ProxyHealthService:
                             }
                     elif response.status in (301, 302, 303, 307, 308):
                         # Redirects are OK (proxy works)
-                        return {"status": "healthy", "response_time_ms": response_time_ms, "error": None}
+                        return {
+                            "status": "healthy",
+                            "response_time_ms": response_time_ms,
+                            "error": None,
+                        }
                     elif 400 <= response.status < 500:
                         # 4xx = proxy works but might have auth issues
                         # Check if it's specifically auth (401/403) which might be token issue
                         if response.status in (401, 403):
                             error_text = await response.text()
-                            logger.warning(f"Proxy health check got {response.status}: {error_text[:100]}")
+                            logger.warning(
+                                f"Proxy health check got {response.status}: {error_text[:100]}"
+                            )
                             return {
                                 "status": "degraded",
                                 "response_time_ms": response_time_ms,
@@ -336,7 +369,11 @@ class ProxyHealthService:
                         }
 
         except asyncio.TimeoutError:
-            return {"status": "failed", "response_time_ms": None, "error": "Timeout after 10 seconds"}
+            return {
+                "status": "failed",
+                "response_time_ms": None,
+                "error": "Timeout after 10 seconds",
+            }
 
             # Log detailed connection error, but expose only a generic message to the client.
         except aiohttp.ClientProxyConnectionError as e:
@@ -404,7 +441,11 @@ class ProxyHealthService:
 
             logger.info(
                 f"🔧 Manual health check: {proxy.masked_url} - {health_result['status']}"
-                + (f" - Error: {health_result.get('error')}" if health_result.get("error") else "")
+                + (
+                    f" - Error: {health_result.get('error')}"
+                    if health_result.get("error")
+                    else ""
+                )
             )
 
             return {
@@ -435,7 +476,9 @@ class ProxyHealthService:
             status_order = {"healthy": 1, "degraded": 2, "failed": 3, "unknown": 4}
 
             # Get all enabled proxies ordered by selection criteria
-            proxies = db.query(ProxySettings).filter(ProxySettings.enabled.is_(True)).all()
+            proxies = (
+                db.query(ProxySettings).filter(ProxySettings.enabled.is_(True)).all()
+            )
 
             if not proxies:
                 logger.debug("ℹ️ No enabled proxies available")
@@ -447,7 +490,9 @@ class ProxyHealthService:
                 key=lambda p: (
                     status_order.get(p.health_status, 999),  # Health status priority
                     p.priority,  # Priority field (0 = highest)
-                    p.average_response_time_ms if p.average_response_time_ms else 9999,  # Response time
+                    p.average_response_time_ms
+                    if p.average_response_time_ms
+                    else 9999,  # Response time
                 ),
             )
 
@@ -462,7 +507,9 @@ class ProxyHealthService:
 
             return best_proxy.proxy_url
 
-    async def _broadcast_proxy_status(self, proxy: ProxySettings, auto_disabled: bool = False):
+    async def _broadcast_proxy_status(
+        self, proxy: ProxySettings, auto_disabled: bool = False
+    ):
         """
         Broadcast proxy status update via WebSocket.
 
@@ -494,7 +541,11 @@ class ProxyHealthService:
             success: Whether recording succeeded (True) or failed (False)
         """
         with SessionLocal() as db:
-            proxy = db.query(ProxySettings).filter(ProxySettings.proxy_url == proxy_url).first()
+            proxy = (
+                db.query(ProxySettings)
+                .filter(ProxySettings.proxy_url == proxy_url)
+                .first()
+            )
 
             if proxy:
                 proxy.total_recordings += 1

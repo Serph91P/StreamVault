@@ -29,7 +29,9 @@ def run_migrations() -> None:
 
         # Log migration results
         for result in results:
-            migration_name, success, message = result  # Ensure consistent 3-element tuple unpacking
+            migration_name, success, message = (
+                result  # Ensure consistent 3-element tuple unpacking
+            )
             if success:
                 logger.info(f"✅ Successfully applied migration: {migration_name}")
             else:
@@ -46,7 +48,9 @@ def run_migrations() -> None:
     failed_count = len(results) - success_count
 
     if failed_count > 0:
-        logger.warning(f"Applied {success_count} migrations, {failed_count} migrations failed")
+        logger.warning(
+            f"Applied {success_count} migrations, {failed_count} migrations failed"
+        )
         for script_name, success, message in results:
             if not success:
                 logger.error(f"Migration failed: {script_name} - {message}")

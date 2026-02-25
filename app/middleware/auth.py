@@ -7,6 +7,21 @@ import logging
 logger = logging.getLogger("streamvault")
 
 
+def _extract_bearer_token(headers: list) -> str | None:
+    """Extract Bearer token from Authorization header (PWA fallback).
+
+    SECURITY: In PWA standalone mode, cookies may not persist across app restarts.
+    The frontend stores the session token in localStorage and sends it as a Bearer token.
+    This provides a fallback authentication method for PWA users.
+    """
+    for header_name, header_value in headers:
+        if header_name == b"authorization":
+            value = header_value.decode("utf-8", errors="ignore")
+            if value.startswith("Bearer "):
+                return value[7:]  # Strip "Bearer " prefix
+    return None
+
+
 class AuthMiddleware:
     def __init__(self, app):
         self.app = app
@@ -18,17 +33,25 @@ class AuthMiddleware:
         # SECURITY: Validate WebSocket connections with session cookie
         if scope["type"] == "websocket":
             from starlette.websockets import WebSocket as StarletteWebSocket
+
             ws = StarletteWebSocket(scope, receive, send)
             session_token = ws.cookies.get("session")
+
+            # PWA fallback: check Authorization header if no cookie
             if not session_token:
-                logger.warning(f"WebSocket connection rejected: no session cookie")
+                session_token = _extract_bearer_token(scope.get("headers", []))
+
+            if not session_token:
+                logger.warning(
+                    "WebSocket connection rejected: no session cookie or Bearer token"
+                )
                 await ws.close(code=4001, reason="Authentication required")
                 return
             db = SessionLocal()
             try:
                 auth_service = AuthService(db=db)
                 if not await auth_service.validate_session(session_token):
-                    logger.warning(f"WebSocket connection rejected: invalid session")
+                    logger.warning("WebSocket connection rejected: invalid session")
                     await ws.close(code=4001, reason="Invalid session")
                     return
             except Exception as e:
@@ -90,27 +113,51 @@ class AuthMiddleware:
                 if not request.url.path.startswith("/auth/setup"):
                     if is_json_request:
                         return await JSONResponse(
-                            {"error": "Setup required", "redirect": "/auth/setup"}, status_code=307
+                            {"error": "Setup required", "redirect": "/auth/setup"},
+                            status_code=307,
                         )(scope, receive, send)
-                    return await RedirectResponse(url="/auth/setup", status_code=307)(scope, receive, send)
+                    return await RedirectResponse(url="/auth/setup", status_code=307)(
+                        scope, receive, send
+                    )
 
             session_token = request.cookies.get("session")
+
+            # PWA fallback: check Authorization header if no cookie
             if not session_token:
-                logger.debug(f"No session cookie found for {request.url.path}")
+                auth_header = request.headers.get("authorization", "")
+                if auth_header.startswith("Bearer "):
+                    session_token = auth_header[7:]
+
+            if not session_token:
+                logger.debug(
+                    f"No session cookie or Bearer token for {request.url.path}"
+                )
                 if not request.url.path.startswith("/auth/login"):
                     if is_json_request:
                         return await JSONResponse(
-                            {"error": "Authentication required", "redirect": "/auth/login"}, status_code=401
+                            {
+                                "error": "Authentication required",
+                                "redirect": "/auth/login",
+                            },
+                            status_code=401,
                         )(scope, receive, send)
-                    return await RedirectResponse(url="/auth/login", status_code=307)(scope, receive, send)
+                    return await RedirectResponse(url="/auth/login", status_code=307)(
+                        scope, receive, send
+                    )
             elif not await auth_service.validate_session(session_token):
                 logger.debug(f"Invalid session token for {request.url.path}")
                 if not request.url.path.startswith("/auth/login"):
                     if is_json_request:
                         return await JSONResponse(
-                            {"error": "Authentication required", "redirect": "/auth/login"}, status_code=401
+                            {
+                                "error": "Authentication required",
+                                "redirect": "/auth/login",
+                            },
+                            status_code=401,
                         )(scope, receive, send)
-                    return await RedirectResponse(url="/auth/login", status_code=307)(scope, receive, send)
+                    return await RedirectResponse(url="/auth/login", status_code=307)(
+                        scope, receive, send
+                    )
 
             return await self.app(scope, receive, send)
         except Exception as e:
@@ -118,12 +165,10 @@ class AuthMiddleware:
             # SECURITY: Fail closed — deny access when auth cannot be verified (CWE-280)
             if is_json_request:
                 return await JSONResponse(
-                    {"error": "Authentication service unavailable"},
-                    status_code=503
+                    {"error": "Authentication service unavailable"}, status_code=503
                 )(scope, receive, send)
             return await JSONResponse(
-                {"error": "Authentication service unavailable"},
-                status_code=503
+                {"error": "Authentication service unavailable"}, status_code=503
             )(scope, receive, send)
         finally:
             db.close()

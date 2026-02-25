@@ -18,6 +18,7 @@ Dependency Injection:
 
 import logging
 import asyncio
+import re
 import shutil
 from datetime import datetime, timedelta
 from typing import Dict, Optional, Callable, Awaitable
@@ -41,7 +42,7 @@ ProcessStatus = None
 
 class ProcessManager:
     """Manages subprocess execution and cleanup for recording processes
-    
+
     SINGLETON PATTERN: Use `process_manager` global instance.
     All RecordingOrchestrator instances share the same ProcessManager
     to ensure consistent process tracking across the application.
@@ -49,19 +50,29 @@ class ProcessManager:
 
     # Constants for segment file patterns (must match RecordingLifecycleManager)
     SEGMENT_PART_IDENTIFIER = "_part"
-    
+
     # Singleton instance tracking
     _instance: Optional["ProcessManager"] = None
     _initialized: bool = False
 
-    def __new__(cls, config_manager=None, post_processing_callback: Optional[Callable[[int, str], Awaitable[None]]] = None):
+    def __new__(
+        cls,
+        config_manager=None,
+        post_processing_callback: Optional[
+            Callable[[int, str], Awaitable[None]]
+        ] = None,
+    ):
         """Singleton pattern - return existing instance if available"""
         if cls._instance is None:
             cls._instance = super().__new__(cls)
         return cls._instance
 
     def __init__(
-        self, config_manager=None, post_processing_callback: Optional[Callable[[int, str], Awaitable[None]]] = None
+        self,
+        config_manager=None,
+        post_processing_callback: Optional[
+            Callable[[int, str], Awaitable[None]]
+        ] = None,
     ):
         # Only initialize once (singleton)
         if ProcessManager._initialized:
@@ -71,7 +82,7 @@ class ProcessManager:
             if post_processing_callback is not None:
                 self.post_processing_callback = post_processing_callback
             return
-            
+
         self.active_processes = {}
         self.long_stream_processes = {}  # Track processes that need segmentation
         self.lock = asyncio.Lock()
@@ -79,7 +90,9 @@ class ProcessManager:
         self.post_processing_callback = post_processing_callback  # Injected dependency
 
         # Configuration for long stream handling (avoid streamlink 24h cutoff)
-        self.segment_duration_hours = 23.98  # Split streams at 23h59min to avoid streamlink cutoff
+        self.segment_duration_hours = (
+            23.98  # Split streams at 23h59min to avoid streamlink cutoff
+        )
         self.max_file_size_gb = 100  # Start new segment if file exceeds this size
         self.monitor_interval_seconds = 600  # Check every 10 minutes (less frequent)
 
@@ -88,9 +101,13 @@ class ProcessManager:
             from app.services.system.logging_service import logging_service
 
             self.logging_service = logging_service
-            logger.info(f"✅ ProcessManager: Logging service initialized - {logging_service.logs_base_dir}")
+            logger.info(
+                f"✅ ProcessManager: Logging service initialized - {logging_service.logs_base_dir}"
+            )
         except Exception as e:
-            logger.warning(f"❌ ProcessManager: Could not initialize logging service: {e}")
+            logger.warning(
+                f"❌ ProcessManager: Could not initialize logging service: {e}"
+            )
             self.logging_service = None
 
         # Try to import psutil for process monitoring
@@ -102,13 +119,17 @@ class ProcessManager:
 
         # Shutdown management
         self._is_shutting_down = False
-        
+
         ProcessManager._initialized = True
         logger.debug("ProcessManager singleton initialized")
 
     async def start_recording_process(
-        self, stream: Stream, output_path: str, quality: str, recording_id: Optional[int] = None,
-        resume_segments_dir: Optional[str] = None
+        self,
+        stream: Stream,
+        output_path: str,
+        quality: str,
+        recording_id: Optional[int] = None,
+        resume_segments_dir: Optional[str] = None,
     ) -> Optional[asyncio.subprocess.Process]:
         """Start a streamlink recording process for a specific stream
 
@@ -129,53 +150,69 @@ class ProcessManager:
             )
 
             # Start the first segment
-            process = await self._start_segment(stream, segment_info["current_segment_path"], quality, segment_info)
+            process = await self._start_segment(
+                stream, segment_info["current_segment_path"], quality, segment_info
+            )
 
             if process:
                 # Start monitoring task for long stream management
-                monitor_task = asyncio.create_task(self._monitor_long_stream(stream, segment_info, quality))
+                monitor_task = asyncio.create_task(
+                    self._monitor_long_stream(stream, segment_info, quality)
+                )
                 segment_info["monitor_task"] = monitor_task
 
             return process
 
         except Exception as e:
-            logger.error(f"Failed to start recording process for stream {stream.id}: {e}", exc_info=True)
+            logger.error(
+                f"Failed to start recording process for stream {stream.id}: {e}",
+                exc_info=True,
+            )
             raise ProcessError(f"Failed to start recording: {e}")
 
     async def _initialize_segmented_recording(
-        self, stream: Stream, output_path: str, quality: str, recording_id: Optional[int] = None,
-        resume_segments_dir: Optional[str] = None
+        self,
+        stream: Stream,
+        output_path: str,
+        quality: str,
+        recording_id: Optional[int] = None,
+        resume_segments_dir: Optional[str] = None,
     ) -> Dict:
         """Initialize segmented recording structure for long streams
-        
+
         Args:
             stream: Stream object to record
             output_path: Path where the final recording should be saved
             quality: Quality setting for the stream
             recording_id: ID of the recording entry (optional)
             resume_segments_dir: Existing segments directory to resume into (for app restart recovery)
-                                 If provided, new segments will be added to this directory with 
+                                 If provided, new segments will be added to this directory with
                                  the next available segment number.
         """
         base_path = Path(output_path)
-        
+
         if resume_segments_dir and Path(resume_segments_dir).exists():
             # RESUME MODE: Use existing segments directory
             segment_dir = Path(resume_segments_dir)
-            
+
             # Find the next segment number by checking existing files
-            existing_segments = list(segment_dir.glob(f"*{self.SEGMENT_PART_IDENTIFIER}*.ts"))
+            existing_segments = list(
+                segment_dir.glob(f"*{self.SEGMENT_PART_IDENTIFIER}*.ts")
+            )
             if existing_segments:
                 # Parse existing segment numbers
                 segment_numbers = []
                 for seg in existing_segments:
-                    match = re.search(rf"{re.escape(self.SEGMENT_PART_IDENTIFIER)}(\d+)\.ts$", seg.name)
+                    match = re.search(
+                        rf"{re.escape(self.SEGMENT_PART_IDENTIFIER)}(\d+)\.ts$",
+                        seg.name,
+                    )
                     if match:
                         segment_numbers.append(int(match.group(1)))
                 next_segment_num = max(segment_numbers) + 1 if segment_numbers else 1
             else:
                 next_segment_num = 1
-            
+
             # Derive base stem from existing segments or directory name
             if existing_segments:
                 # Use stem from first segment file
@@ -184,10 +221,12 @@ class ProcessManager:
             else:
                 # Fallback to directory name without _segments suffix
                 base_stem = segment_dir.name.replace("_segments", "")
-            
-            segment_filename = f"{base_stem}{self.SEGMENT_PART_IDENTIFIER}{next_segment_num:03d}.ts"
+
+            segment_filename = (
+                f"{base_stem}{self.SEGMENT_PART_IDENTIFIER}{next_segment_num:03d}.ts"
+            )
             current_segment_path = segment_dir / segment_filename
-            
+
             logger.info(
                 f"🔄 RESUME_SEGMENTS: Found {len(existing_segments)} existing segments in {segment_dir}, "
                 f"starting new segment {next_segment_num}"
@@ -218,7 +257,9 @@ class ProcessManager:
         async with self.lock:
             self.long_stream_processes[process_id] = segment_info
 
-        logger.info(f"Initialized segmented recording for stream {stream.id}: {segment_dir}")
+        logger.info(
+            f"Initialized segmented recording for stream {stream.id}: {segment_dir}"
+        )
         return segment_info
 
     async def _start_segment(
@@ -237,13 +278,19 @@ class ProcessManager:
                 from app.models import Streamer
 
                 with SessionLocal() as db:
-                    streamer = db.query(Streamer).filter(Streamer.id == stream.streamer_id).first()
+                    streamer = (
+                        db.query(Streamer)
+                        .filter(Streamer.id == stream.streamer_id)
+                        .first()
+                    )
                     if not streamer:
                         raise Exception(f"Streamer {stream.streamer_id} not found")
                     streamer_name = streamer.username
 
             if not streamer_name:
-                raise Exception(f"Could not resolve streamer name for stream {stream.id}")
+                raise Exception(
+                    f"Could not resolve streamer name for stream {stream.id}"
+                )
 
             # Debug logging to track potential mismatches
             logger.info(
@@ -267,18 +314,25 @@ class ProcessManager:
                     and hasattr(recording_settings, "enable_proxy")
                     and recording_settings.enable_proxy
                 ):
-                    from app.services.proxy.proxy_health_service import proxy_health_service
+                    from app.services.proxy.proxy_health_service import (
+                        proxy_health_service,
+                    )
 
                     # Get best available proxy from health service
                     best_proxy_url = await proxy_health_service.get_best_proxy()
 
                     if best_proxy_url:
                         # Use selected proxy
-                        proxy_settings = {"http": best_proxy_url, "https": best_proxy_url}
+                        proxy_settings = {
+                            "http": best_proxy_url,
+                            "https": best_proxy_url,
+                        }
                         # SECURITY: Sanitize proxy URL to hide credentials - CWE-532
                         from app.utils.security import sanitize_proxy_url_for_logging
 
-                        logger.info(f"✅ Using proxy for recording: {sanitize_proxy_url_for_logging(best_proxy_url)}")
+                        logger.info(
+                            f"✅ Using proxy for recording: {sanitize_proxy_url_for_logging(best_proxy_url)}"
+                        )
                     else:
                         # No healthy proxies available
                         fallback_enabled = (
@@ -317,9 +371,13 @@ class ProcessManager:
                     oauth_token = await token_service.get_valid_access_token()
 
                     if oauth_token:
-                        logger.info(f"🔑 Using auto-refreshed OAuth token for {streamer_name}")
+                        logger.info(
+                            f"🔑 Using auto-refreshed OAuth token for {streamer_name}"
+                        )
                     else:
-                        logger.debug("ℹ️ No OAuth token available - H.265/1440p quality unavailable")
+                        logger.debug(
+                            "ℹ️ No OAuth token available - H.265/1440p quality unavailable"
+                        )
                 except Exception as e:
                     logger.warning(f"Failed to get OAuth token: {e}")
                     oauth_token = None
@@ -335,19 +393,25 @@ class ProcessManager:
                 if streamer_settings and streamer_settings.supported_codecs:
                     # Per-streamer override
                     supported_codecs = streamer_settings.supported_codecs
-                    logger.info(f"🎨 Using per-streamer codec preference for {streamer_name}: {supported_codecs}")
+                    logger.info(
+                        f"🎨 Using per-streamer codec preference for {streamer_name}: {supported_codecs}"
+                    )
                 else:
                     # Fallback to global default
                     global_settings = db.query(GlobalSettings).first()
                     if global_settings and hasattr(global_settings, "supported_codecs"):
                         supported_codecs = global_settings.supported_codecs
-                        logger.debug(f"🎨 Using global codec preference: {supported_codecs}")
+                        logger.debug(
+                            f"🎨 Using global codec preference: {supported_codecs}"
+                        )
 
             # NOTE: Proxy connectivity is now handled by ProxyHealthService
             # The health check system continuously monitors proxy status and only
             # returns healthy proxies. No need for manual connectivity check here.
 
-            logger.info(f"🎬 PROCESS_START_SEGMENT: stream_id={stream.id}, streamer={streamer_name}")
+            logger.info(
+                f"🎬 PROCESS_START_SEGMENT: stream_id={stream.id}, streamer={streamer_name}"
+            )
 
             # Generate streamlink command for this segment
             # Note: Global settings (OAuth, default proxy/codecs) are in config.twitch
@@ -361,7 +425,9 @@ class ProcessManager:
                 oauth_token=oauth_token,  # Auto-refreshed OAuth token (overrides config)
             )
 
-            logger.info(f"🎬 Starting segment {segment_info['segment_count']} for {streamer_name}")
+            logger.info(
+                f"🎬 Starting segment {segment_info['segment_count']} for {streamer_name}"
+            )
             logger.debug(f"🎬 Segment path: {segment_path}")
             # SECURITY: Command logging disabled to prevent token exposure (CWE-532)
             # Full command details are available in structured logs if needed
@@ -371,10 +437,15 @@ class ProcessManager:
             if self.logging_service:
                 # The logging service now automatically creates streamer-specific directories
                 streamlink_log_path = self.logging_service.log_streamlink_start(
-                    streamer_name=streamer_name, quality=quality, output_path=segment_path, cmd=cmd
+                    streamer_name=streamer_name,
+                    quality=quality,
+                    output_path=segment_path,
+                    cmd=cmd,
                 )
 
-                logger.info(f"📂 Streamlink logs for {streamer_name} written to: {streamlink_log_path}")
+                logger.info(
+                    f"📂 Streamlink logs for {streamer_name} written to: {streamlink_log_path}"
+                )
 
                 # Create additional streamer logger for direct output
                 streamer_logger = logging.getLogger(f"streamlink.{streamer_name}")
@@ -386,13 +457,21 @@ class ProcessManager:
                         handler.close()
 
                 # Add a new FileHandler pointing to the streamer-specific log
-                file_handler = logging.FileHandler(streamlink_log_path, mode="a", encoding="utf-8")
-                file_handler.setFormatter(logging.Formatter("%(asctime)s %(message)s", datefmt="%Y-%m-%d %H:%M:%S"))
+                file_handler = logging.FileHandler(
+                    streamlink_log_path, mode="a", encoding="utf-8"
+                )
+                file_handler.setFormatter(
+                    logging.Formatter(
+                        "%(asctime)s %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
+                    )
+                )
                 streamer_logger.addHandler(file_handler)
                 streamer_logger.setLevel(logging.INFO)
                 streamer_logger.propagate = False
 
-                streamer_logger.info(f"Starting streamlink recording for {streamer_name}")
+                streamer_logger.info(
+                    f"Starting streamlink recording for {streamer_name}"
+                )
                 streamer_logger.info(f"Quality: {quality}")
                 streamer_logger.info(f"Output: {segment_path}")
                 # SECURITY: Command details omitted to prevent token exposure (CWE-532)
@@ -429,7 +508,9 @@ class ProcessManager:
                     # Also append to the streamer-specific log file using proper logging
                     streamer_logger = logging.getLogger(f"streamlink.{streamer_name}")
                     try:
-                        streamer_logger.error(f"PROCESS FAILED IMMEDIATELY (exit code: {process.returncode})")
+                        streamer_logger.error(
+                            f"PROCESS FAILED IMMEDIATELY (exit code: {process.returncode})"
+                        )
                         if stdout:
                             streamer_logger.error(f"STDOUT:\n{stdout.decode()}")
                         if stderr:
@@ -437,7 +518,9 @@ class ProcessManager:
                     except Exception as e:
                         logger.warning(f"Could not write to streamlink log file: {e}")
 
-                raise ProcessError(f"Streamlink process failed immediately: {stderr.decode()}")
+                raise ProcessError(
+                    f"Streamlink process failed immediately: {stderr.decode()}"
+                )
 
             process_id = f"stream_{stream.id}"
             async with self.lock:
@@ -445,7 +528,11 @@ class ProcessManager:
 
             # Add segment to the list
             segment_info["total_segments"].append(
-                {"path": segment_path, "start_time": datetime.now(), "process_pid": process.pid}
+                {
+                    "path": segment_path,
+                    "start_time": datetime.now(),
+                    "process_pid": process.pid,
+                }
             )
 
             # Register process with ProcessMonitor - temporarily disabled
@@ -464,11 +551,15 @@ class ProcessManager:
             #         }
             #     )
 
-            logger.info(f"Started segment recording for stream {stream.id} with PID {process.pid}")
+            logger.info(
+                f"Started segment recording for stream {stream.id} with PID {process.pid}"
+            )
 
             # Send Apprise notification for recording_started (NEW)
             try:
-                from app.services.notifications.external_notification_service import ExternalNotificationService
+                from app.services.notifications.external_notification_service import (
+                    ExternalNotificationService,
+                )
 
                 notification_service = ExternalNotificationService()
 
@@ -482,18 +573,27 @@ class ProcessManager:
                     },
                 )
 
-                logger.info(f"📧 Apprise notification sent: recording_started for {streamer_name}")
+                logger.info(
+                    f"📧 Apprise notification sent: recording_started for {streamer_name}"
+                )
 
             except Exception as apprise_error:
-                logger.error(f"Failed to send Apprise notification for recording_started: {apprise_error}")
+                logger.error(
+                    f"Failed to send Apprise notification for recording_started: {apprise_error}"
+                )
 
             return process
 
         except Exception as e:
-            logger.error(f"Failed to start segment recording for stream {stream.id}: {e}", exc_info=True)
+            logger.error(
+                f"Failed to start segment recording for stream {stream.id}: {e}",
+                exc_info=True,
+            )
             raise ProcessError(f"Failed to start segment recording: {e}")
 
-    async def _monitor_long_stream(self, stream: Stream, segment_info: Dict, quality: str):
+    async def _monitor_long_stream(
+        self, stream: Stream, segment_info: Dict, quality: str
+    ):
         """Monitor a long stream and handle segmentation"""
         process_id = f"stream_{stream.id}"
 
@@ -511,7 +611,10 @@ class ProcessManager:
         except asyncio.CancelledError:
             logger.info(f"Long stream monitoring cancelled for stream {stream.id}")
         except Exception as e:
-            logger.error(f"Error in long stream monitoring for stream {stream.id}: {e}", exc_info=True)
+            logger.error(
+                f"Error in long stream monitoring for stream {stream.id}: {e}",
+                exc_info=True,
+            )
 
     async def _should_rotate_segment(self, segment_info: Dict) -> bool:
         """Check if we should start a new segment"""
@@ -527,7 +630,9 @@ class ProcessManager:
             if await async_file.exists(current_path):
                 file_size_gb = await async_file.getsize(current_path) / (1024**3)
                 if file_size_gb >= self.max_file_size_gb:
-                    logger.info(f"Segment file size limit reached: {file_size_gb:.2f} GB")
+                    logger.info(
+                        f"Segment file size limit reached: {file_size_gb:.2f} GB"
+                    )
                     return True
 
             return False
@@ -591,9 +696,13 @@ class ProcessManager:
                     # This prevents stuck process references
                     try:
                         self.active_processes.pop(process_id, None)
-                        logger.debug(f"Removed process {process_id} from active_processes tracking")
+                        logger.debug(
+                            f"Removed process {process_id} from active_processes tracking"
+                        )
                     except Exception as e:
-                        logger.warning(f"Error removing process {process_id} from tracking: {e}")
+                        logger.warning(
+                            f"Error removing process {process_id} from tracking: {e}"
+                        )
 
             # Prepare next segment
             segment_info["segment_count"] += 1
@@ -605,15 +714,21 @@ class ProcessManager:
             segment_info["segment_start_time"] = datetime.now()
 
             # Start new segment
-            new_process = await self._start_segment(stream, str(next_segment_path), quality, segment_info)
+            new_process = await self._start_segment(
+                stream, str(next_segment_path), quality, segment_info
+            )
 
             if new_process:
-                logger.info(f"Successfully rotated to segment {segment_info['segment_count']} for stream {stream.id}")
+                logger.info(
+                    f"Successfully rotated to segment {segment_info['segment_count']} for stream {stream.id}"
+                )
             else:
                 logger.error(f"Failed to start new segment for stream {stream.id}")
 
         except Exception as e:
-            logger.error(f"Error rotating segment for stream {stream.id}: {e}", exc_info=True)
+            logger.error(
+                f"Error rotating segment for stream {stream.id}: {e}", exc_info=True
+            )
 
     async def monitor_process(self, process: asyncio.subprocess.Process) -> int:
         """Monitor a recording process until completion with failure detection
@@ -645,7 +760,9 @@ class ProcessManager:
             if segment_info:
                 # For segmented recordings, the process ending means the stream is over
                 # We need to concatenate all segments
-                logger.info(f"Segmented recording completed for stream {segment_info['stream_id']}")
+                logger.info(
+                    f"Segmented recording completed for stream {segment_info['stream_id']}"
+                )
                 await self._finalize_segmented_recording(segment_info)
                 return 0  # Success for segmented recording
             else:
@@ -667,9 +784,14 @@ class ProcessManager:
                         logger.error(f"Process stderr: {stderr_text[:1000]}")
 
                         # Parse common failure reasons
-                        if "ProxyError" in stderr_text or "Tunnel connection failed" in stderr_text:
+                        if (
+                            "ProxyError" in stderr_text
+                            or "Tunnel connection failed" in stderr_text
+                        ):
                             failure_reason = "proxy_error"
-                            error_message = "Proxy connection failed (500 Internal Server Error)"
+                            error_message = (
+                                "Proxy connection failed (500 Internal Server Error)"
+                            )
                         elif "Unable to open URL" in stderr_text:
                             failure_reason = "stream_unavailable"
                             error_message = "Stream unavailable or ended"
@@ -677,28 +799,38 @@ class ProcessManager:
                             failure_reason = "no_streams"
                             error_message = "No playable streams found"
                         else:
-                            error_message = f"Streamlink exited with code {process.returncode}"
+                            error_message = (
+                                f"Streamlink exited with code {process.returncode}"
+                            )
 
                     # Update database with error information
-                    await self._record_failure_in_database(process_id, error_message, failure_reason)
+                    await self._record_failure_in_database(
+                        process_id, error_message, failure_reason
+                    )
 
                     # Broadcast WebSocket error notification
                     await self._notify_recording_failed(process_id, error_message)
 
                 else:
-                    logger.info(f"✅ Recording process completed successfully (PID: {process.pid})")
+                    logger.info(
+                        f"✅ Recording process completed successfully (PID: {process.pid})"
+                    )
 
                     # Send Apprise notification for recording_completed (NEW - non-segmented)
                     try:
                         from app.database import SessionLocal
                         from app.models import Stream
-                        from app.services.notifications.external_notification_service import ExternalNotificationService
+                        from app.services.notifications.external_notification_service import (
+                            ExternalNotificationService,
+                        )
                         import os
 
                         notification_service = ExternalNotificationService()
 
                         with SessionLocal() as db:
-                            stream_id = process_id.split("_")[1] if "_" in process_id else None
+                            stream_id = (
+                                process_id.split("_")[1] if "_" in process_id else None
+                            )
                             if stream_id:
                                 stream = (
                                     db.query(Stream)
@@ -710,17 +842,30 @@ class ProcessManager:
                                 if stream and stream.streamer and stream.recording_path:
                                     # Get quality from streamer recording settings
                                     from app.models import StreamerRecordingSettings
+
                                     recording_settings = (
                                         db.query(StreamerRecordingSettings)
-                                        .filter(StreamerRecordingSettings.streamer_id == stream.streamer_id)
+                                        .filter(
+                                            StreamerRecordingSettings.streamer_id
+                                            == stream.streamer_id
+                                        )
                                         .first()
                                     )
-                                    quality = recording_settings.quality if recording_settings and recording_settings.quality else "best"
+                                    quality = (
+                                        recording_settings.quality
+                                        if recording_settings
+                                        and recording_settings.quality
+                                        else "best"
+                                    )
 
                                     # Calculate recording duration from stream timestamps
                                     duration_seconds = 0
                                     if stream.started_at and stream.ended_at:
-                                        duration_seconds = int((stream.ended_at - stream.started_at).total_seconds())
+                                        duration_seconds = int(
+                                            (
+                                                stream.ended_at - stream.started_at
+                                            ).total_seconds()
+                                        )
 
                                     hours = duration_seconds // 3600
                                     minutes = (duration_seconds % 3600) // 60
@@ -728,7 +873,9 @@ class ProcessManager:
                                     # Get file size
                                     file_size_bytes = 0
                                     if os.path.exists(stream.recording_path):
-                                        file_size_bytes = os.path.getsize(stream.recording_path)
+                                        file_size_bytes = os.path.getsize(
+                                            stream.recording_path
+                                        )
                                     file_size_mb = file_size_bytes / (1024 * 1024)
 
                                     await notification_service.send_recording_notification(
@@ -747,7 +894,9 @@ class ProcessManager:
                                     )
 
                     except Exception as apprise_error:
-                        logger.error(f"Failed to send Apprise notification for recording_completed: {apprise_error}")
+                        logger.error(
+                            f"Failed to send Apprise notification for recording_completed: {apprise_error}"
+                        )
 
                 # Log to structured logging service
                 if self.logging_service:
@@ -770,7 +919,9 @@ class ProcessManager:
                                     streamer = stream.streamer
                                     if streamer:
                                         # Get the log path for this streamer to append output
-                                        log_path = self.logging_service.get_streamlink_log_path(streamer.username)
+                                        log_path = self.logging_service.get_streamlink_log_path(
+                                            streamer.username
+                                        )
                                         self.logging_service.log_streamlink_output(
                                             streamer_name=streamer.username,
                                             stdout=stdout,
@@ -779,7 +930,9 @@ class ProcessManager:
                                             log_path=log_path,
                                         )
                     except Exception as e:
-                        logger.warning(f"Could not log streamlink output to structured logging: {e}")
+                        logger.warning(
+                            f"Could not log streamlink output to structured logging: {e}"
+                        )
 
                 return process.returncode or 0
 
@@ -793,7 +946,9 @@ class ProcessManager:
     async def _finalize_segmented_recording(self, segment_info: Dict):
         """Concatenate all segments into final TS file"""
         try:
-            logger.info(f"Finalizing segmented recording for stream {segment_info['stream_id']}")
+            logger.info(
+                f"Finalizing segmented recording for stream {segment_info['stream_id']}"
+            )
 
             # Cancel monitoring task
             if segment_info["monitor_task"]:
@@ -804,29 +959,41 @@ class ProcessManager:
             # (e.g., after app restart during an ongoing stream)
             segment_dir = Path(segment_info["segment_dir"])
             segment_files = []
-            
+
             if segment_dir.exists():
                 # Find all .ts files matching the segment pattern, sorted by name
                 # Pattern: *_partNNN.ts
-                all_ts_files = sorted(segment_dir.glob("*_part*.ts"), key=lambda x: x.name)
-                
+                all_ts_files = sorted(
+                    segment_dir.glob("*_part*.ts"), key=lambda x: x.name
+                )
+
                 for ts_file in all_ts_files:
-                    if await async_file.exists(str(ts_file)) and await async_file.getsize(str(ts_file)) > 0:
+                    if (
+                        await async_file.exists(str(ts_file))
+                        and await async_file.getsize(str(ts_file)) > 0
+                    ):
                         segment_files.append(str(ts_file))
-                
+
                 logger.info(
                     f"📦 Found {len(segment_files)} segment files in directory "
                     f"(tracked: {len(segment_info['total_segments'])}, from disk: {len(all_ts_files)})"
                 )
             else:
                 # Fallback to tracked segments if directory doesn't exist
-                logger.warning(f"Segment directory not found, using tracked segments only")
+                logger.warning(
+                    "Segment directory not found, using tracked segments only"
+                )
                 for segment in segment_info["total_segments"]:
-                    if await async_file.exists(segment["path"]) and await async_file.getsize(segment["path"]) > 0:
+                    if (
+                        await async_file.exists(segment["path"])
+                        and await async_file.getsize(segment["path"]) > 0
+                    ):
                         segment_files.append(segment["path"])
 
             if not segment_files:
-                logger.error(f"No valid segment files found for stream {segment_info['stream_id']}")
+                logger.error(
+                    f"No valid segment files found for stream {segment_info['stream_id']}"
+                )
                 return
 
             # Create concatenation list file for FFmpeg
@@ -837,9 +1004,23 @@ class ProcessManager:
 
             # Use FFmpeg to concatenate segments
             output_path = segment_info["base_output_path"]
-            cmd = ["ffmpeg", "-f", "concat", "-safe", "0", "-i", str(concat_list_path), "-c", "copy", "-y", output_path]
+            cmd = [
+                "ffmpeg",
+                "-f",
+                "concat",
+                "-safe",
+                "0",
+                "-i",
+                str(concat_list_path),
+                "-c",
+                "copy",
+                "-y",
+                output_path,
+            ]
 
-            logger.info(f"Concatenating {len(segment_files)} segments for stream {segment_info['stream_id']}")
+            logger.info(
+                f"Concatenating {len(segment_files)} segments for stream {segment_info['stream_id']}"
+            )
             process = await asyncio.create_subprocess_exec(
                 *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
             )
@@ -853,7 +1034,9 @@ class ProcessManager:
                 try:
                     from app.database import SessionLocal
                     from app.models import Stream
-                    from app.services.notifications.external_notification_service import ExternalNotificationService
+                    from app.services.notifications.external_notification_service import (
+                        ExternalNotificationService,
+                    )
                     from datetime import datetime
                     import os
 
@@ -870,17 +1053,28 @@ class ProcessManager:
                         if stream and stream.streamer:
                             # Get quality from streamer recording settings
                             from app.models import StreamerRecordingSettings
+
                             recording_settings = (
                                 db.query(StreamerRecordingSettings)
-                                .filter(StreamerRecordingSettings.streamer_id == stream.streamer_id)
+                                .filter(
+                                    StreamerRecordingSettings.streamer_id
+                                    == stream.streamer_id
+                                )
                                 .first()
                             )
-                            quality = recording_settings.quality if recording_settings and recording_settings.quality else "best"
+                            quality = (
+                                recording_settings.quality
+                                if recording_settings and recording_settings.quality
+                                else "best"
+                            )
 
                             # Calculate recording duration
                             if segment_info.get("segment_start_time"):
                                 duration_seconds = int(
-                                    (datetime.now() - segment_info["segment_start_time"]).total_seconds()
+                                    (
+                                        datetime.now()
+                                        - segment_info["segment_start_time"]
+                                    ).total_seconds()
                                 )
                                 hours = duration_seconds // 3600
                                 minutes = (duration_seconds % 3600) // 60
@@ -889,7 +1083,11 @@ class ProcessManager:
                                 minutes = 0
 
                             # Get file size
-                            file_size_bytes = os.path.getsize(output_path) if os.path.exists(output_path) else 0
+                            file_size_bytes = (
+                                os.path.getsize(output_path)
+                                if os.path.exists(output_path)
+                                else 0
+                            )
                             file_size_mb = file_size_bytes / (1024 * 1024)
 
                             await notification_service.send_recording_notification(
@@ -908,18 +1106,24 @@ class ProcessManager:
                             )
 
                 except Exception as apprise_error:
-                    logger.error(f"Failed to send Apprise notification for recording_completed: {apprise_error}")
+                    logger.error(
+                        f"Failed to send Apprise notification for recording_completed: {apprise_error}"
+                    )
 
                 # Move concatenated file from segments directory to parent directory
                 await self._move_concatenated_file_to_parent(segment_info)
 
                 # Trigger post-processing for the moved file
-                await self._trigger_post_processing_for_segmented_recording(segment_info)
+                await self._trigger_post_processing_for_segmented_recording(
+                    segment_info
+                )
 
                 # Clean up segment files and directory only after post-processing starts
                 await self._cleanup_segments(segment_info)
             else:
-                logger.error(f"Failed to concatenate segments: {stderr.decode('utf-8', errors='replace')[:500]}")
+                logger.error(
+                    f"Failed to concatenate segments: {stderr.decode('utf-8', errors='replace')[:500]}"
+                )
 
         except Exception as e:
             logger.error(f"Error finalizing segmented recording: {e}", exc_info=True)
@@ -947,7 +1151,9 @@ class ProcessManager:
             # Move the file
             if concatenated_file.exists():
                 shutil.move(str(concatenated_file), str(final_path))
-                logger.info(f"Moved concatenated file from {concatenated_file} to {final_path}")
+                logger.info(
+                    f"Moved concatenated file from {concatenated_file} to {final_path}"
+                )
 
                 # Update the segment_info with new path for post-processing
                 segment_info["final_output_path"] = str(final_path)
@@ -957,11 +1163,15 @@ class ProcessManager:
         except Exception as e:
             logger.error(f"Error moving concatenated file: {e}", exc_info=True)
 
-    async def _trigger_post_processing_for_segmented_recording(self, segment_info: Dict):
+    async def _trigger_post_processing_for_segmented_recording(
+        self, segment_info: Dict
+    ):
         """Trigger post-processing for the segmented recording using injected callback"""
         try:
             # Use the final output path (moved file) for post-processing
-            output_path = segment_info.get("final_output_path", segment_info["base_output_path"])
+            output_path = segment_info.get(
+                "final_output_path", segment_info["base_output_path"]
+            )
             stream_id = segment_info["stream_id"]
             # Get recording_id from segment_info if available
             recording_id = segment_info.get("recording_id")
@@ -974,11 +1184,18 @@ class ProcessManager:
                 )
             else:
                 # Fallback to direct service access (with circular import handling)
-                logger.warning("No post-processing callback available or recording_id missing, using fallback method")
-                await self._fallback_trigger_post_processing(stream_id, output_path, recording_id)
+                logger.warning(
+                    "No post-processing callback available or recording_id missing, using fallback method"
+                )
+                await self._fallback_trigger_post_processing(
+                    stream_id, output_path, recording_id
+                )
 
         except Exception as e:
-            logger.error(f"Error triggering post-processing for segmented recording: {e}", exc_info=True)
+            logger.error(
+                f"Error triggering post-processing for segmented recording: {e}",
+                exc_info=True,
+            )
 
     async def _fallback_trigger_post_processing(
         self, stream_id: int, output_path: str, recording_id: Optional[int] = None
@@ -1009,15 +1226,16 @@ class ProcessManager:
                                     recording.stream_id
                                 )
                                 if stream_data:
-                                    streamer_data = (
-                                        await recording_service.orchestrator.database_service.get_streamer_by_id(
-                                            stream_data.streamer_id
-                                        )
+                                    streamer_data = await recording_service.orchestrator.database_service.get_streamer_by_id(
+                                        stream_data.streamer_id
                                     )
                                     if streamer_data:
                                         # Check if output_path contains the correct streamer name
                                         output_path_obj = Path(output_path)
-                                        if streamer_data.username.lower() in str(output_path_obj).lower():
+                                        if (
+                                            streamer_data.username.lower()
+                                            in str(output_path_obj).lower()
+                                        ):
                                             candidate_recording_id = recording.id
                                             logger.info(
                                                 f"Found matching recording {recording.id} for stream {stream_id} with path validation"
@@ -1028,7 +1246,9 @@ class ProcessManager:
                                                 f"Recording {recording.id} belongs to stream {stream_id} but path {output_path} doesn't match streamer {streamer_data.username}"
                                             )
                             except Exception as e:
-                                logger.warning(f"Error validating recording {recording.id}: {e}")
+                                logger.warning(
+                                    f"Error validating recording {recording.id}: {e}"
+                                )
 
                     # If no validated candidate found, fall back to first match (with warning)
                     if not candidate_recording_id:
@@ -1044,11 +1264,15 @@ class ProcessManager:
 
                 if recording_id:
                     # Get recording data using correct recording_id
-                    recording_data = recording_service.orchestrator.database_service.get_recording_by_id(recording_id)
+                    recording_data = recording_service.orchestrator.database_service.get_recording_by_id(
+                        recording_id
+                    )
                     if recording_data:
                         # Update recording status using correct recording_id
                         await recording_service.orchestrator.database_service.update_recording_status(
-                            recording_id=recording_id, status="completed", path=output_path  # Use actual recording_id
+                            recording_id=recording_id,
+                            status="completed",
+                            path=output_path,  # Use actual recording_id
                         )
 
                         # Get additional data needed for post-processing
@@ -1064,7 +1288,9 @@ class ProcessManager:
                                 recording_data_dict = {
                                     "streamer_name": streamer_data.username,
                                     "started_at": (
-                                        recording_data.start_time.isoformat() if recording_data.start_time else None
+                                        recording_data.start_time.isoformat()
+                                        if recording_data.start_time
+                                        else None
                                     ),
                                     "stream_id": stream_data.id,
                                     "recording_id": recording_id,  # Use correct recording_id
@@ -1080,18 +1306,28 @@ class ProcessManager:
                                     f"Enqueued post-processing for segmented recording {recording_id} (stream {stream_id})"
                                 )
                             else:
-                                logger.error(f"Streamer data not found for recording {recording_id}")
+                                logger.error(
+                                    f"Streamer data not found for recording {recording_id}"
+                                )
                         else:
-                            logger.error(f"Stream data not found for recording {recording_id}")
+                            logger.error(
+                                f"Stream data not found for recording {recording_id}"
+                            )
                     else:
-                        logger.error(f"Recording data not found for recording {recording_id}")
+                        logger.error(
+                            f"Recording data not found for recording {recording_id}"
+                        )
                 else:
                     logger.error(f"Could not find recording_id for stream {stream_id}")
             else:
-                logger.warning("Could not trigger post-processing - recording service not available")
+                logger.warning(
+                    "Could not trigger post-processing - recording service not available"
+                )
 
         except Exception as e:
-            logger.error(f"Error in fallback post-processing trigger: {e}", exc_info=True)
+            logger.error(
+                f"Error in fallback post-processing trigger: {e}", exc_info=True
+            )
 
     async def _cleanup_segments(self, segment_info: Dict):
         """Clean up segment files after successful concatenation"""
@@ -1104,7 +1340,9 @@ class ProcessManager:
                     if await async_file.exists(segment["path"]):
                         await async_file.remove(segment["path"])
                 except Exception as e:
-                    logger.warning(f"Could not remove segment file {segment['path']}: {e}")
+                    logger.warning(
+                        f"Could not remove segment file {segment['path']}: {e}"
+                    )
 
             # Remove concat list file
             concat_list_path = segment_dir / "concat_list.txt"
@@ -1155,10 +1393,14 @@ class ProcessManager:
                 # This is NOT a breaking change - it fixes a logic bug where
                 # recordings were incorrectly marked as "failed" when the process
                 # had already terminated naturally (which is normal behavior)
-                logger.info(f"Process {process_id} not found in active processes - assuming already terminated")
+                logger.info(
+                    f"Process {process_id} not found in active processes - assuming already terminated"
+                )
                 return True  # Process already terminated = success, not failure
 
-            process = self.active_processes.pop(process_id)  # Handle segmented recording cleanup
+            process = self.active_processes.pop(
+                process_id
+            )  # Handle segmented recording cleanup
             if process_id in self.long_stream_processes:
                 segment_info = self.long_stream_processes[process_id]
                 if segment_info["monitor_task"]:
@@ -1226,13 +1468,19 @@ class ProcessManager:
 
             # Handle regular processes
             for stream_id, process in list(self.active_processes.items()):
-                termination_tasks.append(self._terminate_process_gracefully(stream_id, process, timeout))
+                termination_tasks.append(
+                    self._terminate_process_gracefully(stream_id, process, timeout)
+                )
 
             # Handle segmented processes
             for stream_id, segment_info in list(self.long_stream_processes.items()):
                 current_process = segment_info.get("current_process")
                 if current_process:
-                    termination_tasks.append(self._terminate_process_gracefully(stream_id, current_process, timeout))
+                    termination_tasks.append(
+                        self._terminate_process_gracefully(
+                            stream_id, current_process, timeout
+                        )
+                    )
 
             # Wait for all terminations to complete
             if termination_tasks:
@@ -1245,13 +1493,19 @@ class ProcessManager:
             logger.info("✅ Process Manager graceful shutdown completed")
 
         except Exception as e:
-            logger.error(f"❌ Error during Process Manager shutdown: {e}", exc_info=True)
+            logger.error(
+                f"❌ Error during Process Manager shutdown: {e}", exc_info=True
+            )
 
-    async def _terminate_process_gracefully(self, stream_id: int, process: asyncio.subprocess.Process, timeout: int):
+    async def _terminate_process_gracefully(
+        self, stream_id: int, process: asyncio.subprocess.Process, timeout: int
+    ):
         """Gracefully terminate a single process"""
         try:
             if process.returncode is None:  # Process is still running
-                logger.info(f"🔄 Terminating recording process for stream {stream_id} (PID: {process.pid})")
+                logger.info(
+                    f"🔄 Terminating recording process for stream {stream_id} (PID: {process.pid})"
+                )
 
                 # Send SIGTERM for graceful termination
                 process.terminate()
@@ -1259,11 +1513,15 @@ class ProcessManager:
                 try:
                     # Wait for process to terminate gracefully
                     await asyncio.wait_for(process.wait(), timeout=timeout)
-                    logger.info(f"✅ Process for stream {stream_id} terminated gracefully")
+                    logger.info(
+                        f"✅ Process for stream {stream_id} terminated gracefully"
+                    )
 
                 except asyncio.TimeoutError:
                     # Force kill if timeout
-                    logger.warning(f"⚠️ Process for stream {stream_id} didn't terminate gracefully, force killing...")
+                    logger.warning(
+                        f"⚠️ Process for stream {stream_id} didn't terminate gracefully, force killing..."
+                    )
                     process.kill()
                     await process.wait()
                     logger.info(f"💀 Process for stream {stream_id} force killed")
@@ -1278,7 +1536,9 @@ class ProcessManager:
         """Check if process manager is shutting down"""
         return self._is_shutting_down
 
-    async def _record_failure_in_database(self, process_id: str, error_message: str, failure_reason: str):
+    async def _record_failure_in_database(
+        self, process_id: str, error_message: str, failure_reason: str
+    ):
         """Record recording failure in database for visibility
 
         Args:
@@ -1294,14 +1554,19 @@ class ProcessManager:
             # Extract stream_id from process_id
             stream_id = process_id.split("_")[1] if "_" in process_id else None
             if not stream_id:
-                logger.warning(f"Could not extract stream_id from process_id: {process_id}")
+                logger.warning(
+                    f"Could not extract stream_id from process_id: {process_id}"
+                )
                 return
 
             with SessionLocal() as db:
                 # Find the active recording for this stream
                 recording = (
                     db.query(Recording)
-                    .filter(Recording.stream_id == int(stream_id), Recording.status == "recording")
+                    .filter(
+                        Recording.stream_id == int(stream_id),
+                        Recording.status == "recording",
+                    )
                     .first()
                 )
 
@@ -1314,7 +1579,9 @@ class ProcessManager:
                     recording.end_time = datetime.now(timezone.utc)
 
                     db.commit()
-                    logger.info(f"✅ Recorded failure in database for recording {recording.id}: {failure_reason}")
+                    logger.info(
+                        f"✅ Recorded failure in database for recording {recording.id}: {failure_reason}"
+                    )
                 else:
                     logger.warning(f"No active recording found for stream {stream_id}")
 
@@ -1341,13 +1608,18 @@ class ProcessManager:
             with SessionLocal() as db:
                 # Get stream and streamer info
                 stream = (
-                    db.query(Stream).options(joinedload(Stream.streamer)).filter(Stream.id == int(stream_id)).first()
+                    db.query(Stream)
+                    .options(joinedload(Stream.streamer))
+                    .filter(Stream.id == int(stream_id))
+                    .first()
                 )
 
                 if stream and stream.streamer:
                     # Broadcast WebSocket event
                     try:
-                        from app.services.websocket.websocket_manager import websocket_manager
+                        from app.services.websocket.websocket_manager import (
+                            websocket_manager,
+                        )
 
                         await websocket_manager.broadcast(
                             {
@@ -1364,14 +1636,20 @@ class ProcessManager:
                             }
                         )
 
-                        logger.info(f"📡 WebSocket notification sent: recording_failed for {stream.streamer.username}")
+                        logger.info(
+                            f"📡 WebSocket notification sent: recording_failed for {stream.streamer.username}"
+                        )
 
                     except Exception as ws_error:
-                        logger.error(f"Failed to send WebSocket notification: {ws_error}")
+                        logger.error(
+                            f"Failed to send WebSocket notification: {ws_error}"
+                        )
 
                     # Send Apprise notification (NEW)
                     try:
-                        from app.services.notifications.external_notification_service import ExternalNotificationService
+                        from app.services.notifications.external_notification_service import (
+                            ExternalNotificationService,
+                        )
 
                         notification_service = ExternalNotificationService()
 
@@ -1380,16 +1658,22 @@ class ProcessManager:
                             event_type="recording_failed",
                             details={
                                 "error_message": error_message,
-                                "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"),
+                                "timestamp": datetime.now(timezone.utc).strftime(
+                                    "%Y-%m-%d %H:%M:%S UTC"
+                                ),
                                 "stream_title": stream.title or "N/A",
                                 "category": stream.category_name or "N/A",
                             },
                         )
 
-                        logger.info(f"📧 Apprise notification sent: recording_failed for {stream.streamer.username}")
+                        logger.info(
+                            f"📧 Apprise notification sent: recording_failed for {stream.streamer.username}"
+                        )
 
                     except Exception as apprise_error:
-                        logger.error(f"Failed to send Apprise notification: {apprise_error}")
+                        logger.error(
+                            f"Failed to send Apprise notification: {apprise_error}"
+                        )
 
         except Exception as e:
             logger.error(f"Error in _notify_recording_failed: {e}", exc_info=True)
@@ -1444,10 +1728,15 @@ class ProcessManager:
                 return progress
 
         except Exception as e:
-            logger.error(f"Error getting recording progress for {recording_id}: {e}", exc_info=True)
+            logger.error(
+                f"Error getting recording progress for {recording_id}: {e}",
+                exc_info=True,
+            )
             return None
 
-    def set_post_processing_callback(self, callback: Optional[Callable[[int, str], Awaitable[None]]]):
+    def set_post_processing_callback(
+        self, callback: Optional[Callable[[int, str], Awaitable[None]]]
+    ):
         """Set the post-processing callback for dependency injection
 
         Args:

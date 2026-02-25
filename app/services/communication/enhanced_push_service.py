@@ -26,23 +26,27 @@ class EnhancedPushService:
         """Lazy initialization of web push service - loads VAPID keys on first use"""
         if self._web_push_service is not None:
             return self._web_push_service
-        
+
         if self._initialization_attempted:
             return None  # Already tried and failed
-        
+
         self._initialization_attempted = True
-        
+
         # Get VAPID keys from settings (may trigger database load)
         vapid_keys = self.settings.get_vapid_keys()
         vapid_private_key = vapid_keys.get("private_key")
         vapid_public_key = vapid_keys.get("public_key")
 
         if not vapid_private_key or not vapid_public_key:
-            logger.warning("VAPID keys not available, web push service will be disabled")
+            logger.warning(
+                "VAPID keys not available, web push service will be disabled"
+            )
             return None
 
         # VAPID claims for the sender
-        vapid_claims = {"sub": vapid_keys.get("claims_sub", "mailto:admin@streamvault.local")}
+        vapid_claims = {
+            "sub": vapid_keys.get("claims_sub", "mailto:admin@streamvault.local")
+        }
 
         try:
             self._web_push_service = ModernWebPushService(
@@ -67,12 +71,16 @@ class EnhancedPushService:
         logger.info("EnhancedPushService initialization state reset")
 
     async def send_notification(
-        self, subscription: Union[Dict[str, Any], str], notification_data: Dict[str, Any]
+        self,
+        subscription: Union[Dict[str, Any], str],
+        notification_data: Dict[str, Any],
     ) -> bool:
         """Send a push notification to a specific subscription"""
         try:
             if not self.web_push_service or not self.vapid_public_key:
-                logger.warning("VAPID keys not configured, cannot send push notifications")
+                logger.warning(
+                    "VAPID keys not configured, cannot send push notifications"
+                )
                 return False
 
             # Handle both string and dict subscription formats
@@ -80,11 +88,15 @@ class EnhancedPushService:
                 try:
                     subscription = json.loads(subscription)
                 except json.JSONDecodeError:
-                    logger.error(f"Invalid subscription format (not JSON): {subscription[:50]}...")
+                    logger.error(
+                        f"Invalid subscription format (not JSON): {subscription[:50]}..."
+                    )
                     return False
 
             if not isinstance(subscription, dict):
-                logger.error(f"Subscription must be a dictionary, got {type(subscription)}")
+                logger.error(
+                    f"Subscription must be a dictionary, got {type(subscription)}"
+                )
                 return False
 
             # Validate required subscription fields
@@ -102,7 +114,9 @@ class EnhancedPushService:
             try:
                 # Pass the payload as JSON string, not the dictionary directly
                 success = self.web_push_service.send_notification(
-                    subscription_info=subscription, data=payload, ttl=43200  # 12 hours TTL
+                    subscription_info=subscription,
+                    data=payload,
+                    ttl=43200,  # 12 hours TTL
                 )
 
                 if success:
@@ -120,7 +134,11 @@ class EnhancedPushService:
             # Handle different error codes
             if hasattr(e, "response") and e.response and e.response.status == 410:
                 # Subscription is no longer valid
-                endpoint = subscription.get("endpoint", "unknown") if isinstance(subscription, dict) else "unknown"
+                endpoint = (
+                    subscription.get("endpoint", "unknown")
+                    if isinstance(subscription, dict)
+                    else "unknown"
+                )
                 logger.info(f"Subscription expired: {endpoint[:50]}...")
                 return False
             elif hasattr(e, "response") and e.response and e.response.status == 413:
@@ -131,7 +149,9 @@ class EnhancedPushService:
                 return False
 
         except Exception as e:
-            logger.error(f"Unexpected error sending push notification: {e}", exc_info=True)
+            logger.error(
+                f"Unexpected error sending push notification: {e}", exc_info=True
+            )
             return False
 
     # Die folgenden Methoden bleiben unverändert, nur kopiere ich die erste als Beispiel:
@@ -164,7 +184,10 @@ class EnhancedPushService:
                 "url": f"https://twitch.tv/{streamer_name.lower()}",
                 "internal_url": f"/streamer/{streamer_id}",
             },
-            "actions": [{"action": "view_stream", "title": "View Stream"}, {"action": "dismiss", "title": "Dismiss"}],
+            "actions": [
+                {"action": "view_stream", "title": "View Stream"},
+                {"action": "dismiss", "title": "Dismiss"},
+            ],
             "requireInteraction": True,
             "tag": f"stream-online-{streamer_id}",
         }
@@ -187,7 +210,11 @@ class EnhancedPushService:
             "icon": "/android-icon-192x192.png",
             "badge": "/android-icon-96x96.png",
             "type": "recording_started",
-            "data": {"streamer_id": streamer_id, "stream_id": stream_id, "url": f"/streamer/{streamer_id}"},
+            "data": {
+                "streamer_id": streamer_id,
+                "stream_id": stream_id,
+                "url": f"/streamer/{streamer_id}",
+            },
             "tag": f"recording-started-{streamer_id}",
         }
 
@@ -241,7 +268,12 @@ class EnhancedPushService:
         return await self.send_notification(subscription, notification_data)
 
     async def send_stream_update_notification(
-        self, subscription: Dict[str, Any], streamer_name: str, stream_title: str, category_name: str, streamer_id: int
+        self,
+        subscription: Dict[str, Any],
+        streamer_name: str,
+        stream_title: str,
+        category_name: str,
+        streamer_id: int,
     ) -> bool:
         """Send a notification when stream info is updated"""
         # Use same format as Apprise notifications
@@ -261,7 +293,10 @@ class EnhancedPushService:
                 "url": f"https://twitch.tv/{streamer_name.lower()}",
                 "internal_url": f"/streamer/{streamer_id}",
             },
-            "actions": [{"action": "view_stream", "title": "View Stream"}, {"action": "dismiss", "title": "Dismiss"}],
+            "actions": [
+                {"action": "view_stream", "title": "View Stream"},
+                {"action": "dismiss", "title": "Dismiss"},
+            ],
             "requireInteraction": True,
             "tag": f"stream-update-{streamer_id}",
         }
@@ -269,7 +304,12 @@ class EnhancedPushService:
         return await self.send_notification(subscription, notification_data)
 
     async def send_favorite_category_notification(
-        self, subscription: Dict[str, Any], streamer_name: str, stream_title: str, category_name: str, streamer_id: int
+        self,
+        subscription: Dict[str, Any],
+        streamer_name: str,
+        stream_title: str,
+        category_name: str,
+        streamer_id: int,
     ) -> bool:
         """Send a notification when a streamer plays a favorite game"""
         # Use same format as Apprise notifications
@@ -288,7 +328,10 @@ class EnhancedPushService:
                 "url": f"https://twitch.tv/{streamer_name.lower()}",
                 "internal_url": f"/streamer/{streamer_id}",
             },
-            "actions": [{"action": "view_stream", "title": "View Stream"}, {"action": "dismiss", "title": "Dismiss"}],
+            "actions": [
+                {"action": "view_stream", "title": "View Stream"},
+                {"action": "dismiss", "title": "Dismiss"},
+            ],
             "requireInteraction": True,
             "tag": f"favorite-category-{streamer_id}",
         }

@@ -18,10 +18,14 @@ class RecordingWebSocketService:
     def __init__(self, websocket_manager=None):
         self.websocket_manager = websocket_manager
 
-    async def send_active_recordings_update(self, active_recordings: Dict[int, Dict[str, Any]]) -> None:
+    async def send_active_recordings_update(
+        self, active_recordings: Dict[int, Dict[str, Any]]
+    ) -> None:
         """Send active recordings update via WebSocket"""
         if not self.websocket_manager:
-            logger.debug("WebSocket manager not available, skipping active recordings update")
+            logger.debug(
+                "WebSocket manager not available, skipping active recordings update"
+            )
             return
 
         try:
@@ -43,17 +47,24 @@ class RecordingWebSocketService:
             message = {"type": "active_recordings_update", "data": websocket_data}
 
             await self.websocket_manager.send_notification(message)
-            logger.debug(f"Sent active recordings update: {len(websocket_data)} recordings")
+            logger.debug(
+                f"Sent active recordings update: {len(websocket_data)} recordings"
+            )
 
         except Exception as e:
             logger.error(f"Failed to send active recordings WebSocket update: {e}")
 
     async def send_recording_status_update(
-        self, recording_id: int, status: str, additional_data: Optional[Dict[str, Any]] = None
+        self,
+        recording_id: int,
+        status: str,
+        additional_data: Optional[Dict[str, Any]] = None,
     ) -> None:
         """Send recording status update via WebSocket"""
         if not self.websocket_manager:
-            logger.debug("WebSocket manager not available, skipping recording status update")
+            logger.debug(
+                "WebSocket manager not available, skipping recording status update"
+            )
             return
 
         try:
@@ -83,7 +94,9 @@ class RecordingWebSocketService:
     ) -> None:
         """Send recording job status update via WebSocket"""
         if not self.websocket_manager:
-            logger.debug("WebSocket manager not available, skipping recording job update")
+            logger.debug(
+                "WebSocket manager not available, skipping recording job update"
+            )
             return
 
         try:
@@ -100,7 +113,9 @@ class RecordingWebSocketService:
             }
 
             await self.websocket_manager.send_notification(message)
-            logger.debug(f"Sent recording job update: {recording_id} {job_type} -> {status} ({progress:.1f}%)")
+            logger.debug(
+                f"Sent recording job update: {recording_id} {job_type} -> {status} ({progress:.1f}%)"
+            )
 
         except Exception as e:
             logger.error(f"Failed to send recording job WebSocket update: {e}")
@@ -116,7 +131,9 @@ class RecordingWebSocketService:
     ) -> None:
         """Send background task update via WebSocket"""
         if not self.websocket_manager:
-            logger.debug("WebSocket manager not available, skipping background task update")
+            logger.debug(
+                "WebSocket manager not available, skipping background task update"
+            )
             return
 
         try:
@@ -134,17 +151,24 @@ class RecordingWebSocketService:
             }
 
             await self.websocket_manager.send_notification(message)
-            logger.debug(f"Sent background task update: {task_id} {task_type} -> {status} ({progress:.1f}%)")
+            logger.debug(
+                f"Sent background task update: {task_id} {task_type} -> {status} ({progress:.1f}%)"
+            )
 
         except Exception as e:
             logger.error(f"Failed to send background task WebSocket update: {e}")
 
     async def send_recording_error(
-        self, recording_id: int, error_message: str, additional_data: Optional[Dict[str, Any]] = None
+        self,
+        recording_id: int,
+        error_message: str,
+        additional_data: Optional[Dict[str, Any]] = None,
     ) -> None:
         """Send recording error notification via WebSocket"""
         if not self.websocket_manager:
-            logger.debug("WebSocket manager not available, skipping recording error notification")
+            logger.debug(
+                "WebSocket manager not available, skipping recording error notification"
+            )
             return
 
         try:
@@ -174,7 +198,9 @@ class RecordingWebSocketService:
     ) -> None:
         """Send recording completed notification via WebSocket"""
         if not self.websocket_manager:
-            logger.debug("WebSocket manager not available, skipping recording completed notification")
+            logger.debug(
+                "WebSocket manager not available, skipping recording completed notification"
+            )
             return
 
         try:
@@ -194,7 +220,9 @@ class RecordingWebSocketService:
             logger.debug(f"Sent recording completed notification: {recording_id}")
 
         except Exception as e:
-            logger.error(f"Failed to send recording completed WebSocket notification: {e}")
+            logger.error(
+                f"Failed to send recording completed WebSocket notification: {e}"
+            )
 
     async def send_recording_started(
         self,
@@ -206,7 +234,9 @@ class RecordingWebSocketService:
     ) -> None:
         """Send recording started notification via WebSocket"""
         if not self.websocket_manager:
-            logger.debug("WebSocket manager not available, skipping recording started notification")
+            logger.debug(
+                "WebSocket manager not available, skipping recording started notification"
+            )
             return
 
         try:
@@ -226,7 +256,9 @@ class RecordingWebSocketService:
             logger.debug(f"Sent recording started notification: {recording_id}")
 
         except Exception as e:
-            logger.error(f"Failed to send recording started WebSocket notification: {e}")
+            logger.error(
+                f"Failed to send recording started WebSocket notification: {e}"
+            )
 
     async def send_system_notification(
         self,
@@ -237,7 +269,9 @@ class RecordingWebSocketService:
     ) -> None:
         """Send system notification via WebSocket"""
         if not self.websocket_manager:
-            logger.debug("WebSocket manager not available, skipping system notification")
+            logger.debug(
+                "WebSocket manager not available, skipping system notification"
+            )
             return
 
         try:
@@ -294,7 +328,11 @@ class RecordingWebSocketService:
         try:
             message = {
                 "type": "bulk_recording_update",
-                "data": {"updates": updates, "timestamp": datetime.utcnow().isoformat(), "count": len(updates)},
+                "data": {
+                    "updates": updates,
+                    "timestamp": datetime.utcnow().isoformat(),
+                    "count": len(updates),
+                },
             }
 
             await self.websocket_manager.send_notification(message)

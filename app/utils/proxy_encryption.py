@@ -67,13 +67,18 @@ class ProxyEncryption:
 
                     # Save to database
                     if not settings:
-                        settings = GlobalSettings(notifications_enabled=True, proxy_encryption_key=encryption_key)
+                        settings = GlobalSettings(
+                            notifications_enabled=True,
+                            proxy_encryption_key=encryption_key,
+                        )
                         db.add(settings)
                     else:
                         settings.proxy_encryption_key = encryption_key
 
                     db.commit()
-                    logger.info("✅ Proxy encryption key generated and saved to database")
+                    logger.info(
+                        "✅ Proxy encryption key generated and saved to database"
+                    )
                     logger.info("💡 Encryption key persists across container restarts")
 
         except Exception as e:
@@ -81,17 +86,27 @@ class ProxyEncryption:
             # Fallback to environment variable for backward compatibility
             encryption_key = os.getenv("PROXY_ENCRYPTION_KEY")
             if encryption_key:
-                logger.warning("⚠️ Using PROXY_ENCRYPTION_KEY from environment (deprecated)")
+                logger.warning(
+                    "⚠️ Using PROXY_ENCRYPTION_KEY from environment (deprecated)"
+                )
                 logger.warning("   Migration 032 should have moved this to database")
             else:
                 # Last resort: Generate ephemeral key (will cause data loss on restart)
-                logger.error("❌ CRITICAL: No encryption key in database or environment!")
-                logger.error("   Generating ephemeral key - proxies will be lost on restart")
+                logger.error(
+                    "❌ CRITICAL: No encryption key in database or environment!"
+                )
+                logger.error(
+                    "   Generating ephemeral key - proxies will be lost on restart"
+                )
                 new_key = Fernet.generate_key()
                 encryption_key = new_key.decode("utf-8")
 
         try:
-            self._cipher = Fernet(encryption_key.encode() if isinstance(encryption_key, str) else encryption_key)
+            self._cipher = Fernet(
+                encryption_key.encode()
+                if isinstance(encryption_key, str)
+                else encryption_key
+            )
             logger.debug("🔐 Proxy encryption initialized")
         except Exception as e:
             logger.error(f"❌ Failed to initialize proxy encryption: {e}")
@@ -114,7 +129,9 @@ class ProxyEncryption:
             encrypted_bytes = self._cipher.encrypt(plaintext.encode("utf-8"))
             encrypted_str = encrypted_bytes.decode("utf-8")
 
-            logger.debug(f"🔒 Proxy URL encrypted successfully (length: {len(encrypted_str)})")
+            logger.debug(
+                f"🔒 Proxy URL encrypted successfully (length: {len(encrypted_str)})"
+            )
             return encrypted_str
 
         except Exception as e:
@@ -138,7 +155,7 @@ class ProxyEncryption:
             decrypted_bytes = self._cipher.decrypt(encrypted.encode("utf-8"))
             decrypted_str = decrypted_bytes.decode("utf-8")
 
-            logger.debug(f"🔓 Decrypted proxy URL: {encrypted[:20]}... → {decrypted_str[:20]}...")
+            logger.debug("🔓 Proxy URL decrypted successfully")
             return decrypted_str
 
         except Exception as e:

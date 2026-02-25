@@ -37,7 +37,10 @@ async def health_check() -> Dict[str, Any]:
         return {
             "status": status,
             "timestamp": datetime.now().isoformat(),
-            "checks": {"application": "healthy", "database": "healthy" if db_healthy else "unhealthy"},
+            "checks": {
+                "application": "healthy",
+                "database": "healthy" if db_healthy else "unhealthy",
+            },
         }
 
     except Exception as e:
@@ -68,14 +71,18 @@ async def readiness_check() -> Dict[str, Any]:
 
         # FFmpeg check
         try:
-            result = subprocess.run(["ffmpeg", "-version"], capture_output=True, timeout=5)
+            result = subprocess.run(
+                ["ffmpeg", "-version"], capture_output=True, timeout=5
+            )
             checks["ffmpeg"] = result.returncode == 0
         except Exception:
             pass
 
         # Streamlink check
         try:
-            result = subprocess.run(["streamlink", "--version"], capture_output=True, timeout=5)
+            result = subprocess.run(
+                ["streamlink", "--version"], capture_output=True, timeout=5
+            )
             checks["streamlink"] = result.returncode == 0
         except Exception:
             pass
@@ -84,9 +91,15 @@ async def readiness_check() -> Dict[str, Any]:
         all_ready = all(checks.values())
 
         if all_ready:
-            return {"status": "ready", "timestamp": datetime.now().isoformat(), "checks": checks}
+            return {
+                "status": "ready",
+                "timestamp": datetime.now().isoformat(),
+                "checks": checks,
+            }
         else:
-            raise HTTPException(status_code=503, detail={"status": "not_ready", "checks": checks})
+            raise HTTPException(
+                status_code=503, detail={"status": "not_ready", "checks": checks}
+            )
 
     except HTTPException:
         raise

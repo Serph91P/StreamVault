@@ -51,7 +51,12 @@ async def _check_for_updates() -> dict:
     if _update_check_cache["expires_at"] and now < _update_check_cache["expires_at"]:
         return _update_check_cache["data"]
 
-    result = {"update_available": False, "latest_version": None, "latest_version_url": None, "update_check_error": None}
+    result = {
+        "update_available": False,
+        "latest_version": None,
+        "latest_version_url": None,
+        "update_check_error": None,
+    }
 
     try:
         # Only check for updates on main/develop branches
@@ -62,18 +67,26 @@ async def _check_for_updates() -> dict:
         # Determine which releases to check
         if BRANCH == "main":
             # Main branch: Check latest stable release
-            api_url = "https://api.github.com/repos/Serph91P/StreamVault/releases/latest"
+            api_url = (
+                "https://api.github.com/repos/Serph91P/StreamVault/releases/latest"
+            )
         else:
             # Develop branch: Check all releases for latest develop tag
             api_url = "https://api.github.com/repos/Serph91P/StreamVault/releases"
 
         async with httpx.AsyncClient(timeout=5.0) as client:
             response = await client.get(
-                api_url, headers={"Accept": "application/vnd.github.v3+json", "User-Agent": "StreamVault-UpdateChecker"}
+                api_url,
+                headers={
+                    "Accept": "application/vnd.github.v3+json",
+                    "User-Agent": "StreamVault-UpdateChecker",
+                },
             )
 
             if response.status_code != 200:
-                result["update_check_error"] = f"GitHub API returned {response.status_code}"
+                result["update_check_error"] = (
+                    f"GitHub API returned {response.status_code}"
+                )
                 return result
 
             data = response.json()
@@ -88,7 +101,9 @@ async def _check_for_updates() -> dict:
                     result["update_check_error"] = "Unexpected GitHub API response"
                     return result
 
-                develop_releases = [r for r in data if "develop" in r.get("tag_name", "").lower()]
+                develop_releases = [
+                    r for r in data if "develop" in r.get("tag_name", "").lower()
+                ]
                 if not develop_releases:
                     result["update_check_error"] = "No develop releases found"
                     return result
@@ -122,7 +137,7 @@ async def _check_for_updates() -> dict:
         result["update_check_error"] = "GitHub API timeout"
         logger.warning("GitHub update check timed out")
     except Exception as e:
-        result["update_check_error"] = str(e)
+        result["update_check_error"] = "Failed to check for updates"
         logger.error(f"Failed to check for updates: {e}")
 
     # Cache result for 5 minutes
