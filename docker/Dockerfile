@@ -82,8 +82,8 @@ COPY app/frontend/package*.json ./
 RUN --mount=type=cache,target=/root/.npm \
     if [ ! -d "../frontend/dist" ]; then \
         echo "No pre-built frontend found, installing npm dependencies..." && \
-        npm ci --prefer-offline --no-audit && \
-        npm audit fix --audit-level=moderate || echo "Some vulnerabilities may remain but build continues"; \
+        npm ci --no-audit && \
+        (npm audit fix --audit-level=moderate || echo "Some vulnerabilities may remain but build continues"); \
     else \
         echo "Pre-built frontend detected, skipping npm setup"; \
     fi
