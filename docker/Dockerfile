@@ -85,16 +85,16 @@ RUN --mount=type=cache,target=/root/.npm \
     if [ -d "dist" ] && [ "$(ls -A dist 2>/dev/null)" ]; then \
         echo "✅ Using pre-built frontend from CI/CD pipeline"; \
     elif [ "$BUILD_ENV" = "production" ]; then \
-        echo "📦 Building frontend in production mode..." && \
-        npm ci --no-audit && \
-        rm -rf dist || true && \
-        npm run build || { \
-            echo "⚠️ Build failed, cleaning cache and retrying..." && \
-            rm -rf node_modules/.cache || true && \
+        echo "📦 Building frontend in production mode..."; \
+        npm ci --no-audit; \
+        rm -rf dist; \
+        if ! npm run build; then \
+            echo "⚠️ Build failed, cleaning cache and retrying..."; \
+            rm -rf node_modules/.cache; \
             npm run build; \
-        }; \
+        fi; \
     else \
-        echo "🔧 Skipping frontend build in development mode..." && \
+        echo "🔧 Skipping frontend build in development mode..."; \
         mkdir -p dist; \
     fi
 
