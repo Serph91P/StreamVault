@@ -47,39 +47,18 @@ jobs:
       - name: Check migrations
         run: python -m app.migrations_init
 
-  # Check for frontend changes
-  check_changes:
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    permissions:
-      contents: read
-    outputs:
-      frontend_changed: ${{ steps.changes.outputs.frontend }}
-    steps:
-      - uses: actions/checkout@v6
-      
-      - name: Check for changes
-        uses: dorny/paths-filter@v3
-        id: changes
-        with:
-          filters: |
-            frontend:
-              - 'app/frontend/**'
-
   # Build Docker image (no push) to validate it builds correctly
   build:
-    needs: [test, check_changes]
+    needs: [test]
     runs-on: ubuntu-latest
     timeout-minutes: 25
     permissions:
       contents: read
-      security-events: write
     steps:
       - uses: actions/checkout@v4
     
-      # Setup Node.js with caching
+      # Setup Node.js with caching (always needed for Docker build context)
       - name: Setup Node.js
-        if: needs.check_changes.outputs.frontend_changed == 'true'
         uses: actions/setup-node@v6
         with:
           node-version: '24'
@@ -87,7 +66,7 @@ jobs:
           cache-dependency-path: 'app/frontend/package-lock.json'
           
       - name: Cache frontend build
-        if: needs.check_changes.outputs.frontend_changed == 'true'
+        id: frontend-cache
         uses: actions/cache@v5
         with:
           path: |
@@ -98,12 +77,11 @@ jobs:
             frontend-build-
           
       - name: Build Frontend
-        if: needs.check_changes.outputs.frontend_changed == 'true'
+        if: steps.frontend-cache.outputs.cache-hit != 'true'
         working-directory: app/frontend
         run: |
-          npm ci --prefer-offline
+          npm ci
           rm -rf dist || true
-          npx update-browserslist-db@latest
           npm run build
     
       # Docker build (no push)
@@ -126,18 +104,9 @@ jobs:
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: 'streamvault:pr-${{ github.event.pull_request.number }}'
-          format: 'sarif'
-          output: 'trivy-results.sarif'
+          format: 'table'
           severity: 'CRITICAL,HIGH'
           exit-code: '0'
-
-      - name: Upload Trivy SARIF to GitHub Security
-        if: always()
-        uses: github/codeql-action/upload-sarif@v4
-        with:
-          sarif_file: 'trivy-results.sarif'
-          category: 'trivy-secure'
-        continue-on-error: true
           
   # Security scanning on requirements
   security:

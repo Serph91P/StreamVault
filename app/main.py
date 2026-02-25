@@ -1052,8 +1052,6 @@ app.include_router(version_router.router, prefix="/api")
 @app.get("/settings")
 @app.get("/welcome")
 @app.get("/admin")
-@app.get("/auth/setup")
-@app.get("/auth/login")
 @app.get("/streamer/{streamer_id}")
 @app.get("/streamer/{streamer_id}/stream/{stream_id}/watch")
 async def serve_spa_routes():

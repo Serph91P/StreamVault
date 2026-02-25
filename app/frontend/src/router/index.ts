@@ -139,7 +139,11 @@ router.beforeEach(async (to, from, next) => {
       data = await response.json();
     } catch (jsonError) {
       console.error('Failed to parse setup response as JSON:', jsonError);
-      return next('/auth/setup');
+      // Avoid infinite loop: only redirect if not already heading to setup/login
+      if (to.path !== '/auth/setup' && to.path !== '/auth/login') {
+        return next('/auth/login');
+      }
+      return next();
     }
 
     if (data.setup_required) {
@@ -195,7 +199,11 @@ router.beforeEach(async (to, from, next) => {
     }
   } catch (error) {
     console.error('Router error:', error);
-    return next('/auth/setup');
+    // Avoid infinite loop: only redirect if not already on an auth page
+    if (to.path !== '/auth/setup' && to.path !== '/auth/login') {
+      return next('/auth/login');
+    }
+    return next();
   }
 });
 
