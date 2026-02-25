@@ -45,6 +45,8 @@ class AuthMiddleware:
                 logger.warning(
                     "WebSocket connection rejected: no session cookie or Bearer token"
                 )
+                # Accept first, then close with code so the browser receives the close code
+                await ws.accept()
                 await ws.close(code=4001, reason="Authentication required")
                 return
             db = SessionLocal()
@@ -52,10 +54,12 @@ class AuthMiddleware:
                 auth_service = AuthService(db=db)
                 if not await auth_service.validate_session(session_token):
                     logger.warning("WebSocket connection rejected: invalid session")
+                    await ws.accept()
                     await ws.close(code=4001, reason="Invalid session")
                     return
             except Exception as e:
                 logger.error(f"WebSocket auth error: {e}")
+                await ws.accept()
                 await ws.close(code=4003, reason="Authentication service unavailable")
                 return
             finally:

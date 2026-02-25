@@ -14,6 +14,8 @@ export default defineConfig({
             workbox: {
                 globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2,ttf}'],
                 navigateFallback: 'index.html',
+                // Prevent service worker from intercepting API, auth, and WebSocket paths
+                navigateFallbackDenylist: [/^\/api\//, /^\/auth\//, /^\/ws/, /^\/eventsub/, /^\/health/],
                 runtimeCaching: [
                     {
                         urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
