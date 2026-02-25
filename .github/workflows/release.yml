@@ -210,7 +210,6 @@ jobs:
         run: |
           npm ci --prefer-offline
           rm -rf dist || true
-          npx update-browserslist-db@latest
           npm run build
 
       - name: Set up Docker Buildx

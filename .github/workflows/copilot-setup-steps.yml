@@ -55,10 +55,6 @@ jobs:
         working-directory: app/frontend
         run: npm ci
 
-      - name: Update browserslist database
-        working-directory: app/frontend
-        run: npx update-browserslist-db@latest
-
       - name: Run frontend linter
         working-directory: app/frontend
         run: npm run lint

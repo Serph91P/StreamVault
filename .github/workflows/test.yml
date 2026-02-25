@@ -99,7 +99,6 @@ jobs:
         working-directory: app/frontend
         run: |
           rm -rf dist || true
-          npx update-browserslist-db@latest
           npm run build
 
   # ──────────────────────────────────────────────
