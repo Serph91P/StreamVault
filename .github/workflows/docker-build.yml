@@ -117,6 +117,7 @@ jobs:
           file: docker/Dockerfile
           platforms: linux/amd64
           push: false
+          load: true
           tags: streamvault:pr-${{ github.event.pull_request.number }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
