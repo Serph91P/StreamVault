@@ -102,7 +102,9 @@ def secure_path_join(base_path: str, *components: str) -> Path:
     return resolved_path
 
 
-def safe_error_message(error: Exception, default_message: str = "An error occurred") -> str:
+def safe_error_message(
+    error: Exception, default_message: str = "An error occurred"
+) -> str:
     """
     Create a safe error message that doesn't expose sensitive information
 
@@ -147,7 +149,9 @@ def validate_safe_path(base_path: str, user_input: str) -> Path:
     return secure_path_join(base_path, clean_input)
 
 
-def create_safe_file_path(recordings_dir: str, streamer_name: str, filename: str) -> Path:
+def create_safe_file_path(
+    recordings_dir: str, streamer_name: str, filename: str
+) -> Path:
     """
     Create a safe file path from user inputs, preventing path traversal.
     This separates the validation logic to make CodeQL analysis clearer.
@@ -234,7 +238,9 @@ def validate_path_security(user_path: str, operation_type: str = "access") -> st
             severity="CRITICAL",
         )
 
-        raise HTTPException(status_code=403, detail="Access denied: Path outside allowed directory")
+        raise HTTPException(
+            status_code=403, detail="Access denied: Path outside allowed directory"
+        )
 
     # Additional validation based on operation type
     if operation_type in ["read", "write", "delete"]:
@@ -243,13 +249,19 @@ def validate_path_security(user_path: str, operation_type: str = "access") -> st
 
         # Validate path type for specific operations
         if operation_type == "read" and not os.path.isfile(normalized_path):
-            raise HTTPException(status_code=400, detail=f"Path is not a file: {user_path}")
+            raise HTTPException(
+                status_code=400, detail=f"Path is not a file: {user_path}"
+            )
         elif operation_type == "write":
             parent_dir = os.path.dirname(normalized_path)
             if not os.path.isdir(parent_dir):
-                raise HTTPException(status_code=400, detail="Parent directory does not exist")
+                raise HTTPException(
+                    status_code=400, detail="Parent directory does not exist"
+                )
             if os.path.exists(normalized_path) and os.path.isdir(normalized_path):
-                raise HTTPException(status_code=400, detail=f"Cannot write to directory: {user_path}")
+                raise HTTPException(
+                    status_code=400, detail=f"Cannot write to directory: {user_path}"
+                )
 
     logger.debug(f"🔒 SECURITY: Path validated - {user_path} -> {normalized_path}")
     return normalized_path
@@ -317,7 +329,8 @@ def validate_streamer_name(name: str) -> str:
     # Must start with letter or number
     if not re.match(r"^[a-zA-Z0-9][a-zA-Z0-9_]{3,24}$", clean_name):
         raise ValueError(
-            "Invalid streamer name: must be 4-25 characters, " "alphanumeric + underscore, start with letter/number"
+            "Invalid streamer name: must be 4-25 characters, "
+            "alphanumeric + underscore, start with letter/number"
         )
 
     return clean_name
@@ -373,7 +386,9 @@ ALLOWED_VIDEO_MIME_TYPES = {
 }
 
 
-def validate_file_type(filename: str, allowed_extensions: set = ALLOWED_VIDEO_EXTENSIONS) -> str:
+def validate_file_type(
+    filename: str, allowed_extensions: set = ALLOWED_VIDEO_EXTENSIONS
+) -> str:
     """
     Validate file type by extension
 
@@ -397,7 +412,8 @@ def validate_file_type(filename: str, allowed_extensions: set = ALLOWED_VIDEO_EX
 
     if file_extension not in allowed_extensions:
         raise ValueError(
-            f"File type '{file_extension}' not allowed. " f"Allowed: {', '.join(sorted(allowed_extensions))}"
+            f"File type '{file_extension}' not allowed. "
+            f"Allowed: {', '.join(sorted(allowed_extensions))}"
         )
 
     return file_extension
@@ -548,10 +564,16 @@ def validate_redirect_url(url: str, default_url: str = "/") -> str:
 
     # Check against whitelist
     if base_path not in ALLOWED_REDIRECT_PATHS:
-        logger.warning(f"🚨 SECURITY: Redirect to non-whitelisted path blocked: {base_path}")
+        logger.warning(
+            f"🚨 SECURITY: Redirect to non-whitelisted path blocked: {base_path}"
+        )
         log_security_event(
             event_type="OPEN_REDIRECT_BLOCKED",
-            details={"attempted_url": url, "base_path": base_path, "reason": "not_whitelisted"},
+            details={
+                "attempted_url": url,
+                "base_path": base_path,
+                "reason": "not_whitelisted",
+            },
             severity="WARNING",
         )
         return default_url

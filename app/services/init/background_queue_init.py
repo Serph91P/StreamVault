@@ -7,7 +7,9 @@ import logging
 from typing import Any, Optional
 
 from app.services.background_queue_service import background_queue_service
-from app.services.processing.post_processing_task_handlers import post_processing_task_handlers
+from app.services.processing.post_processing_task_handlers import (
+    post_processing_task_handlers,
+)
 
 logger = logging.getLogger("streamvault")
 
@@ -36,38 +38,64 @@ class BackgroundQueueManager:
         # Configure queue service with production fixes
         if hasattr(self.queue_service, "queue_manager"):
             # Set streamer isolation on the queue manager
-            self.queue_service.queue_manager.enable_streamer_isolation = enable_streamer_isolation
+            self.queue_service.queue_manager.enable_streamer_isolation = (
+                enable_streamer_isolation
+            )
             if enable_streamer_isolation:
-                logger.info("✅ Enabled streamer isolation for production concurrency fix")
+                logger.info(
+                    "✅ Enabled streamer isolation for production concurrency fix"
+                )
 
         # Always register task handlers, regardless of service state
         logger.info("Registering task handlers...")
 
         # Register task handlers
-        self.queue_service.register_task_handler("metadata_generation", self.task_handlers.handle_metadata_generation)
+        self.queue_service.register_task_handler(
+            "metadata_generation", self.task_handlers.handle_metadata_generation
+        )
 
-        self.queue_service.register_task_handler("chapters_generation", self.task_handlers.handle_chapters_generation)
+        self.queue_service.register_task_handler(
+            "chapters_generation", self.task_handlers.handle_chapters_generation
+        )
 
-        self.queue_service.register_task_handler("mp4_remux", self.task_handlers.handle_mp4_remux)
+        self.queue_service.register_task_handler(
+            "mp4_remux", self.task_handlers.handle_mp4_remux
+        )
 
-        self.queue_service.register_task_handler("mp4_validation", self.task_handlers.handle_mp4_validation)
+        self.queue_service.register_task_handler(
+            "mp4_validation", self.task_handlers.handle_mp4_validation
+        )
 
-        self.queue_service.register_task_handler("thumbnail_generation", self.task_handlers.handle_thumbnail_generation)
+        self.queue_service.register_task_handler(
+            "thumbnail_generation", self.task_handlers.handle_thumbnail_generation
+        )
 
-        self.queue_service.register_task_handler("cleanup", self.task_handlers.handle_cleanup)
+        self.queue_service.register_task_handler(
+            "cleanup", self.task_handlers.handle_cleanup
+        )
 
         # Register orphaned recovery handler
-        from app.services.recording.orphaned_recovery_tasks import handle_orphaned_recovery_check
+        from app.services.recording.orphaned_recovery_tasks import (
+            handle_orphaned_recovery_check,
+        )
 
-        self.queue_service.register_task_handler("orphaned_recovery_check", handle_orphaned_recovery_check)
+        self.queue_service.register_task_handler(
+            "orphaned_recovery_check", handle_orphaned_recovery_check
+        )
 
         # Register segment concatenation handler
-        from app.services.recording.segment_concatenation_task import handle_segment_concatenation
+        from app.services.recording.segment_concatenation_task import (
+            handle_segment_concatenation,
+        )
 
-        self.queue_service.register_task_handler("segment_concatenation", handle_segment_concatenation)
+        self.queue_service.register_task_handler(
+            "segment_concatenation", handle_segment_concatenation
+        )
 
         # Register unified recovery handler (runs recovery scan in background)
-        self.queue_service.register_task_handler("unified_recovery", self.task_handlers.handle_unified_recovery)
+        self.queue_service.register_task_handler(
+            "unified_recovery", self.task_handlers.handle_unified_recovery
+        )
 
         logger.info("✅ All 9 task handlers registered successfully")
 
@@ -76,20 +104,28 @@ class BackgroundQueueManager:
             await self.queue_service.start()
             logger.info("✅ Started background queue service")
         else:
-            logger.info("✅ Background queue service already running with handlers registered")
+            logger.info(
+                "✅ Background queue service already running with handlers registered"
+            )
 
         # Start automatic recovery service for production reliability
         try:
-            from app.services.automatic_queue_recovery_service import get_recovery_service
+            from app.services.automatic_queue_recovery_service import (
+                get_recovery_service,
+            )
 
             recovery_service = get_recovery_service()
             await recovery_service.start()
-            logger.info("✅ Automatic queue recovery service started for production reliability")
+            logger.info(
+                "✅ Automatic queue recovery service started for production reliability"
+            )
         except Exception as e:
             logger.error(f"Failed to start automatic recovery service: {e}")
 
         self.is_initialized = True
-        logger.info("✅ Background queue service initialized successfully with production fixes")
+        logger.info(
+            "✅ Background queue service initialized successfully with production fixes"
+        )
 
     async def shutdown(self):
         """Shutdown the background queue service"""
@@ -100,7 +136,9 @@ class BackgroundQueueManager:
 
         # Stop automatic recovery service first
         try:
-            from app.services.automatic_queue_recovery_service import get_recovery_service
+            from app.services.automatic_queue_recovery_service import (
+                get_recovery_service,
+            )
 
             recovery_service = get_recovery_service()
             await recovery_service.stop()
@@ -134,7 +172,9 @@ background_queue_manager = BackgroundQueueManager()
 
 async def initialize_background_queue(enable_streamer_isolation: bool = True):
     """Initialize the background queue service with production fixes"""
-    await background_queue_manager.initialize(enable_streamer_isolation=enable_streamer_isolation)
+    await background_queue_manager.initialize(
+        enable_streamer_isolation=enable_streamer_isolation
+    )
 
 
 async def shutdown_background_queue():
@@ -181,7 +221,10 @@ async def enqueue_recording_post_processing(
             )
         except Exception as e:
             # Log and fall through to raise with clearer context below
-            logger.error(f"Error in dict-based enqueue_recording_post_processing: {e}", exc_info=True)
+            logger.error(
+                f"Error in dict-based enqueue_recording_post_processing: {e}",
+                exc_info=True,
+            )
 
     # Original interface
     return await queue_service.enqueue_recording_post_processing(
@@ -196,7 +239,12 @@ async def enqueue_recording_post_processing(
 
 
 async def enqueue_metadata_generation(
-    stream_id: int, recording_id: int, mp4_file_path: str, output_dir: str, streamer_name: str, started_at: str
+    stream_id: int,
+    recording_id: int,
+    mp4_file_path: str,
+    output_dir: str,
+    streamer_name: str,
+    started_at: str,
 ):
     """Enqueue metadata generation for an existing MP4 file"""
     queue_service = get_background_queue_service()
@@ -216,7 +264,11 @@ async def enqueue_metadata_generation(
         # Register tasks in dependency manager and progress tracker
         for task in tasks:
             await queue_service.queue_manager.dependency_manager.add_task(task)
-            queue_task = queue_service.queue_manager._create_queue_task_from_dependency_task(task)
+            queue_task = (
+                queue_service.queue_manager._create_queue_task_from_dependency_task(
+                    task
+                )
+            )
             queue_service.queue_manager.progress_tracker.add_task(queue_task)
 
         return [task.id for task in tasks]
@@ -226,7 +278,12 @@ async def enqueue_metadata_generation(
 
 
 async def enqueue_thumbnail_generation(
-    stream_id: int, recording_id: int, mp4_file_path: str, output_dir: str, streamer_name: str, started_at: str
+    stream_id: int,
+    recording_id: int,
+    mp4_file_path: str,
+    output_dir: str,
+    streamer_name: str,
+    started_at: str,
 ):
     """Enqueue thumbnail generation"""
     queue_service = get_background_queue_service()
@@ -243,7 +300,9 @@ async def enqueue_thumbnail_generation(
         )
 
         await queue_service.queue_manager.dependency_manager.add_task(task)
-        queue_task = queue_service.queue_manager._create_queue_task_from_dependency_task(task)
+        queue_task = (
+            queue_service.queue_manager._create_queue_task_from_dependency_task(task)
+        )
         queue_service.queue_manager.progress_tracker.add_task(queue_task)
 
         return task.id
@@ -279,10 +338,16 @@ async def cancel_stream_tasks(stream_id: int):
     cancelled_count = 0
 
     # Cancel internal active tasks
-    tasks_to_cancel = [tid for tid, t in queue_service.active_tasks.items() if t.payload.get("stream_id") == stream_id]
+    tasks_to_cancel = [
+        tid
+        for tid, t in queue_service.active_tasks.items()
+        if t.payload.get("stream_id") == stream_id
+    ]
     for task_id in tasks_to_cancel:
         try:
-            await queue_service.queue_manager.mark_task_completed(task_id, success=False)
+            await queue_service.queue_manager.mark_task_completed(
+                task_id, success=False
+            )
             cancelled_count += 1
         except Exception as e:
             logger.warning(f"Failed to cancel task {task_id}: {e}")
@@ -291,7 +356,8 @@ async def cancel_stream_tasks(stream_id: int):
     external_to_cancel = [
         tid
         for tid, t in queue_service.external_tasks.items()
-        if t.payload.get("stream_id") == stream_id and t.status.value in ["running", "pending"]
+        if t.payload.get("stream_id") == stream_id
+        and t.status.value in ["running", "pending"]
     ]
     for task_id in external_to_cancel:
         try:

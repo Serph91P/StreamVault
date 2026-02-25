@@ -11,13 +11,18 @@ logger = logging.getLogger("streamvault")
 router = APIRouter(prefix="/api/twitch", tags=["twitch-oauth"])
 
 
-def get_twitch_oauth_service(streamer_service: StreamerService = Depends(get_streamer_service)) -> TwitchOAuthService:
+def get_twitch_oauth_service(
+    streamer_service: StreamerService = Depends(get_streamer_service),
+) -> TwitchOAuthService:
     return TwitchOAuthService(streamer_service)
 
 
 @router.get("/auth-url")
 async def get_twitch_auth_url(
-    state: str = Query(None, description="Return URL after OAuth (e.g., '/settings' or '/add-streamer')"),
+    state: str = Query(
+        None,
+        description="Return URL after OAuth (e.g., '/settings' or '/add-streamer')",
+    ),
     oauth_service: TwitchOAuthService = Depends(get_twitch_oauth_service),
 ):
     """Get Twitch OAuth authorization URL
@@ -65,11 +70,15 @@ async def twitch_callback(
             try:
                 token_service = TwitchTokenService(db)
                 success = await token_service.store_oauth_tokens(
-                    access_token=access_token, refresh_token=refresh_token, expires_in=expires_in
+                    access_token=access_token,
+                    refresh_token=refresh_token,
+                    expires_in=expires_in,
                 )
 
                 if success:
-                    logger.info("✅ Twitch OAuth tokens stored - automatic refresh enabled")
+                    logger.info(
+                        "✅ Twitch OAuth tokens stored - automatic refresh enabled"
+                    )
                 else:
                     logger.warning("Failed to store OAuth tokens in database")
             except Exception as e:
@@ -92,7 +101,9 @@ async def twitch_callback(
 
 @router.get("/followed-channels")
 async def get_followed_channels(
-    access_token: str = Query(None, description="Optional access token (retrieved from DB if not provided)"),
+    access_token: str = Query(
+        None, description="Optional access token (retrieved from DB if not provided)"
+    ),
     oauth_service: TwitchOAuthService = Depends(get_twitch_oauth_service),
 ):
     """Get channels that the authenticated user follows.
@@ -115,7 +126,7 @@ async def get_followed_channels(
         if not access_token:
             raise HTTPException(
                 status_code=401,
-                detail="No Twitch access token available. Please connect your Twitch account first."
+                detail="No Twitch access token available. Please connect your Twitch account first.",
             )
 
     followed_channels = await oauth_service.get_user_followed_channels(access_token)
@@ -130,7 +141,8 @@ async def get_followed_channels(
 
 @router.post("/import-streamers")
 async def import_streamers(
-    streamers: List[Dict[str, Any]], oauth_service: TwitchOAuthService = Depends(get_twitch_oauth_service)
+    streamers: List[Dict[str, Any]],
+    oauth_service: TwitchOAuthService = Depends(get_twitch_oauth_service),
 ):
     """Import selected streamers from followed channels"""
     if not streamers:

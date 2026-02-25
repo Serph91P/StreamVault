@@ -99,7 +99,9 @@ class ExampleTypedUser(TypedModel):
     created_at: datetime
 
     @classmethod
-    def create(cls, session: Session, username: str, password: str, is_admin: bool = False) -> "ExampleTypedUser":
+    def create(
+        cls, session: Session, username: str, password: str, is_admin: bool = False
+    ) -> "ExampleTypedUser":
         """Create a new user with proper typing"""
         user = cls.__new__(cls)
         user.username = username
@@ -110,6 +112,8 @@ class ExampleTypedUser(TypedModel):
         return user
 
     @classmethod
-    def get_by_username(cls, session: Session, username: str) -> Optional["ExampleTypedUser"]:
+    def get_by_username(
+        cls, session: Session, username: str
+    ) -> Optional["ExampleTypedUser"]:
         """Get a user by username with proper typing"""
         return session.query(cls).filter_by(username=username).first()

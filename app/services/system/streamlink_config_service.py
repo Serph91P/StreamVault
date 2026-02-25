@@ -27,10 +27,16 @@ class StreamlinkConfigService:
         if not self.config_dir.exists():
             try:
                 self.config_dir.mkdir(parents=True, exist_ok=True)
-                logger.info(f"📁 Created streamlink config directory: {self.config_dir}")
+                logger.info(
+                    f"📁 Created streamlink config directory: {self.config_dir}"
+                )
             except PermissionError:
-                logger.warning(f"⚠️ No permission to create {self.config_dir} - volume mount may be missing")
-                logger.warning("   Config generation will be skipped. Check docker-compose.yml volume mounts.")
+                logger.warning(
+                    f"⚠️ No permission to create {self.config_dir} - volume mount may be missing"
+                )
+                logger.warning(
+                    "   Config generation will be skipped. Check docker-compose.yml volume mounts."
+                )
             except Exception as e:
                 logger.error(f"❌ Failed to create streamlink config directory: {e}")
         else:
@@ -87,7 +93,9 @@ class StreamlinkConfigService:
             )
 
             if oauth_token and oauth_token.strip():
-                logger.info("🔑 OAuth token available - will be passed via CLI per recording")
+                logger.info(
+                    "🔑 OAuth token available - will be passed via CLI per recording"
+                )
             else:
                 logger.warning("⚠️ No OAuth token - H.265/1440p quality unavailable")
                 logger.warning("⚠️ No OAuth token - recordings limited to 1080p60 H.264")
@@ -142,21 +150,27 @@ class StreamlinkConfigService:
 
             # Skip if directory doesn't exist (permission issue during init)
             if not self.config_dir.exists():
-                logger.warning("⚠️ Config directory doesn't exist - skipping config file write")
+                logger.warning(
+                    "⚠️ Config directory doesn't exist - skipping config file write"
+                )
                 logger.warning("   Using command-line arguments only")
                 return False
 
             with open(self.twitch_config_path, "w", encoding="utf-8") as f:
                 f.write(config_content)
 
-            logger.info(f"✅ Streamlink Twitch config generated: {self.twitch_config_path}")
+            logger.info(
+                f"✅ Streamlink Twitch config generated: {self.twitch_config_path}"
+            )
             logger.debug(f"📝 Config size: {len(config_content)} bytes")
 
             return True
 
         except PermissionError:
             logger.warning(f"⚠️ No permission to write {self.twitch_config_path}")
-            logger.warning("   Check docker-compose.yml volume mount (should NOT be :ro)")
+            logger.warning(
+                "   Check docker-compose.yml volume mount (should NOT be :ro)"
+            )
             return False
         except (OSError, IOError) as e:
             logger.error(f"❌ Failed to write streamlink config: {e}")
@@ -207,14 +221,18 @@ class StreamlinkConfigService:
                 if global_settings:
                     http_proxy = global_settings.http_proxy
                     https_proxy = global_settings.https_proxy
-                    supported_codecs = global_settings.supported_codecs or "av1,h265,h264"
+                    supported_codecs = (
+                        global_settings.supported_codecs or "av1,h265,h264"
+                    )
                 else:
                     # Fallback to defaults if no settings in database
                     http_proxy = settings.HTTP_PROXY
                     https_proxy = settings.HTTPS_PROXY
                     supported_codecs = "av1,h265,h264"
 
-                logger.debug(f"🔧 Config settings: codecs={supported_codecs}, oauth={'✅' if oauth_token else '❌'}")
+                logger.debug(
+                    f"🔧 Config settings: codecs={supported_codecs}, oauth={'✅' if oauth_token else '❌'}"
+                )
 
                 # Generate config with current settings
                 return self.generate_twitch_config(
@@ -280,7 +298,9 @@ class StreamlinkConfigService:
                 "description": "2560x1440 resolution with H.265/HEVC codec",
                 "enabled": has_oauth_token,
                 "requires_oauth": True,
-                "tooltip": "Requires TWITCH_OAUTH_TOKEN to be configured" if not has_oauth_token else None,
+                "tooltip": "Requires TWITCH_OAUTH_TOKEN to be configured"
+                if not has_oauth_token
+                else None,
             },
             {
                 "value": "1080p60",

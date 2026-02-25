@@ -146,7 +146,9 @@ def validate_and_resolve_path(path_string: str, base_dir: str) -> Path:
         raise HTTPException(status_code=400, detail="Invalid path")
 
 
-def safe_file_access(base_dir: str, streamer_name: str, filename: Optional[str] = None) -> Path:
+def safe_file_access(
+    base_dir: str, streamer_name: str, filename: Optional[str] = None
+) -> Path:
     """
     Safely access a file with complete data flow isolation.
     This is the main function to use for file access with user input.
@@ -172,7 +174,9 @@ def safe_file_access(base_dir: str, streamer_name: str, filename: Optional[str] 
     return validate_and_resolve_path(clean_path, base_dir)
 
 
-def safe_error_message(error: Exception, default_message: str = "An error occurred") -> str:
+def safe_error_message(
+    error: Exception, default_message: str = "An error occurred"
+) -> str:
     """
     Create a safe error message that doesn't expose sensitive information
 

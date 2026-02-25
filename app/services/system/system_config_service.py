@@ -19,7 +19,9 @@ class SystemConfigService:
         try:
             session = SessionLocal()
             try:
-                config = session.query(SystemConfig).filter(SystemConfig.key == key).first()
+                config = (
+                    session.query(SystemConfig).filter(SystemConfig.key == key).first()
+                )
                 return config.value if config else None
             finally:
                 session.close()
@@ -33,7 +35,9 @@ class SystemConfigService:
         try:
             session = SessionLocal()
             try:
-                config = session.query(SystemConfig).filter(SystemConfig.key == key).first()
+                config = (
+                    session.query(SystemConfig).filter(SystemConfig.key == key).first()
+                )
 
                 if config:
                     # Update existing
@@ -69,13 +73,19 @@ class SystemConfigService:
         try:
             success = True
             success &= SystemConfigService.set_config(
-                "vapid_public_key", public_key, "VAPID public key for push notifications"
+                "vapid_public_key",
+                public_key,
+                "VAPID public key for push notifications",
             )
             success &= SystemConfigService.set_config(
-                "vapid_private_key", private_key, "VAPID private key for push notifications"
+                "vapid_private_key",
+                private_key,
+                "VAPID private key for push notifications",
             )
             success &= SystemConfigService.set_config(
-                "vapid_claims_sub", claims_sub, "VAPID claims subject for push notifications"
+                "vapid_claims_sub",
+                claims_sub,
+                "VAPID claims subject for push notifications",
             )
 
             if success:

@@ -1,4 +1,11 @@
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, HTTPException, Depends
+from fastapi import (
+    FastAPI,
+    WebSocket,
+    WebSocketDisconnect,
+    Request,
+    HTTPException,
+    Depends,
+)
 from fastapi.responses import Response, FileResponse
 from fastapi.staticfiles import StaticFiles
 from app.routes import streamers, auth
@@ -74,41 +81,58 @@ async def lifespan(app: FastAPI):
             if migration_success:
                 logger.info("✅ All database migrations completed successfully")
             else:
-                logger.warning("⚠️ Some migrations failed, application may have limited functionality")
+                logger.warning(
+                    "⚠️ Some migrations failed, application may have limited functionality"
+                )
         except Exception as e:
             logger.error(f"❌ Database migration failed: {e}")
-            logger.warning("⚠️ Application will continue but may have limited functionality")
+            logger.warning(
+                "⚠️ Application will continue but may have limited functionality"
+            )
 
         # Image migration check and execution
         logger.info("🖼️ Checking image migration status...")
-        from app.services.migration.image_migration_service import image_migration_service
+        from app.services.migration.image_migration_service import (
+            image_migration_service,
+        )
 
         try:
             # Check if migration is needed
             old_dirs_exist = (
-                image_migration_service.old_images_dir.exists() or image_migration_service.old_artwork_dir.exists()
+                image_migration_service.old_images_dir.exists()
+                or image_migration_service.old_artwork_dir.exists()
             )
 
             if old_dirs_exist:
-                logger.info("🔄 Running image migration from old directory structure...")
+                logger.info(
+                    "🔄 Running image migration from old directory structure..."
+                )
                 migration_stats = await image_migration_service.migrate_all_images()
                 logger.info(f"✅ Image migration completed: {migration_stats}")
             else:
-                logger.info("✅ No image migration needed - directory structure is up to date")
+                logger.info(
+                    "✅ No image migration needed - directory structure is up to date"
+                )
         except Exception as e:
             logger.error(f"❌ Image migration failed: {e}")
             logger.warning("⚠️ Continuing startup without image migration")
 
         # Generate Streamlink configuration from settings
         logger.info("🔧 Generating Streamlink configuration...")
-        from app.services.system.streamlink_config_service import streamlink_config_service
+        from app.services.system.streamlink_config_service import (
+            streamlink_config_service,
+        )
 
         try:
-            config_success = await streamlink_config_service.update_config_from_settings()
+            config_success = (
+                await streamlink_config_service.update_config_from_settings()
+            )
             if config_success:
                 logger.info("✅ Streamlink configuration generated successfully")
             else:
-                logger.warning("⚠️ Failed to generate Streamlink config - using command-line args only")
+                logger.warning(
+                    "⚠️ Failed to generate Streamlink config - using command-line args only"
+                )
         except Exception as e:
             logger.error(f"❌ Streamlink config generation failed: {e}")
             logger.warning("⚠️ Continuing without config file - using command-line args")
@@ -139,7 +163,9 @@ async def lifespan(app: FastAPI):
             logger.info("✅ All model tables ensured")
         except Exception as e:
             logger.error(f"❌ Error creating model tables: {e}")
-            logger.warning("⚠️ Application will continue but may have limited functionality")
+            logger.warning(
+                "⚠️ Application will continue but may have limited functionality"
+            )
 
         # Initialize EventSub
         event_registry = await get_event_registry()
@@ -150,7 +176,9 @@ async def lifespan(app: FastAPI):
         try:
             recording_service = getattr(event_registry, "recording_service", None)
             if recording_service:
-                logger.info("Recording service reference obtained for graceful shutdown")
+                logger.info(
+                    "Recording service reference obtained for graceful shutdown"
+                )
         except Exception as e:
             logger.warning(f"Could not get recording service reference: {e}")
 
@@ -159,15 +187,21 @@ async def lifespan(app: FastAPI):
             from app.services.system.logging_service import logging_service
 
             # Use the global logging service instance instead of creating a new one
-            log_cleanup_task = asyncio.create_task(logging_service._schedule_cleanup(interval_hours=24))
+            log_cleanup_task = asyncio.create_task(
+                logging_service._schedule_cleanup(interval_hours=24)
+            )
             logger.info("Log cleanup service started")
-            logger.info(f"Logging service base directory: {logging_service.logs_base_dir}")
+            logger.info(
+                f"Logging service base directory: {logging_service.logs_base_dir}"
+            )
         except Exception as e:
             logger.error(f"Failed to start log cleanup service: {e}")
 
         # Initialize background queue service (will be done later in initialize_background_services)
         try:
-            logger.info("Background queue initialization deferred to initialize_background_services()")
+            logger.info(
+                "Background queue initialization deferred to initialize_background_services()"
+            )
 
             # Background queue cleanup will be handled by initialize_background_services()
             logger.info("✅ Background queue auto-cleanup will be initialized later")
@@ -178,7 +212,9 @@ async def lifespan(app: FastAPI):
 
         # Automated recovery service will be handled by initialize_background_services()
         try:
-            logger.info("✅ Startup recovery check scheduled (runs once after 2 minutes)")
+            logger.info(
+                "✅ Startup recovery check scheduled (runs once after 2 minutes)"
+            )
 
         except Exception as e:
             logger.error(f"❌ Failed to start startup recovery check: {e}")
@@ -195,7 +231,9 @@ async def lifespan(app: FastAPI):
                     except asyncio.CancelledError:
                         break
                     except Exception as e:
-                        logger.error(f"Error in scheduled recording cleanup: {e}", exc_info=True)
+                        logger.error(
+                            f"Error in scheduled recording cleanup: {e}", exc_info=True
+                        )
 
                     # Run every 12 hours
                     await asyncio.sleep(12 * 3600)
@@ -207,6 +245,7 @@ async def lifespan(app: FastAPI):
 
         # Start expired session cleanup service
         try:
+
             async def scheduled_session_cleanup():
                 """Periodically clean up expired sessions to prevent table bloat."""
                 while True:
@@ -215,9 +254,13 @@ async def lifespan(app: FastAPI):
                         db = SessionLocal()
                         try:
                             auth_service = AuthService(db=db)
-                            expired_count = await auth_service.cleanup_expired_sessions()
+                            expired_count = (
+                                await auth_service.cleanup_expired_sessions()
+                            )
                             if expired_count > 0:
-                                logger.info(f"🧹 Cleaned up {expired_count} expired sessions")
+                                logger.info(
+                                    f"🧹 Cleaned up {expired_count} expired sessions"
+                                )
                         finally:
                             db.close()
                     except asyncio.CancelledError:
@@ -245,14 +288,21 @@ async def lifespan(app: FastAPI):
                         f"❌ Error during background services initialization: {init_error}",
                         exc_info=True,
                     )
-                    logger.warning("⚠️ Application will continue but background processing may be limited")
+                    logger.warning(
+                        "⚠️ Application will continue but background processing may be limited"
+                    )
 
             # Run heavy startup tasks in the background so the frontend becomes available immediately
             background_services_task = asyncio.create_task(launch_background_services())
             logger.info("🚀 Background services initialization running in background")
         except Exception as e:
-            logger.error(f"❌ Failed to schedule background services initialization: {e}", exc_info=True)
-            logger.warning("⚠️ Application will continue but background processing may be limited")
+            logger.error(
+                f"❌ Failed to schedule background services initialization: {e}",
+                exc_info=True,
+            )
+            logger.warning(
+                "⚠️ Application will continue but background processing may be limited"
+            )
 
         # Start image sync service
         try:
@@ -275,7 +325,9 @@ async def lifespan(app: FastAPI):
             await proxy_health_service.start()
             logger.info("✅ Proxy health check service started")
         except Exception as e:
-            logger.error(f"❌ Error starting proxy health check service: {e}", exc_info=True)
+            logger.error(
+                f"❌ Error starting proxy health check service: {e}", exc_info=True
+            )
 
         # Run development tests if in debug mode
         try:
@@ -301,7 +353,9 @@ async def lifespan(app: FastAPI):
     if recording_service:
         try:
             logger.info("🔄 Gracefully shutting down recording service...")
-            await recording_service.graceful_shutdown(timeout=TIMEOUTS.GRACEFUL_SHUTDOWN)
+            await recording_service.graceful_shutdown(
+                timeout=TIMEOUTS.GRACEFUL_SHUTDOWN
+            )
             logger.info("✅ Recording service shutdown completed")
         except Exception as e:
             logger.error(f"❌ Error during recording service shutdown: {e}")
@@ -335,13 +389,18 @@ async def lifespan(app: FastAPI):
     # Ensure background services initialization finished
     if background_services_task:
         if not background_services_task.done():
-            logger.info("🔄 Waiting for background services initialization to finish...")
+            logger.info(
+                "🔄 Waiting for background services initialization to finish..."
+            )
         try:
             await background_services_task
         except asyncio.CancelledError:
             logger.info("✅ Background services initialization task cancelled")
         except Exception as e:
-            logger.error(f"❌ Background services initialization task failed during shutdown: {e}", exc_info=True)
+            logger.error(
+                f"❌ Background services initialization task failed during shutdown: {e}",
+                exc_info=True,
+            )
 
     # Shutdown background queue service
     try:
@@ -354,7 +413,10 @@ async def lifespan(app: FastAPI):
         logger.error(f"❌ Error during background queue service shutdown: {e}")
 
     # Cancel cleanup tasks
-    for task_name, task in [("cleanup", cleanup_task), ("log_cleanup", log_cleanup_task)]:
+    for task_name, task in [
+        ("cleanup", cleanup_task),
+        ("log_cleanup", log_cleanup_task),
+    ]:
         if task and not task.done():
             logger.info(f"🔄 Cancelling {task_name} task...")
             task.cancel()
@@ -391,7 +453,9 @@ async def lifespan(app: FastAPI):
     # Stop recording auto-fix service (optional component; ignore if not present)
     try:
         try:
-            from app.services.recording.recording_auto_fix_service import recording_auto_fix_service  # type: ignore
+            from app.services.recording.recording_auto_fix_service import (
+                recording_auto_fix_service,
+            )  # type: ignore
         except ModuleNotFoundError:
             recording_auto_fix_service = None  # type: ignore
         if recording_auto_fix_service and hasattr(recording_auto_fix_service, "stop"):
@@ -505,11 +569,15 @@ async def add_security_headers(request: Request, call_next):
 
         # HSTS (only for HTTPS)
         if settings.is_secure:
-            response.headers["Strict-Transport-Security"] = f"max-age={settings.HSTS_MAX_AGE}; includeSubDomains"
+            response.headers["Strict-Transport-Security"] = (
+                f"max-age={settings.HSTS_MAX_AGE}; includeSubDomains"
+            )
 
         # Content Security Policy (if configured)
         if settings.CONTENT_SECURITY_POLICY:
-            response.headers["Content-Security-Policy"] = settings.CONTENT_SECURITY_POLICY
+            response.headers["Content-Security-Policy"] = (
+                settings.CONTENT_SECURITY_POLICY
+            )
         else:
             # Default CSP
             csp_directives = [
@@ -527,7 +595,9 @@ async def add_security_headers(request: Request, call_next):
             response.headers["Content-Security-Policy"] = "; ".join(csp_directives)
 
         # Permissions Policy (modern replacement for Feature Policy)
-        response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+        response.headers["Permissions-Policy"] = (
+            "geolocation=(), microphone=(), camera=()"
+        )
 
     return response
 
@@ -542,7 +612,10 @@ async def add_request_id(request: Request, call_next):
     request_id = str(uuid.uuid4())
 
     # Skip logging for frequent background queue polling endpoints to reduce log spam
-    skip_logging_paths = ["/api/background-queue/stats", "/api/background-queue/active-tasks"]
+    skip_logging_paths = [
+        "/api/background-queue/stats",
+        "/api/background-queue/active-tasks",
+    ]
 
     # Add request ID to logger context (skip frequent polling endpoints)
     if request.url.path not in skip_logging_paths:
@@ -578,7 +651,11 @@ class _TokenBucket:
 
 class _AdaptiveLimiter:
     def __init__(self) -> None:
-        self.enabled = os.getenv("RATE_LIMIT_ENABLED", "true").lower() not in ("false", "0", "no")
+        self.enabled = os.getenv("RATE_LIMIT_ENABLED", "true").lower() not in (
+            "false",
+            "0",
+            "no",
+        )
         self.default_capacity = int(os.getenv("RATE_LIMIT_CAPACITY", "300"))
         self.default_refill = float(os.getenv("RATE_LIMIT_REFILL_PER_SEC", "5"))
         self.max_wait_ms = int(os.getenv("RATE_LIMIT_MAX_WAIT_MS", "500"))
@@ -601,7 +678,9 @@ class _AdaptiveLimiter:
         # Mutations: stricter by default
         return (120, 2.0)
 
-    def _key(self, path: str, method: str, client_ip: str, auth_header: Optional[str]) -> str:
+    def _key(
+        self, path: str, method: str, client_ip: str, auth_header: Optional[str]
+    ) -> str:
         if auth_header and auth_header.startswith("Bearer ") and len(auth_header) > 7:
             token = auth_header[7:].strip()
             # Use a longer digest segment to reduce collision risk
@@ -613,7 +692,9 @@ class _AdaptiveLimiter:
         async with self._lock:
             bucket = self._buckets.get(key)
             if bucket is None:
-                bucket = _TokenBucket(capacity, refill, float(capacity), time.time(), asyncio.Lock())
+                bucket = _TokenBucket(
+                    capacity, refill, float(capacity), time.time(), asyncio.Lock()
+                )
                 self._buckets[key] = bucket
             else:
                 bucket.capacity = capacity
@@ -652,7 +733,9 @@ class _AdaptiveLimiter:
             # Still no tokens
             needed = 1.0 - bucket.tokens
             # Ensure refill_per_sec is never zero to avoid permanent lockout
-            effective_refill = bucket.refill_per_sec if bucket.refill_per_sec > 0 else 0.1
+            effective_refill = (
+                bucket.refill_per_sec if bucket.refill_per_sec > 0 else 0.1
+            )
             retry_after = max(1, int(needed / effective_refill))
             return False, retry_after, max(0, int(bucket.tokens)), capacity
 
@@ -667,7 +750,9 @@ async def rate_limit_middleware(request: Request, call_next):
         request.url.path in ["/health", "/favicon.ico"]
         or request.url.path.startswith("/assets/")
         or request.url.path.startswith("/api/images/")  # Skip for image API calls
-        or request.url.path.startswith("/recordings/.media/")  # Skip for cached image files
+        or request.url.path.startswith(
+            "/recordings/.media/"
+        )  # Skip for cached image files
         or request.url.path.startswith("/api/sync/")  # Skip for sync API calls
         or request.url.path.startswith("/data/")
     ):
@@ -690,7 +775,9 @@ async def rate_limit_middleware(request: Request, call_next):
     )
 
     if not allowed:
-        logger.warning(f"Rate limit: 429 path={request.url.path} ip={client_ip} retry_after={retry_after}s")
+        logger.warning(
+            f"Rate limit: 429 path={request.url.path} ip={client_ip} retry_after={retry_after}s"
+        )
         return Response(
             content="Rate limit exceeded",
             status_code=429,
@@ -804,9 +891,14 @@ async def eventsub_callback(request: Request):
             return Response(status_code=403)
 
         # Create message exactly as Twitch does
-        hmac_message = message_id.encode() + timestamp.encode() + body  # Calculate HMAC using raw bytes
+        hmac_message = (
+            message_id.encode() + timestamp.encode() + body
+        )  # Calculate HMAC using raw bytes
         calculated_signature = (
-            "sha256=" + hmac.new(settings.EVENTSUB_SECRET.encode(), hmac_message, hashlib.sha256).hexdigest()
+            "sha256="
+            + hmac.new(
+                settings.EVENTSUB_SECRET.encode(), hmac_message, hashlib.sha256
+            ).hexdigest()
         )
 
         # Debug HMAC calculation (without exposing sensitive data)
@@ -821,9 +913,12 @@ async def eventsub_callback(request: Request):
         # SECURITY: Reject messages older than 10 minutes to prevent replay attacks
         try:
             from datetime import datetime as _dt, timezone as _tz
+
             msg_time = _dt.fromisoformat(timestamp.replace("Z", "+00:00"))
             if abs((_dt.now(_tz.utc) - msg_time).total_seconds()) > 600:
-                logger.warning(f"EventSub message too old (timestamp: {timestamp}), rejecting replay")
+                logger.warning(
+                    f"EventSub message too old (timestamp: {timestamp}), rejecting replay"
+                )
                 return Response(status_code=403)
         except (ValueError, TypeError):
             logger.error(f"Invalid EventSub timestamp format: {timestamp}")
@@ -835,8 +930,14 @@ async def eventsub_callback(request: Request):
                 body_json = json.loads(body)
                 challenge = body_json.get("challenge")
                 if challenge:
-                    logger.info("Challenge request received and processed successfully.")
-                    return Response(content=challenge, media_type=None, headers={"Content-Type": "text/plain"})
+                    logger.info(
+                        "Challenge request received and processed successfully."
+                    )
+                    return Response(
+                        content=challenge,
+                        media_type=None,
+                        headers={"Content-Type": "text/plain"},
+                    )
                 else:
                     logger.error("Challenge request missing 'challenge' field.")
                     return Response(status_code=400)
@@ -858,14 +959,19 @@ async def eventsub_callback(request: Request):
                 handler = event_registry.handlers.get(event_type)
                 if handler:
                     try:
-                        await asyncio.wait_for(handler(event_data), timeout=TIMEOUTS.EVENT_HANDLER_TIMEOUT)
+                        await asyncio.wait_for(
+                            handler(event_data), timeout=TIMEOUTS.EVENT_HANDLER_TIMEOUT
+                        )
                         logger.info(f"Event {event_type} handled successfully.")
                         return Response(status_code=204)
                     except asyncio.TimeoutError:
                         logger.error(f"Handler for {event_type} timed out.")
                         return Response(status_code=500)
                     except Exception as e:
-                        logger.error(f"Error in event handler for {event_type}: {e}", exc_info=True)
+                        logger.error(
+                            f"Error in event handler for {event_type}: {e}",
+                            exc_info=True,
+                        )
                         return Response(status_code=500)
                 else:
                     logger.warning(f"No handler found for event type: {event_type}.")
@@ -879,7 +985,9 @@ async def eventsub_callback(request: Request):
             body_json = json.loads(body)
             subscription_id = body_json.get("subscription", {}).get("id", "unknown")
             reason = body_json.get("subscription", {}).get("status", "unknown reason")
-            logger.warning(f"Subscription {subscription_id} revoked by Twitch. Reason: {reason}")
+            logger.warning(
+                f"Subscription {subscription_id} revoked by Twitch. Reason: {reason}"
+            )
             return Response(status_code=204)
 
         else:
@@ -898,7 +1006,9 @@ app.include_router(auth.router, prefix="/auth")
 app.include_router(settings_router.router)
 app.include_router(twitch_auth.router)
 app.include_router(recording_router.router)
-app.include_router(recordings.router, prefix="/api")  # Performance-optimized recordings API
+app.include_router(
+    recordings.router, prefix="/api"
+)  # Performance-optimized recordings API
 app.include_router(logging_router.router)
 app.include_router(categories.router)
 app.include_router(videos.router)  # Router already has /api prefix
@@ -906,7 +1016,9 @@ app.include_router(images.router)  # Images serving routes
 app.include_router(api_images.router)  # Images API routes
 app.include_router(background_queue.router, prefix="/api")  # Background queue routes
 app.include_router(streams.router)  # Stream management routes
-app.include_router(status.router, prefix="/api")  # Status API routes - independent of WebSocket
+app.include_router(
+    status.router, prefix="/api"
+)  # Status API routes - independent of WebSocket
 app.include_router(notifications.router)  # Notification tracking API
 
 # Proxy management routes (Multi-Proxy System)
@@ -961,13 +1073,21 @@ async def serve_spa_routes():
 # Static files for assets
 try:
     # Try the standard production path
-    app.mount("/assets", StaticFiles(directory="app/frontend/dist/assets"), name="assets")
+    app.mount(
+        "/assets", StaticFiles(directory="app/frontend/dist/assets"), name="assets"
+    )
 except Exception as e:
     logger.warning(f"Could not mount static files from app/frontend/dist/assets: {e}")
     # Fallback to a secondary path for development
     try:
-        app.mount("/assets", StaticFiles(directory="/app/app/frontend/dist/assets"), name="assets")
-        logger.info("Successfully mounted static files from /app/app/frontend/dist/assets")
+        app.mount(
+            "/assets",
+            StaticFiles(directory="/app/app/frontend/dist/assets"),
+            name="assets",
+        )
+        logger.info(
+            "Successfully mounted static files from /app/app/frontend/dist/assets"
+        )
     except Exception as e:
         logger.error(f"Failed to mount static assets: {e}")
 
@@ -979,7 +1099,9 @@ except Exception as e:
     logger.warning(f"Could not mount PWA files from app/frontend/dist: {e}")
     # Fallback to a secondary path for development
     try:
-        app.mount("/pwa", StaticFiles(directory="/app/app/frontend/dist"), name="pwa-fallback")
+        app.mount(
+            "/pwa", StaticFiles(directory="/app/app/frontend/dist"), name="pwa-fallback"
+        )
         logger.info("Successfully mounted PWA files from /app/app/frontend/dist")
     except Exception as e:
         logger.error(f"Failed to mount PWA assets: {e}")
@@ -1007,17 +1129,24 @@ app.mount("/data/images", StaticFiles(directory=str(images_dir)), name="images")
 app.mount("/api/media", StaticFiles(directory=str(images_dir)), name="media")
 # Backward-compatibility mount: many services store absolute-like paths starting with
 # "/recordings/.media/..." in the database. Expose the same path prefix from the API
-app.mount("/recordings/.media", StaticFiles(directory=str(images_dir)), name="images-compat")
+app.mount(
+    "/recordings/.media", StaticFiles(directory=str(images_dir)), name="images-compat"
+)
 
 # PWA Files serving - these must be at root level
 
 
 @app.get("/manifest.json")
 async def serve_manifest():
-    for path in ["app/frontend/public/manifest.json", "/app/app/frontend/public/manifest.json"]:
+    for path in [
+        "app/frontend/public/manifest.json",
+        "/app/app/frontend/public/manifest.json",
+    ]:
         try:
             return FileResponse(
-                path, media_type="application/manifest+json", headers={"Cache-Control": "public, max-age=86400"}
+                path,
+                media_type="application/manifest+json",
+                headers={"Cache-Control": "public, max-age=86400"},
             )
         except (FileNotFoundError, PermissionError):
             continue
@@ -1026,10 +1155,15 @@ async def serve_manifest():
 
 @app.get("/manifest.webmanifest")
 async def serve_manifest_webmanifest():
-    for path in ["app/frontend/public/manifest.webmanifest", "/app/app/frontend/public/manifest.webmanifest"]:
+    for path in [
+        "app/frontend/public/manifest.webmanifest",
+        "/app/app/frontend/public/manifest.webmanifest",
+    ]:
         try:
             return FileResponse(
-                path, media_type="application/manifest+json", headers={"Cache-Control": "public, max-age=86400"}
+                path,
+                media_type="application/manifest+json",
+                headers={"Cache-Control": "public, max-age=86400"},
             )
         except (FileNotFoundError, PermissionError):
             continue
@@ -1039,10 +1173,15 @@ async def serve_manifest_webmanifest():
 @app.get("/pwa/push-sw.js")
 async def serve_push_sw_helper():
     """Serve the custom push handler for the service worker from the public dir"""
-    for path in ["app/frontend/public/push-sw.js", "/app/app/frontend/public/push-sw.js"]:
+    for path in [
+        "app/frontend/public/push-sw.js",
+        "/app/app/frontend/public/push-sw.js",
+    ]:
         try:
             return FileResponse(
-                path, media_type="application/javascript", headers={"Cache-Control": "public, max-age=3600"}
+                path,
+                media_type="application/javascript",
+                headers={"Cache-Control": "public, max-age=3600"},
             )
         except (FileNotFoundError, PermissionError):
             continue
@@ -1052,12 +1191,19 @@ async def serve_push_sw_helper():
 @app.get("/registerSW.js")
 async def register_service_worker():
     """Serve the service worker registration script"""
-    for path in ["app/frontend/dist/registerSW.js", "/app/app/frontend/dist/registerSW.js"]:
+    for path in [
+        "app/frontend/dist/registerSW.js",
+        "/app/app/frontend/dist/registerSW.js",
+    ]:
         try:
             return FileResponse(
                 path,
                 media_type="application/javascript",
-                headers={"Cache-Control": "no-cache, no-store, must-revalidate", "Pragma": "no-cache", "Expires": "0"},
+                headers={
+                    "Cache-Control": "no-cache, no-store, must-revalidate",
+                    "Pragma": "no-cache",
+                    "Expires": "0",
+                },
             )
         except (FileNotFoundError, PermissionError):
             continue
@@ -1117,9 +1263,16 @@ async def service_worker():
 
 @app.get("/browserconfig.xml")
 async def serve_browserconfig():
-    for path in ["app/frontend/public/browserconfig.xml", "/app/app/frontend/public/browserconfig.xml"]:
+    for path in [
+        "app/frontend/public/browserconfig.xml",
+        "/app/app/frontend/public/browserconfig.xml",
+    ]:
         try:
-            return FileResponse(path, media_type="application/xml", headers={"Cache-Control": "public, max-age=86400"})
+            return FileResponse(
+                path,
+                media_type="application/xml",
+                headers={"Cache-Control": "public, max-age=86400"},
+            )
         except (FileNotFoundError, PermissionError):
             continue
     return Response(status_code=404)
@@ -1127,7 +1280,10 @@ async def serve_browserconfig():
 
 @app.get("/pwa-test.html")
 async def serve_pwa_test():
-    for path in ["app/frontend/public/pwa-test.html", "/app/app/frontend/public/pwa-test.html"]:
+    for path in [
+        "app/frontend/public/pwa-test.html",
+        "/app/app/frontend/public/pwa-test.html",
+    ]:
         try:
             return FileResponse(path, media_type="text/html")
         except (FileNotFoundError, PermissionError):
@@ -1137,7 +1293,10 @@ async def serve_pwa_test():
 
 @app.get("/pwa-helper.js")
 async def serve_pwa_helper():
-    for path in ["app/frontend/public/pwa-helper.js", "/app/app/frontend/public/pwa-helper.js"]:
+    for path in [
+        "app/frontend/public/pwa-helper.js",
+        "/app/app/frontend/public/pwa-helper.js",
+    ]:
         try:
             return FileResponse(path, media_type="application/javascript")
         except (FileNotFoundError, PermissionError):
@@ -1182,7 +1341,10 @@ async def serve_workbox_files(filename: str):
     safe_filename = ALLOWED_WORKBOX_FILES[filename]
 
     # Step 5: Define hardcoded safe paths (completely isolated from user input)
-    SAFE_FILE_PATHS = [f"app/frontend/dist/{safe_filename}", f"/app/app/frontend/dist/{safe_filename}"]
+    SAFE_FILE_PATHS = [
+        f"app/frontend/dist/{safe_filename}",
+        f"/app/app/frontend/dist/{safe_filename}",
+    ]
 
     # Step 6: Try each hardcoded path (user input never touches file operations)
     for hardcoded_path in SAFE_FILE_PATHS:
@@ -1191,7 +1353,10 @@ async def serve_workbox_files(filename: str):
             real_path = os.path.realpath(hardcoded_path)
 
             # Verify path is within expected directories
-            expected_dirs = [os.path.realpath("app/frontend/dist"), os.path.realpath("/app/app/frontend/dist")]
+            expected_dirs = [
+                os.path.realpath("app/frontend/dist"),
+                os.path.realpath("/app/app/frontend/dist"),
+            ]
 
             path_is_safe = False
             for expected_dir in expected_dirs:
@@ -1207,10 +1372,15 @@ async def serve_workbox_files(filename: str):
                 return FileResponse(
                     real_path,  # This comes from hardcoded paths, not user input
                     media_type="application/javascript",
-                    headers={"Cache-Control": "public, max-age=31536000", "Access-Control-Allow-Origin": "*"},
+                    headers={
+                        "Cache-Control": "public, max-age=31536000",
+                        "Access-Control-Allow-Origin": "*",
+                    },
                 )
         except Exception as e:
-            logger.warning(f"Error checking hardcoded workbox path {hardcoded_path}: {e}")
+            logger.warning(
+                f"Error checking hardcoded workbox path {hardcoded_path}: {e}"
+            )
             continue
 
     # No valid hardcoded path found
@@ -1224,7 +1394,11 @@ async def serve_favicon():
 
     for path in get_file_paths("favicon.ico"):
         try:
-            return FileResponse(path, media_type="image/x-icon", headers={"Cache-Control": "public, max-age=86400"})
+            return FileResponse(
+                path,
+                media_type="image/x-icon",
+                headers={"Cache-Control": "public, max-age=86400"},
+            )
         except (FileNotFoundError, PermissionError):
             continue
     return Response(status_code=404)
@@ -1238,8 +1412,14 @@ async def serve_favicon_png():
     for filename in ["favicon.png", "favicon-32x32.png", "favicon.ico"]:
         for path in get_file_paths(filename):
             try:
-                media_type = "image/png" if filename.endswith(".png") else "image/x-icon"
-                return FileResponse(path, media_type=media_type, headers={"Cache-Control": "public, max-age=86400"})
+                media_type = (
+                    "image/png" if filename.endswith(".png") else "image/x-icon"
+                )
+                return FileResponse(
+                    path,
+                    media_type=media_type,
+                    headers={"Cache-Control": "public, max-age=86400"},
+                )
             except (FileNotFoundError, PermissionError):
                 continue
     return Response(status_code=404)
@@ -1324,7 +1504,9 @@ async def serve_pwa_icons(icon_file: str):
 
         try:
             return FileResponse(
-                str(safe_path), media_type=media_type, headers={"Cache-Control": "public, max-age=31536000"}  # 1 year
+                str(safe_path),
+                media_type=media_type,
+                headers={"Cache-Control": "public, max-age=31536000"},  # 1 year
             )
         except Exception as e:
             logger.warning(f"Error serving icon file: {e}")
@@ -1350,7 +1532,9 @@ async def serve_root():
             continue
 
     logger.error("Could not find index.html for root route")
-    return Response(content="Welcome to StreamVault - Frontend not available", status_code=500)
+    return Response(
+        content="Welcome to StreamVault - Frontend not available", status_code=500
+    )
 
 
 # Error handler
@@ -1374,7 +1558,9 @@ async def serve_register_sw():
                     content = f.read()
                     # Basic validation - should contain service worker registration code
                     if "serviceWorker" not in content:
-                        logger.warning("Service worker file doesn't contain expected content")
+                        logger.warning(
+                            "Service worker file doesn't contain expected content"
+                        )
                         continue
             except Exception as e:
                 logger.error(f"Error reading service worker file: {e}")
@@ -1421,8 +1607,29 @@ async def serve_spa(full_path: str):
         or full_path.startswith("health")  # Health check
         or full_path.startswith("debug/")  # Debug endpoints
         or full_path
-        in {"manifest.json", "manifest.webmanifest", "sw.js", "browserconfig.xml", "pwa-test.html", "pwa-helper.js"}
-        or full_path.endswith((".png", ".ico", ".svg", ".jpg", ".jpeg", ".gif", ".webp", ".js", ".css", ".map", ".xml"))
+        in {
+            "manifest.json",
+            "manifest.webmanifest",
+            "sw.js",
+            "browserconfig.xml",
+            "pwa-test.html",
+            "pwa-helper.js",
+        }
+        or full_path.endswith(
+            (
+                ".png",
+                ".ico",
+                ".svg",
+                ".jpg",
+                ".jpeg",
+                ".gif",
+                ".webp",
+                ".js",
+                ".css",
+                ".map",
+                ".xml",
+            )
+        )
     ):
         raise HTTPException(status_code=404)
 
@@ -1441,5 +1648,9 @@ async def serve_spa(full_path: str):
             logger.warning(f"Could not serve from {path}: {e}")
             continue
 
-    logger.error(f"Could not find index.html for SPA route '{full_path}' in any expected location")
-    return Response(content=f"SPA index.html not found for route: {full_path}", status_code=500)
+    logger.error(
+        f"Could not find index.html for SPA route '{full_path}' in any expected location"
+    )
+    return Response(
+        content=f"SPA index.html not found for route: {full_path}", status_code=500
+    )

@@ -33,6 +33,7 @@ class AuthMiddleware:
         # SECURITY: Validate WebSocket connections with session cookie
         if scope["type"] == "websocket":
             from starlette.websockets import WebSocket as StarletteWebSocket
+
             ws = StarletteWebSocket(scope, receive, send)
             session_token = ws.cookies.get("session")
 
@@ -41,7 +42,9 @@ class AuthMiddleware:
                 session_token = _extract_bearer_token(scope.get("headers", []))
 
             if not session_token:
-                logger.warning("WebSocket connection rejected: no session cookie or Bearer token")
+                logger.warning(
+                    "WebSocket connection rejected: no session cookie or Bearer token"
+                )
                 await ws.close(code=4001, reason="Authentication required")
                 return
             db = SessionLocal()
@@ -110,9 +113,12 @@ class AuthMiddleware:
                 if not request.url.path.startswith("/auth/setup"):
                     if is_json_request:
                         return await JSONResponse(
-                            {"error": "Setup required", "redirect": "/auth/setup"}, status_code=307
+                            {"error": "Setup required", "redirect": "/auth/setup"},
+                            status_code=307,
                         )(scope, receive, send)
-                    return await RedirectResponse(url="/auth/setup", status_code=307)(scope, receive, send)
+                    return await RedirectResponse(url="/auth/setup", status_code=307)(
+                        scope, receive, send
+                    )
 
             session_token = request.cookies.get("session")
 
@@ -123,21 +129,35 @@ class AuthMiddleware:
                     session_token = auth_header[7:]
 
             if not session_token:
-                logger.debug(f"No session cookie or Bearer token for {request.url.path}")
+                logger.debug(
+                    f"No session cookie or Bearer token for {request.url.path}"
+                )
                 if not request.url.path.startswith("/auth/login"):
                     if is_json_request:
                         return await JSONResponse(
-                            {"error": "Authentication required", "redirect": "/auth/login"}, status_code=401
+                            {
+                                "error": "Authentication required",
+                                "redirect": "/auth/login",
+                            },
+                            status_code=401,
                         )(scope, receive, send)
-                    return await RedirectResponse(url="/auth/login", status_code=307)(scope, receive, send)
+                    return await RedirectResponse(url="/auth/login", status_code=307)(
+                        scope, receive, send
+                    )
             elif not await auth_service.validate_session(session_token):
                 logger.debug(f"Invalid session token for {request.url.path}")
                 if not request.url.path.startswith("/auth/login"):
                     if is_json_request:
                         return await JSONResponse(
-                            {"error": "Authentication required", "redirect": "/auth/login"}, status_code=401
+                            {
+                                "error": "Authentication required",
+                                "redirect": "/auth/login",
+                            },
+                            status_code=401,
                         )(scope, receive, send)
-                    return await RedirectResponse(url="/auth/login", status_code=307)(scope, receive, send)
+                    return await RedirectResponse(url="/auth/login", status_code=307)(
+                        scope, receive, send
+                    )
 
             return await self.app(scope, receive, send)
         except Exception as e:
@@ -145,12 +165,10 @@ class AuthMiddleware:
             # SECURITY: Fail closed — deny access when auth cannot be verified (CWE-280)
             if is_json_request:
                 return await JSONResponse(
-                    {"error": "Authentication service unavailable"},
-                    status_code=503
+                    {"error": "Authentication service unavailable"}, status_code=503
                 )(scope, receive, send)
             return await JSONResponse(
-                {"error": "Authentication service unavailable"},
-                status_code=503
+                {"error": "Authentication service unavailable"}, status_code=503
             )(scope, receive, send)
         finally:
             db.close()

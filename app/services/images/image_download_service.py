@@ -42,6 +42,7 @@ class ImageDownloadService:
             try:
                 # Use settings for recordings directory (supports Docker and local dev)
                 from app.config.settings import settings
+
                 self.recordings_dir = Path(settings.RECORDING_DIRECTORY)
 
                 # Use unified .media directory instead of separate .images and .artwork
@@ -55,7 +56,9 @@ class ImageDownloadService:
                 (self.images_base_dir / "thumbnails").mkdir(exist_ok=True)
 
                 self._initialized = True
-                logger.info(f"Image download service initialized, storage: {self.images_base_dir}")
+                logger.info(
+                    f"Image download service initialized, storage: {self.images_base_dir}"
+                )
             except Exception as e:
                 logger.error(f"Failed to initialize image download service: {e}")
                 raise
@@ -85,7 +88,9 @@ class ImageDownloadService:
         """Create a hash-based filename for an image URL"""
         return hashlib.md5(url.encode()).hexdigest()
 
-    async def download_image(self, url: str, file_path: Path, expected_content_types: list = None) -> bool:
+    async def download_image(
+        self, url: str, file_path: Path, expected_content_types: list = None
+    ) -> bool:
         """
         Download an image from URL to file path
 
@@ -126,9 +131,13 @@ class ImageDownloadService:
                         logger.debug(f"Downloaded image: {url} -> {file_path}")
                         return True
                     else:
-                        logger.warning(f"Invalid content type for {url}: {content_type}")
+                        logger.warning(
+                            f"Invalid content type for {url}: {content_type}"
+                        )
                 else:
-                    logger.warning(f"Failed to download image {url}: HTTP {response.status}")
+                    logger.warning(
+                        f"Failed to download image {url}: HTTP {response.status}"
+                    )
         except Exception as e:
             logger.error(f"Error downloading image from {url}: {e}")
             self._failed_downloads.add(url)

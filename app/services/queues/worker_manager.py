@@ -89,15 +89,21 @@ class WorkerManager:
             try:
                 # Get next task from queue with timeout
                 try:
-                    priority, task = await asyncio.wait_for(self.task_queue.get(), timeout=1.0)
+                    priority, task = await asyncio.wait_for(
+                        self.task_queue.get(), timeout=1.0
+                    )
                 except asyncio.TimeoutError:
                     continue
 
-                logger.debug(f"Worker {worker_name} processing task {task.id} ({task.task_type})")
+                logger.debug(
+                    f"Worker {worker_name} processing task {task.id} ({task.task_type})"
+                )
 
                 # Update task status to running
                 if self.progress_tracker:
-                    self.progress_tracker.update_task_status(task.id, TaskStatus.RUNNING)
+                    self.progress_tracker.update_task_status(
+                        task.id, TaskStatus.RUNNING
+                    )
 
                 try:
                     # Execute the task
@@ -105,18 +111,24 @@ class WorkerManager:
 
                     # Mark task as completed successfully
                     if self.progress_tracker:
-                        self.progress_tracker.update_task_status(task.id, TaskStatus.COMPLETED)
+                        self.progress_tracker.update_task_status(
+                            task.id, TaskStatus.COMPLETED
+                        )
                         self.progress_tracker.update_task_progress(task.id, 100.0)
 
                     # Notify completion callback (for dependency management)
                     if self.completion_callback:
                         await self.completion_callback(task.id, success=True)
 
-                    logger.info(f"Worker {worker_name} completed task {task.id} - success: True")
+                    logger.info(
+                        f"Worker {worker_name} completed task {task.id} - success: True"
+                    )
 
                 except Exception as e:
                     error_msg = f"Task execution failed: {str(e)}"
-                    logger.error(f"Worker {worker_name} task {task.id} failed: {error_msg}")
+                    logger.error(
+                        f"Worker {worker_name} task {task.id} failed: {error_msg}"
+                    )
                     logger.error(traceback.format_exc())
 
                     # Handle task failure and potential retry
@@ -169,9 +181,13 @@ class WorkerManager:
             else:
                 # Sync handler - run in thread pool
                 if progress_callback:
-                    await asyncio.get_event_loop().run_in_executor(None, handler, task.payload, progress_callback)
+                    await asyncio.get_event_loop().run_in_executor(
+                        None, handler, task.payload, progress_callback
+                    )
                 else:
-                    await asyncio.get_event_loop().run_in_executor(None, handler, task.payload)
+                    await asyncio.get_event_loop().run_in_executor(
+                        None, handler, task.payload
+                    )
 
             # If we reach here, the task executed successfully
             return True
@@ -186,7 +202,9 @@ class WorkerManager:
             if self.progress_tracker and progress_callback:
                 self.progress_tracker.unregister_progress_callback(task.id)
 
-    async def _handle_task_failure(self, task: QueueTask, error_msg: str, worker_name: str):
+    async def _handle_task_failure(
+        self, task: QueueTask, error_msg: str, worker_name: str
+    ):
         """Handle task failure and retry logic"""
         if task.retry_count < task.max_retries:
             # Retry the task
@@ -211,7 +229,9 @@ class WorkerManager:
         else:
             # Max retries exceeded, mark as failed
             if self.progress_tracker:
-                self.progress_tracker.update_task_status(task.id, TaskStatus.FAILED, error_msg)
+                self.progress_tracker.update_task_status(
+                    task.id, TaskStatus.FAILED, error_msg
+                )
 
             logger.error(
                 f"Worker {worker_name} task {task.id} failed permanently after "

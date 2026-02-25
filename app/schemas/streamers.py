@@ -19,7 +19,9 @@ class StreamerResponse(BaseModel):
     username: str
     is_live: bool
     is_recording: bool = False  # Whether currently recording
-    recording_enabled: bool = True  # Whether recording is enabled for this streamer (default True)
+    recording_enabled: bool = (
+        True  # Whether recording is enabled for this streamer (default True)
+    )
     active_stream_id: Optional[int] = None
     title: Optional[str] = None
     category_name: Optional[str] = None

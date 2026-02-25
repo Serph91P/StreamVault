@@ -95,7 +95,9 @@ def is_valid_ip(ip: str) -> bool:
     # Basic IPv6 validation (simplified)
     if ":" in ip:
         return len(ip.split(":")) <= 8 and all(
-            len(part) <= 4 and all(c in "0123456789abcdefABCDEF" for c in part) for part in ip.split(":") if part
+            len(part) <= 4 and all(c in "0123456789abcdefABCDEF" for c in part)
+            for part in ip.split(":")
+            if part
         )
 
     return False

@@ -63,7 +63,16 @@ def encode_proxy_url(proxy_url: str) -> str:
         encoded_netloc = f"{encoded_username}@{host}"
 
     # Rebuild full URL
-    encoded_url = urlunparse((parsed.scheme, encoded_netloc, parsed.path, parsed.params, parsed.query, parsed.fragment))
+    encoded_url = urlunparse(
+        (
+            parsed.scheme,
+            encoded_netloc,
+            parsed.path,
+            parsed.params,
+            parsed.query,
+            parsed.fragment,
+        )
+    )
 
     return encoded_url
 
@@ -98,7 +107,16 @@ def decode_proxy_url_for_display(proxy_url: str) -> str:
     decoded_netloc = f"{decoded_credentials}@{host}"
 
     # Rebuild URL
-    decoded_url = urlunparse((parsed.scheme, decoded_netloc, parsed.path, parsed.params, parsed.query, parsed.fragment))
+    decoded_url = urlunparse(
+        (
+            parsed.scheme,
+            decoded_netloc,
+            parsed.path,
+            parsed.params,
+            parsed.query,
+            parsed.fragment,
+        )
+    )
 
     return decoded_url
 
@@ -122,4 +140,6 @@ if __name__ == "__main__":
         print(f"\nOriginal: {url}")
         print(f"Encoded:  {encoded}")
         print(f"Decoded:  {decoded}")
-        print(f"Match: {'✅' if decoded == url or url.startswith('http://user:already') else '❌'}")
+        print(
+            f"Match: {'✅' if decoded == url or url.startswith('http://user:already') else '❌'}"
+        )

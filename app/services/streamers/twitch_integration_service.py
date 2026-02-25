@@ -59,7 +59,9 @@ class TwitchIntegrationService:
                 box_art_url = game_data.get("box_art_url", "")
                 if box_art_url:
                     # Standard size for box art
-                    box_art_url = box_art_url.replace("{width}", "285").replace("{height}", "380")
+                    box_art_url = box_art_url.replace("{width}", "285").replace(
+                        "{height}", "380"
+                    )
                     game_data["box_art_url"] = box_art_url
                 return game_data
             return None
@@ -67,7 +69,9 @@ class TwitchIntegrationService:
             logger.error(f"Error fetching game data for {game_id}: {e}")
             return None
 
-    async def get_multiple_stream_info(self, twitch_ids: List[str]) -> List[Dict[str, Any]]:
+    async def get_multiple_stream_info(
+        self, twitch_ids: List[str]
+    ) -> List[Dict[str, Any]]:
         """Get stream information for multiple users"""
         try:
             streams = await self.twitch_api.get_streams(user_ids=twitch_ids)
@@ -76,7 +80,9 @@ class TwitchIntegrationService:
             logger.error(f"Error fetching stream info for multiple users: {e}")
             return []
 
-    async def get_multiple_user_info(self, twitch_ids: List[str]) -> List[Dict[str, Any]]:
+    async def get_multiple_user_info(
+        self, twitch_ids: List[str]
+    ) -> List[Dict[str, Any]]:
         """Get user information for multiple Twitch IDs"""
         try:
             users = await self.twitch_api.get_users_by_id(twitch_ids)
@@ -98,9 +104,13 @@ class TwitchIntegrationService:
         """Unsubscribe from EventSub events for a streamer"""
         try:
             await self.event_registry.unsubscribe_from_events(twitch_id)
-            logger.info(f"Successfully unsubscribed from EventSub events for {twitch_id}")
+            logger.info(
+                f"Successfully unsubscribed from EventSub events for {twitch_id}"
+            )
         except Exception as e:
-            logger.error(f"Failed to unsubscribe from EventSub events for {twitch_id}: {e}")
+            logger.error(
+                f"Failed to unsubscribe from EventSub events for {twitch_id}: {e}"
+            )
             raise
 
     async def get_categories(
@@ -125,7 +135,9 @@ class TwitchIntegrationService:
             for game in games:
                 box_art_url = game.get("box_art_url", "")
                 if box_art_url:
-                    game["box_art_url"] = box_art_url.replace("{width}", "285").replace("{height}", "380")
+                    game["box_art_url"] = box_art_url.replace("{width}", "285").replace(
+                        "{height}", "380"
+                    )
             return games
         except Exception as e:
             logger.error(f"Error fetching top games: {e}")
@@ -139,7 +151,9 @@ class TwitchIntegrationService:
             for game in games:
                 box_art_url = game.get("box_art_url", "")
                 if box_art_url:
-                    game["box_art_url"] = box_art_url.replace("{width}", "285").replace("{height}", "380")
+                    game["box_art_url"] = box_art_url.replace("{width}", "285").replace(
+                        "{height}", "380"
+                    )
             return games
         except Exception as e:
             logger.error(f"Error searching categories for '{query}': {e}")
@@ -160,7 +174,9 @@ class TwitchIntegrationService:
             # Note: Twitch API has limited follower data access
             # This might require special permissions or OAuth scopes
             # For now, return None as follower counts are restricted
-            logger.debug(f"Follower count requested for {twitch_id}, but not available via current API")
+            logger.debug(
+                f"Follower count requested for {twitch_id}, but not available via current API"
+            )
             return None
         except Exception as e:
             logger.error(f"Error fetching follower count for {twitch_id}: {e}")

@@ -27,7 +27,12 @@ logger = logging.getLogger("streamvault")
 class StreamerService:
     """Backward compatibility wrapper for the refactored streamer services"""
 
-    def __init__(self, db: Session, websocket_manager: ConnectionManager, event_registry: EventHandlerRegistry):
+    def __init__(
+        self,
+        db: Session,
+        websocket_manager: ConnectionManager,
+        event_registry: EventHandlerRegistry,
+    ):
         self.db = db
         self.manager = websocket_manager
         self.event_registry = event_registry
@@ -101,7 +106,9 @@ class StreamerService:
         return result or url
 
     # Combined methods that use multiple services
-    async def add_streamer(self, username: str, display_name: str = None) -> Optional[Streamer]:
+    async def add_streamer(
+        self, username: str, display_name: str = None
+    ) -> Optional[Streamer]:
         """Add a new streamer with full setup"""
         try:
             logger.debug(f"Adding streamer: {username}")
@@ -132,7 +139,9 @@ class StreamerService:
                     cached_banner_path = await self.image_service.download_banner_image(
                         int(user_data["id"]), user_data["offline_image_url"]
                     )
-                    logger.debug(f"Cached banner image for {username}: {cached_banner_path}")
+                    logger.debug(
+                        f"Cached banner image for {username}: {cached_banner_path}"
+                    )
                 except Exception as e:
                     logger.warning(f"Failed to cache banner image for {username}: {e}")
 
@@ -141,7 +150,9 @@ class StreamerService:
             try:
                 stream_info = await self.twitch_service.get_stream_info(user_data["id"])
                 if stream_info:
-                    logger.info(f"Streamer {username} is currently live: {stream_info.get('title', '')}")
+                    logger.info(
+                        f"Streamer {username} is currently live: {stream_info.get('title', '')}"
+                    )
                 else:
                     logger.debug(f"Streamer {username} is currently offline")
             except Exception as e:
@@ -164,7 +175,12 @@ class StreamerService:
                 # Don't fail the whole operation if EventSub subscription fails
 
             # Send notification about new streamer
-            await self.notify({"type": "success", "message": f"Added streamer {new_streamer.username}"})
+            await self.notify(
+                {
+                    "type": "success",
+                    "message": f"Added streamer {new_streamer.username}",
+                }
+            )
 
             return new_streamer
 
@@ -190,7 +206,12 @@ class StreamerService:
             streamer_data = self.repository.delete_streamer(streamer_id)
 
             if streamer_data:
-                await self.notify({"type": "success", "message": f"Removed streamer {streamer_data['username']}"})
+                await self.notify(
+                    {
+                        "type": "success",
+                        "message": f"Removed streamer {streamer_data['username']}",
+                    }
+                )
 
             return streamer_data
 
@@ -212,18 +233,25 @@ class StreamerService:
                 return False
 
             # Update profile image if changed
-            if user_data.get("profile_image_url") != streamer.original_profile_image_url:
+            if (
+                user_data.get("profile_image_url")
+                != streamer.original_profile_image_url
+            ):
                 cached_path = await self.image_service.update_streamer_profile_image(
                     streamer.id, user_data["profile_image_url"]
                 )
                 if cached_path:
-                    user_data["cached_profile_image"] = self.image_service.get_cached_profile_image(streamer.id)
+                    user_data["cached_profile_image"] = (
+                        self.image_service.get_cached_profile_image(streamer.id)
+                    )
 
             # Update streamer in database
             self.repository.update_streamer(
                 streamer,
                 username=user_data.get("display_name", streamer.username),
-                profile_image_url=user_data.get("cached_profile_image", user_data.get("profile_image_url")),
+                profile_image_url=user_data.get(
+                    "cached_profile_image", user_data.get("profile_image_url")
+                ),
                 original_profile_image_url=user_data.get("profile_image_url"),
             )
 
@@ -233,16 +261,23 @@ class StreamerService:
             logger.error(f"Error refreshing streamer data for {streamer_id}: {e}")
             return False
 
-    async def bulk_check_live_status(self, streamer_ids: List[int] = None) -> Dict[int, bool]:
+    async def bulk_check_live_status(
+        self, streamer_ids: List[int] = None
+    ) -> Dict[int, bool]:
         """Check live status for multiple streamers efficiently"""
         try:
             if streamer_ids:
-                streamers = [self.repository.get_streamer_by_id(sid) for sid in streamer_ids]
+                streamers = [
+                    self.repository.get_streamer_by_id(sid) for sid in streamer_ids
+                ]
                 streamers = [s for s in streamers if s]  # Filter out None values
             else:
                 # Get all streamers
                 streamer_responses = self.repository.get_all_streamers()
-                streamers = [self.repository.get_streamer_by_id(sr.id) for sr in streamer_responses]
+                streamers = [
+                    self.repository.get_streamer_by_id(sr.id)
+                    for sr in streamer_responses
+                ]
                 streamers = [s for s in streamers if s]
 
             if not streamers:

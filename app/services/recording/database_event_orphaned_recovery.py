@@ -20,22 +20,33 @@ class DatabaseEventOrphanedRecovery:
         self.last_check: Optional[datetime] = None
         self.min_check_interval_minutes = 15  # Minimum 15 minutes between checks
 
-    async def on_recording_status_changed(self, recording_id: int, old_status: str, new_status: str):
+    async def on_recording_status_changed(
+        self, recording_id: int, old_status: str, new_status: str
+    ):
         """Handle recording status change events"""
         try:
             # Trigger orphaned check when recordings are marked as stopped/failed
             # but might have orphaned .ts files
-            if new_status in ["stopped", "failed"] and old_status in ["active", "recording"]:
-                logger.info(f"🔍 RECORDING_STATUS_CHANGED: {recording_id} {old_status} -> {new_status}")
+            if new_status in ["stopped", "failed"] and old_status in [
+                "active",
+                "recording",
+            ]:
+                logger.info(
+                    f"🔍 RECORDING_STATUS_CHANGED: {recording_id} {old_status} -> {new_status}"
+                )
 
                 # Check if we should run orphaned recovery (rate limiting)
                 if self._should_run_orphaned_check():
-                    await self._trigger_orphaned_recovery_check("recording_status_change")
+                    await self._trigger_orphaned_recovery_check(
+                        "recording_status_change"
+                    )
 
         except Exception as e:
             logger.error(f"Error handling recording status change: {e}", exc_info=True)
 
-    async def on_recording_created(self, recording_id: int, recording_data: Dict[str, Any]):
+    async def on_recording_created(
+        self, recording_id: int, recording_data: Dict[str, Any]
+    ):
         """Handle new recording creation events"""
         try:
             # When new recordings are created, it might indicate previous recordings
@@ -78,7 +89,9 @@ class DatabaseEventOrphanedRecovery:
             )
 
         except Exception as e:
-            logger.error(f"Error handling post-processing completion: {e}", exc_info=True)
+            logger.error(
+                f"Error handling post-processing completion: {e}", exc_info=True
+            )
 
     def _should_run_orphaned_check(self) -> bool:
         """Check if enough time has passed to run another orphaned recovery check"""
@@ -93,27 +106,40 @@ class DatabaseEventOrphanedRecovery:
         try:
             self.last_check = datetime.utcnow()
 
-            logger.info(f"🔍 TRIGGERING_ORPHANED_RECOVERY_CHECK: reason={trigger_reason}")
+            logger.info(
+                f"🔍 TRIGGERING_ORPHANED_RECOVERY_CHECK: reason={trigger_reason}"
+            )
 
             # Import background queue service
             try:
-                from app.services.background_queue_service import background_queue_service
+                from app.services.background_queue_service import (
+                    background_queue_service,
+                )
 
                 if background_queue_service and background_queue_service.is_running:
                     await background_queue_service.enqueue_task(
                         "orphaned_recovery_check",
-                        {"max_age_hours": 48, "trigger_reason": trigger_reason},  # Check recordings from last 48 hours
+                        {
+                            "max_age_hours": 48,
+                            "trigger_reason": trigger_reason,
+                        },  # Check recordings from last 48 hours
                         priority=1,  # Low priority
                     )
-                    logger.debug(f"🔍 ORPHANED_RECOVERY_CHECK_SCHEDULED: {trigger_reason}")
+                    logger.debug(
+                        f"🔍 ORPHANED_RECOVERY_CHECK_SCHEDULED: {trigger_reason}"
+                    )
                 else:
-                    logger.debug("Background queue service not available for orphaned recovery check")
+                    logger.debug(
+                        "Background queue service not available for orphaned recovery check"
+                    )
 
             except Exception as e:
                 logger.debug(f"Could not schedule orphaned recovery check: {e}")
 
         except Exception as e:
-            logger.error(f"Error triggering orphaned recovery check: {e}", exc_info=True)
+            logger.error(
+                f"Error triggering orphaned recovery check: {e}", exc_info=True
+            )
 
 
 # Global instance
@@ -131,10 +157,14 @@ def get_database_event_orphaned_recovery() -> DatabaseEventOrphanedRecovery:
 
 
 # Convenience functions for integration
-async def on_recording_status_changed(recording_id: int, old_status: str, new_status: str):
+async def on_recording_status_changed(
+    recording_id: int, old_status: str, new_status: str
+):
     """Convenience function for recording status change events"""
     recovery_service = get_database_event_orphaned_recovery()
-    await recovery_service.on_recording_status_changed(recording_id, old_status, new_status)
+    await recovery_service.on_recording_status_changed(
+        recording_id, old_status, new_status
+    )
 
 
 async def on_recording_created(recording_id: int, recording_data: Dict[str, Any]):

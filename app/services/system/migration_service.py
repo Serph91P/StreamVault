@@ -19,7 +19,6 @@ logger = logging.getLogger("streamvault")
 
 
 class MigrationService:
-
     @staticmethod
     def ensure_migrations_table():
         """Create the migrations table if it doesn't exist"""
@@ -61,16 +60,26 @@ class MigrationService:
                     logger.info("Updating migrations table schema...")
                     if "name" in existing_columns:
                         # Rename old column
-                        connection.execute(text("ALTER TABLE migrations RENAME COLUMN name TO script_name"))
+                        connection.execute(
+                            text(
+                                "ALTER TABLE migrations RENAME COLUMN name TO script_name"
+                            )
+                        )
                         connection.commit()
                         logger.info("✅ Renamed 'name' column to 'script_name'")
                     else:
                         # Add new column
-                        connection.execute(text("ALTER TABLE migrations ADD COLUMN script_name VARCHAR(255)"))
+                        connection.execute(
+                            text(
+                                "ALTER TABLE migrations ADD COLUMN script_name VARCHAR(255)"
+                            )
+                        )
                         connection.commit()
                         logger.info("✅ Added 'script_name' column")
                 else:
-                    logger.info("✅ Migrations table already exists with correct schema")
+                    logger.info(
+                        "✅ Migrations table already exists with correct schema"
+                    )
 
         except Exception as e:
             logger.error(f"❌ Failed to ensure migrations table: {e}")
@@ -83,7 +92,9 @@ class MigrationService:
         try:
             with SessionLocal() as db:
                 result = db.execute(
-                    text("SELECT COUNT(*) FROM migrations WHERE script_name = :name AND success = TRUE"),
+                    text(
+                        "SELECT COUNT(*) FROM migrations WHERE script_name = :name AND success = TRUE"
+                    ),
                     {"name": migration_name},
                 ).scalar()
                 return result > 0
@@ -125,7 +136,9 @@ class MigrationService:
         successful_migrations = len([r for r in file_migration_results if r[1]])
         failed_migrations = len([r for r in file_migration_results if not r[1]])
 
-        logger.info(f"🎯 Migration summary: {successful_migrations} successful, {failed_migrations} failed")
+        logger.info(
+            f"🎯 Migration summary: {successful_migrations} successful, {failed_migrations} failed"
+        )
         return failed_migrations == 0
 
     @staticmethod
@@ -146,24 +159,33 @@ class MigrationService:
         current_file = Path(__file__)
 
         # Try the correct path based on Dockerfile structure
-        migrations_dir = current_file.parents[MIGRATION_SERVICE_DEPTH] / "migrations"  # /app/migrations
+        migrations_dir = (
+            current_file.parents[MIGRATION_SERVICE_DEPTH] / "migrations"
+        )  # /app/migrations
 
         if not migrations_dir.exists() or not migrations_dir.is_dir():
-            logger.warning(f"Expected migrations directory not found at: {migrations_dir}")
+            logger.warning(
+                f"Expected migrations directory not found at: {migrations_dir}"
+            )
             # Try fallback paths
             fallback_paths = [
                 Path("/app/migrations"),  # Absolute path
                 Path("./migrations"),  # Relative to working directory
-                current_file.parents[FALLBACK_DEPTH] / "migrations",  # /app/app/migrations
+                current_file.parents[FALLBACK_DEPTH]
+                / "migrations",  # /app/app/migrations
             ]
 
             for path in fallback_paths:
                 if path.exists() and path.is_dir():
                     migrations_dir = path
-                    logger.info(f"Found migrations directory at fallback path: {migrations_dir}")
+                    logger.info(
+                        f"Found migrations directory at fallback path: {migrations_dir}"
+                    )
                     break
             else:
-                logger.error(f"Could not find migrations directory. Tried paths: {[str(p) for p in fallback_paths]}")
+                logger.error(
+                    f"Could not find migrations directory. Tried paths: {[str(p) for p in fallback_paths]}"
+                )
                 return []
         else:
             logger.info(f"Found migrations directory at: {migrations_dir}")
@@ -192,7 +214,9 @@ class MigrationService:
             if os.path.basename(script) not in ["__init__.py", "manage.py", "README.md"]
         ]
 
-        logger.info(f"Found {len(migration_scripts)} migration scripts in {migrations_dir}")
+        logger.info(
+            f"Found {len(migration_scripts)} migration scripts in {migrations_dir}"
+        )
         for script in migration_scripts:
             logger.debug(f"Migration script: {os.path.basename(script)}")
 
@@ -233,8 +257,12 @@ class MigrationService:
                 return False, "Migration has no upgrade() or run_migration() function"
 
         except Exception as e:
-            logger.error(f"Error running migration {script_path}: {str(e)}", exc_info=True)
-            MigrationService.mark_migration_applied(os.path.basename(script_path), False)
+            logger.error(
+                f"Error running migration {script_path}: {str(e)}", exc_info=True
+            )
+            MigrationService.mark_migration_applied(
+                os.path.basename(script_path), False
+            )
             return False, str(e)
 
     @classmethod
@@ -270,7 +298,9 @@ class MigrationService:
         try:
             with SessionLocal() as session:
                 result = session.execute(
-                    text("SELECT script_name FROM migrations WHERE success = TRUE ORDER BY applied_at")
+                    text(
+                        "SELECT script_name FROM migrations WHERE success = TRUE ORDER BY applied_at"
+                    )
                 ).fetchall()
                 return [row[0] for row in result]
         except Exception as e:
@@ -300,7 +330,9 @@ class MigrationService:
 
                         time.sleep(retry_delay)
                     else:
-                        logger.error(f"Failed to connect to database after {max_retries} attempts: {e}")
+                        logger.error(
+                            f"Failed to connect to database after {max_retries} attempts: {e}"
+                        )
                         return []
 
             # Ensure migrations table exists
@@ -308,13 +340,19 @@ class MigrationService:
 
             # Get list of already applied migrations
             applied_migrations = cls.get_applied_migrations()
-            logger.info(f"Found {len(applied_migrations)} previously applied migrations")
+            logger.info(
+                f"Found {len(applied_migrations)} previously applied migrations"
+            )
 
             # Get all available migration scripts
             all_scripts = cls.get_all_migration_scripts()
 
             # Filter out already applied migrations
-            pending_scripts = [script for script in all_scripts if os.path.basename(script) not in applied_migrations]
+            pending_scripts = [
+                script
+                for script in all_scripts
+                if os.path.basename(script) not in applied_migrations
+            ]
 
             if not pending_scripts:
                 logger.info("No pending migrations found")
@@ -331,7 +369,9 @@ class MigrationService:
 
                 # Stop on first failure to maintain consistency
                 if not success:
-                    logger.error(f"Migration {script_name} failed, stopping migration process")
+                    logger.error(
+                        f"Migration {script_name} failed, stopping migration process"
+                    )
                     break
 
             return results

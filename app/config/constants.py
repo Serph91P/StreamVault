@@ -46,10 +46,14 @@ class AsyncDelays:
     AUTO_RECOVERY_ERROR_WAIT: float = 10.0  # Auto recovery error wait
 
     # Proxy and network delays
-    PROXY_HEALTH_CHECK_ERROR_WAIT: float = 60.0  # Wait after proxy health check error (1 min)
+    PROXY_HEALTH_CHECK_ERROR_WAIT: float = (
+        60.0  # Wait after proxy health check error (1 min)
+    )
 
     # Image sync specific delays
-    IMAGE_SYNC_REQUEST_DELAY: float = 0.5  # Delay between image sync requests (rate limiting)
+    IMAGE_SYNC_REQUEST_DELAY: float = (
+        0.5  # Delay between image sync requests (rate limiting)
+    )
     IMAGE_SYNC_WORKER_ERROR_WAIT: float = 1.0  # Wait after image sync worker error
     IMAGE_SYNC_BATCH_DELAY: float = 0.1  # Small delay between batch operations
 
@@ -102,7 +106,9 @@ class Timeouts:
     # Process timeouts
     GRACEFUL_SHUTDOWN: int = 30  # Graceful shutdown timeout
     SEGMENT_CONCAT_START: int = 30  # Segment concatenation start timeout
-    SEGMENT_CONCAT_COMPLETE: int = 600  # Segment concatenation complete timeout (10 min)
+    SEGMENT_CONCAT_COMPLETE: int = (
+        600  # Segment concatenation complete timeout (10 min)
+    )
     RECORDING_REMUX_SMALL: int = 300  # Small file remux timeout (5 min)
     RECORDING_REMUX_LARGE: int = 600  # Large file remux timeout (10 min)
     RECOVERY_OPERATION: int = 3600  # Recovery operation timeout (1 hour)

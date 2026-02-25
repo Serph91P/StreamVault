@@ -54,7 +54,9 @@ async def send_push_notification(
                 # Lazy import to avoid circular dependencies
                 from importlib import import_module
 
-                enhanced_push_service = import_module("app.services.enhanced_push_service").enhanced_push_service
+                enhanced_push_service = import_module(
+                    "app.services.enhanced_push_service"
+                ).enhanced_push_service
                 _enhanced_push_service = enhanced_push_service
                 logger.debug("Successfully loaded enhanced_push_service")
             except ImportError as e:
@@ -63,7 +65,9 @@ async def send_push_notification(
 
                 class FallbackPushService:
                     async def send_notification(self, *args, **kwargs):
-                        logger.info(f"[FALLBACK] Would send notification with args: {args}, kwargs: {kwargs}")
+                        logger.info(
+                            f"[FALLBACK] Would send notification with args: {args}, kwargs: {kwargs}"
+                        )
                         return True
 
                 _enhanced_push_service = FallbackPushService()
@@ -121,7 +125,9 @@ async def send_push_notification(
                     continue
 
                 # Send the notification
-                success = await _enhanced_push_service.send_notification(subscription_data, notification_data)
+                success = await _enhanced_push_service.send_notification(
+                    subscription_data, notification_data
+                )
 
                 if success:
                     sent_count += 1

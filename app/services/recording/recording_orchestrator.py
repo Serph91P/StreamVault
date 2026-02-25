@@ -42,7 +42,9 @@ class RecordingOrchestrator:
         from app.dependencies import websocket_manager
 
         self.websocket_service = RecordingWebSocketService(websocket_manager)
-        self.post_processing_coordinator = PostProcessingCoordinator(self.config_manager, self.websocket_service)
+        self.post_processing_coordinator = PostProcessingCoordinator(
+            self.config_manager, self.websocket_service
+        )
 
         # Create post-processing callback for ProcessManager dependency injection
         async def post_processing_callback(recording_id: int, file_path: str):
@@ -57,15 +59,21 @@ class RecordingOrchestrator:
                     )
 
                     # Get additional data needed for post-processing
-                    stream_data = await self.database_service.get_stream_by_id(recording_data.stream_id)
+                    stream_data = await self.database_service.get_stream_by_id(
+                        recording_data.stream_id
+                    )
                     if stream_data:
-                        streamer_data = await self.database_service.get_streamer_by_id(stream_data.streamer_id)
+                        streamer_data = await self.database_service.get_streamer_by_id(
+                            stream_data.streamer_id
+                        )
                         if streamer_data:
                             # Create recording data dict for post-processing
                             recording_data_dict = {
                                 "streamer_name": streamer_data.username,
                                 "started_at": (
-                                    recording_data.started_at.isoformat() if recording_data.started_at else None
+                                    recording_data.started_at.isoformat()
+                                    if recording_data.started_at
+                                    else None
                                 ),
                                 "stream_id": stream_data.id,
                                 "recording_id": recording_id,
@@ -75,24 +83,35 @@ class RecordingOrchestrator:
                             await self.post_processing_coordinator.enqueue_post_processing(
                                 recording_id, file_path, recording_data_dict
                             )
-                            logger.info(f"Triggered post-processing via callback for recording {recording_id}")
+                            logger.info(
+                                f"Triggered post-processing via callback for recording {recording_id}"
+                            )
                         else:
-                            logger.error(f"Streamer data not found for recording {recording_id}")
+                            logger.error(
+                                f"Streamer data not found for recording {recording_id}"
+                            )
                     else:
-                        logger.error(f"Stream data not found for recording {recording_id}")
+                        logger.error(
+                            f"Stream data not found for recording {recording_id}"
+                        )
                 else:
-                    logger.error(f"Recording data not found for recording {recording_id}")
+                    logger.error(
+                        f"Recording data not found for recording {recording_id}"
+                    )
             except Exception as e:
                 logger.error(f"Error in post-processing callback: {e}", exc_info=True)
 
         # Initialize ProcessManager with the post-processing callback
         self.process_manager = ProcessManager(
-            config_manager=self.config_manager, post_processing_callback=post_processing_callback
+            config_manager=self.config_manager,
+            post_processing_callback=post_processing_callback,
         )
 
         # Initialize remaining managers
         self.recording_logger = RecordingLogger(config_manager=self.config_manager)
-        self.notification_manager = NotificationManager(config_manager=self.config_manager)
+        self.notification_manager = NotificationManager(
+            config_manager=self.config_manager
+        )
         self.stream_info_manager = StreamInfoManager(config_manager=self.config_manager)
 
         self.lifecycle_manager = RecordingLifecycleManager(
@@ -115,10 +134,16 @@ class RecordingOrchestrator:
 
     # Main public API methods (delegate to appropriate services)
 
-    async def start_recording(self, stream_id: int, streamer_id: int, **kwargs) -> Optional[int]:
+    async def start_recording(
+        self, stream_id: int, streamer_id: int, **kwargs
+    ) -> Optional[int]:
         """Start a new recording - main entry point"""
-        logger.info(f"🎬 ORCHESTRATOR_START: stream_id={stream_id}, streamer_id={streamer_id}")
-        result = await self.lifecycle_manager.start_recording(stream_id, streamer_id, **kwargs)
+        logger.info(
+            f"🎬 ORCHESTRATOR_START: stream_id={stream_id}, streamer_id={streamer_id}"
+        )
+        result = await self.lifecycle_manager.start_recording(
+            stream_id, streamer_id, **kwargs
+        )
         logger.info(f"🎬 ORCHESTRATOR_RESULT: recording_id={result}")
         return result
 
@@ -143,7 +168,9 @@ class RecordingOrchestrator:
 
     async def recover_active_recordings_from_persistence(self) -> List[int]:
         """Recover active recordings from persistence after restart"""
-        return await self.state_manager.recover_active_recordings_from_persistence(self.database_service)
+        return await self.state_manager.recover_active_recordings_from_persistence(
+            self.database_service
+        )
 
     # Post-processing methods
 
@@ -155,17 +182,27 @@ class RecordingOrchestrator:
             recording_id, ts_file_path, recording_data
         )
 
-    async def find_and_validate_mp4(self, ts_file_path: str, max_wait_minutes: int = 10) -> Optional[str]:
+    async def find_and_validate_mp4(
+        self, ts_file_path: str, max_wait_minutes: int = 10
+    ) -> Optional[str]:
         """Find and validate converted MP4 file"""
-        return await self.post_processing_coordinator.find_and_validate_mp4(ts_file_path, max_wait_minutes)
+        return await self.post_processing_coordinator.find_and_validate_mp4(
+            ts_file_path, max_wait_minutes
+        )
 
     # Database operations (delegate to database service)
 
     async def update_recording_status(
-        self, recording_id: int, status: str, path: str = None, duration_seconds: int = None
+        self,
+        recording_id: int,
+        status: str,
+        path: str = None,
+        duration_seconds: int = None,
     ) -> None:
         """Update recording status in database"""
-        await self.database_service.update_recording_status(recording_id, status, path, duration_seconds)
+        await self.database_service.update_recording_status(
+            recording_id, status, path, duration_seconds
+        )
 
     async def ensure_stream_ended(self, stream_id: int) -> None:
         """Ensure stream is marked as ended"""
@@ -245,9 +282,13 @@ class RecordingOrchestrator:
         """Legacy method - handled by database service"""
         self.database_service._ensure_db_session()
 
-    async def _update_recording_status(self, recording_id: int, status: str, path: str, duration_seconds: int):
+    async def _update_recording_status(
+        self, recording_id: int, status: str, path: str, duration_seconds: int
+    ):
         """Legacy method - delegate to database service"""
-        await self.database_service.update_recording_status(recording_id, status, path, duration_seconds)
+        await self.database_service.update_recording_status(
+            recording_id, status, path, duration_seconds
+        )
 
     async def _ensure_stream_ended(self, stream_id: int):
         """Legacy method - delegate to database service"""
@@ -257,21 +298,37 @@ class RecordingOrchestrator:
         """Legacy method - delegate to lifecycle manager"""
         await self.lifecycle_manager.monitor_and_process_recording(recording_id)
 
-    async def _enqueue_post_processing(self, recording_id: int, ts_file_path: str, recording_data: Dict[str, Any]):
+    async def _enqueue_post_processing(
+        self, recording_id: int, ts_file_path: str, recording_data: Dict[str, Any]
+    ):
         """Legacy method - delegate to post-processing coordinator"""
-        await self.post_processing_coordinator.enqueue_post_processing(recording_id, ts_file_path, recording_data)
+        await self.post_processing_coordinator.enqueue_post_processing(
+            recording_id, ts_file_path, recording_data
+        )
 
-    async def _find_and_validate_mp4(self, ts_file_path: str, max_wait_minutes: int = 10):
+    async def _find_and_validate_mp4(
+        self, ts_file_path: str, max_wait_minutes: int = 10
+    ):
         """Legacy method - delegate to post-processing coordinator"""
-        return await self.post_processing_coordinator.find_and_validate_mp4(ts_file_path, max_wait_minutes)
+        return await self.post_processing_coordinator.find_and_validate_mp4(
+            ts_file_path, max_wait_minutes
+        )
 
-    async def _send_recording_job_update(self, recording_id: int, job_type: str, status: str, progress: float = 0.0):
+    async def _send_recording_job_update(
+        self, recording_id: int, job_type: str, status: str, progress: float = 0.0
+    ):
         """Legacy method - delegate to websocket service"""
-        await self.websocket_service.send_recording_job_update(recording_id, job_type, status, progress)
+        await self.websocket_service.send_recording_job_update(
+            recording_id, job_type, status, progress
+        )
 
-    async def _send_background_task_update(self, task_id: str, task_type: str, status: str, progress: float = 0.0):
+    async def _send_background_task_update(
+        self, task_id: str, task_type: str, status: str, progress: float = 0.0
+    ):
         """Legacy method - delegate to websocket service"""
-        await self.websocket_service.send_background_task_update(task_id, task_type, status, progress)
+        await self.websocket_service.send_background_task_update(
+            task_id, task_type, status, progress
+        )
 
     async def _force_stop_all_recordings(self):
         """Legacy method - delegate to cleanup"""
@@ -281,14 +338,26 @@ class RecordingOrchestrator:
         """Legacy method - delegate to state manager"""
         return self.state_manager.cancel_all_tasks()
 
-    async def _delayed_metadata_generation(self, recording_id: int, delay_minutes: int = 5):
+    async def _delayed_metadata_generation(
+        self, recording_id: int, delay_minutes: int = 5
+    ):
         """Legacy method - delegate to post-processing coordinator"""
-        await self.post_processing_coordinator.delayed_metadata_generation(recording_id, delay_minutes)
+        await self.post_processing_coordinator.delayed_metadata_generation(
+            recording_id, delay_minutes
+        )
 
-    async def _generate_stream_metadata(self, recording_id: int, stream_data: Dict[str, Any]):
+    async def _generate_stream_metadata(
+        self, recording_id: int, stream_data: Dict[str, Any]
+    ):
         """Legacy method - delegate to post-processing coordinator"""
-        return await self.post_processing_coordinator.generate_stream_metadata(recording_id, stream_data)
+        return await self.post_processing_coordinator.generate_stream_metadata(
+            recording_id, stream_data
+        )
 
-    async def _recover_single_recording(self, recording_id: int, recording_data: Dict[str, Any]):
+    async def _recover_single_recording(
+        self, recording_id: int, recording_data: Dict[str, Any]
+    ):
         """Legacy method - handled by state manager"""
-        return await self.state_manager._recover_single_recording(recording_id, recording_data, self.database_service)
+        return await self.state_manager._recover_single_recording(
+            recording_id, recording_data, self.database_service
+        )

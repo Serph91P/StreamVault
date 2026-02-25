@@ -15,7 +15,8 @@ logger = logging.getLogger("streamvault")
 
 
 async def handle_segment_concatenation(
-    task_data: Dict[str, Any], progress_callback: Optional[Callable[[float], None]] = None
+    task_data: Dict[str, Any],
+    progress_callback: Optional[Callable[[float], None]] = None,
 ) -> Dict[str, Any]:
     """
     Handle segment concatenation task
@@ -42,11 +43,19 @@ async def handle_segment_concatenation(
         streamer_name = task_data.get("streamer_name")
         stream_id = task_data.get("stream_id")
 
-        logger.info(f"🎬 SEGMENT_CONCATENATION_START: recording_id={recording_id}, segments={len(segment_files)}")
+        logger.info(
+            f"🎬 SEGMENT_CONCATENATION_START: recording_id={recording_id}, segments={len(segment_files)}"
+        )
 
         if not all([recording_id, segment_files, output_path, streamer_name]):
-            logger.error(f"Missing required parameters for segment concatenation: {task_data}")
-            return {"success": False, "error": "Missing required parameters", "recording_id": recording_id}
+            logger.error(
+                f"Missing required parameters for segment concatenation: {task_data}"
+            )
+            return {
+                "success": False,
+                "error": "Missing required parameters",
+                "recording_id": recording_id,
+            }
 
         # Validate segment files exist
         valid_segments = []
@@ -59,7 +68,11 @@ async def handle_segment_concatenation(
 
         if not valid_segments:
             logger.error(f"No valid segments found for recording {recording_id}")
-            return {"success": False, "error": "No valid segments found", "recording_id": recording_id}
+            return {
+                "success": False,
+                "error": "No valid segments found",
+                "recording_id": recording_id,
+            }
 
         # Sort segments to maintain order
         valid_segments.sort()
@@ -79,7 +92,9 @@ async def handle_segment_concatenation(
                     try:
                         single.replace(output_file)
                     except (OSError, PermissionError) as e:
-                        logger.warning(f"Could not move segment {single} to {output_file}, copying instead: {e}")
+                        logger.warning(
+                            f"Could not move segment {single} to {output_file}, copying instead: {e}"
+                        )
                         shutil.copy2(single, output_file)
                 logger.info(f"🎬 SINGLE_SEGMENT_FASTPATH: wrote {output_file}")
 
@@ -89,16 +104,24 @@ async def handle_segment_concatenation(
                     from app.models import Recording
 
                     with SessionLocal() as db:
-                        recording = db.query(Recording).filter(Recording.id == recording_id).first()
+                        recording = (
+                            db.query(Recording)
+                            .filter(Recording.id == recording_id)
+                            .first()
+                        )
                         if recording:
                             recording.path = str(output_file)
                             recording.status = "completed"
                             db.commit()
                 except Exception as e:
-                    logger.warning(f"Could not update recording after single segment move: {e}")
+                    logger.warning(
+                        f"Could not update recording after single segment move: {e}"
+                    )
 
                 # Queue post-processing tasks for the final file
-                await _queue_post_processing_tasks(recording_id, str(output_file), task_data)
+                await _queue_post_processing_tasks(
+                    recording_id, str(output_file), task_data
+                )
 
                 # Clean up leftover segment dir if empty
                 await _cleanup_segment_files([single], segment_dir)
@@ -111,7 +134,9 @@ async def handle_segment_concatenation(
                     "recording_id": recording_id,
                 }
             except Exception as e:
-                logger.error(f"Error handling single segment fast-path: {e}", exc_info=True)
+                logger.error(
+                    f"Error handling single segment fast-path: {e}", exc_info=True
+                )
                 return {"success": False, "error": str(e), "recording_id": recording_id}
 
         try:
@@ -160,7 +185,8 @@ async def handle_segment_concatenation(
                 )
 
                 stdout, stderr = await asyncio.wait_for(
-                    process.communicate(), timeout=600  # 10 minutes for concatenation
+                    process.communicate(),
+                    timeout=600,  # 10 minutes for concatenation
                 )
 
                 if process.returncode == 0:
@@ -180,19 +206,29 @@ async def handle_segment_concatenation(
                             from app.models import Recording
 
                             with SessionLocal() as db:
-                                recording = db.query(Recording).filter(Recording.id == recording_id).first()
+                                recording = (
+                                    db.query(Recording)
+                                    .filter(Recording.id == recording_id)
+                                    .first()
+                                )
                                 if recording:
                                     recording.path = str(output_file)
                                     recording.status = "completed"
                                     db.commit()
-                                    logger.info(f"🎬 RECORDING_UPDATED: path={output_file}, status=completed")
+                                    logger.info(
+                                        f"🎬 RECORDING_UPDATED: path={output_file}, status=completed"
+                                    )
                                 else:
-                                    logger.error(f"Recording {recording_id} not found in database")
+                                    logger.error(
+                                        f"Recording {recording_id} not found in database"
+                                    )
                         except Exception as e:
                             logger.error(f"Error updating recording in database: {e}")
 
                         # Queue post-processing tasks for the concatenated file
-                        await _queue_post_processing_tasks(recording_id, str(output_file), task_data)
+                        await _queue_post_processing_tasks(
+                            recording_id, str(output_file), task_data
+                        )
 
                         # Clean up segment files after successful concatenation
                         await _cleanup_segment_files(valid_segments, segment_dir)
@@ -206,10 +242,16 @@ async def handle_segment_concatenation(
                         }
                     else:
                         logger.error(f"🎬 FFMPEG_OUTPUT_INVALID: {output_file}")
-                        return {"success": False, "error": "FFmpeg output file invalid", "recording_id": recording_id}
+                        return {
+                            "success": False,
+                            "error": "FFmpeg output file invalid",
+                            "recording_id": recording_id,
+                        }
                 else:
                     stderr_text = stderr.decode("utf-8", errors="replace")[:4096]
-                    logger.error(f"🎬 FFMPEG_CONCAT_FAILED: return_code={process.returncode}, stderr={stderr_text}")
+                    logger.error(
+                        f"🎬 FFMPEG_CONCAT_FAILED: return_code={process.returncode}, stderr={stderr_text}"
+                    )
                     return {
                         "success": False,
                         "error": f"FFmpeg failed with code {process.returncode}",
@@ -225,7 +267,11 @@ async def handle_segment_concatenation(
                         await process.wait()
                     except (ProcessLookupError, OSError) as e:
                         logger.debug(f"Could not kill timed-out process: {e}")
-                return {"success": False, "error": "FFmpeg process timed out", "recording_id": recording_id}
+                return {
+                    "success": False,
+                    "error": "FFmpeg process timed out",
+                    "recording_id": recording_id,
+                }
 
         finally:
             # Clean up concat list file on error
@@ -233,14 +279,22 @@ async def handle_segment_concatenation(
                 try:
                     concat_list_path.unlink()
                 except (OSError, PermissionError) as e:
-                    logger.debug(f"Could not remove concat list file {concat_list_path}: {e}")
+                    logger.debug(
+                        f"Could not remove concat list file {concat_list_path}: {e}"
+                    )
 
     except Exception as e:
         logger.error(f"Error in segment concatenation: {e}", exc_info=True)
-        return {"success": False, "error": str(e), "recording_id": task_data.get("recording_id")}
+        return {
+            "success": False,
+            "error": str(e),
+            "recording_id": task_data.get("recording_id"),
+        }
 
 
-async def _queue_post_processing_tasks(recording_id: int, ts_file_path: str, task_data: Dict[str, Any]):
+async def _queue_post_processing_tasks(
+    recording_id: int, ts_file_path: str, task_data: Dict[str, Any]
+):
     """Queue the standard post-processing tasks after concatenation"""
     try:
         from app.services.background_queue_service import background_queue_service
@@ -260,7 +314,11 @@ async def _queue_post_processing_tasks(recording_id: int, ts_file_path: str, tas
                     from app.models import Recording
 
                     with SessionLocal() as db:
-                        recording = db.query(Recording).filter(Recording.id == recording_id).first()
+                        recording = (
+                            db.query(Recording)
+                            .filter(Recording.id == recording_id)
+                            .first()
+                        )
                         if recording and recording.stream_id:
                             return recording.stream_id
                         return None
@@ -268,7 +326,9 @@ async def _queue_post_processing_tasks(recording_id: int, ts_file_path: str, tas
                 loop = asyncio.get_event_loop()
                 stream_id = await loop.run_in_executor(None, _fetch_stream_id)
                 if stream_id:
-                    logger.info(f"Recovered stream_id={stream_id} from recording {recording_id}")
+                    logger.info(
+                        f"Recovered stream_id={stream_id} from recording {recording_id}"
+                    )
                 else:
                     logger.error(
                         f"Could not recover stream_id for recording {recording_id}, cannot queue post-processing"
@@ -290,7 +350,9 @@ async def _queue_post_processing_tasks(recording_id: int, ts_file_path: str, tas
         }
 
         # Queue post-processing chain
-        task_ids = await background_queue_service.enqueue_recording_post_processing(**post_processing_payload)
+        task_ids = await background_queue_service.enqueue_recording_post_processing(
+            **post_processing_payload
+        )
 
         logger.info(
             f"🎬 POST_PROCESSING_QUEUED: recording_id={recording_id}, stream_id={stream_id}, tasks={len(task_ids)}"

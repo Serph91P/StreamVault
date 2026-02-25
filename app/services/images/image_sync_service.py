@@ -46,7 +46,9 @@ class ImageSyncService:
         while self._running:
             try:
                 # Wait for sync request with timeout to check _running periodically
-                sync_request = await asyncio.wait_for(self._sync_queue.get(), timeout=TIMEOUTS.IMAGE_SYNC_QUEUE_TIMEOUT)
+                sync_request = await asyncio.wait_for(
+                    self._sync_queue.get(), timeout=TIMEOUTS.IMAGE_SYNC_QUEUE_TIMEOUT
+                )
                 await self._process_sync_request(sync_request)
 
                 # Add delay between requests to avoid rate limiting
@@ -88,7 +90,9 @@ class ImageSyncService:
 
         if streamer_id and profile_image_url:
             logger.info(f"Syncing profile image for streamer {streamer_id}")
-            await unified_image_service.download_profile_image(streamer_id, profile_image_url)
+            await unified_image_service.download_profile_image(
+                streamer_id, profile_image_url
+            )
 
     async def _sync_category_image(self, sync_request: dict):
         """Sync a category image"""
@@ -98,7 +102,9 @@ class ImageSyncService:
         if category_name:
             logger.info(f"Syncing category image for {category_name}")
             if image_url:
-                await unified_image_service.download_category_image(category_name, image_url)
+                await unified_image_service.download_category_image(
+                    category_name, image_url
+                )
             else:
                 await unified_image_service.download_category_image(category_name, "")
 
@@ -110,24 +116,47 @@ class ImageSyncService:
 
         if stream_id and streamer_id and artwork_url:
             logger.info(f"Syncing stream artwork for stream {stream_id}")
-            await unified_image_service.download_stream_artwork(stream_id, streamer_id, artwork_url)
+            await unified_image_service.download_stream_artwork(
+                stream_id, streamer_id, artwork_url
+            )
 
     # Public methods for requesting syncs
 
-    async def request_streamer_profile_sync(self, streamer_id: int, profile_image_url: str):
+    async def request_streamer_profile_sync(
+        self, streamer_id: int, profile_image_url: str
+    ):
         """Request sync of a streamer's profile image"""
         await self._sync_queue.put(
-            {"type": "streamer_profile", "streamer_id": streamer_id, "profile_image_url": profile_image_url}
+            {
+                "type": "streamer_profile",
+                "streamer_id": streamer_id,
+                "profile_image_url": profile_image_url,
+            }
         )
 
-    async def request_category_image_sync(self, category_name: str, image_url: Optional[str] = None):
+    async def request_category_image_sync(
+        self, category_name: str, image_url: Optional[str] = None
+    ):
         """Request sync of a category image"""
-        await self._sync_queue.put({"type": "category_image", "category_name": category_name, "image_url": image_url})
+        await self._sync_queue.put(
+            {
+                "type": "category_image",
+                "category_name": category_name,
+                "image_url": image_url,
+            }
+        )
 
-    async def request_stream_artwork_sync(self, stream_id: int, streamer_id: int, artwork_url: str):
+    async def request_stream_artwork_sync(
+        self, stream_id: int, streamer_id: int, artwork_url: str
+    ):
         """Request sync of stream artwork"""
         await self._sync_queue.put(
-            {"type": "stream_artwork", "stream_id": stream_id, "streamer_id": streamer_id, "artwork_url": artwork_url}
+            {
+                "type": "stream_artwork",
+                "stream_id": stream_id,
+                "streamer_id": streamer_id,
+                "artwork_url": artwork_url,
+            }
         )
 
     # Bulk sync operations
@@ -140,7 +169,9 @@ class ImageSyncService:
 
             for streamer in streamers:
                 if streamer.profile_image_url:
-                    await self.request_streamer_profile_sync(streamer.id, streamer.profile_image_url)
+                    await self.request_streamer_profile_sync(
+                        streamer.id, streamer.profile_image_url
+                    )
 
             logger.info(f"Requested sync for {len(streamers)} streamers")
 
@@ -191,13 +222,19 @@ class ImageSyncService:
 
             # Only sync categories that exist in the database
             with SessionLocal() as db:
-                existing_categories = db.query(Category).filter(Category.name.in_(popular_categories)).all()
+                existing_categories = (
+                    db.query(Category)
+                    .filter(Category.name.in_(popular_categories))
+                    .all()
+                )
 
             for category in existing_categories:
                 if category.name:
                     await self.request_category_image_sync(category.name)
 
-            logger.info(f"Requested sync for {len(existing_categories)} popular categories")
+            logger.info(
+                f"Requested sync for {len(existing_categories)} popular categories"
+            )
 
         except Exception as e:
             logger.error(f"Error syncing popular categories: {e}")
@@ -231,7 +268,9 @@ class ImageSyncService:
             # Wait longer to allow startup to complete
             await asyncio.sleep(ASYNC_DELAYS.IMAGE_SYNC_INTERVAL)
 
-            logger.info("Starting delayed initial image sync for all existing entities...")
+            logger.info(
+                "Starting delayed initial image sync for all existing entities..."
+            )
 
             # Sync all existing streamers first (fewer API calls)
             await self.sync_all_existing_streamers()
@@ -255,10 +294,14 @@ class ImageSyncService:
             missing_profiles = 0
             for streamer in streamers:
                 if streamer.profile_image_url:
-                    cached_url = unified_image_service.get_profile_image_url(streamer.id)
+                    cached_url = unified_image_service.get_profile_image_url(
+                        streamer.id
+                    )
                     # If cached_url is the same as original URL, it means no cached version exists
                     if cached_url == streamer.profile_image_url:
-                        await self.request_streamer_profile_sync(streamer.id, streamer.profile_image_url)
+                        await self.request_streamer_profile_sync(
+                            streamer.id, streamer.profile_image_url
+                        )
                         missing_profiles += 1
 
             # Check categories
@@ -268,9 +311,15 @@ class ImageSyncService:
             missing_categories = 0
             for category in categories:
                 if category.name:
-                    cached_url = unified_image_service.get_category_image_url(category.name)
+                    cached_url = unified_image_service.get_category_image_url(
+                        category.name
+                    )
                     # If no cached image exists, sync it
-                    if not cached_url or cached_url == unified_image_service.get_category_image_url(category.name):
+                    if (
+                        not cached_url
+                        or cached_url
+                        == unified_image_service.get_category_image_url(category.name)
+                    ):
                         await self.request_category_image_sync(category.name)
                         missing_categories += 1
 

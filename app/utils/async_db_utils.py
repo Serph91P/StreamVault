@@ -37,7 +37,9 @@ async def get_recent_streams(limit: int = 10) -> List[Stream]:
             result = await session.execute(
                 select(Stream)
                 .options(selectinload(Stream.stream_metadata))
-                .filter((Stream.ended_at.isnot(None)) | (Stream.recording_path.isnot(None)))
+                .filter(
+                    (Stream.ended_at.isnot(None)) | (Stream.recording_path.isnot(None))
+                )
                 .order_by(desc(Stream.started_at))
                 .limit(limit)
             )
@@ -69,8 +71,12 @@ def get_async_engine():
         # Reconstruct the URL with the updated scheme
         async_url = urlunparse(parsed_url._replace(scheme=async_scheme))
 
-        logger.debug(f"Creating async engine with scheme: {async_scheme}, database: {parsed_url.path}")
-        logger.debug(f"Original URL scheme: {parsed_url.scheme} -> Async scheme: {async_scheme}")
+        logger.debug(
+            f"Creating async engine with scheme: {async_scheme}, database: {parsed_url.path}"
+        )
+        logger.debug(
+            f"Original URL scheme: {parsed_url.scheme} -> Async scheme: {async_scheme}"
+        )
         _async_engine = create_async_engine(async_url, echo=False)
     return _async_engine
 
@@ -79,7 +85,9 @@ def get_async_session_maker():
     """Get or create async session maker"""
     global _async_session_maker
     if _async_session_maker is None:
-        _async_session_maker = async_sessionmaker(bind=get_async_engine(), class_=AsyncSession, expire_on_commit=False)
+        _async_session_maker = async_sessionmaker(
+            bind=get_async_engine(), class_=AsyncSession, expire_on_commit=False
+        )
     return _async_session_maker
 
 
@@ -117,7 +125,9 @@ async def get_streamers_with_streams() -> List[Streamer]:
     async_session = get_async_session_maker()
     async with async_session() as session:
         try:
-            result = await session.execute(select(Streamer).options(selectinload(Streamer.streams)))
+            result = await session.execute(
+                select(Streamer).options(selectinload(Streamer.streams))
+            )
             streamers = result.scalars().all()
             return list(streamers)
         except Exception as e:
@@ -126,7 +136,10 @@ async def get_streamers_with_streams() -> List[Streamer]:
 
 
 async def batch_process_items(
-    items: List[Any], batch_size: int = 10, max_concurrent: int = 3, sleep_duration: float = 0.1
+    items: List[Any],
+    batch_size: int = 10,
+    max_concurrent: int = 3,
+    sleep_duration: float = 0.1,
 ):
     """
     Process items in batches with concurrency control.

@@ -89,15 +89,21 @@ class UnifiedImageService:
 
     # Profile Image Methods (delegate to ProfileImageService)
 
-    async def download_profile_image(self, streamer_id: int, profile_image_url: str) -> Optional[str]:
+    async def download_profile_image(
+        self, streamer_id: int, profile_image_url: str
+    ) -> Optional[str]:
         """Download and cache a streamer's profile image"""
-        return await self.profile_service.download_profile_image(streamer_id, profile_image_url)
+        return await self.profile_service.download_profile_image(
+            streamer_id, profile_image_url
+        )
 
     def get_cached_profile_image(self, streamer_id: int) -> Optional[str]:
         """Get cached profile image path"""
         return self.profile_service.get_cached_profile_image(streamer_id)
 
-    def get_profile_image_url(self, streamer_id: int, original_url: Optional[str] = None) -> Optional[str]:
+    def get_profile_image_url(
+        self, streamer_id: int, original_url: Optional[str] = None
+    ) -> Optional[str]:
         """Get profile image URL for a streamer (legacy compatibility method)"""
         # First try to get cached image
         cached_url = self.profile_service.get_cached_profile_image(streamer_id)
@@ -107,9 +113,13 @@ class UnifiedImageService:
         # If no cached image and original_url provided, return original
         return original_url
 
-    async def update_streamer_profile_image(self, streamer_id: int, profile_image_url: str) -> bool:
+    async def update_streamer_profile_image(
+        self, streamer_id: int, profile_image_url: str
+    ) -> bool:
         """Update a streamer's profile image"""
-        return await self.profile_service.update_streamer_profile_image(streamer_id, profile_image_url)
+        return await self.profile_service.update_streamer_profile_image(
+            streamer_id, profile_image_url
+        )
 
     async def sync_all_profile_images(self) -> Dict[str, int]:
         """Sync all profile images"""
@@ -117,7 +127,9 @@ class UnifiedImageService:
 
     # Category Image Methods (delegate to CategoryImageService)
 
-    async def download_category_image(self, category_name: str, box_art_url: Optional[str] = None) -> Optional[str]:
+    async def download_category_image(
+        self, category_name: str, box_art_url: Optional[str] = None
+    ) -> Optional[str]:
         """Download and cache a category's box art image"""
         # If no box_art_url provided, try to get it from database
         if not box_art_url:
@@ -125,17 +137,23 @@ class UnifiedImageService:
             from app.models import Category
 
             with SessionLocal() as db:
-                category = db.query(Category).filter(Category.name == category_name).first()
+                category = (
+                    db.query(Category).filter(Category.name == category_name).first()
+                )
                 if category and category.box_art_url:
                     box_art_url = category.box_art_url
                 else:
-                    logger.warning(f"No box_art_url found for category: {category_name}")
+                    logger.warning(
+                        f"No box_art_url found for category: {category_name}"
+                    )
                     return None
 
         # Type guard to satisfy type checker and ensure valid URL
         if not box_art_url or not isinstance(box_art_url, str):
             return None
-        return await self.category_service.download_category_image(category_name, box_art_url)
+        return await self.category_service.download_category_image(
+            category_name, box_art_url
+        )
 
     def get_cached_category_image(self, category_name: str) -> Optional[str]:
         """Get cached category image path"""
@@ -143,11 +161,15 @@ class UnifiedImageService:
 
     def get_category_image_url(self, category_name: str) -> Optional[str]:
         """Get category image URL (legacy compatibility method)"""
-        return self.category_service.get_cached_category_image_with_download(category_name)
+        return self.category_service.get_cached_category_image_with_download(
+            category_name
+        )
 
     async def update_category_image(self, category_name: str, box_art_url: str) -> bool:
         """Update a category's image"""
-        return await self.category_service.update_category_image(category_name, box_art_url)
+        return await self.category_service.update_category_image(
+            category_name, box_art_url
+        )
 
     async def sync_all_category_images(self) -> Dict[str, int]:
         """Sync all category images"""
@@ -159,19 +181,29 @@ class UnifiedImageService:
 
     # Stream Artwork Methods (delegate to StreamArtworkService)
 
-    async def download_stream_artwork(self, stream_id: int, streamer_id: int, thumbnail_url: str) -> Optional[str]:
+    async def download_stream_artwork(
+        self, stream_id: int, streamer_id: int, thumbnail_url: str
+    ) -> Optional[str]:
         """Download and cache stream artwork"""
-        return await self.artwork_service.download_stream_artwork(stream_id, streamer_id, thumbnail_url)
+        return await self.artwork_service.download_stream_artwork(
+            stream_id, streamer_id, thumbnail_url
+        )
 
-    def get_cached_stream_artwork(self, stream_id: int, streamer_id: int) -> Optional[str]:
+    def get_cached_stream_artwork(
+        self, stream_id: int, streamer_id: int
+    ) -> Optional[str]:
         """Get cached stream artwork path"""
         return self.artwork_service.get_cached_stream_artwork(stream_id, streamer_id)
 
     async def update_stream_artwork(self, stream_id: int, thumbnail_url: str) -> bool:
         """Update a stream's artwork"""
-        return await self.artwork_service.update_stream_artwork(stream_id, thumbnail_url)
+        return await self.artwork_service.update_stream_artwork(
+            stream_id, thumbnail_url
+        )
 
-    async def sync_stream_artwork(self, stream_ids: Optional[List[int]] = None) -> Dict[str, int]:
+    async def sync_stream_artwork(
+        self, stream_ids: Optional[List[int]] = None
+    ) -> Dict[str, int]:
         """Sync stream artwork"""
         if stream_ids is None:
             return await self.artwork_service.sync_stream_artwork()
@@ -183,21 +215,31 @@ class UnifiedImageService:
 
     # Banner Image Methods (delegate to BannerImageService)
 
-    async def download_banner_image(self, streamer_id: int, offline_image_url: str) -> Optional[str]:
+    async def download_banner_image(
+        self, streamer_id: int, offline_image_url: str
+    ) -> Optional[str]:
         """Download and cache a streamer's banner image"""
-        return await self.banner_service.download_banner_image(streamer_id, offline_image_url)
+        return await self.banner_service.download_banner_image(
+            streamer_id, offline_image_url
+        )
 
     def get_cached_banner_image(self, streamer_id: int) -> Optional[str]:
         """Get cached banner image path"""
         return self.banner_service.get_cached_banner_image(streamer_id)
 
-    def get_banner_image_url(self, streamer_id: int, original_url: Optional[str] = None) -> Optional[str]:
+    def get_banner_image_url(
+        self, streamer_id: int, original_url: Optional[str] = None
+    ) -> Optional[str]:
         """Get banner image URL (cached or original)"""
         return self.banner_service.get_banner_image_url(streamer_id, original_url)
 
-    async def update_streamer_banner_image(self, streamer_id: int, offline_image_url: str) -> bool:
+    async def update_streamer_banner_image(
+        self, streamer_id: int, offline_image_url: str
+    ) -> bool:
         """Update a streamer's banner image"""
-        return await self.banner_service.update_streamer_banner_image(streamer_id, offline_image_url)
+        return await self.banner_service.update_streamer_banner_image(
+            streamer_id, offline_image_url
+        )
 
     async def sync_all_banner_images(self) -> Dict[str, int]:
         """Sync all banner images"""
@@ -243,7 +285,10 @@ class UnifiedImageService:
             "banners_cleaned": banner_cleaned,
             "categories_cleaned": category_cleaned,
             "artwork_cleaned": artwork_cleaned,
-            "total_cleaned": profile_cleaned + banner_cleaned + category_cleaned + artwork_cleaned,
+            "total_cleaned": profile_cleaned
+            + banner_cleaned
+            + category_cleaned
+            + artwork_cleaned,
         }
 
     async def cleanup_old_artwork(self, days_old: int = 30) -> int:
@@ -289,7 +334,12 @@ class UnifiedImageService:
         from app.database import SessionLocal
         from app.models import Streamer, Category
 
-        missing_report = {"missing_profiles": 0, "missing_categories": 0, "total_streamers": 0, "total_categories": 0}
+        missing_report = {
+            "missing_profiles": 0,
+            "missing_categories": 0,
+            "total_streamers": 0,
+            "total_categories": 0,
+        }
 
         with SessionLocal() as db:
             # Check missing profile images
@@ -310,7 +360,9 @@ class UnifiedImageService:
 
     async def preload_categories(self, category_names: list) -> Dict[str, int]:
         """Preload category images for given category names"""
-        return await self.bulk_sync_categories([{"name": name, "box_art_url": None} for name in category_names])
+        return await self.bulk_sync_categories(
+            [{"name": name, "box_art_url": None} for name in category_names]
+        )
 
 
 # Create a global instance for backward compatibility

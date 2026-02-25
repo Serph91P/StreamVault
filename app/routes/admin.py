@@ -88,8 +88,18 @@ async def get_available_tests() -> Dict[str, List[str]]:
     Get list of available tests
     """
     tests = {
-        "system": ["dependency_streamlink", "dependency_ffmpeg", "dependency_ffprobe", "dependency_python"],
-        "infrastructure": ["database_connection", "file_permissions", "disk_space", "proxy_connection"],
+        "system": [
+            "dependency_streamlink",
+            "dependency_ffmpeg",
+            "dependency_ffprobe",
+            "dependency_python",
+        ],
+        "infrastructure": [
+            "database_connection",
+            "file_permissions",
+            "disk_space",
+            "proxy_connection",
+        ],
         "core_functionality": [
             "streamlink_functionality",
             "ffmpeg_functionality",
@@ -121,7 +131,9 @@ async def get_system_info() -> Dict[str, Any]:
             has_psutil = True
         except ImportError:
             has_psutil = False
-            logger.error("psutil module not installed - some system info will be unavailable")
+            logger.error(
+                "psutil module not installed - some system info will be unavailable"
+            )
 
         # System info
         info = {
@@ -138,7 +150,9 @@ async def get_system_info() -> Dict[str, Any]:
                     "cpu_percent": psutil.cpu_percent(interval=1),
                     "memory": {
                         "total_gb": round(psutil.virtual_memory().total / (1024**3), 2),
-                        "available_gb": round(psutil.virtual_memory().available / (1024**3), 2),
+                        "available_gb": round(
+                            psutil.virtual_memory().available / (1024**3), 2
+                        ),
                         "percent_used": psutil.virtual_memory().percent,
                     },
                 }
@@ -146,15 +160,21 @@ async def get_system_info() -> Dict[str, Any]:
             "storage": {},
             "settings": {
                 "recording_directory": "/recordings",  # Hard-coded path based on Docker mount
-                "vapid_configured": hasattr(settings, "VAPID_PUBLIC_KEY") and bool(settings.VAPID_PUBLIC_KEY),
-                "proxy_configured": hasattr(settings, "HTTP_PROXY") and bool(settings.HTTP_PROXY),
+                "vapid_configured": hasattr(settings, "VAPID_PUBLIC_KEY")
+                and bool(settings.VAPID_PUBLIC_KEY),
+                "proxy_configured": hasattr(settings, "HTTP_PROXY")
+                and bool(settings.HTTP_PROXY),
             },
-            "services": {"test_service_available": True},  # Service is available when created
+            "services": {
+                "test_service_available": True
+            },  # Service is available when created
         }
 
         # Storage info for recording directory
         try:
-            recording_path = Path("/recordings")  # Hard-coded path based on Docker mount
+            recording_path = Path(
+                "/recordings"
+            )  # Hard-coded path based on Docker mount
             if recording_path.exists():
                 stat = os.statvfs(recording_path)
                 free_gb = (stat.f_bavail * stat.f_frsize) / (1024**3)
@@ -165,7 +185,9 @@ async def get_system_info() -> Dict[str, Any]:
                     "total_gb": round(total_gb, 2),
                     "used_gb": round(used_gb, 2),
                     "free_gb": round(free_gb, 2),
-                    "percent_used": round((used_gb / total_gb) * 100, 1) if total_gb > 0 else 0,
+                    "percent_used": round((used_gb / total_gb) * 100, 1)
+                    if total_gb > 0
+                    else 0,
                 }
         except Exception:
             info["storage"]["error"] = "Storage check failed"
@@ -194,33 +216,61 @@ async def quick_health_check() -> Dict[str, Any]:
 
             with SessionLocal() as db:
                 db.execute(text("SELECT 1"))
-            health["checks"]["database"] = {"status": "healthy", "message": "Connection successful"}
+            health["checks"]["database"] = {
+                "status": "healthy",
+                "message": "Connection successful",
+            }
         except Exception:
-            health["checks"]["database"] = {"status": "error", "message": "Database connection failed"}
+            health["checks"]["database"] = {
+                "status": "error",
+                "message": "Database connection failed",
+            }
             health["overall_status"] = "unhealthy"
 
         # FFmpeg check
         try:
-            result = subprocess.run(["ffmpeg", "-version"], capture_output=True, timeout=5)
+            result = subprocess.run(
+                ["ffmpeg", "-version"], capture_output=True, timeout=5
+            )
             if result.returncode == 0:
-                health["checks"]["ffmpeg"] = {"status": "healthy", "message": "Available"}
+                health["checks"]["ffmpeg"] = {
+                    "status": "healthy",
+                    "message": "Available",
+                }
             else:
-                health["checks"]["ffmpeg"] = {"status": "error", "message": "Command failed"}
+                health["checks"]["ffmpeg"] = {
+                    "status": "error",
+                    "message": "Command failed",
+                }
                 health["overall_status"] = "warning"
         except Exception:
-            health["checks"]["ffmpeg"] = {"status": "error", "message": "FFmpeg not available"}
+            health["checks"]["ffmpeg"] = {
+                "status": "error",
+                "message": "FFmpeg not available",
+            }
             health["overall_status"] = "unhealthy"
 
         # Streamlink check
         try:
-            result = subprocess.run(["streamlink", "--version"], capture_output=True, timeout=5)
+            result = subprocess.run(
+                ["streamlink", "--version"], capture_output=True, timeout=5
+            )
             if result.returncode == 0:
-                health["checks"]["streamlink"] = {"status": "healthy", "message": "Available"}
+                health["checks"]["streamlink"] = {
+                    "status": "healthy",
+                    "message": "Available",
+                }
             else:
-                health["checks"]["streamlink"] = {"status": "error", "message": "Command failed"}
+                health["checks"]["streamlink"] = {
+                    "status": "error",
+                    "message": "Command failed",
+                }
                 health["overall_status"] = "warning"
         except Exception:
-            health["checks"]["streamlink"] = {"status": "error", "message": "Streamlink not available"}
+            health["checks"]["streamlink"] = {
+                "status": "error",
+                "message": "Streamlink not available",
+            }
             health["overall_status"] = "unhealthy"
 
         # Disk space check
@@ -233,16 +283,28 @@ async def quick_health_check() -> Dict[str, Any]:
             free_gb = (stat.f_bavail * stat.f_frsize) / (1024**3)
 
             if free_gb >= 10:
-                health["checks"]["disk_space"] = {"status": "healthy", "message": f"{free_gb:.1f}GB free"}
+                health["checks"]["disk_space"] = {
+                    "status": "healthy",
+                    "message": f"{free_gb:.1f}GB free",
+                }
             elif free_gb >= 5:
-                health["checks"]["disk_space"] = {"status": "warning", "message": f"Low space: {free_gb:.1f}GB free"}
+                health["checks"]["disk_space"] = {
+                    "status": "warning",
+                    "message": f"Low space: {free_gb:.1f}GB free",
+                }
                 if health["overall_status"] == "healthy":
                     health["overall_status"] = "warning"
             else:
-                health["checks"]["disk_space"] = {"status": "error", "message": f"Critical: {free_gb:.1f}GB free"}
+                health["checks"]["disk_space"] = {
+                    "status": "error",
+                    "message": f"Critical: {free_gb:.1f}GB free",
+                }
                 health["overall_status"] = "unhealthy"
         except Exception:
-            health["checks"]["disk_space"] = {"status": "error", "message": "Disk space check failed"}
+            health["checks"]["disk_space"] = {
+                "status": "error",
+                "message": "Disk space check failed",
+            }
             health["overall_status"] = "unhealthy"
 
         from datetime import datetime
@@ -268,7 +330,9 @@ async def cleanup_temp_files() -> Dict[str, Any]:
 
         settings = get_settings()
         # SECURITY: Validate recording directory path
-        recording_dir_str = validate_path_security(settings.RECORDING_DIRECTORY, "access")
+        recording_dir_str = validate_path_security(
+            settings.RECORDING_DIRECTORY, "access"
+        )
         recording_dir = Path(recording_dir_str)
 
         cleanup_stats = {"files_removed": 0, "space_freed_mb": 0, "errors": []}
@@ -289,13 +353,17 @@ async def cleanup_temp_files() -> Dict[str, Any]:
                     if file_path.is_file():
                         try:
                             # SECURITY: Validate each file path before deletion
-                            validated_file = validate_path_security(str(file_path), "delete")
+                            validated_file = validate_path_security(
+                                str(file_path), "delete"
+                            )
                             file_size = file_path.stat().st_size
                             Path(validated_file).unlink()
                             cleanup_stats["files_removed"] += 1
                             cleanup_stats["space_freed_mb"] += file_size / (1024 * 1024)
                         except HTTPException as he:
-                            cleanup_stats["errors"].append(f"Security: Skipped {file_path}: {he.detail}")
+                            cleanup_stats["errors"].append(
+                                f"Security: Skipped {file_path}: {he.detail}"
+                            )
                         except Exception:
                             cleanup_stats["errors"].append("Failed to remove file")
             except Exception:
@@ -335,7 +403,10 @@ async def get_recent_logs(lines: int = 100, level: str = "INFO") -> Dict[str, An
                 try:
                     # Get last N lines
                     result = subprocess.run(
-                        ["tail", "-n", str(lines), str(log_path)], capture_output=True, text=True, timeout=10
+                        ["tail", "-n", str(lines), str(log_path)],
+                        capture_output=True,
+                        text=True,
+                        timeout=10,
                     )
                     if result.returncode == 0:
                         log_content = result.stdout.strip().split("\n")
@@ -370,7 +441,10 @@ async def run_test(test_name: str, db: Session = Depends(get_db)):
     try:
         # Initialize test service here if needed, with proper dependencies
         # For now, let's just return a message
-        return {"status": "error", "message": "Test service is currently disabled due to initialization issues"}
+        return {
+            "status": "error",
+            "message": "Test service is currently disabled due to initialization issues",
+        }
     except Exception:
         raise HTTPException(status_code=500, detail="Internal server error")
 
@@ -380,7 +454,9 @@ async def run_test(test_name: str, db: Session = Depends(get_db)):
 async def get_orphaned_statistics(max_age_hours: int = 168) -> Dict[str, Any]:
     """Get statistics about orphaned recordings"""
     try:
-        from app.services.recording.orphaned_recovery_service import get_orphaned_recovery_service
+        from app.services.recording.orphaned_recovery_service import (
+            get_orphaned_recovery_service,
+        )
 
         recovery_service = await get_orphaned_recovery_service()
         stats = await recovery_service.get_orphaned_statistics(max_age_hours)
@@ -393,10 +469,14 @@ async def get_orphaned_statistics(max_age_hours: int = 168) -> Dict[str, Any]:
 
 
 @router.post("/orphaned/scan")
-async def scan_orphaned_recordings(max_age_hours: int = 48, dry_run: bool = False) -> Dict[str, Any]:
+async def scan_orphaned_recordings(
+    max_age_hours: int = 48, dry_run: bool = False
+) -> Dict[str, Any]:
     """Scan for orphaned recordings and optionally trigger recovery"""
     try:
-        from app.services.recording.orphaned_recovery_service import get_orphaned_recovery_service
+        from app.services.recording.orphaned_recovery_service import (
+            get_orphaned_recovery_service,
+        )
 
         recovery_service = await get_orphaned_recovery_service()
         result = await recovery_service.scan_and_recover_orphaned_recordings(
@@ -418,7 +498,9 @@ async def scan_orphaned_recordings(max_age_hours: int = 48, dry_run: bool = Fals
 async def recover_specific_recording(recording_id: int) -> Dict[str, Any]:
     """Trigger recovery for a specific recording"""
     try:
-        from app.services.recording.orphaned_recovery_service import get_orphaned_recovery_service
+        from app.services.recording.orphaned_recovery_service import (
+            get_orphaned_recovery_service,
+        )
         from app.database import SessionLocal
         from app.models import Recording
 
@@ -427,7 +509,9 @@ async def recover_specific_recording(recording_id: int) -> Dict[str, Any]:
         with SessionLocal() as db:
             recording = db.query(Recording).filter(Recording.id == recording_id).first()
             if not recording:
-                raise HTTPException(status_code=404, detail=f"Recording {recording_id} not found")
+                raise HTTPException(
+                    status_code=404, detail=f"Recording {recording_id} not found"
+                )
 
             # Validate it's actually orphaned
             validation = await recovery_service.validate_orphaned_recording(recording)
@@ -451,7 +535,10 @@ async def recover_specific_recording(recording_id: int) -> Dict[str, Any]:
                     },
                 }
             else:
-                return {"success": False, "message": f"Failed to trigger recovery for recording {recording_id}"}
+                return {
+                    "success": False,
+                    "message": f"Failed to trigger recovery for recording {recording_id}",
+                }
 
     except HTTPException:
         raise
@@ -469,7 +556,12 @@ async def debug_videos_database(db: Session = Depends(get_db)) -> Dict[str, Any]
         from pathlib import Path
         from app.models import Stream, Streamer, Recording
 
-        result = {"streams": [], "recordings": [], "filesystem_check": {}, "summary": {}}
+        result = {
+            "streams": [],
+            "recordings": [],
+            "filesystem_check": {},
+            "summary": {},
+        }
 
         # Check streams table
         streams = (
@@ -485,7 +577,9 @@ async def debug_videos_database(db: Session = Depends(get_db)) -> Dict[str, Any]
                 "id": stream.id,
                 "title": stream.title,
                 "streamer_name": streamer.username,
-                "started_at": stream.started_at.isoformat() if stream.started_at else None,
+                "started_at": stream.started_at.isoformat()
+                if stream.started_at
+                else None,
                 "ended_at": stream.ended_at.isoformat() if stream.ended_at else None,
                 "recording_path": stream.recording_path,
                 "category_name": stream.category_name,
@@ -520,8 +614,12 @@ async def debug_videos_database(db: Session = Depends(get_db)) -> Dict[str, Any]
                 "stream_id": recording.stream_id,
                 "status": recording.status,
                 "path": recording.path,
-                "start_time": recording.start_time.isoformat() if recording.start_time else None,
-                "end_time": recording.end_time.isoformat() if recording.end_time else None,
+                "start_time": recording.start_time.isoformat()
+                if recording.start_time
+                else None,
+                "end_time": recording.end_time.isoformat()
+                if recording.end_time
+                else None,
                 "stream_title": stream.title,
                 "streamer_name": streamer.username,
             }
@@ -556,12 +654,20 @@ async def debug_videos_database(db: Session = Depends(get_db)) -> Dict[str, Any]
             try:
                 for streamer_dir in recordings_dir.iterdir():
                     if streamer_dir.is_dir():
-                        streamer_info = {"name": streamer_dir.name, "path": str(streamer_dir), "subdirectories": []}
+                        streamer_info = {
+                            "name": streamer_dir.name,
+                            "path": str(streamer_dir),
+                            "subdirectories": [],
+                        }
 
                         # List season directories
                         for season_dir in streamer_dir.iterdir():
                             if season_dir.is_dir():
-                                season_info = {"name": season_dir.name, "path": str(season_dir), "files": []}
+                                season_info = {
+                                    "name": season_dir.name,
+                                    "path": str(season_dir),
+                                    "files": [],
+                                }
 
                                 # List files in season directory
                                 for file in season_dir.iterdir():
@@ -589,10 +695,18 @@ async def debug_videos_database(db: Session = Depends(get_db)) -> Dict[str, Any]
         result["summary"] = {
             "total_streams": len(result["streams"]),
             "total_recordings": len(result["recordings"]),
-            "streams_with_recording_path": len([s for s in result["streams"] if s.get("recording_path")]),
-            "recordings_with_path": len([r for r in result["recordings"] if r.get("path")]),
-            "mp4_files_found": len([r for r in result["recordings"] if r.get("mp4_path_exists")]),
-            "filesystem_streamers": len(result["filesystem_check"].get("subdirectories", [])),
+            "streams_with_recording_path": len(
+                [s for s in result["streams"] if s.get("recording_path")]
+            ),
+            "recordings_with_path": len(
+                [r for r in result["recordings"] if r.get("path")]
+            ),
+            "mp4_files_found": len(
+                [r for r in result["recordings"] if r.get("mp4_path_exists")]
+            ),
+            "filesystem_streamers": len(
+                result["filesystem_check"].get("subdirectories", [])
+            ),
         }
 
         return {"success": True, "data": result}
@@ -645,20 +759,30 @@ async def debug_recordings_directory() -> Dict[str, Any]:
                                         {
                                             "name": file.name,
                                             "size": file_size,
-                                            "size_mb": round(file_size / (1024 * 1024), 2),
+                                            "size_mb": round(
+                                                file_size / (1024 * 1024), 2
+                                            ),
                                             "path": str(file),
                                             "extension": file.suffix,
                                         }
                                     )
                                     season_info["file_count"] += 1
-                                    season_info["total_size_mb"] += file_size / (1024 * 1024)
+                                    season_info["total_size_mb"] += file_size / (
+                                        1024 * 1024
+                                    )
 
-                            season_info["total_size_mb"] = round(season_info["total_size_mb"], 2)
+                            season_info["total_size_mb"] = round(
+                                season_info["total_size_mb"], 2
+                            )
                             streamer_info["subdirectories"].append(season_info)
                             streamer_info["total_files"] += season_info["file_count"]
-                            streamer_info["total_size_mb"] += season_info["total_size_mb"]
+                            streamer_info["total_size_mb"] += season_info[
+                                "total_size_mb"
+                            ]
 
-                    streamer_info["total_size_mb"] = round(streamer_info["total_size_mb"], 2)
+                    streamer_info["total_size_mb"] = round(
+                        streamer_info["total_size_mb"], 2
+                    )
                     result["directories"].append(streamer_info)
         else:
             result["base_recordings_dir_exists"] = False
@@ -671,7 +795,9 @@ async def debug_recordings_directory() -> Dict[str, Any]:
 
 
 @router.post("/debug/check-stream-recordings")
-async def debug_check_stream_recordings(stream_ids: List[int], db: Session = Depends(get_db)) -> Dict[str, Any]:
+async def debug_check_stream_recordings(
+    stream_ids: List[int], db: Session = Depends(get_db)
+) -> Dict[str, Any]:
     """Check recording availability for multiple streams"""
 
     try:
@@ -687,7 +813,10 @@ async def debug_check_stream_recordings(stream_ids: List[int], db: Session = Dep
         # Get all recordings for these streams at once
         recordings = (
             db.query(Recording)
-            .filter(Recording.stream_id.in_(stream_ids), Recording.status.in_(["completed", "post_processing"]))
+            .filter(
+                Recording.stream_id.in_(stream_ids),
+                Recording.status.in_(["completed", "post_processing"]),
+            )
             .all()
         )
         recording_dict = {recording.stream_id: recording for recording in recordings}
@@ -695,7 +824,10 @@ async def debug_check_stream_recordings(stream_ids: List[int], db: Session = Dep
         for stream_id in stream_ids:
             stream = stream_dict.get(stream_id)
             if not stream:
-                results[stream_id] = {"has_recording": False, "method": "stream_not_found"}
+                results[stream_id] = {
+                    "has_recording": False,
+                    "method": "stream_not_found",
+                }
                 continue
 
             # Strategy 1: Check stream.recording_path
@@ -751,7 +883,9 @@ async def debug_check_stream_recordings(stream_ids: List[int], db: Session = Dep
 
 
 @router.post("/recordings/fix-availability")
-async def fix_recording_availability(streamer_id: Optional[int] = None, dry_run: bool = True) -> Dict[str, Any]:
+async def fix_recording_availability(
+    streamer_id: Optional[int] = None, dry_run: bool = True
+) -> Dict[str, Any]:
     """Fix recording_path fields based on actual file existence"""
     try:
         from app.database import SessionLocal
@@ -795,13 +929,19 @@ async def fix_recording_availability(streamer_id: Optional[int] = None, dry_run:
                                 for recording_file in streamer_dir.rglob("*.ts"):
                                     # Check if filename contains stream info
                                     if (
-                                        stream.title
-                                        and any(
-                                            word in recording_file.name.lower()
-                                            for word in stream.title.lower().split()[:3]
-                                            if len(word) > 3
+                                        (
+                                            stream.title
+                                            and any(
+                                                word in recording_file.name.lower()
+                                                for word in stream.title.lower().split()[
+                                                    :3
+                                                ]
+                                                if len(word) > 3
+                                            )
                                         )
-                                    ) or f"stream_{stream.id}" in recording_file.name.lower():
+                                        or f"stream_{stream.id}"
+                                        in recording_file.name.lower()
+                                    ):
                                         has_file = True
                                         correct_path = str(recording_file)
                                         break
@@ -828,7 +968,11 @@ async def fix_recording_availability(streamer_id: Optional[int] = None, dry_run:
                         if not dry_run:
                             stream.recording_path = correct_path
                             results["fixed"] += 1
-                    elif has_file and stream.recording_path and not Path(stream.recording_path).exists():
+                    elif (
+                        has_file
+                        and stream.recording_path
+                        and not Path(stream.recording_path).exists()
+                    ):
                         # recording_path set but file doesn't exist at that path
                         stream_result["action"] = "update_path"
                         stream_result["old_path"] = stream.recording_path
@@ -854,7 +998,9 @@ async def fix_recording_availability(streamer_id: Optional[int] = None, dry_run:
 
             if not dry_run:
                 db.commit()
-                logger.info(f"Fixed recording availability for {results['fixed']} streams")
+                logger.info(
+                    f"Fixed recording availability for {results['fixed']} streams"
+                )
 
         return {
             "success": True,
@@ -869,7 +1015,9 @@ async def fix_recording_availability(streamer_id: Optional[int] = None, dry_run:
 
 
 @router.post("/recordings/cleanup-orphaned-db")
-async def cleanup_orphaned_database_recordings(max_age_hours: int = 48, dry_run: bool = True) -> Dict[str, Any]:
+async def cleanup_orphaned_database_recordings(
+    max_age_hours: int = 48, dry_run: bool = True
+) -> Dict[str, Any]:
     """Clean up database recordings that have been running too long"""
     try:
         from app.database import SessionLocal
@@ -886,7 +1034,9 @@ async def cleanup_orphaned_database_recordings(max_age_hours: int = 48, dry_run:
             orphaned_recordings = (
                 db.query(Recording)
                 .options(joinedload(Recording.stream).joinedload(Stream.streamer))
-                .filter(Recording.status == "recording", Recording.start_time < cutoff_time)
+                .filter(
+                    Recording.status == "recording", Recording.start_time < cutoff_time
+                )
                 .all()
             )
 
@@ -896,7 +1046,9 @@ async def cleanup_orphaned_database_recordings(max_age_hours: int = 48, dry_run:
                     "recording_id": recording.id,
                     "stream_id": recording.stream_id,
                     "streamer_id": None,
-                    "started_at": recording.start_time.isoformat() if recording.start_time else None,
+                    "started_at": recording.start_time.isoformat()
+                    if recording.start_time
+                    else None,
                     "duration_hours": None,
                     "action": "none",
                 }
@@ -906,13 +1058,17 @@ async def cleanup_orphaned_database_recordings(max_age_hours: int = 48, dry_run:
                     if recording.stream:
                         recording_result["streamer_id"] = recording.stream.streamer_id
                         if recording.stream.streamer:
-                            recording_result["streamer_name"] = recording.stream.streamer.username
+                            recording_result["streamer_name"] = (
+                                recording.stream.streamer.username
+                            )
 
                     if recording.start_time:
                         # Use timezone-aware datetime
                         now = datetime.now(timezone.utc)
                         duration = now - recording.start_time
-                        recording_result["duration_hours"] = duration.total_seconds() / 3600
+                        recording_result["duration_hours"] = (
+                            duration.total_seconds() / 3600
+                        )
 
                     # Mark as completed with current time
                     recording_result["action"] = "mark_completed"
@@ -935,7 +1091,9 @@ async def cleanup_orphaned_database_recordings(max_age_hours: int = 48, dry_run:
 
             if not dry_run:
                 db.commit()
-                logger.info(f"Cleaned up {results['cleaned']} orphaned database recordings")
+                logger.info(
+                    f"Cleaned up {results['cleaned']} orphaned database recordings"
+                )
 
         return {
             "success": True,
@@ -984,7 +1142,9 @@ async def cleanup_process_orphaned_recordings(dry_run: bool = True) -> Dict[str,
                     "process_id": process_id,
                     "has_active_process": has_active_process,
                     "streamer_id": None,
-                    "started_at": recording.start_time.isoformat() if recording.start_time else None,
+                    "started_at": recording.start_time.isoformat()
+                    if recording.start_time
+                    else None,
                     "duration_hours": None,
                     "action": "none",
                 }
@@ -994,13 +1154,17 @@ async def cleanup_process_orphaned_recordings(dry_run: bool = True) -> Dict[str,
                     if recording.stream:
                         recording_result["streamer_id"] = recording.stream.streamer_id
                         if recording.stream.streamer:
-                            recording_result["streamer_name"] = recording.stream.streamer.username
+                            recording_result["streamer_name"] = (
+                                recording.stream.streamer.username
+                            )
 
                     if recording.start_time:
                         # Use timezone-aware datetime to match recording.start_time
                         now = datetime.now(timezone.utc)
                         duration = now - recording.start_time
-                        recording_result["duration_hours"] = duration.total_seconds() / 3600
+                        recording_result["duration_hours"] = (
+                            duration.total_seconds() / 3600
+                        )
 
                     # If no active process, mark as completed
                     if not has_active_process:
@@ -1014,7 +1178,9 @@ async def cleanup_process_orphaned_recordings(dry_run: bool = True) -> Dict[str,
                                 recording.duration = duration.total_seconds()
                             results["cleaned"] += 1
                         else:
-                            results["cleaned"] += 1  # Count what would be cleaned in dry run
+                            results["cleaned"] += (
+                                1  # Count what would be cleaned in dry run
+                            )
                     else:
                         recording_result["action"] = "keep_active_process_found"
 
@@ -1028,7 +1194,9 @@ async def cleanup_process_orphaned_recordings(dry_run: bool = True) -> Dict[str,
 
             if not dry_run:
                 db.commit()
-                logger.info(f"Cleaned up {results['cleaned']} process-orphaned recordings")
+                logger.info(
+                    f"Cleaned up {results['cleaned']} process-orphaned recordings"
+                )
 
         return {
             "success": True,
@@ -1087,9 +1255,16 @@ async def get_background_queue_status():
 
         # Check external tasks for stuck recordings using constants
         for task_id, task in external_tasks.items():
-            if task_id.startswith(RECORDING_TASK_PREFIX) and task.task_type == "recording":
+            if (
+                task_id.startswith(RECORDING_TASK_PREFIX)
+                and task.task_type == "recording"
+            ):
                 # Handle both enum and string status values
-                status_value = task.status.value if hasattr(task.status, "value") else str(task.status)
+                status_value = (
+                    task.status.value
+                    if hasattr(task.status, "value")
+                    else str(task.status)
+                )
                 if task.progress >= MAX_PROGRESS and status_value == "running":
                     stuck_recordings.append(task_id)
 
@@ -1104,7 +1279,9 @@ async def get_background_queue_status():
             if not task.task_type or task.task_type in UNKNOWN_TASK_TYPES:
                 unknown_tasks.append(task_id)
 
-        total_issues = len(stuck_recordings) + len(continuous_orphaned) + len(unknown_tasks)
+        total_issues = (
+            len(stuck_recordings) + len(continuous_orphaned) + len(unknown_tasks)
+        )
 
         logger.info(f"📊 Background Queue Status: {total_issues} issues detected")
 
@@ -1125,7 +1302,9 @@ async def get_background_queue_status():
         raise HTTPException(status_code=500, detail="Status check failed")
 
 
-@router.post("/background-queue/cleanup/all", response_model=BackgroundQueueCleanupResponse)
+@router.post(
+    "/background-queue/cleanup/all", response_model=BackgroundQueueCleanupResponse
+)
 async def fix_all_background_queue_issues():
     """
     🧹 Fix All Background Queue Issues
@@ -1137,7 +1316,9 @@ async def fix_all_background_queue_issues():
     try:
         from app.services.background_queue_cleanup_service import get_cleanup_service
 
-        logger.info("🧹 ADMIN_CLEANUP_ALL: Starting comprehensive background queue cleanup")
+        logger.info(
+            "🧹 ADMIN_CLEANUP_ALL: Starting comprehensive background queue cleanup"
+        )
 
         cleanup_service = get_cleanup_service()
         results = await cleanup_service.comprehensive_cleanup()
@@ -1167,11 +1348,16 @@ async def fix_all_background_queue_issues():
         )
 
     except Exception as e:
-        logger.error(f"Error in comprehensive background queue cleanup: {e}", exc_info=True)
+        logger.error(
+            f"Error in comprehensive background queue cleanup: {e}", exc_info=True
+        )
         raise HTTPException(status_code=500, detail="Cleanup failed")
 
 
-@router.post("/background-queue/cleanup/stuck-recordings", response_model=BackgroundQueueCleanupResponse)
+@router.post(
+    "/background-queue/cleanup/stuck-recordings",
+    response_model=BackgroundQueueCleanupResponse,
+)
 async def fix_stuck_recordings():
     """
     🔧 Fix Only Stuck Recording Jobs
@@ -1203,7 +1389,10 @@ async def fix_stuck_recordings():
         raise HTTPException(status_code=500, detail="Stuck recordings cleanup failed")
 
 
-@router.post("/background-queue/cleanup/orphaned-recovery", response_model=BackgroundQueueCleanupResponse)
+@router.post(
+    "/background-queue/cleanup/orphaned-recovery",
+    response_model=BackgroundQueueCleanupResponse,
+)
 async def stop_orphaned_recovery():
     """
     🛑 Stop Continuous Orphaned Recovery
@@ -1220,7 +1409,9 @@ async def stop_orphaned_recovery():
         stopped_count = result.get("stopped", 0)
         errors = result.get("errors", [])
 
-        logger.info(f"🛑 ADMIN_STOP_ORPHANED: Stopped {stopped_count} orphaned recovery checks")
+        logger.info(
+            f"🛑 ADMIN_STOP_ORPHANED: Stopped {stopped_count} orphaned recovery checks"
+        )
 
         return BackgroundQueueCleanupResponse(
             success=True,
@@ -1235,7 +1426,10 @@ async def stop_orphaned_recovery():
         raise HTTPException(status_code=500, detail="Orphaned recovery stop failed")
 
 
-@router.post("/background-queue/cleanup/task-names", response_model=BackgroundQueueCleanupResponse)
+@router.post(
+    "/background-queue/cleanup/task-names",
+    response_model=BackgroundQueueCleanupResponse,
+)
 async def fix_unknown_task_names():
     """
     🏷️ Fix Unknown Task Names
@@ -1289,11 +1483,15 @@ async def cleanup_zombie_recordings() -> Dict[str, Any]:
     try:
         from app.services.init.startup_init import _cleanup_zombie_recordings_now
 
-        logger.info("🧹 ADMIN_ZOMBIE_CLEANUP: Manual zombie recording cleanup triggered")
+        logger.info(
+            "🧹 ADMIN_ZOMBIE_CLEANUP: Manual zombie recording cleanup triggered"
+        )
 
         cleaned_count = await _cleanup_zombie_recordings_now()
 
-        logger.info(f"🧹 ADMIN_ZOMBIE_CLEANUP: Cleaned {cleaned_count} zombie recordings")
+        logger.info(
+            f"🧹 ADMIN_ZOMBIE_CLEANUP: Cleaned {cleaned_count} zombie recordings"
+        )
 
         return {
             "success": True,
@@ -1372,7 +1570,9 @@ async def cleanup_share_tokens(db: Session = Depends(get_db)) -> Dict[str, Any]:
 
 
 @router.delete("/share-tokens/{token_id}")
-async def delete_share_token(token_id: int, db: Session = Depends(get_db)) -> Dict[str, Any]:
+async def delete_share_token(
+    token_id: int, db: Session = Depends(get_db)
+) -> Dict[str, Any]:
     """
     Delete a specific share token
     """
@@ -1389,7 +1589,9 @@ async def delete_share_token(token_id: int, db: Session = Depends(get_db)) -> Di
         db.delete(token)
         db.commit()
 
-        logger.info(f"Admin action: Deleted share token {token_id} for stream {token.stream_id}")
+        logger.info(
+            f"Admin action: Deleted share token {token_id} for stream {token.stream_id}"
+        )
 
         return {
             "success": True,

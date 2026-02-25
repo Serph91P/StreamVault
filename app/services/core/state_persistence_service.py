@@ -84,7 +84,11 @@ class StatePersistenceService:
         try:
             with SessionLocal() as db:
                 # Check if entry already exists
-                existing = db.query(ActiveRecordingState).filter(ActiveRecordingState.stream_id == stream_id).first()
+                existing = (
+                    db.query(ActiveRecordingState)
+                    .filter(ActiveRecordingState.stream_id == stream_id)
+                    .first()
+                )
 
                 if existing:
                     # Update existing entry
@@ -141,7 +145,11 @@ class StatePersistenceService:
 
         try:
             with SessionLocal() as db:
-                result = db.query(ActiveRecordingState).filter(ActiveRecordingState.stream_id == stream_id).delete()
+                result = (
+                    db.query(ActiveRecordingState)
+                    .filter(ActiveRecordingState.stream_id == stream_id)
+                    .delete()
+                )
 
                 db.commit()
 
@@ -155,7 +163,9 @@ class StatePersistenceService:
                     )
                     return True
                 else:
-                    logger.warning(f"No active recording state found for stream {stream_id}")
+                    logger.warning(
+                        f"No active recording state found for stream {stream_id}"
+                    )
                     return False
 
         except Exception as e:
@@ -169,18 +179,26 @@ class StatePersistenceService:
             with SessionLocal() as db:
                 # Use explicit transaction with rollback on error
                 try:
-                    state = db.query(ActiveRecordingState).filter(ActiveRecordingState.stream_id == stream_id).first()
+                    state = (
+                        db.query(ActiveRecordingState)
+                        .filter(ActiveRecordingState.stream_id == stream_id)
+                        .first()
+                    )
 
                     if state:
                         state.last_heartbeat = datetime.now(timezone.utc)
                         db.commit()
                         return True
                     else:
-                        logger.warning(f"No active recording state found for heartbeat update: {stream_id}")
+                        logger.warning(
+                            f"No active recording state found for heartbeat update: {stream_id}"
+                        )
                         return False
                 except Exception as e:
                     db.rollback()
-                    logger.error(f"Error updating heartbeat for stream {stream_id}: {e}")
+                    logger.error(
+                        f"Error updating heartbeat for stream {stream_id}: {e}"
+                    )
                     return False
 
         except Exception as e:
@@ -192,7 +210,11 @@ class StatePersistenceService:
 
         try:
             with SessionLocal() as db:
-                states = db.query(ActiveRecordingState).filter(ActiveRecordingState.status == "active").all()
+                states = (
+                    db.query(ActiveRecordingState)
+                    .filter(ActiveRecordingState.status == "active")
+                    .all()
+                )
 
                 return states
 
@@ -209,7 +231,11 @@ class StatePersistenceService:
 
         try:
             with SessionLocal() as db:
-                states = db.query(ActiveRecordingState).filter(ActiveRecordingState.status == "active").all()
+                states = (
+                    db.query(ActiveRecordingState)
+                    .filter(ActiveRecordingState.status == "active")
+                    .all()
+                )
 
                 removed_count = 0
 
@@ -223,14 +249,18 @@ class StatePersistenceService:
                         removed_count += 1
                     # Check if entry is stale
                     elif state.is_stale(self.stale_timeout):
-                        logger.warning(f"Stale entry detected for {state.streamer_name}, removing")
+                        logger.warning(
+                            f"Stale entry detected for {state.streamer_name}, removing"
+                        )
                         db.delete(state)
                         removed_count += 1
 
                 db.commit()
 
                 if removed_count > 0:
-                    logger.info(f"Cleaned up {removed_count} stale recording state entries")
+                    logger.info(
+                        f"Cleaned up {removed_count} stale recording state entries"
+                    )
 
                 return removed_count
 
@@ -252,7 +282,9 @@ class StatePersistenceService:
             for state in states:
                 # Verify process still exists
                 if not self._process_exists(state.process_id):
-                    logger.warning(f"Process {state.process_id} no longer exists, cannot recover {state.streamer_name}")
+                    logger.warning(
+                        f"Process {state.process_id} no longer exists, cannot recover {state.streamer_name}"
+                    )
                     await self.remove_active_recording(state.stream_id)
                     continue
 
@@ -280,7 +312,9 @@ class StatePersistenceService:
                 recoverable_recordings.append(recovery_info)
 
             if recoverable_recordings:
-                logger.info(f"Found {len(recoverable_recordings)} recoverable recordings")
+                logger.info(
+                    f"Found {len(recoverable_recordings)} recoverable recordings"
+                )
             else:
                 logger.info("No recoverable recordings found")
 
@@ -305,7 +339,9 @@ class StatePersistenceService:
     async def _heartbeat_loop(self):
         """Background task to maintain heartbeats and cleanup stale entries"""
 
-        logger.info(f"Starting state persistence heartbeat loop (interval: {self.heartbeat_interval}s)")
+        logger.info(
+            f"Starting state persistence heartbeat loop (interval: {self.heartbeat_interval}s)"
+        )
 
         try:
             while self.is_running:
@@ -317,13 +353,18 @@ class StatePersistenceService:
                     await asyncio.sleep(self.heartbeat_interval)
 
                 except Exception as e:
-                    logger.error(f"Error in state persistence heartbeat loop: {e}", exc_info=True)
+                    logger.error(
+                        f"Error in state persistence heartbeat loop: {e}", exc_info=True
+                    )
                     await asyncio.sleep(ASYNC_DELAYS.NORMAL_RETRY_DELAY)
 
         except asyncio.CancelledError:
             logger.info("State persistence heartbeat loop cancelled")
         except Exception as e:
-            logger.error(f"Unexpected error in state persistence heartbeat loop: {e}", exc_info=True)
+            logger.error(
+                f"Unexpected error in state persistence heartbeat loop: {e}",
+                exc_info=True,
+            )
         finally:
             logger.info("State persistence heartbeat loop ended")
 

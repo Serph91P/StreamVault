@@ -34,13 +34,16 @@ async def run_simple_reliable_recovery() -> Dict[str, Any]:
         logger.info("🔧 Starting simple reliable recovery...")
 
         # Find failed recordings with Unified Recovery Service
-        from ..services.recording.unified_recovery_service import get_unified_recovery_service
+        from ..services.recording.unified_recovery_service import (
+            get_unified_recovery_service,
+        )
 
         unified_service = await get_unified_recovery_service()
 
         # Run only scan (dry_run=True) to find failed recordings
         unified_stats = await unified_service.comprehensive_recovery_scan(
-            max_age_hours=72, dry_run=True  # Only scan, don't create complex chains
+            max_age_hours=72,
+            dry_run=True,  # Only scan, don't create complex chains
         )
 
         failed_count = unified_stats.failed_post_processing
@@ -58,7 +61,9 @@ async def run_simple_reliable_recovery() -> Dict[str, Any]:
             }
             results["total_recoveries"] = recovery_triggered
 
-            logger.info(f"✅ Simple recovery: {recovery_triggered} metadata_generation tasks created")
+            logger.info(
+                f"✅ Simple recovery: {recovery_triggered} metadata_generation tasks created"
+            )
         else:
             results["simple_recovery"] = {
                 "success": True,
@@ -71,7 +76,9 @@ async def run_simple_reliable_recovery() -> Dict[str, Any]:
         results["end_time"] = datetime.now(timezone.utc).isoformat()
         results["success"] = True
 
-        logger.info(f"🎉 Simple recovery completed: {results['total_recoveries']} full post-processing chains created")
+        logger.info(
+            f"🎉 Simple recovery completed: {results['total_recoveries']} full post-processing chains created"
+        )
         return results
 
     except Exception as e:
@@ -107,7 +114,11 @@ async def create_full_recovery_chains(unified_service: "UnifiedRecoveryService")
         db = SessionLocal()
         try:
             # Get all recordings that have a path but completed
-            recordings = db.query(Recording).filter(Recording.path.isnot(None), Recording.status == "completed").all()
+            recordings = (
+                db.query(Recording)
+                .filter(Recording.path.isnot(None), Recording.status == "completed")
+                .all()
+            )
 
             for recording in recordings:
                 try:
@@ -125,17 +136,29 @@ async def create_full_recovery_chains(unified_service: "UnifiedRecoveryService")
                         continue  # MP4 already exists
 
                     # Get stream information for full post-processing
-                    stream = db.query(Stream).filter(Stream.id == recording.stream_id).first()
+                    stream = (
+                        db.query(Stream)
+                        .filter(Stream.id == recording.stream_id)
+                        .first()
+                    )
                     if not stream:
-                        logger.warning(f"⚠️ Stream {recording.stream_id} not found for recording {recording.id}")
+                        logger.warning(
+                            f"⚠️ Stream {recording.stream_id} not found for recording {recording.id}"
+                        )
                         continue
 
                     # Get streamer name
-                    streamer_name = stream.streamer.username if stream.streamer else f"stream_{stream.id}"
+                    streamer_name = (
+                        stream.streamer.username
+                        if stream.streamer
+                        else f"stream_{stream.id}"
+                    )
 
                     # Validate that we have the required start_time
                     if not recording.start_time:
-                        logger.warning(f"⚠️ Recording {recording.id} has no start_time; cannot trigger post-processing")
+                        logger.warning(
+                            f"⚠️ Recording {recording.id} has no start_time; cannot trigger post-processing"
+                        )
                         continue
 
                     started_at = recording.start_time.isoformat()
@@ -158,12 +181,18 @@ async def create_full_recovery_chains(unified_service: "UnifiedRecoveryService")
 
                     if success:
                         recovery_count += 1
-                        logger.info(f"✅ Created full post-processing chain for recording {recording.id}")
+                        logger.info(
+                            f"✅ Created full post-processing chain for recording {recording.id}"
+                        )
                     else:
-                        logger.warning(f"⚠️ Failed to create post-processing chain for recording {recording.id}")
+                        logger.warning(
+                            f"⚠️ Failed to create post-processing chain for recording {recording.id}"
+                        )
 
                 except Exception as e:
-                    logger.error(f"❌ Failed to create recovery chain for recording {recording.id}: {e}")
+                    logger.error(
+                        f"❌ Failed to create recovery chain for recording {recording.id}: {e}"
+                    )
                     continue
 
         finally:

@@ -52,7 +52,9 @@ def setup_logging():
     if use_json:
         formatter = JSONFormatter()
     else:
-        formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+        formatter = logging.Formatter(
+            "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+        )
 
     # Console handler
     console_handler = logging.StreamHandler(sys.stdout)
@@ -60,7 +62,9 @@ def setup_logging():
     logger.addHandler(console_handler)
 
     # Ensure log directories exist - use environment variable or fallback
-    logs_base = os.environ.get("LOGS_BASE_DIR") or os.environ.get("LOG_DIR") or "/app/logs"
+    logs_base = (
+        os.environ.get("LOGS_BASE_DIR") or os.environ.get("LOG_DIR") or "/app/logs"
+    )
     logs_dir = Path(logs_base)
     app_logs_dir = logs_dir / "app"
     app_logs_dir.mkdir(parents=True, exist_ok=True)
@@ -92,7 +96,9 @@ def setup_logging():
         # If handler creation fails, log to console only
         console_handler.setFormatter(formatter)
         logger.addHandler(console_handler)
-        logger.error(f"❌ Failed to create TimedRotatingFileHandler for {log_file_path}: {e}")
+        logger.error(
+            f"❌ Failed to create TimedRotatingFileHandler for {log_file_path}: {e}"
+        )
         logger.error("Logs will only be written to Docker stdout, not to file!")
 
     # Initialize the structured logging service

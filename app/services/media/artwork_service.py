@@ -72,10 +72,9 @@ class ArtworkService:
         """
         try:
             # Get the best available profile image URL
-            profile_url = (
-                getattr(streamer, 'original_profile_image_url', None) or
-                getattr(streamer, 'profile_image_url', None)
-            )
+            profile_url = getattr(
+                streamer, "original_profile_image_url", None
+            ) or getattr(streamer, "profile_image_url", None)
 
             if not profile_url:
                 logger.warning(f"No profile image URL for streamer {streamer.username}")
@@ -83,10 +82,9 @@ class ArtworkService:
 
             # Get banner/offline image URL (for landscape artwork)
             # Twitch provides this as "offline_image_url" - shown when streamer is offline
-            banner_url = (
-                getattr(streamer, 'original_offline_image_url', None) or
-                getattr(streamer, 'offline_image_url', None)
-            )
+            banner_url = getattr(
+                streamer, "original_offline_image_url", None
+            ) or getattr(streamer, "offline_image_url", None)
 
             artwork_dir = self.get_streamer_artwork_dir(streamer.username)
 
@@ -114,7 +112,9 @@ class ArtworkService:
                 target_path = artwork_dir / filename
                 if await self._download_image(profile_url, target_path):
                     success_count += 1
-                    logger.debug(f"Saved {description} for {streamer.username} at {target_path}")
+                    logger.debug(
+                        f"Saved {description} for {streamer.username} at {target_path}"
+                    )
 
             # Download landscape artwork from banner (or fallback to profile)
             landscape_url = banner_url if banner_url else profile_url
@@ -122,7 +122,9 @@ class ArtworkService:
                 target_path = artwork_dir / filename
                 if await self._download_image(landscape_url, target_path):
                     success_count += 1
-                    logger.debug(f"Saved {description} for {streamer.username} at {target_path}")
+                    logger.debug(
+                        f"Saved {description} for {streamer.username} at {target_path}"
+                    )
 
             return success_count > 0
 
@@ -149,7 +151,9 @@ class ArtworkService:
             # Create season.nfo for each year/month combination
             await self._create_season_metadata_files(streamer, metadata_dir)
 
-            logger.info(f"Successfully saved metadata for {streamer.username} in {metadata_dir}")
+            logger.info(
+                f"Successfully saved metadata for {streamer.username} in {metadata_dir}"
+            )
             return True
 
         except Exception as e:
@@ -171,7 +175,7 @@ class ArtworkService:
     <originaltitle>{streamer.username}</originaltitle>
     <plot>Live streams and recordings from Twitch streamer {streamer.username}</plot>
     <mpaa>Not Rated</mpaa>
-    <premiered>{streamer.created_at.strftime('%Y-%m-%d') if streamer.created_at else 'Unknown'}</premiered>
+    <premiered>{streamer.created_at.strftime("%Y-%m-%d") if streamer.created_at else "Unknown"}</premiered>
     <studio>Twitch</studio>
     <genre>Gaming</genre>
     <genre>Entertainment</genre>
@@ -192,13 +196,19 @@ class ArtworkService:
         except Exception as e:
             logger.error(f"Error creating tvshow.nfo: {e}")
 
-    async def _create_season_metadata_files(self, streamer: Streamer, metadata_dir: Path):
+    async def _create_season_metadata_files(
+        self, streamer: Streamer, metadata_dir: Path
+    ):
         """Create season metadata files for all seasons (year-month combinations)"""
         try:
             with SessionLocal() as db:
                 # Get all unique year-month combinations for this streamer
                 streams = (
-                    db.query(Stream).filter(Stream.streamer_id == streamer.id, Stream.started_at.isnot(None)).all()
+                    db.query(Stream)
+                    .filter(
+                        Stream.streamer_id == streamer.id, Stream.started_at.isnot(None)
+                    )
+                    .all()
                 )
 
                 season_combinations = set()
@@ -213,12 +223,16 @@ class ArtworkService:
                     season_dir.mkdir(parents=True, exist_ok=True)
 
                     season_nfo_path = season_dir / "season.nfo"
-                    await self._create_season_nfo(streamer, year, month, season_nfo_path)
+                    await self._create_season_nfo(
+                        streamer, year, month, season_nfo_path
+                    )
 
         except Exception as e:
             logger.error(f"Error creating season metadata files: {e}", exc_info=True)
 
-    async def _create_season_nfo(self, streamer: Streamer, year: int, month: int, nfo_path: Path):
+    async def _create_season_nfo(
+        self, streamer: Streamer, year: int, month: int, nfo_path: Path
+    ):
         """Create season.nfo file for a specific year-month combination"""
         try:
             # Use relative paths for artwork
@@ -260,7 +274,9 @@ class ArtworkService:
             # Handle Unix paths, Windows paths, and UNC paths
             is_local_path = (
                 url.startswith("/")  # Unix absolute path
-                or (len(url) >= 3 and url[1] == ":" and url[2] == "\\")  # Windows C:\ style
+                or (
+                    len(url) >= 3 and url[1] == ":" and url[2] == "\\"
+                )  # Windows C:\ style
                 or url.startswith("\\\\")  # UNC path \\server\share
                 or Path(url).is_absolute()  # Fallback for other formats
             )
@@ -307,7 +323,9 @@ class ArtworkService:
                         logger.debug(f"Downloaded image: {target_path}")
                         return True
                     else:
-                        logger.warning(f"Invalid content type for image: {content_type}")
+                        logger.warning(
+                            f"Invalid content type for image: {content_type}"
+                        )
                         return False
                 else:
                     logger.warning(f"Failed to download image: HTTP {response.status}")

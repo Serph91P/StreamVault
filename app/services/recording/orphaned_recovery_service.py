@@ -30,7 +30,9 @@ async def get_orphaned_recovery_service() -> "OrphanedRecoveryService":
     global _recovery_service_instance
 
     if _recovery_service_instance is None:
-        logger.debug("Creating new OrphanedRecoveryService instance (compatibility wrapper)")
+        logger.debug(
+            "Creating new OrphanedRecoveryService instance (compatibility wrapper)"
+        )
         _recovery_service_instance = OrphanedRecoveryService()
 
     return _recovery_service_instance
@@ -49,7 +51,9 @@ class OrphanedRecoveryService:
 
     async def get_orphaned_statistics(self, max_age_hours: int = 72) -> Dict[str, Any]:
         """Get statistics about orphaned recordings (compatibility wrapper)"""
-        stats = await self._service.comprehensive_recovery_scan(max_age_hours=max_age_hours, dry_run=True)
+        stats = await self._service.comprehensive_recovery_scan(
+            max_age_hours=max_age_hours, dry_run=True
+        )
 
         return {
             "total_orphaned": stats.orphaned_segments + stats.failed_post_processing,
@@ -60,10 +64,15 @@ class OrphanedRecoveryService:
         }
 
     async def scan_and_recover_orphaned_recordings(
-        self, max_age_hours: int = 72, dry_run: bool = False, cleanup_segments: bool = True
+        self,
+        max_age_hours: int = 72,
+        dry_run: bool = False,
+        cleanup_segments: bool = True,
     ) -> Dict[str, Any]:
         """Scan and recover orphaned recordings (compatibility wrapper)"""
-        stats = await self._service.comprehensive_recovery_scan(max_age_hours=max_age_hours, dry_run=dry_run)
+        stats = await self._service.comprehensive_recovery_scan(
+            max_age_hours=max_age_hours, dry_run=dry_run
+        )
 
         return {
             "success": True,
@@ -78,12 +87,20 @@ class OrphanedRecoveryService:
             "errors": [],
         }
 
-    async def cleanup_orphaned_segments(self, max_age_hours: int = 72, dry_run: bool = False) -> Dict[str, Any]:
+    async def cleanup_orphaned_segments(
+        self, max_age_hours: int = 72, dry_run: bool = False
+    ) -> Dict[str, Any]:
         """Cleanup orphaned segment directories (compatibility wrapper)"""
         # Use comprehensive scan which includes segment cleanup
-        stats = await self._service.comprehensive_recovery_scan(max_age_hours=max_age_hours, dry_run=dry_run)
+        stats = await self._service.comprehensive_recovery_scan(
+            max_age_hours=max_age_hours, dry_run=dry_run
+        )
 
-        return {"success": True, "segments_cleaned": stats.orphaned_segments, "total_size_gb": stats.total_size_gb}
+        return {
+            "success": True,
+            "segments_cleaned": stats.orphaned_segments,
+            "total_size_gb": stats.total_size_gb,
+        }
 
     async def _find_orphaned_recordings(self, db, max_age_hours: int = 72):
         """Find orphaned recordings from database (compatibility wrapper)"""
@@ -94,12 +111,15 @@ class OrphanedRecoveryService:
         cutoff_time = datetime.utcnow() - timedelta(hours=max_age_hours)
 
         # Find recordings that are in 'recording' or 'processing' status but older than cutoff
-        orphaned = db.query(Recording).options(
-            joinedload(Recording.stream).joinedload(Stream.streamer)
-        ).filter(
-            Recording.status.in_(["recording", "processing", "failed"]),
-            Recording.created_at < cutoff_time
-        ).all()
+        orphaned = (
+            db.query(Recording)
+            .options(joinedload(Recording.stream).joinedload(Stream.streamer))
+            .filter(
+                Recording.status.in_(["recording", "processing", "failed"]),
+                Recording.created_at < cutoff_time,
+            )
+            .all()
+        )
 
         return orphaned
 
@@ -135,7 +155,9 @@ class OrphanedRecoveryService:
         # Get file info
         stat = file_path.stat()
         result["file_size"] = stat.st_size
-        result["file_age_seconds"] = (datetime.now() - datetime.fromtimestamp(stat.st_mtime)).total_seconds()
+        result["file_age_seconds"] = (
+            datetime.now() - datetime.fromtimestamp(stat.st_mtime)
+        ).total_seconds()
 
         # Check if file is too small
         if stat.st_size < 1024:  # Less than 1KB
@@ -153,7 +175,9 @@ class OrphanedRecoveryService:
 
     async def _trigger_orphaned_recovery(self, recording, db) -> bool:
         """Trigger recovery for an orphaned recording"""
-        from app.services.init.background_queue_init import enqueue_recording_post_processing
+        from app.services.init.background_queue_init import (
+            enqueue_recording_post_processing,
+        )
         from datetime import datetime
         import os
 
@@ -166,10 +190,16 @@ class OrphanedRecoveryService:
             if recording.stream and recording.stream.streamer:
                 streamer_name = recording.stream.streamer.username
 
-            stream_id = recording.stream_id if recording.stream_id else (recording.stream.id if recording.stream else None)
+            stream_id = (
+                recording.stream_id
+                if recording.stream_id
+                else (recording.stream.id if recording.stream else None)
+            )
 
             if not stream_id:
-                logger.error(f"Cannot trigger recovery for recording {recording.id}: no stream_id")
+                logger.error(
+                    f"Cannot trigger recovery for recording {recording.id}: no stream_id"
+                )
                 return False
 
             output_dir = os.path.dirname(recording.path)
@@ -188,10 +218,14 @@ class OrphanedRecoveryService:
             return True
 
         except Exception as e:
-            logger.error(f"Failed to trigger recovery for recording {recording.id}: {e}")
+            logger.error(
+                f"Failed to trigger recovery for recording {recording.id}: {e}"
+            )
             return False
 
-    async def _cleanup_orphaned_segments(self, db, max_age_hours: int, dry_run: bool, result: Dict) -> None:
+    async def _cleanup_orphaned_segments(
+        self, db, max_age_hours: int, dry_run: bool, result: Dict
+    ) -> None:
         """Cleanup orphaned segment directories"""
         from pathlib import Path
         from datetime import datetime, timedelta
@@ -230,5 +264,7 @@ class OrphanedRecoveryService:
 
             except Exception as e:
                 logger.error(f"Error cleaning segments directory {segments_dir}: {e}")
-                result["segments_cleanup_failed"] = result.get("segments_cleanup_failed", 0) + 1
+                result["segments_cleanup_failed"] = (
+                    result.get("segments_cleanup_failed", 0) + 1
+                )
                 result.get("errors", []).append(str(e))
