@@ -75,36 +75,24 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 FROM base AS frontend-builder
 WORKDIR /app/frontend
 
-# Copy package files first for npm cache optimization
-COPY app/frontend/package*.json ./
-
-# Install npm dependencies with cache mounting
-RUN --mount=type=cache,target=/root/.npm \
-    if [ ! -d "../frontend/dist" ]; then \
-        echo "No pre-built frontend found, installing npm dependencies..." && \
-        npm ci --no-audit && \
-        (npm audit fix --audit-level=moderate || echo "Some vulnerabilities may remain but build continues"); \
-    else \
-        echo "Pre-built frontend detected, skipping npm setup"; \
-    fi
-
-# Copy frontend sources (separate layer for better caching)
+# Copy all frontend source (including pre-built dist from CI if available)
 COPY app/frontend/ ./
 
-# Build frontend conditionally based on environment
+# Build frontend: skip if pre-built dist exists (from CI pipeline),
+# otherwise install dependencies and build from source.
 ARG BUILD_ENV=production
-RUN if [ "$BUILD_ENV" = "production" ]; then \
-        if [ -d "dist" ] && [ "$(ls -A dist 2>/dev/null)" ]; then \
-            echo "✅ Using pre-built frontend from CI/CD pipeline"; \
-        else \
-            echo "📦 Building frontend in production mode..." && \
-            rm -rf dist || true && \
-            npm run build || { \
-                echo "⚠️ Build failed, cleaning cache and retrying..." && \
-                rm -rf node_modules/.cache || true && \
-                npm run build; \
-            }; \
-        fi \
+RUN --mount=type=cache,target=/root/.npm \
+    if [ -d "dist" ] && [ "$(ls -A dist 2>/dev/null)" ]; then \
+        echo "✅ Using pre-built frontend from CI/CD pipeline"; \
+    elif [ "$BUILD_ENV" = "production" ]; then \
+        echo "📦 Building frontend in production mode..." && \
+        npm ci --no-audit && \
+        rm -rf dist || true && \
+        npm run build || { \
+            echo "⚠️ Build failed, cleaning cache and retrying..." && \
+            rm -rf node_modules/.cache || true && \
+            npm run build; \
+        }; \
     else \
         echo "🔧 Skipping frontend build in development mode..." && \
         mkdir -p dist; \

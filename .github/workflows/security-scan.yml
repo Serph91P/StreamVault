@@ -152,6 +152,32 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: 'app/frontend/package-lock.json'
+
+      - name: Cache frontend build
+        id: frontend-cache
+        uses: actions/cache@v5
+        with:
+          path: |
+            app/frontend/dist
+            app/frontend/node_modules
+          key: frontend-build-${{ hashFiles('app/frontend/package-lock.json', 'app/frontend/src/**') }}
+          restore-keys: |
+            frontend-build-
+
+      - name: Build Frontend
+        if: steps.frontend-cache.outputs.cache-hit != 'true'
+        working-directory: app/frontend
+        run: |
+          npm ci
+          rm -rf dist || true
+          npm run build
+
       - name: Build Docker image for scanning
         id: docker-build
         run: docker build -f docker/Dockerfile -t streamvault:scan .
