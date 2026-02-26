@@ -14,29 +14,29 @@
     "update-browsers": "npx update-browserslist-db@latest"
   },
   "dependencies": {
-    "@fortawesome/fontawesome-free": "^7.1.0",
-    "@vueuse/core": "^14.1.0",
+    "@fortawesome/fontawesome-free": "^7.2.0",
+    "@vueuse/core": "^14.2.1",
     "pinia": "^3.0.4",
-    "vue": "^3.5.27",
-    "vue-router": "^4.6.4"
+    "vue": "^3.5.29",
+    "vue-router": "^5.0.3"
   },
   "devDependencies": {
     "@tsconfig/node24": "^24.0.4",
     "@types/node": "^24.0.0",
-    "@vitejs/plugin-vue": "^6.0.3",
+    "@vitejs/plugin-vue": "^6.0.4",
     "@vue/eslint-config-prettier": "^10.2.0",
-    "@vue/eslint-config-typescript": "^14.6.0",
+    "@vue/eslint-config-typescript": "^14.7.0",
     "@vue/tsconfig": "^0.8.1",
     "esbuild": "^0.27.2",
-    "eslint": "^9.39.2",
-    "eslint-plugin-vue": "^10.7.0",
+    "eslint": "^10.0.2",
+    "eslint-plugin-vue": "^10.8.0",
     "npm-run-all2": "^8.0.4",
     "prettier": "^3.8.1",
     "sass": "^1.97.3",
     "typescript": "~5.9.3",
     "vite": "^7.3.1",
     "vite-plugin-pwa": "^1.2.0",
-    "vite-plugin-vue-devtools": "^7.6.8",
-    "vue-tsc": "^3.2.3"
+    "vite-plugin-vue-devtools": "^8.0.6",
+    "vue-tsc": "^3.2.5"
   }
 }

@@ -55,7 +55,7 @@ jobs:
 
       - name: Upload Bandit results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: bandit-results
           path: bandit-results.json
@@ -95,7 +95,7 @@ jobs:
 
       - name: Upload results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: pip-audit-results
           path: pip-audit-results.json
@@ -136,7 +136,7 @@ jobs:
 
       - name: Upload results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: npm-audit-results
           path: app/frontend/npm-audit-results.json
@@ -185,6 +185,9 @@ jobs:
       - name: Run Trivy vulnerability scanner (SARIF)
         if: steps.docker-build.outcome == 'success'
         uses: aquasecurity/trivy-action@master
+        env:
+          TRIVY_DB_REPOSITORY: 'ghcr.io/aquasecurity/trivy-db:2'
+          TRIVY_JAVA_DB_REPOSITORY: 'ghcr.io/aquasecurity/trivy-java-db:1'
         with:
           image-ref: 'streamvault:scan'
           format: 'sarif'
@@ -203,6 +206,9 @@ jobs:
       - name: Run Trivy (table output for logs)
         if: steps.docker-build.outcome == 'success'
         uses: aquasecurity/trivy-action@master
+        env:
+          TRIVY_DB_REPOSITORY: 'ghcr.io/aquasecurity/trivy-db:2'
+          TRIVY_JAVA_DB_REPOSITORY: 'ghcr.io/aquasecurity/trivy-java-db:1'
         with:
           image-ref: 'streamvault:scan'
           format: 'table'

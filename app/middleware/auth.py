@@ -73,18 +73,25 @@ class AuthMiddleware:
         ) == "XMLHttpRequest" or "application/json" in request.headers.get("accept", "")
 
         # Public paths that don't require authentication
+        # SECURITY: Only paths that MUST work without a session belong here.
+        # All data/media paths require auth to prevent unauthenticated access
+        # to images, sync/cleanup POST endpoints, and system info.
         public_paths = [
+            # Auth flow (must be public or login is impossible)
             "/auth/login",
             "/auth/setup",
             "/auth/check",
             "/auth/logout",
             "/auth/keepalive",
-            "/api/health",  # Health check endpoints for Docker/Kubernetes
+            # Infrastructure
+            "/api/health",  # Docker/K8s health probes (internal network only)
+            # Twitch integration (server-to-server & OAuth redirect)
             "/eventsub",
-            "/api/twitch/callback",  # Twitch OAuth callback - must be public for Twitch redirect
-            "/api/twitch/auth-url",  # Twitch OAuth URL generation - public for initial auth flow
-            "/api/videos/public/",  # Public video streaming with share token (for VLC, etc.)
-            "/static/",
+            "/api/twitch/callback",
+            "/api/twitch/auth-url",
+            # Public video sharing (share-token authenticated)
+            "/api/videos/public/",
+            # PWA assets (must load before login screen renders)
             "/assets/",
             "/registerSW.js",
             "/sw.js",
@@ -93,14 +100,11 @@ class AuthMiddleware:
             "/workbox-",
             "/manifest.json",
             "/manifest.webmanifest",
+            # Browser/PWA icons
             "/favicon",
             "/android-icon-",
             "/apple-icon",
             "/ms-icon-",
-            "/recordings/.media/",
-            "/api/media/",
-            "/data/images/",
-            "/data/",
         ]
 
         if any(request.url.path.startswith(path) for path in public_paths):
