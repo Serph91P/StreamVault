@@ -1,6 +1,11 @@
 // API client for StreamVault - REAL BACKEND IMPLEMENTATION
 // This file is imported by api.ts when NOT in mock mode
 
+import router from '@/router'
+
+// Global redirect guard to prevent concurrent redirects
+let isAuthRedirecting = false
+
 interface RequestConfig {
   headers?: Record<string, string>
   body?: any
@@ -48,9 +53,15 @@ class ApiClient {
           // Clear any stored auth data
           localStorage.removeItem('streamvault_session')
           sessionStorage.clear()
-          // Force redirect to login page
-          window.location.href = '/auth/login'
-          return
+          // Use Vue Router (soft navigation) to prevent reload loops
+          if (!isAuthRedirecting) {
+            isAuthRedirecting = true
+            router.push('/auth/login').finally(() => {
+              isAuthRedirecting = false
+            })
+          }
+          // Throw to abort the caller so it doesn't continue processing
+          throw new Error('Session expired - redirecting to login')
         }
         throw new Error(`HTTP error! status: ${response.status}`)
       }

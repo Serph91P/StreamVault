@@ -1,6 +1,7 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import type { Ref } from 'vue'
 import { logDebug, logWebSocket } from '@/utils/logger'
+import router from '@/router'
 
 interface WebSocketMessage {
   type: string
@@ -17,6 +18,7 @@ class WebSocketManager {
   private maxReconnectAttempts = 10
   private wsUrl: string
   private connectionId: string | null = null
+  private isRedirecting = false
   
   // Reactive state shared across all components
   public messages: Ref<WebSocketMessage[]> = ref([])
@@ -77,6 +79,13 @@ class WebSocketManager {
   }
 
   private connect() {
+    // Don't connect on auth pages — there's no valid session
+    const path = window.location.pathname
+    if (path.startsWith('/auth/')) {
+      console.log('⏭️ Skipping WebSocket connection on auth page')
+      return
+    }
+
     // Prevent multiple connections
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       console.log('⚠️ WebSocket already connected, skipping')
@@ -136,7 +145,14 @@ class WebSocketManager {
       if (event.code === 4001 || event.code === 4003) {
         console.warn('🔒 WebSocket auth failed — session invalid or expired')
         this.connectionStatus.value = 'auth_failed'
-        window.location.href = '/auth/login'
+        // Use Vue Router (soft navigation) instead of window.location.href
+        // to prevent full page reload → reconnect → auth fail → reload loop
+        if (!this.isRedirecting) {
+          this.isRedirecting = true
+          router.push('/auth/login').finally(() => {
+            this.isRedirecting = false
+          })
+        }
         return
       }
       

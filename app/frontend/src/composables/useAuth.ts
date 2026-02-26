@@ -3,6 +3,10 @@
  * Handles persistent sessions for standalone apps
  */
 import { ref, computed } from 'vue'
+import router from '@/router'
+
+// Guard against concurrent auth redirects
+let isAuthRedirecting = false
 
 const isAuthenticated = ref(false)
 const sessionToken = ref<string | null>(null)
@@ -39,7 +43,10 @@ export function useAuth() {
           // If authenticated but got false from server, redirect
           if (!data.authenticated && !isAuthPage) {
             console.warn('Session invalid, redirecting to login...')
-            window.location.href = '/auth/login'
+            if (!isAuthRedirecting) {
+              isAuthRedirecting = true
+              router.push('/auth/login').finally(() => { isAuthRedirecting = false })
+            }
             return
           }
         } else {
@@ -47,7 +54,10 @@ export function useAuth() {
           clearAuth()
           if (!isAuthPage) {
             console.warn('Auth check failed (non-OK response), redirecting to login...')
-            window.location.href = '/auth/login'
+            if (!isAuthRedirecting) {
+              isAuthRedirecting = true
+              router.push('/auth/login').finally(() => { isAuthRedirecting = false })
+            }
           }
         }
       } catch (error) {
@@ -59,7 +69,10 @@ export function useAuth() {
       // No stored token and on protected page - redirect to login
       if (!isAuthPage) {
         console.warn('No session token found, redirecting to login...')
-        window.location.href = '/auth/login'
+        if (!isAuthRedirecting) {
+          isAuthRedirecting = true
+          router.push('/auth/login').finally(() => { isAuthRedirecting = false })
+        }
       }
     }
   }
@@ -110,8 +123,8 @@ export function useAuth() {
     
     clearAuth()
     
-    // Force redirect to login for ALL scenarios
-    window.location.href = '/auth/login'
+    // Soft redirect to login for ALL scenarios
+    router.push('/auth/login')
   }
   
   const clearAuth = () => {
