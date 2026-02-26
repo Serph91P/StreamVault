@@ -35,4 +35,4 @@ safety==3.7.0
 bandit==1.9.2
 
 # Caching utilities
-cachetools==6.2.4
+cachetools==7.0.1
