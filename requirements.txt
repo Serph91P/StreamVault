@@ -7,7 +7,7 @@ SQLAlchemy[postgresql]==2.0.47
 psycopg[binary]==3.3.2
 psycopg-pool==3.3.0
 alembic==1.17.2
-greenlet==3.3.0
+greenlet==3.3.2
 
 # Security dependencies - updated to latest secure versions
 python-dotenv==1.2.1
