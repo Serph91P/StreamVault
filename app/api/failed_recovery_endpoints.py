@@ -10,14 +10,18 @@ import logging
 
 logger = logging.getLogger("streamvault")
 
-router = APIRouter(prefix="/api/admin/failed-recovery", tags=["Failed Recording Recovery"])
+router = APIRouter(
+    prefix="/api/admin/failed-recovery", tags=["Failed Recording Recovery"]
+)
 
 
 @router.get("/stats")
 async def get_failed_recovery_stats() -> Dict[str, Any]:
     """Get statistics about failed recordings that can be recovered"""
     try:
-        from app.services.recording.failed_recording_recovery_service import get_failed_recovery_service
+        from app.services.recording.failed_recording_recovery_service import (
+            get_failed_recovery_service,
+        )
 
         recovery_service = await get_failed_recovery_service()
         result = await recovery_service.scan_and_recover_failed_recordings(dry_run=True)
@@ -34,23 +38,29 @@ async def get_failed_recovery_stats() -> Dict[str, Any]:
 
     except Exception as e:
         logger.error(f"Failed to get failed recovery stats: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to get stats: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to get stats")
 
 
 @router.post("/scan")
 async def scan_failed_recordings(
-    dry_run: bool = Query(False, description="If true, only show what would be recovered"),
+    dry_run: bool = Query(
+        False, description="If true, only show what would be recovered"
+    ),
     background_tasks: BackgroundTasks = None,
 ) -> Dict[str, Any]:
     """Scan for failed recordings and optionally trigger recovery"""
     try:
-        from app.services.recording.failed_recovery_recovery_service import get_failed_recovery_service
+        from app.services.recording.failed_recovery_recovery_service import (
+            get_failed_recovery_service,
+        )
 
         recovery_service = await get_failed_recovery_service()
 
         if dry_run:
             # Synchronous dry run
-            result = await recovery_service.scan_and_recover_failed_recordings(dry_run=True)
+            result = await recovery_service.scan_and_recover_failed_recordings(
+                dry_run=True
+            )
 
             return {"success": True, "message": "Dry run completed", "data": result}
         else:
@@ -59,8 +69,14 @@ async def scan_failed_recordings(
                 background_tasks.add_task(_background_failed_recovery, recovery_service)
             else:
                 # Run synchronously if no background tasks available
-                result = await recovery_service.scan_and_recover_failed_recordings(dry_run=False)
-                return {"success": True, "message": "Recovery completed", "data": result}
+                result = await recovery_service.scan_and_recover_failed_recordings(
+                    dry_run=False
+                )
+                return {
+                    "success": True,
+                    "message": "Recovery completed",
+                    "data": result,
+                }
 
             return {
                 "success": True,
@@ -70,14 +86,16 @@ async def scan_failed_recordings(
 
     except Exception as e:
         logger.error(f"Failed to scan failed recordings: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to scan: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to scan")
 
 
 @router.post("/recover/{recording_id}")
 async def recover_specific_recording(recording_id: int) -> Dict[str, Any]:
     """Manually trigger recovery for a specific failed recording"""
     try:
-        from app.services.recording.failed_recording_recovery_service import get_failed_recovery_service
+        from app.services.recording.failed_recording_recovery_service import (
+            get_failed_recovery_service,
+        )
 
         recovery_service = await get_failed_recovery_service()
         result = await recovery_service.recover_specific_recording(recording_id)
@@ -97,7 +115,7 @@ async def recover_specific_recording(recording_id: int) -> Dict[str, Any]:
 
     except Exception as e:
         logger.error(f"Failed to recover recording {recording_id}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to recover recording: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to recover recording")
 
 
 async def _background_failed_recovery(recovery_service):
@@ -105,7 +123,9 @@ async def _background_failed_recovery(recovery_service):
     try:
         logger.info("🔧 Starting background failed recording recovery...")
 
-        result = await recovery_service.scan_and_recover_failed_recordings(dry_run=False)
+        result = await recovery_service.scan_and_recover_failed_recordings(
+            dry_run=False
+        )
 
         logger.info(
             f"🔧 Background failed recovery completed: "

@@ -19,7 +19,9 @@ async def get_queue_stats():
     """Get background queue statistics - Note: Consider using WebSocket for real-time updates"""
     try:
         stats = await background_queue_service.get_queue_stats()
-        logger.debug("Background queue stats requested via REST API (consider WebSocket)")
+        logger.debug(
+            "Background queue stats requested via REST API (consider WebSocket)"
+        )
         return stats  # Return stats directly, not nested in success object
     except Exception as e:
         logger.error(f"Error getting queue stats: {e}")
@@ -31,7 +33,9 @@ async def get_active_tasks():
     """Get currently active tasks - Note: Consider using WebSocket for real-time updates"""
     try:
         active_tasks = background_queue_service.get_active_tasks()
-        logger.debug("Background queue active tasks requested via REST API (consider WebSocket)")
+        logger.debug(
+            "Background queue active tasks requested via REST API (consider WebSocket)"
+        )
         # Convert to list format for frontend compatibility
         return list(active_tasks.values()) if active_tasks else []
     except Exception as e:
@@ -66,7 +70,12 @@ async def get_task_status(task_id: str):
 
 
 @router.post("/tasks/enqueue")
-async def enqueue_task(task_type: str, payload: Dict[str, Any], priority: str = "normal", max_retries: int = 3):
+async def enqueue_task(
+    task_type: str,
+    payload: Dict[str, Any],
+    priority: str = "normal",
+    max_retries: int = 3,
+):
     """Manually enqueue a background task"""
     try:
         # Convert priority string to enum
@@ -81,7 +90,10 @@ async def enqueue_task(task_type: str, payload: Dict[str, Any], priority: str = 
 
         # Enqueue task
         task_id = await background_queue_service.enqueue_task(
-            task_type=task_type, payload=payload, priority=task_priority, max_retries=max_retries
+            task_type=task_type,
+            payload=payload,
+            priority=task_priority,
+            max_retries=max_retries,
         )
 
         return {"success": True, "task_id": task_id}
@@ -91,7 +103,9 @@ async def enqueue_task(task_type: str, payload: Dict[str, Any], priority: str = 
 
 
 @router.post("/tasks/metadata-generation")
-async def enqueue_metadata_generation(stream_id: int, base_path: str, base_filename: str, priority: str = "normal"):
+async def enqueue_metadata_generation(
+    stream_id: int, base_path: str, base_filename: str, priority: str = "normal"
+):
     """Enqueue metadata generation task"""
     try:
         priority_map = {
@@ -105,7 +119,11 @@ async def enqueue_metadata_generation(stream_id: int, base_path: str, base_filen
 
         task_id = await background_queue_service.enqueue_task(
             task_type="metadata_generation",
-            payload={"stream_id": stream_id, "base_path": base_path, "base_filename": base_filename},
+            payload={
+                "stream_id": stream_id,
+                "base_path": base_path,
+                "base_filename": base_filename,
+            },
             priority=task_priority,
             max_retries=2,
         )
@@ -113,12 +131,17 @@ async def enqueue_metadata_generation(stream_id: int, base_path: str, base_filen
         return {"success": True, "task_id": task_id}
     except Exception as e:
         logger.error(f"Error enqueuing metadata generation task: {e}")
-        raise HTTPException(status_code=500, detail="Failed to enqueue metadata generation task")
+        raise HTTPException(
+            status_code=500, detail="Failed to enqueue metadata generation task"
+        )
 
 
 @router.post("/tasks/thumbnail-generation")
 async def enqueue_thumbnail_generation(
-    stream_id: int, output_dir: str, video_path: Optional[str] = None, priority: str = "normal"
+    stream_id: int,
+    output_dir: str,
+    video_path: Optional[str] = None,
+    priority: str = "normal",
 ):
     """Enqueue thumbnail generation task"""
     try:
@@ -137,18 +160,25 @@ async def enqueue_thumbnail_generation(
             payload["video_path"] = video_path
 
         task_id = await background_queue_service.enqueue_task(
-            task_type="thumbnail_generation", payload=payload, priority=task_priority, max_retries=2
+            task_type="thumbnail_generation",
+            payload=payload,
+            priority=task_priority,
+            max_retries=2,
         )
 
         return {"success": True, "task_id": task_id}
     except Exception as e:
         logger.error(f"Error enqueuing thumbnail generation task: {e}")
-        raise HTTPException(status_code=500, detail="Failed to enqueue thumbnail generation task")
+        raise HTTPException(
+            status_code=500, detail="Failed to enqueue thumbnail generation task"
+        )
 
 
 @router.post("/tasks/file-cleanup")
 async def enqueue_file_cleanup(
-    files_to_delete: List[str] = [], directories_to_delete: List[str] = [], priority: str = "low"
+    files_to_delete: List[str] = [],
+    directories_to_delete: List[str] = [],
+    priority: str = "low",
 ):
     """Enqueue file cleanup task"""
     try:
@@ -163,7 +193,10 @@ async def enqueue_file_cleanup(
 
         task_id = await background_queue_service.enqueue_task(
             task_type="file_cleanup",
-            payload={"files_to_delete": files_to_delete, "directories_to_delete": directories_to_delete},
+            payload={
+                "files_to_delete": files_to_delete,
+                "directories_to_delete": directories_to_delete,
+            },
             priority=task_priority,
             max_retries=1,
         )
@@ -171,7 +204,9 @@ async def enqueue_file_cleanup(
         return {"success": True, "task_id": task_id}
     except Exception as e:
         logger.error(f"Error enqueuing file cleanup task: {e}")
-        raise HTTPException(status_code=500, detail="Failed to enqueue file cleanup task")
+        raise HTTPException(
+            status_code=500, detail="Failed to enqueue file cleanup task"
+        )
 
 
 # Health check endpoint

@@ -30,11 +30,16 @@ async def get_vapid_public_key():
         )
 
     logger.debug("🔑 Serving VAPID public key for push subscription")
-    return {"publicKey": settings.VAPID_PUBLIC_KEY, "configured": True}  # This is already base64 encoded
+    return {
+        "publicKey": settings.VAPID_PUBLIC_KEY,
+        "configured": True,
+    }  # This is already base64 encoded
 
 
 @router.post("/subscribe")
-async def subscribe_to_push(subscription_data: Dict[str, Any] = Body(...), db: Session = Depends(get_db)):
+async def subscribe_to_push(
+    subscription_data: Dict[str, Any] = Body(...), db: Session = Depends(get_db)
+):
     """Subscribe a client to push notifications"""
     try:
         logger.info("🔔 PUSH_SUBSCRIBE_REQUEST: Starting subscription process")
@@ -43,18 +48,28 @@ async def subscribe_to_push(subscription_data: Dict[str, Any] = Body(...), db: S
         subscription = subscription_data.get("subscription", {})
         user_agent = subscription_data.get("userAgent", "")
 
-        logger.debug(f"🔔 Subscription keys: {list(subscription.keys()) if subscription else 'None'}")
-        logger.debug(f"🔔 User agent: {user_agent[:50]}..." if user_agent else "🔔 No user agent")
+        logger.debug(
+            f"🔔 Subscription keys: {list(subscription.keys()) if subscription else 'None'}"
+        )
+        logger.debug(
+            f"🔔 User agent: {user_agent[:50]}..." if user_agent else "🔔 No user agent"
+        )
 
         if not subscription or "endpoint" not in subscription:
-            logger.error("🔔 INVALID_SUBSCRIPTION_DATA: Missing subscription or endpoint")
+            logger.error(
+                "🔔 INVALID_SUBSCRIPTION_DATA: Missing subscription or endpoint"
+            )
             raise HTTPException(status_code=400, detail="Invalid subscription data")
 
         endpoint = subscription["endpoint"]
         logger.debug(f"🔔 Endpoint: {endpoint[:50]}...")
 
         # Check if subscription already exists
-        existing = db.query(PushSubscription).filter(PushSubscription.endpoint == endpoint).first()
+        existing = (
+            db.query(PushSubscription)
+            .filter(PushSubscription.endpoint == endpoint)
+            .first()
+        )
 
         if existing:
             logger.info(f"🔔 UPDATING_EXISTING_SUBSCRIPTION: id={existing.id}")
@@ -66,14 +81,21 @@ async def subscribe_to_push(subscription_data: Dict[str, Any] = Body(...), db: S
             logger.info("🔔 CREATING_NEW_SUBSCRIPTION")
             # Create new subscription
             new_subscription = PushSubscription(
-                endpoint=endpoint, subscription_data=json.dumps(subscription), user_agent=user_agent, is_active=True
+                endpoint=endpoint,
+                subscription_data=json.dumps(subscription),
+                user_agent=user_agent,
+                is_active=True,
             )
             db.add(new_subscription)
 
         db.commit()
 
         # Verify subscription was saved
-        total_active = db.query(PushSubscription).filter(PushSubscription.is_active.is_(True)).count()
+        total_active = (
+            db.query(PushSubscription)
+            .filter(PushSubscription.is_active.is_(True))
+            .count()
+        )
         logger.info(f"🔔 SUBSCRIPTION_SAVED: endpoint={endpoint[:50]}...")
         logger.info(f"🔔 TOTAL_ACTIVE_SUBSCRIPTIONS: count={total_active}")
 
@@ -81,11 +103,15 @@ async def subscribe_to_push(subscription_data: Dict[str, Any] = Body(...), db: S
 
     except Exception as e:
         db.rollback()
-        raise handle_api_error(e, "subscribing to push notifications", 500, ERRORS["SUBSCRIPTION_FAILED"])
+        raise handle_api_error(
+            e, "subscribing to push notifications", 500, ERRORS["SUBSCRIPTION_FAILED"]
+        )
 
 
 @router.post("/unsubscribe")
-async def unsubscribe_from_push(unsubscribe_data: Dict[str, Any] = Body(...), db: Session = Depends(get_db)):
+async def unsubscribe_from_push(
+    unsubscribe_data: Dict[str, Any] = Body(...), db: Session = Depends(get_db)
+):
     """Unsubscribe a client from push notifications"""
     try:
         endpoint = unsubscribe_data.get("endpoint")
@@ -94,7 +120,11 @@ async def unsubscribe_from_push(unsubscribe_data: Dict[str, Any] = Body(...), db
             raise HTTPException(status_code=400, detail="Endpoint required")
 
         # Find and deactivate subscription
-        subscription = db.query(PushSubscription).filter(PushSubscription.endpoint == endpoint).first()
+        subscription = (
+            db.query(PushSubscription)
+            .filter(PushSubscription.endpoint == endpoint)
+            .first()
+        )
 
         if subscription:
             subscription.is_active = False
@@ -105,7 +135,12 @@ async def unsubscribe_from_push(unsubscribe_data: Dict[str, Any] = Body(...), db
 
     except Exception as e:
         db.rollback()
-        raise handle_api_error(e, "unsubscribing from push notifications", 500, ERRORS["UNSUBSCRIPTION_FAILED"])
+        raise handle_api_error(
+            e,
+            "unsubscribing from push notifications",
+            500,
+            ERRORS["UNSUBSCRIPTION_FAILED"],
+        )
 
 
 @router.post("/test")
@@ -126,17 +161,29 @@ async def send_test_notification(db: Session = Depends(get_db)):
             }
 
         # Initialize push service
-        vapid_claims = {"sub": getattr(settings, "VAPID_CLAIMS_SUB", "mailto:admin@streamvault.local")}
-        push_service = ModernWebPushService(vapid_private_key=settings.VAPID_PRIVATE_KEY, vapid_claims=vapid_claims)
+        vapid_claims = {
+            "sub": getattr(
+                settings, "VAPID_CLAIMS_SUB", "mailto:admin@streamvault.local"
+            )
+        }
+        push_service = ModernWebPushService(
+            vapid_private_key=settings.VAPID_PRIVATE_KEY, vapid_claims=vapid_claims
+        )
 
         # Check global notification settings
         global_settings = db.query(GlobalSettings).first()
-        global_notifications_enabled = global_settings and global_settings.notifications_enabled
+        global_notifications_enabled = (
+            global_settings and global_settings.notifications_enabled
+        )
 
         logger.info(f"🧪 GLOBAL_NOTIFICATIONS_ENABLED: {global_notifications_enabled}")
 
         # Get active subscriptions
-        active_subscriptions = db.query(PushSubscription).filter(PushSubscription.is_active.is_(True)).all()
+        active_subscriptions = (
+            db.query(PushSubscription)
+            .filter(PushSubscription.is_active.is_(True))
+            .all()
+        )
 
         logger.info(f"🧪 ACTIVE_SUBSCRIPTIONS_FOUND: {len(active_subscriptions)}")
 
@@ -168,7 +215,9 @@ async def send_test_notification(db: Session = Depends(get_db)):
 
                 logger.debug(f"🧪 SENDING_TEST_TO: {endpoint}...")
 
-                success = push_service.send_notification(subscription_data, notification_data)
+                success = push_service.send_notification(
+                    subscription_data, notification_data
+                )
                 if success:
                     sent_count += 1
                     logger.info(f"🧪 TEST_SUCCESS: {endpoint}...")
@@ -179,8 +228,10 @@ async def send_test_notification(db: Session = Depends(get_db)):
 
             except Exception as e:
                 failed_count += 1
-                endpoint = subscription.endpoint[:50] if subscription.endpoint else "unknown"
-                failed_endpoints.append(f"{endpoint} (error: {str(e)[:30]})")
+                endpoint = (
+                    subscription.endpoint[:50] if subscription.endpoint else "unknown"
+                )
+                failed_endpoints.append(f"{endpoint} (error: delivery failed)")
                 logger.error(f"🧪 TEST_EXCEPTION: {endpoint}: {e}")
 
         logger.info(
@@ -227,10 +278,16 @@ async def get_push_debug_info(db: Session = Depends(get_db)):
 
         # Check global settings
         global_settings = db.query(GlobalSettings).first()
-        global_notifications_enabled = global_settings and global_settings.notifications_enabled
+        global_notifications_enabled = (
+            global_settings and global_settings.notifications_enabled
+        )
 
         # Check subscriptions count
-        active_subscriptions = db.query(PushSubscription).filter(PushSubscription.is_active.is_(True)).count()
+        active_subscriptions = (
+            db.query(PushSubscription)
+            .filter(PushSubscription.is_active.is_(True))
+            .count()
+        )
 
         # Check streamers count
         streamers_with_settings = db.query(NotificationSettings).count()
@@ -260,7 +317,9 @@ async def get_push_debug_info(db: Session = Depends(get_db)):
 
     except Exception:
         return create_error_response(
-            success=False, message="Failed to get debug information", error_code="DEBUG_INFO_FAILED"
+            success=False,
+            message="Failed to get debug information",
+            error_code="DEBUG_INFO_FAILED",
         )
 
 

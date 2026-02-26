@@ -55,7 +55,9 @@ class PostProcessingTasks:
                 if rp.exists():
                     base_path_obj = rp.parent
                     base_filename = rp.stem
-            rec_root = metadata_service.find_recordings_root(base_path_obj)  # public wrapper
+            rec_root = metadata_service.find_recordings_root(
+                base_path_obj
+            )  # public wrapper
             if rec_root and getattr(streamer, "username", None):
                 expected_streamer_dir = rec_root / sanitize_filename(streamer.username)
                 if expected_streamer_dir.exists() and not metadata_service.is_within(
@@ -77,10 +79,17 @@ class PostProcessingTasks:
             logger.debug(f"Metadata arg normalization failed, using originals: {e}")
             return base_path, base_filename
 
-    def _fetch_stream_and_streamer(self, stream_id: int) -> tuple[Optional[Stream], Optional[Streamer]]:
+    def _fetch_stream_and_streamer(
+        self, stream_id: int
+    ) -> tuple[Optional[Stream], Optional[Streamer]]:
         """Small helper to fetch stream and streamer with eager loading to avoid N+1 queries."""
         with SessionLocal() as db:
-            stream = db.query(Stream).options(joinedload(Stream.streamer)).filter(Stream.id == stream_id).first()
+            stream = (
+                db.query(Stream)
+                .options(joinedload(Stream.streamer))
+                .filter(Stream.id == stream_id)
+                .first()
+            )
             streamer = stream.streamer if stream else None
             return stream, streamer
 
@@ -135,7 +144,9 @@ class PostProcessingTasks:
                 stream, streamer, str(output_dir), base_filename
             )
             await self.metadata_service.generate_metadata_for_stream(
-                stream_id=stream_id, base_path=norm_base_path, base_filename=norm_base_filename
+                stream_id=stream_id,
+                base_path=norm_base_path,
+                base_filename=norm_base_filename,
             )
 
             # Update progress
@@ -143,7 +154,9 @@ class PostProcessingTasks:
 
             # Step 3: Generate/ensure thumbnail
             await self.thumbnail_service.ensure_thumbnail_with_fallback(
-                stream_id=stream_id, output_dir=str(output_dir), video_path=str(mp4_output_path)
+                stream_id=stream_id,
+                output_dir=str(output_dir),
+                video_path=str(mp4_output_path),
             )
 
             # Update progress
@@ -157,7 +170,9 @@ class PostProcessingTasks:
                     stream.recording_path = str(mp4_output_path)
 
                 # Update recording status
-                recording = db.query(Recording).filter(Recording.stream_id == stream_id).first()
+                recording = (
+                    db.query(Recording).filter(Recording.stream_id == stream_id).first()
+                )
                 if recording:
                     recording.status = "completed"
                     recording.path = str(mp4_output_path)
@@ -228,12 +243,16 @@ class PostProcessingTasks:
             # Fetch stream/streamer for normalization
             stream, streamer = self._fetch_stream_and_streamer(stream_id)
             norm_base_path, norm_base_filename = (
-                self._normalize_metadata_args(stream, streamer, base_path, base_filename)
+                self._normalize_metadata_args(
+                    stream, streamer, base_path, base_filename
+                )
                 if (stream and streamer)
                 else (base_path, base_filename)
             )
             success = await self.metadata_service.generate_metadata_for_stream(
-                stream_id=stream_id, base_path=norm_base_path, base_filename=norm_base_filename
+                stream_id=stream_id,
+                base_path=norm_base_path,
+                base_filename=norm_base_filename,
             )
 
             if not success:
@@ -283,13 +302,17 @@ class PostProcessingTasks:
             # Generate thumbnail
             if video_path:
                 # Extract from video file
-                thumbnail_path = await self.thumbnail_service.generate_thumbnail_from_mp4(
-                    stream_id=stream_id, mp4_path=video_path
+                thumbnail_path = (
+                    await self.thumbnail_service.generate_thumbnail_from_mp4(
+                        stream_id=stream_id, mp4_path=video_path
+                    )
                 )
             else:
                 # Try to get from Twitch or existing sources
-                thumbnail_path = await self.thumbnail_service.ensure_thumbnail_with_fallback(
-                    stream_id=stream_id, output_dir=output_dir
+                thumbnail_path = (
+                    await self.thumbnail_service.ensure_thumbnail_with_fallback(
+                        stream_id=stream_id, output_dir=output_dir
+                    )
                 )
 
             task.progress = 100.0
@@ -365,20 +388,32 @@ class PostProcessingTasks:
             task.progress = 100.0
 
             log_with_context(
-                logger, "info", "File cleanup completed", task_id=task.id, operation="file_cleanup_complete"
+                logger,
+                "info",
+                "File cleanup completed",
+                task_id=task.id,
+                operation="file_cleanup_complete",
             )
 
         except Exception as e:
             log_with_context(
-                logger, "error", f"File cleanup failed: {e}", task_id=task.id, operation="file_cleanup_error"
+                logger,
+                "error",
+                f"File cleanup failed: {e}",
+                task_id=task.id,
+                operation="file_cleanup_error",
             )
             raise
 
-    async def _convert_ts_to_mp4(self, ts_file_path: str, mp4_output_path: str, task: QueueTask):
+    async def _convert_ts_to_mp4(
+        self, ts_file_path: str, mp4_output_path: str, task: QueueTask
+    ):
         """Convert TS file to MP4 using FFmpeg"""
 
         # Get streamer name from task
-        streamer_name = task.streamer_name if hasattr(task, "streamer_name") else "unknown"
+        streamer_name = (
+            task.streamer_name if hasattr(task, "streamer_name") else "unknown"
+        )
 
         # FFmpeg command for conversion
         cmd = [
@@ -397,7 +432,9 @@ class PostProcessingTasks:
 
         # Use the logging service to create per-streamer logs
         if self.logging_service:
-            streamer_log_path = self.logging_service.log_ffmpeg_start("ts_to_mp4_task", cmd, streamer_name)
+            streamer_log_path = self.logging_service.log_ffmpeg_start(
+                "ts_to_mp4_task", cmd, streamer_name
+            )
             logger.info(f"FFmpeg logs will be written to: {streamer_log_path}")
 
         # Create process
@@ -410,7 +447,9 @@ class PostProcessingTasks:
 
         # Log the FFmpeg output using the logging service
         if self.logging_service:
-            self.logging_service.log_ffmpeg_output("ts_to_mp4_task", stdout, stderr, process.returncode, streamer_name)
+            self.logging_service.log_ffmpeg_output(
+                "ts_to_mp4_task", stdout, stderr, process.returncode, streamer_name
+            )
 
         if process.returncode != 0:
             error_msg = stderr.decode("utf-8", errors="ignore")

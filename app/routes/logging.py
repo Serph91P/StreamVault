@@ -27,7 +27,9 @@ async def list_log_files():
                         LogFileSchema(
                             filename=log_file.name,
                             size=stat.st_size,
-                            last_modified=datetime.fromtimestamp(stat.st_mtime).isoformat(),
+                            last_modified=datetime.fromtimestamp(
+                                stat.st_mtime
+                            ).isoformat(),
                             type="streamlink",
                         )
                     )
@@ -42,7 +44,9 @@ async def list_log_files():
                         LogFileSchema(
                             filename=log_file.name,
                             size=stat.st_size,
-                            last_modified=datetime.fromtimestamp(stat.st_mtime).isoformat(),
+                            last_modified=datetime.fromtimestamp(
+                                stat.st_mtime
+                            ).isoformat(),
                             type="ffmpeg",
                         )
                     )
@@ -57,7 +61,9 @@ async def list_log_files():
                         LogFileSchema(
                             filename=log_file.name,
                             size=stat.st_size,
-                            last_modified=datetime.fromtimestamp(stat.st_mtime).isoformat(),
+                            last_modified=datetime.fromtimestamp(
+                                stat.st_mtime
+                            ).isoformat(),
                             type="app",
                         )
                     )
@@ -69,12 +75,15 @@ async def list_log_files():
         app_logs.sort(key=lambda x: x.last_modified, reverse=True)
 
         return LogsListSchema(
-            streamlink_logs=streamlink_logs, ffmpeg_logs=ffmpeg_logs, app_logs=app_logs, total_size=total_size
+            streamlink_logs=streamlink_logs,
+            ffmpeg_logs=ffmpeg_logs,
+            app_logs=app_logs,
+            total_size=total_size,
         )
 
     except Exception as e:
         logger.error(f"Error listing log files: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/files/{log_type}/{filename}")
@@ -119,12 +128,14 @@ async def download_log_file(log_type: str, filename: str):
         raise
     except Exception as e:
         logger.error(f"Error downloading log file: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/files/{log_type}/{filename}/tail")
 async def tail_log_file(
-    log_type: str, filename: str, lines: int = Query(100, description="Number of lines to return", ge=1, le=10000)
+    log_type: str,
+    filename: str,
+    lines: int = Query(100, description="Number of lines to return", ge=1, le=10000),
 ):
     """Get the last N lines of a log file"""
     try:
@@ -166,7 +177,7 @@ async def tail_log_file(
         raise
     except Exception as e:
         logger.error(f"Error tailing log file: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.delete("/files/{log_type}/{filename}")
@@ -204,19 +215,24 @@ async def delete_log_file(log_type: str, filename: str):
         raise
     except Exception as e:
         logger.error(f"Error deleting log file: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/cleanup")
-async def cleanup_old_logs(days_to_keep: int = Query(30, description="Days of logs to keep", ge=1, le=365)):
+async def cleanup_old_logs(
+    days_to_keep: int = Query(30, description="Days of logs to keep", ge=1, le=365),
+):
     """Clean up log files older than specified days"""
     try:
         logging_service.cleanup_old_logs(days_to_keep)
-        return {"status": "success", "message": f"Cleaned up logs older than {days_to_keep} days"}
+        return {
+            "status": "success",
+            "message": f"Cleaned up logs older than {days_to_keep} days",
+        }
 
     except Exception as e:
         logger.error(f"Error cleaning up logs: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/stats")
@@ -254,4 +270,4 @@ async def get_logging_stats():
 
     except Exception as e:
         logger.error(f"Error getting logging stats: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")

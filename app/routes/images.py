@@ -53,7 +53,9 @@ async def serve_category_image(filename: str):
 async def serve_artwork_image(streamer_id: str, filename: str):
     """Serve a cached artwork image"""
     try:
-        file_path = unified_image_service.artwork_dir / f"streamer_{streamer_id}" / filename
+        file_path = (
+            unified_image_service.artwork_dir / f"streamer_{streamer_id}" / filename
+        )
         if file_path.exists() and file_path.is_file():
             return FileResponse(
                 file_path,
@@ -125,7 +127,9 @@ async def get_profile_image_url(streamer_id: int):
                 raise HTTPException(status_code=404, detail="Streamer not found")
 
             # Get cached image URL or fallback to original
-            image_url = unified_image_service.get_profile_image_url(streamer_id, streamer.profile_image_url)
+            image_url = unified_image_service.get_profile_image_url(
+                streamer_id, streamer.profile_image_url
+            )
 
             return {"image_url": image_url}
     except HTTPException:

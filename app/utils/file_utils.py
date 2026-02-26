@@ -77,7 +77,9 @@ def validate_directory_path(directory: Path, base_directory: Path) -> bool:
             directory.resolve().relative_to(base_directory.resolve())
             return True
         except ValueError:
-            logger.warning(f"Directory {directory} is outside base directory {base_directory}")
+            logger.warning(
+                f"Directory {directory} is outside base directory {base_directory}"
+            )
             return False
 
     except Exception as e:
@@ -99,7 +101,9 @@ def safe_remove_directory(directory: Path, base_directory: Path) -> bool:
     import shutil
 
     if not validate_directory_path(directory, base_directory):
-        logger.error(f"Refusing to remove directory due to failed path validation: {directory}")
+        logger.error(
+            f"Refusing to remove directory due to failed path validation: {directory}"
+        )
         return False
 
     try:

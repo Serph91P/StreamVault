@@ -75,7 +75,12 @@ class TaskDependencyManager:
         task = self.tasks[task_id]
 
         # Skip if already running/completed/failed
-        if task.status in [TaskStatus.RUNNING, TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.CANCELLED]:
+        if task.status in [
+            TaskStatus.RUNNING,
+            TaskStatus.COMPLETED,
+            TaskStatus.FAILED,
+            TaskStatus.CANCELLED,
+        ]:
             return
 
         # Check if all dependencies are completed
@@ -83,20 +88,30 @@ class TaskDependencyManager:
             task.status = TaskStatus.READY
             # Diagnostic: log detailed dependency satisfaction
             if task.dependencies:
-                logger.info("🧩 TASK_READY: %s (deps satisfied: %s)", task_id, ",".join(sorted(task.dependencies)))
+                logger.info(
+                    "🧩 TASK_READY: %s (deps satisfied: %s)",
+                    task_id,
+                    ",".join(sorted(task.dependencies)),
+                )
             else:
                 logger.info("🧩 TASK_READY_NO_DEPS: %s", task_id)
         else:
             # Check if any dependency failed
-            failed_deps = [dep_id for dep_id in task.dependencies if dep_id in self.failed_tasks]
+            failed_deps = [
+                dep_id for dep_id in task.dependencies if dep_id in self.failed_tasks
+            ]
             if failed_deps:
                 task.status = TaskStatus.FAILED
                 task.error = f"Dependencies failed: {failed_deps}"
-                logger.error(f"Task {task_id} failed due to failed dependencies: {failed_deps}")
+                logger.error(
+                    f"Task {task_id} failed due to failed dependencies: {failed_deps}"
+                )
 
     async def get_ready_tasks(self) -> List[Task]:
         """Get tasks that are ready to execute, sorted by priority"""
-        ready_tasks = [task for task in self.tasks.values() if task.status == TaskStatus.READY]
+        ready_tasks = [
+            task for task in self.tasks.values() if task.status == TaskStatus.READY
+        ]
 
         # Sort by priority (lower number = higher priority), then by creation time
         ready_tasks.sort(key=lambda t: (t.priority, t.created_at))
@@ -166,7 +181,9 @@ class TaskDependencyManager:
             return False
 
         if task.retry_count >= task.max_retries:
-            logger.warning(f"Task {task_id} has exceeded maximum retries ({task.max_retries})")
+            logger.warning(
+                f"Task {task_id} has exceeded maximum retries ({task.max_retries})"
+            )
             return False
 
         task.retry_count += 1
@@ -178,7 +195,9 @@ class TaskDependencyManager:
         # Remove from failed tasks
         self.failed_tasks.discard(task_id)
 
-        logger.info(f"Retrying task {task_id} (attempt {task.retry_count}/{task.max_retries})")
+        logger.info(
+            f"Retrying task {task_id} (attempt {task.retry_count}/{task.max_retries})"
+        )
 
         # Re-evaluate task status
         await self._update_task_status(task_id)
@@ -234,7 +253,9 @@ class TaskDependencyManager:
             "dependencies": list(task.dependencies),
             "created_at": task.created_at.isoformat(),
             "started_at": task.started_at.isoformat() if task.started_at else None,
-            "completed_at": task.completed_at.isoformat() if task.completed_at else None,
+            "completed_at": task.completed_at.isoformat()
+            if task.completed_at
+            else None,
             "error": task.error,
             "retry_count": task.retry_count,
             "max_retries": task.max_retries,
@@ -247,7 +268,11 @@ class TaskDependencyManager:
 
     def get_task_chain_info(self, stream_id: int) -> Dict[str, Any]:
         """Get information about all tasks for a specific stream"""
-        stream_tasks = [task for task in self.tasks.values() if task.payload.get("stream_id") == stream_id]
+        stream_tasks = [
+            task
+            for task in self.tasks.values()
+            if task.payload.get("stream_id") == stream_id
+        ]
 
         return {
             "stream_id": stream_id,
@@ -255,9 +280,13 @@ class TaskDependencyManager:
             "pending": len([t for t in stream_tasks if t.status == TaskStatus.PENDING]),
             "ready": len([t for t in stream_tasks if t.status == TaskStatus.READY]),
             "running": len([t for t in stream_tasks if t.status == TaskStatus.RUNNING]),
-            "completed": len([t for t in stream_tasks if t.status == TaskStatus.COMPLETED]),
+            "completed": len(
+                [t for t in stream_tasks if t.status == TaskStatus.COMPLETED]
+            ),
             "failed": len([t for t in stream_tasks if t.status == TaskStatus.FAILED]),
-            "cancelled": len([t for t in stream_tasks if t.status == TaskStatus.CANCELLED]),
+            "cancelled": len(
+                [t for t in stream_tasks if t.status == TaskStatus.CANCELLED]
+            ),
             "tasks": [self.get_task_info(task.id) for task in stream_tasks],
         }
 
@@ -267,7 +296,11 @@ class TaskDependencyManager:
         to_remove = []
 
         for task_id, task in self.tasks.items():
-            if task.status in [TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.CANCELLED]:
+            if task.status in [
+                TaskStatus.COMPLETED,
+                TaskStatus.FAILED,
+                TaskStatus.CANCELLED,
+            ]:
                 if task.completed_at:
                     age_hours = (now - task.completed_at).total_seconds() / 3600
                     if age_hours > max_age_hours:

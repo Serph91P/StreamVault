@@ -18,7 +18,9 @@ from app.config.constants import ASYNC_DELAYS
 logger = logging.getLogger("streamvault")
 
 
-async def intelligent_ts_cleanup(output_path: str, max_wait_time: int = 1800, psutil_available: bool = False):
+async def intelligent_ts_cleanup(
+    output_path: str, max_wait_time: int = 1800, psutil_available: bool = False
+):
     """Intelligent cleanup that monitors FFmpeg processes and file system for TS to MP4 completion.
 
     This monitors:
@@ -50,17 +52,23 @@ async def intelligent_ts_cleanup(output_path: str, max_wait_time: int = 1800, ps
 
                 # Check if any FFmpeg processes are working on our files
                 active_ffmpeg_processes = (
-                    await check_ffmpeg_processes_for_file(output_path, mp4_path) if psutil_available else []
+                    await check_ffmpeg_processes_for_file(output_path, mp4_path)
+                    if psutil_available
+                    else []
                 )
 
                 if not active_ffmpeg_processes:
                     # No FFmpeg processes working on our files, check if MP4 is stable
-                    await asyncio.sleep(ASYNC_DELAYS.RECORDING_ERROR_RECOVERY)  # Wait a bit
+                    await asyncio.sleep(
+                        ASYNC_DELAYS.RECORDING_ERROR_RECOVERY
+                    )  # Wait a bit
 
                     if os.path.exists(mp4_path):
                         new_mp4_size = os.path.getsize(mp4_path)
 
-                        if new_mp4_size == mp4_size and new_mp4_size > 1024 * 1024:  # Stable and > 1MB
+                        if (
+                            new_mp4_size == mp4_size and new_mp4_size > 1024 * 1024
+                        ):  # Stable and > 1MB
                             # Final verification: try to read the MP4 file
                             try:
                                 with open(mp4_path, "rb") as f:
@@ -74,7 +82,9 @@ async def intelligent_ts_cleanup(output_path: str, max_wait_time: int = 1800, ps
                                 return True
 
                             except Exception as e:
-                                logger.warning(f"MP4 file not readable yet, will retry: {e}")
+                                logger.warning(
+                                    f"MP4 file not readable yet, will retry: {e}"
+                                )
                 else:
                     logger.debug(
                         f"FFmpeg processes still active for our files: {len(active_ffmpeg_processes)} processes"
@@ -82,17 +92,23 @@ async def intelligent_ts_cleanup(output_path: str, max_wait_time: int = 1800, ps
 
             # Check if we've exceeded max wait time
             if elapsed > max_wait_time:
-                logger.warning(f"Process-aware cleanup timeout ({max_wait_time}s), keeping TS file: {output_path}")
+                logger.warning(
+                    f"Process-aware cleanup timeout ({max_wait_time}s), keeping TS file: {output_path}"
+                )
                 return False
 
             # Wait before next check
             await asyncio.sleep(check_interval)
 
     except Exception as e:
-        logger.error(f"Error in process-aware TS cleanup for {output_path}: {e}", exc_info=True)
+        logger.error(
+            f"Error in process-aware TS cleanup for {output_path}: {e}", exc_info=True
+        )
 
 
-async def check_ffmpeg_processes_for_file(ts_path: str, mp4_path: str) -> List[Dict[str, Any]]:
+async def check_ffmpeg_processes_for_file(
+    ts_path: str, mp4_path: str
+) -> List[Dict[str, Any]]:
     """Check for running FFmpeg processes that might be working on our files.
 
     This uses psutil if available. If not, it returns an empty list.
@@ -131,10 +147,14 @@ async def check_ffmpeg_processes_for_file(ts_path: str, mp4_path: str) -> List[D
                                 {
                                     "pid": proc_info["pid"],
                                     "name": proc_info["name"],
-                                    "cmdline": cmdline_str[:200],  # Truncate for logging
+                                    "cmdline": cmdline_str[
+                                        :200
+                                    ],  # Truncate for logging
                                 }
                             )
-                            logger.debug(f"Found active FFmpeg process: PID {proc_info['pid']}")
+                            logger.debug(
+                                f"Found active FFmpeg process: PID {proc_info['pid']}"
+                            )
 
             except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
                 # Process might have ended or we don't have permission
@@ -177,5 +197,7 @@ async def find_existing_mp4(recording_dir: str, mp4_path: str) -> Optional[str]:
         return None
 
     except Exception as e:
-        logger.error(f"Error in find_existing_mp4 for {recording_dir}: {e}", exc_info=True)
+        logger.error(
+            f"Error in find_existing_mp4 for {recording_dir}: {e}", exc_info=True
+        )
         return None

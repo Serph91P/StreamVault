@@ -47,24 +47,34 @@ class PostProcessingCoordinator:
             # Send WebSocket update
             if self.websocket_service:
                 await self.websocket_service.send_recording_job_update(
-                    recording_id=recording_id, job_type="post_processing", status="queued", progress=0.0
+                    recording_id=recording_id,
+                    job_type="post_processing",
+                    status="queued",
+                    progress=0.0,
                 )
 
-            logger.info(f"Successfully enqueued post-processing for recording {recording_id}")
+            logger.info(
+                f"Successfully enqueued post-processing for recording {recording_id}"
+            )
             return True
 
         except Exception as e:
-            logger.error(f"Failed to enqueue post-processing for recording {recording_id}: {e}")
+            logger.error(
+                f"Failed to enqueue post-processing for recording {recording_id}: {e}"
+            )
 
             # Send error WebSocket update
             if self.websocket_service:
                 await self.websocket_service.send_recording_error(
-                    recording_id=recording_id, error_message=f"Failed to enqueue post-processing: {str(e)}"
+                    recording_id=recording_id,
+                    error_message=f"Failed to enqueue post-processing: {str(e)}",
                 )
 
             return False
 
-    async def find_and_validate_mp4(self, ts_file_path: str, max_wait_minutes: int = 10) -> Optional[str]:
+    async def find_and_validate_mp4(
+        self, ts_file_path: str, max_wait_minutes: int = 10
+    ) -> Optional[str]:
         """Find and validate the converted MP4 file"""
         try:
             ts_path = Path(ts_file_path)
@@ -83,19 +93,27 @@ class PostProcessingCoordinator:
 
                     # Validate the MP4 file
                     if await self._validate_mp4_file(expected_mp4_path):
-                        logger.info(f"MP4 file validated successfully: {expected_mp4_path}")
+                        logger.info(
+                            f"MP4 file validated successfully: {expected_mp4_path}"
+                        )
                         return str(expected_mp4_path)
                     else:
-                        logger.warning(f"MP4 file validation failed: {expected_mp4_path}")
+                        logger.warning(
+                            f"MP4 file validation failed: {expected_mp4_path}"
+                        )
                         return None
 
                 await asyncio.sleep(wait_interval)
                 total_waited += wait_interval
 
                 if total_waited % 60 == 0:  # Log every minute
-                    logger.info(f"Still waiting for MP4 file... ({total_waited // 60} minutes)")
+                    logger.info(
+                        f"Still waiting for MP4 file... ({total_waited // 60} minutes)"
+                    )
 
-            logger.warning(f"MP4 file not found after {max_wait_minutes} minutes: {expected_mp4_path}")
+            logger.warning(
+                f"MP4 file not found after {max_wait_minutes} minutes: {expected_mp4_path}"
+            )
             return None
 
         except Exception as e:
@@ -124,7 +142,9 @@ class PostProcessingCoordinator:
             logger.error(f"Error validating MP4 file {mp4_path}: {e}")
             return False
 
-    async def delayed_metadata_generation(self, recording_id: int, delay_minutes: int = 5) -> None:
+    async def delayed_metadata_generation(
+        self, recording_id: int, delay_minutes: int = 5
+    ) -> None:
         """Generate metadata after a delay (for late stream info)"""
         try:
             delay_seconds = delay_minutes * 60
@@ -135,19 +155,31 @@ class PostProcessingCoordinator:
             await asyncio.sleep(delay_seconds)
 
             # Enqueue metadata generation task
-            payload = {"recording_id": recording_id, "task_type": "delayed_metadata", "delay_applied": delay_minutes}
+            payload = {
+                "recording_id": recording_id,
+                "task_type": "delayed_metadata",
+                "delay_applied": delay_minutes,
+            }
 
             # Use background queue to handle delayed metadata
             from app.services.background_queue_service import background_queue_service
 
-            await background_queue_service.enqueue_task(task_type="delayed_metadata_generation", payload=payload)
+            await background_queue_service.enqueue_task(
+                task_type="delayed_metadata_generation", payload=payload
+            )
 
-            logger.info(f"Enqueued delayed metadata generation for recording {recording_id}")
+            logger.info(
+                f"Enqueued delayed metadata generation for recording {recording_id}"
+            )
 
         except Exception as e:
-            logger.error(f"Failed to schedule delayed metadata generation for recording {recording_id}: {e}")
+            logger.error(
+                f"Failed to schedule delayed metadata generation for recording {recording_id}: {e}"
+            )
 
-    async def generate_stream_metadata(self, recording_id: int, stream_data: Dict[str, Any]) -> Dict[str, Any]:
+    async def generate_stream_metadata(
+        self, recording_id: int, stream_data: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """Generate comprehensive metadata for a recording"""
         try:
             metadata = {
@@ -166,8 +198,12 @@ class PostProcessingCoordinator:
                 file_stat = Path(file_path).stat()
                 metadata["file_info"] = {
                     "size_bytes": file_stat.st_size,
-                    "created_at": datetime.fromtimestamp(file_stat.st_ctime).isoformat(),
-                    "modified_at": datetime.fromtimestamp(file_stat.st_mtime).isoformat(),
+                    "created_at": datetime.fromtimestamp(
+                        file_stat.st_ctime
+                    ).isoformat(),
+                    "modified_at": datetime.fromtimestamp(
+                        file_stat.st_mtime
+                    ).isoformat(),
                 }
 
             # Add stream metadata
@@ -182,10 +218,14 @@ class PostProcessingCoordinator:
             return metadata
 
         except Exception as e:
-            logger.error(f"Failed to generate metadata for recording {recording_id}: {e}")
+            logger.error(
+                f"Failed to generate metadata for recording {recording_id}: {e}"
+            )
             return {"recording_id": recording_id, "error": str(e)}
 
-    async def cleanup_temporary_files(self, file_paths: List[str], keep_originals: bool = False) -> List[str]:
+    async def cleanup_temporary_files(
+        self, file_paths: List[str], keep_originals: bool = False
+    ) -> List[str]:
         """Clean up temporary files after post-processing"""
         cleaned_files = []
 
@@ -249,14 +289,19 @@ class PostProcessingCoordinator:
             estimates = {
                 "conversion_time": file_size_mb * base_conversion_rate,
                 "metadata_time": base_metadata_time,
-                "total_time": (file_size_mb * base_conversion_rate) + base_metadata_time,
+                "total_time": (file_size_mb * base_conversion_rate)
+                + base_metadata_time,
             }
 
             # Adjust based on duration if available
             if file_duration_seconds:
-                duration_factor = min(file_duration_seconds / 3600, 4.0)  # Cap at 4x for very long streams
+                duration_factor = min(
+                    file_duration_seconds / 3600, 4.0
+                )  # Cap at 4x for very long streams
                 estimates["conversion_time"] *= duration_factor
-                estimates["total_time"] = estimates["conversion_time"] + estimates["metadata_time"]
+                estimates["total_time"] = (
+                    estimates["conversion_time"] + estimates["metadata_time"]
+                )
 
             logger.debug(
                 f"Estimated processing time: {estimates['total_time']:.1f} seconds for {file_size_mb:.1f} MB file"
@@ -265,7 +310,11 @@ class PostProcessingCoordinator:
 
         except Exception as e:
             logger.error(f"Error estimating processing time: {e}")
-            return {"conversion_time": 300, "metadata_time": 30, "total_time": 330}  # Default estimates
+            return {
+                "conversion_time": 300,
+                "metadata_time": 30,
+                "total_time": 330,
+            }  # Default estimates
 
     async def get_processing_status(self, recording_id: int) -> Dict[str, Any]:
         """Get current post-processing status for a recording"""
@@ -289,8 +338,12 @@ class PostProcessingCoordinator:
                             "status": task.status.value,
                             "progress": task.progress,
                             "created_at": task.created_at.isoformat(),
-                            "started_at": task.started_at.isoformat() if task.started_at else None,
-                            "completed_at": task.completed_at.isoformat() if task.completed_at else None,
+                            "started_at": task.started_at.isoformat()
+                            if task.started_at
+                            else None,
+                            "completed_at": task.completed_at.isoformat()
+                            if task.completed_at
+                            else None,
                         }
                     )
 
@@ -298,11 +351,21 @@ class PostProcessingCoordinator:
                 "recording_id": recording_id,
                 "tasks": recording_tasks,
                 "total_tasks": len(recording_tasks),
-                "completed_tasks": len([t for t in recording_tasks if t["status"] == "completed"]),
-                "failed_tasks": len([t for t in recording_tasks if t["status"] == "failed"]),
+                "completed_tasks": len(
+                    [t for t in recording_tasks if t["status"] == "completed"]
+                ),
+                "failed_tasks": len(
+                    [t for t in recording_tasks if t["status"] == "failed"]
+                ),
                 "status_updated_at": datetime.utcnow().isoformat(),
             }
 
         except Exception as e:
-            logger.error(f"Failed to get processing status for recording {recording_id}: {e}")
-            return {"recording_id": recording_id, "error": str(e), "status_updated_at": datetime.utcnow().isoformat()}
+            logger.error(
+                f"Failed to get processing status for recording {recording_id}: {e}"
+            )
+            return {
+                "recording_id": recording_id,
+                "error": str(e),
+                "status_updated_at": datetime.utcnow().isoformat(),
+            }

@@ -16,7 +16,9 @@ from app.services.unified_image_service import unified_image_service
 
 logger = logging.getLogger("streamvault")
 
-router = APIRouter(prefix="/api/settings", tags=["settings"])  # This is the correct prefix
+router = APIRouter(
+    prefix="/api/settings", tags=["settings"]
+)  # This is the correct prefix
 
 
 def validate_apprise_url(url: str) -> bool:
@@ -57,18 +59,28 @@ async def get_settings():
             notify_favorite_category_global=settings.notify_favorite_category_global,
             # System notification settings (Migration 028)
             notify_recording_started=(
-                settings.notify_recording_started if hasattr(settings, "notify_recording_started") else False
+                settings.notify_recording_started
+                if hasattr(settings, "notify_recording_started")
+                else False
             ),
             notify_recording_failed=(
-                settings.notify_recording_failed if hasattr(settings, "notify_recording_failed") else True
+                settings.notify_recording_failed
+                if hasattr(settings, "notify_recording_failed")
+                else True
             ),
             notify_recording_completed=(
-                settings.notify_recording_completed if hasattr(settings, "notify_recording_completed") else False
+                settings.notify_recording_completed
+                if hasattr(settings, "notify_recording_completed")
+                else False
             ),
             # Codec preferences (Migration 024)
-            supported_codecs=settings.supported_codecs if hasattr(settings, "supported_codecs") else "h264,h265",
+            supported_codecs=settings.supported_codecs
+            if hasattr(settings, "supported_codecs")
+            else "h264,h265",
             prefer_higher_quality=(
-                settings.prefer_higher_quality if hasattr(settings, "prefer_higher_quality") else True
+                settings.prefer_higher_quality
+                if hasattr(settings, "prefer_higher_quality")
+                else True
             ),
             http_proxy=settings.http_proxy,
             https_proxy=settings.https_proxy,
@@ -81,7 +93,10 @@ async def get_all_streamer_settings():
     try:
         with SessionLocal() as db:
             settings = (
-                db.query(NotificationSettings).join(Streamer).options(joinedload(NotificationSettings.streamer)).all()
+                db.query(NotificationSettings)
+                .join(Streamer)
+                .options(joinedload(NotificationSettings.streamer))
+                .all()
             )
             return [
                 StreamerNotificationSettingsSchema(
@@ -99,15 +114,23 @@ async def get_all_streamer_settings():
             ]
     except Exception as e:
         logger.error(f"Error processing request: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.post("/streamer/{streamer_id}", response_model=StreamerNotificationSettingsSchema)
-async def update_streamer_settings(streamer_id: int, settings_data: StreamerNotificationSettingsUpdateSchema):
+@router.post(
+    "/streamer/{streamer_id}", response_model=StreamerNotificationSettingsSchema
+)
+async def update_streamer_settings(
+    streamer_id: int, settings_data: StreamerNotificationSettingsUpdateSchema
+):
     logger.debug(f"Updating settings for streamer {streamer_id}: {settings_data}")
     try:
         with SessionLocal() as db:
-            settings = db.query(NotificationSettings).filter_by(streamer_id=streamer_id).first()
+            settings = (
+                db.query(NotificationSettings)
+                .filter_by(streamer_id=streamer_id)
+                .first()
+            )
             if not settings:
                 settings = NotificationSettings(streamer_id=streamer_id)
                 db.add(settings)
@@ -119,7 +142,9 @@ async def update_streamer_settings(streamer_id: int, settings_data: StreamerNoti
             if settings_data.notify_update is not None:
                 settings.notify_update = settings_data.notify_update
             if settings_data.notify_favorite_category is not None:
-                settings.notify_favorite_category = settings_data.notify_favorite_category
+                settings.notify_favorite_category = (
+                    settings_data.notify_favorite_category
+                )
 
             db.commit()
 
@@ -129,7 +154,9 @@ async def update_streamer_settings(streamer_id: int, settings_data: StreamerNoti
                 streamer_id=settings.streamer_id,
                 username=streamer.username if streamer else None,
                 profile_image_url=(
-                    unified_image_service.get_profile_image_url(streamer.id, streamer.profile_image_url)
+                    unified_image_service.get_profile_image_url(
+                        streamer.id, streamer.profile_image_url
+                    )
                     if streamer
                     else None
                 ),
@@ -140,7 +167,7 @@ async def update_streamer_settings(streamer_id: int, settings_data: StreamerNoti
             )
     except Exception as e:
         logger.error(f"Error updating streamer settings: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/streamers")
@@ -171,9 +198,13 @@ async def test_notification():
             if not settings:
                 raise HTTPException(status_code=400, detail="No settings configured")
             if not settings.notifications_enabled:
-                raise HTTPException(status_code=400, detail="Notifications are disabled")
+                raise HTTPException(
+                    status_code=400, detail="Notifications are disabled"
+                )
             if not settings.notification_url:
-                raise HTTPException(status_code=400, detail="No notification URL configured")
+                raise HTTPException(
+                    status_code=400, detail="No notification URL configured"
+                )
 
         from app.services.notification_service import NotificationService
         from app.dependencies import websocket_manager
@@ -203,14 +234,19 @@ async def test_notification():
         success = await notification_service.send_test_notification()
 
         if success:
-            return {"status": "success", "message": "Test notification sent successfully"}
+            return {
+                "status": "success",
+                "message": "Test notification sent successfully",
+            }
         else:
-            raise HTTPException(status_code=500, detail="Failed to send test notification")
+            raise HTTPException(
+                status_code=500, detail="Failed to send test notification"
+            )
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Error sending test notification: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/test-websocket-notification")
@@ -260,22 +296,36 @@ async def test_websocket_notification():
         }
     except Exception as e:
         logger.error(f"Error sending test WebSocket notification: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("", response_model=GlobalSettingsSchema)
 async def update_settings(settings_data: GlobalSettingsSchema):
     try:
         with SessionLocal() as db:
-            if settings_data.notification_url and not validate_apprise_url(settings_data.notification_url):
-                raise HTTPException(status_code=400, detail="Invalid notification URL format")
+            if settings_data.notification_url and not validate_apprise_url(
+                settings_data.notification_url
+            ):
+                raise HTTPException(
+                    status_code=400, detail="Invalid notification URL format"
+                )
 
             # Validate proxy URLs
-            if settings_data.http_proxy and not validate_proxy_url(settings_data.http_proxy):
-                raise HTTPException(status_code=400, detail="HTTP proxy URL must start with 'http://' or 'https://'")
+            if settings_data.http_proxy and not validate_proxy_url(
+                settings_data.http_proxy
+            ):
+                raise HTTPException(
+                    status_code=400,
+                    detail="HTTP proxy URL must start with 'http://' or 'https://'",
+                )
 
-            if settings_data.https_proxy and not validate_proxy_url(settings_data.https_proxy):
-                raise HTTPException(status_code=400, detail="HTTPS proxy URL must start with 'http://' or 'https://'")
+            if settings_data.https_proxy and not validate_proxy_url(
+                settings_data.https_proxy
+            ):
+                raise HTTPException(
+                    status_code=400,
+                    detail="HTTPS proxy URL must start with 'http://' or 'https://'",
+                )
 
             settings = db.query(GlobalSettings).first()
             if not settings:
@@ -287,14 +337,20 @@ async def update_settings(settings_data: GlobalSettingsSchema):
             settings.notify_online_global = settings_data.notify_online_global
             settings.notify_offline_global = settings_data.notify_offline_global
             settings.notify_update_global = settings_data.notify_update_global
-            settings.notify_favorite_category_global = settings_data.notify_favorite_category_global
+            settings.notify_favorite_category_global = (
+                settings_data.notify_favorite_category_global
+            )
             # System notification settings (Migration 028)
             settings.notify_recording_started = settings_data.notify_recording_started
             settings.notify_recording_failed = settings_data.notify_recording_failed
-            settings.notify_recording_completed = settings_data.notify_recording_completed
+            settings.notify_recording_completed = (
+                settings_data.notify_recording_completed
+            )
             # Codec preferences (Migration 024)
             if hasattr(settings_data, "supported_codecs"):
-                settings.supported_codecs = settings_data.supported_codecs or "h264,h265"
+                settings.supported_codecs = (
+                    settings_data.supported_codecs or "h264,h265"
+                )
             if hasattr(settings_data, "prefer_higher_quality"):
                 settings.prefer_higher_quality = settings_data.prefer_higher_quality
             settings.http_proxy = settings_data.http_proxy or ""
@@ -307,11 +363,14 @@ async def update_settings(settings_data: GlobalSettingsSchema):
 
             # Regenerate Streamlink config if proxy or codec settings changed
             try:
-                from app.services.system.streamlink_config_service import streamlink_config_service
+                from app.services.system.streamlink_config_service import (
+                    streamlink_config_service,
+                )
 
                 # Check if settings that affect Streamlink were changed
                 proxy_changed = (
-                    settings_data.http_proxy != settings.http_proxy or settings_data.https_proxy != settings.https_proxy
+                    settings_data.http_proxy != settings.http_proxy
+                    or settings_data.https_proxy != settings.https_proxy
                 )
                 codec_changed = (
                     hasattr(settings_data, "supported_codecs")
@@ -319,13 +378,17 @@ async def update_settings(settings_data: GlobalSettingsSchema):
                 )
 
                 if proxy_changed or codec_changed:
-                    logger.info("🔄 Proxy or codec settings changed - regenerating Streamlink config...")
+                    logger.info(
+                        "🔄 Proxy or codec settings changed - regenerating Streamlink config..."
+                    )
                     config_updated = await streamlink_config_service.regenerate_config()
 
                     if config_updated:
                         logger.info("✅ Streamlink config updated with new settings")
                     else:
-                        logger.warning("⚠️ Failed to update Streamlink config - recordings may use old settings")
+                        logger.warning(
+                            "⚠️ Failed to update Streamlink config - recordings may use old settings"
+                        )
             except Exception as config_error:
                 logger.error(f"❌ Error regenerating Streamlink config: {config_error}")
                 # Don't fail the whole settings update if config regeneration fails
@@ -333,7 +396,7 @@ async def update_settings(settings_data: GlobalSettingsSchema):
             return GlobalSettingsSchema.model_validate(settings)
     except Exception as e:
         logger.error(f"Error updating settings: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/quality-options")
@@ -346,10 +409,14 @@ async def get_quality_options():
     """
     try:
         from app.config.settings import settings
-        from app.services.system.streamlink_config_service import streamlink_config_service
+        from app.services.system.streamlink_config_service import (
+            streamlink_config_service,
+        )
 
         # Check if OAuth token is configured
-        has_oauth = bool(settings.TWITCH_OAUTH_TOKEN and settings.TWITCH_OAUTH_TOKEN.strip())
+        has_oauth = bool(
+            settings.TWITCH_OAUTH_TOKEN and settings.TWITCH_OAUTH_TOKEN.strip()
+        )
 
         # Get quality options with availability info
         qualities = streamlink_config_service.get_available_qualities(has_oauth)
@@ -357,11 +424,13 @@ async def get_quality_options():
         return {
             "qualities": qualities,
             "oauth_configured": has_oauth,
-            "message": "H.265/1440p available" if has_oauth else "Set TWITCH_OAUTH_TOKEN for H.265/1440p access",
+            "message": "H.265/1440p available"
+            if has_oauth
+            else "Set TWITCH_OAUTH_TOKEN for H.265/1440p access",
         }
     except Exception as e:
         logger.error(f"Error getting quality options: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/codec-options")
@@ -376,7 +445,9 @@ async def get_codec_options():
         from app.config.settings import settings
 
         # Check if OAuth token is configured
-        has_oauth = bool(settings.TWITCH_OAUTH_TOKEN and settings.TWITCH_OAUTH_TOKEN.strip())
+        has_oauth = bool(
+            settings.TWITCH_OAUTH_TOKEN and settings.TWITCH_OAUTH_TOKEN.strip()
+        )
 
         codecs = [
             {
@@ -416,9 +487,11 @@ async def get_codec_options():
         return {
             "codecs": codecs,
             "oauth_configured": has_oauth,
-            "message": "H.265/AV1 codecs available" if has_oauth else "Set TWITCH_OAUTH_TOKEN for H.265/AV1 codecs",
+            "message": "H.265/AV1 codecs available"
+            if has_oauth
+            else "Set TWITCH_OAUTH_TOKEN for H.265/AV1 codecs",
             "note": "Codec availability depends on streamer's broadcast settings and Twitch's transcoding",
         }
     except Exception as e:
         logger.error(f"Error getting codec options: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")

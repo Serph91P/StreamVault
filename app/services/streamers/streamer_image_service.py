@@ -22,16 +22,24 @@ class StreamerImageService:
         """Download and cache profile image using unified_image_service"""
         try:
             # Use unified_image_service for download
-            result = await self.image_service.download_profile_image(int(streamer_id), url)
+            result = await self.image_service.download_profile_image(
+                int(streamer_id), url
+            )
             if result:
-                logger.info(f"Successfully cached profile image for streamer {streamer_id}")
+                logger.info(
+                    f"Successfully cached profile image for streamer {streamer_id}"
+                )
                 return result
             else:
                 # Fallback to original URL if download fails
-                logger.warning(f"Failed to cache profile image for streamer {streamer_id}, using original URL")
+                logger.warning(
+                    f"Failed to cache profile image for streamer {streamer_id}, using original URL"
+                )
                 return url
         except Exception as e:
-            logger.error(f"Failed to cache profile image for streamer {streamer_id}: {e}")
+            logger.error(
+                f"Failed to cache profile image for streamer {streamer_id}: {e}"
+            )
             return url
 
     def get_cached_profile_image(self, streamer_id: int) -> Optional[str]:
@@ -39,23 +47,37 @@ class StreamerImageService:
         try:
             return self.image_service.get_cached_profile_image(streamer_id)
         except Exception as e:
-            logger.error(f"Error getting cached profile image for streamer {streamer_id}: {e}")
+            logger.error(
+                f"Error getting cached profile image for streamer {streamer_id}: {e}"
+            )
             return None
 
-    async def update_streamer_profile_image(self, streamer_id: int, profile_image_url: str) -> bool:
+    async def update_streamer_profile_image(
+        self, streamer_id: int, profile_image_url: str
+    ) -> bool:
         """Update a streamer's profile image in cache and return success status"""
         try:
-            result = await self.image_service.update_streamer_profile_image(streamer_id, profile_image_url)
+            result = await self.image_service.update_streamer_profile_image(
+                streamer_id, profile_image_url
+            )
             if result:
-                logger.info(f"Successfully updated profile image for streamer {streamer_id}")
+                logger.info(
+                    f"Successfully updated profile image for streamer {streamer_id}"
+                )
             else:
-                logger.warning(f"Failed to update profile image for streamer {streamer_id}")
+                logger.warning(
+                    f"Failed to update profile image for streamer {streamer_id}"
+                )
             return result
         except Exception as e:
-            logger.error(f"Error updating profile image for streamer {streamer_id}: {e}")
+            logger.error(
+                f"Error updating profile image for streamer {streamer_id}: {e}"
+            )
             return False
 
-    async def refresh_profile_image(self, streamer_id: int, new_url: str) -> Optional[str]:
+    async def refresh_profile_image(
+        self, streamer_id: int, new_url: str
+    ) -> Optional[str]:
         """Refresh profile image with a new URL and return the cached path"""
         try:
             # Download the new image
@@ -67,10 +89,14 @@ class StreamerImageService:
                 return cached_path
             else:
                 # Use original URL if caching failed
-                logger.warning(f"Could not refresh profile image for streamer {streamer_id}, using original URL")
+                logger.warning(
+                    f"Could not refresh profile image for streamer {streamer_id}, using original URL"
+                )
                 return new_url
         except Exception as e:
-            logger.error(f"Error refreshing profile image for streamer {streamer_id}: {e}")
+            logger.error(
+                f"Error refreshing profile image for streamer {streamer_id}: {e}"
+            )
             return new_url
 
     async def sync_all_profile_images(self) -> dict:

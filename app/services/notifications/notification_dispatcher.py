@@ -22,7 +22,9 @@ class NotificationDispatcher:
         self.external_service = ExternalNotificationService()
         self.push_service = PushNotificationService()
 
-    async def send_stream_notification(self, streamer_name: str, event_type: str, details: dict):
+    async def send_stream_notification(
+        self, streamer_name: str, event_type: str, details: dict
+    ):
         """Main entry point for sending all types of stream notifications"""
         try:
             logger.info(
@@ -31,27 +33,37 @@ class NotificationDispatcher:
 
             # Check if we should send notifications for this event type and streamer
             if "streamer_id" in details:
-                should_send = await self.push_service.should_notify(details["streamer_id"], event_type)
+                should_send = await self.push_service.should_notify(
+                    details["streamer_id"], event_type
+                )
                 logger.debug(
                     f"Notification check for streamer {details['streamer_id']} and event {event_type}: should_send={should_send}"
                 )
                 if not should_send:
-                    logger.debug(f"Notifications disabled for streamer {details['streamer_id']} and event {event_type}")
+                    logger.debug(
+                        f"Notifications disabled for streamer {details['streamer_id']} and event {event_type}"
+                    )
                     return
 
             # Send WebSocket notification first
             await self._send_websocket_notification(streamer_name, event_type, details)
 
             # Send push notifications to all active subscribers
-            await self.push_service.send_push_notifications(streamer_name, event_type, details)
+            await self.push_service.send_push_notifications(
+                streamer_name, event_type, details
+            )
 
             # Send external notification (Apprise)
-            await self.external_service.send_stream_notification(streamer_name, event_type, details)
+            await self.external_service.send_stream_notification(
+                streamer_name, event_type, details
+            )
 
         except Exception as e:
             logger.error(f"Error in send_stream_notification: {e}", exc_info=True)
 
-    async def _send_websocket_notification(self, streamer_name: str, event_type: str, details: dict):
+    async def _send_websocket_notification(
+        self, streamer_name: str, event_type: str, details: dict
+    ):
         """Send WebSocket notification to connected clients"""
         if not self.websocket_manager:
             logger.debug("No WebSocket manager available")
@@ -85,7 +97,9 @@ class NotificationDispatcher:
         except Exception as e:
             logger.error(f"Error sending WebSocket notification: {e}")
 
-    async def send_notification(self, message: str, title: str = "StreamVault Notification") -> bool:
+    async def send_notification(
+        self, message: str, title: str = "StreamVault Notification"
+    ) -> bool:
         """Send a basic notification via external service"""
         return await self.external_service.send_notification(message, title)
 

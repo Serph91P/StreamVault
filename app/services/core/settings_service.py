@@ -1,6 +1,9 @@
 from sqlalchemy.orm import Session
 from app.models import GlobalSettings, NotificationSettings
-from app.schemas.settings import GlobalSettingsSchema, StreamerNotificationSettingsSchema
+from app.schemas.settings import (
+    GlobalSettingsSchema,
+    StreamerNotificationSettingsSchema,
+)
 from apprise import Apprise
 import logging
 
@@ -27,15 +30,23 @@ class SettingsService:
             self.db.commit()
         return settings
 
-    async def update_settings(self, settings_data: GlobalSettingsSchema) -> GlobalSettings:
+    async def update_settings(
+        self, settings_data: GlobalSettingsSchema
+    ) -> GlobalSettings:
         settings = await self.get_settings()
         for key, value in settings_data.dict(exclude_unset=True).items():
             setattr(settings, key, value)
         self.db.commit()
         return settings
 
-    async def get_streamer_settings(self, streamer_id: int) -> StreamerNotificationSettingsSchema:
-        settings = self.db.query(NotificationSettings).filter(NotificationSettings.streamer_id == streamer_id).first()
+    async def get_streamer_settings(
+        self, streamer_id: int
+    ) -> StreamerNotificationSettingsSchema:
+        settings = (
+            self.db.query(NotificationSettings)
+            .filter(NotificationSettings.streamer_id == streamer_id)
+            .first()
+        )
         if not settings:
             settings = NotificationSettings(streamer_id=streamer_id)
             self.db.add(settings)
@@ -45,7 +56,11 @@ class SettingsService:
     async def update_streamer_settings(
         self, streamer_id: int, settings_data: StreamerNotificationSettingsSchema
     ) -> StreamerNotificationSettingsSchema:
-        settings = self.db.query(NotificationSettings).filter(NotificationSettings.streamer_id == streamer_id).first()
+        settings = (
+            self.db.query(NotificationSettings)
+            .filter(NotificationSettings.streamer_id == streamer_id)
+            .first()
+        )
         if not settings:
             settings = NotificationSettings(streamer_id=streamer_id)
             self.db.add(settings)

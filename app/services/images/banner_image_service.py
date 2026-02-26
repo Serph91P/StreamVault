@@ -42,9 +42,13 @@ class BannerImageService:
                 try:
                     self.banners_dir = fallback_dir
                     self.banners_dir.mkdir(parents=True, exist_ok=True)
-                    logger.warning(f"Using fallback banners directory: {self.banners_dir}")
+                    logger.warning(
+                        f"Using fallback banners directory: {self.banners_dir}"
+                    )
                 except Exception as fallback_error:
-                    logger.error(f"Failed to create fallback directory: {fallback_error}")
+                    logger.error(
+                        f"Failed to create fallback directory: {fallback_error}"
+                    )
                     raise
 
     def _load_existing_cache(self):
@@ -61,7 +65,9 @@ class BannerImageService:
                 return
 
             # Load from filesystem
-            banner_files = list(self.banners_dir.glob("banner_*.jpg")) + list(self.banners_dir.glob("banner_*.png"))
+            banner_files = list(self.banners_dir.glob("banner_*.jpg")) + list(
+                self.banners_dir.glob("banner_*.png")
+            )
 
             for banner_file in banner_files:
                 try:
@@ -69,19 +75,27 @@ class BannerImageService:
                     filename_parts = banner_file.stem.split("_")
                     if len(filename_parts) >= 2:
                         streamer_id = int(filename_parts[1])
-                        self._banner_cache[streamer_id] = f"/data/images/banners/{banner_file.name}"
+                        self._banner_cache[streamer_id] = (
+                            f"/data/images/banners/{banner_file.name}"
+                        )
                 except (ValueError, IndexError) as e:
-                    logger.warning(f"Could not parse banner filename {banner_file.name}: {e}")
+                    logger.warning(
+                        f"Could not parse banner filename {banner_file.name}: {e}"
+                    )
                     continue
 
-            logger.info(f"Loaded {len(self._banner_cache)} cached banners from filesystem")
+            logger.info(
+                f"Loaded {len(self._banner_cache)} cached banners from filesystem"
+            )
             self._cache_loaded = True
 
         except Exception as e:
             logger.error(f"Error loading banner cache: {e}")
             self._cache_loaded = True  # Mark as loaded even on error to prevent retries
 
-    async def download_banner_image(self, streamer_id: int, offline_image_url: str) -> Optional[str]:
+    async def download_banner_image(
+        self, streamer_id: int, offline_image_url: str
+    ) -> Optional[str]:
         """Download and cache a streamer's banner image"""
         try:
             self._ensure_banners_dir()
@@ -106,12 +120,16 @@ class BannerImageService:
 
                 # Update database
                 with SessionLocal() as db:
-                    streamer = db.query(Streamer).filter(Streamer.id == streamer_id).first()
+                    streamer = (
+                        db.query(Streamer).filter(Streamer.id == streamer_id).first()
+                    )
                     if streamer:
                         streamer.offline_image_url = cached_url
                         streamer.original_offline_image_url = offline_image_url
                         db.commit()
-                        logger.info(f"✅ Downloaded and cached banner for streamer {streamer_id}")
+                        logger.info(
+                            f"✅ Downloaded and cached banner for streamer {streamer_id}"
+                        )
 
                 return cached_url
             else:
@@ -127,17 +145,23 @@ class BannerImageService:
         self._load_existing_cache()
         return self._banner_cache.get(streamer_id)
 
-    def get_banner_image_url(self, streamer_id: int, original_url: Optional[str] = None) -> Optional[str]:
+    def get_banner_image_url(
+        self, streamer_id: int, original_url: Optional[str] = None
+    ) -> Optional[str]:
         """Get banner image URL (cached or original)"""
         cached_url = self.get_cached_banner_image(streamer_id)
         if cached_url:
             return cached_url
         return original_url
 
-    async def update_streamer_banner_image(self, streamer_id: int, offline_image_url: str) -> bool:
+    async def update_streamer_banner_image(
+        self, streamer_id: int, offline_image_url: str
+    ) -> bool:
         """Update a streamer's banner image"""
         try:
-            cached_url = await self.download_banner_image(streamer_id, offline_image_url)
+            cached_url = await self.download_banner_image(
+                streamer_id, offline_image_url
+            )
             return cached_url is not None
         except Exception as e:
             logger.error(f"Error updating banner for streamer {streamer_id}: {e}")
@@ -151,7 +175,10 @@ class BannerImageService:
             with SessionLocal() as db:
                 streamers = (
                     db.query(Streamer)
-                    .filter(Streamer.original_offline_image_url.isnot(None), Streamer.original_offline_image_url != "")
+                    .filter(
+                        Streamer.original_offline_image_url.isnot(None),
+                        Streamer.original_offline_image_url != "",
+                    )
                     .all()
                 )
 
@@ -165,7 +192,9 @@ class BannerImageService:
                         continue
 
                     # Download banner
-                    cached_url = await self.download_banner_image(streamer.id, streamer.original_offline_image_url)
+                    cached_url = await self.download_banner_image(
+                        streamer.id, streamer.original_offline_image_url
+                    )
 
                     if cached_url:
                         stats["downloaded"] += 1
@@ -194,7 +223,9 @@ class BannerImageService:
                 valid_ids = {s.id for s in db.query(Streamer.id).all()}
 
             # Check all banner files
-            banner_files = list(self.banners_dir.glob("banner_*.jpg")) + list(self.banners_dir.glob("banner_*.png"))
+            banner_files = list(self.banners_dir.glob("banner_*.jpg")) + list(
+                self.banners_dir.glob("banner_*.png")
+            )
 
             for banner_file in banner_files:
                 try:
@@ -211,7 +242,9 @@ class BannerImageService:
                             logger.info(f"Removed orphaned banner: {banner_file.name}")
 
                 except (ValueError, IndexError) as e:
-                    logger.warning(f"Could not parse banner filename {banner_file.name}: {e}")
+                    logger.warning(
+                        f"Could not parse banner filename {banner_file.name}: {e}"
+                    )
                     continue
 
             logger.info(f"Cleaned up {cleaned} orphaned banner images")
@@ -234,7 +267,9 @@ class BannerImageService:
         try:
             self._ensure_banners_dir()
             if self.banners_dir and self.banners_dir.exists():
-                banner_files = list(self.banners_dir.glob("banner_*.jpg")) + list(self.banners_dir.glob("banner_*.png"))
+                banner_files = list(self.banners_dir.glob("banner_*.jpg")) + list(
+                    self.banners_dir.glob("banner_*.png")
+                )
                 stats["files_on_disk"] = len(banner_files)
             else:
                 stats["files_on_disk"] = 0

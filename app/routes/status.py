@@ -7,13 +7,21 @@ This ensures the frontend can always get current state, regardless of WebSocket 
 
 from fastapi import APIRouter, HTTPException
 from sqlalchemy.orm import joinedload
-from sqlalchemy import and_
+from sqlalchemy import and_, text
 from typing import Dict, Any
 import logging
 from datetime import datetime, timezone
 
 from app.database import SessionLocal
-from app.models import Recording, Stream, Streamer, NotificationSettings, PushSubscription, GlobalSettings, StreamEvent
+from app.models import (
+    Recording,
+    Stream,
+    Streamer,
+    NotificationSettings,
+    PushSubscription,
+    GlobalSettings,
+    StreamEvent,
+)
 from app.services.background_queue_service import background_queue_service
 from app.services.unified_image_service import unified_image_service
 
@@ -74,7 +82,9 @@ async def check_recordings_active() -> Dict[str, Any]:
 
     except Exception as e:
         logger.error(f"Error checking active recordings: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to check active recordings status")
+        raise HTTPException(
+            status_code=500, detail="Failed to check active recordings status"
+        )
 
 
 @router.get("/system")
@@ -83,7 +93,9 @@ async def get_system_status() -> Dict[str, Any]:
     try:
         with SessionLocal() as db:
             # Get active recordings count
-            active_recordings_count = db.query(Recording).filter(Recording.status == "recording").count()
+            active_recordings_count = (
+                db.query(Recording).filter(Recording.status == "recording").count()
+            )
 
             # Get total streamers count
             total_streamers = db.query(Streamer).count()
@@ -143,7 +155,11 @@ async def get_active_recordings_status() -> Dict[str, Any]:
                         # Calculate duration
                         duration = 0
                         if recording.start_time:
-                            duration = int((datetime.now(timezone.utc) - recording.start_time).total_seconds())
+                            duration = int(
+                                (
+                                    datetime.now(timezone.utc) - recording.start_time
+                                ).total_seconds()
+                            )
 
                         recordings_data.append(
                             {
@@ -152,7 +168,9 @@ async def get_active_recordings_status() -> Dict[str, Any]:
                                 "streamer_id": stream.streamer_id,
                                 "streamer_name": stream.streamer.username,
                                 "title": stream.title or "",
-                                "started_at": recording.start_time.isoformat() if recording.start_time else "",
+                                "started_at": recording.start_time.isoformat()
+                                if recording.start_time
+                                else "",
                                 "file_path": recording.path or "",
                                 "status": recording.status,
                                 "duration": duration,
@@ -170,7 +188,9 @@ async def get_active_recordings_status() -> Dict[str, Any]:
 
     except Exception as e:
         logger.error(f"Error getting active recordings status: {e}")
-        raise HTTPException(status_code=500, detail="Failed to get active recordings status")
+        raise HTTPException(
+            status_code=500, detail="Failed to get active recordings status"
+        )
 
 
 @router.get("/background-queue")
@@ -178,7 +198,10 @@ async def get_background_queue_status() -> Dict[str, Any]:
     """Get current background queue status"""
     try:
         if not background_queue_service:
-            return {"error": "Background queue service not available", "timestamp": datetime.utcnow().isoformat()}
+            return {
+                "error": "Background queue service not available",
+                "timestamp": datetime.utcnow().isoformat(),
+            }
 
         # Get queue statistics
         stats = background_queue_service.get_queue_statistics()
@@ -192,9 +215,13 @@ async def get_background_queue_status() -> Dict[str, Any]:
                 {
                     "id": task_id,
                     "task_type": task.task_type,
-                    "status": task.status.value if hasattr(task.status, "value") else str(task.status),
+                    "status": task.status.value
+                    if hasattr(task.status, "value")
+                    else str(task.status),
                     "progress": task.progress,
-                    "created_at": task.created_at.isoformat() if task.created_at else None,
+                    "created_at": task.created_at.isoformat()
+                    if task.created_at
+                    else None,
                     "streamer_name": task.payload.get("streamer_name", "Unknown"),
                     "stream_id": task.payload.get("stream_id"),
                     "recording_id": task.payload.get("recording_id"),
@@ -207,10 +234,16 @@ async def get_background_queue_status() -> Dict[str, Any]:
                 {
                     "id": task_id,
                     "task_type": task.task_type,
-                    "status": task.status.value if hasattr(task.status, "value") else str(task.status),
+                    "status": task.status.value
+                    if hasattr(task.status, "value")
+                    else str(task.status),
                     "progress": task.progress,
-                    "created_at": task.created_at.isoformat() if task.created_at else None,
-                    "completed_at": task.completed_at.isoformat() if task.completed_at else None,
+                    "created_at": task.created_at.isoformat()
+                    if task.created_at
+                    else None,
+                    "completed_at": task.completed_at.isoformat()
+                    if task.completed_at
+                    else None,
                     "streamer_name": task.payload.get("streamer_name", "Unknown"),
                     "error_message": task.error_message,
                 }
@@ -225,7 +258,9 @@ async def get_background_queue_status() -> Dict[str, Any]:
 
     except Exception as e:
         logger.error(f"Error getting background queue status: {e}")
-        raise HTTPException(status_code=500, detail="Failed to get background queue status")
+        raise HTTPException(
+            status_code=500, detail="Failed to get background queue status"
+        )
 
 
 @router.get("/health")
@@ -234,7 +269,7 @@ async def get_health_status() -> Dict[str, Any]:
     try:
         # Basic database connectivity test
         with SessionLocal() as db:
-            db.execute("SELECT 1")
+            db.execute(text("SELECT 1"))
 
         db_status = "healthy"
     except Exception as e:
@@ -265,7 +300,9 @@ async def get_streamers_status() -> Dict[str, Any]:
             # PERF: Fetch all active recordings in one query to avoid N+1
             active_recording_stream_ids = set(
                 recording.stream_id
-                for recording in db.query(Recording.stream_id).filter(Recording.status == "recording").all()
+                for recording in db.query(Recording.stream_id)
+                .filter(Recording.status == "recording")
+                .all()
             )
 
             streamer_status = []
@@ -275,7 +312,9 @@ async def get_streamers_status() -> Dict[str, Any]:
             for streamer in streamers:
                 # Check if currently recording using pre-fetched set
                 stream_ids = [s.id for s in streamer.streams]
-                is_recording = any(sid in active_recording_stream_ids for sid in stream_ids)
+                is_recording = any(
+                    sid in active_recording_stream_ids for sid in stream_ids
+                )
                 if is_recording:
                     recording_count += 1
 
@@ -285,12 +324,18 @@ async def get_streamers_status() -> Dict[str, Any]:
                     # Streams are already loaded, just sort in Python
                     sorted_streams = sorted(
                         streamer.streams,
-                        key=lambda s: s.created_at or datetime.min.replace(tzinfo=timezone.utc),
+                        key=lambda s: (
+                            s.created_at or datetime.min.replace(tzinfo=timezone.utc)
+                        ),
                         reverse=True,
                     )
                     latest_stream = sorted_streams[0] if sorted_streams else None
 
-                is_live = latest_stream and latest_stream.ended_at is None if latest_stream else False
+                is_live = (
+                    latest_stream and latest_stream.ended_at is None
+                    if latest_stream
+                    else False
+                )
                 if is_live:
                     online_count += 1
 
@@ -302,7 +347,9 @@ async def get_streamers_status() -> Dict[str, Any]:
                             streamer.id, streamer.profile_image_url
                         )
                     except Exception as e:
-                        logger.warning(f"Failed to get profile image URL for streamer {streamer.id}: {e}")
+                        logger.warning(
+                            f"Failed to get profile image URL for streamer {streamer.id}: {e}"
+                        )
 
                 # Get last known info from most recent stream (for offline streamers)
                 last_title = None
@@ -325,9 +372,15 @@ async def get_streamers_status() -> Dict[str, Any]:
                         "is_recording": is_recording,
                         "is_favorite": streamer.is_favorite,
                         "auto_record": streamer.auto_record,
-                        "last_seen": latest_stream.created_at.isoformat() if latest_stream else None,
-                        "current_title": latest_stream.title if latest_stream and is_live else None,
-                        "current_category": latest_stream.category_name if latest_stream and is_live else None,
+                        "last_seen": latest_stream.created_at.isoformat()
+                        if latest_stream
+                        else None,
+                        "current_title": latest_stream.title
+                        if latest_stream and is_live
+                        else None,
+                        "current_category": latest_stream.category_name
+                        if latest_stream and is_live
+                        else None,
                         "last_title": last_title,
                         "last_category": last_category,
                         "language": language,
@@ -347,7 +400,7 @@ async def get_streamers_status() -> Dict[str, Any]:
 
     except Exception as e:
         logger.error(f"Failed to get streamers status: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to get streamers status: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to get streamers status")
 
 
 @router.get("/streams")
@@ -394,13 +447,17 @@ async def get_streams_status() -> Dict[str, Any]:
                 streams_data.append(
                     {
                         "id": stream.id,
-                        "streamer_name": stream.streamer.username if stream.streamer else "Unknown",
+                        "streamer_name": stream.streamer.username
+                        if stream.streamer
+                        else "Unknown",
                         "title": stream.title,
                         "category": stream.category_name,
                         "is_live": is_live,
                         "has_recording": recording is not None,
                         "recording_status": recording.status if recording else None,
-                        "started_at": stream.started_at.isoformat() if stream.started_at else None,
+                        "started_at": stream.started_at.isoformat()
+                        if stream.started_at
+                        else None,
                         "duration": duration,
                     }
                 )
@@ -410,14 +467,16 @@ async def get_streams_status() -> Dict[str, Any]:
                 "summary": {
                     "recent_count": len(recent_streams),
                     "live_count": len(live_streams),
-                    "recorded_count": len([s for s in streams_data if s["has_recording"]]),
+                    "recorded_count": len(
+                        [s for s in streams_data if s["has_recording"]]
+                    ),
                 },
                 "timestamp": datetime.now(timezone.utc).isoformat(),
             }
 
     except Exception as e:
         logger.error(f"Failed to get streams status: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to get streams status: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to get streams status")
 
 
 @router.get("/notifications")
@@ -429,7 +488,11 @@ async def get_notifications_status() -> Dict[str, Any]:
             notification_settings = db.query(NotificationSettings).all()
 
             # Get push subscriptions
-            push_subscriptions = db.query(PushSubscription).filter(PushSubscription.is_active.is_(True)).count()
+            push_subscriptions = (
+                db.query(PushSubscription)
+                .filter(PushSubscription.is_active.is_(True))
+                .count()
+            )
 
             # Get global settings
             global_settings = db.query(GlobalSettings).first()
@@ -457,7 +520,9 @@ async def get_notifications_status() -> Dict[str, Any]:
                             "id": event.id,
                             "type": event.event_type,
                             "streamer_name": (
-                                event.stream.streamer.username if event.stream and event.stream.streamer else "Unknown"
+                                event.stream.streamer.username
+                                if event.stream and event.stream.streamer
+                                else "Unknown"
                             ),
                             "title": event.title,
                             "category_name": event.category_name,
@@ -469,8 +534,12 @@ async def get_notifications_status() -> Dict[str, Any]:
 
             return {
                 "notification_system": {
-                    "enabled": global_settings.notifications_enabled if global_settings else False,
-                    "url_configured": bool(global_settings.notification_url) if global_settings else False,
+                    "enabled": global_settings.notifications_enabled
+                    if global_settings
+                    else False,
+                    "url_configured": bool(global_settings.notification_url)
+                    if global_settings
+                    else False,
                     "active_subscriptions": push_subscriptions,
                     "streamers_with_notifications": len(notification_settings),
                 },
@@ -480,4 +549,6 @@ async def get_notifications_status() -> Dict[str, Any]:
 
     except Exception as e:
         logger.error(f"Failed to get notifications status: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to get notifications status: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail="Failed to get notifications status"
+        )

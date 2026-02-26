@@ -53,9 +53,15 @@ async def get_latest_recording(db: Session = Depends(get_db)):
             "id": latest_recording.id,
             "stream_id": latest_recording.stream_id,
             "streamer_name": streamer.username if streamer else "Unknown",
-            "title": latest_recording.stream.title if latest_recording.stream else "No Title",
-            "started_at": latest_recording.start_time.isoformat() if latest_recording.start_time else None,
-            "ended_at": latest_recording.end_time.isoformat() if latest_recording.end_time else None,
+            "title": latest_recording.stream.title
+            if latest_recording.stream
+            else "No Title",
+            "started_at": latest_recording.start_time.isoformat()
+            if latest_recording.start_time
+            else None,
+            "ended_at": latest_recording.end_time.isoformat()
+            if latest_recording.end_time
+            else None,
             "duration": latest_recording.duration,
             "file_path": latest_recording.path,
             "status": latest_recording.status,
@@ -68,7 +74,9 @@ async def get_latest_recording(db: Session = Depends(get_db)):
 
 
 @router.get("/recent")
-async def get_recent_recordings(limit: int = Query(default=10, ge=1, le=50), db: Session = Depends(get_db)):
+async def get_recent_recordings(
+    limit: int = Query(default=10, ge=1, le=50), db: Session = Depends(get_db)
+):
     """Get recent recordings for performance optimization"""
     try:
         recent_recordings = (
@@ -92,8 +100,12 @@ async def get_recent_recordings(limit: int = Query(default=10, ge=1, le=50), db:
                 "stream_id": recording.stream_id,
                 "streamer_name": streamer.username if streamer else "Unknown",
                 "title": recording.stream.title if recording.stream else "No Title",
-                "started_at": recording.start_time.isoformat() if recording.start_time else None,
-                "ended_at": recording.end_time.isoformat() if recording.end_time else None,
+                "started_at": recording.start_time.isoformat()
+                if recording.start_time
+                else None,
+                "ended_at": recording.end_time.isoformat()
+                if recording.end_time
+                else None,
                 "duration": recording.duration,
                 "file_path": recording.path,
                 "status": recording.status,
@@ -121,13 +133,17 @@ async def force_stop_recording(request_data: dict):
 
         # Log the force stop request
         logging_service.log_recording_activity(
-            "FORCE_STOP_REQUEST", f"Streamer {streamer_id}", "Force stop requested via API"
+            "FORCE_STOP_REQUEST",
+            f"Streamer {streamer_id}",
+            "Force stop requested via API",
         )
 
         result = await get_recording_service().stop_recording_manual(streamer_id)
         if result:
             logging_service.log_recording_activity(
-                "FORCE_STOP_SUCCESS", f"Streamer {streamer_id}", "Recording force stopped successfully via API"
+                "FORCE_STOP_SUCCESS",
+                f"Streamer {streamer_id}",
+                "Recording force stopped successfully via API",
             )
 
             # Send success toast notification
@@ -137,10 +153,16 @@ async def force_stop_recording(request_data: dict):
                 message="Recording force stopped successfully!",
             )
 
-            return {"status": "success", "message": "Recording force stopped successfully"}
+            return {
+                "status": "success",
+                "message": "Recording force stopped successfully",
+            }
         else:
             logging_service.log_recording_activity(
-                "FORCE_STOP_FAILED", f"Streamer {streamer_id}", "No active recording found", "warning"
+                "FORCE_STOP_FAILED",
+                f"Streamer {streamer_id}",
+                "No active recording found",
+                "warning",
             )
 
             # Send warning toast notification
@@ -152,21 +174,25 @@ async def force_stop_recording(request_data: dict):
 
             return {"status": "error", "message": "No active recording found"}
     except Exception as e:
-        logging_service.log_recording_error(streamer_id, f"Streamer {streamer_id}", "API_FORCE_STOP_ERROR", str(e))
+        logging_service.log_recording_error(
+            streamer_id, f"Streamer {streamer_id}", "API_FORCE_STOP_ERROR", str(e)
+        )
         logger.error(f"Error force stopping recording: {e}")
 
         # Send error toast notification
         try:
             with SessionLocal() as db:
                 streamer = db.query(Streamer).filter(Streamer.id == streamer_id).first()
-                streamer_name = streamer.username if streamer else f"Streamer {streamer_id}"
+                streamer_name = (
+                    streamer.username if streamer else f"Streamer {streamer_id}"
+                )
 
             await websocket_manager.send_toast_notification(
                 toast_type="error",
                 title=f"Force Stop Recording - {streamer_name}",
-                message=f"Failed to force stop recording: {str(e)}",
+                message="Failed to force stop recording",
             )
         except Exception as notification_error:
             logger.error(f"Failed to send error notification: {notification_error}")
 
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")

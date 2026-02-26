@@ -7,7 +7,14 @@ from typing import List, Dict, Optional, Tuple, Any, Set
 from sqlalchemy.orm import Session
 from sqlalchemy import desc, asc
 
-from app.models import Stream, Streamer, RecordingSettings, StreamerRecordingSettings, FavoriteCategory, StreamMetadata
+from app.models import (
+    Stream,
+    Streamer,
+    RecordingSettings,
+    StreamerRecordingSettings,
+    FavoriteCategory,
+    StreamMetadata,
+)
 from app.database import SessionLocal
 from app.services.recording.config_manager import ConfigManager
 from app.schemas.recording import CleanupPolicyType
@@ -37,20 +44,32 @@ class CleanupService:
         """Get the effective cleanup policy for a streamer, considering overrides"""
         # First check streamer-specific settings
         streamer_settings = (
-            db.query(StreamerRecordingSettings).filter(StreamerRecordingSettings.streamer_id == streamer_id).first()
+            db.query(StreamerRecordingSettings)
+            .filter(StreamerRecordingSettings.streamer_id == streamer_id)
+            .first()
         )
 
         # If streamer has settings and explicitly wants to use custom policy
-        if streamer_settings and not streamer_settings.use_global_cleanup_policy and streamer_settings.cleanup_policy:
-            policy = CleanupService._parse_cleanup_policy(streamer_settings.cleanup_policy)
+        if (
+            streamer_settings
+            and not streamer_settings.use_global_cleanup_policy
+            and streamer_settings.cleanup_policy
+        ):
+            policy = CleanupService._parse_cleanup_policy(
+                streamer_settings.cleanup_policy
+            )
             if policy:
-                logger.debug(f"Using streamer-specific cleanup policy for streamer {streamer_id}")
+                logger.debug(
+                    f"Using streamer-specific cleanup policy for streamer {streamer_id}"
+                )
                 return policy
 
         # Use global settings (default behavior)
         global_settings = db.query(RecordingSettings).first()
         if global_settings and global_settings.cleanup_policy:
-            policy = CleanupService._parse_cleanup_policy(global_settings.cleanup_policy)
+            policy = CleanupService._parse_cleanup_policy(
+                global_settings.cleanup_policy
+            )
             if policy:
                 logger.debug(f"Using global cleanup policy for streamer {streamer_id}")
                 return policy
@@ -65,11 +84,15 @@ class CleanupService:
         if max_streams == 0:
             # No cleanup policy configured and max_streams is unlimited
             # Return None to indicate no cleanup should be performed
-            logger.debug(f"No cleanup policy for streamer {streamer_id} (max_streams=0 means unlimited)")
+            logger.debug(
+                f"No cleanup policy for streamer {streamer_id} (max_streams=0 means unlimited)"
+            )
             return None
 
         # Return default policy only when max_streams is explicitly set to a positive value
-        logger.debug(f"Using default cleanup policy for streamer {streamer_id}: count-based with threshold {max_streams}")
+        logger.debug(
+            f"Using default cleanup policy for streamer {streamer_id}: count-based with threshold {max_streams}"
+        )
         return {
             "type": CleanupPolicyType.COUNT.value,
             "threshold": max_streams,
@@ -85,7 +108,9 @@ class CleanupService:
 
     @staticmethod
     async def cleanup_old_recordings(
-        streamer_id: int, db: Optional[Session] = None, custom_policy: Optional[Dict[str, Any]] = None
+        streamer_id: int,
+        db: Optional[Session] = None,
+        custom_policy: Optional[Dict[str, Any]] = None,
     ) -> Tuple[int, List[str]]:
         """
         Delete recordings based on the streamer's cleanup policy
@@ -105,14 +130,18 @@ class CleanupService:
 
         try:
             # Get the policy to apply
-            policy = custom_policy or CleanupService._get_effective_cleanup_policy(streamer_id, db)
-            
+            policy = custom_policy or CleanupService._get_effective_cleanup_policy(
+                streamer_id, db
+            )
+
             # CRITICAL: If no policy is configured (None), skip cleanup entirely
             # This happens when max_streams=0 (unlimited) and no explicit cleanup policy is set
             if policy is None:
-                logger.debug(f"No cleanup policy for streamer {streamer_id}, skipping cleanup (unlimited retention)")
+                logger.debug(
+                    f"No cleanup policy for streamer {streamer_id}, skipping cleanup (unlimited retention)"
+                )
                 return 0, []
-            
+
             policy_type = policy.get("type", CleanupPolicyType.COUNT.value)
             threshold = policy.get("threshold", 10)
             preserve_favorites = policy.get("preserve_favorites", True)
@@ -142,8 +171,11 @@ class CleanupService:
 
             streams_query = db.query(Stream).filter(
                 Stream.streamer_id == streamer_id,
-                Stream.ended_at.isnot(None),  # Only completed recordings (not currently recording)
-                Stream.ended_at < safety_threshold,  # Only streams that ended more than 5 minutes ago
+                Stream.ended_at.isnot(
+                    None
+                ),  # Only completed recordings (not currently recording)
+                Stream.ended_at
+                < safety_threshold,  # Only streams that ended more than 5 minutes ago
             )
 
             # Log which policy is being applied for debugging
@@ -186,7 +218,9 @@ class CleanupService:
                     db,
                 )
             else:
-                logger.warning(f"Unknown cleanup policy type: {policy_type}, falling back to COUNT")
+                logger.warning(
+                    f"Unknown cleanup policy type: {policy_type}, falling back to COUNT"
+                )
                 return await CleanupService._apply_count_policy(
                     streamer_id,
                     10,
@@ -244,7 +278,9 @@ class CleanupService:
 
         # Preserve streams based on timeframe if specified
         if preserve_timeframe:
-            preserved_streams.update(CleanupService._get_streams_in_timeframe(streams, preserve_timeframe))
+            preserved_streams.update(
+                CleanupService._get_streams_in_timeframe(streams, preserve_timeframe)
+            )
 
         # Identify streams to delete (keeping at least threshold streams)
         kept_count = 0
@@ -291,7 +327,9 @@ class CleanupService:
                     size = os.path.getsize(stream.recording_path)
                     total_size += size
                 except Exception as e:
-                    logger.error(f"Error getting file size for {stream.recording_path}: {e}")
+                    logger.error(
+                        f"Error getting file size for {stream.recording_path}: {e}"
+                    )
 
         # If we're under the threshold, no cleanup needed
         if total_size <= threshold_bytes:
@@ -321,7 +359,9 @@ class CleanupService:
 
         # Preserve streams based on timeframe if specified
         if preserve_timeframe:
-            preserved_streams.update(CleanupService._get_streams_in_timeframe(streams, preserve_timeframe))
+            preserved_streams.update(
+                CleanupService._get_streams_in_timeframe(streams, preserve_timeframe)
+            )
 
         # Identify streams to delete (to get under the threshold)
         streams_to_delete = []
@@ -344,7 +384,9 @@ class CleanupService:
                     streams_to_delete.append(stream)
                     current_size -= file_size
                 except Exception as e:
-                    logger.error(f"Error getting file size for {stream.recording_path}: {e}")
+                    logger.error(
+                        f"Error getting file size for {stream.recording_path}: {e}"
+                    )
 
         # Delete the identified streams
         return await CleanupService._delete_streams(streams_to_delete, db)
@@ -395,7 +437,11 @@ class CleanupService:
 
         # Preserve streams based on timeframe if specified
         if preserve_timeframe:
-            preserved_streams.update(CleanupService._get_streams_in_timeframe(old_streams, preserve_timeframe))
+            preserved_streams.update(
+                CleanupService._get_streams_in_timeframe(
+                    old_streams, preserve_timeframe
+                )
+            )
 
         # Identify streams to delete
         streams_to_delete = [s for s in old_streams if s.id not in preserved_streams]
@@ -404,7 +450,9 @@ class CleanupService:
         return await CleanupService._delete_streams(streams_to_delete, db)
 
     @staticmethod
-    def _get_streams_in_timeframe(streams: List[Stream], timeframe: Dict[str, Any]) -> Set[int]:
+    def _get_streams_in_timeframe(
+        streams: List[Stream], timeframe: Dict[str, Any]
+    ) -> Set[int]:
         """
         Get IDs of streams that fall within the specified timeframe
         """
@@ -448,11 +496,18 @@ class CleanupService:
                         end_time_obj = time(end_hour, end_minute)
 
                         # Check if stream time is within the range
-                        if end_time_obj > start_time_obj:  # Normal case (e.g., 8:00 to 17:00)
-                            if not (start_time_obj <= stream_time_of_day <= end_time_obj):
+                        if (
+                            end_time_obj > start_time_obj
+                        ):  # Normal case (e.g., 8:00 to 17:00)
+                            if not (
+                                start_time_obj <= stream_time_of_day <= end_time_obj
+                            ):
                                 continue
                         else:  # Overnight case (e.g., 22:00 to 6:00)
-                            if not (stream_time_of_day >= start_time_obj or stream_time_of_day <= end_time_obj):
+                            if not (
+                                stream_time_of_day >= start_time_obj
+                                or stream_time_of_day <= end_time_obj
+                            ):
                                 continue
                     except (ValueError, IndexError) as e:
                         logger.error(f"Error parsing time of day: {e}")
@@ -463,7 +518,9 @@ class CleanupService:
         return preserved_ids
 
     @staticmethod
-    async def _delete_streams(streams_to_delete: List[Stream], db: Session) -> Tuple[int, List[str]]:
+    async def _delete_streams(
+        streams_to_delete: List[Stream], db: Session
+    ) -> Tuple[int, List[str]]:
         """Delete the specified streams and return count and paths"""
         deleted_count = 0
         deleted_paths = []
@@ -478,13 +535,16 @@ class CleanupService:
                 # Alternative: Use preserve_favorites or preserve_timeframe to keep important streams
 
                 # Get all metadata files from database first
-                metadata = db.query(StreamMetadata).filter(StreamMetadata.stream_id == stream.id).first()
+                metadata = (
+                    db.query(StreamMetadata)
+                    .filter(StreamMetadata.stream_id == stream.id)
+                    .first()
+                )
                 files_to_delete = []
                 directories_to_check = set()
 
                 # Get the base directory for this recording
                 recording_dir = None
-                base_name = None
                 if stream.recording_path:
                     recording_dir = os.path.dirname(stream.recording_path)
                     if recording_dir and os.path.exists(recording_dir):
@@ -529,7 +589,9 @@ class CleanupService:
                             f"Preserving tvshow.nfo (belongs to streamer, not stream): {metadata.tvshow_nfo_path}"
                         )
 
-                    if metadata.season_nfo_path and os.path.exists(metadata.season_nfo_path):
+                    if metadata.season_nfo_path and os.path.exists(
+                        metadata.season_nfo_path
+                    ):
                         # Check if other streams exist in the same season directory
                         season_dir = os.path.dirname(metadata.season_nfo_path)
                         other_streams_in_season = (
@@ -544,24 +606,39 @@ class CleanupService:
                         )
                         if other_streams_in_season == 0:
                             files_to_delete.append(metadata.season_nfo_path)
-                            logger.debug(f"Last stream in season, will delete season.nfo: {metadata.season_nfo_path}")
+                            logger.debug(
+                                f"Last stream in season, will delete season.nfo: {metadata.season_nfo_path}"
+                            )
                         else:
                             logger.debug(
                                 f"Keeping shared season.nfo (other streams in season): {metadata.season_nfo_path}"
                             )
 
                     # Add segments directory from database if tracked
-                    if hasattr(metadata, "segments_dir_path") and metadata.segments_dir_path:
-                        if os.path.exists(metadata.segments_dir_path) and os.path.isdir(metadata.segments_dir_path):
+                    if (
+                        hasattr(metadata, "segments_dir_path")
+                        and metadata.segments_dir_path
+                    ):
+                        if os.path.exists(metadata.segments_dir_path) and os.path.isdir(
+                            metadata.segments_dir_path
+                        ):
                             directories_to_check.add(metadata.segments_dir_path)
-                            logger.debug(f"Will check segments directory from DB: {metadata.segments_dir_path}")
+                            logger.debug(
+                                f"Will check segments directory from DB: {metadata.segments_dir_path}"
+                            )
 
                 # Fallback: Derive segments directory from recording_path if not in DB
                 if stream.recording_path:
-                    segments_dir_derived = stream.recording_path.replace(".mp4", "_segments").replace(".ts", "_segments")
-                    if os.path.exists(segments_dir_derived) and os.path.isdir(segments_dir_derived):
+                    segments_dir_derived = stream.recording_path.replace(
+                        ".mp4", "_segments"
+                    ).replace(".ts", "_segments")
+                    if os.path.exists(segments_dir_derived) and os.path.isdir(
+                        segments_dir_derived
+                    ):
                         directories_to_check.add(segments_dir_derived)
-                        logger.debug(f"Will check segments directory (derived): {segments_dir_derived}")
+                        logger.debug(
+                            f"Will check segments directory (derived): {segments_dir_derived}"
+                        )
 
                 # Delete all collected files (using exact DB paths only)
                 for file_path in files_to_delete:
@@ -582,7 +659,9 @@ class CleanupService:
                     if os.path.exists(dir_path) and os.path.isdir(dir_path):
                         # Safety check: Don't delete if this stream is still active
                         if stream.ended_at is None:
-                            logger.warning(f"Skipping deletion of segment directory for active recording: {dir_path}")
+                            logger.warning(
+                                f"Skipping deletion of segment directory for active recording: {dir_path}"
+                            )
                             continue
 
                         try:
@@ -596,10 +675,14 @@ class CleanupService:
                 # Even though we have ondelete="CASCADE", SQLAlchemy's cascade behavior requires explicit deletion
                 from app.models import Recording
 
-                associated_recordings = db.query(Recording).filter(Recording.stream_id == stream.id).all()
+                associated_recordings = (
+                    db.query(Recording).filter(Recording.stream_id == stream.id).all()
+                )
                 for recording in associated_recordings:
                     db.delete(recording)
-                    logger.debug(f"Deleted recording {recording.id} for stream {stream.id}")
+                    logger.debug(
+                        f"Deleted recording {recording.id} for stream {stream.id}"
+                    )
 
                 # Delete metadata record from database
                 if metadata:
@@ -613,7 +696,9 @@ class CleanupService:
                 deleted_count += 1
                 file_count = len(files_to_delete)
                 dir_count = len(directories_to_check)
-                logger.info(f"Deleted stream {stream.id} with {file_count} files and {dir_count} directories")
+                logger.info(
+                    f"Deleted stream {stream.id} with {file_count} files and {dir_count} directories"
+                )
 
                 # ARCHITECTURE NOTE: StreamVault stores recordings directly in Season folders
                 # Structure: /recordings/{Streamer}/Season YYYY-MM/{Episode files}
@@ -621,32 +706,34 @@ class CleanupService:
                 #
                 # recording_dir = Season folder (e.g., /recordings/GRONKH/Season 2026-01/)
                 # We should ONLY delete the Season folder if it's completely empty (no other recordings)
-                
+
                 # Check if the Season directory is now completely empty (no other recordings remain)
                 if recording_dir and os.path.exists(recording_dir):
                     try:
                         # Count remaining recordings in the Season folder
                         # Look for .mp4, .ts, .mkv files (actual recordings, not metadata)
-                        recording_extensions = {'.mp4', '.ts', '.mkv', '.avi', '.mov'}
+                        recording_extensions = {".mp4", ".ts", ".mkv", ".avi", ".mov"}
                         remaining_recordings = []
-                        
+
                         for item in os.listdir(recording_dir):
                             item_path = os.path.join(recording_dir, item)
-                            
+
                             # Skip hidden files/dirs
-                            if item.startswith('.'):
+                            if item.startswith("."):
                                 continue
-                                
+
                             # Check if it's a recording file
                             if os.path.isfile(item_path):
                                 _, ext = os.path.splitext(item.lower())
                                 if ext in recording_extensions:
                                     remaining_recordings.append(item)
-                            
+
                             # Check if it's a segments directory (indicates active/incomplete recording)
-                            elif os.path.isdir(item_path) and item.endswith('_segments'):
+                            elif os.path.isdir(item_path) and item.endswith(
+                                "_segments"
+                            ):
                                 remaining_recordings.append(item)
-                        
+
                         if remaining_recordings:
                             # Other recordings still exist in this Season folder - keep it!
                             logger.debug(
@@ -656,43 +743,72 @@ class CleanupService:
                             # Season folder is truly empty of recordings - safe to delete
                             # But first check for any non-metadata files
                             metadata_files = {
-                                'poster.jpg', 'fanart.jpg', 'season-poster.jpg', 'banner.jpg',
-                                'season.nfo', 'tvshow.nfo', 'folder.jpg'
+                                "poster.jpg",
+                                "fanart.jpg",
+                                "season-poster.jpg",
+                                "banner.jpg",
+                                "season.nfo",
+                                "tvshow.nfo",
+                                "folder.jpg",
                             }
-                            
-                            all_items = [f for f in os.listdir(recording_dir) if not f.startswith('.')]
-                            non_metadata_items = [f for f in all_items if f.lower() not in metadata_files]
-                            
+
+                            all_items = [
+                                f
+                                for f in os.listdir(recording_dir)
+                                if not f.startswith(".")
+                            ]
+                            non_metadata_items = [
+                                f for f in all_items if f.lower() not in metadata_files
+                            ]
+
                             if not non_metadata_items:
                                 # Only metadata files remain - safe to delete Season folder
                                 # SECURITY: Validate path before deletion
                                 try:
-                                    safe_season_dir = validate_path_security(recording_dir, "delete")
+                                    safe_season_dir = validate_path_security(
+                                        recording_dir, "delete"
+                                    )
                                     shutil.rmtree(safe_season_dir)
-                                    logger.info(f"🗂️ Removed empty Season directory: {safe_season_dir}")
-                                    
+                                    logger.info(
+                                        f"🗂️ Removed empty Season directory: {safe_season_dir}"
+                                    )
+
                                     # Now check if the Streamer folder is also empty
                                     streamer_dir = os.path.dirname(safe_season_dir)
                                     if os.path.exists(streamer_dir):
                                         streamer_items = [
-                                            f for f in os.listdir(streamer_dir) 
-                                            if not f.startswith('.') and f.lower() not in metadata_files
+                                            f
+                                            for f in os.listdir(streamer_dir)
+                                            if not f.startswith(".")
+                                            and f.lower() not in metadata_files
                                         ]
                                         if not streamer_items:
                                             try:
-                                                safe_streamer_dir = validate_path_security(streamer_dir, "delete")
+                                                safe_streamer_dir = (
+                                                    validate_path_security(
+                                                        streamer_dir, "delete"
+                                                    )
+                                                )
                                                 shutil.rmtree(safe_streamer_dir)
-                                                logger.info(f"🗂️ Removed empty Streamer directory: {safe_streamer_dir}")
+                                                logger.info(
+                                                    f"🗂️ Removed empty Streamer directory: {safe_streamer_dir}"
+                                                )
                                             except Exception as e:
-                                                logger.debug(f"Could not remove Streamer directory: {e}")
+                                                logger.debug(
+                                                    f"Could not remove Streamer directory: {e}"
+                                                )
                                 except Exception as e:
-                                    logger.warning(f"Could not remove Season directory {recording_dir}: {e}")
+                                    logger.warning(
+                                        f"Could not remove Season directory {recording_dir}: {e}"
+                                    )
                             else:
                                 logger.debug(
                                     f"Season directory {recording_dir} has non-metadata items: {non_metadata_items[:5]}..."
                                 )
                     except Exception as e:
-                        logger.debug(f"Could not check Season directory {recording_dir}: {e}")
+                        logger.debug(
+                            f"Could not check Season directory {recording_dir}: {e}"
+                        )
 
             except Exception as e:
                 logger.error(f"Error deleting stream {stream.id}: {e}", exc_info=True)
@@ -717,7 +833,10 @@ class CleanupService:
                 # Get all recordings for this streamer
                 streams = (
                     db.query(Stream)
-                    .filter(Stream.streamer_id == streamer_id, Stream.recording_path.isnot(None))
+                    .filter(
+                        Stream.streamer_id == streamer_id,
+                        Stream.recording_path.isnot(None),
+                    )
                     .order_by(Stream.started_at)
                     .all()
                 )
@@ -733,9 +852,15 @@ class CleanupService:
 
                         # Update oldest/newest
                         if stream.started_at:
-                            if oldest_recording is None or stream.started_at < oldest_recording:
+                            if (
+                                oldest_recording is None
+                                or stream.started_at < oldest_recording
+                            ):
                                 oldest_recording = stream.started_at
-                            if newest_recording is None or stream.started_at > newest_recording:
+                            if (
+                                newest_recording is None
+                                or stream.started_at > newest_recording
+                            ):
                                 newest_recording = stream.started_at
 
                         # Calculate file size
@@ -743,18 +868,29 @@ class CleanupService:
                             file_size = os.path.getsize(stream.recording_path)
                             total_size += file_size
                         except Exception as e:
-                            logger.error(f"Error getting size for {stream.recording_path}: {e}")
+                            logger.error(
+                                f"Error getting size for {stream.recording_path}: {e}"
+                            )
 
                 return {
                     "totalSize": total_size,
                     "recordingCount": recording_count,
-                    "oldestRecording": oldest_recording.isoformat() if oldest_recording else "",
-                    "newestRecording": newest_recording.isoformat() if newest_recording else "",
+                    "oldestRecording": oldest_recording.isoformat()
+                    if oldest_recording
+                    else "",
+                    "newestRecording": newest_recording.isoformat()
+                    if newest_recording
+                    else "",
                 }
 
             except Exception as e:
                 logger.error(f"Error getting storage usage: {e}", exc_info=True)
-                return {"totalSize": 0, "recordingCount": 0, "oldestRecording": "", "newestRecording": ""}
+                return {
+                    "totalSize": 0,
+                    "recordingCount": 0,
+                    "oldestRecording": "",
+                    "newestRecording": "",
+                }
 
     @staticmethod
     async def run_scheduled_cleanup():
@@ -773,7 +909,9 @@ class CleanupService:
                     processed_count += 1
                     # Check if the streamer has a cleanup policy
                     try:
-                        policy = CleanupService._get_effective_cleanup_policy(streamer.id, db)
+                        policy = CleanupService._get_effective_cleanup_policy(
+                            streamer.id, db
+                        )
                         if policy is None:
                             # No cleanup policy configured (max_streams=0 means unlimited)
                             logger.debug(
@@ -781,7 +919,7 @@ class CleanupService:
                                 f"- no cleanup policy (unlimited retention)"
                             )
                             continue
-                            
+
                         policy_type = policy.get("type", "count")
                         threshold = policy.get("threshold", 0)
                         logger.info(
@@ -790,16 +928,27 @@ class CleanupService:
                         )
 
                         # Get current storage stats before cleanup
-                        storage_before = await CleanupService.get_storage_usage(streamer.id)
+                        storage_before = await CleanupService.get_storage_usage(
+                            streamer.id
+                        )
 
                         # Run the cleanup
-                        deleted_count, deleted_paths = await CleanupService.cleanup_old_recordings(streamer.id, db)
+                        (
+                            deleted_count,
+                            deleted_paths,
+                        ) = await CleanupService.cleanup_old_recordings(streamer.id, db)
 
                         if deleted_count > 0:
                             # Get storage stats after cleanup
-                            storage_after = await CleanupService.get_storage_usage(streamer.id)
-                            freed_space = storage_before["totalSize"] - storage_after["totalSize"]
-                            freed_space_mb = freed_space / (1024 * 1024)  # Convert to MB
+                            storage_after = await CleanupService.get_storage_usage(
+                                streamer.id
+                            )
+                            freed_space = (
+                                storage_before["totalSize"] - storage_after["totalSize"]
+                            )
+                            freed_space_mb = freed_space / (
+                                1024 * 1024
+                            )  # Convert to MB
 
                             logger.info(
                                 f"Cleaned up {deleted_count} recordings for streamer {streamer.username}, "
@@ -809,9 +958,14 @@ class CleanupService:
                             cleanup_count += 1
                             total_deleted_count += deleted_count
                         else:
-                            logger.debug(f"No recordings to clean up for streamer {streamer.username}")
+                            logger.debug(
+                                f"No recordings to clean up for streamer {streamer.username}"
+                            )
                     except Exception as e:
-                        logger.error(f"Error during cleanup for streamer {streamer.username}: {e}", exc_info=True)
+                        logger.error(
+                            f"Error during cleanup for streamer {streamer.username}: {e}",
+                            exc_info=True,
+                        )
 
                 logger.info(
                     f"Scheduled cleanup completed for {cleanup_count}/{len(streamers)} streamers. "
@@ -822,7 +976,9 @@ class CleanupService:
 
     @staticmethod
     async def simulate_cleanup(
-        streamer_id: int, db: Optional[Session] = None, custom_policy: Optional[Dict[str, Any]] = None
+        streamer_id: int,
+        db: Optional[Session] = None,
+        custom_policy: Optional[Dict[str, Any]] = None,
     ) -> Tuple[int, List[Dict[str, Any]]]:
         """
         Simulate cleanup based on the streamer's cleanup policy without actually deleting files
@@ -842,13 +998,17 @@ class CleanupService:
 
         try:
             # Get the policy to apply
-            policy = custom_policy or CleanupService._get_effective_cleanup_policy(streamer_id, db)
-            
+            policy = custom_policy or CleanupService._get_effective_cleanup_policy(
+                streamer_id, db
+            )
+
             # If no policy is configured, nothing would be deleted
             if policy is None:
-                logger.debug(f"No cleanup policy for streamer {streamer_id}, nothing to simulate")
+                logger.debug(
+                    f"No cleanup policy for streamer {streamer_id}, nothing to simulate"
+                )
                 return 0, []
-            
+
             policy_type = policy.get("type", CleanupPolicyType.COUNT.value)
             threshold = policy.get("threshold", 10)
             preserve_favorites = policy.get("preserve_favorites", True)
@@ -887,12 +1047,19 @@ class CleanupService:
                             preserved_streams.add(stream.id)
 
                         # Check if we should preserve based on specified categories
-                        if preserve_categories and stream.category_name in preserve_categories:
+                        if (
+                            preserve_categories
+                            and stream.category_name in preserve_categories
+                        ):
                             preserved_streams.add(stream.id)
 
                 # Preserve streams based on timeframe if specified
                 if preserve_timeframe:
-                    preserved_streams.update(CleanupService._get_streams_in_timeframe(all_streams, preserve_timeframe))
+                    preserved_streams.update(
+                        CleanupService._get_streams_in_timeframe(
+                            all_streams, preserve_timeframe
+                        )
+                    )
 
                 # Identify streams to delete (keeping at least threshold streams)
                 kept_count = 0
@@ -939,11 +1106,18 @@ class CleanupService:
                         ):
                             preserved_streams.add(stream.id)
 
-                        if preserve_categories and stream.category_name in preserve_categories:
+                        if (
+                            preserve_categories
+                            and stream.category_name in preserve_categories
+                        ):
                             preserved_streams.add(stream.id)
 
                 if preserve_timeframe:
-                    preserved_streams.update(CleanupService._get_streams_in_timeframe(all_streams, preserve_timeframe))
+                    preserved_streams.update(
+                        CleanupService._get_streams_in_timeframe(
+                            all_streams, preserve_timeframe
+                        )
+                    )
 
                 # Identify streams to delete (to get under the threshold)
                 current_size = total_size
@@ -972,7 +1146,9 @@ class CleanupService:
                 cutoff_date = datetime.now() - timedelta(days=threshold)
 
                 # Get streams older than the cutoff
-                old_streams = streams_query.filter(Stream.started_at < cutoff_date).all()
+                old_streams = streams_query.filter(
+                    Stream.started_at < cutoff_date
+                ).all()
 
                 # Identify preserved streams
                 preserved_streams = set()
@@ -987,12 +1163,19 @@ class CleanupService:
                         ):
                             preserved_streams.add(stream.id)
 
-                        if preserve_categories and stream.category_name in preserve_categories:
+                        if (
+                            preserve_categories
+                            and stream.category_name in preserve_categories
+                        ):
                             preserved_streams.add(stream.id)
 
                 # Preserve streams based on timeframe if specified
                 if preserve_timeframe:
-                    preserved_streams.update(CleanupService._get_streams_in_timeframe(old_streams, preserve_timeframe))
+                    preserved_streams.update(
+                        CleanupService._get_streams_in_timeframe(
+                            old_streams, preserve_timeframe
+                        )
+                    )
 
                 # Identify streams to delete
                 streams = [s for s in old_streams if s.id not in preserved_streams]
@@ -1016,7 +1199,9 @@ class CleanupService:
                         "id": stream.id,
                         "title": stream.title,
                         "category": getattr(stream, "category_name", "Unknown"),
-                        "started_at": stream.started_at.isoformat() if stream.started_at else None,
+                        "started_at": stream.started_at.isoformat()
+                        if stream.started_at
+                        else None,
                         "path": stream.recording_path,
                         "size": size,
                         "size_formatted": CleanupService._format_size(size),
@@ -1040,7 +1225,12 @@ class CleanupService:
 
         except Exception as e:
             logger.error(f"Error simulating cleanup: {e}", exc_info=True)
-            return 0, {"streams": [], "total_size": 0, "total_size_formatted": "0 B", "policy": {}}
+            return 0, {
+                "streams": [],
+                "total_size": 0,
+                "total_size_formatted": "0 B",
+                "policy": {},
+            }
         finally:
             if close_db:
                 db.close()
@@ -1062,7 +1252,9 @@ class CleanupService:
         return f"{size:.2f} {units[unit_index]}"
 
     @staticmethod
-    async def cleanup_orphaned_files(recordings_root: Optional[str] = None) -> Tuple[int, List[str]]:
+    async def cleanup_orphaned_files(
+        recordings_root: Optional[str] = None,
+    ) -> Tuple[int, List[str]]:
         """
         🧹 Cleanup Orphaned Files
         Remove broken symlinks, 0-byte files, and empty segment directories
@@ -1101,7 +1293,6 @@ class CleanupService:
                     return False
 
             for root, dirs, files in os.walk(safe_root):
-
                 # Check for broken symlinks and 0-byte files
                 for filename in files:
                     file_path = os.path.join(root, filename)
@@ -1109,7 +1300,9 @@ class CleanupService:
                     try:
                         # SECURITY: Defense-in-depth - validate sub-path
                         if not is_safe_subpath(file_path):
-                            logger.warning(f"🚨 SECURITY: Skipping file outside safe root: {file_path}")
+                            logger.warning(
+                                f"🚨 SECURITY: Skipping file outside safe root: {file_path}"
+                            )
                             continue
 
                         # Check for broken symlinks
@@ -1122,8 +1315,14 @@ class CleanupService:
                                 continue
 
                         # Check for 0-byte NFO files (excluding tvshow.nfo and season.nfo which can be small)
-                        if filename.endswith(".nfo") and filename not in ["tvshow.nfo", "season.nfo"]:
-                            if os.path.exists(file_path) and os.path.getsize(file_path) == 0:
+                        if filename.endswith(".nfo") and filename not in [
+                            "tvshow.nfo",
+                            "season.nfo",
+                        ]:
+                            if (
+                                os.path.exists(file_path)
+                                and os.path.getsize(file_path) == 0
+                            ):
                                 os.remove(file_path)
                                 cleaned_paths.append(file_path)
                                 cleaned_count += 1
@@ -1133,13 +1332,17 @@ class CleanupService:
                         logger.debug(f"Error processing file {file_path}: {e}")
 
                 # Check for empty segment directories
-                for dirname in dirs[:]:  # Use slice copy to allow modification during iteration
+                for dirname in dirs[
+                    :
+                ]:  # Use slice copy to allow modification during iteration
                     if dirname.endswith("_segments"):
                         dir_path = os.path.join(root, dirname)
                         try:
                             # SECURITY: Defense-in-depth - validate sub-path
                             if not is_safe_subpath(dir_path):
-                                logger.warning(f"🚨 SECURITY: Skipping directory outside safe root: {dir_path}")
+                                logger.warning(
+                                    f"🚨 SECURITY: Skipping directory outside safe root: {dir_path}"
+                                )
                                 continue
 
                             if os.path.isdir(dir_path):
@@ -1147,11 +1350,15 @@ class CleanupService:
                                 if not os.listdir(dir_path):
                                     os.rmdir(dir_path)
                                     cleaned_count += 1
-                                    logger.info(f"🧹 Removed empty segment directory: {dir_path}")
+                                    logger.info(
+                                        f"🧹 Removed empty segment directory: {dir_path}"
+                                    )
                         except Exception as e:
                             logger.debug(f"Error processing directory {dir_path}: {e}")
 
-            logger.info(f"🧹 Orphaned files cleanup completed: {cleaned_count} items cleaned")
+            logger.info(
+                f"🧹 Orphaned files cleanup completed: {cleaned_count} items cleaned"
+            )
             return cleaned_count, cleaned_paths
 
         except Exception as e:

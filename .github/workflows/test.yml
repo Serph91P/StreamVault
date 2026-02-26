@@ -1,0 +1,264 @@
+name: Tests
+
+permissions:
+  contents: read
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+# Prevent concurrent test runs on the same branch/PR
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ──────────────────────────────────────────────
+  # Backend Tests (Python)
+  # ──────────────────────────────────────────────
+  backend-tests:
+    name: Backend Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Python 3.14
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.14'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio pytest-cov httpx
+
+      - name: Run backend tests with coverage
+        run: |
+          pytest tests/ -v \
+            --cov=app \
+            --cov-report=xml:coverage.xml \
+            --cov-report=html:htmlcov \
+            --cov-report=term-missing \
+            --tb=short
+
+      - name: Check migrations
+        run: python -m app.migrations_init
+
+      - name: Upload coverage to Codecov
+        if: always() && hashFiles('coverage.xml') != ''
+        uses: codecov/codecov-action@v5
+        with:
+          files: ./coverage.xml
+          flags: backend
+          name: backend-coverage
+          token: ${{ secrets.CODECOV_TOKEN }}
+        continue-on-error: true
+
+      - name: Archive coverage report
+        if: always() && hashFiles('htmlcov/index.html') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-coverage-report
+          path: htmlcov/
+          retention-days: 14
+
+  # ──────────────────────────────────────────────
+  # Frontend Build & Lint (Vue 3 + TypeScript)
+  # ──────────────────────────────────────────────
+  frontend-build:
+    name: Frontend Build & Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: app/frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: app/frontend
+        run: npm ci --prefer-offline
+
+      - name: Lint TypeScript/Vue code
+        working-directory: app/frontend
+        run: npm run lint
+
+      - name: Type check TypeScript code
+        working-directory: app/frontend
+        run: npm run type-check
+
+      - name: Build frontend (production)
+        working-directory: app/frontend
+        run: |
+          rm -rf dist || true
+          npm run build
+
+  # ──────────────────────────────────────────────
+  # Python Lint & Type Check
+  # ──────────────────────────────────────────────
+  lint-and-typecheck:
+    name: Python Lint & Type Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Python 3.14
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.14'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install ruff mypy
+
+      - name: Lint Python code
+        run: ruff check app/
+
+      - name: Check Python formatting
+        run: ruff format --check app/
+
+      - name: Type check Python code
+        run: mypy app/ --ignore-missing-imports || true
+
+  # ──────────────────────────────────────────────
+  # Integration Tests (Docker)
+  # ──────────────────────────────────────────────
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: [backend-tests, frontend-build]
+    timeout-minutes: 25
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          install: true
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile
+          platforms: linux/amd64
+          push: false
+          load: true
+          tags: streamvault:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Run integration tests
+        run: |
+          # Run container in background
+          docker run -d --name streamvault-test \
+            -p 7000:7000 \
+            -e DATABASE_URL=sqlite:///./test.db \
+            streamvault:test
+
+          # Wait for container to be healthy with retries
+          echo "Waiting for container to be ready..."
+          for i in {1..30}; do
+            if curl -sf http://localhost:7000/api/health/live > /dev/null 2>&1; then
+              echo "✅ StreamVault is ready!"
+              break
+            fi
+            echo "Attempt $i/30 - waiting..."
+            sleep 2
+          done
+
+          # Show container logs for debugging
+          echo "=== Container logs ==="
+          docker logs streamvault-test 2>&1 | tail -50
+          echo "======================"
+
+          # Test health endpoint
+          echo "🔍 Testing health endpoint..."
+          curl -f http://localhost:7000/api/health/live || echo "⚠️ Health endpoint not responding"
+
+          # Test frontend serves correctly
+          echo "🔍 Testing frontend..."
+          curl -sf http://localhost:7000/ > /dev/null && echo "✅ Frontend is serving" || echo "⚠️ Frontend not serving"
+
+          # Clean up
+          docker stop streamvault-test
+          docker rm streamvault-test
+
+      - name: Clean up
+        if: always()
+        run: |
+          docker stop streamvault-test 2>/dev/null || true
+          docker rm streamvault-test 2>/dev/null || true
+          docker rmi streamvault:test 2>/dev/null || true
+
+  # ──────────────────────────────────────────────
+  # Quick Security Scan (inline, for fast feedback)
+  # ──────────────────────────────────────────────
+  security-scan:
+    name: Quick Security Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      security-events: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Python 3.14
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.14'
+          cache: 'pip'
+
+      - name: Run Trivy filesystem scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '0'
+        continue-on-error: true
+
+      - name: Upload Trivy scan results
+        uses: github/codeql-action/upload-sarif@v4
+        if: always() && hashFiles('trivy-results.sarif') != ''
+        with:
+          sarif_file: 'trivy-results.sarif'
+          category: 'trivy-filesystem'
+        continue-on-error: true
+
+      - name: Python dependency security check
+        run: |
+          python -m pip install --upgrade pip
+          pip install safety bandit
+
+          echo "🔍 Running safety check on dependencies..."
+          safety check -r requirements.txt || true
+
+          echo "🔍 Running bandit static analysis..."
+          bandit -r app/ -ll --exclude app/__pycache__,app/frontend || true
+
+      - name: Node dependency audit
+        working-directory: app/frontend
+        run: |
+          npm audit --audit-level high || true

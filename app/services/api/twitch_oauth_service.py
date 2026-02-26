@@ -63,13 +63,17 @@ class TwitchOAuthService:
                         return await response.json()
                     else:
                         error_text = await response.text()
-                        logger.error(f"Failed to exchange code: {response.status} - {error_text}")
+                        logger.error(
+                            f"Failed to exchange code: {response.status} - {error_text}"
+                        )
                         return None
         except Exception as e:
             logger.error(f"Error exchanging code: {e}")
             return None
 
-    async def get_user_followed_channels(self, access_token: str) -> List[Dict[str, Any]]:
+    async def get_user_followed_channels(
+        self, access_token: str
+    ) -> List[Dict[str, Any]]:
         """Get channels followed by the user using the new API endpoint"""
         try:
             user_id = await self._get_authenticated_user_id(access_token)
@@ -114,7 +118,9 @@ class TwitchOAuthService:
     ) -> tuple[List[Dict[str, Any]], Optional[str]]:
         """Get a page of followed channels using the new API endpoint"""
         try:
-            follows = await twitch_api.get_user_followed_streamers(user_id, access_token)
+            follows = await twitch_api.get_user_followed_streamers(
+                user_id, access_token
+            )
 
             # Debug logging
             logger.debug(f"Successfully fetched {len(follows)} followed channels")
@@ -139,34 +145,54 @@ class TwitchOAuthService:
             logger.error(f"Error getting follows page: {e}")
             return [], None
 
-    async def import_followed_streamers(self, streamers: List[Dict[str, Any]]) -> Dict[str, Any]:
+    async def import_followed_streamers(
+        self, streamers: List[Dict[str, Any]]
+    ) -> Dict[str, Any]:
         """Import selected streamers from followed channels"""
         results = {"imported": [], "failed": [], "already_exists": []}
 
         for streamer_info in streamers:
             try:
-                username = streamer_info.get("login") or streamer_info.get("display_name")
-                display_name = streamer_info.get("display_name") or streamer_info.get("login")
+                username = streamer_info.get("login") or streamer_info.get(
+                    "display_name"
+                )
+                display_name = streamer_info.get("display_name") or streamer_info.get(
+                    "login"
+                )
 
                 if not username:
-                    logger.warning(f"Skipping streamer with missing username: {streamer_info}")
-                    results["failed"].append({"streamer": streamer_info, "reason": "Missing username"})
+                    logger.warning(
+                        f"Skipping streamer with missing username: {streamer_info}"
+                    )
+                    results["failed"].append(
+                        {"streamer": streamer_info, "reason": "Missing username"}
+                    )
                     continue
 
                 # Use StreamerService to add the streamer
-                added_streamer = await self.streamer_service.add_streamer(username, display_name)
+                added_streamer = await self.streamer_service.add_streamer(
+                    username, display_name
+                )
 
                 if added_streamer:
                     if added_streamer.id:  # New streamer added
                         results["imported"].append(
-                            {"username": username, "display_name": display_name, "id": added_streamer.id}
+                            {
+                                "username": username,
+                                "display_name": display_name,
+                                "id": added_streamer.id,
+                            }
                         )
                         logger.info(f"Successfully imported streamer: {username}")
                     else:  # Streamer already exists
-                        results["already_exists"].append({"username": username, "display_name": display_name})
+                        results["already_exists"].append(
+                            {"username": username, "display_name": display_name}
+                        )
                         logger.debug(f"Streamer already exists: {username}")
                 else:
-                    results["failed"].append({"streamer": streamer_info, "reason": "Failed to add streamer"})
+                    results["failed"].append(
+                        {"streamer": streamer_info, "reason": "Failed to add streamer"}
+                    )
                     logger.error(f"Failed to import streamer: {username}")
 
             except Exception as e:

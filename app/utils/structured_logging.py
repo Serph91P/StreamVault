@@ -14,7 +14,9 @@ def get_structured_logger(name: str = "streamvault") -> logging.Logger:
     return logging.getLogger(name)
 
 
-def log_with_context(logger: logging.Logger, level: str, message: str, **context: Any) -> None:
+def log_with_context(
+    logger: logging.Logger, level: str, message: str, **context: Any
+) -> None:
     """Log a message with additional context fields
 
     Args:
@@ -58,14 +60,20 @@ def log_recording_event(
         stream_id: Optional stream ID
         **additional_context: Additional context fields
     """
-    context = {"event_type": event_type, "streamer_name": streamer_name, "operation": "recording"}
+    context = {
+        "event_type": event_type,
+        "streamer_name": streamer_name,
+        "operation": "recording",
+    }
 
     if stream_id is not None:
         context["stream_id"] = stream_id
 
     context.update(additional_context)
 
-    log_with_context(logger, "info", f"Recording {event_type} for {streamer_name}", **context)
+    log_with_context(
+        logger, "info", f"Recording {event_type} for {streamer_name}", **context
+    )
 
 
 def log_ffmpeg_operation(
@@ -102,7 +110,9 @@ def log_ffmpeg_operation(
     level = "info" if success else "error"
     status = "completed" if success else "failed"
 
-    log_with_context(logger, level, f"FFmpeg {operation} {status} for {streamer_name}", **context)
+    log_with_context(
+        logger, level, f"FFmpeg {operation} {status} for {streamer_name}", **context
+    )
 
 
 def log_stream_detection(
@@ -138,7 +148,10 @@ def log_stream_detection(
     context.update(additional_context)
 
     log_with_context(
-        logger, "info", f"Stream detection: {streamer_name} is {'LIVE' if is_live else 'OFFLINE'}", **context
+        logger,
+        "info",
+        f"Stream detection: {streamer_name} is {'LIVE' if is_live else 'OFFLINE'}",
+        **context,
     )
 
 

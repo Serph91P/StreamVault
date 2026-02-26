@@ -346,9 +346,9 @@ const loadNotifications = (): void => {
     
     if (saved) {
       const parsed = JSON.parse(saved)
-      
+
       if (Array.isArray(parsed) && parsed.length > 0) {
-        notifications.value = parsed
+        notifications.value = parsed.slice(0, MAX_NOTIFICATIONS)
       } else {
         notifications.value = []
       }

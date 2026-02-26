@@ -34,7 +34,8 @@ def generate_vapid_keys():
                 encryption_algorithm=serialization.NoEncryption(),
             )
             public_key_uncompressed = vapid.private_key.public_key().public_bytes(
-                encoding=serialization.Encoding.X962, format=serialization.PublicFormat.UncompressedPoint
+                encoding=serialization.Encoding.X962,
+                format=serialization.PublicFormat.UncompressedPoint,
             )
             # Convert to base64url format for storage and the frontend API
         try:
@@ -44,13 +45,19 @@ def generate_vapid_keys():
                 # If it's already a string, assume it's already encoded
                 public_key_b64url = public_key_uncompressed
             else:
-                public_key_b64url = b64urlencode(public_key_uncompressed).decode("utf-8")
+                public_key_b64url = b64urlencode(public_key_uncompressed).decode(
+                    "utf-8"
+                )
         except ImportError:
             # Fallback if b64urlencode is not available
             if isinstance(public_key_uncompressed, str):
                 public_key_b64url = public_key_uncompressed
             else:
-                public_key_b64url = base64.urlsafe_b64encode(public_key_uncompressed).decode("utf-8").rstrip("=")
+                public_key_b64url = (
+                    base64.urlsafe_b64encode(public_key_uncompressed)
+                    .decode("utf-8")
+                    .rstrip("=")
+                )
 
         # Store the private key as base64 for database storage
         private_key_b64 = base64.b64encode(private_key_der).decode("utf-8")
@@ -62,7 +69,9 @@ def generate_vapid_keys():
         return public_key_b64url, private_key_b64
 
     except ImportError:
-        logger.warning("⚠️ py_vapid library not available, trying direct cryptography approach")
+        logger.warning(
+            "⚠️ py_vapid library not available, trying direct cryptography approach"
+        )
         return _generate_vapid_keys_direct()
     except Exception as e:
         logger.warning(f"⚠️ py_vapid failed, trying direct cryptography approach: {e}")
@@ -86,13 +95,18 @@ def _generate_vapid_keys_direct():
 
         # Get public key in uncompressed format
         public_key_uncompressed = private_key.public_key().public_bytes(
-            encoding=serialization.Encoding.X962, format=serialization.PublicFormat.UncompressedPoint
+            encoding=serialization.Encoding.X962,
+            format=serialization.PublicFormat.UncompressedPoint,
         )
         # Convert to base64url format for frontend
         if isinstance(public_key_uncompressed, str):
             public_key_b64url = public_key_uncompressed
         else:
-            public_key_b64url = base64.urlsafe_b64encode(public_key_uncompressed).decode("utf-8").rstrip("=")
+            public_key_b64url = (
+                base64.urlsafe_b64encode(public_key_uncompressed)
+                .decode("utf-8")
+                .rstrip("=")
+            )
 
         # Store the private key as base64 for database storage
         if isinstance(private_key_der, str):
@@ -100,7 +114,9 @@ def _generate_vapid_keys_direct():
         else:
             private_key_b64 = base64.b64encode(private_key_der).decode("utf-8")
 
-        logger.info("✅ VAPID keys auto-generated successfully using direct cryptography")
+        logger.info(
+            "✅ VAPID keys auto-generated successfully using direct cryptography"
+        )
         logger.debug(f"Public key (b64url): {public_key_b64url[:20]}...")
         logger.debug(f"Private key stored as base64 (length: {len(private_key_b64)})")
 
@@ -155,7 +171,13 @@ class Settings(BaseSettings):
     # CORS settings
     CORS_ALLOW_CREDENTIALS: bool = True
     CORS_ALLOW_METHODS: List[str] = ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"]
-    CORS_ALLOW_HEADERS: List[str] = ["*"]
+    CORS_ALLOW_HEADERS: List[str] = [
+        "Content-Type",
+        "Authorization",
+        "X-Requested-With",
+        "Accept",
+        "Origin",
+    ]
     CORS_MAX_AGE: int = 86400  # 24 hours
 
     # Additional allowed origins (comma-separated in env)
@@ -188,7 +210,9 @@ class Settings(BaseSettings):
             if parsed_url.hostname and not parsed_url.hostname.startswith("www."):
                 origins.add(f"{parsed_url.scheme}://www.{parsed_url.hostname}")
                 if parsed_url.port:
-                    origins.add(f"{parsed_url.scheme}://www.{parsed_url.hostname}:{parsed_url.port}")
+                    origins.add(
+                        f"{parsed_url.scheme}://www.{parsed_url.hostname}:{parsed_url.port}"
+                    )
 
         except Exception as e:
             logger.warning(f"Could not parse BASE_URL for CORS: {e}")
@@ -208,7 +232,9 @@ class Settings(BaseSettings):
 
         # Add any additional origins from environment
         if self.CORS_ADDITIONAL_ORIGINS:
-            additional = [o.strip() for o in self.CORS_ADDITIONAL_ORIGINS.split(",") if o.strip()]
+            additional = [
+                o.strip() for o in self.CORS_ADDITIONAL_ORIGINS.split(",") if o.strip()
+            ]
             origins.update(additional)
 
         # Convert to sorted list for consistent ordering
@@ -245,7 +271,9 @@ class Settings(BaseSettings):
         self._configure_cookie_security()
 
         # Log CORS configuration
-        logger.info(f"🌐 CORS configured for origins: {', '.join(self.allowed_origins)}")
+        logger.info(
+            f"🌐 CORS configured for origins: {', '.join(self.allowed_origins)}"
+        )
         logger.info(f"🔒 Secure mode: {'Yes' if self.is_secure else 'No'}")
         logger.info(f"🍪 Secure cookies: {'Yes' if self.USE_SECURE_COOKIES else 'No'}")
 
@@ -266,7 +294,9 @@ class Settings(BaseSettings):
             if not self.VAPID_PUBLIC_KEY or not self.VAPID_PRIVATE_KEY:
                 # Import here to avoid circular imports and check if database is ready
                 try:
-                    from app.services.system.system_config_service import system_config_service
+                    from app.services.system.system_config_service import (
+                        system_config_service,
+                    )
 
                     # Try to load from database
                     stored_keys = system_config_service.get_vapid_keys()
@@ -279,11 +309,17 @@ class Settings(BaseSettings):
                             self.VAPID_CLAIMS_SUB = stored_keys["claims_sub"]
                         return  # Successfully loaded from database
                 except Exception as db_error:
-                    logger.warning(f"⚠️ Database not ready or system_config table missing: {db_error}")
-                    logger.info("💡 Will skip database loading and use generated keys for now...")
+                    logger.warning(
+                        f"⚠️ Database not ready or system_config table missing: {db_error}"
+                    )
+                    logger.info(
+                        "💡 Will skip database loading and use generated keys for now..."
+                    )
                     # Don't try to auto-generate if database isn't ready, just use basic keys
                     if not self.VAPID_PUBLIC_KEY or not self.VAPID_PRIVATE_KEY:
-                        logger.info("🔑 Generating temporary VAPID keys (will be persisted once database is ready)")
+                        logger.info(
+                            "🔑 Generating temporary VAPID keys (will be persisted once database is ready)"
+                        )
                         self._generate_temp_vapid_keys()
                     return
 
@@ -305,7 +341,9 @@ class Settings(BaseSettings):
                 self.VAPID_PUBLIC_KEY = public_key
                 self.VAPID_PRIVATE_KEY = private_key
                 logger.info("✅ Temporary VAPID keys generated successfully!")
-                logger.info("💡 Keys will be persisted to database once migrations complete")
+                logger.info(
+                    "💡 Keys will be persisted to database once migrations complete"
+                )
             else:
                 logger.error("❌ Failed to generate temporary VAPID keys")
 
@@ -325,14 +363,20 @@ class Settings(BaseSettings):
 
                 # Store in database for persistence
                 try:
-                    from app.services.system.system_config_service import system_config_service
+                    from app.services.system.system_config_service import (
+                        system_config_service,
+                    )
 
-                    system_config_service.set_vapid_keys(public_key, private_key, self.VAPID_CLAIMS_SUB)
+                    system_config_service.set_vapid_keys(
+                        public_key, private_key, self.VAPID_CLAIMS_SUB
+                    )
                     logger.info("✅ VAPID keys generated and stored in database!")
                     logger.info("� Keys will persist across container restarts")
 
                 except Exception as db_error:
-                    logger.warning(f"⚠️ Generated VAPID keys but could not store in database: {db_error}")
+                    logger.warning(
+                        f"⚠️ Generated VAPID keys but could not store in database: {db_error}"
+                    )
                     logger.info("🔑 Keys will work for this session but won't persist")
             else:
                 logger.warning("⚠️ Could not auto-generate VAPID keys")
@@ -347,20 +391,28 @@ class Settings(BaseSettings):
             from app.config.reverse_proxy import ReverseProxyDetector
 
             # Use the reverse proxy detector
-            self.USE_SECURE_COOKIES = ReverseProxyDetector.should_use_secure_cookies(self.SECURE_COOKIES)
+            self.USE_SECURE_COOKIES = ReverseProxyDetector.should_use_secure_cookies(
+                self.SECURE_COOKIES
+            )
 
             # Log detailed proxy information
             proxy_info = ReverseProxyDetector.get_proxy_info()
 
             if proxy_info["is_behind_proxy"]:
                 if proxy_info["is_https_terminated"]:
-                    logger.info("🔒 Detected HTTPS reverse proxy - enabling secure cookies")
+                    logger.info(
+                        "🔒 Detected HTTPS reverse proxy - enabling secure cookies"
+                    )
                     logger.debug(
                         f"🔍 Proxy details: proto={proxy_info['x_forwarded_proto']}, ssl={proxy_info['x_forwarded_ssl']}"
                     )
                 else:
-                    logger.warning("⚠️ Detected reverse proxy without HTTPS - disabling secure cookies")
-                    logger.warning("⚠️ For production, ensure your reverse proxy terminates SSL/TLS")
+                    logger.warning(
+                        "⚠️ Detected reverse proxy without HTTPS - disabling secure cookies"
+                    )
+                    logger.warning(
+                        "⚠️ For production, ensure your reverse proxy terminates SSL/TLS"
+                    )
                     logger.debug(f"🔍 Proxy details: {proxy_info}")
             else:
                 logger.info(

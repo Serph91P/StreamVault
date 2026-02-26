@@ -69,13 +69,25 @@ class ImageRefreshService:
             streamers = await get_all_streamers()
 
             # Process streamers in batches for better performance
-            async for batch in batch_process_items(streamers, batch_size=10, max_concurrent=3):
+            async for batch in batch_process_items(
+                streamers, batch_size=10, max_concurrent=3
+            ):
                 batch_tasks = []
                 for streamer in batch:
                     # Check if cached file exists (try both old and new naming)
-                    expected_path_new = self.media_dir / "profiles" / f"profile_avatar_{streamer.twitch_id}.jpg"
-                    expected_path_old_internal = self.media_dir / "profiles" / f"profile_avatar_{streamer.id}.jpg"
-                    expected_path_old_streamer = self.media_dir / "profiles" / f"streamer_{streamer.id}.jpg"
+                    expected_path_new = (
+                        self.media_dir
+                        / "profiles"
+                        / f"profile_avatar_{streamer.twitch_id}.jpg"
+                    )
+                    expected_path_old_internal = (
+                        self.media_dir
+                        / "profiles"
+                        / f"profile_avatar_{streamer.id}.jpg"
+                    )
+                    expected_path_old_streamer = (
+                        self.media_dir / "profiles" / f"streamer_{streamer.id}.jpg"
+                    )
 
                     is_missing_locally = (
                         not expected_path_new.exists()
@@ -100,14 +112,22 @@ class ImageRefreshService:
                         source_url = streamer.original_profile_image_url
                     else:
                         # Construct a Twitch CDN URL using twitch_id when available
-                        if streamer.twitch_id and str(streamer.twitch_id).replace("-", "").replace("_", "").isalnum():
+                        if (
+                            streamer.twitch_id
+                            and str(streamer.twitch_id)
+                            .replace("-", "")
+                            .replace("_", "")
+                            .isalnum()
+                        ):
                             source_url = f"https://static-cdn.jtvnw.net/jtv_user_pictures/{streamer.twitch_id}-profile_image-300x300.png"
 
                     if source_url:
                         logger.info(
                             f"Profile image missing for streamer {streamer.id} (twitch_id={streamer.twitch_id}); re-downloading from source"
                         )
-                        task = self._download_profile_image(streamer, source_url=source_url)
+                        task = self._download_profile_image(
+                            streamer, source_url=source_url
+                        )
                         batch_tasks.append(task)
                     else:
                         logger.debug(
@@ -116,11 +136,15 @@ class ImageRefreshService:
 
                 # Process batch concurrently
                 if batch_tasks:
-                    batch_results = await asyncio.gather(*batch_tasks, return_exceptions=True)
+                    batch_results = await asyncio.gather(
+                        *batch_tasks, return_exceptions=True
+                    )
 
                     for result in batch_results:
                         if isinstance(result, Exception):
-                            logger.error(f"Error in batch profile image download: {result}")
+                            logger.error(
+                                f"Error in batch profile image download: {result}"
+                            )
                             stats["errors"] += 1
                         elif result:
                             stats["refreshed"] += 1
@@ -131,16 +155,26 @@ class ImageRefreshService:
 
         return stats
 
-    async def _download_profile_image(self, streamer: Streamer, *, source_url: Optional[str] = None) -> bool:
+    async def _download_profile_image(
+        self, streamer: Streamer, *, source_url: Optional[str] = None
+    ) -> bool:
         """Download profile image for a single streamer"""
         try:
             # Prefer provided source_url; fall back to current DB value
             url_to_use = source_url or streamer.profile_image_url
-            if not url_to_use or not isinstance(url_to_use, str) or not url_to_use.startswith("http"):
-                logger.debug(f"No valid source URL to download profile image for streamer {streamer.id}")
+            if (
+                not url_to_use
+                or not isinstance(url_to_use, str)
+                or not url_to_use.startswith("http")
+            ):
+                logger.debug(
+                    f"No valid source URL to download profile image for streamer {streamer.id}"
+                )
                 return False
 
-            cached_path = await unified_image_service.download_profile_image(streamer.id, url_to_use)
+            cached_path = await unified_image_service.download_profile_image(
+                streamer.id, url_to_use
+            )
             if cached_path:
                 # Update database with cached path using proper session
                 from app.utils.async_db_utils import get_async_session
@@ -154,16 +188,22 @@ class ImageRefreshService:
                     if db_streamer:
                         db_streamer.profile_image_url = cached_path
                         await db.commit()
-                        logger.info(f"Successfully refreshed profile image for streamer {streamer.id}")
+                        logger.info(
+                            f"Successfully refreshed profile image for streamer {streamer.id}"
+                        )
                         return True
                     else:
                         logger.warning(f"Streamer {streamer.id} not found in database")
                         return False
             else:
-                logger.warning(f"Failed to download profile image for streamer {streamer.id}")
+                logger.warning(
+                    f"Failed to download profile image for streamer {streamer.id}"
+                )
                 return False
         except Exception as e:
-            logger.error(f"Error refreshing profile image for streamer {streamer.id}: {e}")
+            logger.error(
+                f"Error refreshing profile image for streamer {streamer.id}: {e}"
+            )
             return False
 
     async def _refresh_missing_category_images(self) -> Dict[str, int]:
@@ -182,23 +222,33 @@ class ImageRefreshService:
                     if category.box_art_url and category.box_art_url.startswith("http"):
                         # Check if cached file exists
                         safe_name = sanitize_filename(category.name)
-                        expected_path = self.media_dir / "categories" / f"{safe_name}.jpg"
+                        expected_path = (
+                            self.media_dir / "categories" / f"{safe_name}.jpg"
+                        )
 
                         if not expected_path.exists():
-                            logger.info(f"Category image missing for {category.name}, re-downloading...")
+                            logger.info(
+                                f"Category image missing for {category.name}, re-downloading..."
+                            )
                             try:
-                                cached_path = await unified_image_service.download_category_image(
-                                    category.name, category.box_art_url
+                                cached_path = (
+                                    await unified_image_service.download_category_image(
+                                        category.name, category.box_art_url
+                                    )
                                 )
                                 if cached_path:
                                     # Update database with cached path
                                     category.box_art_url = cached_path
                                     stats["refreshed"] += 1
-                                    logger.info(f"Successfully refreshed category image for {category.name}")
+                                    logger.info(
+                                        f"Successfully refreshed category image for {category.name}"
+                                    )
                                 else:
                                     stats["errors"] += 1
                             except Exception as e:
-                                logger.error(f"Error refreshing category image for {category.name}: {e}")
+                                logger.error(
+                                    f"Error refreshing category image for {category.name}: {e}"
+                                )
                                 stats["errors"] += 1
 
         except Exception as e:
@@ -218,12 +268,17 @@ class ImageRefreshService:
             streams = await get_recent_streams(limit=100)
 
             # Process streams in batches for better performance
-            async for batch in batch_process_items(streams, batch_size=5, max_concurrent=2):
+            async for batch in batch_process_items(
+                streams, batch_size=5, max_concurrent=2
+            ):
                 batch_tasks = []
                 for stream in batch:
                     # Check if cached file exists
                     expected_path = (
-                        self.media_dir / "artwork" / f"streamer_{stream.streamer_id}" / f"stream_{stream.id}.jpg"
+                        self.media_dir
+                        / "artwork"
+                        / f"streamer_{stream.streamer_id}"
+                        / f"stream_{stream.id}.jpg"
                     )
 
                     # Check if stream has metadata with thumbnail_url
@@ -232,17 +287,23 @@ class ImageRefreshService:
                         thumbnail_url = stream.stream_metadata.thumbnail_url
 
                     if not expected_path.exists() and thumbnail_url:
-                        logger.info(f"Stream artwork missing for stream {stream.id}, re-downloading...")
+                        logger.info(
+                            f"Stream artwork missing for stream {stream.id}, re-downloading..."
+                        )
                         task = self._download_stream_artwork(stream)
                         batch_tasks.append(task)
 
                 # Process batch concurrently
                 if batch_tasks:
-                    batch_results = await asyncio.gather(*batch_tasks, return_exceptions=True)
+                    batch_results = await asyncio.gather(
+                        *batch_tasks, return_exceptions=True
+                    )
 
                     for result in batch_results:
                         if isinstance(result, Exception):
-                            logger.error(f"Error in batch stream artwork download: {result}")
+                            logger.error(
+                                f"Error in batch stream artwork download: {result}"
+                            )
                             stats["errors"] += 1
                         elif result:
                             stats["refreshed"] += 1
@@ -269,10 +330,14 @@ class ImageRefreshService:
                 stream.id, stream.streamer_id, thumbnail_url
             )
             if cached_path:
-                logger.info(f"Successfully refreshed stream artwork for stream {stream.id}")
+                logger.info(
+                    f"Successfully refreshed stream artwork for stream {stream.id}"
+                )
                 return True
             else:
-                logger.warning(f"Failed to download stream artwork for stream {stream.id}")
+                logger.warning(
+                    f"Failed to download stream artwork for stream {stream.id}"
+                )
                 return False
         except Exception as e:
             logger.error(f"Error refreshing stream artwork for stream {stream.id}: {e}")
@@ -286,13 +351,17 @@ class ImageRefreshService:
                 if not streamer:
                     return False
 
-                if streamer.profile_image_url and streamer.profile_image_url.startswith("http"):
+                if streamer.profile_image_url and streamer.profile_image_url.startswith(
+                    "http"
+                ):
                     cached_path = await unified_image_service.download_profile_image(
                         streamer.id, streamer.profile_image_url
                     )
                     if cached_path:
                         streamer.profile_image_url = cached_path
-                        logger.info(f"Refreshed profile image for streamer {streamer_id}")
+                        logger.info(
+                            f"Refreshed profile image for streamer {streamer_id}"
+                        )
                         return True
 
         except Exception as e:
@@ -304,7 +373,9 @@ class ImageRefreshService:
         """Refresh image for a specific category"""
         try:
             with SessionLocal() as db:
-                category = db.query(Category).filter(Category.name == category_name).first()
+                category = (
+                    db.query(Category).filter(Category.name == category_name).first()
+                )
                 if not category:
                     return False
 

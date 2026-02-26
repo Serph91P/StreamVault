@@ -40,19 +40,27 @@ class PostProcessingRetryResponse(BaseModel):
 
 @router.get("/stats", response_model=PostProcessingStatsResponse)
 async def get_orphaned_recordings_stats(
-    max_age_hours: int = Query(48, description="Maximum age in hours for orphaned recordings")
+    max_age_hours: int = Query(
+        48, description="Maximum age in hours for orphaned recordings"
+    ),
 ) -> PostProcessingStatsResponse:
     """
     🔍 Get Statistics of Orphaned Recordings
     Shows .ts files and segment directories that need post-processing
     """
     try:
-        from app.services.recording.orphaned_recovery_service import get_orphaned_recovery_service
+        from app.services.recording.orphaned_recovery_service import (
+            get_orphaned_recovery_service,
+        )
 
-        logger.info(f"📊 ADMIN_POST_PROCESSING_STATS: Getting stats for max_age={max_age_hours}h")
+        logger.info(
+            f"📊 ADMIN_POST_PROCESSING_STATS: Getting stats for max_age={max_age_hours}h"
+        )
 
         recovery_service = await get_orphaned_recovery_service()
-        stats = await recovery_service.get_orphaned_statistics(max_age_hours=max_age_hours)
+        stats = await recovery_service.get_orphaned_statistics(
+            max_age_hours=max_age_hours
+        )
 
         # Ensure by_streamer is always a dict (compatibility wrapper may return None)
         by_streamer = stats.get("by_streamer")
@@ -68,21 +76,29 @@ async def get_orphaned_recordings_stats(
 
     except Exception as e:
         logger.error(f"Error getting orphaned recordings stats: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to get stats: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to get stats")
 
 
 @router.post("/retry-all", response_model=PostProcessingRetryResponse)
 async def retry_all_failed_post_processing(
-    max_age_hours: int = Query(48, description="Maximum age in hours for orphaned recordings"),
-    dry_run: bool = Query(False, description="If true, only show what would be processed"),
-    cleanup_segments: bool = Query(True, description="Also cleanup orphaned segment directories"),
+    max_age_hours: int = Query(
+        48, description="Maximum age in hours for orphaned recordings"
+    ),
+    dry_run: bool = Query(
+        False, description="If true, only show what would be processed"
+    ),
+    cleanup_segments: bool = Query(
+        True, description="Also cleanup orphaned segment directories"
+    ),
 ) -> PostProcessingRetryResponse:
     """
     🔄 Retry Post-Processing for All Failed Recordings
     Finds all .ts files without corresponding .mp4 files and restarts post-processing
     """
     try:
-        from app.services.recording.orphaned_recovery_service import get_orphaned_recovery_service
+        from app.services.recording.orphaned_recovery_service import (
+            get_orphaned_recovery_service,
+        )
 
         logger.info(
             f"🔄 ADMIN_RETRY_ALL_POST_PROCESSING: max_age={max_age_hours}h, dry_run={dry_run}, cleanup_segments={cleanup_segments}"
@@ -90,7 +106,9 @@ async def retry_all_failed_post_processing(
 
         recovery_service = await get_orphaned_recovery_service()
         result = await recovery_service.scan_and_recover_orphaned_recordings(
-            max_age_hours=max_age_hours, dry_run=dry_run, cleanup_segments=cleanup_segments
+            max_age_hours=max_age_hours,
+            dry_run=dry_run,
+            cleanup_segments=cleanup_segments,
         )
 
         logger.info(
@@ -109,39 +127,57 @@ async def retry_all_failed_post_processing(
 
     except Exception as e:
         logger.error(f"Error retrying post-processing: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to retry post-processing: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to retry post-processing")
 
 
 @router.post("/retry-specific", response_model=PostProcessingRetryResponse)
-async def retry_specific_recordings(request: PostProcessingRetryRequest) -> PostProcessingRetryResponse:
+async def retry_specific_recordings(
+    request: PostProcessingRetryRequest,
+) -> PostProcessingRetryResponse:
     """
     🎯 Retry Post-Processing for Specific Recordings
     Manually restart post-processing for selected recording IDs
     """
     try:
-        from app.services.recording.orphaned_recovery_service import get_orphaned_recovery_service
+        from app.services.recording.orphaned_recovery_service import (
+            get_orphaned_recovery_service,
+        )
         from app.database import SessionLocal
         from app.models import Recording
 
-        logger.info(f"🎯 ADMIN_RETRY_SPECIFIC: recording_ids={request.recording_ids}, dry_run={request.dry_run}")
+        logger.info(
+            f"🎯 ADMIN_RETRY_SPECIFIC: recording_ids={request.recording_ids}, dry_run={request.dry_run}"
+        )
 
         recovery_service = await get_orphaned_recovery_service()
 
-        result = {"recovery_triggered": 0, "recovery_failed": 0, "segments_cleaned": 0, "details": [], "errors": []}
+        result = {
+            "recovery_triggered": 0,
+            "recovery_failed": 0,
+            "segments_cleaned": 0,
+            "details": [],
+            "errors": [],
+        }
 
         with SessionLocal() as db:
             for recording_id in request.recording_ids:
                 try:
                     # Get the recording
-                    recording = db.query(Recording).filter(Recording.id == recording_id).first()
+                    recording = (
+                        db.query(Recording).filter(Recording.id == recording_id).first()
+                    )
                     if not recording:
                         result["errors"].append(f"Recording {recording_id} not found")
                         continue
 
                     # Validate the recording
-                    validation = await recovery_service._validate_orphaned_recording(recording)
+                    validation = await recovery_service._validate_orphaned_recording(
+                        recording
+                    )
                     if not validation["valid"]:
-                        result["errors"].append(f"Recording {recording_id}: {validation['reason']}")
+                        result["errors"].append(
+                            f"Recording {recording_id}: {validation['reason']}"
+                        )
                         continue
 
                     recording_info = {
@@ -158,15 +194,21 @@ async def retry_specific_recordings(request: PostProcessingRetryRequest) -> Post
 
                     if not request.dry_run:
                         # Trigger recovery
-                        success = await recovery_service._trigger_orphaned_recovery(recording, db)
+                        success = await recovery_service._trigger_orphaned_recovery(
+                            recording, db
+                        )
                         if success:
                             result["recovery_triggered"] += 1
                             recording_info["recovery_triggered"] = True
-                            logger.info(f"✅ Triggered recovery for recording {recording_id}")
+                            logger.info(
+                                f"✅ Triggered recovery for recording {recording_id}"
+                            )
                         else:
                             result["recovery_failed"] += 1
                             recording_info["error"] = "Failed to trigger recovery"
-                            logger.error(f"❌ Failed to trigger recovery for recording {recording_id}")
+                            logger.error(
+                                f"❌ Failed to trigger recovery for recording {recording_id}"
+                            )
                     else:
                         result["recovery_triggered"] += 1  # Count for dry run
                         recording_info["recovery_triggered"] = True
@@ -175,8 +217,12 @@ async def retry_specific_recordings(request: PostProcessingRetryRequest) -> Post
 
                 except Exception as e:
                     result["recovery_failed"] += 1
-                    result["errors"].append(f"Recording {recording_id}: {str(e)}")
-                    logger.error(f"Error processing recording {recording_id}: {e}", exc_info=True)
+                    result["errors"].append(
+                        f"Recording {recording_id}: recovery failed"
+                    )
+                    logger.error(
+                        f"Error processing recording {recording_id}: {e}", exc_info=True
+                    )
 
         message = f"{'Would trigger' if request.dry_run else 'Triggered'} recovery for {result['recovery_triggered']} recordings"
         if result["recovery_failed"] > 0:
@@ -194,30 +240,47 @@ async def retry_specific_recordings(request: PostProcessingRetryRequest) -> Post
 
     except Exception as e:
         logger.error(f"Error retrying specific recordings: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to retry specific recordings: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail="Failed to retry specific recordings"
+        )
 
 
 @router.post("/cleanup-segments")
 async def cleanup_orphaned_segments(
-    max_age_hours: int = Query(48, description="Maximum age in hours for orphaned segments"),
-    dry_run: bool = Query(False, description="If true, only show what would be cleaned"),
+    max_age_hours: int = Query(
+        48, description="Maximum age in hours for orphaned segments"
+    ),
+    dry_run: bool = Query(
+        False, description="If true, only show what would be cleaned"
+    ),
 ) -> Dict[str, Any]:
     """
     🧹 Cleanup Orphaned Segment Directories
     Remove segment directories that have no corresponding .mp4 file
     """
     try:
-        from app.services.recording.orphaned_recovery_service import get_orphaned_recovery_service
+        from app.services.recording.orphaned_recovery_service import (
+            get_orphaned_recovery_service,
+        )
         from app.database import SessionLocal
 
-        logger.info(f"🧹 ADMIN_CLEANUP_SEGMENTS: max_age={max_age_hours}h, dry_run={dry_run}")
+        logger.info(
+            f"🧹 ADMIN_CLEANUP_SEGMENTS: max_age={max_age_hours}h, dry_run={dry_run}"
+        )
 
         recovery_service = await get_orphaned_recovery_service()
 
-        result = {"segments_cleaned": 0, "segments_cleanup_failed": 0, "segments_cleaned_list": [], "errors": []}
+        result = {
+            "segments_cleaned": 0,
+            "segments_cleanup_failed": 0,
+            "segments_cleaned_list": [],
+            "errors": [],
+        }
 
         with SessionLocal() as db:
-            await recovery_service._cleanup_orphaned_segments(db, max_age_hours, dry_run, result)
+            await recovery_service._cleanup_orphaned_segments(
+                db, max_age_hours, dry_run, result
+            )
 
         logger.info(
             f"🧹 ADMIN_CLEANUP_SEGMENTS_RESULT: cleaned={result['segments_cleaned']}, failed={result['segments_cleanup_failed']}"
@@ -231,7 +294,7 @@ async def cleanup_orphaned_segments(
 
     except Exception as e:
         logger.error(f"Error cleaning orphaned segments: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to cleanup segments: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to cleanup segments")
 
 
 @router.post("/cleanup-orphaned-files")
@@ -247,29 +310,39 @@ async def cleanup_orphaned_files() -> Dict[str, Any]:
 
         # SECURITY: Pass None to use configured directory (safest approach)
         # This prevents any possibility of path traversal attacks
-        logger.info("🧹 ADMIN_CLEANUP_ORPHANED_FILES: Using configured RECORDING_DIRECTORY")
+        logger.info(
+            "🧹 ADMIN_CLEANUP_ORPHANED_FILES: Using configured RECORDING_DIRECTORY"
+        )
 
-        cleaned_count, cleaned_paths = await cleanup_service.cleanup_orphaned_files(None)
+        cleaned_count, cleaned_paths = await cleanup_service.cleanup_orphaned_files(
+            None
+        )
 
-        logger.info(f"🧹 ADMIN_CLEANUP_ORPHANED_FILES_RESULT: cleaned={cleaned_count} items")
+        logger.info(
+            f"🧹 ADMIN_CLEANUP_ORPHANED_FILES_RESULT: cleaned={cleaned_count} items"
+        )
 
         return {
             "success": True,
             "message": f"Cleaned {cleaned_count} orphaned files",
             "data": {
                 "cleaned_count": cleaned_count,
-                "cleaned_paths": cleaned_paths[:100],  # Limit to first 100 for response size
+                "cleaned_paths": cleaned_paths[
+                    :100
+                ],  # Limit to first 100 for response size
             },
         }
 
     except Exception as e:
         logger.error(f"Error cleaning orphaned files: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to cleanup orphaned files: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to cleanup orphaned files")
 
 
 @router.get("/orphaned-list")
 async def get_orphaned_recordings_list(
-    max_age_hours: int = Query(48, description="Maximum age in hours for orphaned recordings"),
+    max_age_hours: int = Query(
+        48, description="Maximum age in hours for orphaned recordings"
+    ),
     limit: int = Query(50, description="Maximum number of recordings to return"),
 ) -> Dict[str, Any]:
     """
@@ -277,7 +350,9 @@ async def get_orphaned_recordings_list(
     Returns detailed list of recordings that need post-processing
     """
     try:
-        from app.services.recording.orphaned_recovery_service import get_orphaned_recovery_service
+        from app.services.recording.orphaned_recovery_service import (
+            get_orphaned_recovery_service,
+        )
         from app.database import SessionLocal
 
         logger.info(f"📋 ADMIN_ORPHANED_LIST: max_age={max_age_hours}h, limit={limit}")
@@ -285,14 +360,18 @@ async def get_orphaned_recordings_list(
         recovery_service = await get_orphaned_recovery_service()
 
         with SessionLocal() as db:
-            orphaned_recordings = await recovery_service._find_orphaned_recordings(db, max_age_hours)
+            orphaned_recordings = await recovery_service._find_orphaned_recordings(
+                db, max_age_hours
+            )
 
             # Limit the results and add validation info
             limited_recordings = orphaned_recordings[:limit]
 
             recordings_info = []
             for recording in limited_recordings:
-                validation = await recovery_service._validate_orphaned_recording(recording)
+                validation = await recovery_service._validate_orphaned_recording(
+                    recording
+                )
 
                 recording_info = {
                     "recording_id": recording.id,
@@ -301,18 +380,28 @@ async def get_orphaned_recordings_list(
                         if recording.stream and recording.stream.streamer
                         else "Unknown"
                     ),
-                    "stream_title": recording.stream.title if recording.stream else "Unknown",
+                    "stream_title": recording.stream.title
+                    if recording.stream
+                    else "Unknown",
                     "file_path": recording.path,
-                    "created_at": recording.created_at.isoformat() if recording.created_at else None,
+                    "created_at": recording.created_at.isoformat()
+                    if recording.created_at
+                    else None,
                     "status": recording.status,
                     "file_size_mb": (
-                        validation.get("file_size", 0) / (1024 * 1024) if validation.get("file_size") else 0
+                        validation.get("file_size", 0) / (1024 * 1024)
+                        if validation.get("file_size")
+                        else 0
                     ),
                     "file_age_hours": (
-                        validation.get("file_age_seconds", 0) / 3600 if validation.get("file_age_seconds") else 0
+                        validation.get("file_age_seconds", 0) / 3600
+                        if validation.get("file_age_seconds")
+                        else 0
                     ),
                     "valid_for_recovery": validation["valid"],
-                    "validation_reason": validation.get("reason") if not validation["valid"] else None,
+                    "validation_reason": validation.get("reason")
+                    if not validation["valid"]
+                    else None,
                 }
 
                 recordings_info.append(recording_info)
@@ -326,7 +415,7 @@ async def get_orphaned_recordings_list(
 
     except Exception as e:
         logger.error(f"Error getting orphaned recordings list: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to get orphaned list: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to get orphaned list")
 
 
 @router.post("/enqueue-manual")
@@ -342,26 +431,35 @@ async def enqueue_manual_post_processing(
     Directly enqueue post-processing tasks for a specific file
     """
     try:
-        from app.services.init.background_queue_init import enqueue_recording_post_processing
+        from app.services.init.background_queue_init import (
+            enqueue_recording_post_processing,
+        )
         from pathlib import Path
         from datetime import datetime
         import os
 
-        logger.info(f"⚡ ADMIN_MANUAL_ENQUEUE: recording_id={recording_id}, file={ts_file_path}")
+        logger.info(
+            f"⚡ ADMIN_MANUAL_ENQUEUE: recording_id={recording_id}, file={ts_file_path}"
+        )
 
-        # Validate and secure the file path
-        normalized_path = os.path.normpath(os.path.join(RECORDINGS_ROOT, ts_file_path))
-        if not normalized_path.startswith(RECORDINGS_ROOT):
-            raise HTTPException(status_code=400, detail="Invalid file path: outside allowed directory")
+        # SECURITY: Use validate_path_security() instead of startswith() (CWE-22)
+        from app.utils.security import validate_path_security
+
+        normalized_path = validate_path_security(
+            os.path.join(RECORDINGS_ROOT, ts_file_path), "read"
+        )
 
         # Validate file exists
         if not Path(normalized_path).exists():
-            raise HTTPException(status_code=400, detail=f"File not found: {ts_file_path}")
+            raise HTTPException(status_code=400, detail="File not found")
 
         # Check if MP4 already exists (unless forced)
         mp4_path = normalized_path.replace(".ts", ".mp4")
         if Path(mp4_path).exists() and not force:
-            raise HTTPException(status_code=400, detail=f"MP4 already exists: {mp4_path}. Use force=true to override.")
+            raise HTTPException(
+                status_code=400,
+                detail="MP4 already exists. Use force=true to override.",
+            )
 
         # Prepare parameters
         output_dir = os.path.dirname(normalized_path)
@@ -369,7 +467,10 @@ async def enqueue_manual_post_processing(
 
         # Validate stream_id is provided
         if stream_id is None:
-            raise HTTPException(status_code=400, detail="stream_id is required and cannot be derived from recording_id")
+            raise HTTPException(
+                status_code=400,
+                detail="stream_id is required and cannot be derived from recording_id",
+            )
 
         # Enqueue post-processing
         task_ids = await enqueue_recording_post_processing(
@@ -382,7 +483,9 @@ async def enqueue_manual_post_processing(
             cleanup_ts_file=True,
         )
 
-        logger.info(f"⚡ ADMIN_MANUAL_ENQUEUE_SUCCESS: recording_id={recording_id}, task_ids={task_ids}")
+        logger.info(
+            f"⚡ ADMIN_MANUAL_ENQUEUE_SUCCESS: recording_id={recording_id}, task_ids={task_ids}"
+        )
 
         return {
             "success": True,
@@ -395,4 +498,4 @@ async def enqueue_manual_post_processing(
 
     except Exception as e:
         logger.error(f"Error enqueuing manual post-processing: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to enqueue post-processing: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to enqueue post-processing")

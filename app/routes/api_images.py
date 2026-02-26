@@ -26,7 +26,9 @@ async def get_streamer_image_info(streamer_id: int, db: Session = Depends(get_db
             raise HTTPException(status_code=404, detail="Streamer not found")
 
         # Get cached image URL or fallback to original
-        image_url = unified_image_service.get_profile_image_url(streamer_id, streamer.profile_image_url)
+        image_url = unified_image_service.get_profile_image_url(
+            streamer_id, streamer.profile_image_url
+        )
 
         return {
             "streamer_id": streamer_id,
@@ -43,7 +45,9 @@ async def get_streamer_image_info(streamer_id: int, db: Session = Depends(get_db
 
 
 @router.post("/streamer/{streamer_id}/download")
-async def download_streamer_image(streamer_id: int, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+async def download_streamer_image(
+    streamer_id: int, background_tasks: BackgroundTasks, db: Session = Depends(get_db)
+):
     """Download and cache a streamer's profile image"""
     try:
         streamer = db.query(Streamer).filter(Streamer.id == streamer_id).first()
@@ -51,10 +55,16 @@ async def download_streamer_image(streamer_id: int, background_tasks: Background
             raise HTTPException(status_code=404, detail="Streamer not found")
 
         if not streamer.profile_image_url:
-            raise HTTPException(status_code=400, detail="No profile image URL available")
+            raise HTTPException(
+                status_code=400, detail="No profile image URL available"
+            )
 
         # Add download task to background
-        background_tasks.add_task(unified_image_service.download_profile_image, streamer_id, streamer.profile_image_url)
+        background_tasks.add_task(
+            unified_image_service.download_profile_image,
+            streamer_id,
+            streamer.profile_image_url,
+        )
 
         return {"message": f"Profile image download started for {streamer.username}"}
     except HTTPException:
@@ -82,11 +92,15 @@ async def get_category_image_info(category_name: str):
 
 
 @router.post("/category/{category_name}/download")
-async def download_category_image(category_name: str, background_tasks: BackgroundTasks):
+async def download_category_image(
+    category_name: str, background_tasks: BackgroundTasks
+):
     """Download and cache a category image"""
     try:
         # Add download task to background
-        background_tasks.add_task(unified_image_service.download_category_image, category_name)
+        background_tasks.add_task(
+            unified_image_service.download_category_image, category_name
+        )
 
         return {"message": f"Category image download started for {category_name}"}
     except Exception as e:
@@ -136,7 +150,9 @@ async def get_all_streamers_image_info(db: Session = Depends(get_db)):
 
         result = []
         for streamer in streamers:
-            image_url = unified_image_service.get_profile_image_url(streamer.id, streamer.profile_image_url)
+            image_url = unified_image_service.get_profile_image_url(
+                streamer.id, streamer.profile_image_url
+            )
 
             result.append(
                 {

@@ -28,10 +28,12 @@ class GlobalSettingsSchema(BaseModel):
     supported_codecs: str = "h264,h265"  # Default: H.264 with H.265 fallback
     prefer_higher_quality: bool = True  # Auto-select highest available quality
     http_proxy: Optional[str] = Field(
-        default="", description="HTTP proxy URL for Streamlink (e.g., http://proxy.example.com:8080)"
+        default="",
+        description="HTTP proxy URL for Streamlink (e.g., http://proxy.example.com:8080)",
     )
     https_proxy: Optional[str] = Field(
-        default="", description="HTTPS proxy URL for Streamlink (e.g., https://proxy.example.com:8080)"
+        default="",
+        description="HTTPS proxy URL for Streamlink (e.g., https://proxy.example.com:8080)",
     )
     apprise_docs_url: str = "https://github.com/caronc/apprise/wiki"
 

@@ -11,13 +11,19 @@ import logging
 logger = logging.getLogger("streamvault")
 
 # Global cache for valid streamers
-_streamer_cache: Dict[str, Any] = {"valid_streamers": [], "last_updated": 0.0, "cache_duration": 300}  # 5 minutes
+_streamer_cache: Dict[str, Any] = {
+    "valid_streamers": [],
+    "last_updated": 0.0,
+    "cache_duration": 300,
+}  # 5 minutes
 
 # Thread lock for cache operations
 _cache_lock = threading.Lock()
 
 
-def get_valid_streamers(base_recordings_dir: Path, force_refresh: bool = False) -> List[str]:
+def get_valid_streamers(
+    base_recordings_dir: Path, force_refresh: bool = False
+) -> List[str]:
     """
     Get valid streamer directories with caching to avoid filesystem scans on every request.
 
@@ -32,10 +38,14 @@ def get_valid_streamers(base_recordings_dir: Path, force_refresh: bool = False) 
 
     with _cache_lock:
         # Check if cache needs refresh
-        cache_expired = (current_time - _streamer_cache["last_updated"]) > _streamer_cache["cache_duration"]
+        cache_expired = (
+            current_time - _streamer_cache["last_updated"]
+        ) > _streamer_cache["cache_duration"]
 
         if force_refresh or cache_expired or not _streamer_cache["valid_streamers"]:
-            logger.debug(f"Refreshing streamer cache. Force: {force_refresh}, Expired: {cache_expired}")
+            logger.debug(
+                f"Refreshing streamer cache. Force: {force_refresh}, Expired: {cache_expired}"
+            )
 
             # Refresh cache by scanning filesystem
             valid_streamers = []
@@ -48,14 +58,18 @@ def get_valid_streamers(base_recordings_dir: Path, force_refresh: bool = False) 
                     _streamer_cache["valid_streamers"] = valid_streamers
                     _streamer_cache["last_updated"] = current_time
 
-                    logger.debug(f"Updated streamer cache with {len(valid_streamers)} streamers")
+                    logger.debug(
+                        f"Updated streamer cache with {len(valid_streamers)} streamers"
+                    )
 
                 except Exception as e:
                     logger.error(f"Error scanning streamer directories: {e}")
                     # Return cached data if available, otherwise empty list
                     return _streamer_cache["valid_streamers"]
             else:
-                logger.warning(f"Base recordings directory does not exist: {base_recordings_dir}")
+                logger.warning(
+                    f"Base recordings directory does not exist: {base_recordings_dir}"
+                )
                 _streamer_cache["valid_streamers"] = []
                 _streamer_cache["last_updated"] = current_time
 

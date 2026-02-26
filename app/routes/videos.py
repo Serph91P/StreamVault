@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException, Request, Depends, Query
 from fastapi.responses import StreamingResponse, FileResponse, JSONResponse
+import os
 import urllib.parse
 from typing import List, Optional
 import logging
@@ -10,19 +11,36 @@ from secrets import token_urlsafe
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import Stream, Streamer, Recording
-from app.utils.security_enhanced import safe_file_access, safe_error_message, list_safe_directory
-from app.utils.security import validate_path_security, validate_file_type, ALLOWED_VIDEO_EXTENSIONS
+from app.utils.security_enhanced import (
+    safe_file_access,
+    safe_error_message,
+    list_safe_directory,
+)
+from app.utils.security import (
+    validate_path_security,
+    validate_file_type,
+    ALLOWED_VIDEO_EXTENSIONS,
+)
 from app.utils.streamer_cache import get_valid_streamers
-from app.utils.token_store import store_share_token, validate_share_token, cleanup_expired_tokens
+from app.utils.token_store import (
+    store_share_token,
+    validate_share_token,
+    cleanup_expired_tokens,
+)
 from app.services.core.auth_service import AuthService
 
 logger = logging.getLogger("streamvault")
+
+# SECURITY: Debug endpoints are only available in development mode
+_IS_DEVELOPMENT = os.getenv("ENVIRONMENT", "").lower() == "development"
 
 # Constants for share tokens and chapters
 TOKEN_EXPIRATION_HOURS = 24  # Share token expiration time
 TOKEN_EXPIRATION_SECONDS = TOKEN_EXPIRATION_HOURS * 60 * 60  # Convert to seconds
 CHAPTER_INTERVAL_SECONDS = 600  # 10 minutes in seconds
-MAX_CHAPTERS = 20  # Maximum number of chapters to prevent too many for very long streams
+MAX_CHAPTERS = (
+    20  # Maximum number of chapters to prevent too many for very long streams
+)
 
 
 def parse_vtt_chapters(vtt_content: str) -> list:
@@ -41,7 +59,9 @@ def parse_vtt_chapters(vtt_content: str) -> list:
             continue
 
         # Look for timestamp lines (format: 00:00:00.000 --> 00:00:00.000)
-        timestamp_match = re.match(r"(\d{2}:\d{2}:\d{2}\.\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2}\.\d{3})", line)
+        timestamp_match = re.match(
+            r"(\d{2}:\d{2}:\d{2}\.\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2}\.\d{3})", line
+        )
         if timestamp_match:
             # Add the previous chapter before starting a new one
             if current_chapter and current_chapter.get("title"):
@@ -69,7 +89,10 @@ def parse_vtt_chapters(vtt_content: str) -> list:
         elif (
             current_chapter
             and line
-            and not any(line.startswith(prefix) for prefix in ["NOTE", "STYLE", "REGION", "COMMENT"])
+            and not any(
+                line.startswith(prefix)
+                for prefix in ["NOTE", "STYLE", "REGION", "COMMENT"]
+            )
         ):
             # This is the chapter title
             if not current_chapter["title"]:
@@ -113,7 +136,11 @@ def parse_ffmpeg_chapters(ffmpeg_content: str) -> list:
 
         if start_time is not None:
             chapters.append(
-                {"id": len(chapters) + 1, "start": start_time, "title": title or f"Chapter {len(chapters) + 1}"}
+                {
+                    "id": len(chapters) + 1,
+                    "start": start_time,
+                    "title": title or f"Chapter {len(chapters) + 1}",
+                }
             )
 
     return chapters
@@ -216,7 +243,9 @@ async def get_videos(request: Request, db: Session = Depends(get_db)):
                         duration = (stream.ended_at - stream.started_at).total_seconds()
 
                     # Get thumbnail URL with null fallback
-                    thumbnail_url = get_video_thumbnail_url(stream.id, str(recording_path))
+                    thumbnail_url = get_video_thumbnail_url(
+                        stream.id, str(recording_path)
+                    )
 
                     video_info = {
                         "id": stream.id,
@@ -225,17 +254,26 @@ async def get_videos(request: Request, db: Session = Depends(get_db)):
                         "streamer_id": streamer.id,
                         "file_path": str(recording_path),
                         "file_size": file_stats.st_size,
-                        "created_at": stream.started_at.isoformat() if stream.started_at else None,
-                        "started_at": stream.started_at.isoformat() if stream.started_at else None,
-                        "ended_at": stream.ended_at.isoformat() if stream.ended_at else None,
+                        "created_at": stream.started_at.isoformat()
+                        if stream.started_at
+                        else None,
+                        "started_at": stream.started_at.isoformat()
+                        if stream.started_at
+                        else None,
+                        "ended_at": stream.ended_at.isoformat()
+                        if stream.ended_at
+                        else None,
                         "duration": duration,
                         "category_name": stream.category_name,
                         "language": stream.language,
                         "thumbnail_url": thumbnail_url,  # Always included (null if not found)
-                        "has_thumbnail": thumbnail_url is not None,  # Explicit flag for frontend
+                        "has_thumbnail": thumbnail_url
+                        is not None,  # Explicit flag for frontend
                     }
                     videos.append(video_info)
-                    logger.debug(f"Added video from stream: {stream.title} by {streamer.username}")
+                    logger.debug(
+                        f"Added video from stream: {stream.title} by {streamer.username}"
+                    )
 
             except Exception as e:
                 logger.error(f"Error processing stream {stream.id}: {e}")
@@ -247,7 +285,9 @@ async def get_videos(request: Request, db: Session = Depends(get_db)):
             .join(Stream, Recording.stream_id == Stream.id)
             .join(Streamer, Stream.streamer_id == Streamer.id)
             .filter(
-                Recording.path.isnot(None), Recording.path != "", Recording.status.in_(["completed", "post_processing"])
+                Recording.path.isnot(None),
+                Recording.path != "",
+                Recording.status.in_(["completed", "post_processing"]),
             )
             .order_by(Recording.start_time.desc())
             .all()
@@ -283,11 +323,15 @@ async def get_videos(request: Request, db: Session = Depends(get_db)):
                     # Update the stream's recording_path for future use (self-healing)
                     if not stream.recording_path:
                         stream.recording_path = str(final_path)
-                        logger.debug(f"Auto-updated recording_path for stream {stream.id}: {final_path}")
+                        logger.debug(
+                            f"Auto-updated recording_path for stream {stream.id}: {final_path}"
+                        )
 
                     duration = None
                     if recording.start_time and recording.end_time:
-                        duration = (recording.end_time - recording.start_time).total_seconds()
+                        duration = (
+                            recording.end_time - recording.start_time
+                        ).total_seconds()
                     elif stream.started_at and stream.ended_at:
                         duration = (stream.ended_at - stream.started_at).total_seconds()
 
@@ -320,11 +364,14 @@ async def get_videos(request: Request, db: Session = Depends(get_db)):
                         "category_name": stream.category_name,
                         "language": stream.language,
                         "thumbnail_url": thumbnail_url,  # Always included (null if not found)
-                        "has_thumbnail": thumbnail_url is not None,  # Explicit flag for frontend
+                        "has_thumbnail": thumbnail_url
+                        is not None,  # Explicit flag for frontend
                     }
                     videos.append(video_info)
                     added_stream_ids.add(stream.id)
-                    logger.debug(f"Added video from recording: {stream.title} by {streamer.username}")
+                    logger.debug(
+                        f"Added video from recording: {stream.title} by {streamer.username}"
+                    )
 
             except Exception as e:
                 logger.error(f"Error processing recording {recording.id}: {e}")
@@ -333,7 +380,9 @@ async def get_videos(request: Request, db: Session = Depends(get_db)):
         # Commit any auto-updates to recording_path
         if len(videos) > len(streams_with_paths):
             db.commit()
-            logger.debug(f"Auto-updated {len(videos) - len(streams_with_paths)} recording paths")
+            logger.debug(
+                f"Auto-updated {len(videos) - len(streams_with_paths)} recording paths"
+            )
 
         logger.info(f"Returning {len(videos)} videos")
 
@@ -345,20 +394,25 @@ async def get_videos(request: Request, db: Session = Depends(get_db)):
 
 
 @router.get("/videos/debug/{stream_id}")
-async def debug_video_access(stream_id: int, request: Request, db: Session = Depends(get_db)):
+async def debug_video_access(
+    stream_id: int, request: Request, db: Session = Depends(get_db)
+):
     """Debug endpoint to test video access without streaming"""
+    # SECURITY: Only available in development mode
+    if not _IS_DEVELOPMENT:
+        raise HTTPException(status_code=404, detail="Not found")
     try:
         logger.info(f"DEBUG VIDEO ACCESS: stream_id={stream_id}")
-        logger.info(f"DEBUG: Request headers: {dict(request.headers)}")
-        logger.info(f"DEBUG: Request cookies: {dict(request.cookies)}")
+        logger.debug(f"DEBUG: Request headers (keys): {list(request.headers.keys())}")
+        # SECURITY: Never log cookie values - CWE-532
 
         # Check authentication via session cookie
         session_token = request.cookies.get("session")
         if not session_token:
             logger.error("DEBUG: No session token found")
-            return {"error": "No session token", "headers": dict(request.headers)}
+            return {"error": "No session token"}
 
-        logger.info(f"DEBUG: Session token found: {session_token[:20]}...")
+        logger.debug("DEBUG: Session token found")
 
         # Validate session
         auth_service = AuthService(db)
@@ -367,7 +421,7 @@ async def debug_video_access(stream_id: int, request: Request, db: Session = Dep
 
         if not session_valid:
             logger.error("DEBUG: Session validation failed")
-            return {"error": "Session validation failed", "token": session_token[:20]}
+            return {"error": "Session validation failed"}
 
         # Get stream from database
         stream = db.query(Stream).filter(Stream.id == stream_id).first()
@@ -375,10 +429,15 @@ async def debug_video_access(stream_id: int, request: Request, db: Session = Dep
             logger.error(f"DEBUG: Stream not found: stream_id={stream_id}")
             return {"error": "Stream not found", "stream_id": stream_id}
 
-        logger.info(f"DEBUG: Found stream: {stream.title}, recording_path: {stream.recording_path}")
+        logger.info(
+            f"DEBUG: Found stream: {stream.title}, recording_path: {stream.recording_path}"
+        )
 
         if not stream.recording_path:
-            return {"error": "No recording path", "stream": {"id": stream.id, "title": stream.title}}
+            return {
+                "error": "No recording path",
+                "stream": {"id": stream.id, "title": stream.title},
+            }
 
         file_path = Path(stream.recording_path)
         file_exists = file_path.exists()
@@ -414,7 +473,9 @@ async def debug_video_access(stream_id: int, request: Request, db: Session = Dep
 
 
 @router.post("/videos/{stream_id}/share-token")
-async def generate_share_token(stream_id: int, request: Request, db: Session = Depends(get_db)):
+async def generate_share_token(
+    stream_id: int, request: Request, db: Session = Depends(get_db)
+):
     """Generate a secure temporary share token for external video access (VLC, etc.)"""
     try:
         # Check authentication via session cookie
@@ -449,7 +510,11 @@ async def generate_share_token(stream_id: int, request: Request, db: Session = D
         share_url = f"{base_url}/api/videos/public/{stream_id}?token={share_token}"
 
         return JSONResponse(
-            content={"success": True, "share_url": share_url, "expires_in": f"{TOKEN_EXPIRATION_HOURS} hours"}
+            content={
+                "success": True,
+                "share_url": share_url,
+                "expires_in": f"{TOKEN_EXPIRATION_HOURS} hours",
+            }
         )
 
     except HTTPException:
@@ -460,7 +525,9 @@ async def generate_share_token(stream_id: int, request: Request, db: Session = D
 
 
 @router.get("/videos/{stream_id}/thumbnail")
-async def get_video_thumbnail(stream_id: int, request: Request, db: Session = Depends(get_db)):
+async def get_video_thumbnail(
+    stream_id: int, request: Request, db: Session = Depends(get_db)
+):
     """Serve video thumbnail image - returns 404 if not found (graceful degradation)"""
     try:
         # Check authentication via session cookie
@@ -483,12 +550,16 @@ async def get_video_thumbnail(stream_id: int, request: Request, db: Session = De
 
         # Check if stream has recording_path
         if not stream.recording_path or not stream.recording_path.strip():
-            logger.warning(f"🟡 THUMBNAIL_NO_RECORDING_PATH: stream_id={stream_id}, title={stream.title}")
+            logger.warning(
+                f"🟡 THUMBNAIL_NO_RECORDING_PATH: stream_id={stream_id}, title={stream.title}"
+            )
             raise HTTPException(status_code=404, detail="No recording path set")
 
         # SECURITY: Validate recording path first
         try:
-            validated_recording_path = validate_path_security(stream.recording_path, "read")
+            validated_recording_path = validate_path_security(
+                stream.recording_path, "read"
+            )
         except HTTPException as e:
             logger.warning(
                 f"🔴 THUMBNAIL_PATH_VALIDATION_FAILED: stream_id={stream_id}, path={stream.recording_path}, error={e.detail}"
@@ -499,7 +570,9 @@ async def get_video_thumbnail(stream_id: int, request: Request, db: Session = De
 
         # Check if recording file/directory exists
         if not recording_path.exists():
-            logger.warning(f"🟡 THUMBNAIL_RECORDING_NOT_FOUND: stream_id={stream_id}, path={recording_path}")
+            logger.warning(
+                f"🟡 THUMBNAIL_RECORDING_NOT_FOUND: stream_id={stream_id}, path={recording_path}"
+            )
             raise HTTPException(status_code=404, detail="Recording file not found")
 
         # Handle segmented recordings (directory with _segments suffix)
@@ -525,7 +598,9 @@ async def get_video_thumbnail(stream_id: int, request: Request, db: Session = De
                 try:
                     validated_thumbnail = validate_path_security(str(candidate), "read")
                     thumbnail_path = Path(validated_thumbnail)
-                    logger.info(f"✅ THUMBNAIL_FOUND: stream_id={stream_id}, path={thumbnail_path}")
+                    logger.info(
+                        f"✅ THUMBNAIL_FOUND: stream_id={stream_id}, path={thumbnail_path}"
+                    )
                     break
                 except HTTPException as e:
                     logger.warning(
@@ -540,28 +615,42 @@ async def get_video_thumbnail(stream_id: int, request: Request, db: Session = De
             raise HTTPException(status_code=404, detail="Thumbnail not found")
 
         # Return the thumbnail file
-        return FileResponse(str(thumbnail_path), media_type="image/jpeg", filename=f"thumbnail_{stream_id}.jpg")
+        return FileResponse(
+            str(thumbnail_path),
+            media_type="image/jpeg",
+            filename=f"thumbnail_{stream_id}.jpg",
+        )
 
     except HTTPException as e:
         # Re-raise HTTP exceptions (404, 400, etc.) with proper logging
-        logger.warning(f"🟡 THUMBNAIL_HTTP_ERROR: stream_id={stream_id}, status={e.status_code}, detail={e.detail}")
+        logger.warning(
+            f"🟡 THUMBNAIL_HTTP_ERROR: stream_id={stream_id}, status={e.status_code}, detail={e.detail}"
+        )
         raise
     except FileNotFoundError as e:
         # File disappeared between validation and read
-        logger.warning(f"🟡 THUMBNAIL_FILE_DISAPPEARED: stream_id={stream_id}, error={str(e)}")
+        logger.warning(
+            f"🟡 THUMBNAIL_FILE_DISAPPEARED: stream_id={stream_id}, error={str(e)}"
+        )
         raise HTTPException(status_code=404, detail="Thumbnail file not found")
     except Exception as e:
-        logger.error(f"🔴 THUMBNAIL_UNEXPECTED_ERROR: stream_id={stream_id}, error={str(e)}", exc_info=True)
+        logger.error(
+            f"🔴 THUMBNAIL_UNEXPECTED_ERROR: stream_id={stream_id}, error={str(e)}",
+            exc_info=True,
+        )
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/videos/public/{stream_id}")
 async def stream_video_public(
-    stream_id: int, token: str = Query(...), request: Request = None, db: Session = Depends(get_db)
+    stream_id: int,
+    token: str = Query(...),
+    request: Request = None,
+    db: Session = Depends(get_db),
 ):
     """Stream video with token-based authentication for external players like VLC"""
     try:
-        logger.info(f"Public video stream request for stream_id: {stream_id} with token: {token[:20]}...")
+        logger.info(f"Public video stream request for stream_id: {stream_id}")
 
         # Validate the share token
         token_stream_id = validate_share_token(token)
@@ -574,7 +663,9 @@ async def stream_video_public(
         # Get stream from database
         stream = db.query(Stream).filter(Stream.id == stream_id).first()
         if not stream or not stream.recording_path:
-            logger.error(f"Stream not found or no recording path: stream_id={stream_id}")
+            logger.error(
+                f"Stream not found or no recording path: stream_id={stream_id}"
+            )
             raise HTTPException(status_code=404, detail="Video not found")
 
         # SECURITY: Validate path and file type
@@ -583,7 +674,7 @@ async def stream_video_public(
             validate_file_type(validated_path, ALLOWED_VIDEO_EXTENSIONS)
         except ValueError as e:
             logger.error(f"Invalid file type: {e}")
-            raise HTTPException(status_code=400, detail=str(e))
+            raise HTTPException(status_code=400, detail="Internal server error")
         file_path = Path(validated_path)
 
         # Verify file exists
@@ -612,7 +703,9 @@ async def stream_video_public(
                     raise HTTPException(status_code=400, detail="Invalid range header")
 
                 start = int(range_match.group(1))
-                end = int(range_match.group(2)) if range_match.group(2) else file_size - 1
+                end = (
+                    int(range_match.group(2)) if range_match.group(2) else file_size - 1
+                )
 
                 if start >= file_size or end >= file_size or start > end:
                     raise HTTPException(status_code=416, detail="Range not satisfiable")
@@ -639,7 +732,9 @@ async def stream_video_public(
                     "Cache-Control": "no-cache",
                 }
 
-                return StreamingResponse(generate_chunk(), status_code=206, headers=headers)
+                return StreamingResponse(
+                    generate_chunk(), status_code=206, headers=headers
+                )
             except ValueError:
                 # Invalid range header, serve full file
                 pass
@@ -670,12 +765,13 @@ async def stream_video_public(
 
 
 @router.get("/videos/{stream_id}/stream")
-async def stream_video_by_id(stream_id: int, request: Request, db: Session = Depends(get_db)):
+async def stream_video_by_id(
+    stream_id: int, request: Request, db: Session = Depends(get_db)
+):
     """Stream a video file by stream ID with range request support"""
     try:
         logger.info(f"Video stream request for stream_id: {stream_id}")
-        logger.info(f"Request headers: {dict(request.headers)}")
-        logger.info(f"Cookies: {request.cookies}")
+        # SECURITY: Never log headers or cookies - CWE-532
 
         # Check authentication via session cookie
         session_token = request.cookies.get("session")
@@ -683,7 +779,7 @@ async def stream_video_by_id(stream_id: int, request: Request, db: Session = Dep
             logger.error("No session token found in cookies")
             raise HTTPException(status_code=401, detail="Authentication required")
 
-        logger.info(f"Session token found: {session_token[:10]}...")
+        logger.debug("Session token found")
 
         # Validate session
         try:
@@ -704,15 +800,21 @@ async def stream_video_by_id(stream_id: int, request: Request, db: Session = Dep
             logger.error(f"🔴 STREAM_NOT_FOUND: stream_id={stream_id}")
             raise HTTPException(status_code=404, detail="Video not found")
 
-        logger.info(f"✅ STREAM_FOUND: id={stream.id}, title={stream.title}, recording_path={stream.recording_path}")
+        logger.info(
+            f"✅ STREAM_FOUND: id={stream.id}, title={stream.title}, recording_path={stream.recording_path}"
+        )
 
         if not stream.recording_path:
             logger.error(
                 f"🔴 NO_RECORDING_PATH: stream_id={stream_id}, title={stream.title}, started_at={stream.started_at}, ended_at={stream.ended_at}"
             )
-            raise HTTPException(status_code=404, detail="Video file path not configured")
+            raise HTTPException(
+                status_code=404, detail="Video file path not configured"
+            )
 
-        logger.info(f"Found stream: {stream.title}, recording_path: {stream.recording_path}")
+        logger.info(
+            f"Found stream: {stream.title}, recording_path: {stream.recording_path}"
+        )
 
         # SECURITY: Validate path and file type
         try:
@@ -725,7 +827,7 @@ async def stream_video_by_id(stream_id: int, request: Request, db: Session = Dep
             validate_file_type(validated_path, ALLOWED_VIDEO_EXTENSIONS)
         except ValueError as e:
             logger.error(f"Invalid file type for stream {stream_id}: {e}")
-            raise HTTPException(status_code=400, detail=str(e))
+            raise HTTPException(status_code=400, detail="Internal server error")
         file_path = Path(validated_path)
 
         # Handle both regular files and segmented recordings
@@ -735,13 +837,19 @@ async def stream_video_by_id(stream_id: int, request: Request, db: Session = Dep
         if is_segmented:
             # For segmented recordings, stream the first segment or concatenated file
             # TODO: Implement proper segment streaming or concatenation
-            logger.error(f"Segmented recording streaming not yet fully supported: {file_path}")
-            raise HTTPException(status_code=501, detail="Segmented recordings require special handling")
+            logger.error(
+                f"Segmented recording streaming not yet fully supported: {file_path}"
+            )
+            raise HTTPException(
+                status_code=501, detail="Segmented recordings require special handling"
+            )
 
         # Verify file exists
         if not file_path.exists():
             logger.error(f"Video file does not exist: {stream.recording_path}")
-            raise HTTPException(status_code=404, detail="Video file not found on server")
+            raise HTTPException(
+                status_code=404, detail="Video file not found on server"
+            )
 
         if not file_path.is_file():
             logger.error(f"Path exists but is not a file: {stream.recording_path}")
@@ -772,7 +880,9 @@ async def stream_video_by_id(stream_id: int, request: Request, db: Session = Dep
                     raise HTTPException(status_code=400, detail="Invalid range header")
 
                 start = int(range_match.group(1))
-                end = int(range_match.group(2)) if range_match.group(2) else file_size - 1
+                end = (
+                    int(range_match.group(2)) if range_match.group(2) else file_size - 1
+                )
 
                 if start >= file_size or end >= file_size or start > end:
                     raise HTTPException(status_code=416, detail="Range not satisfiable")
@@ -799,7 +909,9 @@ async def stream_video_by_id(stream_id: int, request: Request, db: Session = Dep
                     "Cache-Control": "no-cache",
                 }
 
-                return StreamingResponse(generate_chunk(), status_code=206, headers=headers)
+                return StreamingResponse(
+                    generate_chunk(), status_code=206, headers=headers
+                )
             except ValueError:
                 raise HTTPException(status_code=400, detail="Invalid range header")
         else:
@@ -829,7 +941,9 @@ async def stream_video_by_id(stream_id: int, request: Request, db: Session = Dep
 
 
 @router.get("/videos/{stream_id}/chapters")
-async def get_video_chapters(stream_id: int, request: Request, db: Session = Depends(get_db)):
+async def get_video_chapters(
+    stream_id: int, request: Request, db: Session = Depends(get_db)
+):
     """Get chapters for a video from metadata files"""
     try:
         logger.info(f"🎬 CHAPTER_REQUEST: Getting chapters for stream {stream_id}")
@@ -837,16 +951,22 @@ async def get_video_chapters(stream_id: int, request: Request, db: Session = Dep
         # Check authentication via session cookie
         session_token = request.cookies.get("session")
         if not session_token:
-            logger.warning(f"🎬 CHAPTER_AUTH_FAIL: No session token for stream {stream_id}")
+            logger.warning(
+                f"🎬 CHAPTER_AUTH_FAIL: No session token for stream {stream_id}"
+            )
             raise HTTPException(status_code=401, detail="Authentication required")
 
         # Validate session
         auth_service = AuthService(db)
         if not await auth_service.validate_session(session_token):
-            logger.warning(f"🎬 CHAPTER_SESSION_INVALID: Invalid session for stream {stream_id}")
+            logger.warning(
+                f"🎬 CHAPTER_SESSION_INVALID: Invalid session for stream {stream_id}"
+            )
             raise HTTPException(status_code=401, detail="Invalid session")
 
-        logger.info(f"🎬 CHAPTER_AUTH_OK: Authentication successful for stream {stream_id}")
+        logger.info(
+            f"🎬 CHAPTER_AUTH_OK: Authentication successful for stream {stream_id}"
+        )
 
         # Get stream from database
         stream = db.query(Stream).filter(Stream.id == stream_id).first()
@@ -859,29 +979,48 @@ async def get_video_chapters(stream_id: int, request: Request, db: Session = Dep
         # Get metadata for this stream
         from app.models import StreamMetadata
 
-        metadata = db.query(StreamMetadata).filter(StreamMetadata.stream_id == stream_id).first()
+        metadata = (
+            db.query(StreamMetadata)
+            .filter(StreamMetadata.stream_id == stream_id)
+            .first()
+        )
 
         chapters = []
 
         # Try to load chapters from VTT file first (best for web)
-        if metadata and metadata.chapters_vtt_path and Path(metadata.chapters_vtt_path).exists():
+        if (
+            metadata
+            and metadata.chapters_vtt_path
+            and Path(metadata.chapters_vtt_path).exists()
+        ):
             try:
                 with open(metadata.chapters_vtt_path, "r", encoding="utf-8") as f:
                     vtt_content = f.read()
                     chapters = parse_vtt_chapters(vtt_content)
-                    logger.info(f"🎬 CHAPTER_VTT_LOADED: Loaded {len(chapters)} chapters from VTT file")
+                    logger.info(
+                        f"🎬 CHAPTER_VTT_LOADED: Loaded {len(chapters)} chapters from VTT file"
+                    )
             except Exception as e:
                 logger.warning(f"🎬 CHAPTER_VTT_FAIL: Failed to load VTT chapters: {e}")
 
         # Fallback to FFmpeg chapters format if VTT not available
-        if not chapters and metadata and metadata.chapters_ffmpeg_path and Path(metadata.chapters_ffmpeg_path).exists():
+        if (
+            not chapters
+            and metadata
+            and metadata.chapters_ffmpeg_path
+            and Path(metadata.chapters_ffmpeg_path).exists()
+        ):
             try:
                 with open(metadata.chapters_ffmpeg_path, "r", encoding="utf-8") as f:
                     ffmpeg_content = f.read()
                     chapters = parse_ffmpeg_chapters(ffmpeg_content)
-                    logger.info(f"🎬 CHAPTER_FFMPEG_LOADED: Loaded {len(chapters)} chapters from FFmpeg file")
+                    logger.info(
+                        f"🎬 CHAPTER_FFMPEG_LOADED: Loaded {len(chapters)} chapters from FFmpeg file"
+                    )
             except Exception as e:
-                logger.warning(f"🎬 CHAPTER_FFMPEG_FAIL: Failed to load FFmpeg chapters: {e}")
+                logger.warning(
+                    f"🎬 CHAPTER_FFMPEG_FAIL: Failed to load FFmpeg chapters: {e}"
+                )
 
         # If no chapters found, create some sample ones for testing if duration exists
         if not chapters and stream.started_at and stream.ended_at:
@@ -903,25 +1042,41 @@ async def get_video_chapters(stream_id: int, request: Request, db: Session = Dep
                     )
                     current_time += chapter_interval
                     chapter_num += 1
-                logger.info(f"🎬 CHAPTER_GENERATED: Generated {len(chapters)} sample chapters")
+                logger.info(
+                    f"🎬 CHAPTER_GENERATED: Generated {len(chapters)} sample chapters"
+                )
 
         # If still no chapters, create a single default chapter
         if not chapters:
-            chapters = [{"id": 1, "title": stream.title or f"Stream {stream_id}", "start": 0, "end": 0}]
+            chapters = [
+                {
+                    "id": 1,
+                    "title": stream.title or f"Stream {stream_id}",
+                    "start": 0,
+                    "end": 0,
+                }
+            ]
             logger.info("🎬 CHAPTER_DEFAULT: Created default chapter")
 
-        logger.info(f"🎬 CHAPTER_SUCCESS: Returning {len(chapters)} chapters for stream {stream_id}")
+        logger.info(
+            f"🎬 CHAPTER_SUCCESS: Returning {len(chapters)} chapters for stream {stream_id}"
+        )
         return chapters
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"🎬 CHAPTER_ERROR: Error getting chapters for stream {stream_id}: {e}", exc_info=True)
+        logger.error(
+            f"🎬 CHAPTER_ERROR: Error getting chapters for stream {stream_id}: {e}",
+            exc_info=True,
+        )
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/videos/{streamer_name}/{filename}")
-async def stream_video(streamer_name: str, filename: str, request: Request, db: Session = Depends(get_db)):
+async def stream_video(
+    streamer_name: str, filename: str, request: Request, db: Session = Depends(get_db)
+):
     """Stream a video file with range request support - CodeQL-safe implementation"""
     try:
         # Check authentication via session cookie
@@ -936,7 +1091,9 @@ async def stream_video(streamer_name: str, filename: str, request: Request, db: 
 
         recordings_dir = get_recordings_directory()
         if not recordings_dir:
-            raise HTTPException(status_code=500, detail="Recordings directory not configured")
+            raise HTTPException(
+                status_code=500, detail="Recordings directory not configured"
+            )
 
         # Enhanced input validation
         if not streamer_name or not filename:
@@ -961,7 +1118,9 @@ async def stream_video(streamer_name: str, filename: str, request: Request, db: 
 
         # Get file path safely (completely isolated from user input)
         try:
-            file_path = safe_file_access(recordings_dir, streamer_name, decoded_filename)
+            file_path = safe_file_access(
+                recordings_dir, streamer_name, decoded_filename
+            )
         except HTTPException:
             raise HTTPException(status_code=404, detail="File not found")
 
@@ -989,7 +1148,9 @@ async def stream_video(streamer_name: str, filename: str, request: Request, db: 
                     raise HTTPException(status_code=400, detail="Invalid range header")
 
                 start = int(range_match.group(1))
-                end = int(range_match.group(2)) if range_match.group(2) else file_size - 1
+                end = (
+                    int(range_match.group(2)) if range_match.group(2) else file_size - 1
+                )
 
                 if start >= file_size or end >= file_size or start > end:
                     raise HTTPException(status_code=416, detail="Range not satisfiable")
@@ -1015,13 +1176,17 @@ async def stream_video(streamer_name: str, filename: str, request: Request, db: 
                     "Content-Type": mime_type,
                 }
 
-                return StreamingResponse(generate_chunk(), status_code=206, headers=headers)
+                return StreamingResponse(
+                    generate_chunk(), status_code=206, headers=headers
+                )
             except Exception as e:
                 logger.error(f"Range request processing failed: {e}")
                 # Fall through to return full file
 
         # Return full file
-        return FileResponse(str(file_path), media_type=mime_type, filename=decoded_filename)
+        return FileResponse(
+            str(file_path), media_type=mime_type, filename=decoded_filename
+        )
 
     except HTTPException:
         raise
@@ -1031,7 +1196,9 @@ async def stream_video(streamer_name: str, filename: str, request: Request, db: 
 
 
 @router.get("/videos/{streamer_name}")
-async def get_streamer_videos(streamer_name: str, request: Request, db: Session = Depends(get_db)):
+async def get_streamer_videos(
+    streamer_name: str, request: Request, db: Session = Depends(get_db)
+):
     """Get all videos for a specific streamer - CodeQL-safe implementation"""
     try:
         # Check authentication via session cookie
@@ -1050,7 +1217,9 @@ async def get_streamer_videos(streamer_name: str, request: Request, db: Session 
 
         recordings_dir = get_recordings_directory()
         if not recordings_dir:
-            raise HTTPException(status_code=500, detail="Recordings directory not configured")
+            raise HTTPException(
+                status_code=500, detail="Recordings directory not configured"
+            )
 
         # Get streamer directory safely
         try:
@@ -1106,7 +1275,9 @@ async def get_streamer_videos(streamer_name: str, request: Request, db: Session 
 
 
 @router.get("/videos/streamer/{streamer_id}")
-async def get_videos_by_streamer(streamer_id: int, request: Request, db: Session = Depends(get_db)):
+async def get_videos_by_streamer(
+    streamer_id: int, request: Request, db: Session = Depends(get_db)
+):
     """Get all videos for a specific streamer"""
     # Check authentication via session cookie
     session_token = request.cookies.get("session")
@@ -1125,7 +1296,11 @@ async def get_videos_by_streamer(streamer_id: int, request: Request, db: Session
         streams = (
             db.query(Stream, Streamer)
             .join(Streamer, Stream.streamer_id == Streamer.id)
-            .filter(Stream.streamer_id == streamer_id, Stream.recording_path.isnot(None), Stream.recording_path != "")
+            .filter(
+                Stream.streamer_id == streamer_id,
+                Stream.recording_path.isnot(None),
+                Stream.recording_path != "",
+            )
             .order_by(Stream.started_at.desc())
             .all()
         )
@@ -1142,7 +1317,9 @@ async def get_videos_by_streamer(streamer_id: int, request: Request, db: Session
                 # Active: /path/to/file_segments/ (is_dir with .ts segments inside)
                 is_finished_file = recording_path.exists() and recording_path.is_file()
                 is_segmented_dir = (
-                    recording_path.exists() and recording_path.is_dir() and recording_path.name.endswith("_segments")
+                    recording_path.exists()
+                    and recording_path.is_dir()
+                    and recording_path.name.endswith("_segments")
                 )
 
                 if is_finished_file or is_segmented_dir:
@@ -1152,7 +1329,11 @@ async def get_videos_by_streamer(streamer_id: int, request: Request, db: Session
                         file_size = file_stats.st_size
                     else:
                         # For segmented recordings, sum up all segment files
-                        file_size = sum(f.stat().st_size for f in recording_path.glob("*.ts") if f.is_file())
+                        file_size = sum(
+                            f.stat().st_size
+                            for f in recording_path.glob("*.ts")
+                            if f.is_file()
+                        )
 
                     # Calculate duration if available
                     duration = None
@@ -1160,7 +1341,9 @@ async def get_videos_by_streamer(streamer_id: int, request: Request, db: Session
                         duration = (stream.ended_at - stream.started_at).total_seconds()
 
                     # Get thumbnail with null fallback
-                    thumbnail_url = get_video_thumbnail_url(stream.id, str(recording_path))
+                    thumbnail_url = get_video_thumbnail_url(
+                        stream.id, str(recording_path)
+                    )
 
                     video_info = {
                         "id": stream.id,
@@ -1169,14 +1352,21 @@ async def get_videos_by_streamer(streamer_id: int, request: Request, db: Session
                         "streamer_id": streamer.id,
                         "file_path": str(recording_path),
                         "file_size": file_size,
-                        "created_at": stream.started_at.isoformat() if stream.started_at else None,
-                        "started_at": stream.started_at.isoformat() if stream.started_at else None,
-                        "ended_at": stream.ended_at.isoformat() if stream.ended_at else None,
+                        "created_at": stream.started_at.isoformat()
+                        if stream.started_at
+                        else None,
+                        "started_at": stream.started_at.isoformat()
+                        if stream.started_at
+                        else None,
+                        "ended_at": stream.ended_at.isoformat()
+                        if stream.ended_at
+                        else None,
                         "duration": duration,
                         "category_name": stream.category_name,
                         "language": stream.language,
                         "thumbnail_url": thumbnail_url,  # Always included (null if not found)
-                        "has_thumbnail": thumbnail_url is not None,  # Explicit flag for frontend
+                        "has_thumbnail": thumbnail_url
+                        is not None,  # Explicit flag for frontend
                         "is_segmented": is_segmented_dir,  # Flag for active recordings
                     }
                     videos.append(video_info)
@@ -1197,7 +1387,9 @@ async def get_videos_by_streamer(streamer_id: int, request: Request, db: Session
 
 
 @router.get("/videos/stream_by_filename/{filename}")
-async def stream_video_by_filename(filename: str, request: Request, db: Session = Depends(get_db)):
+async def stream_video_by_filename(
+    filename: str, request: Request, db: Session = Depends(get_db)
+):
     """Stream video by filename for direct access"""
     try:
         # Check authentication via session cookie
@@ -1223,7 +1415,9 @@ async def stream_video_by_filename(filename: str, request: Request, db: Session 
 
         recordings_dir = get_recordings_directory()
         if not recordings_dir:
-            raise HTTPException(status_code=500, detail="Recordings directory not configured")
+            raise HTTPException(
+                status_code=500, detail="Recordings directory not configured"
+            )
 
         # Security: Only allow video files and use safe file access
         if not is_video_file(sanitized_filename):
@@ -1289,14 +1483,18 @@ async def stream_video_by_filename(filename: str, request: Request, db: Session 
                     "Content-Type": mime_type,
                 }
 
-                return StreamingResponse(generate_chunk(), status_code=206, headers=headers)
+                return StreamingResponse(
+                    generate_chunk(), status_code=206, headers=headers
+                )
 
             except ValueError:
                 # Invalid range header, serve full file
                 pass
 
         # Return full file using safe path
-        return FileResponse(str(file_path), media_type=mime_type, filename=decoded_filename)
+        return FileResponse(
+            str(file_path), media_type=mime_type, filename=decoded_filename
+        )
 
     except HTTPException:
         raise
@@ -1306,8 +1504,13 @@ async def stream_video_by_filename(filename: str, request: Request, db: Session 
 
 
 @router.get("/videos/test/{stream_id}")
-async def test_video_access(stream_id: int, request: Request, db: Session = Depends(get_db)):
-    """Test endpoint to debug video access issues"""
+async def test_video_access(
+    stream_id: int, request: Request, db: Session = Depends(get_db)
+):
+    """Test endpoint to debug video access issues — DEVELOPMENT ONLY"""
+    # SECURITY: Gate debug endpoints behind environment check (CWE-489)
+    if not _IS_DEVELOPMENT:
+        raise HTTPException(status_code=404, detail="Not found")
     try:
         logger.info(f"Test video access for stream_id: {stream_id}")
 
@@ -1328,7 +1531,10 @@ async def test_video_access(stream_id: int, request: Request, db: Session = Depe
 
         # Check if file exists
         if not stream.recording_path:
-            return {"error": "No recording path", "stream": {"id": stream.id, "title": stream.title}}
+            return {
+                "error": "No recording path",
+                "stream": {"id": stream.id, "title": stream.title},
+            }
 
         file_path = Path(stream.recording_path)
         file_exists = file_path.exists()
@@ -1374,7 +1580,9 @@ async def check_stream_has_recording(stream_id: int, db: Session = Depends(get_d
 
         # Method 2: Check Recording model (new system)
         recording = (
-            db.query(Recording).filter(Recording.stream_id == stream_id, Recording.status == "completed").first()
+            db.query(Recording)
+            .filter(Recording.stream_id == stream_id, Recording.status == "completed")
+            .first()
         )
 
         if recording and recording.path and recording.path.strip():
@@ -1400,7 +1608,9 @@ async def check_stream_has_recording(stream_id: int, db: Session = Depends(get_d
 
 
 @router.post("/streams/check-recordings")
-async def check_multiple_streams_recordings(stream_ids: List[int], db: Session = Depends(get_db)):
+async def check_multiple_streams_recordings(
+    stream_ids: List[int], db: Session = Depends(get_db)
+):
     """Check recording availability for multiple streams at once - simplified version"""
 
     results = {}
@@ -1411,7 +1621,11 @@ async def check_multiple_streams_recordings(stream_ids: List[int], db: Session =
 
         # Get all recordings for these streams at once
         recordings = (
-            db.query(Recording).filter(Recording.stream_id.in_(stream_ids), Recording.status == "completed").all()
+            db.query(Recording)
+            .filter(
+                Recording.stream_id.in_(stream_ids), Recording.status == "completed"
+            )
+            .all()
         )
 
         # Create recording lookup by stream_id
@@ -1457,21 +1671,32 @@ async def check_multiple_streams_recordings(stream_ids: List[int], db: Session =
         # Add results for any stream IDs that weren't found in database
         for stream_id in stream_ids:
             if stream_id not in results:
-                results[stream_id] = {"has_recording": False, "method": "stream_not_found"}
+                results[stream_id] = {
+                    "has_recording": False,
+                    "method": "stream_not_found",
+                }
 
         return {"success": True, "data": results}
 
     except Exception as e:
         logger.error(f"Error checking stream recordings: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Stream recording check failed due to an internal error.")
+        raise HTTPException(
+            status_code=500,
+            detail="Stream recording check failed due to an internal error.",
+        )
 
 
 @router.get("/debug/videos-database")
 async def debug_videos_database(
     db: Session = Depends(get_db),
-    streamer_username: str = Query(None, description="Filter by specific streamer username"),
+    streamer_username: str = Query(
+        None, description="Filter by specific streamer username"
+    ),
 ):
-    """Debug endpoint to see what's in the database vs filesystem"""
+    """Debug endpoint to see what's in the database vs filesystem — DEVELOPMENT ONLY"""
+    # SECURITY: Gate debug endpoints behind environment check (CWE-489)
+    if not _IS_DEVELOPMENT:
+        raise HTTPException(status_code=404, detail="Not found")
 
     result = {
         "streams": [],
@@ -1486,13 +1711,17 @@ async def debug_videos_database(
     result["filter"]["available_streamers"] = [s.username for s in available_streamers]
 
     # Build query for streams
-    streams_query = db.query(Stream, Streamer).join(Streamer, Stream.streamer_id == Streamer.id)
+    streams_query = db.query(Stream, Streamer).join(
+        Streamer, Stream.streamer_id == Streamer.id
+    )
 
     # Apply filter if streamer_username is provided
     if streamer_username:
         streams_query = streams_query.filter(Streamer.username == streamer_username)
 
-    streams = streams_query.order_by(Stream.started_at.desc()).limit(50).all()  # Limit for performance
+    streams = (
+        streams_query.order_by(Stream.started_at.desc()).limit(50).all()
+    )  # Limit for performance
 
     for stream, streamer in streams:
         stream_info = {
@@ -1527,9 +1756,13 @@ async def debug_videos_database(
 
     # Apply filter if streamer_username is provided
     if streamer_username:
-        recordings_query = recordings_query.filter(Streamer.username == streamer_username)
+        recordings_query = recordings_query.filter(
+            Streamer.username == streamer_username
+        )
 
-    recordings = recordings_query.order_by(Recording.start_time.desc()).limit(50).all()  # Limit for performance
+    recordings = (
+        recordings_query.order_by(Recording.start_time.desc()).limit(50).all()
+    )  # Limit for performance
 
     for recording, stream, streamer in recordings:
         recording_info = {
@@ -1537,7 +1770,9 @@ async def debug_videos_database(
             "stream_id": recording.stream_id,
             "status": recording.status,
             "path": recording.path,
-            "start_time": recording.start_time.isoformat() if recording.start_time else None,
+            "start_time": recording.start_time.isoformat()
+            if recording.start_time
+            else None,
             "end_time": recording.end_time.isoformat() if recording.end_time else None,
             "stream_title": stream.title,
             "streamer_name": streamer.username,
@@ -1575,13 +1810,17 @@ async def debug_videos_database(
 
             # Check if requested streamer exists in whitelist
             if streamer_username not in valid_streamers:
-                result["filesystem_check"]["error"] = f"Streamer directory not found: {streamer_username}"
+                result["filesystem_check"]["error"] = (
+                    f"Streamer directory not found: {streamer_username}"
+                )
                 result["filesystem_check"]["available_streamers"] = valid_streamers
             else:
                 # Safe path construction using validated name from filesystem
                 streamer_recordings_dir = base_recordings_dir / streamer_username
                 result["filesystem_check"]["recordings_dir_exists"] = True
-                result["filesystem_check"]["streamer_dir"] = str(streamer_recordings_dir)
+                result["filesystem_check"]["streamer_dir"] = str(
+                    streamer_recordings_dir
+                )
 
                 # List subdirectories for the specific streamer
                 subdirs = []
@@ -1592,7 +1831,11 @@ async def debug_videos_database(
                         for file in item.iterdir():
                             if file.suffix in [".mp4", ".ts"]:
                                 subdirs[-1]["files"].append(
-                                    {"name": file.name, "size": file.stat().st_size, "path": str(file)}
+                                    {
+                                        "name": file.name,
+                                        "size": file.stat().st_size,
+                                        "path": str(file),
+                                    }
                                 )
 
                 result["filesystem_check"]["subdirectories"] = subdirs
@@ -1609,7 +1852,11 @@ async def debug_videos_database(
                         "name": streamer_dir.name,
                         "path": str(streamer_dir),
                         "file_count": len(
-                            [f for f in streamer_dir.rglob("*") if f.is_file() and f.suffix in [".mp4", ".ts"]]
+                            [
+                                f
+                                for f in streamer_dir.rglob("*")
+                                if f.is_file() and f.suffix in [".mp4", ".ts"]
+                            ]
                         ),
                     }
                 )
@@ -1620,9 +1867,13 @@ async def debug_videos_database(
     result["summary"] = {
         "total_streams": len(result["streams"]),
         "total_recordings": len(result["recordings"]),
-        "streams_with_recording_path": len([s for s in result["streams"] if s.get("recording_path")]),
+        "streams_with_recording_path": len(
+            [s for s in result["streams"] if s.get("recording_path")]
+        ),
         "recordings_with_path": len([r for r in result["recordings"] if r.get("path")]),
-        "mp4_files_found": len([r for r in result["recordings"] if r.get("mp4_path_exists")]),
+        "mp4_files_found": len(
+            [r for r in result["recordings"] if r.get("mp4_path_exists")]
+        ),
     }
 
     return result
@@ -1630,9 +1881,14 @@ async def debug_videos_database(
 
 @router.get("/debug/recordings-directory")
 async def debug_recordings_directory(
-    streamer_username: str = Query(None, description="Filter by specific streamer username")
+    streamer_username: str = Query(
+        None, description="Filter by specific streamer username"
+    ),
 ):
-    """Debug endpoint to list contents of recordings directory"""
+    """Debug endpoint to list contents of recordings directory — DEVELOPMENT ONLY"""
+    # SECURITY: Gate debug endpoints behind environment check (CWE-489)
+    if not _IS_DEVELOPMENT:
+        raise HTTPException(status_code=404, detail="Not found")
 
     result = {
         "base_recordings_dir": "/recordings",
@@ -1659,7 +1915,9 @@ async def debug_recordings_directory(
 
                     # Check if requested streamer exists in whitelist
                     if streamer_username not in valid_streamers:
-                        result["error"] = f"Streamer directory not found: {streamer_username}"
+                        result["error"] = (
+                            f"Streamer directory not found: {streamer_username}"
+                        )
                         result["available_streamers"] = valid_streamers
                     else:
                         # Safe path construction using validated name from filesystem
@@ -1691,17 +1949,25 @@ async def debug_recordings_directory(
                                             {
                                                 "name": file.name,
                                                 "size": file_size,
-                                                "size_mb": round(file_size / (1024 * 1024), 2),
+                                                "size_mb": round(
+                                                    file_size / (1024 * 1024), 2
+                                                ),
                                                 "path": str(file),
                                                 "extension": file.suffix,
                                             }
                                         )
                                         season_info["file_count"] += 1
-                                        season_info["total_size_mb"] += round(file_size / (1024 * 1024), 2)
+                                        season_info["total_size_mb"] += round(
+                                            file_size / (1024 * 1024), 2
+                                        )
 
                                 streamer_info["subdirectories"].append(season_info)
-                                streamer_info["total_files"] += season_info["file_count"]
-                                streamer_info["total_size_mb"] += season_info["total_size_mb"]
+                                streamer_info["total_files"] += season_info[
+                                    "file_count"
+                                ]
+                                streamer_info["total_size_mb"] += season_info[
+                                    "total_size_mb"
+                                ]
 
                         result["directories"].append(streamer_info)
 
@@ -1720,7 +1986,9 @@ async def debug_recordings_directory(
                         # List season directories (limit to avoid performance issues)
                         season_count = 0
                         for season_dir in streamer_dir.iterdir():
-                            if season_dir.is_dir() and season_count < 10:  # Limit seasons shown
+                            if (
+                                season_dir.is_dir() and season_count < 10
+                            ):  # Limit seasons shown
                                 season_info = {
                                     "name": season_dir.name,
                                     "path": str(season_dir),
@@ -1743,18 +2011,26 @@ async def debug_recordings_directory(
                                                 {
                                                     "name": file.name,
                                                     "size": file.stat().st_size,
-                                                    "size_mb": round(file.stat().st_size / (1024 * 1024), 2),
+                                                    "size_mb": round(
+                                                        file.stat().st_size
+                                                        / (1024 * 1024),
+                                                        2,
+                                                    ),
                                                     "path": str(file),
                                                     "extension": file.suffix,
                                                 }
                                             )
 
                                 season_info["file_count"] = file_count
-                                season_info["total_size_mb"] = round(total_size / (1024 * 1024), 2)
+                                season_info["total_size_mb"] = round(
+                                    total_size / (1024 * 1024), 2
+                                )
 
                                 streamer_info["subdirectories"].append(season_info)
                                 streamer_info["total_files"] += file_count
-                                streamer_info["total_size_mb"] += season_info["total_size_mb"]
+                                streamer_info["total_size_mb"] += season_info[
+                                    "total_size_mb"
+                                ]
                                 season_count += 1
 
                         result["directories"].append(streamer_info)
@@ -1762,6 +2038,8 @@ async def debug_recordings_directory(
             result["base_recordings_dir_exists"] = False
 
     except Exception:
-        result["error"] = "An internal error occurred while accessing recordings directory"
+        result["error"] = (
+            "An internal error occurred while accessing recordings directory"
+        )
 
     return result

@@ -50,7 +50,9 @@ class AutomaticQueueRecoveryService:
 
         self.is_running = True
         self.recovery_task = asyncio.create_task(self._recovery_worker())
-        logger.info("🔄 Automatic queue recovery service started - monitoring every 30s")
+        logger.info(
+            "🔄 Automatic queue recovery service started - monitoring every 30s"
+        )
 
     async def stop(self):
         """Stop the automatic recovery service"""
@@ -78,9 +80,15 @@ class AutomaticQueueRecoveryService:
                 recovery_result = await self._perform_recovery_check()
 
                 if recovery_result["recovered"] > 0:
-                    self.recovery_stats["total_recoveries"] += recovery_result["recovered"]
-                    self.recovery_stats["last_recovery"] = datetime.now(timezone.utc).isoformat()
-                    logger.info(f"🔧 AUTO_RECOVERY: Fixed {recovery_result['recovered']} issues automatically")
+                    self.recovery_stats["total_recoveries"] += recovery_result[
+                        "recovered"
+                    ]
+                    self.recovery_stats["last_recovery"] = datetime.now(
+                        timezone.utc
+                    ).isoformat()
+                    logger.info(
+                        f"🔧 AUTO_RECOVERY: Fixed {recovery_result['recovered']} issues automatically"
+                    )
 
                 # Wait before next check
                 await asyncio.sleep(self.recovery_interval_seconds)
@@ -104,7 +112,9 @@ class AutomaticQueueRecoveryService:
 
         try:
             # Get current tasks
-            external_tasks = getattr(self.background_queue_service, "external_tasks", {})
+            external_tasks = getattr(
+                self.background_queue_service, "external_tasks", {}
+            )
             active_tasks = getattr(self.background_queue_service, "active_tasks", {})
 
             now = datetime.now(timezone.utc)
@@ -146,14 +156,19 @@ class AutomaticQueueRecoveryService:
         is_recording_task = (
             task_id.startswith("recording_")
             or (hasattr(task, "task_type") and task.task_type == "recording")
-            or (hasattr(task, "task_name") and "recording" in str(task.task_name).lower())
+            or (
+                hasattr(task, "task_name")
+                and "recording" in str(task.task_name).lower()
+            )
         )
 
         if not is_recording_task:
             return False
 
         # Check task age
-        task_created = getattr(task, "created_at", None) or getattr(task, "started_at", None)
+        task_created = getattr(task, "created_at", None) or getattr(
+            task, "started_at", None
+        )
         if not task_created:
             return False
 
@@ -175,13 +190,20 @@ class AutomaticQueueRecoveryService:
         if last_progress_update:
             try:
                 if last_progress_update.tzinfo is None:
-                    last_progress_update = last_progress_update.replace(tzinfo=timezone.utc)
-                last_progress_minutes = (now - last_progress_update).total_seconds() / 60
+                    last_progress_update = last_progress_update.replace(
+                        tzinfo=timezone.utc
+                    )
+                last_progress_minutes = (
+                    now - last_progress_update
+                ).total_seconds() / 60
             except Exception:
                 last_progress_minutes = None
 
         # Heuristic: consider a task "inactive" only if no heartbeat for > stuck_task_threshold_minutes
-        no_recent_heartbeat = last_progress_minutes is None or last_progress_minutes > self.stuck_task_threshold_minutes
+        no_recent_heartbeat = (
+            last_progress_minutes is None
+            or last_progress_minutes > self.stuck_task_threshold_minutes
+        )
 
         # Extra safeguard: if progress is <100 and we still receive heartbeats (last update fresh), don't recover
         if (
@@ -218,14 +240,18 @@ class AutomaticQueueRecoveryService:
         is_orphaned_task = (
             (hasattr(task, "task_type") and task.task_type == "orphaned_recovery_check")
             or "orphaned" in task_id.lower()
-            or (hasattr(task, "task_name") and "orphaned" in str(task.task_name).lower())
+            or (
+                hasattr(task, "task_name") and "orphaned" in str(task.task_name).lower()
+            )
         )
 
         if not is_orphaned_task:
             return False
 
         # Check task age
-        task_created = getattr(task, "created_at", None) or getattr(task, "started_at", None)
+        task_created = getattr(task, "created_at", None) or getattr(
+            task, "started_at", None
+        )
         if not task_created:
             return False
 
@@ -241,7 +267,10 @@ class AutomaticQueueRecoveryService:
         else:
             status_value = str(task_status).lower()
 
-        if status_value in ["running", "pending"] and task_age_minutes > self.orphaned_check_threshold_minutes:
+        if (
+            status_value in ["running", "pending"]
+            and task_age_minutes > self.orphaned_check_threshold_minutes
+        ):
             return True
 
         return False
@@ -253,13 +282,17 @@ class AutomaticQueueRecoveryService:
 
             # Mark as completed through proper channels
             if hasattr(self.background_queue_service, "complete_external_task"):
-                self.background_queue_service.complete_external_task(task_id, success=True)
+                self.background_queue_service.complete_external_task(
+                    task_id, success=True
+                )
                 logger.info(f"✅ AUTO_RECOVERY: Marked {task_id} as completed")
 
             # Update task status directly
             if hasattr(task, "status"):
                 try:
-                    from app.services.processing.task_dependency_manager import TaskStatus
+                    from app.services.processing.task_dependency_manager import (
+                        TaskStatus,
+                    )
 
                     if isinstance(task.status, TaskStatus):
                         task.status = TaskStatus.COMPLETED
@@ -273,14 +306,18 @@ class AutomaticQueueRecoveryService:
                 task.completed_at = datetime.now(timezone.utc)
 
             # Remove from external_tasks directly if needed
-            external_tasks = getattr(self.background_queue_service, "external_tasks", {})
+            external_tasks = getattr(
+                self.background_queue_service, "external_tasks", {}
+            )
             if task_id in external_tasks:
                 del external_tasks[task_id]
 
             # Remove from progress tracking
             if hasattr(self.background_queue_service, "progress_tracker"):
                 try:
-                    self.background_queue_service.progress_tracker.remove_external_task(task_id)
+                    self.background_queue_service.progress_tracker.remove_external_task(
+                        task_id
+                    )
                 except Exception as e:
                     logger.warning(f"Could not remove from progress tracker: {e}")
 
@@ -298,14 +335,20 @@ class AutomaticQueueRecoveryService:
             # Complete the orphaned check task
             if hasattr(self.background_queue_service, "queue_manager"):
                 try:
-                    await self.background_queue_service.queue_manager.mark_task_completed(task_id, success=True)
+                    await (
+                        self.background_queue_service.queue_manager.mark_task_completed(
+                            task_id, success=True
+                        )
+                    )
                 except Exception as e:
                     logger.warning(f"Could not complete task via queue manager: {e}")
 
             # Update task status
             if hasattr(task, "status"):
                 try:
-                    from app.services.processing.task_dependency_manager import TaskStatus
+                    from app.services.processing.task_dependency_manager import (
+                        TaskStatus,
+                    )
 
                     if isinstance(task.status, TaskStatus):
                         task.status = TaskStatus.COMPLETED

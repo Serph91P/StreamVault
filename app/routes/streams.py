@@ -1,7 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from app.database import get_db
-from app.models import Stream, StreamMetadata, Recording, StreamEvent, ActiveRecordingState
+from app.models import (
+    Stream,
+    StreamMetadata,
+    Recording,
+    StreamEvent,
+    ActiveRecordingState,
+)
 from app.services.background_queue_service import background_queue_service
 from app.utils.security import validate_path_security
 import logging
@@ -14,9 +20,11 @@ router = APIRouter(prefix="/api/streams", tags=["streams"])
 
 
 @router.delete("/{stream_id}")
-async def delete_stream(request: Request, stream_id: int, db: Session = Depends(get_db)):
+async def delete_stream(
+    request: Request, stream_id: int, db: Session = Depends(get_db)
+):
     """Delete a specific stream and all associated metadata.
-    
+
     IMPORTANT: Uses the same safe deletion logic as cleanup_service:
     - tvshow.nfo is NEVER deleted (belongs to streamer, not stream)
     - season.nfo is only deleted if this is the LAST stream in that season
@@ -28,14 +36,20 @@ async def delete_stream(request: Request, stream_id: int, db: Session = Depends(
         # Check if the stream exists
         stream = db.query(Stream).filter(Stream.id == stream_id).first()
         if not stream:
-            raise HTTPException(status_code=404, detail=f"Stream with ID {stream_id} not found")
+            raise HTTPException(
+                status_code=404, detail=f"Stream with ID {stream_id} not found"
+            )
 
         # Collect all metadata files that need to be deleted
         files_to_delete = []
         directories_to_check = set()
 
         # Get metadata for this stream
-        metadata = db.query(StreamMetadata).filter(StreamMetadata.stream_id == stream.id).first()
+        metadata = (
+            db.query(StreamMetadata)
+            .filter(StreamMetadata.stream_id == stream.id)
+            .first()
+        )
 
         # Get the base directory for this recording (for later cleanup)
         recording_dir = None
@@ -60,7 +74,7 @@ async def delete_stream(request: Request, stream_id: int, db: Session = Depends(
                 "chapters_ffmpeg_path",
                 "chapters_xml_path",
             ]
-            
+
             for attr in per_stream_attrs:
                 path = getattr(metadata, attr, None)
                 if path:
@@ -68,16 +82,20 @@ async def delete_stream(request: Request, stream_id: int, db: Session = Depends(
                         validated_path = validate_path_security(path, "delete")
                         files_to_delete.append(validated_path)
                     except HTTPException as e:
-                        logger.warning(f"🚨 SECURITY: Skipping invalid metadata path {path}: {e.detail}")
+                        logger.warning(
+                            f"🚨 SECURITY: Skipping invalid metadata path {path}: {e.detail}"
+                        )
                         continue
 
             # SHARED FILES HANDLING (same logic as cleanup_service):
             # - tvshow.nfo: NEVER delete during stream deletion (belongs to streamer)
             # - season.nfo: Only delete if this is the LAST stream in that season
-            
+
             if metadata.tvshow_nfo_path:
-                logger.debug(f"Preserving tvshow.nfo (belongs to streamer, not stream): {metadata.tvshow_nfo_path}")
-            
+                logger.debug(
+                    f"Preserving tvshow.nfo (belongs to streamer, not stream): {metadata.tvshow_nfo_path}"
+                )
+
             if metadata.season_nfo_path and os.path.exists(metadata.season_nfo_path):
                 # Check if other streams exist in the same season directory
                 season_dir = os.path.dirname(metadata.season_nfo_path)
@@ -93,18 +111,30 @@ async def delete_stream(request: Request, stream_id: int, db: Session = Depends(
                 )
                 if other_streams_in_season == 0:
                     try:
-                        validated_path = validate_path_security(metadata.season_nfo_path, "delete")
+                        validated_path = validate_path_security(
+                            metadata.season_nfo_path, "delete"
+                        )
                         files_to_delete.append(validated_path)
-                        logger.debug(f"Last stream in season, will delete season.nfo: {metadata.season_nfo_path}")
+                        logger.debug(
+                            f"Last stream in season, will delete season.nfo: {metadata.season_nfo_path}"
+                        )
                     except HTTPException as e:
-                        logger.warning(f"🚨 SECURITY: Skipping invalid season.nfo path: {e.detail}")
+                        logger.warning(
+                            f"🚨 SECURITY: Skipping invalid season.nfo path: {e.detail}"
+                        )
                 else:
-                    logger.debug(f"Keeping shared season.nfo ({other_streams_in_season} other streams in season)")
-            
+                    logger.debug(
+                        f"Keeping shared season.nfo ({other_streams_in_season} other streams in season)"
+                    )
+
             # Handle segments directory from metadata
-            if metadata.segments_dir_path and os.path.exists(metadata.segments_dir_path):
+            if metadata.segments_dir_path and os.path.exists(
+                metadata.segments_dir_path
+            ):
                 try:
-                    validated_segments = validate_path_security(metadata.segments_dir_path, "access")
+                    validated_segments = validate_path_security(
+                        metadata.segments_dir_path, "access"
+                    )
                     files_to_delete.append(validated_segments)
                 except HTTPException:
                     pass
@@ -127,7 +157,9 @@ async def delete_stream(request: Request, stream_id: int, db: Session = Depends(
                         ts_version = file_path_obj.with_suffix(".ts")
                         if ts_version.exists():
                             try:
-                                validated_ts = validate_path_security(str(ts_version), "delete")
+                                validated_ts = validate_path_security(
+                                    str(ts_version), "delete"
+                                )
                                 files_to_delete.append(validated_ts)
                             except HTTPException:
                                 pass
@@ -137,22 +169,30 @@ async def delete_stream(request: Request, stream_id: int, db: Session = Depends(
                         mp4_version = file_path_obj.with_suffix(".mp4")
                         if mp4_version.exists():
                             try:
-                                validated_mp4 = validate_path_security(str(mp4_version), "delete")
+                                validated_mp4 = validate_path_security(
+                                    str(mp4_version), "delete"
+                                )
                                 files_to_delete.append(validated_mp4)
                             except HTTPException:
                                 pass
 
                     # Check for segment directories (fallback pattern matching)
-                    segments_dir = file_path_obj.parent / f"{file_path_obj.stem}_segments"
+                    segments_dir = (
+                        file_path_obj.parent / f"{file_path_obj.stem}_segments"
+                    )
                     if segments_dir.exists() and segments_dir.is_dir():
                         try:
-                            validated_segments = validate_path_security(str(segments_dir), "access")
+                            validated_segments = validate_path_security(
+                                str(segments_dir), "access"
+                            )
                             files_to_delete.append(validated_segments)
                         except HTTPException:
                             pass
 
                 except HTTPException as e:
-                    logger.warning(f"🚨 SECURITY: Skipping invalid recording path {recording.path}: {e.detail}")
+                    logger.warning(
+                        f"🚨 SECURITY: Skipping invalid recording path {recording.path}: {e.detail}"
+                    )
                     continue
 
             # Delete recording record
@@ -161,7 +201,9 @@ async def delete_stream(request: Request, stream_id: int, db: Session = Depends(
         # Also check the stream's recording_path
         if stream.recording_path:
             try:
-                validated_stream_path = validate_path_security(stream.recording_path, "delete")
+                validated_stream_path = validate_path_security(
+                    stream.recording_path, "delete"
+                )
                 files_to_delete.append(validated_stream_path)
 
                 stream_file = Path(validated_stream_path)
@@ -171,7 +213,9 @@ async def delete_stream(request: Request, stream_id: int, db: Session = Depends(
                     ts_version = stream_file.with_suffix(".ts")
                     if ts_version.exists():
                         try:
-                            validated_ts = validate_path_security(str(ts_version), "delete")
+                            validated_ts = validate_path_security(
+                                str(ts_version), "delete"
+                            )
                             files_to_delete.append(validated_ts)
                         except HTTPException:
                             pass
@@ -181,7 +225,9 @@ async def delete_stream(request: Request, stream_id: int, db: Session = Depends(
                     mp4_version = stream_file.with_suffix(".mp4")
                     if mp4_version.exists():
                         try:
-                            validated_mp4 = validate_path_security(str(mp4_version), "delete")
+                            validated_mp4 = validate_path_security(
+                                str(mp4_version), "delete"
+                            )
                             files_to_delete.append(validated_mp4)
                         except HTTPException:
                             pass
@@ -190,7 +236,9 @@ async def delete_stream(request: Request, stream_id: int, db: Session = Depends(
                 segments_dir = stream_file.parent / f"{stream_file.stem}_segments"
                 if segments_dir.exists() and segments_dir.is_dir():
                     try:
-                        validated_segments = validate_path_security(str(segments_dir), "access")
+                        validated_segments = validate_path_security(
+                            str(segments_dir), "access"
+                        )
                         files_to_delete.append(validated_segments)
                     except HTTPException:
                         pass
@@ -204,7 +252,9 @@ async def delete_stream(request: Request, stream_id: int, db: Session = Depends(
         db.query(StreamEvent).filter(StreamEvent.stream_id == stream.id).delete()
 
         # Delete active recording state for this stream
-        db.query(ActiveRecordingState).filter(ActiveRecordingState.stream_id == stream.id).delete()
+        db.query(ActiveRecordingState).filter(
+            ActiveRecordingState.stream_id == stream.id
+        ).delete()
 
         # Delete the stream record itself
         db.delete(stream)
@@ -236,4 +286,6 @@ async def delete_stream(request: Request, stream_id: int, db: Session = Depends(
     except Exception as e:
         logger.error(f"Error deleting stream {stream_id}: {e}", exc_info=True)
         db.rollback()
-        raise HTTPException(status_code=500, detail="Failed to delete stream. Please try again.")
+        raise HTTPException(
+            status_code=500, detail="Failed to delete stream. Please try again."
+        )

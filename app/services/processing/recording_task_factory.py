@@ -71,7 +71,9 @@ class RecordingTaskFactory:
                         stream = db.query(Stream).get(stream_id)
                         if stream:
                             st = RecordingProcessingState(
-                                recording_id=recording_id, stream_id=stream_id, streamer_id=stream.streamer_id
+                                recording_id=recording_id,
+                                stream_id=stream_id,
+                                streamer_id=stream.streamer_id,
                             )
                             db.add(st)
                             db.commit()
@@ -82,7 +84,9 @@ class RecordingTaskFactory:
                                 recording_id,
                             )
                     except Exception as e:
-                        logger.debug(f"Could not prime processing state for recording {recording_id}: {e}")
+                        logger.debug(
+                            f"Could not prime processing state for recording {recording_id}: {e}"
+                        )
         except Exception:
             pass
 
@@ -130,8 +134,14 @@ class RecordingTaskFactory:
             chapters_task = Task(
                 id=chapters_task_id,
                 type="chapters_generation",
-                payload={**common_payload, "mp4_path": mp4_path, "base_filename": ts_path.stem},
-                dependencies={metadata_task_id} if any(t.id == metadata_task_id for t in tasks) else set(),
+                payload={
+                    **common_payload,
+                    "mp4_path": mp4_path,
+                    "base_filename": ts_path.stem,
+                },
+                dependencies={metadata_task_id}
+                if any(t.id == metadata_task_id for t in tasks)
+                else set(),
                 priority=1,  # High priority
             )
             tasks.append(chapters_task)
@@ -149,7 +159,9 @@ class RecordingTaskFactory:
                     "include_chapters": True,
                 },
                 dependencies={
-                    dep for dep in {metadata_task_id, chapters_task_id} if dep and dep in [t.id for t in tasks]
+                    dep
+                    for dep in {metadata_task_id, chapters_task_id}
+                    if dep and dep in [t.id for t in tasks]
                 },
                 priority=2,  # Medium priority
             )
@@ -168,7 +180,9 @@ class RecordingTaskFactory:
                     "validate_size_ratio": True,
                     "min_size_mb": 1,  # Minimum 1MB
                 },
-                dependencies={mp4_remux_task_id} if any(t.id == mp4_remux_task_id for t in tasks) else set(),
+                dependencies={mp4_remux_task_id}
+                if any(t.id == mp4_remux_task_id for t in tasks)
+                else set(),
                 priority=2,  # High priority - validation is critical
             )
             tasks.append(mp4_validation_task)
@@ -178,8 +192,14 @@ class RecordingTaskFactory:
             thumbnail_task = Task(
                 id=thumbnail_task_id,
                 type="thumbnail_generation",
-                payload={**common_payload, "mp4_path": mp4_path, "fallback_to_video_extraction": True},
-                dependencies={mp4_validation_task_id} if any(t.id == mp4_validation_task_id for t in tasks) else set(),
+                payload={
+                    **common_payload,
+                    "mp4_path": mp4_path,
+                    "fallback_to_video_extraction": True,
+                },
+                dependencies={mp4_validation_task_id}
+                if any(t.id == mp4_validation_task_id for t in tasks)
+                else set(),
                 priority=3,  # Lower priority
             )
             tasks.append(thumbnail_task)
@@ -208,19 +228,28 @@ class RecordingTaskFactory:
                     "max_wait_time": 300,  # 5 minutes max wait for processes
                 },
                 dependencies=(
-                    {mp4_validation_task_id} if any(t.id == mp4_validation_task_id for t in tasks) else set()
+                    {mp4_validation_task_id}
+                    if any(t.id == mp4_validation_task_id for t in tasks)
+                    else set()
                 ),  # Depends on validation, not thumbnail
                 priority=4,  # Lowest priority
             )
             tasks.append(cleanup_task)
 
-        logger.info(f"Created post-processing chain for stream {stream_id} with {len(tasks)} tasks")
+        logger.info(
+            f"Created post-processing chain for stream {stream_id} with {len(tasks)} tasks"
+        )
 
         return tasks
 
     @staticmethod
     def create_metadata_only_chain(
-        stream_id: int, recording_id: int, mp4_file_path: str, output_dir: str, streamer_name: str, started_at: str
+        stream_id: int,
+        recording_id: int,
+        mp4_file_path: str,
+        output_dir: str,
+        streamer_name: str,
+        started_at: str,
     ) -> List[Task]:
         """Create a metadata-only task chain for existing MP4 files
 
@@ -287,13 +316,20 @@ class RecordingTaskFactory:
         )
         tasks.append(thumbnail_task)
 
-        logger.info(f"Created metadata-only chain for stream {stream_id} with {len(tasks)} tasks")
+        logger.info(
+            f"Created metadata-only chain for stream {stream_id} with {len(tasks)} tasks"
+        )
 
         return tasks
 
     @staticmethod
     def create_thumbnail_only_task(
-        stream_id: int, recording_id: int, mp4_file_path: str, output_dir: str, streamer_name: str, started_at: str
+        stream_id: int,
+        recording_id: int,
+        mp4_file_path: str,
+        output_dir: str,
+        streamer_name: str,
+        started_at: str,
     ) -> Task:
         """Create a single thumbnail generation task
 
@@ -376,7 +412,11 @@ class RecordingTaskFactory:
             metadata_task = Task(
                 id=metadata_task_id,
                 type="metadata_generation",
-                payload={**common_payload, "mp4_path": mp4_path, "base_filename": ts_path.stem},
+                payload={
+                    **common_payload,
+                    "mp4_path": mp4_path,
+                    "base_filename": ts_path.stem,
+                },
                 dependencies=set(),
                 priority=1,
                 max_retries=1,  # Reduced retries for repair
@@ -389,7 +429,11 @@ class RecordingTaskFactory:
             chapters_task = Task(
                 id=chapters_task_id,
                 type="chapters_generation",
-                payload={**common_payload, "mp4_path": mp4_path, "base_filename": ts_path.stem},
+                payload={
+                    **common_payload,
+                    "mp4_path": mp4_path,
+                    "base_filename": ts_path.stem,
+                },
                 dependencies=set(),
                 priority=1,
                 max_retries=1,
@@ -421,7 +465,11 @@ class RecordingTaskFactory:
             thumbnail_task = Task(
                 id=thumbnail_task_id,
                 type="thumbnail_generation",
-                payload={**common_payload, "mp4_path": mp4_path, "fallback_to_video_extraction": True},
+                payload={
+                    **common_payload,
+                    "mp4_path": mp4_path,
+                    "fallback_to_video_extraction": True,
+                },
                 dependencies=dependencies,
                 priority=3,
                 max_retries=1,

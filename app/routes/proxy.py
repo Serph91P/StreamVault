@@ -17,7 +17,9 @@ from app.database import SessionLocal
 from app.models import ProxySettings, RecordingSettings
 from app.dependencies import get_current_user
 from app.services.proxy.proxy_health_service import proxy_health_service
-from app.utils.proxy_url_helper import encode_proxy_url  # URL encoder for special chars in passwords
+from app.utils.proxy_url_helper import (
+    encode_proxy_url,
+)  # URL encoder for special chars in passwords
 
 logger = logging.getLogger("streamvault")
 
@@ -85,27 +87,44 @@ async def list_proxies(user=Depends(get_current_user)):
     """
     with SessionLocal() as db:
         # Get proxies
-        proxies = db.query(ProxySettings).order_by(ProxySettings.priority, ProxySettings.health_status).all()
+        proxies = (
+            db.query(ProxySettings)
+            .order_by(ProxySettings.priority, ProxySettings.health_status)
+            .all()
+        )
 
         # Get system config from recording_settings
         recording_settings = db.query(RecordingSettings).first()
 
         # Build system config with defaults if recording_settings doesn't exist
         system_config = {
-            "enable_proxy": recording_settings.enable_proxy if recording_settings else True,
-            "proxy_health_check_enabled": recording_settings.proxy_health_check_enabled if recording_settings else True,
+            "enable_proxy": recording_settings.enable_proxy
+            if recording_settings
+            else True,
+            "proxy_health_check_enabled": recording_settings.proxy_health_check_enabled
+            if recording_settings
+            else True,
             "proxy_health_check_interval_seconds": (
-                recording_settings.proxy_health_check_interval_seconds if recording_settings else 300
+                recording_settings.proxy_health_check_interval_seconds
+                if recording_settings
+                else 300
             ),
             "proxy_max_consecutive_failures": (
-                recording_settings.proxy_max_consecutive_failures if recording_settings else 3
+                recording_settings.proxy_max_consecutive_failures
+                if recording_settings
+                else 3
             ),
             "fallback_to_direct_connection": (
-                recording_settings.fallback_to_direct_connection if recording_settings else True
+                recording_settings.fallback_to_direct_connection
+                if recording_settings
+                else True
             ),
         }
 
-        return {"proxies": [p.to_dict(mask_password=True) for p in proxies], "system_config": system_config}
+        return {
+            "proxies": [p.to_dict(mask_password=True) for p in proxies],
+            "system_config": system_config,
+        }
 
 
 @router.post("/add")
@@ -123,17 +142,25 @@ async def add_proxy(request: ProxyAddRequest, user=Depends(get_current_user)):
         # URL-encode credentials in proxy URL (fixes passwords with special chars like _)
         encoded_proxy_url = encode_proxy_url(request.proxy_url)
 
-        logger.debug(f"Encoding proxy URL: {request.proxy_url[:30]}... → {encoded_proxy_url[:30]}...")
+        logger.debug(
+            f"Encoding proxy URL: {request.proxy_url[:30]}... → {encoded_proxy_url[:30]}..."
+        )
 
         # Check for duplicate proxy URL (check both raw and encoded)
         existing = (
             db.query(ProxySettings)
-            .filter((ProxySettings.proxy_url == request.proxy_url) | (ProxySettings.proxy_url == encoded_proxy_url))
+            .filter(
+                (ProxySettings.proxy_url == request.proxy_url)
+                | (ProxySettings.proxy_url == encoded_proxy_url)
+            )
             .first()
         )
 
         if existing:
-            raise HTTPException(status_code=400, detail=f"Proxy URL already exists with ID {existing.id}")
+            raise HTTPException(
+                status_code=400,
+                detail=f"Proxy URL already exists with ID {existing.id}",
+            )
 
         # Create new proxy with encoded URL
         new_proxy = ProxySettings(
@@ -150,12 +177,16 @@ async def add_proxy(request: ProxyAddRequest, user=Depends(get_current_user)):
         db.commit()
         db.refresh(new_proxy)
 
-        logger.info(f"✅ Added new proxy: {new_proxy.masked_url} (priority {new_proxy.priority})")
+        logger.info(
+            f"✅ Added new proxy: {new_proxy.masked_url} (priority {new_proxy.priority})"
+        )
 
         # Trigger immediate health check (don't wait for response)
         import asyncio
 
-        asyncio.create_task(proxy_health_service.check_proxy_health_manual(new_proxy.id))
+        asyncio.create_task(
+            proxy_health_service.check_proxy_health_manual(new_proxy.id)
+        )
 
         return {
             "success": True,
@@ -223,12 +254,14 @@ async def toggle_proxy(proxy_id: int, user=Depends(get_current_user)):
         # Broadcast status update
         import asyncio
 
-        asyncio.create_task(proxy_health_service._broadcast_proxy_status(proxy, auto_disabled=False))
+        asyncio.create_task(
+            proxy_health_service._broadcast_proxy_status(proxy, auto_disabled=False)
+        )
 
         return {
             "success": True,
             "enabled": proxy.enabled,
-            "message": f'Proxy {"enabled" if proxy.enabled else "disabled"} successfully',
+            "message": f"Proxy {'enabled' if proxy.enabled else 'disabled'} successfully",
         }
 
 
@@ -252,7 +285,9 @@ async def test_proxy(proxy_id: int, user=Depends(get_current_user)):
 
 
 @router.post("/{proxy_id}/update-priority")
-async def update_proxy_priority(proxy_id: int, request: ProxyUpdatePriorityRequest, user=Depends(get_current_user)):
+async def update_proxy_priority(
+    proxy_id: int, request: ProxyUpdatePriorityRequest, user=Depends(get_current_user)
+):
     """
     Update proxy priority for selection ordering.
 
@@ -274,9 +309,14 @@ async def update_proxy_priority(proxy_id: int, request: ProxyUpdatePriorityReque
 
         db.commit()
 
-        logger.info(f"🔄 Updated proxy priority: {proxy.masked_url} - {old_priority} → {request.priority}")
+        logger.info(
+            f"🔄 Updated proxy priority: {proxy.masked_url} - {old_priority} → {request.priority}"
+        )
 
-        return {"success": True, "message": f"Proxy priority updated to {request.priority}"}
+        return {
+            "success": True,
+            "message": f"Proxy priority updated to {request.priority}",
+        }
 
 
 @router.get("/best")
@@ -296,10 +336,17 @@ async def get_best_proxy(user=Depends(get_current_user)):
 
     # Get proxy details from database
     with SessionLocal() as db:
-        proxy = db.query(ProxySettings).filter(ProxySettings.proxy_url == best_proxy_url).first()
+        proxy = (
+            db.query(ProxySettings)
+            .filter(ProxySettings.proxy_url == best_proxy_url)
+            .first()
+        )
 
         if proxy:
-            return {"proxy": proxy.to_dict(mask_password=True), "message": "Best available proxy"}
+            return {
+                "proxy": proxy.to_dict(mask_password=True),
+                "message": "Best available proxy",
+            }
 
     return {"proxy": None, "message": "Proxy not found in database"}
 
@@ -319,9 +366,13 @@ async def get_proxy_config(user=Depends(get_current_user)):
             raise HTTPException(status_code=404, detail="Recording settings not found")
 
         return {
-            "enable_proxy": settings.enable_proxy if hasattr(settings, "enable_proxy") else True,
+            "enable_proxy": settings.enable_proxy
+            if hasattr(settings, "enable_proxy")
+            else True,
             "proxy_health_check_enabled": (
-                settings.proxy_health_check_enabled if hasattr(settings, "proxy_health_check_enabled") else True
+                settings.proxy_health_check_enabled
+                if hasattr(settings, "proxy_health_check_enabled")
+                else True
             ),
             "proxy_health_check_interval_seconds": (
                 settings.proxy_health_check_interval_seconds
@@ -329,10 +380,14 @@ async def get_proxy_config(user=Depends(get_current_user)):
                 else 300
             ),
             "proxy_max_consecutive_failures": (
-                settings.proxy_max_consecutive_failures if hasattr(settings, "proxy_max_consecutive_failures") else 3
+                settings.proxy_max_consecutive_failures
+                if hasattr(settings, "proxy_max_consecutive_failures")
+                else 3
             ),
             "fallback_to_direct_connection": (
-                settings.fallback_to_direct_connection if hasattr(settings, "fallback_to_direct_connection") else True
+                settings.fallback_to_direct_connection
+                if hasattr(settings, "fallback_to_direct_connection")
+                else True
             ),
         }
 
@@ -374,12 +429,23 @@ async def update_proxy_config(
 
         if proxy_health_check_interval_seconds is not None:
             if proxy_health_check_interval_seconds < 60:
-                raise HTTPException(status_code=400, detail="Health check interval must be at least 60 seconds")
-            settings.proxy_health_check_interval_seconds = proxy_health_check_interval_seconds
+                raise HTTPException(
+                    status_code=400,
+                    detail="Health check interval must be at least 60 seconds",
+                )
+            settings.proxy_health_check_interval_seconds = (
+                proxy_health_check_interval_seconds
+            )
 
         if proxy_max_consecutive_failures is not None:
-            if proxy_max_consecutive_failures < 1 or proxy_max_consecutive_failures > 10:
-                raise HTTPException(status_code=400, detail="Max consecutive failures must be between 1 and 10")
+            if (
+                proxy_max_consecutive_failures < 1
+                or proxy_max_consecutive_failures > 10
+            ):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Max consecutive failures must be between 1 and 10",
+                )
             settings.proxy_max_consecutive_failures = proxy_max_consecutive_failures
 
         if fallback_to_direct_connection is not None:
