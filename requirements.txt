@@ -28,7 +28,7 @@ apprise==1.9.6
 py-vapid==1.9.4
 
 # System monitoring - updated to latest version
-psutil==7.2.1
+psutil==7.2.2
 
 # Additional security packages
 safety==3.7.0
