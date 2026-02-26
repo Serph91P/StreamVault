@@ -6,7 +6,7 @@ uvicorn[standard]==0.41.0
 SQLAlchemy[postgresql]==2.0.47
 psycopg[binary]==3.3.3
 psycopg-pool==3.3.0
-alembic==1.17.2
+alembic==1.18.4
 greenlet==3.3.2
 
 # Security dependencies - updated to latest secure versions
