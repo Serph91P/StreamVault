@@ -29,7 +29,7 @@
     "@vue/tsconfig": "^0.8.1",
     "esbuild": "^0.27.2",
     "eslint": "^9.39.2",
-    "eslint-plugin-vue": "^10.7.0",
+    "eslint-plugin-vue": "^10.8.0",
     "npm-run-all2": "^8.0.4",
     "prettier": "^3.8.1",
     "sass": "^1.97.3",
