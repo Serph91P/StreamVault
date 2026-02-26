@@ -152,11 +152,12 @@ class PostProcessingTasks:
             # Update progress
             task.progress = 80.0
 
-            # Step 3: Generate/ensure thumbnail
-            await self.thumbnail_service.ensure_thumbnail_with_fallback(
+            # Step 3: Generate thumbnail from the MP4 file
+            # Use create_unified_thumbnail which saves as {base_filename}-thumb.jpg
+            # (unique per stream, matches the serving endpoint's lookup)
+            await self.thumbnail_service.create_unified_thumbnail(
                 stream_id=stream_id,
-                output_dir=str(output_dir),
-                video_path=str(mp4_output_path),
+                mp4_path=str(mp4_output_path),
             )
 
             # Update progress
@@ -284,7 +285,8 @@ class PostProcessingTasks:
         """Generate thumbnail for a stream"""
         payload = task.payload
         stream_id = payload["stream_id"]
-        video_path = payload.get("video_path")
+        # Task factory sends "mp4_path"; accept both keys for compatibility
+        mp4_path = payload.get("mp4_path") or payload.get("video_path")
         output_dir = payload["output_dir"]
 
         log_with_context(
@@ -299,16 +301,14 @@ class PostProcessingTasks:
         try:
             task.progress = 10.0
 
-            # Generate thumbnail
-            if video_path:
-                # Extract from video file
-                thumbnail_path = (
-                    await self.thumbnail_service.generate_thumbnail_from_mp4(
-                        stream_id=stream_id, mp4_path=video_path
-                    )
+            # Generate thumbnail using the unified method that creates
+            # {base_filename}-thumb.jpg (unique per stream, matches serving endpoint)
+            if mp4_path:
+                thumbnail_path = await self.thumbnail_service.create_unified_thumbnail(
+                    stream_id=stream_id, mp4_path=mp4_path
                 )
             else:
-                # Try to get from Twitch or existing sources
+                # Fallback: try to get from Twitch or existing sources
                 thumbnail_path = (
                     await self.thumbnail_service.ensure_thumbnail_with_fallback(
                         stream_id=stream_id, output_dir=output_dir
