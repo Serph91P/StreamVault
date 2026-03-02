@@ -10,7 +10,7 @@ alembic==1.18.4
 greenlet==3.3.2
 
 # Security dependencies - updated to latest secure versions
-python-dotenv==1.2.1
+python-dotenv==1.2.2
 argon2-cffi==25.1.0
 cryptography==46.0.5
 
