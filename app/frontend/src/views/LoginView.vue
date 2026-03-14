@@ -97,7 +97,12 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
+import { useRouter } from 'vue-router'
 import GlassCard from '@/components/cards/GlassCard.vue'
+import { useAuth } from '@/composables/useAuth'
+
+const router = useRouter()
+const { login } = useAuth()
 
 const username = ref('')
 const password = ref('')
@@ -109,32 +114,13 @@ const handleLogin = async () => {
   error.value = ''
 
   try {
-    const response = await fetch('/auth/login', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      credentials: 'include', // CRITICAL: Required to set/send session cookie
-      body: JSON.stringify({
-        username: username.value,
-        password: password.value
-      })
-    })
+    const result = await login(username.value, password.value)
 
-    if (response.ok) {
-      // Small delay to ensure session cookie is set before redirect
-      await new Promise(resolve => setTimeout(resolve, 100))
-      // Force a full page reload to ensure all composables reinitialize with auth
-      window.location.href = '/'
+    if (result.success) {
+      // Auth state is now reactive (module-level singleton) - no full reload needed
+      router.push('/')
     } else {
-      // FIXED: Add error handling for JSON parsing
-      try {
-        const data = await response.json()
-        error.value = data.detail || 'Invalid username or password'
-      } catch (jsonError) {
-        error.value = 'Invalid username or password'
-        console.error('Failed to parse login error response:', jsonError)
-      }
+      error.value = result.error || 'Invalid username or password'
     }
   } catch (e) {
     error.value = 'Connection failed. Please check your network and try again.'

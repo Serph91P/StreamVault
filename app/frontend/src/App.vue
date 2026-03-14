@@ -365,98 +365,62 @@
   <div class="app">
     <!-- Show header and navigation ONLY on authenticated pages -->
     <template v-if="!isAuthPage">
-      <!-- Simplified Header (no navigation - moved to BottomNav/SidebarNav) -->
-      <header class="app-header">
+      <!-- Unified Glass Header -->
+      <header class="app-header glass-header">
         <div class="header-content">
-          <!-- Mobile: Hamburger Menu Button (< 768px) -->
-          <button 
-            @click="toggleMobileMenu" 
-            class="hamburger-btn"
-            aria-label="Open menu"
-          >
-            <svg class="hamburger-icon">
-              <use href="#icon-menu" />
-            </svg>
-          </button>
-          
           <span class="app-logo" aria-label="StreamVault">StreamVault</span>
           
-          <div class="header-right">
+          <div class="header-actions">
             <!-- Background Queue Monitor (always visible) -->
             <BackgroundQueueMonitor />
             
-            <!-- Desktop: Full nav actions (≥ 768px) -->
-            <div class="nav-actions desktop-only">
-              <button @click="toggleNotifications" class="icon-btn" :class="{ 'has-badge': unreadCount > 0 }">
-                <svg>
-                  <use href="#icon-bell" />
-                </svg>
-                <span v-if="unreadCount > 0" class="badge">{{ unreadCount > 99 ? '99+' : unreadCount }}</span>
-              </button>
-              <!-- Theme Toggle -->
-              <ThemeToggle />
-              <button @click="logout" class="logout-btn">
-                Logout
-              </button>
-            </div>
+            <!-- Notification Bell - visible on ALL screen sizes -->
+            <button
+              ref="notificationBellRef"
+              @click.stop="toggleNotifications"
+              class="glass-btn-icon"
+              :class="{ 'has-badge': unreadCount > 0 }"
+              aria-label="Notifications"
+            >
+              <svg>
+                <use href="#icon-bell" />
+              </svg>
+              <span v-if="unreadCount > 0" class="badge">{{ unreadCount > 99 ? '99+' : unreadCount }}</span>
+            </button>
+            
+            <!-- Theme Toggle - always visible -->
+            <ThemeToggle />
+            
+            <!-- Logout - desktop only -->
+            <button @click="logout" class="glass-btn-danger header-logout-btn">
+              <svg><use href="#icon-log-out" /></svg>
+              <span class="logout-text">Logout</span>
+            </button>
           </div>
         </div>
       </header>
-      
-      <!-- Mobile Menu Overlay -->
+    
+      <!-- Notification Panel -->
       <Teleport to="body">
-        <div 
-          v-if="showMobileMenu" 
-          class="mobile-menu-overlay"
-          @click.self="closeMobileMenu"
-        >
-          <div class="mobile-menu">
-            <button @click="closeMobileMenu" class="mobile-menu-close" aria-label="Close menu">
-              <svg class="close-icon">
-                <use href="#icon-x" />
-              </svg>
-            </button>
-            
-            <nav class="mobile-menu-nav">
-              <button @click="handleMobileNotifications" class="mobile-menu-btn" :class="{ 'has-unread': unreadCount > 0 }">
-                <svg class="menu-icon">
-                  <use href="#icon-bell" />
-                </svg>
-                <span class="nav-label">Notifications</span>
-                <span v-if="unreadCount > 0" class="badge">{{ unreadCount > 99 ? '99+' : unreadCount }}</span>
+        <Transition name="fade">
+          <div v-if="showNotifications" class="notification-backdrop" @click="closeNotificationPanel"></div>
+        </Transition>
+        <Transition name="slide-up">
+          <div v-if="showNotifications" ref="notificationPanelRef" class="notification-panel glass-overlay">
+            <div class="notification-panel-header">
+              <h3>Notifications</h3>
+              <button class="glass-btn-icon" @click="closeNotificationPanel" aria-label="Close notifications">
+                <svg><use href="#icon-x" /></svg>
               </button>
-              
-              <div class="mobile-theme-toggle">
-                <ThemeToggle />
-              </div>
-              
-              <button @click="handleMobileLogout" class="mobile-logout-btn">
-                <svg class="logout-icon">
-                  <use href="#icon-log-out" />
-                </svg>
-                <span>Logout</span>
-              </button>
-            </nav>
+            </div>
+            <NotificationFeed 
+              @notifications-read="markAsRead" 
+              @close-panel="closeNotificationPanel"
+              @clear-all="clearAllNotifications"
+              @close="closeNotificationPanel"
+            />
           </div>
-        </div>
-      </Teleport>    
-      <!-- Notification overlay with backdrop on mobile -->
-      <Teleport to="body">
-        <div v-if="showNotifications" class="notification-backdrop" @click="closeNotificationPanel"></div>
-        <div v-if="showNotifications" class="notification-overlay">
-          <div class="notification-panel-header">
-            <h3>Notifications</h3>
-            <button class="close-panel-btn" @click="closeNotificationPanel" aria-label="Close notifications">
-              <svg class="icon"><use href="#icon-x" /></svg>
-            </button>
-          </div>
-          <NotificationFeed 
-            @notifications-read="markAsRead" 
-            @close-panel="closeNotificationPanel"
-            @clear-all="clearAllNotifications"
-            @close="closeNotificationPanel"
-          />
-        </div>
+        </Transition>
       </Teleport>
     </template>
     
@@ -492,7 +456,7 @@ import ToastContainer from '@/components/ToastContainer.vue'
 import ThemeToggle from '@/components/ThemeToggle.vue'
 import NavigationWrapper from '@/components/navigation/NavigationWrapper.vue'
 import '@/styles/main.scss'
-import { ref, onMounted, watch, provide, computed } from 'vue'
+import { ref, onMounted, onUnmounted, watch, provide, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { useWebSocket } from '@/composables/useWebSocket'
 import { useAuth } from '@/composables/useAuth'
@@ -515,33 +479,9 @@ const isAuthPage = computed(() => {
   return authPaths.includes(route.path)
 })
 
-// Mobile menu state
-const showMobileMenu = ref(false)
-
-const toggleMobileMenu = () => {
-  showMobileMenu.value = !showMobileMenu.value
-  // Prevent body scroll when menu is open
-  if (showMobileMenu.value) {
-    document.body.style.overflow = 'hidden'
-  } else {
-    document.body.style.overflow = ''
-  }
-}
-
-const closeMobileMenu = () => {
-  showMobileMenu.value = false
-  document.body.style.overflow = ''
-}
-
-const handleMobileNotifications = () => {
-  closeMobileMenu()
-  toggleNotifications()
-}
-
-const handleMobileLogout = () => {
-  closeMobileMenu()
-  logout()
-}
+// Refs for click-outside detection
+const notificationBellRef = ref(null)
+const notificationPanelRef = ref(null)
 
 // Provide hybrid status globally
 const hybridStatus = useSystemAndRecordingStatus()
@@ -859,18 +799,25 @@ onMounted(async () => {
     })
   }
   
-  // Listen for clicks outside the notification area to close it
-  document.addEventListener('click', (event) => {
-    const notificationFeed = document.querySelector('.notification-feed')
-    const notificationBell = document.querySelector('.icon-btn.has-badge, .mobile-menu-btn')
-
-    if (showNotifications.value && 
-        notificationFeed && 
-        notificationBell && 
-        !notificationFeed.contains(event.target) && 
-        !notificationBell.contains(event.target)) {
-      closeNotificationPanel() // Use the proper close function instead of just setting the value
-    }
+  // Click-outside handler for notification panel using refs
+  const handleClickOutside = (event) => {
+    if (!showNotifications.value) return
+    
+    const bell = notificationBellRef.value
+    const panel = notificationPanelRef.value
+    
+    // Don't close if clicking the bell itself or the panel
+    if (bell && bell.contains(event.target)) return
+    if (panel && panel.contains(event.target)) return
+    
+    closeNotificationPanel()
+  }
+  
+  document.addEventListener('click', handleClickOutside)
+  
+  // Clean up on unmount
+  onUnmounted(() => {
+    document.removeEventListener('click', handleClickOutside)
   })
   
   // Listen for localStorage changes to update count
@@ -931,29 +878,31 @@ watch(messages, (newMessages) => {
 </script>
 
 <style lang="scss">
+@use '@/styles/variables' as v;
 @use '@/styles/mixins' as m;
-/* Responsive - Use SCSS mixins for breakpoints */
 
-/* Modern Header Styles (Phase 1 Enhanced) */
+// ============================================================================
+// APP HEADER - Unified Glass Design
+// ============================================================================
+
 .app-header {
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
-  width: 100%;
   height: 64px;
   z-index: 1100;
-
-  /* Solid header (no glass shimmer) */
-  background: var(--background-card);
-  border-bottom: 1px solid var(--border-color);
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-
-  /* Smooth theme transitions */
-  transition: background-color 300ms var(--vue-ease-out),
-              border-color 300ms var(--vue-ease-out);
+  
+  // Glass effect
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(var(--glass-blur-lg));
+  -webkit-backdrop-filter: blur(var(--glass-blur-lg));
+  border-bottom: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow-sm);
+  
+  @supports not (backdrop-filter: blur(1px)) {
+    background: var(--glass-bg-solid);
+  }
 }
 
 .header-content {
@@ -961,350 +910,55 @@ watch(messages, (newMessages) => {
   align-items: center;
   justify-content: space-between;
   height: 100%;
-  width: 100%;
-  max-width: 100%;
-  padding: 0 var(--spacing-6, 1.5rem);
-  gap: var(--spacing-4, 1rem);
-}
-
-/* Left side of header - keeps logo aligned left */
-.header-left {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-3, 0.75rem);
+  padding: 0 var(--spacing-4);
+  
+  @include m.respond-to('md') {
+    padding: 0 var(--spacing-6);
+  }
 }
 
 .app-logo {
-  font-size: var(--text-xl, 1.25rem);
-  font-weight: var(--font-bold, 700);
+  font-size: var(--text-lg);
+  font-weight: v.$font-bold;
   color: var(--primary-color);
-  text-decoration: none;
   line-height: 1;
-
-  transition: opacity var(--duration-200, 200ms) var(--vue-ease-out);
-
-  &:hover {
-    opacity: 0.8;
-  }
-
-  &:focus-visible {
-    outline: 2px solid var(--primary-color);
-    outline-offset: 4px;
-    border-radius: var(--radius-sm, 4px);
+  user-select: none;
+  
+  @include m.respond-to('md') {
+    font-size: var(--text-xl);
   }
 }
 
-.header-right {
+.header-actions {
   display: flex;
   align-items: center;
-  gap: var(--spacing-3, 0.75rem);
-  height: 100%;
-}
-
-/* Navigation actions styles */
-.nav-actions {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-3, 0.75rem);
-  height: 100%;
-}
-
-/* Mobile: Hide hamburger button on desktop */
-.hamburger-btn {
-  display: none; /* Hidden by default (desktop) */
-  align-items: center;
-  justify-content: center;
-  width: 44px;
-  height: 44px;
-  padding: 0;
-  background: transparent;
-  border: none;
-  color: var(--text-primary);
-  cursor: pointer;
-  transition: all 200ms ease-out;
+  gap: var(--spacing-1);
   
-  .hamburger-icon {
-    width: 24px;
-    height: 24px;
-  }
-  
-  &:hover {
-    background: var(--background-hover);
-    border-radius: var(--radius-md);
-  }
-  
-  &:active {
-    transform: scale(0.95);
+  @include m.respond-to('md') {
+    gap: var(--spacing-2);
   }
 }
 
-/* Show hamburger on mobile */
-@include m.respond-below('md') {  // < 767px
-  .hamburger-btn {
-    display: flex;
-  }
-}
-
-/* Desktop: Hide nav actions on mobile */
-.desktop-only {
-  display: flex; /* Shown by default */
-}
-
-@include m.respond-below('md') {  // < 767px
-  .desktop-only {
-    display: none; /* Hidden on mobile */
-  }
-}
-
-/* Mobile Menu Overlay */
-.mobile-menu-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(4px);
-  z-index: 9999;
-  display: flex;
-  justify-content: flex-start;  /* Changed from flex-end - menu now appears on LEFT */
-  animation: fadeIn 200ms ease-out;
-}
-
-@media (min-width: 768px) {
-  .mobile-menu-overlay {
-    display: none; /* Never show on desktop */
-  }
-}
-
-.mobile-menu {
-  width: 280px;
-  height: 100%;
-  background: var(--background-card);
-  box-shadow: var(--shadow-xl);
-  animation: slideInLeft 300ms ease-out;  /* Changed from slideInRight */
-  display: flex;
-  flex-direction: column;
-  backdrop-filter: blur(20px);
-  border-right: 1px solid var(--border-color);  /* Changed from border-left */
-}
-
-.mobile-menu-close {
-  align-self: flex-end;
-  width: 44px;
-  height: 44px;
-  margin: var(--spacing-4);
-  padding: 0;
-  background: transparent;
-  border: none;
-  color: var(--text-primary);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 200ms ease-out;
+.header-logout-btn {
+  padding: var(--spacing-2) var(--spacing-3) !important;
+  min-height: 36px !important;
+  font-size: v.$text-sm;
   
-  .close-icon {
-    width: 24px;
-    height: 24px;
-  }
-  
-  &:hover {
-    background: var(--background-hover);
-    border-radius: var(--radius-md);
-  }
-  
-  &:active {
-    transform: scale(0.95);
-  }
-}
-
-.mobile-menu-nav {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-2);
-  padding: var(--spacing-4);
-}
-
-// Mobile menu button style (full-width menu items)
-.mobile-menu-btn {
-  display: flex;
-  align-items: center;
-  width: 100%;
-  gap: var(--spacing-3);
-  padding: var(--spacing-3) var(--spacing-4);
-  background: transparent;
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-lg);
-  color: var(--text-primary);
-  font-size: var(--text-base);
-  font-weight: var(--font-medium);
-  cursor: pointer;
-  transition: all 200ms ease-out;
-  
-  .menu-icon {
-    width: 20px;
-    height: 20px;
-    flex-shrink: 0;
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 2;
-  }
-  
-  .nav-label {
-    flex: 1;
-    text-align: left;
-  }
-  
-  .badge {
-    min-width: 18px;
-    height: 18px;
-    padding: 0 5px;
-    font-size: 11px;
-    font-weight: 600;
-    line-height: 18px;
-    text-align: center;
-    color: white;
-    background: var(--danger-color);
-    border-radius: 9px;
-  }
-  
-  &:hover {
-    background: var(--background-hover);
-    border-color: var(--primary-500);
-  }
-  
-  &.has-unread {
-    border-color: var(--danger-500);
-  }
-}
-
-// Mobile theme toggle wrapper
-.mobile-theme-toggle {
-  width: 100%;
-  
-  :deep(.icon-btn) {
-    width: 100%;
-    border-radius: var(--radius-lg);
-    border: 1px solid var(--border-color);
-    padding: var(--spacing-3) var(--spacing-4);
-    justify-content: flex-start;
-    gap: var(--spacing-3);
+  // On mobile, show icon only
+  .logout-text {
+    display: none;
     
-    &:hover {
-      border-color: var(--primary-500);
+    @include m.respond-to('md') {
+      display: inline;
     }
   }
 }
 
-.mobile-logout-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--spacing-3);
-  width: 100%;
-  min-height: 44px;
-  margin-top: auto; /* Push to bottom */
-  padding: var(--spacing-3) var(--spacing-4);
-  background: var(--danger-color);
-  color: white;
-  border: none;
-  border-radius: var(--radius-lg);
-  font-size: var(--text-base);
-  font-weight: var(--font-medium);
-  cursor: pointer;
-  transition: all 200ms ease-out;
-  
-  .logout-icon {
-    width: 20px;
-    height: 20px;
-  }
-  
-  &:hover {
-    background: var(--danger-600);
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-md);
-  }
-  
-  &:active {
-    transform: translateY(0);
-  }
-}
-
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-@keyframes slideInRight {
-  from {
-    transform: translateX(100%);
-  }
-  to {
-    transform: translateX(0);
-  }
-}
-
-@keyframes slideInLeft {
-  from {
-    transform: translateX(-100%);
-  }
-  to {
-    transform: translateX(0);
-  }
-}
-
-.logout-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--spacing-2, 0.5rem);
-  min-height: 44px;
-  padding: var(--spacing-2, 0.5rem) var(--spacing-4, 1rem);
-
-  /* Colors */
-  background: var(--danger-color);
-  color: white;
-  border: none;
-  border-radius: var(--radius-lg, 12px);
-
-  /* Typography */
-  font-size: var(--text-sm, 0.875rem);
-  font-weight: var(--font-medium, 500);
-  line-height: 1;
-
-  /* Interaction */
-  cursor: pointer;
-  transition: all var(--duration-200, 200ms) var(--vue-ease-out);
-
-  &:hover {
-    background: var(--danger-600, #dc2626);
-    transform: translateY(-1px);
-    box-shadow: var(--shadow-md);
-  }
-
-  &:active {
-    transform: translateY(0);
-    box-shadow: var(--shadow-sm);
-  }
-
-  &:focus-visible {
-    outline: 2px solid var(--danger-color);
-    outline-offset: 2px;
-  }
-}
-
-// Notification bell uses global .icon-btn class
 // Bell shake animation for unread notifications
-.icon-btn.has-badge svg {
+.glass-btn-icon.has-badge svg {
   animation: bell-shake 1s cubic-bezier(.36,.07,.19,.97) both;
   transform-origin: top center;
-  color: var(--primary-500);
+  color: var(--primary-color);
 }
 
 @keyframes bell-shake {
@@ -1319,88 +973,45 @@ watch(messages, (newMessages) => {
   100% { transform: rotate(0); }
 }
 
-/* Notification backdrop - visible on all screen sizes */
+// ============================================================================
+// NOTIFICATION PANEL - Glass overlay
+// ============================================================================
+
 .notification-backdrop {
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.3);
-  z-index: 10000;  /* Just below notification overlay */
+  z-index: 10000;
   
   @include m.respond-below('md') {
     background: rgba(0, 0, 0, 0.5);
     backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
   }
 }
 
-/* Notification panel header for mobile */
-.notification-panel-header {
-  display: none;
-  
-  @include m.respond-below('md') {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: var(--spacing-4) var(--spacing-4) 0;
-    margin-bottom: var(--spacing-2);
-    
-    h3 {
-      margin: 0;
-      font-size: var(--text-lg);
-      font-weight: 600;
-      color: var(--text-primary);
-    }
-    
-    .close-panel-btn {
-      background: rgba(255, 255, 255, 0.1);
-      border: none;
-      border-radius: var(--radius-full);
-      width: 36px;
-      height: 36px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      transition: all 0.2s ease;
-      
-      .icon {
-        width: 20px;
-        height: 20px;
-        stroke: var(--text-primary);
-        fill: none;
-      }
-      
-      &:hover {
-        background: rgba(255, 255, 255, 0.2);
-      }
-    }
-  }
-}
-
-/* Notification overlay positioning */
-.notification-overlay {
+.notification-panel {
   position: fixed;
-  top: 70px;
-  right: 20px;
-  z-index: 10001;  /* Above navigation (1000) and mobile menu (9999) */
-  max-width: 400px;
-  width: 90vw;
-  pointer-events: auto;  /* Ensure clicks are captured */
+  z-index: 10001;
+  border-radius: var(--radius-xl);
+  overflow: hidden;
   
-  /* Mobile: slide up from bottom like background jobs */
+  // Desktop: dropdown from header
+  top: 72px;
+  right: var(--spacing-4);
+  width: min(400px, 90vw);
+  max-height: 70vh;
+  overflow-y: auto;
+  
+  // Mobile: bottom sheet
   @include m.respond-below('md') {
-    position: fixed;
-    top: auto !important;
-    bottom: 0 !important;
-    left: 0 !important;
-    right: 0 !important;
-    width: 100% !important;
-    max-width: 100% !important;
-    max-height: 70vh;
+    top: auto;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    max-height: 75vh;
     border-radius: var(--radius-xl) var(--radius-xl) 0 0;
-    overflow-y: auto;
-    background: var(--background-card);
-    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.3);
-    z-index: 10001;
     
     // Hide the internal feed header on mobile since we have our own
     :deep(.feed-header) {
@@ -1409,14 +1020,63 @@ watch(messages, (newMessages) => {
   }
 }
 
-/* Mobile header styles */
+.notification-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-4);
+  border-bottom: 1px solid var(--glass-border);
+  
+  h3 {
+    margin: 0;
+    font-size: var(--text-lg);
+    font-weight: v.$font-semibold;
+    color: var(--text-primary);
+  }
+}
+
+// ============================================================================
+// TRANSITIONS
+// ============================================================================
+
+// Fade transition for backdrop
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity v.$duration-200 v.$ease-out;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
+// Slide-up transition for bottom sheet / dropdown
+.slide-up-enter-active,
+.slide-up-leave-active {
+  transition: transform v.$duration-300 v.$ease-out, opacity v.$duration-200 v.$ease-out;
+}
+.slide-up-enter-from {
+  transform: translateY(20px);
+  opacity: 0;
+}
+.slide-up-leave-to {
+  transform: translateY(10px);
+  opacity: 0;
+}
+
+// Page transitions
+.page-enter-active,
+.page-leave-active {
+  transition: opacity v.$duration-200 v.$ease-out;
+}
+.page-enter-from,
+.page-leave-to {
+  opacity: 0;
+}
+
+// Mobile header styles
 @include m.respond-below('md') {
   .header-content {
-    padding: 0 1rem;
-  }
-  
-  .app-logo {
-    font-size: 1.25rem;
+    padding: 0 var(--spacing-3);
   }
 }
 </style>

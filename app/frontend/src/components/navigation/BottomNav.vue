@@ -45,6 +45,7 @@ const handleTabClick = (route: string) => {
 
 <style scoped lang="scss">
 @use '@/styles/variables' as v;
+
 .bottom-nav {
   position: fixed;
   bottom: 0;
@@ -53,26 +54,25 @@ const handleTabClick = (route: string) => {
   height: 64px;
   z-index: 1000;
   
-  // Glassmorphism effect
-  background: rgba(var(--background-card-rgb), 0.85);
-  backdrop-filter: blur(24px) saturate(180%);
-  border-top: 1px solid var(--border-color);
+  // Glass effect
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(var(--glass-blur-lg)) saturate(180%);
+  -webkit-backdrop-filter: blur(var(--glass-blur-lg)) saturate(180%);
+  border-top: 1px solid var(--glass-border);
+  box-shadow: 0 -2px 10px var(--glass-shadow-color);
   
-  // Shadow for elevation
-  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
-  
-  // Flexbox layout
   display: flex;
   justify-content: space-around;
   align-items: center;
   
-  // iOS safe area (notch, home indicator)
+  // iOS safe area
   padding-bottom: env(safe-area-inset-bottom);
   
-  // Smooth transitions
-  transition: transform v.$duration-300 v.$ease-in-out,
-              background-color 300ms var(--vue-ease-out),
-              border-color 300ms var(--vue-ease-out);
+  transition: transform v.$duration-300 v.$ease-in-out;
+  
+  @supports not (backdrop-filter: blur(1px)) {
+    background: var(--glass-bg-solid);
+  }
 }
 
 .nav-tab {
@@ -82,30 +82,22 @@ const handleTabClick = (route: string) => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: v.$spacing-1; // 4px
+  gap: v.$spacing-1;
   
-  // Touch target (minimum 44x44px)
   min-width: 44px;
   min-height: 44px;
-  padding: v.$spacing-2; // 8px
+  padding: v.$spacing-2;
   
-  // Reset button styles
   background: transparent;
   border: none;
   cursor: pointer;
-  
-  // Text color
   color: var(--text-secondary);
-  
-  // Smooth transitions
   transition: all v.$duration-200 v.$ease-in-out;
   
-  // Hover state (desktop touch simulation)
   &:hover {
     color: var(--text-primary);
   }
   
-  // Active state
   &.active {
     color: var(--primary-color);
     
@@ -129,7 +121,7 @@ const handleTabClick = (route: string) => {
 }
 
 .nav-label {
-  font-size: v.$text-xs; // 12px
+  font-size: v.$text-xs;
   font-weight: v.$font-medium;
   line-height: 1;
   transition: font-weight v.$duration-200 v.$ease-in-out;
@@ -139,22 +131,16 @@ const handleTabClick = (route: string) => {
   position: absolute;
   top: 4px;
   right: 8px;
-  
   background: var(--danger-color);
   color: white;
-  
   min-width: 18px;
   height: 18px;
-  padding: 0 v.$spacing-1; // 4px horizontal
-  
+  padding: 0 v.$spacing-1;
   border-radius: v.$border-radius-full;
-  
   font-size: 10px;
   font-weight: v.$font-bold;
   line-height: 18px;
   text-align: center;
-  
-  // Shadow for visibility
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 </style>

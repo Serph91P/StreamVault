@@ -319,22 +319,17 @@ const formatTime = (timestamp?: string) => {
 .queue-status-indicator {
   display: flex;
   align-items: center;
-  gap: var(--spacing-2);  /* 8px */
-  padding: var(--spacing-2) var(--spacing-3);  /* 8px 12px */
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: var(--radius-full);  /* Circular like other header buttons */
+  gap: var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-3);
+  background: var(--glass-bg-subtle);
+  border-radius: var(--radius-full);
   cursor: pointer;
   transition: all var(--duration-200) var(--ease-out);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(var(--glass-blur-sm));
+  -webkit-backdrop-filter: blur(var(--glass-blur-sm));
+  border: 1px solid var(--glass-border);
   height: 36px;
   min-width: auto;
-  
-  // Light mode: Visible border
-  [data-theme="light"] & {
-    background: rgba(0, 0, 0, 0.05);
-    border-color: rgba(0, 0, 0, 0.15);  // Visible border in light mode
-  }
 }
 
 .queue-status-indicator:hover {
@@ -399,13 +394,18 @@ const formatTime = (timestamp?: string) => {
   top: 100%;
   right: 0;
   width: 450px;
-  background: var(--background-card);
-  border: 1px solid var(--border-color);
-  border-radius: var(--border-radius-lg, 12px);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8);
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(var(--glass-blur-lg));
+  -webkit-backdrop-filter: blur(var(--glass-blur-lg));
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--glass-shadow-lg);
   z-index: 1000;
   margin-top: 12px;
-  backdrop-filter: blur(10px);
+  
+  @supports not (backdrop-filter: blur(1px)) {
+    background: var(--glass-bg-solid);
+  }
 }
 
 .panel-header {
@@ -413,9 +413,9 @@ const formatTime = (timestamp?: string) => {
   justify-content: space-between;
   align-items: center;
   padding: 20px 24px;
-  border-bottom: 1px solid var(--border-color);
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: var(--border-radius-lg, 12px) var(--border-radius-lg, 12px) 0 0;
+  border-bottom: 1px solid var(--glass-border);
+  background: var(--glass-bg-subtle);
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
 }
 
 .panel-header h3 {

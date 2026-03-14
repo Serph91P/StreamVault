@@ -859,15 +859,16 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.8);
-  backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(var(--glass-blur-md));
+  -webkit-backdrop-filter: blur(var(--glass-blur-md));
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius-sm);
   cursor: pointer;
   transition: all v.$duration-200 v.$ease-out;
 
   &:hover {
-    background: rgba(0, 0, 0, 0.9);
+    background: var(--glass-bg-solid);
     border-color: var(--primary-color);
     transform: scale(1.05);
   }

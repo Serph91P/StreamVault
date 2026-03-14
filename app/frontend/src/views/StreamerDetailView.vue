@@ -640,7 +640,7 @@ onMounted(async () => {
   height: 128px;
   border-radius: var(--radius-2xl);
   overflow: hidden;
-  border: 4px solid rgba(255, 255, 255, 0.2);
+  border: 4px solid var(--glass-border);
   background: var(--background-darker);
   animation: bounce-in v.$duration-500 v.$ease-bounce;
 
@@ -778,38 +778,38 @@ onMounted(async () => {
   &.btn-primary {
     background: var(--primary-color);
     color: white;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    box-shadow: var(--glass-shadow-sm);
 
     &:hover:not(:disabled) {
       background: var(--primary-600);
       transform: translateY(-2px);
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+      box-shadow: var(--glass-shadow-md);
     }
   }
 
   &.btn-danger {
     background: var(--danger-color);
     color: white;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    box-shadow: var(--glass-shadow-sm);
 
     &:hover:not(:disabled) {
       background: var(--danger-600);
       transform: translateY(-2px);
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+      box-shadow: var(--glass-shadow-md);
     }
   }
 
   &.btn-secondary {
-    background: var(--background-card);
+    background: var(--glass-bg-medium);
     color: var(--text-primary);
-    border: 1px solid var(--border-color);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--glass-shadow-sm);
 
     &:hover:not(:disabled) {
-      background: var(--background-hover);
+      background: var(--glass-bg-strong);
       border-color: var(--primary-color);
       transform: translateY(-2px);
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+      box-shadow: var(--glass-shadow-md);
     }
   }
 }
@@ -914,8 +914,9 @@ onMounted(async () => {
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.7);
-  backdrop-filter: blur(4px);
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(var(--glass-blur-sm));
+  -webkit-backdrop-filter: blur(var(--glass-blur-sm));
   display: flex;
   align-items: center;
   justify-content: center;
@@ -925,8 +926,8 @@ onMounted(async () => {
 }
 
 .modal {
-  background: var(--background-card);
-  border: 1px solid var(--border-color);
+  background: var(--glass-bg-solid);
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow-2xl);
   max-width: 500px;
