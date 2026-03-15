@@ -77,9 +77,11 @@ export default defineConfig({
     // PERFORMANCE OPTIMIZATION
     rollupOptions: {
       output: {
-        manualChunks: {
+        manualChunks(id) {
           // Split vendor libraries for better caching
-          'vue-vendor': ['vue', 'vue-router']
+          if (id.includes('node_modules/vue/') || id.includes('node_modules/vue-router/')) {
+            return 'vue-vendor'
+          }
         }
       }
     },
