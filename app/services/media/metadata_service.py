@@ -1840,6 +1840,15 @@ class MetadataService:
                     if event.timestamp >= stream.started_at
                 ]
 
+                # Deduplicate: if the first post-stream event starts at exactly
+                # stream.started_at, the adjusted pre-stream event already covers
+                # that time slot — skip it to avoid duplicate 00:00:00 chapters
+                if (
+                    post_stream_events
+                    and post_stream_events[0].timestamp == stream.started_at
+                ):
+                    post_stream_events = post_stream_events[1:]
+
                 # Combine the adjusted event with post-stream events
                 processed_events = [adjusted_event] + post_stream_events
 
@@ -1901,11 +1910,20 @@ class MetadataService:
             events: Liste der Events
             stream: Stream-Objekt
         """
+        last_start_offset = None
         for i, event in enumerate(events):
             # Determine start and end times
             start_offset, end_offset = self._calculate_chapter_timestamps(
                 i, event, events, stream
             )
+
+            # Skip chapters that start at the same offset as the previous one
+            if last_start_offset is not None and start_offset == last_start_offset:
+                logger.debug(
+                    f"Skipping duplicate chapter at offset {start_offset}s: {event.title}"
+                )
+                continue
+            last_start_offset = start_offset
 
             # Format timestamps
             start_str = self._format_timestamp_vtt(start_offset)
@@ -1988,11 +2006,22 @@ class MetadataService:
             events = sorted(events, key=lambda x: x.timestamp)
 
             with open(output_path, "w", encoding="utf-8") as f:
+                chapter_num = 0
+                last_start_offset = None
                 for i, event in enumerate(events):
                     # Berechne Start- und Endzeit
                     start_offset, end_offset = self._calculate_srt_timestamps(
                         i, event, events, stream
                     )
+
+                    # Skip duplicate chapters at the same offset
+                    if (
+                        last_start_offset is not None
+                        and start_offset == last_start_offset
+                    ):
+                        continue
+                    last_start_offset = start_offset
+                    chapter_num += 1
 
                     # SRT-Format: HH:MM:SS,mmm
                     start_str = self._format_timestamp_srt(start_offset)
@@ -2004,7 +2033,7 @@ class MetadataService:
                         title += f" ({event.category_name})"
 
                     # Kapitel-Eintrag schreiben
-                    f.write(f"{i + 1}\n")
+                    f.write(f"{chapter_num}\n")
                     f.write(f"{start_str} --> {end_str}\n")
                     f.write(f"{title}\n\n")
 
@@ -2150,6 +2179,7 @@ class MetadataService:
                     logger.info(f"Created single chapter with title: {title}")
                 else:
                     # Multiple chapters - standard handling
+                    last_start_ms = None
                     for i, event in enumerate(filtered_events):
                         # Berechne Start- und Endzeit
                         start_offset_ms, end_offset_ms = (
@@ -2157,6 +2187,14 @@ class MetadataService:
                                 i, event, filtered_events, stream
                             )
                         )
+
+                        # Skip duplicate chapters at the same offset
+                        if (
+                            last_start_ms is not None
+                            and start_offset_ms == last_start_ms
+                        ):
+                            continue
+                        last_start_ms = start_offset_ms
 
                         # Kapitel-Titel erstellen
                         if event.category_name:
@@ -2237,11 +2275,17 @@ class MetadataService:
             # XML-Struktur erstellen
             root = ET.Element("Chapters")
 
+            last_start_ms = None
             for i, event in enumerate(events):
                 # Berechne Start- und Endzeit
                 start_offset_ms, end_offset_ms = self._calculate_ffmpeg_timestamps(
                     i, event, events, stream
                 )
+
+                # Skip duplicate chapters at the same offset
+                if last_start_ms is not None and start_offset_ms == last_start_ms:
+                    continue
+                last_start_ms = start_offset_ms
 
                 # Kapitel-Element erstellen
                 chapter = ET.SubElement(root, "Chapter")

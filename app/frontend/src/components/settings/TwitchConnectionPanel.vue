@@ -1,7 +1,7 @@
 <template>
   <div class="card-content">
-      <!-- Connection Status -->
-      <div class="connection-status">
+      <!-- Connection Status (only shown when connected) -->
+      <div v-if="connectionStatus.connected" class="connection-status">
         <div class="status-header">
           <div class="status-icon-wrapper" :class="statusClass">
             <svg class="status-icon" viewBox="0 0 24 24">
@@ -187,7 +187,7 @@ const statusClass = computed(() => ({
 }))
 
 const statusTitle = computed(() => {
-  if (!connectionStatus.value.connected) return 'Not Connected (Optional)'
+  if (!connectionStatus.value.connected) return 'Twitch Connection'
   if (!connectionStatus.value.valid) return 'Connected (Token Expiring)'
   return 'Connected to Twitch'
 })
@@ -626,7 +626,6 @@ function formatExpiration(expiresAt: string): string {
   padding: var(--spacing-4);
   background: transparent;
   border-radius: var(--radius-lg);
-  border: 1px solid var(--border-color);
 }
 
 .steps-title {
@@ -747,7 +746,6 @@ function formatExpiration(expiresAt: string): string {
   padding: var(--spacing-4);
   background: transparent;
   border-radius: var(--radius-lg);
-  border: 1px solid var(--border-color);
 }
 
 .benefits-title {

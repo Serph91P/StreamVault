@@ -1,7 +1,7 @@
 <template>
   <div class="background-queue-monitor">
     <!-- Queue Status Indicator -->
-    <div class="queue-status-indicator" @click="togglePanel">
+    <div class="queue-status-indicator" @click.stop="togglePanel">
       <svg class="plus-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M12 5v14M5 12h14" />
       </svg>
@@ -17,14 +17,24 @@
       </div>
     </div>
 
+    <!-- Teleport to body so panel isn't trapped inside scoped component -->
+    <Teleport to="body">
+    <!-- Backdrop for panel -->
+    <Transition name="fade">
+      <div v-if="showPanel" class="glass-popup-backdrop" @click="togglePanel"></div>
+    </Transition>
+
     <!-- Expandable Panel -->
-    <div v-if="showPanel" class="queue-panel">
-      <div class="panel-header">
+    <Transition name="slide-down">
+      <div v-if="showPanel" class="glass-popup-panel queue-panel" @click.stop>
+      <div class="glass-popup-header">
         <h3>Background Jobs</h3>
-        <button @click="togglePanel" class="close-btn">×</button>
+        <button @click="togglePanel" class="glass-btn-icon" aria-label="Close">
+          <svg><use href="#icon-x" /></svg>
+        </button>
       </div>
       
-      <div class="panel-content">
+      <div class="glass-popup-content panel-content">
         <!-- Queue Statistics -->
         <div class="stats-section">
           <div class="stat-item">
@@ -106,6 +116,8 @@
         </div>
       </div>
     </div>
+    </Transition>
+    </Teleport>
   </div>
 </template>
 
@@ -224,6 +236,9 @@ const _statusIconClass = computed(() => {
 const togglePanel = () => {
   showPanel.value = !showPanel.value
   
+  // Lock/unlock body scroll when panel is open on mobile
+  document.body.style.overflow = showPanel.value ? 'hidden' : ''
+  
   // Refresh data when panel is opened
   if (showPanel.value) {
     forceRefreshFromAPI() // Force refresh via API fallback
@@ -306,6 +321,9 @@ const formatTime = (timestamp?: string) => {
   
   return date.toLocaleDateString()
 }
+
+// Expose togglePanel so parent can trigger it (e.g. from hamburger menu)
+defineExpose({ togglePanel, taskCount: combinedActiveTasks })
 </script>
 
 <style scoped lang="scss">
@@ -319,22 +337,22 @@ const formatTime = (timestamp?: string) => {
 .queue-status-indicator {
   display: flex;
   align-items: center;
-  gap: var(--spacing-2);  /* 8px */
-  padding: var(--spacing-2) var(--spacing-3);  /* 8px 12px */
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: var(--radius-full);  /* Circular like other header buttons */
+  
+  // Hide on mobile — accessed via hamburger menu instead
+  @include m.respond-below('md') {
+    display: none;
+  }
+  gap: var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-3);
+  background: var(--glass-bg-subtle);
+  border-radius: var(--radius-full);
   cursor: pointer;
   transition: all var(--duration-200) var(--ease-out);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(var(--glass-blur-sm));
+  -webkit-backdrop-filter: blur(var(--glass-blur-sm));
+  border: 1px solid var(--glass-border);
   height: 36px;
   min-width: auto;
-  
-  // Light mode: Visible border
-  [data-theme="light"] & {
-    background: rgba(0, 0, 0, 0.05);
-    border-color: rgba(0, 0, 0, 0.15);  // Visible border in light mode
-  }
 }
 
 .queue-status-indicator:hover {
@@ -394,57 +412,16 @@ const formatTime = (timestamp?: string) => {
   border-radius: var(--border-radius-sm, 4px);
 }
 
+// Queue panel — uses shared .glass-popup-panel, only component-specific overrides here
 .queue-panel {
-  position: absolute;
-  top: 100%;
-  right: 0;
-  width: 450px;
-  background: var(--background-card);
-  border: 1px solid var(--border-color);
-  border-radius: var(--border-radius-lg, 12px);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8);
-  z-index: 1000;
-  margin-top: 12px;
-  backdrop-filter: blur(10px);
-}
-
-.panel-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 20px 24px;
-  border-bottom: 1px solid var(--border-color);
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: var(--border-radius-lg, 12px) var(--border-radius-lg, 12px) 0 0;
-}
-
-.panel-header h3 {
-  margin: 0;
-  color: var(--text-primary);
-  font-size: 18px;
-  font-weight: 600;
-}
-
-.close-btn {
-  background: none;
-  border: none;
-  color: var(--text-secondary);
-  font-size: 24px;
-  cursor: pointer;
-  padding: 8px;
-  border-radius: var(--border-radius, 8px);
-  transition: all 0.2s ease;
-}
-
-.close-btn:hover {
-  color: var(--text-primary);
-  background: rgba(255, 255, 255, 0.1);
+  // Desktop width override (shared class defaults to 420px)
+  @include m.respond-to('lg') {
+    width: min(450px, 90vw);
+  }
 }
 
 .panel-content {
-  padding: 24px;
-  max-height: 500px;
-  overflow-y: auto;
+  // Additional content styling beyond shared .glass-popup-content
 }
 
 .stats-section {
@@ -708,7 +685,6 @@ const formatTime = (timestamp?: string) => {
   font-weight: 500;
 }
 
-/* Responsive Design */
 @include m.respond-below('md') {  // < 768px
   .queue-status-indicator {
     padding: 6px 10px;
@@ -733,21 +709,6 @@ const formatTime = (timestamp?: string) => {
   .status-icon {
     width: 14px;
     height: 14px;
-  }
-  
-  .queue-panel {
-    position: fixed;
-    top: auto;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    width: 100%;
-    max-width: 100%;
-    max-height: 70vh;
-    border-radius: var(--border-radius-lg) var(--border-radius-lg) 0 0;
-    margin-top: 0;
-    overflow-y: auto;
-    transform: none;
   }
   
   .stats-section {

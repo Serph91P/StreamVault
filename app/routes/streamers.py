@@ -863,6 +863,13 @@ async def get_streamer(
         "custom_filename": recording_settings.custom_filename
         if recording_settings
         else None,
+        "max_streams": recording_settings.max_streams if recording_settings else None,
+        "supported_codecs": recording_settings.supported_codecs
+        if recording_settings
+        else None,
+        "use_global_cleanup_policy": recording_settings.use_global_cleanup_policy
+        if recording_settings
+        else True,
         "title": streamer.title if streamer.is_live else None,
         "category_name": streamer.category_name if streamer.is_live else None,
         "profile_image_url": profile_image_url,
@@ -928,6 +935,30 @@ async def update_streamer_settings(
                 f"Updated custom filename for {streamer.username}: {recording_settings.custom_filename}"
             )
 
+        if "maxStreams" in settings:
+            recording_settings.max_streams = (
+                int(settings["maxStreams"]) if settings["maxStreams"] else None
+            )
+            logger.info(
+                f"Updated max streams for {streamer.username}: {recording_settings.max_streams}"
+            )
+
+        if "supportedCodecs" in settings:
+            recording_settings.supported_codecs = (
+                settings["supportedCodecs"] if settings["supportedCodecs"] else None
+            )
+            logger.info(
+                f"Updated supported codecs for {streamer.username}: {recording_settings.supported_codecs}"
+            )
+
+        if "useGlobalCleanupPolicy" in settings:
+            recording_settings.use_global_cleanup_policy = settings[
+                "useGlobalCleanupPolicy"
+            ]
+            logger.info(
+                f"Updated use global cleanup for {streamer.username}: {recording_settings.use_global_cleanup_policy}"
+            )
+
         db.commit()
         db.refresh(recording_settings)
 
@@ -938,6 +969,9 @@ async def update_streamer_settings(
                 "autoRecord": recording_settings.enabled,
                 "quality": recording_settings.quality,
                 "filenameTemplate": recording_settings.custom_filename,
+                "maxStreams": recording_settings.max_streams,
+                "supportedCodecs": recording_settings.supported_codecs,
+                "useGlobalCleanupPolicy": recording_settings.use_global_cleanup_policy,
             },
         }
 

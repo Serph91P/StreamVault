@@ -81,24 +81,21 @@ onMounted(() => {
   left: 0;
   bottom: 0;
   width: 260px;
-  
-  background: rgba(var(--background-card-rgb), 0.95);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  
-  border-right: 1px solid var(--border-color);
-  box-shadow: 2px 0 16px rgba(0, 0, 0, 0.2);  /* Darker shadow for better visibility */
-  
   z-index: 1000;
-  
   overflow-x: hidden;
   overflow-y: auto;
   
-  transition: transform v.$duration-300 v.$ease-in-out;
+  // Glass effect
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(var(--glass-blur-lg));
+  -webkit-backdrop-filter: blur(var(--glass-blur-lg));
+  border-right: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow-md);
   
-  // Fallback for browsers without backdrop-filter
-  @supports not (backdrop-filter: blur(20px)) {
-    background: var(--background-card);
+  transition: width v.$duration-300 v.$ease-in-out;
+  
+  @supports not (backdrop-filter: blur(1px)) {
+    background: var(--glass-bg-solid);
   }
 
   &.collapsed {
@@ -117,25 +114,23 @@ onMounted(() => {
 
 .sidebar-toggle {
   position: absolute;
-  top: v.$spacing-4; // 16px
+  top: v.$spacing-4;
   right: 2px;
   z-index: 1100;
-  
   width: 24px;
   height: 24px;
   padding: 0;
   
-  background: var(--background-card);
-  border: 1px solid var(--border-color);
+  background: var(--glass-bg-medium);
+  border: 1px solid var(--glass-border);
   border-radius: v.$border-radius-full;
   
   display: flex;
   align-items: center;
   justify-content: center;
-  
   cursor: pointer;
   
-  box-shadow: v.$shadow-sm;
+  box-shadow: var(--glass-shadow-sm);
   transition: all v.$duration-200 v.$ease-in-out;
   
   .icon {
@@ -146,9 +141,9 @@ onMounted(() => {
   }
   
   &:hover {
-    background: var(--primary-500);
-    border-color: var(--primary-500);
-    box-shadow: v.$shadow-md;
+    background: var(--primary-color);
+    border-color: var(--primary-color);
+    box-shadow: var(--glass-shadow-md);
     
     .icon {
       stroke: white;
@@ -156,7 +151,7 @@ onMounted(() => {
   }
   
   &:focus-visible {
-    outline: 2px solid var(--primary-500);
+    outline: 2px solid var(--primary-color);
     outline-offset: 2px;
   }
 }
@@ -164,46 +159,37 @@ onMounted(() => {
 .sidebar-nav-list {
   display: flex;
   flex-direction: column;
-  gap: v.$spacing-2; // 8px
-  padding: v.$spacing-6 v.$spacing-3; // 24px vertical, 12px horizontal
+  gap: v.$spacing-2;
+  padding: v.$spacing-6 v.$spacing-3;
 }
 
 .sidebar-nav-item {
   position: relative;
   display: flex;
   align-items: center;
-  gap: v.$spacing-3; // 12px
+  gap: v.$spacing-3;
   width: 100%;
-  
   padding: v.$spacing-3;
-  border-radius: v.$border-radius-lg;
-  
+  border-radius: var(--radius-lg);
   color: var(--text-secondary);
   text-decoration: none;
   background: transparent;
   cursor: pointer;
-  
   transition: all v.$duration-200 v.$ease-out;
   overflow: hidden;
   
-  // Hover state
   &:hover:not(.active) {
-    background: rgba(var(--primary-500-rgb), 0.05);
+    background: var(--glass-bg-subtle);
     color: var(--text-primary);
   }
   
-  // Active state
   &.active {
     background: var(--primary-color);
     color: white;
-    box-shadow: v.$shadow-md;
+    box-shadow: var(--glass-shadow-md);
     
-    // Light mode: Use primary-600 for better contrast
-    // PRIMARY-600 (#0d9488) on white bg = 4.5:1 contrast ratio (WCAG AA compliant)
     [data-theme="light"] & {
-      background: var(--primary-color-dark);  // Uses CSS variable (primary-600)
-      color: white;
-      box-shadow: v.$shadow-md;
+      background: var(--primary-color-dark);
     }
     
     .nav-description {
@@ -211,9 +197,8 @@ onMounted(() => {
     }
   }
   
-  // Focus state
   &:focus-visible {
-    outline: 2px solid var(--primary-500);
+    outline: 2px solid var(--primary-color);
     outline-offset: 2px;
   }
 }
@@ -286,25 +271,24 @@ onMounted(() => {
   left: 100%;
   top: 50%;
   transform: translateY(-50%);
-  margin-left: v.$spacing-2; // 8px
+  margin-left: v.$spacing-2;
   
-  background: var(--background-darker);
+  background: var(--glass-bg-solid);
   color: var(--text-primary);
-  
   padding: v.$spacing-2 v.$spacing-3;
-  border-radius: v.$border-radius-md;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--glass-border);
   
   font-size: v.$text-sm;
   font-weight: v.$font-medium;
   white-space: nowrap;
   
-  box-shadow: v.$shadow-lg;
+  box-shadow: var(--glass-shadow-lg);
   
   opacity: 0;
   pointer-events: none;
   transition: opacity v.$duration-200 v.$ease-in-out;
   
-  // Arrow
   &::before {
     content: '';
     position: absolute;
@@ -312,7 +296,7 @@ onMounted(() => {
     top: 50%;
     transform: translateY(-50%);
     border: 6px solid transparent;
-    border-right-color: var(--background-darker);
+    border-right-color: var(--glass-bg-solid);
   }
   
   .sidebar-nav-item:hover & {

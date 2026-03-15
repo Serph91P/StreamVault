@@ -7,7 +7,7 @@
     @touchstart.passive="handleTouchStart"
     @touchmove.passive="handleTouchMove"
     class="streamer-card"
-    :class="{ 'actions-open': showActions, 'is-live': isLive, 'is-recording': streamer.is_recording }"
+    :class="{ 'actions-open': showActions, 'is-live': isLive, 'is-recording': streamer.is_recording, 'list-mode': viewMode === 'list' }"
   >
     <div class="streamer-card-content">
       <!-- Avatar/Thumbnail - CENTERED -->
@@ -88,12 +88,12 @@
           <span>{{ formatViewers(currentStream.viewer_count) }}</span>
         </div>
 
-        <!-- Category (only when live) -->
-        <div v-if="isLive && streamer.category_name" class="stat stat-category">
+        <!-- Category (live or last stream) -->
+        <div v-if="displayCategory" class="stat stat-category">
           <svg class="stat-icon">
             <use href="#icon-gamepad" />
           </svg>
-          <span>{{ streamer.category_name }}</span>
+          <span>{{ displayCategory }}</span>
         </div>
 
         <!-- VOD Count (always visible if has recordings) -->
@@ -110,6 +110,12 @@
             <use href="#icon-clock" />
           </svg>
           <span>{{ lastStreamTime }}</span>
+        </div>
+
+        <!-- Recording indicator -->
+        <div v-if="streamer.is_recording" class="stat stat-recording">
+          <span class="recording-dot"></span>
+          <span>REC</span>
         </div>
       </div>
 
@@ -142,7 +148,7 @@
               </svg>
               Watch Live
             </button>
-            <button @click="handleForceRecord" class="action-item">
+            <button v-if="!streamer.is_recording" @click="handleForceRecord" class="action-item">
               <svg class="icon">
                 <use href="#icon-video" />
               </svg>
@@ -199,9 +205,12 @@ interface Stream {
 interface Props {
   streamer: Streamer
   currentStream?: Stream | null
+  viewMode?: 'grid' | 'list'
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  viewMode: 'grid'
+})
 const emit = defineEmits<{
   watch: [streamer: Streamer]
   'force-record': [streamer: Streamer]  // CRITICAL FIX: kebab-case for Vue event naming
@@ -213,6 +222,13 @@ const showActions = ref(false)
 const moreButtonRef = ref<HTMLButtonElement | null>(null)
 
 const isLive = computed(() => props.streamer.is_live || false)
+
+// Show category from live stream or last known stream
+const displayCategory = computed(() => {
+  if (isLive.value && props.streamer.category_name) return props.streamer.category_name
+  if (!isLive.value && props.streamer.last_stream_category_name) return props.streamer.last_stream_category_name
+  return null
+})
 
 // Calculate dropdown position relative to trigger button
 const dropdownStyle = computed(() => {
@@ -579,7 +595,6 @@ onUnmounted(() => {
   line-clamp: 3;
   -webkit-box-orient: vertical;
   word-break: break-word;
-  max-height: 4.2em;  /* 3 * 1.4 line-height */
   
   &.no-title {
     font-style: italic;
@@ -703,6 +718,20 @@ onUnmounted(() => {
   opacity: 0.8;
 }
 
+.stat-recording {
+  color: var(--danger-color);
+  font-weight: v.$font-semibold;
+  font-size: var(--text-xs);
+  
+  .recording-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--danger-color);
+    animation: pulse-live 1.5s ease-in-out infinite;
+  }
+}
+
 /* Actions - TOP RIGHT CORNER (ABSOLUTE POSITIONING) */
 .streamer-actions {
   position: absolute;
@@ -712,12 +741,12 @@ onUnmounted(() => {
 }
 
 .btn-action {
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
   padding: 0;
 
-  background: var(--background-card);
-  border: 1px solid var(--border-color);
+  background: transparent;
+  border: none;
   border-radius: var(--radius-lg);
 
   display: flex;
@@ -736,22 +765,18 @@ onUnmounted(() => {
   }
 
   &:hover {
-    background: var(--primary-color);
-    border-color: var(--primary-color);
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-md);
+    background: rgba(var(--primary-500-rgb), 0.1);
     
     .icon {
-      stroke: white;
+      stroke: var(--text-primary);
     }
   }
 
   &.active {
-    background: var(--primary-color);
-    border-color: var(--primary-color);
+    background: rgba(var(--primary-500-rgb), 0.15);
     
     .icon {
-      stroke: white;
+      stroke: var(--primary-color);
     }
   }
 
@@ -768,10 +793,12 @@ onUnmounted(() => {
 .actions-dropdown {
   position: fixed;
   
-  background: var(--background-darker);
-  border: 1px solid var(--border-color);
+  background: var(--glass-bg-solid);
+  backdrop-filter: blur(var(--glass-blur-md));
+  -webkit-backdrop-filter: blur(var(--glass-blur-md));
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius-md);
-  box-shadow: var(--shadow-xl);
+  box-shadow: var(--glass-shadow-lg);
   
   min-width: 160px;
   max-width: 180px;
@@ -846,6 +873,137 @@ onUnmounted(() => {
   .streamer-avatar {
     width: 80px;
     height: 80px;
+  }
+}
+
+// ============================================================================
+// LIST MODE STYLES
+// Horizontal layout matching VideoCard list mode pattern
+// ============================================================================
+
+.streamer-card.list-mode {
+  :deep(.glass-card-content) {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    min-height: auto;
+    max-height: none;
+    padding: 0;
+    gap: 0;
+  }
+
+  .streamer-card-content {
+    display: grid;
+    grid-template-columns: auto 1fr auto auto;
+    grid-template-rows: auto auto auto;
+    align-items: center;
+    gap: 0;
+    width: 100%;
+  }
+
+  .streamer-avatar-container {
+    grid-row: 1 / 4;
+    grid-column: 1;
+    margin-bottom: 0;
+    width: auto;
+    padding: var(--spacing-3);
+  }
+
+  .streamer-avatar {
+    width: 56px;
+    height: 56px;
+  }
+
+  .live-badge {
+    font-size: 8px;
+    padding: 1px 4px;
+    gap: 2px;
+    
+    .live-indicator {
+      width: 4px;
+      height: 4px;
+    }
+  }
+
+  .streamer-name-link {
+    grid-row: 1;
+    grid-column: 2 / -1;
+    text-align: left;
+    width: auto;
+    padding-top: var(--spacing-2);
+    padding-right: var(--spacing-3);
+    
+    .streamer-name {
+      font-size: var(--text-sm);
+      font-weight: v.$font-semibold;
+      -webkit-line-clamp: 1;
+      line-clamp: 1;
+      max-height: 1.3em;
+    }
+  }
+
+  .stream-info-container {
+    grid-row: 2;
+    grid-column: 2 / -1;
+    text-align: left;
+    min-width: 0;
+    padding: 0 var(--spacing-3) 0 0;
+
+    .stream-title,
+    .last-stream-title,
+    .streamer-description,
+    .last-stream-category {
+      -webkit-line-clamp: 1;
+      line-clamp: 1;
+      font-size: var(--text-xs);
+      text-align: left;
+    }
+    
+    .no-description,
+    .no-title {
+      font-size: var(--text-xs);
+    }
+  }
+
+  .streamer-stats {
+    grid-row: 3;
+    grid-column: 2;
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: var(--spacing-2) var(--spacing-3);
+    padding: 0 0 var(--spacing-2) 0;
+    align-items: center;
+    
+    .stat {
+      font-size: var(--text-xs);
+      white-space: nowrap;
+      color: var(--text-secondary);
+    }
+    
+    .stat-icon {
+      width: 12px;
+      height: 12px;
+    }
+  }
+
+  .streamer-actions {
+    grid-row: 3;
+    grid-column: 4;
+    position: relative;
+    top: auto;
+    right: auto;
+    padding-right: var(--spacing-3);
+    align-self: center;
+  }
+}
+
+@include m.respond-below('sm') {
+  .streamer-card.list-mode {
+    .streamer-avatar {
+      width: 44px;
+      height: 44px;
+    }
   }
 }
 

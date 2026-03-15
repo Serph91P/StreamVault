@@ -130,11 +130,53 @@ class RecordingLifecycleManager:
                 None,
             )
             if existing_recording:
-                logger.warning(
-                    f"🎬 DUPLICATE_BLOCK: Cannot start recording for streamer {streamer_id} - "
-                    f"already has active recording {existing_recording}"
+                # STALE RECORDING RECOVERY: Check if the "active" recording actually has a running process.
+                # If not, it's a ghost recording (e.g., from a DB outage or handler timeout) - clean it up.
+                is_process_running = await self._check_recording_process(
+                    existing_recording
                 )
-                return None
+                if not is_process_running:
+                    stale_data = self.state_manager.get_active_recording(
+                        existing_recording
+                    )
+                    logger.warning(
+                        f"🧹 STALE_RECORDING_CLEANUP: Recording {existing_recording} for streamer {streamer_id} "
+                        f"has no running process. Cleaning up ghost recording to unblock new recording."
+                    )
+                    self.state_manager.remove_active_recording(existing_recording)
+                    try:
+                        await self.database_service.mark_recording_failed(
+                            existing_recording,
+                            "Stale recording cleaned up: no running process found",
+                        )
+                    except Exception as cleanup_err:
+                        logger.error(
+                            f"Failed to mark stale recording {existing_recording} as failed: {cleanup_err}"
+                        )
+                    app_cache.delete("active_recordings")
+
+                    # Trigger post-processing for the stale recording if a file exists on disk
+                    stale_file = stale_data.get("file_path") if stale_data else None
+                    if stale_file and Path(stale_file).exists():
+                        logger.info(
+                            f"🔄 STALE_POST_PROCESSING: Triggering post-processing for stale recording "
+                            f"{existing_recording} (file exists: {stale_file})"
+                        )
+                        try:
+                            await self._schedule_post_processing_once(
+                                existing_recording
+                            )
+                        except Exception as pp_err:
+                            logger.error(
+                                f"Failed to trigger post-processing for stale recording {existing_recording}: {pp_err}"
+                            )
+                    # Continue to start the new recording
+                else:
+                    logger.warning(
+                        f"🎬 DUPLICATE_BLOCK: Cannot start recording for streamer {streamer_id} - "
+                        f"already has active recording {existing_recording}"
+                    )
+                    return None
 
             # Generate file path
             file_path = await self._generate_recording_path(streamer_id, stream_id)
@@ -208,6 +250,8 @@ class RecordingLifecycleManager:
 
     async def stop_recording(self, recording_id: int, reason: str = "manual") -> bool:
         """Stop an active recording"""
+        success = False
+        recording_data = None
         try:
             recording_data = self.state_manager.get_active_recording(recording_id)
             if not recording_data:
@@ -260,9 +304,15 @@ class RecordingLifecycleManager:
                     logger.debug(f"Could not log recording stop: {log_error}")
 
             # Update status regardless of process stop success
-            await self.database_service.update_recording_status(
-                recording_id=recording_id, status="stopped" if success else "failed"
-            )
+            try:
+                await self.database_service.update_recording_status(
+                    recording_id=recording_id,
+                    status="stopped" if success else "failed",
+                )
+            except Exception as db_err:
+                logger.error(
+                    f"Failed to update recording {recording_id} status in DB: {db_err}"
+                )
 
             # Trigger database event for orphaned recovery
             try:
@@ -278,34 +328,44 @@ class RecordingLifecycleManager:
                     f"Could not trigger database event for orphaned recovery: {e}"
                 )
 
-            # Remove from active recordings
-            self.state_manager.remove_active_recording(recording_id)
-
-            # Invalidate active recordings cache
-            app_cache.delete("active_recordings")
-
             # Send WebSocket notification
             if self.websocket_service:
-                await self.websocket_service.send_recording_status_update(
-                    recording_id=recording_id,
-                    status="stopped" if success else "failed",
-                    additional_data={"reason": reason},
-                )
-
-            # Trigger post-processing for automatic stops (stream ended)
-            # Even if process termination failed, streamlink may have finished correctly
-            if reason == "automatic":
-                logger.info(
-                    f"🎬 TRIGGERING_POST_PROCESSING: recording_id={recording_id}, success={success}"
-                )
-                # Schedule post-processing once (idempotent)
-                await self._schedule_post_processing_once(recording_id)
+                try:
+                    await self.websocket_service.send_recording_status_update(
+                        recording_id=recording_id,
+                        status="stopped" if success else "failed",
+                        additional_data={"reason": reason},
+                    )
+                except Exception:
+                    pass
 
             return success
 
         except Exception as e:
             logger.error(f"Failed to stop recording {recording_id}: {e}")
             return False
+        finally:
+            # CRITICAL: Always remove from active recordings when we had recording_data,
+            # even if the stop process timed out or DB operations failed.
+            # Prevents ghost recordings that permanently block future recordings.
+            if recording_data is not None:
+                self.state_manager.remove_active_recording(recording_id)
+                app_cache.delete("active_recordings")
+
+                # Trigger post-processing for automatic stops (stream ended).
+                # This MUST be in the finally block so it runs even when the EventSub
+                # handler's 5s timeout cancels this coroutine via CancelledError.
+                # _schedule_post_processing_once is idempotent and uses create_task (fire-and-forget).
+                if reason == "automatic":
+                    try:
+                        logger.info(
+                            f"🎬 TRIGGERING_POST_PROCESSING: recording_id={recording_id}"
+                        )
+                        await self._schedule_post_processing_once(recording_id)
+                    except Exception as pp_err:
+                        logger.error(
+                            f"Failed to trigger post-processing for recording {recording_id}: {pp_err}"
+                        )
 
     async def force_start_recording(self, streamer_id: int) -> Optional[int]:
         """Force start recording for a live streamer"""
@@ -611,9 +671,14 @@ class RecordingLifecycleManager:
             file_path = recording_data.get("file_path")
             if not file_path or not Path(file_path).exists():
                 logger.error(f"Recording file not found: {file_path}")
-                await self.database_service.mark_recording_failed(
-                    recording_id, "Recording file not found"
-                )
+                try:
+                    await self.database_service.mark_recording_failed(
+                        recording_id, "Recording file not found"
+                    )
+                except Exception as db_err:
+                    logger.error(
+                        f"Failed to mark recording {recording_id} as failed in DB: {db_err}"
+                    )
                 return
 
             # Update database status
@@ -631,31 +696,6 @@ class RecordingLifecycleManager:
                     additional_data={"stream_id": recording_data.get("stream_id")},
                 )
 
-            # Remove from active recordings
-            self.state_manager.remove_active_recording(recording_id)
-
-            # Complete external task in background queue - CRITICAL FIX for stuck recordings
-            try:
-                if background_queue_service:
-                    task_id = f"recording_{recording_id}"
-                    background_queue_service.complete_external_task(
-                        task_id, success=True
-                    )
-
-                    # Also remove from external tasks to prevent UI showing as stuck
-                    if hasattr(background_queue_service, "progress_tracker"):
-                        background_queue_service.progress_tracker.remove_external_task(
-                            task_id
-                        )
-
-                    logger.info(
-                        f"✅ EXTERNAL_TASK_COMPLETED: recording_{recording_id} marked as completed and removed"
-                    )
-            except Exception as e:
-                logger.error(
-                    f"❌ EXTERNAL_TASK_ERROR: Failed to complete external task for recording {recording_id}: {e}"
-                )
-
             logger.info(f"Recording {recording_id} completed successfully")
 
             # Safety net: if offline event path didn't schedule post-processing, do it here.
@@ -669,6 +709,27 @@ class RecordingLifecycleManager:
 
         except Exception as e:
             logger.error(f"Error handling recording completion {recording_id}: {e}")
+        finally:
+            # CRITICAL: Always remove from active recordings and clean up external tasks,
+            # even if DB operations fail. Prevents ghost recordings that block future recordings.
+            self.state_manager.remove_active_recording(recording_id)
+            try:
+                if background_queue_service:
+                    task_id = f"recording_{recording_id}"
+                    background_queue_service.complete_external_task(
+                        task_id, success=True
+                    )
+                    if hasattr(background_queue_service, "progress_tracker"):
+                        background_queue_service.progress_tracker.remove_external_task(
+                            task_id
+                        )
+                    logger.info(
+                        f"✅ EXTERNAL_TASK_COMPLETED: recording_{recording_id} marked as completed and removed"
+                    )
+            except Exception as e:
+                logger.error(
+                    f"❌ EXTERNAL_TASK_ERROR: Failed to complete external task for recording {recording_id}: {e}"
+                )
 
     async def _handle_recording_error(
         self, recording_id: int, error_message: str
@@ -678,24 +739,40 @@ class RecordingLifecycleManager:
             logger.error(f"Recording {recording_id} error: {error_message}")
 
             # Update database
-            await self.database_service.mark_recording_failed(
-                recording_id, error_message
-            )
+            try:
+                await self.database_service.mark_recording_failed(
+                    recording_id, error_message
+                )
+            except Exception as db_err:
+                logger.error(
+                    f"Failed to mark recording {recording_id} as failed in DB: {db_err}"
+                )
 
-            # Mark external task as failed in background queue - CRITICAL FIX for stuck recordings
+            # Send error notification
+            if self.websocket_service:
+                try:
+                    await self.websocket_service.send_recording_error(
+                        recording_id=recording_id, error_message=error_message
+                    )
+                except Exception:
+                    pass
+
+        except Exception as e:
+            logger.error(f"Error handling recording error {recording_id}: {e}")
+        finally:
+            # CRITICAL: Always remove from active recordings and clean up external tasks,
+            # even if DB operations fail. Prevents ghost recordings that block future recordings.
+            self.state_manager.remove_active_recording(recording_id)
             try:
                 if background_queue_service:
                     task_id = f"recording_{recording_id}"
                     background_queue_service.complete_external_task(
                         task_id, success=False
                     )
-
-                    # Also remove from external tasks to prevent UI showing as stuck
                     if hasattr(background_queue_service, "progress_tracker"):
                         background_queue_service.progress_tracker.remove_external_task(
                             task_id
                         )
-
                     logger.info(
                         f"❌ EXTERNAL_TASK_FAILED: recording_{recording_id} marked as failed and removed"
                     )
@@ -703,18 +780,6 @@ class RecordingLifecycleManager:
                 logger.error(
                     f"❌ EXTERNAL_TASK_ERROR: Failed to mark external task as failed for recording {recording_id}: {e}"
                 )
-
-            # Send error notification
-            if self.websocket_service:
-                await self.websocket_service.send_recording_error(
-                    recording_id=recording_id, error_message=error_message
-                )
-
-            # Remove from active recordings
-            self.state_manager.remove_active_recording(recording_id)
-
-        except Exception as e:
-            logger.error(f"Error handling recording error {recording_id}: {e}")
 
     async def _generate_recording_path(self, streamer_id: int, stream_id: int) -> str:
         """Generate file path for recording"""

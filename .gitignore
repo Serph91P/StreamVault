@@ -110,3 +110,5 @@ temp_logs
 logs_local
 data_local
 .pytest_cache
+
+.serena

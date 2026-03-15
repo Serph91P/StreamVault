@@ -5,17 +5,28 @@
 import { ref, computed } from 'vue'
 import router from '@/router'
 
+// Mock mode check (evaluated once at module load)
+const USE_MOCK_DATA = import.meta.env.VITE_USE_MOCK_DATA === 'true'
+
 // Guard against concurrent auth redirects
 let isAuthRedirecting = false
 
-const isAuthenticated = ref(false)
-const sessionToken = ref<string | null>(null)
-const user = ref<any>(null)
+const isAuthenticated = ref(USE_MOCK_DATA ? true : false)
+const sessionToken = ref<string | null>(USE_MOCK_DATA ? 'mock-session-token' : null)
+const user = ref<any>(USE_MOCK_DATA ? { username: 'demo', display_name: 'Demo User' } : null)
 
 export function useAuth() {
   
   // Check if we have a stored session (for PWA)
   const checkStoredAuth = async () => {
+    // Mock mode: always authenticated
+    if (USE_MOCK_DATA) {
+      isAuthenticated.value = true
+      sessionToken.value = 'mock-session-token'
+      user.value = { username: 'demo', display_name: 'Demo User' }
+      return
+    }
+
     const storedToken = localStorage.getItem('streamvault_session')
     
     // Check current path to determine if we're on a protected page
@@ -78,6 +89,14 @@ export function useAuth() {
   }
   
   const login = async (username: string, password: string) => {
+    // Mock mode: always succeed
+    if (USE_MOCK_DATA) {
+      isAuthenticated.value = true
+      sessionToken.value = 'mock-session-token'
+      user.value = { username, display_name: username }
+      return { success: true, data: { authenticated: true } }
+    }
+
     try {
       const response = await fetch('/auth/login', {
         method: 'POST',
