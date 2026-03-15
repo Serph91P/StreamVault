@@ -67,52 +67,112 @@ jobs:
         id: version
         run: |
           # =============================================================
-          # Version Calculation Strategy:
-          # - Single continuous version number across main and develop
+          # Semantic Version Calculation Strategy:
+          # - Analyzes commit messages since last tag (Conventional Commits)
+          # - MAJOR bump: feat!:, fix!:, any type with !, BREAKING CHANGE in body
+          # - MINOR bump: feat:, feature:, add:, refactor:, perf:
+          # - PATCH bump: fix:, docs:, chore:, test:, ci:, style:, build:
           # - develop: vdev.X.Y.Z (pre-release)
           # - main: vX.Y.Z (stable release)
-          # - Both branches increment from the HIGHEST existing version
           # =============================================================
           
-          # Find latest stable tag (v2.0.29 format, exclude vdev.*)
+          # Find latest tag (either stable or dev) to get the base version
           LATEST_STABLE_TAG=$(git tag -l "v[0-9]*.[0-9]*.[0-9]*" | grep -v "vdev" | \
             sed 's/^v//' | sort -t. -k1,1n -k2,2n -k3,3n | tail -n1 || echo "")
-          if [ -n "$LATEST_STABLE_TAG" ]; then
-            STABLE_PATCH=$(echo "$LATEST_STABLE_TAG" | cut -d. -f3)
-            echo "Latest stable tag: v${LATEST_STABLE_TAG} (patch: ${STABLE_PATCH})"
-          else
-            STABLE_PATCH=0
-            echo "No stable tags found"
-          fi
-          
-          # Find latest dev tag (vdev.2.0.27 format)
           LATEST_DEV_TAG=$(git tag -l "vdev.[0-9]*.[0-9]*.[0-9]*" | \
             sed 's/^vdev\.//' | sort -t. -k1,1n -k2,2n -k3,3n | tail -n1 || echo "")
-          if [ -n "$LATEST_DEV_TAG" ]; then
-            DEV_PATCH=$(echo "$LATEST_DEV_TAG" | cut -d. -f3)
-            echo "Latest dev tag: vdev.${LATEST_DEV_TAG} (patch: ${DEV_PATCH})"
-          else
-            DEV_PATCH=0
-            echo "No dev tags found"
+          
+          echo "Latest stable tag: ${LATEST_STABLE_TAG:-none}"
+          echo "Latest dev tag: ${LATEST_DEV_TAG:-none}"
+          
+          # Determine the highest existing version as base
+          # Compare full semver (MAJOR.MINOR.PATCH) numerically
+          pick_higher_version() {
+            local v1="$1" v2="$2"
+            [ -z "$v1" ] && echo "$v2" && return
+            [ -z "$v2" ] && echo "$v1" && return
+            local v1_major=$(echo "$v1" | cut -d. -f1)
+            local v1_minor=$(echo "$v1" | cut -d. -f2)
+            local v1_patch=$(echo "$v1" | cut -d. -f3)
+            local v2_major=$(echo "$v2" | cut -d. -f1)
+            local v2_minor=$(echo "$v2" | cut -d. -f2)
+            local v2_patch=$(echo "$v2" | cut -d. -f3)
+            if [ "$v1_major" -gt "$v2_major" ]; then echo "$v1"
+            elif [ "$v1_major" -lt "$v2_major" ]; then echo "$v2"
+            elif [ "$v1_minor" -gt "$v2_minor" ]; then echo "$v1"
+            elif [ "$v1_minor" -lt "$v2_minor" ]; then echo "$v2"
+            elif [ "$v1_patch" -ge "$v2_patch" ]; then echo "$v1"
+            else echo "$v2"
+            fi
+          }
+          
+          CURRENT_VERSION=$(pick_higher_version "$LATEST_STABLE_TAG" "$LATEST_DEV_TAG")
+          if [ -z "$CURRENT_VERSION" ]; then
+            CURRENT_VERSION="2.0.0"
           fi
           
-          # Use the HIGHER patch number as base (continuous versioning)
-          if [ "$STABLE_PATCH" -gt "$DEV_PATCH" ]; then
-            CURRENT_PATCH=$STABLE_PATCH
-            echo "Using stable patch as base: ${CURRENT_PATCH}"
-          else
-            CURRENT_PATCH=$DEV_PATCH
-            echo "Using dev patch as base: ${CURRENT_PATCH}"
+          CURRENT_MAJOR=$(echo "$CURRENT_VERSION" | cut -d. -f1)
+          CURRENT_MINOR=$(echo "$CURRENT_VERSION" | cut -d. -f2)
+          CURRENT_PATCH=$(echo "$CURRENT_VERSION" | cut -d. -f3)
+          echo "Current base version: ${CURRENT_VERSION}"
+          
+          # Find the git tag for commit range (need the actual tag name)
+          LATEST_TAG_NAME=""
+          if [ "$CURRENT_VERSION" = "$LATEST_STABLE_TAG" ]; then
+            LATEST_TAG_NAME="v${LATEST_STABLE_TAG}"
+          elif [ "$CURRENT_VERSION" = "$LATEST_DEV_TAG" ]; then
+            LATEST_TAG_NAME="vdev.${LATEST_DEV_TAG}"
           fi
           
-          # Next version is always current + 1
-          NEXT_PATCH=$((CURRENT_PATCH + 1))
+          # Analyze commits since last tag for bump type
+          BUMP_TYPE="patch"  # default
           
-          # Major.Minor is fixed at 2.0 for now (change when needed)
-          MAJOR=2
-          MINOR=0
+          if [ -n "$LATEST_TAG_NAME" ] && git rev-parse "$LATEST_TAG_NAME" >/dev/null 2>&1; then
+            echo "Analyzing commits since ${LATEST_TAG_NAME}..."
+            COMMITS=$(git log "${LATEST_TAG_NAME}..HEAD" --pretty=format:"%s%n%b" 2>/dev/null || echo "")
+          else
+            echo "No previous tag found, analyzing last 50 commits..."
+            COMMITS=$(git log -50 --pretty=format:"%s%n%b" 2>/dev/null || echo "")
+          fi
           
-          echo "Next patch version: ${NEXT_PATCH}"
+          if [ -n "$COMMITS" ]; then
+            # Check for MAJOR bump: breaking changes
+            # Matches: feat!:, fix!:, refactor!:, any_type!:, or BREAKING CHANGE in body
+            if echo "$COMMITS" | grep -qiE "^[a-z]+(\([^)]*\))?!:|BREAKING CHANGE"; then
+              BUMP_TYPE="major"
+              echo "🔴 MAJOR bump detected (breaking change)"
+            # Check for MINOR bump: new features, refactors, performance improvements
+            elif echo "$COMMITS" | grep -qiE "^(feat|feature|add|refactor|perf)(\([^)]*\))?:"; then
+              BUMP_TYPE="minor"
+              echo "🟡 MINOR bump detected (feature/refactor/perf)"
+            else
+              BUMP_TYPE="patch"
+              echo "🟢 PATCH bump detected (fix/docs/chore/etc)"
+            fi
+          else
+            echo "No commits found, defaulting to patch bump"
+          fi
+          
+          # Calculate next version based on bump type
+          case "$BUMP_TYPE" in
+            major)
+              MAJOR=$((CURRENT_MAJOR + 1))
+              MINOR=0
+              PATCH=0
+              ;;
+            minor)
+              MAJOR=$CURRENT_MAJOR
+              MINOR=$((CURRENT_MINOR + 1))
+              PATCH=0
+              ;;
+            patch)
+              MAJOR=$CURRENT_MAJOR
+              MINOR=$CURRENT_MINOR
+              PATCH=$((CURRENT_PATCH + 1))
+              ;;
+          esac
+          
+          echo "Bump type: ${BUMP_TYPE} → ${MAJOR}.${MINOR}.${PATCH}"
 
           if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
             # Manual tag push - use the tag as-is
@@ -128,21 +188,21 @@ jobs:
             fi
           elif [[ "${{ github.ref }}" == refs/heads/main ]]; then
             # Main branch: stable release
-            VERSION="${MAJOR}.${MINOR}.${NEXT_PATCH}"
+            VERSION="${MAJOR}.${MINOR}.${PATCH}"
             IS_PRERELEASE=false
             RELEASE_TAG="v${VERSION}"
             echo "Main branch release: ${VERSION}"
           elif [[ "${{ github.ref }}" == refs/heads/develop ]]; then
             # Develop branch: pre-release
-            VERSION="dev.${MAJOR}.${MINOR}.${NEXT_PATCH}"
+            VERSION="dev.${MAJOR}.${MINOR}.${PATCH}"
             IS_PRERELEASE=true
-            RELEASE_TAG="vdev.${MAJOR}.${MINOR}.${NEXT_PATCH}"
+            RELEASE_TAG="vdev.${MAJOR}.${MINOR}.${PATCH}"
             echo "Develop branch release: ${VERSION}"
           else
             # Other branches - shouldn't happen with current trigger config
-            VERSION="dev.${MAJOR}.${MINOR}.${NEXT_PATCH}"
+            VERSION="dev.${MAJOR}.${MINOR}.${PATCH}"
             IS_PRERELEASE=true
-            RELEASE_TAG="vdev.${MAJOR}.${MINOR}.${NEXT_PATCH}"
+            RELEASE_TAG="vdev.${MAJOR}.${MINOR}.${PATCH}"
           fi
 
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
