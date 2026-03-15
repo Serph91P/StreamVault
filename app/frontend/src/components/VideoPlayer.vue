@@ -813,6 +813,8 @@ watch(() => props.chapters, (newChapters) => {
     parsedChapters.value = convertApiChaptersToInternal(newChapters)
   }
 }, { immediate: true })
+
+defineExpose({ seekToChapter })
 </script>
 
 <style scoped lang="scss">
@@ -838,10 +840,11 @@ watch(() => props.chapters, (newChapters) => {
   position: relative;
   width: 100%;
   background: var(--background-darker);
+  overflow: hidden;
   
-  // Desktop: Constrained width with 16:9 aspect ratio
+  // Desktop: Responsive width with 16:9 aspect ratio
   @include m.respond-to('md') {  // >= 768px
-    max-width: 1280px;
+    max-width: min(70vw, 1280px);
     margin: 0 auto;
     aspect-ratio: 16/9;
   }
@@ -923,6 +926,10 @@ watch(() => props.chapters, (newChapters) => {
 
 .error-icon {
   font-size: var(--text-5xl);  /* 48px */
+  
+  @include m.respond-below('md') {
+    display: none;
+  }
 }
 
 .error-message {
@@ -1491,6 +1498,11 @@ watch(() => props.chapters, (newChapters) => {
 .chapter-nav-button {
   /* Same size as standard controls */
   opacity: 0.9;
+  
+  // Hide prev/next on portrait mobile — chapters list below video is used instead
+  @media (max-width: 767px) and (orientation: portrait) {
+    display: none;
+  }
 }
 
 .chapter-nav-button:hover:not(:disabled) {

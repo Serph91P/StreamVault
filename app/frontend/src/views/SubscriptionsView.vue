@@ -657,6 +657,15 @@ onMounted(loadSubscriptions)
     padding: var(--spacing-4);
   }
 
+  .view-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .header-content {
+    width: 100%;
+  }
+
   .page-title {
     font-size: var(--font-size-2xl);
   }

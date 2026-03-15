@@ -1,345 +1,131 @@
 # Frontend Development Guide
 
-## 🚀 Quick Start (Frontend-Only Development)
+## Quick Start
 
-Develop the UI without running the full Docker stack:
+Develop the UI without running any backend or Docker:
 
 ```bash
 cd app/frontend
-
-# Install dependencies (first time only)
-npm install
-
-# Start development server with mock data
-npm run dev
-
-# Open browser at http://localhost:5173
+npm install        # first time only
+npm run dev:mock   # starts with mock data → http://localhost:5173
 ```
 
-**Benefits:**
-- ⚡ **Instant updates** - Changes visible immediately (Hot Module Replacement)
-- 🎨 **All components visible** - Mock data shows streamers, videos, recordings, etc.
-- 🐛 **Vue DevTools** - Full debugging support
-- 📦 **No Docker** - No container builds needed
+That's it. All pages work — login is auto-bypassed, mock data populates every view.
 
----
+## Dev Scripts
 
-## 🎭 Mock Data Mode
+| Command | Description |
+|---------|-------------|
+| `npm run dev` | Start dev server (uses `.env.development` — mock mode by default) |
+| `npm run dev:mock` | Start with mock data (explicit, no backend needed) |
+| `npm run dev:live` | Start connected to real backend at `localhost:8000` |
+| `npm run build` | Production build (type-check + bundle) |
+| `npm run preview` | Preview production build locally |
+| `npm run type-check` | TypeScript type checking only |
+| `npm run lint` | ESLint + auto-fix |
 
-Mock mode provides realistic test data for all UI components:
+## Mock Mode
 
-### What's Included:
+When `VITE_USE_MOCK_DATA=true` (default in development):
 
-- **4 Streamers** (2 live, 2 offline)
-- **3 Videos** with different durations and categories
-- **1 Active Recording** 
-- **2 Favorite Categories**
-- **3 Proxies** (healthy, degraded, failed)
-- **Background Queue Tasks**
-- **Settings Data**
+- **Auth bypassed** — automatically logged in as "demo" user, all routes accessible
+- **All API calls return mock data** — no network requests to backend
+- **WebSocket disabled** — no connection attempts
+- **Status data populated** — dashboard shows realistic streamer/recording status
 
-### Toggle Mock Mode:
+### What Mock Data Provides
 
-**Option 1: Environment Variable (Recommended)**
-```bash
-# Edit app/frontend/.env.development
-VITE_USE_MOCK_DATA=true
-```
+- 4 streamers (2 live, 2 offline, 1 actively recording)
+- 12 videos with metadata, durations, categories
+- 1 active recording
+- 8 categories (with favorites)
+- 3 proxies (healthy/degraded/failed)
+- Background queue tasks
+- Full settings data
 
-**Option 2: Runtime Toggle**
+### Verify Mock Mode
+
+Browser console on page load shows:
+- `🎭 Using MOCK API for all endpoints` — mock mode active
+- `🌐 Using REAL API for all endpoints` — live mode (needs backend)
+
+### Toggle at Runtime
+
 ```javascript
-// In browser console (F12)
+// Browser console (F12)
 localStorage.setItem('useMockData', 'true')
 location.reload()
 ```
 
-### Verify Current Mode:
+## Pages You Can Test
 
-Check the browser console (F12) on page load:
-- `🎭 MOCK MODE ENABLED` - Using mock data
-- `🌐 LIVE MODE` - Connecting to backend
+| Page | Route | Mock Data |
+|------|-------|-----------|
+| Dashboard | `/` | Live streamers, recent recordings, stats |
+| Streamers | `/streamers` | Grid/list view, live/offline filters, search |
+| Streamer Detail | `/streamers/:id` | Profile, recordings, settings |
+| Videos | `/videos` | Video grid, search, multi-select |
+| Video Player | `/videos/:id` | Player controls, chapters |
+| Settings | `/settings` | All tabs: Twitch, Recording, Notifications, Proxies, Favorites |
+| Login | `/auth/login` | Form (any credentials work in mock mode) |
+| Admin | `/admin` | Background queue status |
 
----
+## Project Structure
 
-## 🛠️ Development Scripts
+```
+src/
+├── components/         # Reusable Vue components
+│   ├── cards/         # StreamerCard, VideoCard, GlassCard
+│   ├── navigation/    # SidebarNav, BottomNav
+│   └── settings/      # Settings panel components
+├── views/             # Page-level components
+├── composables/       # Reusable logic (useAuth, useWebSocket, useTheme)
+├── services/
+│   ├── api.ts         # Mock/Real API switcher (single entry point)
+│   └── api-real.ts    # Real backend HTTP client
+├── mocks/
+│   └── mockData.ts    # All mock datasets
+├── styles/
+│   ├── main.scss              # Import aggregator
+│   ├── _variables.scss        # Design tokens (colors, spacing)
+│   ├── _glass-system.scss     # Glassmorphism design system
+│   └── _utilities.scss        # Utility classes
+└── router/            # Vue Router + auth guards
+```
+
+### API Architecture
+
+Components import from `services/api.ts` — never directly from `api-real.ts` or mock files.
+
+```
+Component → api.ts → (VITE_USE_MOCK_DATA=true)  → inline mock implementations
+                   → (VITE_USE_MOCK_DATA=false) → api-real.ts → backend
+```
+
+## Connecting to Real Backend
 
 ```bash
-# Start dev server (default: uses .env.development settings)
-npm run dev
-
-# Start with mock data explicitly enabled
-VITE_USE_MOCK_DATA=true npm run dev
-
-# Start connected to real backend
-VITE_USE_MOCK_DATA=false npm run dev
-
-# Build for production
-npm run build
-
-# Preview production build
-npm run preview
-
-# Type checking
-npm run type-check
-
-# Lint code
-npm run lint
-```
-
----
-
-## 📁 Project Structure
-
-```
-app/frontend/
-├── src/
-│   ├── components/          # Reusable Vue components
-│   │   ├── cards/          # StreamerCard, VideoCard, StatusCard
-│   │   ├── settings/       # Settings panels
-│   │   └── ...
-│   ├── views/              # Page-level components
-│   │   ├── HomeView.vue
-│   │   ├── StreamersView.vue
-│   │   ├── VideosView.vue
-│   │   └── ...
-│   ├── services/           # API clients
-│   │   ├── api.ts         # Real API implementation
-│   │   └── apiProxy.ts    # Mock/Real switcher
-│   ├── mocks/              # Mock data for development
-│   │   ├── mockData.ts    # Test data
-│   │   └── mockApi.ts     # Mock API responses
-│   ├── composables/        # Reusable Vue logic
-│   ├── styles/             # SCSS design system
-│   │   ├── main.scss
-│   │   ├── _variables.scss
-│   │   ├── _components.scss
-│   │   └── ...
-│   └── router/             # Vue Router config
-├── .env.example            # Environment template
-├── .env.development        # Development defaults (with mock mode)
-└── vite.config.ts          # Vite configuration
-```
-
----
-
-## 🎨 Testing UI Components
-
-All major components have mock data:
-
-### Dashboard (HomeView)
-- **Live Streamers** - Horizontal scroll with 2 live channels
-- **Recent Recordings** - Grid of 3 videos
-- **Quick Stats** - 4 status cards
-
-### Streamers (StreamersView)
-- **Grid/List View** - Toggle between layouts
-- **Live/Offline Filters** - Filter by status
-- **Search** - Test search functionality
-- **StreamerCard** - Hover states, actions menu
-
-### Videos (VideosView)
-- **Video Grid** - Multiple videos with thumbnails
-- **Search & Filter** - Test filtering
-- **VideoCard** - Play button, metadata display
-
-### Settings (SettingsView)
-- **All Tabs** - Twitch, Recording, Notifications, Proxies, Favorites, PWA, About
-- **Forms** - Input fields, dropdowns, checkboxes
-- **Theme Toggle** - Light/Dark mode switching
-
-### Background Jobs (BackgroundQueueMonitor)
-- **Active Tasks** - Recording progress
-- **Queue Stats** - Pending, running, completed
-- **Jobs Panel** - Expandable panel with task details
-
----
-
-## 🔄 WebSocket Behavior
-
-**Mock Mode:**
-- WebSocket connections are **simulated** (no actual connection)
-- Updates are triggered by mock events every 30 seconds
-- No real-time data from backend
-
-**Live Mode:**
-- WebSocket connects to backend at `ws://localhost:8000/ws`
-- Real-time updates for recordings, queue tasks, etc.
-
----
-
-## 🎯 Common Development Tasks
-
-### 1. Test New Component Styling
-
-```bash
-# Start dev server with mock data
-npm run dev
-
-# Edit component file
-# Changes auto-reload in browser
-```
-
-### 2. Test Light/Dark Mode
-
-```typescript
-// In any Vue component
-import { useTheme } from '@/composables/useTheme'
-
-const { theme, toggleTheme } = useTheme()
-
-// Toggle in browser console:
-// toggleTheme()
-```
-
-### 3. Add New Mock Data
-
-Edit `app/frontend/src/mocks/mockData.ts`:
-
-```typescript
-export const mockStreamers = [
-  // Add your test streamer here
-  {
-    id: 5,
-    username: 'teststreamer',
-    display_name: 'TestStreamer',
-    is_live: true,
-    // ... other fields
-  }
-]
-```
-
-### 4. Test API Error Handling
-
-Edit `app/frontend/src/mocks/mockApi.ts`:
-
-```typescript
-// Simulate API error
-streamers: {
-  getAll: () => {
-    throw new Error('Simulated API error')
-  }
-}
-```
-
----
-
-## 🐛 Debugging
-
-### Vue DevTools
-
-Install browser extension:
-- **Chrome:** [Vue.js devtools](https://chrome.google.com/webstore/detail/vuejs-devtools)
-- **Firefox:** [Vue.js devtools](https://addons.mozilla.org/en-US/firefox/addon/vue-js-devtools/)
-
-### Browser Console
-
-Enable debug logging:
-```bash
-# In .env.development
-VITE_DEBUG=true
-```
-
-Check logs:
-```javascript
-// F12 → Console
-// Look for:
-// - API requests/responses
-// - WebSocket messages
-// - Component lifecycle events
-```
-
-### Network Tab
-
-Monitor API calls:
-1. Open DevTools (F12)
-2. Go to Network tab
-3. Reload page
-4. See all fetch() requests
-
----
-
-## 📦 Building for Production
-
-```bash
-# Build optimized bundle
-npm run build
-
-# Output: app/frontend/dist/
-# These files are served by FastAPI in production
-```
-
-**Production Notes:**
-- Mock data is automatically disabled (`VITE_USE_MOCK_DATA=false`)
-- API calls go to same origin (`/api/...`)
-- Static assets are optimized and minified
-
----
-
-## 🔧 Troubleshooting
-
-### Issue: Changes not showing
-
-**Solution:**
-- Check browser console for errors
-- Hard refresh: `Ctrl+Shift+R` (Windows/Linux) or `Cmd+Shift+R` (Mac)
-- Clear browser cache
-- Restart dev server
-
-### Issue: "Cannot find module" error
-
-**Solution:**
-```bash
-# Reinstall dependencies
-rm -rf node_modules package-lock.json
-npm install
-```
-
-### Issue: API calls failing in mock mode
-
-**Solution:**
-- Verify `.env.development` has `VITE_USE_MOCK_DATA=true`
-- Check browser console for "🎭 MOCK MODE ENABLED" message
-- Restart dev server after changing `.env` files
-
-### Issue: WebSocket errors
-
-**Solution:**
-- In mock mode: Errors are expected (simulated connection)
-- In live mode: Ensure backend is running on port 8000
-
----
-
-## 🚢 Integration with Backend
-
-When you're ready to test with real data:
-
-```bash
-# 1. Disable mock mode
-# Edit .env.development:
-VITE_USE_MOCK_DATA=false
-
-# 2. Start backend
-cd ../../  # Back to repo root
+# Option 1: Use the live script
+npm run dev:live
+
+# Option 2: Start full stack
+cd ../../
 docker compose -f docker/docker-compose.yml up -d
-
-# 3. Start frontend (connects to localhost:8000)
 cd app/frontend
-npm run dev
+npm run dev:live
 ```
 
-**Backend URLs:**
-- Frontend: `http://localhost:5173` (Vite dev server)
-- Backend API: `http://localhost:8000/api/`
+Backend URLs in live mode:
+- API: `http://localhost:8000/api/`
 - WebSocket: `ws://localhost:8000/ws`
+- Frontend: `http://localhost:5173`
 
----
+## Troubleshooting
 
-## 📚 Related Documentation
+**Changes not showing** — Hard refresh `Ctrl+Shift+R`, or restart dev server.
 
-- [Design System](../../docs/DESIGN_SYSTEM.md) - SCSS utilities, components, patterns
-- [Architecture](../../docs/ARCHITECTURE.md) - Backend/frontend communication
-- [Copilot Instructions](../../.github/copilot-instructions.md) - AI agent guidelines
+**Module not found** — `rm -rf node_modules && npm install`
 
----
+**Mock mode not working** — Check console for `🎭` emoji. Restart dev server after `.env` changes.
 
-**Happy Developing! 🎨**
+**Build fails with ENOTEMPTY** — `rm -rf dist/ && npm run build`

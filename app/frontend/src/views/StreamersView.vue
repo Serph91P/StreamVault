@@ -509,11 +509,6 @@ onUnmounted(() => {
 .header-content {
   flex: 1;
   min-width: 250px;
-  
-  @include m.respond-below('sm') {
-    min-width: 100%;
-    flex-basis: 100%;
-  }
 }
 
 .page-title {
@@ -922,6 +917,17 @@ onUnmounted(() => {
   }
 }
 
+@include m.respond-below('md') {  // < 768px
+  .view-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .header-content {
+    width: 100%;
+  }
+}
+
 @include m.respond-below('sm') {  // < 640px
   .streamers-view {
     padding: var(--spacing-4) var(--spacing-3);
@@ -1003,6 +1009,7 @@ onUnmounted(() => {
     min-height: 44px;  // Touch-friendly
     font-size: 16px;  // Prevent iOS zoom
     padding: var(--spacing-3);
+    padding-left: var(--spacing-4);  // Preserve native select padding
   }
 
 }

@@ -54,6 +54,7 @@
           <!-- Action Buttons -->
           <div class="profile-actions">
             <button
+              v-if="!streamer.is_recording"
               @click="forceStartRecording(Number(streamerId))"
               class="btn-action btn-primary"
               :disabled="forceRecordingStreamerId === Number(streamerId)"
@@ -260,6 +261,43 @@
                 <span>Notify when goes offline</span>
               </label>
             </div>
+
+            <!-- Codec Preferences -->
+            <div class="setting-group">
+              <label class="setting-label">Codec Preferences</label>
+              <select v-model="streamerSettings.supportedCodecs" class="setting-input">
+                <option value="">Use Global Setting</option>
+                <option value="h264">H.264 only</option>
+                <option value="h265">H.265 (HEVC) only</option>
+                <option value="av1">AV1 only</option>
+                <option value="h264,h265">H.264 + H.265 (Recommended)</option>
+                <option value="h264,h265,av1">All codecs</option>
+              </select>
+              <p class="setting-hint">Override preferred video codecs for this streamer</p>
+            </div>
+
+            <!-- Max Concurrent Streams -->
+            <div class="setting-group">
+              <label class="setting-label">Max Concurrent Recordings</label>
+              <input
+                v-model.number="streamerSettings.maxStreams"
+                type="number"
+                class="setting-input"
+                min="1"
+                max="10"
+                placeholder="Unlimited"
+              />
+              <p class="setting-hint">Maximum simultaneous recordings for this streamer (empty = unlimited)</p>
+            </div>
+
+            <!-- Cleanup Policy -->
+            <div class="setting-group">
+              <label class="setting-checkbox">
+                <input type="checkbox" v-model="streamerSettings.useGlobalCleanupPolicy" />
+                <span>Use global cleanup policy</span>
+              </label>
+              <p class="setting-hint">When enabled, this streamer uses the global recording cleanup rules</p>
+            </div>
           </div>
           <div class="modal-actions">
             <button class="btn-secondary" @click="closeSettings" v-ripple>
@@ -285,7 +323,6 @@ import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { streamersApi } from '@/services/api'
 import { useForceRecording } from '@/composables/useForceRecording'
-import { useRecordingSettings } from '@/composables/useRecordingSettings'
 import { useToast } from '@/composables/useToast'
 import LoadingSkeleton from '@/components/LoadingSkeleton.vue'
 import EmptyState from '@/components/EmptyState.vue'
@@ -321,9 +358,6 @@ const deletingAll = ref(false)
 // Force recording
 const { forceRecordingStreamerId, forceStartRecording } = useForceRecording()
 
-// Recording settings composable - use existing backend integration!
-const { updateStreamerSettings } = useRecordingSettings()
-
 // Settings modal
 const showSettings = ref(false)
 const savingSettings = ref(false)
@@ -332,7 +366,10 @@ const streamerSettings = ref({
   filenameTemplate: '',
   autoRecord: true,
   notifyOnline: true,
-  notifyOffline: true
+  notifyOffline: true,
+  maxStreams: null as number | null,
+  supportedCodecs: '',
+  useGlobalCleanupPolicy: true
 })
 
 const openSettings = () => {
@@ -343,7 +380,10 @@ const openSettings = () => {
       filenameTemplate: streamer.value.custom_filename || '',
       autoRecord: streamer.value.recording_enabled !== false,
       notifyOnline: true,
-      notifyOffline: true
+      notifyOffline: true,
+      maxStreams: streamer.value.max_streams ?? null,
+      supportedCodecs: streamer.value.supported_codecs || '',
+      useGlobalCleanupPolicy: streamer.value.use_global_cleanup_policy !== false
     }
   }
   showSettings.value = true
@@ -357,12 +397,24 @@ const saveSettings = async () => {
   savingSettings.value = true
   
   try {
-    // Use the existing recording settings composable - same backend as Settings page!
-    await updateStreamerSettings(Number(streamerId.value), {
-      enabled: streamerSettings.value.autoRecord,
-      quality: streamerSettings.value.quality || undefined,
-      custom_filename: streamerSettings.value.filenameTemplate || undefined
+    const response = await fetch(`/api/streamers/streamer/${streamerId.value}/settings`, {
+      method: 'PUT',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        autoRecord: streamerSettings.value.autoRecord,
+        quality: streamerSettings.value.quality || undefined,
+        filenameTemplate: streamerSettings.value.filenameTemplate || undefined,
+        maxStreams: streamerSettings.value.maxStreams,
+        supportedCodecs: streamerSettings.value.supportedCodecs || undefined,
+        useGlobalCleanupPolicy: streamerSettings.value.useGlobalCleanupPolicy
+      })
     })
+    
+    if (!response.ok) {
+      const data = await response.json()
+      throw new Error(data.detail || `HTTP error! Status: ${response.status}`)
+    }
     
     toast.success('Settings saved successfully!')
     
@@ -1197,6 +1249,7 @@ onMounted(async () => {
     min-height: 44px;  // Touch-friendly
     font-size: 16px;  // Prevent iOS zoom
     padding: var(--spacing-3);
+    padding-left: 38px;  // Preserve icon space
   }
 
   .videos-container.view-grid {

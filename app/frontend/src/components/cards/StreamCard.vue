@@ -150,7 +150,7 @@
             :style="dropdownStyle"
             @click.stop
           >
-            <button v-if="isRecording" @click="handleWatchLive" class="action-item">
+            <button v-if="isRecording || isLive" @click="handleWatchLive" class="action-item">
               <svg class="icon">
                 <use href="#icon-external-link" />
               </svg>
@@ -162,7 +162,7 @@
               </svg>
               Force Record
             </button>
-            <button v-if="hasRecording && !isRecording" @click="handleWatch" class="action-item">
+            <button v-if="hasRecording" @click="handleWatch" class="action-item">
               <svg class="icon">
                 <use href="#icon-play" />
               </svg>
@@ -692,8 +692,8 @@ onUnmounted(() => {
   width: 32px;
   height: 32px;
   padding: 0;
-  background: var(--background-card);
-  border: 1px solid var(--border-color);
+  background: transparent;
+  border: none;
   border-radius: var(--radius-md);
   display: flex;
   align-items: center;
@@ -710,20 +710,18 @@ onUnmounted(() => {
   }
 
   &:hover {
-    background: var(--primary-color);
-    border-color: var(--primary-color);
+    background: rgba(var(--primary-500-rgb), 0.1);
 
     .icon {
-      stroke: white;
+      stroke: var(--text-primary);
     }
   }
 
   &.active {
-    background: var(--primary-color);
-    border-color: var(--primary-color);
+    background: rgba(var(--primary-500-rgb), 0.15);
 
     .icon {
-      stroke: white;
+      stroke: var(--primary-color);
     }
   }
 }

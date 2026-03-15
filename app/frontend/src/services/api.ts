@@ -46,9 +46,26 @@ const mockStreamersApi = {
     display_name: username,
     profile_image_url: 'https://static-cdn.jtvnw.net/user-default-pictures-uv/cdd517fe-def4-11e9-948e-784f43822e80-profile_image-300x300.png'
   }),
-  getStreams: (streamerId: number) => mockResponse({
-    streams: mockVideos.filter(video => video.streamer_id === streamerId)
-  }),
+  getStreams: (streamerId: number) => {
+    const streamerVideos = mockVideos.filter(video => video.streamer_id === streamerId)
+    // Map mock videos to stream format expected by StreamCard
+    const streams = streamerVideos.map(video => {
+      const startDate = new Date(video.recorded_at)
+      const endDate = new Date(startDate.getTime() + (video.duration || 3600) * 1000)
+      return {
+        id: video.id,
+        streamer_id: video.streamer_id,
+        title: video.title,
+        category_name: video.category_name,
+        started_at: startDate.toISOString(),
+        ended_at: endDate.toISOString(),
+        recording_path: video.file_path,
+        is_recording: false,
+        is_live: false,
+      }
+    })
+    return mockResponse({ streams })
+  },
   deleteAllStreams: (streamerId: number) => mockResponse({ success: true, streamerId }),
   deleteStream: (streamerId: number, streamId: number) => mockResponse({ success: true, streamerId, streamId }),
   getStreamChapters: (_streamerId: number, _streamId: number) => mockResponse({ chapters: [] }),
