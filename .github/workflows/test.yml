@@ -171,6 +171,9 @@ jobs:
           docker run -d --name streamvault-test \
             -p 7000:7000 \
             -e DATABASE_URL=sqlite:///./test.db \
+            -e TWITCH_APP_ID=ci_test_placeholder \
+            -e TWITCH_APP_SECRET=ci_test_placeholder \
+            -e BASE_URL=http://localhost:7000 \
             streamvault:test
 
           # Wait for container to be healthy with retries
