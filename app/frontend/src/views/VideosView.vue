@@ -463,11 +463,6 @@ onMounted(() => {
 .header-content {
   flex: 1;
   min-width: 250px;
-  
-  @include m.respond-below('sm') {
-    min-width: 100%;
-    flex-basis: 100%;
-  }
 }
 
 .page-title {
@@ -922,6 +917,17 @@ onMounted(() => {
     align-items: stretch;
   }
 
+}
+
+@include m.respond-below('md') {  // < 768px
+  .view-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .header-content {
+    width: 100%;
+  }
 }
 
 @include m.respond-below('sm') {  // < 640px

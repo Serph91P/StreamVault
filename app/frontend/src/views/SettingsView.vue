@@ -3,11 +3,18 @@
     <!-- Header -->
     <div class="view-header">
       <div class="header-content">
-        <h1 class="page-title">
+        <h1 class="page-title desktop-settings-title">
           <svg class="icon-title">
             <use href="#icon-settings" />
           </svg>
           Settings
+        </h1>
+        <!-- Mobile: Show active section name instead of "Settings" -->
+        <h1 class="page-title mobile-settings-title">
+          <svg class="icon-title">
+            <use :href="`#icon-${activeSectionData?.icon || 'settings'}`" />
+          </svg>
+          {{ activeSectionData?.label || 'Settings' }}
         </h1>
       </div>
 
@@ -36,7 +43,25 @@
 
     <!-- Settings Layout -->
     <div v-else class="settings-layout">
-      <!-- Sidebar Navigation -->
+      <!-- Mobile Section Selector -->
+      <div class="mobile-section-selector">
+        <div class="select-wrapper">
+          <svg class="select-icon">
+            <use href="#icon-menu" />
+          </svg>
+          <select v-model="activeSection" class="section-select">
+            <option
+              v-for="section in sections"
+              :key="section.id"
+              :value="section.id"
+            >
+              {{ section.label }}
+            </option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Sidebar Navigation (desktop only) -->
       <aside class="settings-sidebar">
         <nav class="settings-nav">
           <button
@@ -271,7 +296,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useNotificationSettings } from '@/composables/useNotificationSettings'
 import { useRecordingSettings } from '@/composables/useRecordingSettings'
 import { useWebSocket } from '@/composables/useWebSocket'
@@ -336,6 +361,7 @@ const sections = [
 
 // State
 const activeSection = ref('twitch')  // Start with Twitch connection (most important)
+const activeSectionData = computed(() => sections.find(s => s.id === activeSection.value))
 const isLoading = ref(true)
 const hasUnsavedChanges = ref(false)
 
@@ -1085,6 +1111,16 @@ onMounted(() => {
   }
 }
 
+// Mobile section selector - hidden on desktop
+.mobile-section-selector {
+  display: none;
+}
+
+// Title variants - by default show desktop, hide mobile
+.mobile-settings-title {
+  display: none !important;
+}
+
 // Animations
 @keyframes fade-in {
   from {
@@ -1102,25 +1138,65 @@ onMounted(() => {
     grid-template-columns: 1fr;
   }
 
+  // Hide desktop sidebar, show mobile selector
   .settings-sidebar {
-    position: static;
-    overflow-x: auto;
-    padding: var(--spacing-3);
+    display: none;
   }
 
-  .settings-nav {
-    flex-direction: row;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
+  .mobile-section-selector {
+    display: block;
+    margin-bottom: var(--spacing-4);
+  }
 
-    &::-webkit-scrollbar {
-      display: none;
+  .section-select {
+    width: 100%;
+    padding: var(--spacing-3) var(--spacing-4);
+    padding-left: var(--spacing-10);
+    background: var(--background-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    color: var(--text-primary);
+    font-size: var(--text-base);
+    font-weight: v.$font-medium;
+    appearance: none;
+    cursor: pointer;
+    min-height: 48px;
+    
+    &:focus {
+      outline: 2px solid var(--primary-color);
+      outline-offset: -2px;
+    }
+  }
+  
+  .mobile-section-selector .select-wrapper {
+    position: relative;
+    
+    .select-icon {
+      position: absolute;
+      left: var(--spacing-3);
+      top: 50%;
+      transform: translateY(-50%);
+      width: 20px;
+      height: 20px;
+      stroke: var(--text-secondary);
+      fill: none;
+      pointer-events: none;
+      z-index: 1;
     }
   }
 
-  .nav-item {
-    flex-shrink: 0;
-    min-width: 180px;
+  // Switch titles
+  .desktop-settings-title {
+    display: none !important;
+  }
+  
+  .mobile-settings-title {
+    display: flex !important;
+  }
+
+  // Hide section header on mobile (already shown in mobile page title)
+  .section-header {
+    display: none;
   }
 
   .nav-indicator {
@@ -1128,11 +1204,7 @@ onMounted(() => {
   }
 }
 
-@include m.respond-below('sm') {  // < 640px
-  .settings-view {
-    padding: var(--spacing-4) var(--spacing-3);
-  }
-  
+@include m.respond-below('md') {  // < 768px
   .view-header {
     flex-direction: column;
     align-items: stretch;
@@ -1141,6 +1213,12 @@ onMounted(() => {
   
   .header-content {
     width: 100%;
+  }
+}
+
+@include m.respond-below('sm') {  // < 640px
+  .settings-view {
+    padding: var(--spacing-4) var(--spacing-3);
   }
 
   .page-title {
@@ -1161,40 +1239,6 @@ onMounted(() => {
       min-height: 44px;  // Touch-friendly
       justify-content: center;
     }
-  }
-
-  .settings-sidebar {
-    padding: 0;  // Remove padding for better scroll snap
-    margin: 0 calc(-1 * var(--spacing-3));  // Extend to viewport edges
-    padding: var(--spacing-2) var(--spacing-3);  // Inner padding
-  }
-
-  .settings-nav {
-    gap: var(--spacing-2);
-    scroll-snap-type: x mandatory;  // Enable snap scrolling
-    scroll-padding: var(--spacing-3);
-  }
-
-  .nav-item {
-    min-width: 140px;
-    min-height: 44px;  // Touch-friendly
-    scroll-snap-align: start;  // Snap to start of item
-    padding: var(--spacing-3);
-    
-    // Enhance visual feedback on mobile
-    &.active {
-      box-shadow: var(--shadow-md);
-      transform: scale(1.02);
-    }
-  }
-
-  .nav-description {
-    display: none;  // Hide descriptions on mobile for cleaner look
-  }
-  
-  .nav-label {
-    font-size: var(--text-sm);
-    font-weight: 600;
   }
 
   // Reduce card-content padding on mobile for better content visibility

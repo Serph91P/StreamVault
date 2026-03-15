@@ -682,3 +682,95 @@ $glass-shadow-xl: 0 12px 48px rgba(0, 0, 0, 0.3);
     animation: pulse-dot 2s ease-in-out infinite;
   }
 }
+
+// ============================================================================
+// GLASS POPUP PANEL — Shared overlay for notifications, background jobs, etc.
+// Usage: .glass-popup-backdrop + .glass-popup-panel > .glass-popup-header + content
+// ============================================================================
+
+.glass-popup-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  z-index: 10000;
+
+  @include m.respond-below('lg') {
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+}
+
+.glass-popup-panel {
+  position: fixed;
+  z-index: 10001;
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(var(--glass-blur-xl));
+  -webkit-backdrop-filter: blur(var(--glass-blur-xl));
+  border: 1px solid var(--glass-border-hover);
+  box-shadow: var(--glass-shadow-xl), var(--glass-glow), inset 0 0 0 1px var(--glass-highlight);
+
+  @supports not (backdrop-filter: blur(1px)) {
+    background: var(--glass-bg-solid);
+  }
+
+  // Desktop: dropdown from header
+  top: 72px;
+  right: var(--spacing-4);
+  width: min(420px, 90vw);
+  max-height: 70vh;
+  overflow-y: auto;
+
+  // Full-screen overlay for tablets and below
+  @include m.respond-below('lg') {
+    top: 0;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    max-height: 100dvh;
+    height: 100dvh;
+    border-radius: 0;
+    display: flex;
+    flex-direction: column;
+
+    .glass-popup-header {
+      flex-shrink: 0;
+      border-radius: 0;
+    }
+  }
+}
+
+.glass-popup-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--glass-border-hover);
+  background: var(--glass-bg-subtle);
+  backdrop-filter: blur(var(--glass-blur-sm));
+  -webkit-backdrop-filter: blur(var(--glass-blur-sm));
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  box-shadow: inset 0 1px 0 0 var(--glass-highlight-strong);
+
+  h3 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+}
+
+.glass-popup-content {
+  padding: 24px;
+  overflow-y: auto;
+
+  @include m.respond-below('lg') {
+    flex: 1;
+    max-height: none;
+  }
+}

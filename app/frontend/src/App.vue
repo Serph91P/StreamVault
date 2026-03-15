@@ -371,14 +371,14 @@
           <span class="app-logo" aria-label="StreamVault">StreamVault</span>
           
           <div class="header-actions">
-            <!-- Background Queue Monitor (always visible) -->
-            <BackgroundQueueMonitor />
+            <!-- Background Queue Monitor (indicator hidden on mobile, panel still works) -->
+            <BackgroundQueueMonitor ref="queueMonitorRef" />
             
-            <!-- Notification Bell - visible on ALL screen sizes -->
+            <!-- Desktop: Show all buttons inline -->
             <button
               ref="notificationBellRef"
               @click.stop="toggleNotifications"
-              class="glass-btn-icon"
+              class="glass-btn-icon desktop-only"
               :class="{ 'has-badge': unreadCount > 0 }"
               aria-label="Notifications"
             >
@@ -388,26 +388,79 @@
               <span v-if="unreadCount > 0" class="badge">{{ unreadCount > 99 ? '99+' : unreadCount }}</span>
             </button>
             
-            <!-- Theme Toggle - always visible -->
-            <ThemeToggle />
+            <div class="desktop-only">
+              <ThemeToggle />
+            </div>
             
-            <!-- Logout - desktop only -->
-            <button @click="logout" class="glass-btn-danger header-logout-btn">
+            <button @click="logout" class="glass-btn-danger header-logout-btn desktop-only">
               <svg><use href="#icon-log-out" /></svg>
               <span class="logout-text">Logout</span>
+            </button>
+            
+            <!-- Mobile: Hamburger menu -->
+            <button
+              @click.stop="toggleMobileMenu"
+              class="glass-btn-icon mobile-only"
+              aria-label="Menu"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="3" y1="6" x2="21" y2="6" />
+                <line x1="3" y1="12" x2="21" y2="12" />
+                <line x1="3" y1="18" x2="21" y2="18" />
+              </svg>
             </button>
           </div>
         </div>
       </header>
+      
+      <!-- Mobile Menu Dropdown -->
+      <Teleport to="body">
+        <Transition name="fade">
+          <div v-if="showMobileMenu" class="mobile-menu-backdrop" @click="closeMobileMenu"></div>
+        </Transition>
+        <Transition name="slide-down">
+          <div v-if="showMobileMenu" class="mobile-menu-panel" @click.stop>
+            <button
+              @click.stop="openJobsFromMenu"
+              class="mobile-menu-item"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 5v14M5 12h14" />
+              </svg>
+              <span>Background Jobs</span>
+              <span v-if="jobCount > 0" class="badge mobile-badge">{{ jobCount }}</span>
+            </button>
+            <button
+              @click.stop="openNotificationsFromMenu"
+              class="mobile-menu-item"
+            >
+              <svg><use href="#icon-bell" /></svg>
+              <span>Notifications</span>
+              <span v-if="unreadCount > 0" class="badge mobile-badge">{{ unreadCount > 99 ? '99+' : unreadCount }}</span>
+            </button>
+            <div class="mobile-menu-item theme-menu-item">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+              </svg>
+              <span>Theme</span>
+              <ThemeToggle />
+            </div>
+            <button @click="logoutFromMenu" class="mobile-menu-item mobile-menu-danger">
+              <svg><use href="#icon-log-out" /></svg>
+              <span>Logout</span>
+            </button>
+          </div>
+        </Transition>
+      </Teleport>
     
       <!-- Notification Panel -->
       <Teleport to="body">
         <Transition name="fade">
-          <div v-if="showNotifications" class="notification-backdrop" @click="closeNotificationPanel"></div>
+          <div v-if="showNotifications" class="glass-popup-backdrop" @click="closeNotificationPanel"></div>
         </Transition>
         <Transition name="slide-up">
-          <div v-if="showNotifications" ref="notificationPanelRef" class="notification-panel glass-overlay">
-            <div class="notification-panel-header">
+          <div v-if="showNotifications" ref="notificationPanelRef" class="glass-popup-panel notification-panel">
+            <div class="glass-popup-header">
               <h3>Notifications</h3>
               <button class="glass-btn-icon" @click="closeNotificationPanel" aria-label="Close notifications">
                 <svg><use href="#icon-x" /></svg>
@@ -427,7 +480,7 @@
     <!-- Navigation Wrapper with Bottom Nav + Sidebar (only on authenticated pages) -->
     <NavigationWrapper v-if="!isAuthPage">
       <router-view v-slot="{ Component }">
-        <transition name="page" mode="out-in">
+        <transition name="page" mode="out-in" @before-enter="scrollToTop">
           <component :is="Component" />
         </transition>
       </router-view>
@@ -435,7 +488,7 @@
     
     <!-- Auth pages without navigation -->
     <router-view v-else v-slot="{ Component }">
-      <transition name="page" mode="out-in">
+      <transition name="page" mode="out-in" @before-enter="scrollToTop">
         <component :is="Component" />
       </transition>
     </router-view>
@@ -474,6 +527,13 @@ const toast = useToast()
 
 // Check if current route is an auth page
 const route = useRoute()
+
+// Scroll to top on every route change (belt-and-suspenders with router.afterEach)
+watch(() => route.fullPath, () => {
+  document.documentElement.scrollTop = 0
+  document.body.scrollTop = 0
+})
+
 const isAuthPage = computed(() => {
   const authPaths = ['/auth/login', '/auth/setup', '/welcome']
   return authPaths.includes(route.path)
@@ -505,6 +565,43 @@ async function logout() {
   if (confirm('Are you sure you want to logout?')) {
     await authLogout()
   }
+}
+
+// Mobile hamburger menu
+const showMobileMenu = ref(false)
+const queueMonitorRef = ref(null)
+
+const jobCount = computed(() => {
+  return queueMonitorRef.value?.taskCount?.value?.length ?? 0
+})
+
+function toggleMobileMenu() {
+  showMobileMenu.value = !showMobileMenu.value
+}
+
+function closeMobileMenu() {
+  showMobileMenu.value = false
+}
+
+function openJobsFromMenu() {
+  closeMobileMenu()
+  queueMonitorRef.value?.togglePanel()
+}
+
+function openNotificationsFromMenu() {
+  closeMobileMenu()
+  toggleNotifications()
+}
+
+async function logoutFromMenu() {
+  closeMobileMenu()
+  await logout()
+}
+
+// Scroll to top on page transitions (for out-in mode)
+function scrollToTop() {
+  document.documentElement.scrollTop = 0
+  document.body.scrollTop = 0
 }
 
 // Process toast notifications from WebSocket - uses unified useToast system
@@ -695,6 +792,8 @@ watch(() => messages.value.length, (newLength) => {
 
 function toggleNotifications() {
   showNotifications.value = !showNotifications.value
+  // Lock/unlock body scroll when panel is open on mobile
+  document.body.style.overflow = showNotifications.value ? 'hidden' : ''
 }
 
 function markAsRead() {
@@ -726,6 +825,7 @@ async function clearAllNotifications() {
 function closeNotificationPanel() {
   if (showNotifications.value) {
     showNotifications.value = false
+    document.body.style.overflow = ''
     markAsRead() // Mark as read when panel closes
   }
 }
@@ -905,7 +1005,7 @@ watch(messages, (newMessages) => {
   }
 }
 
-.header-content {
+.app-header .header-content {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -936,6 +1036,122 @@ watch(messages, (newMessages) => {
   
   @include m.respond-to('md') {
     gap: var(--spacing-2);
+  }
+}
+
+// Hide elements on mobile, show on desktop
+.desktop-only {
+  display: none !important;
+  
+  @include m.respond-to('md') {
+    display: flex !important;
+    align-items: center;
+  }
+}
+
+// Show elements on mobile only, hide on desktop
+.mobile-only {
+  display: flex;
+  align-items: center;
+  
+  @include m.respond-to('md') {
+    display: none;
+  }
+}
+
+// ============================================================================
+// MOBILE MENU
+// ============================================================================
+
+.mobile-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.3);
+  z-index: 10000;
+}
+
+.mobile-menu-panel {
+  position: fixed;
+  top: 64px;
+  right: var(--spacing-3);
+  width: min(260px, 80vw);
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(var(--glass-blur-lg));
+  -webkit-backdrop-filter: blur(var(--glass-blur-lg));
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--glass-shadow-lg);
+  z-index: 10001;
+  padding: var(--spacing-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  
+  @supports not (backdrop-filter: blur(1px)) {
+    background: var(--glass-bg-solid);
+  }
+}
+
+.mobile-menu-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  padding: var(--spacing-3) var(--spacing-4);
+  background: none;
+  border: none;
+  border-radius: var(--radius-lg);
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  font-weight: v.$font-medium;
+  cursor: pointer;
+  transition: background v.$duration-200 v.$ease-out;
+  width: 100%;
+  text-align: left;
+  
+  svg {
+    width: 20px;
+    height: 20px;
+    stroke: var(--text-secondary);
+    fill: none;
+    flex-shrink: 0;
+  }
+  
+  span {
+    flex: 1;
+  }
+  
+  .mobile-badge {
+    position: static;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 4px;
+    background: var(--danger-color);
+    color: white;
+    font-size: 10px;
+    font-weight: v.$font-bold;
+    border-radius: var(--radius-full);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  &:hover {
+    background: var(--glass-bg-subtle);
+  }
+  
+  &.mobile-menu-danger {
+    color: var(--danger-color);
+    
+    svg {
+      stroke: var(--danger-color);
+    }
+  }
+}
+
+.theme-menu-item {
+  // Push the ThemeToggle to the right
+  :deep(.icon-btn) {
+    margin-left: auto;
   }
 }
 
@@ -974,64 +1190,21 @@ watch(messages, (newMessages) => {
 }
 
 // ============================================================================
-// NOTIFICATION PANEL - Glass overlay
+// NOTIFICATION PANEL — overrides on top of shared .glass-popup-panel
 // ============================================================================
 
-.notification-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.3);
-  z-index: 10000;
-  
-  @include m.respond-below('md') {
-    background: rgba(0, 0, 0, 0.5);
-    backdrop-filter: blur(4px);
-    -webkit-backdrop-filter: blur(4px);
-  }
-}
-
 .notification-panel {
-  position: fixed;
-  z-index: 10001;
-  border-radius: var(--radius-xl);
-  overflow: hidden;
-  
-  // Desktop: dropdown from header
-  top: 72px;
-  right: var(--spacing-4);
-  width: min(400px, 90vw);
-  max-height: 70vh;
-  overflow-y: auto;
-  
-  // Mobile: bottom sheet
-  @include m.respond-below('md') {
-    top: auto;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    width: 100%;
-    max-height: 75vh;
-    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
-    
-    // Hide the internal feed header on mobile since we have our own
-    :deep(.feed-header) {
-      display: none;
-    }
+  // Hide the internal feed header — panel has its own header
+  // Must beat scoped selector specificity: .feed-header[data-v-xxx]
+  .notification-feed .feed-header {
+    display: none !important;
   }
-}
-
-.notification-panel-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: var(--spacing-4);
-  border-bottom: 1px solid var(--glass-border);
   
-  h3 {
-    margin: 0;
-    font-size: var(--text-lg);
-    font-weight: v.$font-semibold;
-    color: var(--text-primary);
+  @include m.respond-below('lg') {
+    .notification-feed {
+      flex: 1;
+      overflow-y: auto;
+    }
   }
 }
 
@@ -1063,6 +1236,20 @@ watch(messages, (newMessages) => {
   opacity: 0;
 }
 
+// Slide-down transition for mobile menu
+.slide-down-enter-active,
+.slide-down-leave-active {
+  transition: transform v.$duration-200 v.$ease-out, opacity v.$duration-150 v.$ease-out;
+}
+.slide-down-enter-from {
+  transform: translateY(-10px);
+  opacity: 0;
+}
+.slide-down-leave-to {
+  transform: translateY(-5px);
+  opacity: 0;
+}
+
 // Page transitions
 .page-enter-active,
 .page-leave-active {
@@ -1075,7 +1262,7 @@ watch(messages, (newMessages) => {
 
 // Mobile header styles
 @include m.respond-below('md') {
-  .header-content {
+  .app-header .header-content {
     padding: 0 var(--spacing-3);
   }
 }

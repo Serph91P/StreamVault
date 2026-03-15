@@ -57,6 +57,7 @@
 
           <!-- Video Player - directly in card, no wrapper -->
           <VideoPlayer
+            ref="videoPlayerRef"
             :video-src="chapterData.video_url"
             :chapters="chapterData.chapters"
             :stream-title="chapterData.stream_title"
@@ -244,6 +245,7 @@ const shareUrl = ref<string | null>(null)
 const copied = ref(false)
 const showDeleteModal = ref(false)
 const shareUrlInput = ref<HTMLInputElement | null>(null)
+const videoPlayerRef = ref<InstanceType<typeof VideoPlayer> | null>(null)
 
 const loadChapterData = async () => {
   try {
@@ -305,8 +307,8 @@ const goBack = () => {
 }
 
 // Video player event handlers
-const onChapterChange = (chapter: any, index: number) => {
-  console.log('Chapter changed:', chapter.title, 'at index:', index)
+const onChapterChange = (_chapter: any, index: number) => {
+  currentChapterIndex.value = index
 }
 
 const onVideoReady = (duration: number) => {
@@ -346,8 +348,20 @@ const formattedDate = computed(() => {
 const currentChapterIndex = ref(0)
 
 const seekToChapter = (chapter: any) => {
-  console.log('Seeking to chapter:', chapter.title)
-  // The VideoPlayer component handles actual seeking
+  const seconds = parseTimeToSeconds(chapter.start_time)
+  videoPlayerRef.value?.seekToChapter(seconds)
+}
+
+/** Parse time string (e.g. "1:23:45" or "5:30") to seconds */
+const parseTimeToSeconds = (timeString: string): number => {
+  if (!timeString) return 0
+  const parts = timeString.split(':')
+  if (parts.length === 2) {
+    return parseInt(parts[0]) * 60 + parseFloat(parts[1])
+  } else if (parts.length === 3) {
+    return parseInt(parts[0]) * 3600 + parseInt(parts[1]) * 60 + parseFloat(parts[2])
+  }
+  return 0
 }
 
 // ============================================================================
@@ -608,9 +622,9 @@ onMounted(() => {
   gap: var(--spacing-3);
   padding: var(--spacing-3) var(--spacing-4);
   
-  @include m.respond-below('sm') {
+  @include m.respond-below('md') {
     flex-wrap: wrap;
-    padding: var(--spacing-2) var(--spacing-3);
+    padding: var(--spacing-3);
   }
 }
 
@@ -618,16 +632,17 @@ onMounted(() => {
   display: inline-flex;
   align-items: center;
   gap: var(--spacing-2);
-  padding: var(--spacing-2) var(--spacing-3);
+  padding: var(--spacing-2) var(--spacing-4);
   background: var(--background-darker);
   color: var(--text-primary);
   border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   font-weight: v.$font-medium;
   font-size: var(--text-sm);
   cursor: pointer;
   transition: all v.$duration-200 v.$ease-out;
   flex-shrink: 0;
+  min-height: 36px;
 
   .icon {
     width: 16px;
@@ -641,6 +656,12 @@ onMounted(() => {
     border-color: var(--primary-color);
     color: white;
   }
+  
+  @include m.respond-below('md') {
+    min-height: 44px;  // Touch-friendly
+    padding: var(--spacing-2) var(--spacing-4);
+    font-size: var(--text-sm);
+  }
 }
 
 .video-title {
@@ -653,7 +674,16 @@ onMounted(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   
-  @include m.respond-below('sm') {
+  @include m.respond-below('lg') {
+    white-space: normal;
+    overflow: visible;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+  
+  @include m.respond-below('md') {
     font-size: var(--text-base);
     order: 3;
     flex-basis: 100%;
@@ -784,7 +814,7 @@ onMounted(() => {
 // ============================================================================
 
 .chapters-card {
-  max-height: 250px;
+  max-height: none;
   display: flex;
   flex-direction: column;
   
@@ -792,6 +822,10 @@ onMounted(() => {
     display: flex;
     flex-direction: column;
     overflow: hidden;
+  }
+  
+  @include m.respond-to('lg') {
+    max-height: 350px;
   }
 }
 
@@ -821,25 +855,22 @@ onMounted(() => {
 
 .chapter-item {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: var(--spacing-2);
-  padding: var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-3);
   background: var(--background-darker);
   border-radius: var(--radius-sm);
   cursor: pointer;
   transition: all v.$duration-150 v.$ease-out;
-  min-width: 0;  // Allow flex item to shrink
+  min-width: 0;
   max-width: 100%;
-  overflow: hidden;
   
   &:hover {
     background: rgba(var(--primary-500-rgb), 0.15);
-    padding-left: var(--spacing-3);
   }
   
   &.active {
     background: rgba(var(--primary-500-rgb), 0.2);
-    border-left: 2px solid var(--primary-color);
   }
 }
 
@@ -851,29 +882,24 @@ onMounted(() => {
   background: rgba(var(--primary-500-rgb), 0.1);
   padding: 2px 6px;
   border-radius: var(--radius-sm);
-  
-  @include m.respond-below('sm') {
-    font-size: 10px;
-    padding: 2px 4px;
-  }
+  white-space: nowrap;
+  margin-top: 2px;
 }
 
 .chapter-title {
-  font-size: var(--text-xs);
+  font-size: var(--text-sm);
   color: var(--text-primary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  min-width: 0;  // Allow text to shrink
-  flex: 1;  // Take remaining space but allow shrinking
+  line-height: 1.4;
+  min-width: 0;
+  flex: 1;
+  word-break: break-word;
   
-  @include m.respond-below('sm') {
-    white-space: normal;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
-    -webkit-box-orient: vertical;
-    word-break: break-word;
+  // On desktop sidebar, truncate with ellipsis
+  @include m.respond-to('lg') {
+    font-size: var(--text-xs);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 }
 
@@ -884,11 +910,11 @@ onMounted(() => {
 .action-buttons {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-2);
+  gap: var(--spacing-3);
   max-width: 100%;
   
   @include m.respond-below('sm') {
-    gap: var(--spacing-1-5);
+    gap: var(--spacing-2);
   }
 }
 
@@ -1130,36 +1156,8 @@ onMounted(() => {
     gap: var(--spacing-2);
   }
   
-  .back-button {
-    padding: var(--spacing-1-5) var(--spacing-2);
-    font-size: var(--text-xs);
-    
-    .icon {
-      width: 14px;
-      height: 14px;
-    }
-  }
-  
   .video-title {
     font-size: var(--text-sm);
-    white-space: normal;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
-    -webkit-box-orient: vertical;
-    order: 3;
-    flex-basis: 100%;
-    margin-top: var(--spacing-1);
-  }
-  
-  .streamer-badge {
-    padding: var(--spacing-0-5) var(--spacing-2);
-    font-size: var(--text-xs);
-    
-    .icon-streamer {
-      width: 12px;
-      height: 12px;
-    }
   }
   
   .info-title {
@@ -1181,13 +1179,9 @@ onMounted(() => {
     font-size: var(--text-xs);
   }
   
-  .chapters-card {
-    max-height: 200px;
-  }
-  
   .chapter-item {
-    padding: var(--spacing-1-5);
-    gap: var(--spacing-1-5);
+    padding: var(--spacing-2);
+    gap: var(--spacing-2);
   }
   
   .action-btn {

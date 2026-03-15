@@ -14,24 +14,15 @@ const StreamersView = () => import('../views/StreamersView.vue');
 const VideoPlayerView = () => import('../views/VideoPlayerView.vue');
 const VideosView = () => import('../views/VideosView.vue');
 
+// Disable browser's native scroll restoration so we control scroll manually
+if ('scrollRestoration' in history) {
+  history.scrollRestoration = 'manual'
+}
+
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
-  // FIXED: Always scroll to top when navigating to new page
-  scrollBehavior(to, from, savedPosition) {
-    // If user clicked back/forward button, restore position
-    if (savedPosition) {
-      return savedPosition
-    }
-    // Hash link (e.g., #section) - scroll to element
-    if (to.hash) {
-      return {
-        el: to.hash,
-        behavior: 'smooth'
-      }
-    }
-    // Always scroll to top for new navigation (CRITICAL FIX)
-    // Use immediate scroll to prevent position persistence bug
-    return { top: 0, left: 0, behavior: 'auto' }
+  scrollBehavior() {
+    return { top: 0, left: 0 }
   },
   routes: [
     {
@@ -206,5 +197,11 @@ router.beforeEach(async (to, from, next) => {
     return next();
   }
 });
+
+// Scroll to top after every navigation
+router.afterEach(() => {
+  document.documentElement.scrollTop = 0
+  document.body.scrollTop = 0
+})
 
 export default router;

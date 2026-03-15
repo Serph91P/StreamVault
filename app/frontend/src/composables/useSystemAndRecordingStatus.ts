@@ -16,6 +16,9 @@ import { ref, computed, onMounted, onUnmounted, watch, readonly } from 'vue'
 import { useWebSocket } from './useWebSocket'
 import { logDebug, logError, logWebSocket } from '@/utils/logger'
 
+// Mock mode check
+const USE_MOCK_DATA = import.meta.env.VITE_USE_MOCK_DATA === 'true'
+
 // Configuration constants
 const _TIMEOUT_THRESHOLD_MS = 45000 // 45 seconds - fallback to REST if no WebSocket updates
 
@@ -232,6 +235,35 @@ export function useSystemAndRecordingStatus() {
   
   // Fetch all status data
   const fetchAllStatus = async (useCache = true): Promise<void> => {
+    // Mock mode: populate with realistic data without hitting backend
+    if (USE_MOCK_DATA) {
+      systemStatus.value = {
+        active_recordings: 1,
+        total_streamers: 4,
+        live_streamers: 2,
+        timestamp: new Date().toISOString()
+      }
+      activeRecordings.value = [{
+        id: 1, stream_id: 101, streamer_id: 1, streamer_name: 'streamer_alpha',
+        title: 'Just Chatting with Chat!', started_at: new Date(Date.now() - 3600000).toISOString(),
+        file_path: '/recordings/streamer_alpha/2025-03-14.mp4', status: 'recording', duration: 3600
+      }]
+      streamersStatus.value = [
+        { id: 1, name: 'streamer_alpha', display_name: 'Streamer Alpha', twitch_id: '12345', is_live: true, is_recording: true, is_favorite: true, auto_record: true, last_seen: new Date().toISOString(), current_title: 'Just Chatting with Chat!', current_category: 'Just Chatting' },
+        { id: 2, name: 'speedrunner_pro', display_name: 'Speedrunner Pro', twitch_id: '23456', is_live: true, is_recording: false, is_favorite: false, auto_record: true, last_seen: new Date().toISOString(), current_title: 'Ranked Climbing Session', current_category: 'Competitive Gaming' },
+        { id: 3, name: 'retro_gamer', display_name: 'Retro Gamer', twitch_id: '34567', is_live: false, is_recording: false, is_favorite: true, auto_record: false, last_seen: null, current_title: null, current_category: null },
+        { id: 4, name: 'creative_coder', display_name: 'Creative Coder', twitch_id: '45678', is_live: false, is_recording: false, is_favorite: false, auto_record: true, last_seen: null, current_title: null, current_category: null }
+      ]
+      streamsStatus.value = []
+      notificationsStatus.value = {
+        notification_system: { enabled: true, url_configured: false, active_subscriptions: 2, streamers_with_notifications: 2 },
+        recent_events: [],
+        timestamp: new Date().toISOString()
+      }
+      lastUpdate.value = new Date()
+      return
+    }
+
     await Promise.all([
       fetchSystemStatus(useCache),
       fetchActiveRecordings(useCache),
