@@ -66,151 +66,99 @@ jobs:
       - name: Determine version
         id: version
         run: |
-          # =============================================================
-          # Semantic Version Calculation Strategy:
-          # - Analyzes commit messages since last tag (Conventional Commits)
-          # - MAJOR bump: feat!:, fix!:, any type with !, BREAKING CHANGE in body
-          # - MINOR bump: feat:, feature:, add:, refactor:, perf:
-          # - PATCH bump: fix:, docs:, chore:, test:, ci:, style:, build:
-          # - develop: vdev.X.Y.Z (pre-release)
-          # - main: vX.Y.Z (stable release)
-          # =============================================================
-          
-          # Find latest tag (either stable or dev) to get the base version
-          LATEST_STABLE_TAG=$(git tag -l "v[0-9]*.[0-9]*.[0-9]*" | grep -v "vdev" | \
-            sed 's/^v//' | sort -t. -k1,1n -k2,2n -k3,3n | tail -n1 || echo "")
-          LATEST_DEV_TAG=$(git tag -l "vdev.[0-9]*.[0-9]*.[0-9]*" | \
-            sed 's/^vdev\.//' | sort -t. -k1,1n -k2,2n -k3,3n | tail -n1 || echo "")
-          
-          echo "Latest stable tag: ${LATEST_STABLE_TAG:-none}"
-          echo "Latest dev tag: ${LATEST_DEV_TAG:-none}"
-          
-          # Determine the highest existing version as base
-          # Compare full semver (MAJOR.MINOR.PATCH) numerically
-          pick_higher_version() {
-            local v1="$1" v2="$2"
-            [ -z "$v1" ] && echo "$v2" && return
-            [ -z "$v2" ] && echo "$v1" && return
-            local v1_major=$(echo "$v1" | cut -d. -f1)
-            local v1_minor=$(echo "$v1" | cut -d. -f2)
-            local v1_patch=$(echo "$v1" | cut -d. -f3)
-            local v2_major=$(echo "$v2" | cut -d. -f1)
-            local v2_minor=$(echo "$v2" | cut -d. -f2)
-            local v2_patch=$(echo "$v2" | cut -d. -f3)
-            if [ "$v1_major" -gt "$v2_major" ]; then echo "$v1"
-            elif [ "$v1_major" -lt "$v2_major" ]; then echo "$v2"
-            elif [ "$v1_minor" -gt "$v2_minor" ]; then echo "$v1"
-            elif [ "$v1_minor" -lt "$v2_minor" ]; then echo "$v2"
-            elif [ "$v1_patch" -ge "$v2_patch" ]; then echo "$v1"
-            else echo "$v2"
-            fi
-          }
-          
-          CURRENT_VERSION=$(pick_higher_version "$LATEST_STABLE_TAG" "$LATEST_DEV_TAG")
-          if [ -z "$CURRENT_VERSION" ]; then
-            CURRENT_VERSION="2.0.0"
-          fi
-          
-          CURRENT_MAJOR=$(echo "$CURRENT_VERSION" | cut -d. -f1)
-          CURRENT_MINOR=$(echo "$CURRENT_VERSION" | cut -d. -f2)
-          CURRENT_PATCH=$(echo "$CURRENT_VERSION" | cut -d. -f3)
-          echo "Current base version: ${CURRENT_VERSION}"
-          
-          # Find the git tag for commit range (need the actual tag name)
-          LATEST_TAG_NAME=""
-          if [ "$CURRENT_VERSION" = "$LATEST_STABLE_TAG" ]; then
-            LATEST_TAG_NAME="v${LATEST_STABLE_TAG}"
-          elif [ "$CURRENT_VERSION" = "$LATEST_DEV_TAG" ]; then
-            LATEST_TAG_NAME="vdev.${LATEST_DEV_TAG}"
-          fi
-          
-          # Analyze commits since last tag for bump type
-          BUMP_TYPE="patch"  # default
-          
-          if [ -n "$LATEST_TAG_NAME" ] && git rev-parse "$LATEST_TAG_NAME" >/dev/null 2>&1; then
-            echo "Analyzing commits since ${LATEST_TAG_NAME}..."
-            COMMITS=$(git log "${LATEST_TAG_NAME}..HEAD" --pretty=format:"%s%n%b" 2>/dev/null || echo "")
-          else
-            echo "No previous tag found, analyzing last 50 commits..."
-            COMMITS=$(git log -50 --pretty=format:"%s%n%b" 2>/dev/null || echo "")
-          fi
-          
-          if [ -n "$COMMITS" ]; then
-            # Check for MAJOR bump: breaking changes
-            # Matches: feat!:, fix!:, refactor!:, any_type!:, or BREAKING CHANGE in body
-            if echo "$COMMITS" | grep -qiE "^[a-z]+(\([^)]*\))?!:|BREAKING CHANGE"; then
-              BUMP_TYPE="major"
-              echo "🔴 MAJOR bump detected (breaking change)"
-            # Check for MINOR bump: new features, refactors, performance improvements
-            elif echo "$COMMITS" | grep -qiE "^(feat|feature|add|refactor|perf)(\([^)]*\))?:"; then
-              BUMP_TYPE="minor"
-              echo "🟡 MINOR bump detected (feature/refactor/perf)"
-            else
-              BUMP_TYPE="patch"
-              echo "🟢 PATCH bump detected (fix/docs/chore/etc)"
-            fi
-          else
-            echo "No commits found, defaulting to patch bump"
-          fi
-          
-          # Calculate next version based on bump type
-          case "$BUMP_TYPE" in
-            major)
-              MAJOR=$((CURRENT_MAJOR + 1))
-              MINOR=0
-              PATCH=0
-              ;;
-            minor)
-              MAJOR=$CURRENT_MAJOR
-              MINOR=$((CURRENT_MINOR + 1))
-              PATCH=0
-              ;;
-            patch)
-              MAJOR=$CURRENT_MAJOR
-              MINOR=$CURRENT_MINOR
-              PATCH=$((CURRENT_PATCH + 1))
-              ;;
-          esac
-          
-          echo "Bump type: ${BUMP_TYPE} → ${MAJOR}.${MINOR}.${PATCH}"
-
           if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
-            # Manual tag push - use the tag as-is
+            # Manual tag push - use the tag version directly
             VERSION=${GITHUB_REF#refs/tags/v}
-            if echo "$VERSION" | grep -qi "^dev\."; then
-              VERSION=${VERSION#dev.}
-              VERSION="dev.${VERSION}"
+            if [[ "$VERSION" == *-dev* ]] || [[ "$VERSION" == dev.* ]]; then
               IS_PRERELEASE=true
-              RELEASE_TAG="vdev.${VERSION#dev.}"
+              RELEASE_TAG=${GITHUB_REF#refs/tags/}
             else
               IS_PRERELEASE=false
               RELEASE_TAG=${GITHUB_REF#refs/tags/}
             fi
-          elif [[ "${{ github.ref }}" == refs/heads/main ]]; then
-            # Main branch: stable release
-            VERSION="${MAJOR}.${MINOR}.${PATCH}"
-            IS_PRERELEASE=false
-            RELEASE_TAG="v${VERSION}"
-            echo "Main branch release: ${VERSION}"
-          elif [[ "${{ github.ref }}" == refs/heads/develop ]]; then
-            # Develop branch: pre-release
-            VERSION="dev.${MAJOR}.${MINOR}.${PATCH}"
-            IS_PRERELEASE=true
-            RELEASE_TAG="vdev.${MAJOR}.${MINOR}.${PATCH}"
-            echo "Develop branch release: ${VERSION}"
           else
-            # Other branches - shouldn't happen with current trigger config
-            VERSION="dev.${MAJOR}.${MINOR}.${PATCH}"
-            IS_PRERELEASE=true
-            RELEASE_TAG="vdev.${MAJOR}.${MINOR}.${PATCH}"
+            # Auto-version: find highest version across ALL tags (dev + stable)
+            HIGHEST_TAG=""
+            HIGHEST_MAJOR=0
+            HIGHEST_MINOR=0
+            HIGHEST_PATCH=0
+            
+            for tag in $(git tag -l 'v*'); do
+              ver="$tag"
+              ver="${ver#v}"
+              ver="${ver#dev.}"
+              ver="${ver%%-dev*}"
+              
+              M=$(echo "$ver" | cut -d. -f1)
+              m=$(echo "$ver" | cut -d. -f2)
+              P=$(echo "$ver" | cut -d. -f3)
+              
+              [[ "$M" =~ ^[0-9]+$ ]] || continue
+              [[ "$m" =~ ^[0-9]+$ ]] || continue
+              [[ "$P" =~ ^[0-9]+$ ]] || continue
+              
+              if (( M > HIGHEST_MAJOR )) || \
+                 (( M == HIGHEST_MAJOR && m > HIGHEST_MINOR )) || \
+                 (( M == HIGHEST_MAJOR && m == HIGHEST_MINOR && P > HIGHEST_PATCH )); then
+                HIGHEST_MAJOR=$M
+                HIGHEST_MINOR=$m
+                HIGHEST_PATCH=$P
+                HIGHEST_TAG="$tag"
+              fi
+            done
+            
+            echo "Highest existing version: ${HIGHEST_MAJOR}.${HIGHEST_MINOR}.${HIGHEST_PATCH} (tag: ${HIGHEST_TAG:-none})"
+            
+            # Analyze commits since last tag for conventional commit bump type
+            BUMP="patch"
+            if [ -n "$HIGHEST_TAG" ]; then
+              COMMITS=$(git log "${HIGHEST_TAG}..HEAD" --pretty=format:"%s%n%b" 2>/dev/null || echo "")
+            else
+              COMMITS=$(git log --pretty=format:"%s%n%b" 2>/dev/null || echo "")
+            fi
+            
+            if echo "$COMMITS" | grep -qiE '(^[a-z]+!:|BREAKING CHANGE)'; then
+              BUMP="major"
+            elif echo "$COMMITS" | grep -qiE '^feat(\(|:)'; then
+              BUMP="minor"
+            fi
+            
+            echo "Bump type: $BUMP"
+            
+            case "$BUMP" in
+              major)
+                NEXT_MAJOR=$((HIGHEST_MAJOR + 1))
+                NEXT_MINOR=0
+                NEXT_PATCH=0
+                ;;
+              minor)
+                NEXT_MAJOR=$HIGHEST_MAJOR
+                NEXT_MINOR=$((HIGHEST_MINOR + 1))
+                NEXT_PATCH=0
+                ;;
+              patch)
+                NEXT_MAJOR=$HIGHEST_MAJOR
+                NEXT_MINOR=$HIGHEST_MINOR
+                NEXT_PATCH=$((HIGHEST_PATCH + 1))
+                ;;
+            esac
+            
+            VERSION="${NEXT_MAJOR}.${NEXT_MINOR}.${NEXT_PATCH}"
+            
+            if [[ "${{ github.ref }}" == refs/heads/main ]]; then
+              IS_PRERELEASE=false
+              RELEASE_TAG="v${VERSION}"
+            else
+              VERSION="${VERSION}-dev"
+              IS_PRERELEASE=true
+              RELEASE_TAG="v${VERSION}"
+            fi
           fi
-
+          
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
           echo "is_prerelease=${IS_PRERELEASE}" >> $GITHUB_OUTPUT
           echo "release_tag=${RELEASE_TAG}" >> $GITHUB_OUTPUT
-          echo "=========================================="
-          echo "Final: Version=${VERSION}, Prerelease=${IS_PRERELEASE}, Tag=${RELEASE_TAG}"
-          echo "=========================================="
+          echo "Version: ${VERSION}, Prerelease: ${IS_PRERELEASE}, Tag: ${RELEASE_TAG}"
 
       - name: Docker metadata
         id: docker_meta
@@ -221,9 +169,9 @@ jobs:
             frequency2098/streamvault
           tags: |
             # For tagged releases
-            type=semver,pattern={{version}},enable=${{ startsWith(github.ref, 'refs/tags/v') }}
-            type=semver,pattern={{major}}.{{minor}},enable=${{ startsWith(github.ref, 'refs/tags/v') }}
-            type=semver,pattern={{major}},enable=${{ startsWith(github.ref, 'refs/tags/v') }}
+            type=semver,pattern={{version}},enable=${{ startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, 'dev') }}
+            type=semver,pattern={{major}}.{{minor}},enable=${{ startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, 'dev') }}
+            type=semver,pattern={{major}},enable=${{ startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, 'dev') }}
             # For main branch
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
             type=raw,value=stable,enable=${{ github.ref == 'refs/heads/main' }}
@@ -361,13 +309,13 @@ jobs:
           CURRENT_VERSION="${{ needs.prepare.outputs.version }}"
           BRANCH="${{ github.ref_name }}"
           
-          # Find the last tag based on branch
+          # Find the last tag for changelog comparison
           if [[ "$BRANCH" == "develop" ]]; then
-            LAST_TAG=$(git tag -l 'vdev.*' --sort=-version:refname | head -n1 || echo "")
-            echo "Looking for dev tags only"
+            LAST_TAG=$(git tag -l --sort=-creatordate | grep -E '(^vdev\.|.*-dev$)' | head -n1 || echo "")
+            echo "Looking for dev tags"
           else
-            LAST_TAG=$(git tag -l 'v*' --sort=-version:refname | grep -v '^vdev\.' | head -n1 || echo "")
-            echo "Looking for stable tags only"
+            LAST_TAG=$(git tag -l 'v*' --sort=-version:refname | grep -vE '(^vdev\.|.*-dev$)' | head -n1 || echo "")
+            echo "Looking for stable tags"
           fi
           
           echo "Branch: $BRANCH"
@@ -481,7 +429,7 @@ jobs:
         with:
           tag_name: ${{ needs.prepare.outputs.release_tag }}
           target_commitish: ${{ github.sha }}
-          name: ${{ github.ref_name == 'develop' && format('Development Build {0}', needs.prepare.outputs.version) || format('StreamVault {0}', needs.prepare.outputs.version) }}
+          name: ${{ needs.prepare.outputs.is_prerelease == 'true' && format('Development Build {0}', needs.prepare.outputs.version) || format('StreamVault {0}', needs.prepare.outputs.version) }}
           body_path: release_notes.md
           draft: false
           prerelease: ${{ needs.prepare.outputs.is_prerelease }}
