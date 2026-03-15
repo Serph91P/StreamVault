@@ -425,15 +425,19 @@ onUnmounted(() => {
   max-width: 400px;
   max-height: 800px;
   overflow-y: auto;
-  background: rgba(var(--background-card-rgb), 0.95);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(var(--glass-blur-lg));
+  -webkit-backdrop-filter: blur(var(--glass-blur-lg));
   border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-2xl);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: var(--glass-shadow-lg);
+  border: 1px solid var(--glass-border);
   display: flex;
   flex-direction: column;
   width: 100%;
+  
+  @supports not (backdrop-filter: blur(1px)) {
+    background: var(--glass-bg-solid);
+  }
 }
 
 @keyframes slideIn {
@@ -452,8 +456,8 @@ onUnmounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  border-bottom: 1px solid var(--border-color, #2f2f35);
-  background-color: var(--background-darker, #18181b);
+  border-bottom: 1px solid var(--glass-border);
+  background: var(--glass-bg-medium);
   position: sticky;
   top: 0;
   z-index: 10;
@@ -656,8 +660,8 @@ onUnmounted(() => {
   padding: 16px;
   margin: var(--spacing-2) var(--spacing-3);
   border-radius: var(--radius-lg);
-  background: rgba(var(--background-darker-rgb), 0.4);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: var(--glass-bg-subtle);
+  border: 1px solid var(--glass-border);
   position: relative;
   display: grid;
   grid-template-columns: auto 1fr auto;
@@ -668,8 +672,8 @@ onUnmounted(() => {
 }
 
 .notification-item:hover {
-  background: rgba(var(--background-darker-rgb), 0.6);
-  border-color: rgba(255, 255, 255, 0.1);
+  background: var(--glass-bg-medium);
+  border-color: var(--glass-border-hover);
   transform: translateY(-1px);
 }
 

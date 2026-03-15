@@ -96,28 +96,61 @@ const handleClick = (event: MouseEvent) => {
 
 <style scoped lang="scss">
 @use '@/styles/variables' as v;
-@use '@/styles/glass' as g;
+@use '@/styles/mixins' as m;
 
 .glass-card {
   position: relative;
   overflow: hidden;
+  border-radius: var(--radius-xl);
   
-  // Apply glass variants
-  &.glass-card-subtle {
-    @include g.glass-card(10px, 0.5, 0.05);
+  // Default: medium glass
+  background: var(--glass-bg-medium);
+  backdrop-filter: blur(var(--glass-blur-md));
+  -webkit-backdrop-filter: blur(var(--glass-blur-md));
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow-sm);
+  
+  @supports not (backdrop-filter: blur(1px)) {
+    background: var(--glass-bg-solid);
   }
   
-  &.glass-card-medium {
-    @include g.glass-card(20px, 0.7, 0.1);
+  &.glass-card-subtle {
+    background: var(--glass-bg-subtle);
+    backdrop-filter: blur(var(--glass-blur-sm));
+    -webkit-backdrop-filter: blur(var(--glass-blur-sm));
   }
   
   &.glass-card-strong {
-    @include g.glass-card(40px, 0.9, 0.15);
+    background: var(--glass-bg-strong);
+    backdrop-filter: blur(var(--glass-blur-lg));
+    -webkit-backdrop-filter: blur(var(--glass-blur-lg));
+    box-shadow: var(--glass-shadow-md);
   }
   
-  // Clickable cursor
+  &.glass-card-elevated {
+    box-shadow: var(--glass-shadow-lg);
+  }
+  
   &.glass-card-clickable {
     cursor: pointer;
+  }
+  
+  // Hover effects
+  &.glass-hover-lift {
+    transition: transform v.$duration-200 v.$ease-out, box-shadow v.$duration-200 v.$ease-out;
+    
+    &:hover {
+      transform: translateY(-4px);
+      box-shadow: var(--glass-shadow-lg);
+    }
+  }
+  
+  &.glass-hover-scale {
+    transition: transform v.$duration-200 v.$ease-out;
+    
+    &:hover {
+      transform: scale(1.02);
+    }
   }
 }
 
@@ -136,18 +169,17 @@ const handleClick = (event: MouseEvent) => {
   z-index: 2;
   
   &.with-padding {
-    padding: var(--spacing-6); // 24px desktop
+    padding: var(--spacing-6);
     
-    // Mobile: Reduce padding significantly for settings panels
-    @media (max-width: 767px) {
-      padding: var(--spacing-3); // 12px mobile
+    @include m.respond-below('md') {
+      padding: var(--spacing-3);
     }
   }
 
   &.padding-sm {
     padding: var(--spacing-4);
     
-    @media (max-width: 767px) {
+    @include m.respond-below('md') {
       padding: var(--spacing-2);
     }
   }
@@ -155,7 +187,7 @@ const handleClick = (event: MouseEvent) => {
   &.padding-md {
     padding: var(--spacing-5);
     
-    @media (max-width: 767px) {
+    @include m.respond-below('md') {
       padding: var(--spacing-3);
     }
   }
@@ -163,7 +195,7 @@ const handleClick = (event: MouseEvent) => {
   &.padding-lg {
     padding: var(--spacing-7);
     
-    @media (max-width: 767px) {
+    @include m.respond-below('md') {
       padding: var(--spacing-2);
     }
   }
@@ -171,12 +203,9 @@ const handleClick = (event: MouseEvent) => {
   &.padding-xl {
     padding: var(--spacing-8);
     
-    @media (max-width: 767px) {
+    @include m.respond-below('md') {
       padding: var(--spacing-2);
     }
   }
 }
-
-// Hover effects are applied via utility classes from _glass.scss
-// .glass-hover-lift and .glass-hover-scale
 </style>

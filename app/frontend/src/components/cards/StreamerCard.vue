@@ -716,8 +716,8 @@ onUnmounted(() => {
   height: 40px;
   padding: 0;
 
-  background: var(--background-card);
-  border: 1px solid var(--border-color);
+  background: var(--glass-bg-medium);
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius-lg);
 
   display: flex;
@@ -768,10 +768,12 @@ onUnmounted(() => {
 .actions-dropdown {
   position: fixed;
   
-  background: var(--background-darker);
-  border: 1px solid var(--border-color);
+  background: var(--glass-bg-solid);
+  backdrop-filter: blur(var(--glass-blur-md));
+  -webkit-backdrop-filter: blur(var(--glass-blur-md));
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius-md);
-  box-shadow: var(--shadow-xl);
+  box-shadow: var(--glass-shadow-lg);
   
   min-width: 160px;
   max-width: 180px;

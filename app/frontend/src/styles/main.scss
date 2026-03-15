@@ -3,14 +3,14 @@
 @use 'variables' as v;
 @use 'mixins' as m;
 @forward 'variables';
-@use 'glass';  // Phase 3: Glassmorphism system
+@use 'glass-system';  // Unified glassmorphism design system
 @use 'animations';
 @use 'layout';
 @use 'components';
 @use 'views';
-@use 'utilities';  // NEW: Design system utilities
-@use 'tables';  // NEW: Unified table system
-@use 'settings-panels';  // NEW: Unified settings panels design
+@use 'utilities';  // Design system utilities
+@use 'tables';  // Unified table system
+@use 'settings-panels';  // Unified settings panels design
 
 // Import FontAwesome
 @import '@fortawesome/fontawesome-free/css/all.css';

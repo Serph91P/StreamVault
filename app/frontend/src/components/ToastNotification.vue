@@ -172,11 +172,12 @@ defineExpose({
   gap: 12px;
   padding: 16px;
   margin-bottom: 12px;
-  border-radius: var(--radius-md);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--glass-shadow-md);
   cursor: pointer;
   pointer-events: auto;
-  backdrop-filter: blur(10px);
+  backdrop-filter: blur(var(--glass-blur-md));
+  -webkit-backdrop-filter: blur(var(--glass-blur-md));
   border: 1px solid transparent;
   transition: all 0.2s ease;
   max-width: 100%;

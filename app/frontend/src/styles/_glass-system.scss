@@ -1,0 +1,684 @@
+// ============================================================================
+// UNIFIED GLASSMORPHISM DESIGN SYSTEM
+// Single source of truth for all glass effects, surfaces, and components
+// ============================================================================
+
+@use 'variables' as v;
+@use 'mixins' as m;
+
+// ============================================================================
+// GLASS SURFACE TOKENS
+// ============================================================================
+
+// Glass backgrounds with consistent opacity levels
+$glass-bg-dark: rgba(15, 23, 42, 0.6);           // slate-900 @ 60%
+$glass-bg-dark-strong: rgba(15, 23, 42, 0.8);    // slate-900 @ 80%
+$glass-bg-dark-subtle: rgba(15, 23, 42, 0.4);    // slate-900 @ 40%
+$glass-bg-light: rgba(255, 255, 255, 0.6);       // white @ 60%
+$glass-bg-light-strong: rgba(255, 255, 255, 0.8);// white @ 80%
+$glass-bg-light-subtle: rgba(255, 255, 255, 0.4);// white @ 40%
+
+// Glass border colors
+$glass-border-dark: rgba(255, 255, 255, 0.08);
+$glass-border-dark-hover: rgba(255, 255, 255, 0.15);
+$glass-border-light: rgba(0, 0, 0, 0.08);
+$glass-border-light-hover: rgba(0, 0, 0, 0.15);
+
+// Glass shadows
+$glass-shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.15);
+$glass-shadow-md: 0 4px 16px rgba(0, 0, 0, 0.2);
+$glass-shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.25);
+$glass-shadow-xl: 0 12px 48px rgba(0, 0, 0, 0.3);
+
+// ============================================================================
+// CSS CUSTOM PROPERTIES FOR GLASS (theme-aware)
+// ============================================================================
+
+:root {
+  // Glass surfaces
+  --glass-bg: #{$glass-bg-dark};
+  --glass-bg-strong: #{$glass-bg-dark-strong};
+  --glass-bg-subtle: #{$glass-bg-dark-subtle};
+  --glass-bg-solid: #{v.$slate-800};
+  
+  // Glass borders
+  --glass-border: #{$glass-border-dark};
+  --glass-border-hover: #{$glass-border-dark-hover};
+  --glass-border-primary: rgba(20, 184, 166, 0.2);
+  --glass-border-primary-hover: rgba(20, 184, 166, 0.4);
+  
+  // Glass shadows
+  --glass-shadow-sm: #{$glass-shadow-sm};
+  --glass-shadow-md: #{$glass-shadow-md};
+  --glass-shadow-lg: #{$glass-shadow-lg};
+  --glass-shadow-xl: #{$glass-shadow-xl};
+  
+  // Glass highlight (top edge shimmer)
+  --glass-highlight: rgba(255, 255, 255, 0.05);
+  --glass-highlight-strong: rgba(255, 255, 255, 0.1);
+  
+  // Glass blur amounts
+  --glass-blur-sm: 8px;
+  --glass-blur-md: 16px;
+  --glass-blur-lg: 24px;
+  --glass-blur-xl: 40px;
+  
+  // Glass inner glow
+  --glass-glow: inset 0 1px 0 0 rgba(255, 255, 255, 0.05);
+}
+
+[data-theme="light"] {
+  --glass-bg: #{$glass-bg-light};
+  --glass-bg-strong: #{$glass-bg-light-strong};
+  --glass-bg-subtle: #{$glass-bg-light-subtle};
+  --glass-bg-solid: #ffffff;
+  
+  --glass-border: #{$glass-border-light};
+  --glass-border-hover: #{$glass-border-light-hover};
+  --glass-border-primary: rgba(13, 148, 136, 0.2);
+  --glass-border-primary-hover: rgba(13, 148, 136, 0.4);
+  
+  --glass-shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.06);
+  --glass-shadow-md: 0 4px 16px rgba(0, 0, 0, 0.08);
+  --glass-shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.1);
+  --glass-shadow-xl: 0 12px 48px rgba(0, 0, 0, 0.12);
+  
+  --glass-highlight: rgba(255, 255, 255, 0.5);
+  --glass-highlight-strong: rgba(255, 255, 255, 0.8);
+  
+  --glass-glow: inset 0 1px 0 0 rgba(255, 255, 255, 0.8);
+}
+
+// ============================================================================
+// GLASS SURFACE MIXINS
+// ============================================================================
+
+/// Base glass surface - the foundation for all glass elements
+/// @param {string} $strength [medium] - subtle | medium | strong
+/// @param {bool} $interactive [false] - adds hover/active states
+@mixin glass-surface($strength: medium, $interactive: false) {
+  $blur: var(--glass-blur-md);
+  $bg: var(--glass-bg);
+  
+  @if $strength == subtle {
+    $blur: var(--glass-blur-sm);
+    $bg: var(--glass-bg-subtle);
+  } @else if $strength == strong {
+    $blur: var(--glass-blur-lg);
+    $bg: var(--glass-bg-strong);
+  }
+  
+  background: $bg;
+  backdrop-filter: blur(#{$blur});
+  -webkit-backdrop-filter: blur(#{$blur});
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow-sm), var(--glass-glow);
+  
+  // Fallback for browsers without backdrop-filter
+  @supports not (backdrop-filter: blur(1px)) {
+    background: var(--glass-bg-solid);
+  }
+  
+  @if $interactive {
+    transition: all v.$duration-200 v.$ease-out;
+    cursor: pointer;
+    
+    &:hover {
+      border-color: var(--glass-border-hover);
+      box-shadow: var(--glass-shadow-md), var(--glass-glow);
+      transform: translateY(-2px);
+    }
+    
+    &:active {
+      transform: translateY(0);
+      box-shadow: var(--glass-shadow-sm);
+    }
+  }
+}
+
+// ============================================================================
+// GLASS COMPONENT CLASSES
+// ============================================================================
+
+/// Glass Card - primary content container
+.glass-card {
+  @include glass-surface(medium);
+  border-radius: var(--radius-xl);
+  padding: var(--spacing-4);
+  
+  @include m.respond-to('md') {
+    padding: var(--spacing-6);
+    border-radius: var(--radius-xl);
+  }
+  
+  &--subtle {
+    @include glass-surface(subtle);
+    border-radius: var(--radius-lg);
+    padding: var(--spacing-3);
+    
+    @include m.respond-to('md') {
+      padding: var(--spacing-4);
+    }
+  }
+  
+  &--strong {
+    @include glass-surface(strong);
+    border-radius: var(--radius-xl);
+    padding: var(--spacing-4);
+    
+    @include m.respond-to('md') {
+      padding: var(--spacing-6);
+    }
+  }
+  
+  &--interactive {
+    @include glass-surface(medium, true);
+    border-radius: var(--radius-xl);
+    padding: var(--spacing-4);
+    
+    @include m.respond-to('md') {
+      padding: var(--spacing-6);
+    }
+  }
+}
+
+/// Glass Header - app header / navigation bars
+.glass-header {
+  @include glass-surface(strong);
+  border-radius: 0;
+  border-left: none;
+  border-right: none;
+  border-top: none;
+}
+
+/// Glass Sidebar - navigation sidebar
+.glass-sidebar {
+  @include glass-surface(strong);
+  border-radius: 0;
+  border-top: none;
+  border-bottom: none;
+  border-left: none;
+}
+
+/// Glass Bottom Bar - mobile bottom navigation
+.glass-bottom-bar {
+  @include glass-surface(strong);
+  border-radius: 0;
+  border-left: none;
+  border-right: none;
+  border-bottom: none;
+}
+
+/// Glass Modal/Overlay - modals and sheets
+.glass-overlay {
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(var(--glass-blur-xl));
+  -webkit-backdrop-filter: blur(var(--glass-blur-xl));
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow-xl), var(--glass-glow);
+  
+  @supports not (backdrop-filter: blur(1px)) {
+    background: var(--glass-bg-solid);
+  }
+}
+
+/// Glass Input - form inputs and selects
+.glass-input {
+  background: var(--glass-bg-subtle);
+  backdrop-filter: blur(var(--glass-blur-sm));
+  -webkit-backdrop-filter: blur(var(--glass-blur-sm));
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-3) var(--spacing-4);
+  color: var(--text-primary);
+  font-size: var(--text-base);
+  transition: all v.$duration-200 v.$ease-out;
+  
+  &::placeholder {
+    color: var(--text-tertiary);
+  }
+  
+  &:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(var(--primary-color-rgb), 0.15);
+  }
+  
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+// ============================================================================
+// GLASS BUTTON SYSTEM
+// ============================================================================
+
+/// Base glass button
+@mixin glass-btn-base {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-4);
+  min-height: 44px; // Touch target
+  border-radius: var(--radius-lg);
+  font-size: var(--text-sm);
+  font-weight: v.$font-medium;
+  line-height: 1;
+  cursor: pointer;
+  transition: all v.$duration-200 v.$ease-out;
+  text-decoration: none;
+  border: none;
+  
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    pointer-events: none;
+  }
+  
+  &:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
+  }
+  
+  svg {
+    width: 18px;
+    height: 18px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    flex-shrink: 0;
+  }
+}
+
+/// Primary glass button
+.glass-btn {
+  @include glass-btn-base;
+  background: var(--primary-color);
+  color: var(--text-on-primary);
+  
+  &:hover:not(:disabled) {
+    background: var(--primary-hover);
+    transform: translateY(-1px);
+    box-shadow: var(--glass-shadow-md);
+  }
+  
+  &:active:not(:disabled) {
+    transform: translateY(0);
+  }
+}
+
+/// Secondary/Ghost glass button
+.glass-btn-ghost {
+  @include glass-btn-base;
+  background: var(--glass-bg-subtle);
+  backdrop-filter: blur(var(--glass-blur-sm));
+  -webkit-backdrop-filter: blur(var(--glass-blur-sm));
+  color: var(--text-primary);
+  border: 1px solid var(--glass-border);
+  
+  &:hover:not(:disabled) {
+    background: var(--glass-bg);
+    border-color: var(--glass-border-hover);
+    transform: translateY(-1px);
+  }
+  
+  &:active:not(:disabled) {
+    transform: translateY(0);
+  }
+}
+
+/// Danger glass button
+.glass-btn-danger {
+  @include glass-btn-base;
+  background: var(--danger-color);
+  color: white;
+  
+  &:hover:not(:disabled) {
+    background: var(--danger-600);
+    transform: translateY(-1px);
+    box-shadow: var(--glass-shadow-md);
+  }
+  
+  &:active:not(:disabled) {
+    transform: translateY(0);
+  }
+}
+
+/// Icon-only glass button
+.glass-btn-icon {
+  @include glass-btn-base;
+  background: transparent;
+  color: var(--text-secondary);
+  padding: var(--spacing-2);
+  min-height: 40px;
+  min-width: 40px;
+  border-radius: var(--radius-lg);
+  
+  &:hover:not(:disabled) {
+    background: var(--glass-bg-subtle);
+    color: var(--text-primary);
+  }
+  
+  &:active:not(:disabled) {
+    background: var(--glass-bg);
+  }
+  
+  // Badge variant
+  &.has-badge {
+    position: relative;
+    
+    .badge {
+      position: absolute;
+      top: 2px;
+      right: 2px;
+      min-width: 18px;
+      height: 18px;
+      padding: 0 4px;
+      background: var(--danger-color);
+      color: white;
+      font-size: 10px;
+      font-weight: v.$font-bold;
+      line-height: 18px;
+      text-align: center;
+      border-radius: var(--radius-full);
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    }
+  }
+}
+
+// ============================================================================
+// GLASS STATUS INDICATORS
+// ============================================================================
+
+.glass-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  padding: 2px var(--spacing-2);
+  border-radius: var(--radius-full);
+  font-size: 11px;
+  font-weight: v.$font-semibold;
+  line-height: 1.4;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+  
+  &--live {
+    background: rgba(239, 68, 68, 0.15);
+    color: v.$danger-400;
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    
+    &::before {
+      content: '';
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: v.$danger-400;
+      animation: pulse-dot 2s ease-in-out infinite;
+    }
+  }
+  
+  &--recording {
+    background: rgba(20, 184, 166, 0.15);
+    color: v.$primary-400;
+    border: 1px solid rgba(20, 184, 166, 0.3);
+    
+    &::before {
+      content: '';
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: v.$primary-400;
+      animation: pulse-dot 2s ease-in-out infinite;
+    }
+  }
+  
+  &--offline {
+    background: rgba(148, 163, 184, 0.1);
+    color: var(--text-tertiary);
+    border: 1px solid rgba(148, 163, 184, 0.2);
+  }
+  
+  &--success {
+    background: rgba(16, 185, 129, 0.15);
+    color: v.$success-400;
+    border: 1px solid rgba(16, 185, 129, 0.3);
+  }
+  
+  &--warning {
+    background: rgba(245, 158, 11, 0.15);
+    color: v.$warning-400;
+    border: 1px solid rgba(245, 158, 11, 0.3);
+  }
+  
+  &--error {
+    background: rgba(239, 68, 68, 0.15);
+    color: v.$danger-400;
+    border: 1px solid rgba(239, 68, 68, 0.3);
+  }
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+// ============================================================================
+// GLASS FORM ELEMENTS
+// ============================================================================
+
+.glass-select {
+  @extend .glass-input;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right var(--spacing-3) center;
+  padding-right: var(--spacing-10);
+}
+
+.glass-toggle {
+  position: relative;
+  width: 48px;
+  height: 26px;
+  border-radius: var(--radius-full);
+  background: var(--glass-bg-subtle);
+  border: 1px solid var(--glass-border);
+  cursor: pointer;
+  transition: all v.$duration-200 v.$ease-out;
+  
+  &::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--text-secondary);
+    transition: all v.$duration-200 v.$ease-out;
+  }
+  
+  &.active {
+    background: rgba(var(--primary-color-rgb), 0.3);
+    border-color: var(--primary-color);
+    
+    &::after {
+      transform: translateX(22px);
+      background: var(--primary-color);
+    }
+  }
+}
+
+.glass-textarea {
+  @extend .glass-input;
+  resize: vertical;
+  min-height: 100px;
+  line-height: v.$leading-relaxed;
+}
+
+// ============================================================================
+// GLASS SECTION HEADER
+// ============================================================================
+
+.glass-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-3);
+  margin-bottom: var(--spacing-4);
+  
+  .section-title {
+    font-size: var(--text-lg);
+    font-weight: v.$font-semibold;
+    color: var(--text-primary);
+    margin: 0;
+    
+    @include m.respond-to('md') {
+      font-size: var(--text-xl);
+    }
+  }
+  
+  .section-subtitle {
+    font-size: var(--text-sm);
+    color: var(--text-secondary);
+    margin: 0;
+  }
+  
+  .section-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-2);
+  }
+}
+
+// ============================================================================
+// GLASS EMPTY STATE
+// ============================================================================
+
+.glass-empty-state {
+  @include glass-surface(subtle);
+  border-radius: var(--radius-xl);
+  padding: var(--spacing-8) var(--spacing-4);
+  text-align: center;
+  
+  .empty-icon {
+    width: 48px;
+    height: 48px;
+    margin: 0 auto var(--spacing-4);
+    color: var(--text-tertiary);
+    opacity: 0.5;
+  }
+  
+  .empty-title {
+    font-size: var(--text-lg);
+    font-weight: v.$font-semibold;
+    color: var(--text-primary);
+    margin: 0 0 var(--spacing-2);
+  }
+  
+  .empty-message {
+    font-size: var(--text-sm);
+    color: var(--text-secondary);
+    margin: 0;
+    max-width: 320px;
+    margin-inline: auto;
+  }
+}
+
+// ============================================================================
+// GLASS LOADING SKELETON
+// ============================================================================
+
+.glass-skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--glass-bg-subtle) 0%,
+    var(--glass-bg) 50%,
+    var(--glass-bg-subtle) 100%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.5s ease-in-out infinite;
+  border-radius: var(--radius-md);
+  
+  &--text {
+    height: 14px;
+    width: 60%;
+    margin-bottom: var(--spacing-2);
+  }
+  
+  &--title {
+    height: 20px;
+    width: 40%;
+    margin-bottom: var(--spacing-3);
+  }
+  
+  &--avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: var(--radius-full);
+  }
+  
+  &--card {
+    height: 120px;
+    border-radius: var(--radius-xl);
+  }
+}
+
+@keyframes skeleton-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+// ============================================================================
+// GLASS DIVIDER
+// ============================================================================
+
+.glass-divider {
+  height: 1px;
+  background: var(--glass-border);
+  margin: var(--spacing-4) 0;
+  border: none;
+  
+  &--thick {
+    height: 2px;
+  }
+}
+
+// ============================================================================
+// GLASS TAG
+// ============================================================================
+
+.glass-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  padding: var(--spacing-1) var(--spacing-2);
+  background: var(--glass-bg-subtle);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-full);
+  font-size: 12px;
+  color: var(--text-secondary);
+  
+  img {
+    width: 14px;
+    height: 14px;
+    border-radius: 2px;
+  }
+}
+
+// ============================================================================
+// GLASS NOTIFICATION DOT
+// ============================================================================
+
+.glass-notification-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--danger-color);
+  box-shadow: 0 0 0 2px var(--background-dark);
+  
+  &--animated {
+    animation: pulse-dot 2s ease-in-out infinite;
+  }
+}

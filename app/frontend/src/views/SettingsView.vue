@@ -1058,7 +1058,7 @@ onMounted(() => {
   background: var(--background-darker);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  box-shadow: var(--glass-shadow-sm);
   color: var(--text-primary);
   text-decoration: none;
   font-size: var(--text-sm);
@@ -1077,7 +1077,7 @@ onMounted(() => {
     background: rgba(var(--primary-color-rgb), 0.1);
     color: var(--primary-color);
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    box-shadow: var(--glass-shadow-md);
   }
 
   &:active {
