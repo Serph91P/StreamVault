@@ -1843,7 +1843,10 @@ class MetadataService:
                 # Deduplicate: if the first post-stream event starts at exactly
                 # stream.started_at, the adjusted pre-stream event already covers
                 # that time slot — skip it to avoid duplicate 00:00:00 chapters
-                if post_stream_events and post_stream_events[0].timestamp == stream.started_at:
+                if (
+                    post_stream_events
+                    and post_stream_events[0].timestamp == stream.started_at
+                ):
                     post_stream_events = post_stream_events[1:]
 
                 # Combine the adjusted event with post-stream events
@@ -2012,7 +2015,10 @@ class MetadataService:
                     )
 
                     # Skip duplicate chapters at the same offset
-                    if last_start_offset is not None and start_offset == last_start_offset:
+                    if (
+                        last_start_offset is not None
+                        and start_offset == last_start_offset
+                    ):
                         continue
                     last_start_offset = start_offset
                     chapter_num += 1
@@ -2183,7 +2189,10 @@ class MetadataService:
                         )
 
                         # Skip duplicate chapters at the same offset
-                        if last_start_ms is not None and start_offset_ms == last_start_ms:
+                        if (
+                            last_start_ms is not None
+                            and start_offset_ms == last_start_ms
+                        ):
                             continue
                         last_start_ms = start_offset_ms
 

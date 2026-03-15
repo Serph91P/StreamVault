@@ -864,8 +864,12 @@ async def get_streamer(
         if recording_settings
         else None,
         "max_streams": recording_settings.max_streams if recording_settings else None,
-        "supported_codecs": recording_settings.supported_codecs if recording_settings else None,
-        "use_global_cleanup_policy": recording_settings.use_global_cleanup_policy if recording_settings else True,
+        "supported_codecs": recording_settings.supported_codecs
+        if recording_settings
+        else None,
+        "use_global_cleanup_policy": recording_settings.use_global_cleanup_policy
+        if recording_settings
+        else True,
         "title": streamer.title if streamer.is_live else None,
         "category_name": streamer.category_name if streamer.is_live else None,
         "profile_image_url": profile_image_url,
@@ -948,7 +952,9 @@ async def update_streamer_settings(
             )
 
         if "useGlobalCleanupPolicy" in settings:
-            recording_settings.use_global_cleanup_policy = settings["useGlobalCleanupPolicy"]
+            recording_settings.use_global_cleanup_policy = settings[
+                "useGlobalCleanupPolicy"
+            ]
             logger.info(
                 f"Updated use global cleanup for {streamer.username}: {recording_settings.use_global_cleanup_policy}"
             )
