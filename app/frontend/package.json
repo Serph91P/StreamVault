@@ -19,8 +19,8 @@
     "@fortawesome/fontawesome-free": "^7.2.0",
     "@vueuse/core": "^14.2.1",
     "pinia": "^3.0.4",
-    "vue": "^3.5.30",
-    "vue-router": "^5.0.3"
+    "vue": "^3.5.31",
+    "vue-router": "^5.0.4"
   },
   "devDependencies": {
     "@tsconfig/node24": "^24.0.4",
@@ -28,18 +28,18 @@
     "@vitejs/plugin-vue": "^6.0.5",
     "@vue/eslint-config-prettier": "^10.2.0",
     "@vue/eslint-config-typescript": "^14.7.0",
-    "@vue/tsconfig": "^0.9.0",
+    "@vue/tsconfig": "^0.9.1",
     "esbuild": "^0.27.4",
-    "eslint": "^10.0.3",
+    "eslint": "^10.1.0",
     "eslint-plugin-vue": "^10.8.0",
     "npm-run-all2": "^8.0.4",
     "prettier": "^3.8.1",
     "sass": "^1.98.0",
     "typescript": "~5.9.3",
-    "vite": "^8.0.0",
+    "vite": "^8.0.3",
     "vite-plugin-pwa": "^1.2.0",
-    "vite-plugin-vue-devtools": "^8.1.0",
-    "vue-tsc": "^3.2.5"
+    "vite-plugin-vue-devtools": "^8.1.1",
+    "vue-tsc": "^3.2.6"
   },
   "overrides": {
     "serialize-javascript": "^7.0.3",

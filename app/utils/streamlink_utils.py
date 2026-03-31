@@ -347,7 +347,10 @@ def _add_proxy_settings(
                 seg_timeout,
                 "--stream-timeout",
                 stream_timeout,
-                "--hls-segment-queue-threshold",
+                # Multiplication factor for segment queue deadline (default 3.0)
+                # 8x = generous tolerance for proxy latency (replaces deprecated
+                # --hls-segment-queue-threshold since Streamlink 8.1.0)
+                "--stream-segmented-queue-deadline",
                 "8",
                 "--stream-segment-attempts",
                 seg_attempts,
@@ -385,7 +388,9 @@ def _add_proxy_settings(
                 "60" if not force_mode else "90",
                 "--stream-timeout",
                 "300" if not force_mode else "360",
-                "--hls-segment-queue-threshold",
+                # Multiplication factor for segment queue deadline (default 3.0)
+                # 8x = generous tolerance for proxy latency
+                "--stream-segmented-queue-deadline",
                 "8",
                 "--stream-segment-attempts",
                 "15" if not force_mode else "20",
