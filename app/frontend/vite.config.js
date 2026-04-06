@@ -76,7 +76,7 @@ export default defineConfig({
         // PERFORMANCE OPTIMIZATION
         rollupOptions: {
             output: {
-                manualChunks(id) {
+                manualChunks: function (id) {
                     // Split vendor libraries for better caching
                     if (id.includes('node_modules/vue/') || id.includes('node_modules/vue-router/')) {
                         return 'vue-vendor';
