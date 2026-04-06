@@ -281,7 +281,7 @@ export function useSystemAndRecordingStatus() {
   // WebSocket message processing
   const processWebSocketMessage = (message: any) => {
     // Only log in development mode
-    if (import.meta.env?.DEV || process.env.NODE_ENV === 'development') {
+    if (import.meta.env?.DEV) {
       logWebSocket('useSystemAndRecordingStatus', 'received', `Processing message type: ${message.type}`, message.data)
     }
     
@@ -477,7 +477,7 @@ export function useSystemAndRecordingStatus() {
     if (newMessages.length > 0) {
       const latestMessage = newMessages[newMessages.length - 1]
       // Only log in development mode to avoid performance impact
-      if (import.meta.env?.DEV || process.env.NODE_ENV === 'development') {
+      if (import.meta.env?.DEV) {
         logWebSocket('useSystemAndRecordingStatus', 'received', 'New WebSocket message', latestMessage)
       }
       processWebSocketMessage(latestMessage)
@@ -495,7 +495,7 @@ export function useSystemAndRecordingStatus() {
   })
   
   // Periodic refresh interval (DISABLED - WebSocket provides all updates)
-  let refreshInterval: NodeJS.Timeout | null = null
+  let refreshInterval: ReturnType<typeof setTimeout> | null = null
   
   const startPeriodicRefresh = (_intervalMs = 30000) => {
     // CRITICAL FIX: Disable polling - WebSocket handles all real-time updates
