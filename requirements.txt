@@ -3,7 +3,7 @@ fastapi==0.135.2
 uvicorn[standard]==0.42.0
 
 # Database dependencies
-SQLAlchemy[postgresql]==2.0.48
+SQLAlchemy[postgresql]==2.0.49
 psycopg[binary]==3.3.3
 psycopg-pool==3.3.0
 alembic==1.18.4
