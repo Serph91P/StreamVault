@@ -17,7 +17,7 @@ cryptography==46.0.6
 # API and data handling
 python-multipart==0.0.24
 pydantic-settings==2.13.1
-aiohttp==3.13.4
+aiohttp==3.13.5
 aiofiles==25.1.0
 
 # Image processing
