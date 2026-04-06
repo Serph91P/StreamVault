@@ -305,7 +305,7 @@ document.cookie.split("; ").find(item=>item.startsWith("auth-token="))?.split("=
 
 **Set in environment**:
 ```env
-TWITCH_OAUTH_TOKEN=abc123xyz456def789ghi012jkl345
+TWITCH_OAUTH_TOKEN=<your-browser-token-here>
 ```
 
 **Verification**:
