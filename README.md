@@ -187,7 +187,7 @@ your-domain.com {
    ```
 4. Copy the 30-character token and add to `.env`:
    ```env
-   TWITCH_OAUTH_TOKEN=abc123xyz456def789ghi012jkl345
+   TWITCH_OAUTH_TOKEN=<your-browser-token-here>
    ```
 5. Restart the container:
    ```bash

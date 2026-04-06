@@ -1,0 +1,31 @@
+# Gitleaks configuration for StreamVault
+# https://github.com/gitleaks/gitleaks#configuration
+
+title = "StreamVault Gitleaks Config"
+
+# Allowlist for historical commits where secrets have already been rotated/removed.
+# These are false positives from documentation examples or old commits with
+# tokens that have since been invalidated and removed from the codebase.
+
+[allowlist]
+  description = "Allowlisted findings (historical commits with rotated secrets and doc examples)"
+
+  # Historical commits where real tokens were present but have since been
+  # rotated and removed from the current codebase.
+  # docker-compose.yml had Twitch tokens in early commits (Jul 2024) - tokens rotated.
+  # docs/background_queue_fixes.md had a curl auth header example - file deleted.
+  # logs/ file had API key in output - file deleted.
+  commits = [
+    "627ed43",
+    "3e12532",
+    "e4d3c7a",
+    "9044666",
+    "66b90ce",
+  ]
+
+  # Documentation paths that may contain example/placeholder credentials
+  # These are intentionally fake values used in code examples
+  paths = [
+    '''\.github/agents/se-gitops-ci-specialist\.agent\.md''',
+    '''\.github/agents/security-auditor\.md''',
+  ]
