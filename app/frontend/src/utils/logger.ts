@@ -16,7 +16,7 @@ class Logger {
 
   constructor() {
     // Check if we're in development mode
-    this.isDevelopment = import.meta.env?.DEV || process.env.NODE_ENV === 'development'
+    this.isDevelopment = import.meta.env?.DEV
     
     // Set default log level based on environment
     this.level = this.isDevelopment ? LogLevel.DEBUG : LogLevel.ERROR
