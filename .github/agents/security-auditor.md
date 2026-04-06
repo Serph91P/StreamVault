@@ -252,7 +252,7 @@ subprocess.run([
 logger.info(f"User login: {username} / {password}")
 
 # Secret in code
-API_KEY = "sk_live_abc123"  # Committed to git!
+API_KEY = "<real-key-here>"  # Committed to git!
 
 # Password in response
 return {"user": user.username, "password": user.password}
