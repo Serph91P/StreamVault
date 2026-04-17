@@ -214,6 +214,130 @@ class MetadataService:
         """Public wrapper for safe path containment check."""
         return self._is_within(child, parent)
 
+    def _collect_streamer_genres(
+        self,
+        db: Session,
+        streamer: Streamer,
+        limit: int = 20,
+    ) -> List[str]:
+        """Return an ordered, de-duplicated list of genres (categories) for a streamer.
+
+        Pulls from the streamer's historical `Stream.category_name` values (most recent first)
+        and augments with current/last known category fields on the streamer so the list is
+        never empty as long as the streamer has ever been seen playing something.
+        """
+        genres: List[str] = []
+        seen: set = set()
+
+        def _add(value: Optional[str]) -> None:
+            if not value:
+                return
+            v = value.strip()
+            if not v or v.lower() in seen:
+                return
+            seen.add(v.lower())
+            genres.append(v)
+
+        try:
+            rows = (
+                db.query(Stream.category_name)
+                .filter(Stream.streamer_id == streamer.id)
+                .filter(Stream.category_name.isnot(None))
+                .filter(Stream.category_name != "")
+                .order_by(Stream.started_at.desc().nullslast())
+                .limit(max(limit * 2, limit))  # over-fetch to allow dedup
+                .all()
+            )
+            for (cat,) in rows:
+                _add(cat)
+                if len(genres) >= limit:
+                    break
+        except Exception as e:  # pragma: no cover - defensive
+            logger.debug(
+                f"Failed to query historical categories for streamer {streamer.id}: {e}"
+            )
+
+        # Fallbacks from the streamer row itself (current + last known)
+        _add(getattr(streamer, "category_name", None))
+        _add(getattr(streamer, "last_stream_category_name", None))
+
+        return genres[:limit]
+
+    def _ensure_actor_folder_image(
+        self, streamer_dir: Path, streamer: Streamer, safe_username: str
+    ) -> None:
+        """Place a local actor portrait at ``<streamer_dir>/.Actors/<Name>/folder.jpg``.
+
+        Emby and Jellyfin look for cast portraits in a ``.Actors`` subfolder next to the
+        show. Plex' new NFO scanner primarily uses the ``<thumb>`` URL on the ``<actor>``
+        element (we set an HTTPS Twitch CDN URL for that), but keeping a local fallback
+        here makes the same NFO work offline on Emby/Jellyfin.
+
+        Silently ignores errors - this is a best-effort enrichment.
+        """
+        try:
+            streamer_dir = Path(streamer_dir)
+            actor_name = streamer.username or safe_username
+            actor_dir = streamer_dir / ".Actors" / actor_name
+            target = actor_dir / "folder.jpg"
+            if target.exists():
+                return
+
+            # Source: central artwork poster.jpg (downloaded by artwork_service)
+            root = self._find_recordings_root(streamer_dir)
+            if not root:
+                parent = streamer_dir.parent
+                if parent != streamer_dir and (parent / ".media").is_dir():
+                    root = parent
+            if not root:
+                return
+
+            source = root / ".media" / "artwork" / safe_username / "poster.jpg"
+            if not source.is_file():
+                return
+
+            actor_dir.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, target)
+        except Exception as e:
+            logger.debug(
+                f"Failed to create .Actors folder image for {safe_username}: {e}"
+            )
+
+    def _pick_actor_thumb_url(
+        self, streamer: Streamer, streamer_dir: Path, safe_username: str
+    ) -> Optional[str]:
+        """Return the best value for ``<actor><thumb>`` in NFO files.
+
+        Preference order:
+        1. ``streamer.original_profile_image_url`` if it is a plain HTTPS URL - this is
+           what Plex' newer NFO scanner handles most reliably.
+        2. ``streamer.profile_image_url`` if it points to an HTTPS URL.
+        3. Relative path to the cached ``poster.jpg`` under ``.media/artwork/<user>/``.
+        """
+        for candidate in (
+            getattr(streamer, "original_profile_image_url", None),
+            getattr(streamer, "profile_image_url", None),
+        ):
+            if (
+                isinstance(candidate, str)
+                and candidate.startswith("http")
+                and "://" in candidate
+            ):
+                return candidate
+
+        return self._relative_artwork_path(streamer_dir, safe_username, "poster.jpg")
+
+    def _series_plot_text(self, streamer: Streamer) -> str:
+        """Return the ``<plot>`` text for a streamer's ``tvshow.nfo``.
+
+        Prefers the streamer's Twitch "About" bio (column ``description``); falls
+        back to a generic placeholder when the bio is unset or empty.
+        """
+        bio = (getattr(streamer, "description", None) or "").strip()
+        if bio:
+            return bio
+        return f"Streams by {streamer.username} on Twitch."
+
     async def generate_metadata_for_stream(
         self, stream_id: int, base_path: str, base_filename: str
     ) -> bool:
@@ -586,9 +710,10 @@ class MetadataService:
 
             # Streamer information
             ET.SubElement(show_root, "studio").text = "Twitch"
-            ET.SubElement(
-                show_root, "plot"
-            ).text = f"Streams by {streamer.username} on Twitch."
+            # Prefer the streamer's Twitch "About" bio as the series plot so that
+            # Plex / Emby / Jellyfin show the real channel description instead of
+            # a generic placeholder. Fall back to the placeholder when unset.
+            ET.SubElement(show_root, "plot").text = self._series_plot_text(streamer)
 
             # Important for Plex: Store artwork in hidden .media directory
             if streamer.profile_image_url:
@@ -617,21 +742,36 @@ class MetadataService:
                 fanart = ET.SubElement(show_root, "fanart")
                 ET.SubElement(fanart, "thumb").text = "fanart.jpg"
 
-            # Genre/Category
-            if streamer.category_name:
-                ET.SubElement(show_root, "genre").text = streamer.category_name
+            # Genre/Category - emit one <genre> per unique historical category
+            # so Plex/Emby display the full range of games the streamer has played.
+            genres = self._collect_streamer_genres(db, streamer)
+            if genres:
+                for genre_name in genres:
+                    ET.SubElement(show_root, "genre").text = genre_name
             else:
                 ET.SubElement(show_root, "genre").text = "Livestream"
 
             # Streamer as "actor"
             actor = ET.SubElement(show_root, "actor")
             ET.SubElement(actor, "name").text = streamer.username
-            if streamer.profile_image_url:
-                # Actor image from .media directory with proper relative path
-                actor_thumb_rel = self._relative_artwork_path(
-                    streamer_dir, safe_username, "poster.jpg"
+            if streamer.profile_image_url or streamer.original_profile_image_url:
+                # Prefer an HTTPS URL (maximum compatibility with Plex' newer NFO
+                # scanner). Fall back to a relative path into the central .media
+                # artwork directory if no URL is available.
+                actor_thumb = self._pick_actor_thumb_url(
+                    streamer, streamer_dir, safe_username
                 )
-                ET.SubElement(actor, "thumb").text = actor_thumb_rel
+                if actor_thumb:
+                    ET.SubElement(actor, "thumb").text = actor_thumb
+                # Emby/Jellyfin offline fallback: local .Actors/<Name>/folder.jpg
+                try:
+                    self._ensure_actor_folder_image(
+                        streamer_dir, streamer, safe_username
+                    )
+                except Exception as e_actor:
+                    logger.debug(
+                        f"Actor folder image step failed (non-fatal): {e_actor}"
+                    )
 
             ET.SubElement(actor, "role").text = "Streamer"
 
@@ -786,11 +926,12 @@ class MetadataService:
             # Streamer as "actor"
             actor = ET.SubElement(episode_root, "actor")
             ET.SubElement(actor, "name").text = streamer.username
-            if streamer.profile_image_url:
-                # Actor image from .media directory
-                ET.SubElement(
-                    actor, "thumb"
-                ).text = f".media/artwork/{safe_username}/poster.jpg"
+            if streamer.profile_image_url or streamer.original_profile_image_url:
+                actor_thumb = self._pick_actor_thumb_url(
+                    streamer, streamer_dir, safe_username
+                )
+                if actor_thumb:
+                    ET.SubElement(actor, "thumb").text = actor_thumb
             ET.SubElement(actor, "role").text = "Streamer"
 
             # IMPORTANT: Thumbnails for the episode with different standard names

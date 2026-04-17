@@ -79,6 +79,7 @@ class Streamer(Base):
     original_profile_image_url = Column(String)
     offline_image_url = Column(String)  # Twitch banner image (cached)
     original_offline_image_url = Column(String)  # Twitch banner (original URL)
+    description = Column(Text, nullable=True)  # Twitch "About" / bio text
     is_favorite = Column(Boolean, default=False, index=True)
     auto_record = Column(Boolean, default=False, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
