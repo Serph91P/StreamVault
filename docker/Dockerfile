@@ -178,6 +178,13 @@ COPY --from=python-deps /usr/local/bin /usr/local/bin
 # Copy application from final stage
 COPY --from=final --chown=appuser:appuser /app /app
 
+# Create runtime directories that are not part of /app but required at startup.
+# Without this, starting the container without a volume mount for /recordings
+# fails with PermissionError because appuser cannot create /recordings at /.
+RUN mkdir -p /recordings && \
+    chown -R appuser:appuser /recordings && \
+    chmod 775 /recordings
+
 USER appuser
 WORKDIR /app
 
