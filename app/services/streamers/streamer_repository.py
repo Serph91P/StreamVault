@@ -173,6 +173,7 @@ class StreamerRepository:
                 original_offline_image_url=user_data.get(
                     "offline_image_url"
                 ),  # NEW: Original Twitch banner URL
+                description=user_data.get("description") or None,
                 is_live=is_live,
                 title=current_title,
                 category_name=current_category,

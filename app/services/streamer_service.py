@@ -246,14 +246,19 @@ class StreamerService:
                     )
 
             # Update streamer in database
-            self.repository.update_streamer(
-                streamer,
-                username=user_data.get("display_name", streamer.username),
-                profile_image_url=user_data.get(
+            update_fields = {
+                "username": user_data.get("display_name", streamer.username),
+                "profile_image_url": user_data.get(
                     "cached_profile_image", user_data.get("profile_image_url")
                 ),
-                original_profile_image_url=user_data.get("profile_image_url"),
-            )
+                "original_profile_image_url": user_data.get("profile_image_url"),
+            }
+            # Only update description if Twitch returned a non-empty value
+            twitch_description = user_data.get("description")
+            if twitch_description:
+                update_fields["description"] = twitch_description
+
+            self.repository.update_streamer(streamer, **update_fields)
 
             return True
 

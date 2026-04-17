@@ -214,6 +214,8 @@ class EventHandlerRegistry:
                 if streamer:
                     if user_info and user_info.get("profile_image_url"):
                         streamer.profile_image_url = user_info["profile_image_url"]
+                    if user_info and user_info.get("description"):
+                        streamer.description = user_info["description"]
 
                     stream = Stream(
                         streamer_id=streamer.id,
