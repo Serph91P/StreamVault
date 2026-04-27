@@ -1,6 +1,6 @@
 # Core FastAPI and server dependencies
 fastapi==0.136.1
-uvicorn[standard]==0.44.0
+uvicorn[standard]==0.46.0
 
 # Database dependencies
 SQLAlchemy[postgresql]==2.0.49
