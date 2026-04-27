@@ -24,7 +24,7 @@ aiofiles==25.1.0
 pillow==12.2.0
 
 # Notifications
-apprise==1.9.9
+apprise==1.10.0
 py-vapid==1.9.4
 
 # System monitoring - updated to latest version
