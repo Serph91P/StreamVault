@@ -5,7 +5,11 @@ from fastapi import APIRouter, Depends, HTTPException, Body
 from fastapi.responses import JSONResponse
 from app.services.streamer_service import StreamerService
 from app.services.unified_image_service import unified_image_service
-from app.services.communication.websocket_manager import websocket_manager
+from app.services.communication.websocket_manager import (
+    websocket_manager,
+    emit_toast,
+    emit_event,
+)
 from app.events.handler_registry import EventHandlerRegistry
 from app.dependencies import get_streamer_service, get_event_registry
 from app.database import get_db
@@ -560,8 +564,8 @@ async def add_streamer(
                 f"Set recording settings for streamer {new_streamer.username}: enabled={recording_enabled}"
             )
 
-        # Convert to response format
-        return {
+        # Build response payload (also used for event emit)
+        payload = {
             "id": new_streamer.id,
             "username": new_streamer.username,
             "twitch_id": new_streamer.twitch_id,
@@ -580,6 +584,21 @@ async def add_streamer(
             else None,
             "original_profile_image_url": new_streamer.original_profile_image_url,
         }
+
+        # Emit toast + typed event so frontend can update without reload
+        try:
+            await emit_toast(
+                level="success",
+                title="Streamer added",
+                message=f"{new_streamer.username} has been added",
+                duration=4000,
+                extra_data={"streamer_id": new_streamer.id},
+            )
+            await emit_event("streamer.added", payload)
+        except Exception as notify_err:
+            logger.warning(f"Failed to emit streamer.added notifications: {notify_err}")
+
+        return payload
 
     except HTTPException:
         raise
@@ -797,6 +816,24 @@ async def delete_streamer(
             message += " (no recording files found)"
         else:
             message += " (recording files kept)"
+
+        # Emit toast + typed event so frontend can update without reload
+        try:
+            await emit_toast(
+                level="success",
+                title="Streamer removed",
+                message=f"{streamer_username} has been removed",
+                duration=4000,
+                extra_data={"streamer_id": streamer_id},
+            )
+            await emit_event(
+                "streamer.removed",
+                {"streamer_id": streamer_id, "username": streamer_username},
+            )
+        except Exception as notify_err:
+            logger.warning(
+                f"Failed to emit streamer.removed notifications: {notify_err}"
+            )
 
         return {
             "success": True,

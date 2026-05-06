@@ -22,10 +22,6 @@
       </BaseButton>
     </div>
 
-    <div v-if="validationMessage" class="notification-item" :class="{ error: !isValid, success: isValid }">
-      {{ validationMessage }}
-    </div>
-
     <!-- Erweiterte Einstellungen (nur anzeigen, wenn der Benutzername gültig ist) -->
     <div v-if="isValid && streamerInfo" class="settings-panel content-section">
       <h3>Streamer Settings for {{ streamerInfo.display_name }}</h3>
@@ -173,25 +169,21 @@
         Add Streamer
       </BaseButton>
     </div>
-
-    <div v-if="statusMessage" class="notification-item" :class="{ error: hasError }">
-      {{ statusMessage }}
-    </div>
   </form>
 </template>
 
 <script setup>
 import { ref, reactive } from 'vue'
 import BaseButton from '@/components/base/BaseButton.vue'
+import { useToast } from '@/composables/useToast'
+
+const toast = useToast()
 
 const username = ref('')
 const quality = ref('best') // Default quality
 const isLoading = ref(false)
 const isValidating = ref(false)
-const statusMessage = ref('')
-const hasError = ref(false)
 const isValid = ref(false)
-const validationMessage = ref('')
 const streamerInfo = ref(null)
 
 // Benachrichtigungseinstellungen
@@ -214,7 +206,6 @@ const validateUsername = async () => {
   if (!username.value.trim()) return
 
   isValidating.value = true
-  validationMessage.value = 'Checking username...'
   isValid.value = false
   streamerInfo.value = null
 
@@ -223,18 +214,18 @@ const validateUsername = async () => {
       credentials: 'include' // CRITICAL: Required to send session cookie
     })
     const data = await response.json()
-    
+
     if (response.ok && data.valid) {
       isValid.value = true
-      validationMessage.value = 'Valid Twitch username!'
       streamerInfo.value = data.streamer_info
+      toast.success(`@${username.value.trim()} is a valid Twitch user`)
     } else {
       isValid.value = false
-      validationMessage.value = data.message || 'Invalid Twitch username'
+      toast.error(data.message || 'Invalid Twitch username')
     }
   } catch (error) {
     isValid.value = false
-    validationMessage.value = 'Error checking username'
+    toast.error('Error checking username')
     console.error('Error:', error)
   } finally {
     isValidating.value = false
@@ -246,7 +237,7 @@ const validateAndSubmit = () => {
     validateUsername()
     return
   }
-  
+
   addStreamer()
 }
 
@@ -254,12 +245,10 @@ const addStreamer = async () => {
   if (!username.value.trim() || !isValid.value) return
 
   isLoading.value = true
-  statusMessage.value = 'Adding streamer...'
-  hasError.value = false
 
   try {
     const cleanUsername = username.value.trim().toLowerCase()
-    
+
     const response = await fetch(`/api/streamers/${cleanUsername}`, {
       method: 'POST',
       credentials: 'include', // CRITICAL: Required to send session cookie
@@ -281,22 +270,21 @@ const addStreamer = async () => {
         }
       })
     })
-    
+
     const data = await response.json()
-    
+
     if (response.ok) {
-      statusMessage.value = 'Streamer added successfully!'
+      // Backend emits a streamer.added toast via WebSocket. No local success toast
+      // needed (deduplication in useToast prevents double).
       username.value = ''
       isValid.value = false
       streamerInfo.value = null
       emit('streamer-added')
     } else {
-      hasError.value = true
-      statusMessage.value = data.message || 'Failed to add streamer'
+      toast.error(data.message || 'Failed to add streamer')
     }
   } catch (error) {
-    hasError.value = true
-    statusMessage.value = 'Error connecting to server'
+    toast.error('Error connecting to server')
     console.error('Error:', error)
   } finally {
     isLoading.value = false

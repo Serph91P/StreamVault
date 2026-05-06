@@ -473,6 +473,21 @@ watch(messages, (newMessages) => {
       ...streamers.value.slice(streamerIndex + 1)
     ]
   }
+
+  // Handle streamer lifecycle events (add/remove from elsewhere in the app
+  // or other devices) so the list stays in sync without a manual refresh.
+  if (latestMessage.type === 'streamer.added') {
+    const newId = latestMessage.data?.id
+    if (newId && !streamers.value.some(s => s.id === newId)) {
+      // Authoritative re-fetch keeps shape consistent with the list endpoint.
+      fetchStreamers()
+    }
+  } else if (latestMessage.type === 'streamer.removed') {
+    const removedId = latestMessage.data?.streamer_id
+    if (removedId !== undefined && removedId !== null) {
+      streamers.value = streamers.value.filter(s => String(s.id) !== String(removedId))
+    }
+  }
 }, { deep: true })
 
 // Lifecycle

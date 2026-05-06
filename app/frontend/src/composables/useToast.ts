@@ -45,9 +45,22 @@ export function useToast() {
    * @param duration - Duration in milliseconds (default from UI.TOAST_DURATION_MS)
    */
   function show(message: string, type: ToastType, duration: number = UI.TOAST_DURATION_MS) {
+    // Stack-Deduplizierung: identische Toasts (gleicher type+message) innerhalb
+    // der Dedupe-Window dismissen statt neu zu pushen.
+    const DEDUPE_WINDOW_MS = 2000
+    const now = Date.now()
+    const existing = toasts.value.find(
+      t => t.type === type && t.message === message && (now - t.createdAt) < DEDUPE_WINDOW_MS
+    )
+    if (existing) {
+      // Refresh existing toast: extend lifetime
+      existing.createdAt = now
+      return
+    }
+
     const id = crypto.randomUUID()
-    const createdAt = Date.now()
-    
+    const createdAt = now
+
     toasts.value.push({
       id,
       type,
@@ -55,7 +68,7 @@ export function useToast() {
       duration,
       createdAt
     })
-    
+
     // Auto-dismiss after duration
     setTimeout(() => {
       remove(id)

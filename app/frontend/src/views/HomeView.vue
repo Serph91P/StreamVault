@@ -311,6 +311,19 @@ watch(messages, (newMessages) => {
       ...streamers.value.slice(streamerIndex + 1)
     ]
   }
+
+  // Streamer lifecycle: keep home grid in sync without manual reload.
+  if (latestMessage.type === 'streamer.added') {
+    const newId = latestMessage.data?.id
+    if (newId && !streamers.value.some(s => s.id === newId)) {
+      fetchStreamers()
+    }
+  } else if (latestMessage.type === 'streamer.removed') {
+    const removedId = latestMessage.data?.streamer_id
+    if (removedId !== undefined && removedId !== null) {
+      streamers.value = streamers.value.filter(s => String(s.id) !== String(removedId))
+    }
+  }
 }, { deep: true })
 
 // Initialize
