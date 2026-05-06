@@ -641,7 +641,7 @@ onMounted(() => {
   cursor: pointer;
   transition: all v.$duration-200 v.$ease-out;
   flex-shrink: 0;
-  min-height: 36px;
+  min-height: 44px;
 
   .icon {
     width: 16px;

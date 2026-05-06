@@ -1,6 +1,6 @@
 <template>
   <div class="video-modal-overlay" @click="closeModal">
-    <div class="video-modal" @click.stop>
+    <div class="video-modal" ref="modalRef" role="dialog" aria-modal="true" tabindex="-1" @click.stop>
       <!-- Modal Header -->
       <div class="modal-header">
         <h2>{{ video.title || 'Video Player' }}</h2>
@@ -121,6 +121,7 @@
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { streamersApi, videoApi } from '@/services/api'
 import { UI } from '@/config/constants'
+import { useModal } from '@/composables/useModal'
 
 const props = defineProps({
   video: {
@@ -131,6 +132,7 @@ const props = defineProps({
 
 const emit = defineEmits(['close'])
 
+const modalRef = ref(null)
 const videoPlayer = ref(null)
 const loading = ref(true)
 const error = ref(false)
@@ -153,12 +155,17 @@ const videoUrl = computed(() => {
   return `/api/videos/${props.video.id}/stream`
 })
 
+const { open: openModal, close: closeModalLifecycle } = useModal(modalRef, {
+  onClose: () => emit('close'),
+  autoFocus: false, // video player should keep its own focus / autoplay flow
+})
+
 const closeModal = () => {
   if (videoPlayer.value) {
     videoPlayer.value.pause()
     videoPlayer.value.removeEventListener('timeupdate', updateCurrentChapter)
   }
-  emit('close')
+  closeModalLifecycle()
 }
 
 const onLoadStart = () => {
@@ -406,24 +413,17 @@ const updateCurrentChapter = () => {
   }
 }
 
-// Handle ESC key
-const handleKeydown = (event) => {
-  if (event.key === 'Escape') {
-    closeModal()
-  }
-}
+// Handle ESC key + body scroll lock + focus trap are managed by useModal()
 
 onMounted(() => {
-  document.addEventListener('keydown', handleKeydown)
-  document.body.style.overflow = 'hidden'
-  
+  openModal()
   // Load chapters for this stream
   loadChapters()
 })
 
 onBeforeUnmount(() => {
-  document.removeEventListener('keydown', handleKeydown)
-  document.body.style.overflow = ''
+  // ensure body scroll is released even if parent unmounts us without calling closeModal()
+  closeModalLifecycle()
 })
 </script>
 

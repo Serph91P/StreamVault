@@ -12,6 +12,8 @@
       }
     ]"
     @click="handleClick"
+    @touchstart.passive="onTouchStart"
+    @touchmove.passive="onTouchMove"
   >
     <!-- Gradient Border (optional) -->
     <div v-if="gradient" class="gradient-border" :style="gradientStyle" />
@@ -25,6 +27,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useTouchClick } from '@/composables/useTouchClick'
 
 export type GlassVariant = 'subtle' | 'medium' | 'strong'
 export type HoverEffect = 'lift' | 'scale' | 'none'
@@ -87,11 +90,13 @@ const contentPaddingClasses = computed(() => {
   return ['with-padding']
 })
 
-const handleClick = (event: MouseEvent) => {
-  if (props.clickable) {
-    emit('click', event)
+const { onClick: handleClick, onTouchStart, onTouchMove } = useTouchClick<MouseEvent>(
+  (event) => {
+    if (props.clickable) {
+      emit('click', event)
+    }
   }
-}
+)
 </script>
 
 <style scoped lang="scss">

@@ -849,8 +849,8 @@ onMounted(() => {
   top: var(--spacing-2);
   left: var(--spacing-2);
   z-index: 10;
-  min-width: 28px;
-  min-height: 28px;
+  min-width: 44px;
+  min-height: 44px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -878,8 +878,8 @@ onMounted(() => {
 
   // Mobile: Larger touch target
   @include m.respond-below('md') {  // < 768px
-    min-width: 36px;
-    min-height: 36px;
+    min-width: 44px;
+    min-height: 44px;
     
     input[type="checkbox"] {
       width: 20px;
