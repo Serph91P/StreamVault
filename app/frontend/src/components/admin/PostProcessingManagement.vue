@@ -5,11 +5,9 @@
       <div class="card stats-card">
         <div class="card-header">
           <h4>📊 Orphaned Files Statistics</h4>
-          <button @click="refreshStats" :disabled="loadingStats" class="btn btn-sm btn-secondary">
-            <span v-if="loadingStats">🔄</span>
-            <span v-else>🔄</span>
-            Refresh
-          </button>
+          <BaseButton variant="secondary" size="sm" :loading="loadingStats" @click="refreshStats">
+            🔄 Refresh
+          </BaseButton>
         </div>
         <div class="card-body">
           <div v-if="loadingStats" class="loading">Loading statistics...</div>
@@ -105,11 +103,10 @@
       <div class="card">
         <div class="card-header">
           <h4>📋 Orphaned Recordings</h4>
-          <button @click="loadOrphanedList" :disabled="loadingList" class="btn btn-sm btn-secondary">
-            <span v-if="loadingList">🔄</span>
-            <span v-else>📋</span>
+          <BaseButton variant="secondary" size="sm" :loading="loadingList" @click="loadOrphanedList">
+            <span v-if="!loadingList">📋</span>
             Load List
-          </button>
+          </BaseButton>
         </div>
         <div class="card-body">
           <div v-if="loadingList" class="loading">Loading recordings list...</div>
@@ -222,6 +219,7 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
+import BaseButton from '@/components/base/BaseButton.vue'
 
 // Reactive data
 const loadingStats = ref(false)

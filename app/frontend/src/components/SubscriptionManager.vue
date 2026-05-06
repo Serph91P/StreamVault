@@ -1,15 +1,15 @@
 <template>
   <div class="subscription-manager">
     <div class="controls">
-      <button @click="loadSubscriptions" class="btn btn-primary">
+      <BaseButton variant="primary" @click="loadSubscriptions">
         Check Subscriptions
-      </button>
-      <button @click="deleteAllSubscriptions" class="btn btn-danger">
+      </BaseButton>
+      <BaseButton variant="danger" @click="deleteAllSubscriptions">
         Delete All Subscriptions
-      </button>
-      <button @click="resubscribeAll" class="btn btn-success">
+      </BaseButton>
+      <BaseButton variant="success" @click="resubscribeAll">
         Resubscribe All
-      </button>
+      </BaseButton>
     </div>
 
     <div v-if="subscriptions.length" class="subscription-list">
@@ -21,9 +21,9 @@
           </span>
           <span>Created: {{ new Date(sub.created_at).toLocaleString() }}</span>
         </div>
-        <button @click="deleteSubscription(sub.id)" class="btn btn-danger">
+        <BaseButton variant="danger" @click="deleteSubscription(sub.id)">
           Delete
-        </button>
+        </BaseButton>
       </div>
     </div>
     <div v-else class="empty-state">
@@ -34,6 +34,7 @@
 
 <script setup>
 import { ref } from 'vue'
+import BaseButton from '@/components/base/BaseButton.vue'
 
 const subscriptions = ref([])
 

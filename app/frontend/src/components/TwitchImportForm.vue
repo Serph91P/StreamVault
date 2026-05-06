@@ -138,7 +138,7 @@
         </ul>
       </div>
       
-      <button @click="resetImport" class="btn btn-primary">Import More Streamers</button>
+      <BaseButton variant="primary" @click="resetImport">Import More Streamers</BaseButton>
     </div>
   </div>
 </template>
@@ -147,6 +147,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { authApi } from '@/services/api'
+import BaseButton from '@/components/base/BaseButton.vue'
 
 interface Channel {
   id: string
