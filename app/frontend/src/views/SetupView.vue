@@ -253,9 +253,10 @@ const handleSetup = async () => {
     })
 
     if (response.ok) {
-      // FIXED: Redirect to welcome page after setup instead of login
-      // Set welcome as seen so it doesn't show again
-      localStorage.setItem('welcome_seen', 'true')
+      // After admin creation, send the user through the welcome screen so
+      // they can finish onboarding (Twitch link, settings, streamers).
+      // The persistent `welcome_completed` flag is set when they click
+      // "Continue to Dashboard" in WelcomeView, not here.
       router.push('/welcome')
     } else {
       // FIXED: Better error handling for JSON parsing

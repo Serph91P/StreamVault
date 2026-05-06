@@ -104,27 +104,15 @@ const router = createRouter({
   ],
 });
 
-// Show WelcomeView only if not seen yet
+// Show WelcomeView only if onboarding has not been completed yet (server-side flag)
 router.beforeEach(async (to, from, next) => {
   // 🎭 MOCK MODE: Bypass auth checks in development
   const USE_MOCK_DATA = import.meta.env.VITE_USE_MOCK_DATA === 'true';
   if (USE_MOCK_DATA) {
     console.log('🎭 Mock mode: Skipping auth checks, allowing all routes');
-    // Mark welcome as seen to avoid redirect loop
-    if (!localStorage.getItem('welcome_seen')) {
-      localStorage.setItem('welcome_seen', 'true');
-    }
     return next();
   }
 
-  // Show WelcomeView only if not seen yet and not coming from setup
-  if (to.path === '/' && !localStorage.getItem('welcome_seen')) {
-    return next('/welcome');
-  }
-  // Prevent direct access to /welcome after first visit
-  if (to.path === '/welcome' && localStorage.getItem('welcome_seen')) {
-    return next('/');
-  }
   try {
     const response = await fetch('/auth/setup', {
       credentials: 'include', // Required for session cookies
@@ -147,57 +135,68 @@ router.beforeEach(async (to, from, next) => {
       return next();
     }
 
+    // Server-persisted onboarding flag replaces the old localStorage `welcome_seen`
+    // so the welcome screen no longer reappears on every new device or after
+    // clearing browser storage.
+    const welcomeCompleted = Boolean(data.welcome_completed);
+
     if (data.setup_required) {
       if (to.path !== '/auth/setup') {
         return next('/auth/setup');
       }
       return next();
-    } else {
-      // FIXED: After setup, redirect to /welcome instead of /
-      if (to.path === '/auth/setup') {
-        return next('/welcome');
-      }
+    }
 
-      const authResponse = await fetch('/auth/check', {
-        credentials: 'include', // CRITICAL: Required to send session cookie
-        headers: {
-          Accept: 'application/json',
-          'X-Requested-With': 'XMLHttpRequest',
-        },
-      });
+    // Setup is done; gate `/welcome` on the persisted flag.
+    if (to.path === '/auth/setup') {
+      return next(welcomeCompleted ? '/' : '/welcome');
+    }
+    if (to.path === '/' && !welcomeCompleted) {
+      return next('/welcome');
+    }
+    if (to.path === '/welcome' && welcomeCompleted) {
+      return next('/');
+    }
 
-      // Check both HTTP status AND response body for authentication
-      if (!authResponse.ok) {
-        if (to.path !== '/auth/login') {
-          return next('/auth/login');
-        }
-        return next();
-      }
+    const authResponse = await fetch('/auth/check', {
+      credentials: 'include', // CRITICAL: Required to send session cookie
+      headers: {
+        Accept: 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+    });
 
-      // Parse response body to check authenticated status
-      let authData;
-      try {
-        authData = await authResponse.json();
-      } catch (jsonError) {
-        console.error('Failed to parse auth response as JSON:', jsonError);
-        if (to.path !== '/auth/login') {
-          return next('/auth/login');
-        }
-        return next();
-      }
-
-      // If not authenticated, redirect to login (unless already there)
-      if (!authData.authenticated && to.path !== '/auth/login') {
+    // Check both HTTP status AND response body for authentication
+    if (!authResponse.ok) {
+      if (to.path !== '/auth/login') {
         return next('/auth/login');
       }
-
-      // If authenticated but trying to access login page, redirect to home
-      if (authData.authenticated && to.path === '/auth/login') {
-        return next('/');
-      }
-
       return next();
     }
+
+    // Parse response body to check authenticated status
+    let authData;
+    try {
+      authData = await authResponse.json();
+    } catch (jsonError) {
+      console.error('Failed to parse auth response as JSON:', jsonError);
+      if (to.path !== '/auth/login') {
+        return next('/auth/login');
+      }
+      return next();
+    }
+
+    // If not authenticated, redirect to login (unless already there)
+    if (!authData.authenticated && to.path !== '/auth/login') {
+      return next('/auth/login');
+    }
+
+    // If authenticated but trying to access login page, redirect to home
+    if (authData.authenticated && to.path === '/auth/login') {
+      return next('/');
+    }
+
+    return next();
   } catch (error) {
     console.error('Router error:', error);
     // Avoid infinite loop: only redirect if not already on an auth page

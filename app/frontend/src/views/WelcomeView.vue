@@ -180,8 +180,24 @@ async function startTwitchOAuth() {
   }
 }
 
-function continueToHome() {
-  localStorage.setItem('welcome_seen', '1')
+async function continueToHome() {
+  // Persist the welcome flag server-side so it sticks across devices and
+  // browsers instead of relying on localStorage which gets wiped easily.
+  try {
+    const response = await fetch('/auth/onboarding/complete', {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        Accept: 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+    })
+    if (!response.ok) {
+      console.error('Failed to mark onboarding complete:', response.status)
+    }
+  } catch (error) {
+    console.error('Failed to mark onboarding complete:', error)
+  }
   router.replace('/') // FIXED: Was '/home' - now redirects to dashboard root
 }
 </script>
