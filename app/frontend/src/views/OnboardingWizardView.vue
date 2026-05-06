@@ -608,7 +608,7 @@ onMounted(() => {
   justify-content: center;
   align-items: flex-start;
   padding: 2rem 1rem;
-  background: var(--bg-primary, #0f1115);
+  background: var(--bg-primary);
 }
 
 .onboarding-container {
@@ -630,7 +630,7 @@ onMounted(() => {
   width: 64px;
   height: 64px;
   border-radius: 16px;
-  background: linear-gradient(135deg, var(--color-primary, #6c5ce7), var(--color-accent, #a29bfe));
+  background: linear-gradient(135deg, var(--color-primary), var(--color-accent));
   margin-bottom: 0.75rem;
 }
 
@@ -647,12 +647,12 @@ onMounted(() => {
   font-size: 1.75rem;
   font-weight: 700;
   margin: 0;
-  color: var(--text-primary, #fff);
+  color: var(--text-primary);
 }
 
 .app-subtitle {
   margin: 0.25rem 0 0;
-  color: var(--text-secondary, #a0a4ad);
+  color: var(--text-secondary);
   font-size: 0.95rem;
 }
 
@@ -674,19 +674,19 @@ onMounted(() => {
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.08);
-  color: var(--text-secondary, #a0a4ad);
+  color: var(--text-secondary);
   font-size: 0.85rem;
-  transition: all 0.2s ease;
+  transition: all var(--transition-base);
 }
 
 .step-pill.is-active {
   background: rgba(108, 92, 231, 0.15);
-  border-color: var(--color-primary, #6c5ce7);
-  color: var(--text-primary, #fff);
+  border-color: var(--color-primary);
+  color: var(--text-primary);
 }
 
 .step-pill.is-done {
-  color: var(--color-success, #10b981);
+  color: var(--color-success);
   border-color: rgba(16, 185, 129, 0.4);
 }
 
@@ -703,13 +703,13 @@ onMounted(() => {
 }
 
 .step-pill.is-active .step-pill-dot {
-  background: var(--color-primary, #6c5ce7);
-  color: #fff;
+  background: var(--color-primary);
+  color: white;
 }
 
 .step-pill.is-done .step-pill-dot {
-  background: var(--color-success, #10b981);
-  color: #fff;
+  background: var(--color-success);
+  color: white;
 }
 
 .wizard-card {
@@ -723,12 +723,12 @@ onMounted(() => {
 .wizard-step-title {
   margin: 0 0 0.25rem;
   font-size: 1.35rem;
-  color: var(--text-primary, #fff);
+  color: var(--text-primary);
 }
 
 .wizard-step-subtitle {
   margin: 0;
-  color: var(--text-secondary, #a0a4ad);
+  color: var(--text-secondary);
   font-size: 0.95rem;
 }
 
@@ -741,19 +741,19 @@ onMounted(() => {
 
 .wizard-text {
   margin: 0;
-  color: var(--text-secondary, #a0a4ad);
+  color: var(--text-secondary);
   line-height: 1.5;
 }
 
 .form-label {
   font-weight: 600;
   font-size: 0.9rem;
-  color: var(--text-primary, #fff);
+  color: var(--text-primary);
 }
 
 .form-hint {
   margin: -0.25rem 0 0;
-  color: var(--text-tertiary, #6b7280);
+  color: var(--text-tertiary);
   font-size: 0.8rem;
 }
 
@@ -763,13 +763,13 @@ onMounted(() => {
   border-radius: 10px;
   border: 1px solid rgba(255, 255, 255, 0.12);
   background: rgba(255, 255, 255, 0.04);
-  color: var(--text-primary, #fff);
+  color: var(--text-primary);
   font-size: 0.95rem;
 }
 
 .form-input:focus {
   outline: none;
-  border-color: var(--color-primary, #6c5ce7);
+  border-color: var(--color-primary);
   box-shadow: 0 0 0 3px rgba(108, 92, 231, 0.2);
 }
 
@@ -777,7 +777,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  color: var(--text-primary, #fff);
+  color: var(--text-primary);
   font-size: 0.95rem;
   cursor: pointer;
 }
@@ -787,7 +787,7 @@ onMounted(() => {
   border-radius: 10px;
   background: rgba(239, 68, 68, 0.12);
   border: 1px solid rgba(239, 68, 68, 0.4);
-  color: #fca5a5;
+  color: var(--color-error);
   font-size: 0.9rem;
 }
 
@@ -810,7 +810,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  color: var(--text-secondary, #a0a4ad);
+  color: var(--text-secondary);
   padding: 1rem 0;
 }
 
@@ -818,7 +818,7 @@ onMounted(() => {
   width: 18px;
   height: 18px;
   border: 2px solid rgba(255, 255, 255, 0.2);
-  border-top-color: var(--color-primary, #6c5ce7);
+  border-top-color: var(--color-primary);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
@@ -835,7 +835,7 @@ onMounted(() => {
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.08);
-  color: var(--text-primary, #fff);
+  color: var(--text-primary);
 }
 
 .status-icon {
@@ -844,11 +844,11 @@ onMounted(() => {
   fill: none;
   stroke: currentColor;
   stroke-width: 2;
-  color: var(--text-secondary, #a0a4ad);
+  color: var(--text-secondary);
 }
 
 .status-icon.is-good {
-  color: var(--color-success, #10b981);
+  color: var(--color-success);
 }
 
 .inline-form {
@@ -877,7 +877,7 @@ onMounted(() => {
   border-radius: 8px;
   background: rgba(16, 185, 129, 0.08);
   border: 1px solid rgba(16, 185, 129, 0.25);
-  color: var(--text-primary, #fff);
+  color: var(--text-primary);
 }
 
 .wizard-done {
@@ -888,7 +888,7 @@ onMounted(() => {
 .done-icon {
   width: 64px;
   height: 64px;
-  color: var(--color-success, #10b981);
+  color: var(--color-success);
   fill: none;
   stroke: currentColor;
   stroke-width: 2;
@@ -897,7 +897,7 @@ onMounted(() => {
 
 .done-title {
   margin: 0;
-  color: var(--text-primary, #fff);
+  color: var(--text-primary);
   font-size: 1.25rem;
 }
 

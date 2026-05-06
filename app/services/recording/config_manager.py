@@ -7,7 +7,6 @@ This module handles all configuration access with efficient caching.
 import logging
 from datetime import datetime
 from typing import Optional
-import os
 
 from app.database import SessionLocal
 from app.models import RecordingSettings, StreamerRecordingSettings
