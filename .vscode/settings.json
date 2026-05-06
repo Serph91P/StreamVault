@@ -2,11 +2,11 @@
     "github-actions.workflows.pinned.workflows": [
         ".github/workflows/docker-build.yml"
     ],
-<<<<<<< HEAD
     "python.analysis.autoImportCompletions": true,
-    "python.analysis.typeCheckingMode": "basic"
-=======
     "python.analysis.typeCheckingMode": "basic",
-    "python.analysis.autoImportCompletions": true
->>>>>>> b3a85d8f30c5f5f9bb55228d028960028c94cdd2
+    "github.copilot.chat.commitMessageGeneration.instructions": [
+        {
+            "text": "Use Conventional Commits format: <type>(<scope>): <description>. Types: feat (minor bump), fix (patch bump), docs, style, refactor, perf, test, chore, ci. Use ! after type for breaking changes (major bump). Scopes: api, ui, auth, db, docker, recording, notifications, scheduler, ws. Description must be lowercase, imperative mood, no period at end. English only."
+        }
+    ]
 }
