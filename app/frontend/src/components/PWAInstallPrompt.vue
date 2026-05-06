@@ -11,8 +11,8 @@
         <p>{{ installDescription }}</p>
       </div>
       <div class="install-prompt__actions">
-        <button @click="installApp" class="install-btn">Install</button>
-        <button @click="dismissPrompt" class="dismiss-btn">Not now</button>
+        <BaseButton variant="secondary" size="sm" @click="installApp">Install</BaseButton>
+        <BaseButton variant="outline" size="sm" @click="dismissPrompt">Not now</BaseButton>
       </div>
     </div>
   </div>
@@ -21,6 +21,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import { usePWA } from '@/composables/usePWA'
+import BaseButton from '@/components/base/BaseButton.vue'
 
 const { isInstallable, isInstalled, installPWA, getPlatformInfo: _getPlatformInfo } = usePWA()
 const showInstallPrompt = ref(false)
@@ -118,23 +119,21 @@ const dismissPrompt = () => {
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/variables' as v;
 @use '@/styles/mixins' as m;
-/* Responsive - Use SCSS mixins for breakpoints */
 
 .install-prompt {
   position: fixed;
-  bottom: var(--spacing-6);
-  left: var(--spacing-6);
-  right: var(--spacing-6);
+  bottom: v.$spacing-6;
+  left: v.$spacing-6;
+  right: v.$spacing-6;
   background: var(--background-card);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg);
+  border-radius: v.$border-radius-lg;
+  box-shadow: v.$shadow-lg;
   z-index: 1000;
-  animation: slideUp 0.3s ease-out;
-}
+  animation: slideUp v.$duration-300 v.$vue-ease-out;
 
-@include m.respond-to('md') {
-  .install-prompt {
+  @include m.respond-to('md') {
     left: auto;
     max-width: 400px;
   }
@@ -143,8 +142,8 @@ const dismissPrompt = () => {
 .install-prompt__content {
   display: flex;
   align-items: center;
-  padding: var(--spacing-4);
-  gap: var(--spacing-3);
+  padding: v.$spacing-4;
+  gap: v.$spacing-3;
 }
 
 .install-prompt__icon {
@@ -157,50 +156,22 @@ const dismissPrompt = () => {
 }
 
 .install-prompt__text h3 {
-  margin: 0 0 var(--spacing-1) 0;
-  font-size: 16px;
-  font-weight: 600;
+  margin: 0 0 v.$spacing-1 0;
+  font-size: v.$text-base;
+  font-weight: v.$font-semibold;
   color: var(--text-primary);
 }
 
 .install-prompt__text p {
   margin: 0;
-  font-size: 14px;
+  font-size: v.$text-sm;
   color: var(--text-secondary);
 }
 
 .install-prompt__actions {
   display: flex;
-  gap: var(--spacing-2);
+  gap: v.$spacing-2;
   flex-shrink: 0;
-}
-
-.install-btn, .dismiss-btn {
-  padding: var(--spacing-2) var(--spacing-4);
-  border: none;
-  border-radius: var(--radius-md);
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: var(--transition-base);
-}
-
-.install-btn {
-  background: var(--accent-color);
-  color: white;
-}
-
-.install-btn:hover {
-  background: var(--accent-color-hover);
-}
-
-.dismiss-btn {
-  background: var(--background-darker);
-  color: var(--text-secondary);
-}
-
-.dismiss-btn:hover {
-  background: var(--background-dark);
 }
 
 @keyframes slideUp {
@@ -214,34 +185,32 @@ const dismissPrompt = () => {
   }
 }
 
-/* Mobile specific styles */
-@include m.respond-below('md') {  // < 768px
+/* Mobile-only layout adjustments */
+@include m.respond-below('md') {
   .install-prompt {
-    margin: var(--spacing-2);
-    border-radius: var(--radius-lg);
+    margin: v.$spacing-2;
+    border-radius: v.$border-radius-lg;
   }
-  
+
   .install-prompt__content {
-    padding: var(--spacing-4);
+    padding: v.$spacing-4;
     flex-direction: column;
     text-align: center;
   }
-  
+
   .install-prompt__icon {
-    margin: 0 0 var(--spacing-3) 0;
+    margin: 0 0 v.$spacing-3 0;
   }
-  
+
   .install-prompt__actions {
-    margin-top: var(--spacing-4);
+    margin-top: v.$spacing-4;
     justify-content: center;
     flex-direction: column;
     width: 100%;
-  }
-  
-  .install-btn, .dismiss-btn {
-    width: 100%;
-    padding: var(--spacing-3) var(--spacing-4);
-    font-size: 16px;
+
+    :deep(.btn) {
+      width: 100%;
+    }
   }
 }
 </style>
