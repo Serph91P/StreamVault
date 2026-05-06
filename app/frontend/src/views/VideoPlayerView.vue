@@ -174,19 +174,16 @@
     </div>
     
     <!-- Delete Confirmation Modal -->
-    <div v-if="showDeleteModal" class="modal-overlay" @click.self="showDeleteModal = false">
-      <GlassCard variant="strong" class="delete-modal">
-        <h3 class="modal-title">Delete Recording</h3>
-        <p class="modal-text">Are you sure you want to delete this recording? This action cannot be undone.</p>
-        <p class="modal-warning">All associated files including metadata, thumbnails, and chapters will be permanently deleted.</p>
-        <div class="modal-actions">
-          <button class="modal-btn cancel" @click="showDeleteModal = false" v-ripple>Cancel</button>
-          <button class="modal-btn confirm" @click="deleteVideo" :disabled="isDeleting" v-ripple>
-            {{ isDeleting ? 'Deleting...' : 'Delete Forever' }}
-          </button>
-        </div>
-      </GlassCard>
-    </div>
+    <BaseModal v-model="showDeleteModal" title="Delete Recording" size="md">
+      <p class="modal-text">Are you sure you want to delete this recording? This action cannot be undone.</p>
+      <p class="modal-warning">All associated files including metadata, thumbnails, and chapters will be permanently deleted.</p>
+      <template #footer>
+        <BaseButton variant="secondary" @click="showDeleteModal = false">Cancel</BaseButton>
+        <BaseButton variant="danger" :loading="isDeleting" @click="deleteVideo">
+          {{ isDeleting ? 'Deleting...' : 'Delete Forever' }}
+        </BaseButton>
+      </template>
+    </BaseModal>
   </div>
 </template>
 
@@ -197,6 +194,8 @@ import VideoPlayer from '@/components/VideoPlayer.vue'
 import LoadingSkeleton from '@/components/LoadingSkeleton.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import GlassCard from '@/components/cards/GlassCard.vue'
+import BaseModal from '@/components/base/BaseModal.vue'
+import BaseButton from '@/components/base/BaseButton.vue'
 import { videoApi } from '@/services/api'
 
 interface ChapterData {
