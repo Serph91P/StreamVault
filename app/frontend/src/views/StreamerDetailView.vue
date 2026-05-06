@@ -171,164 +171,137 @@
     />
 
     <!-- Delete Confirmation Modal -->
-    <Teleport to="body">
-      <div v-if="showConfirm" class="modal-overlay" @click.self="showConfirm = false">
-        <div class="modal" ref="confirmModalRef" role="dialog" aria-modal="true" tabindex="-1">
-          <div class="modal-header">
-            <h3>Delete All Streams</h3>
-            <button class="close-btn" @click="showConfirm = false" v-ripple>×</button>
-          </div>
-          <div class="modal-body">
-            <p>Are you sure you want to delete all streams for this streamer?</p>
-            <p class="warning">
-              <svg class="icon-warning">
-                <use href="#icon-alert-triangle" />
-              </svg>
-              Active recordings will be skipped to avoid data loss.
-            </p>
-          </div>
-          <div class="modal-actions">
-            <button class="btn-secondary" @click="showConfirm = false" v-ripple>
-              Cancel
-            </button>
-            <button
-              class="btn-danger"
-              :disabled="deletingAll"
-              @click="deleteAll"
-              v-ripple
-            >
-              {{ deletingAll ? 'Deleting...' : 'Delete All' }}
-            </button>
-          </div>
-        </div>
-      </div>
-    </Teleport>
+    <BaseModal v-model="showConfirm" title="Delete All Streams" size="md">
+      <p>Are you sure you want to delete all streams for this streamer?</p>
+      <p class="warning">
+        <svg class="icon-warning">
+          <use href="#icon-alert-triangle" />
+        </svg>
+        Active recordings will be skipped to avoid data loss.
+      </p>
+      <template #footer>
+        <BaseButton variant="secondary" @click="showConfirm = false">Cancel</BaseButton>
+        <BaseButton variant="danger" :loading="deletingAll" @click="deleteAll">
+          {{ deletingAll ? 'Deleting...' : 'Delete All' }}
+        </BaseButton>
+      </template>
+    </BaseModal>
 
     <!-- Settings Modal -->
-    <Teleport to="body">
-      <div v-if="showSettings" class="modal-overlay" @click.self="closeSettings">
-        <div class="modal settings-modal" ref="settingsModalRef" role="dialog" aria-modal="true" tabindex="-1">
-          <div class="modal-header">
-            <h3>Settings for {{ streamer?.name || 'Streamer' }}</h3>
-            <button class="close-btn" @click="closeSettings" v-ripple>×</button>
-          </div>
-          <div class="modal-body">
-            <!-- Recording Quality Override -->
-            <div class="setting-group">
-              <label class="setting-label">Recording Quality</label>
-              <select v-model="streamerSettings.quality" class="setting-input">
-                <option value="">Use Global Setting</option>
-                <option value="best">Best Available</option>
-                <option value="1080p60">1080p60</option>
-                <option value="720p60">720p60</option>
-                <option value="720p">720p</option>
-                <option value="480p">480p</option>
-              </select>
-              <p class="setting-hint">Override global recording quality for this streamer</p>
-            </div>
-
-            <!-- Custom Filename Template -->
-            <div class="setting-group">
-              <label class="setting-label">Custom Filename Template</label>
-              <input 
-                v-model="streamerSettings.filenameTemplate" 
-                type="text"
-                class="setting-input"
-                placeholder="Leave empty to use global template"
-              />
-              <p class="setting-hint">
-                Available variables: {streamer}, {title}, {game}, {date}, {time}
-              </p>
-            </div>
-
-            <!-- Auto-Record Toggle -->
-            <div class="setting-group">
-              <label class="setting-checkbox">
-                <input type="checkbox" v-model="streamerSettings.autoRecord" />
-                <span>Auto-record when this streamer goes live</span>
-              </label>
-            </div>
-
-            <!-- Notification Preferences -->
-            <div class="setting-group">
-              <label class="setting-label">Notifications</label>
-              <label class="setting-checkbox">
-                <input type="checkbox" v-model="streamerSettings.notifyOnline" />
-                <span>Notify when goes online</span>
-              </label>
-              <label class="setting-checkbox">
-                <input type="checkbox" v-model="streamerSettings.notifyOffline" />
-                <span>Notify when goes offline</span>
-              </label>
-            </div>
-
-            <!-- Codec Preferences -->
-            <div class="setting-group">
-              <label class="setting-label">Codec Preferences</label>
-              <select v-model="streamerSettings.supportedCodecs" class="setting-input">
-                <option value="">Use Global Setting</option>
-                <option value="h264">H.264 only</option>
-                <option value="h265">H.265 (HEVC) only</option>
-                <option value="av1">AV1 only</option>
-                <option value="h264,h265">H.264 + H.265 (Recommended)</option>
-                <option value="h264,h265,av1">All codecs</option>
-              </select>
-              <p class="setting-hint">Override preferred video codecs for this streamer</p>
-            </div>
-
-            <!-- Max Concurrent Streams -->
-            <div class="setting-group">
-              <label class="setting-label">Max Concurrent Recordings</label>
-              <input
-                v-model.number="streamerSettings.maxStreams"
-                type="number"
-                class="setting-input"
-                min="1"
-                max="10"
-                placeholder="Unlimited"
-              />
-              <p class="setting-hint">Maximum simultaneous recordings for this streamer (empty = unlimited)</p>
-            </div>
-
-            <!-- Cleanup Policy -->
-            <div class="setting-group">
-              <label class="setting-checkbox">
-                <input type="checkbox" v-model="streamerSettings.useGlobalCleanupPolicy" />
-                <span>Use global cleanup policy</span>
-              </label>
-              <p class="setting-hint">When enabled, this streamer uses the global recording cleanup rules</p>
-            </div>
-          </div>
-          <div class="modal-actions">
-            <button class="btn-secondary" @click="closeSettings" v-ripple>
-              Cancel
-            </button>
-            <button
-              class="btn-primary"
-              :disabled="savingSettings"
-              @click="saveSettings"
-              v-ripple
-            >
-              {{ savingSettings ? 'Saving...' : 'Save Settings' }}
-            </button>
-          </div>
-        </div>
+    <BaseModal
+      v-model="showSettings"
+      :title="`Settings for ${streamer?.name || 'Streamer'}`"
+      size="lg"
+      @close="closeSettings"
+    >
+      <!-- Recording Quality Override -->
+      <div class="setting-group">
+        <label class="setting-label">Recording Quality</label>
+        <select v-model="streamerSettings.quality" class="setting-input">
+          <option value="">Use Global Setting</option>
+          <option value="best">Best Available</option>
+          <option value="1080p60">1080p60</option>
+          <option value="720p60">720p60</option>
+          <option value="720p">720p</option>
+          <option value="480p">480p</option>
+        </select>
+        <p class="setting-hint">Override global recording quality for this streamer</p>
       </div>
-    </Teleport>
+
+      <!-- Custom Filename Template -->
+      <div class="setting-group">
+        <label class="setting-label">Custom Filename Template</label>
+        <input
+          v-model="streamerSettings.filenameTemplate"
+          type="text"
+          class="setting-input"
+          placeholder="Leave empty to use global template"
+        />
+        <p class="setting-hint">
+          Available variables: {streamer}, {title}, {game}, {date}, {time}
+        </p>
+      </div>
+
+      <!-- Auto-Record Toggle -->
+      <div class="setting-group">
+        <label class="setting-checkbox">
+          <input type="checkbox" v-model="streamerSettings.autoRecord" />
+          <span>Auto-record when this streamer goes live</span>
+        </label>
+      </div>
+
+      <!-- Notification Preferences -->
+      <div class="setting-group">
+        <label class="setting-label">Notifications</label>
+        <label class="setting-checkbox">
+          <input type="checkbox" v-model="streamerSettings.notifyOnline" />
+          <span>Notify when goes online</span>
+        </label>
+        <label class="setting-checkbox">
+          <input type="checkbox" v-model="streamerSettings.notifyOffline" />
+          <span>Notify when goes offline</span>
+        </label>
+      </div>
+
+      <!-- Codec Preferences -->
+      <div class="setting-group">
+        <label class="setting-label">Codec Preferences</label>
+        <select v-model="streamerSettings.supportedCodecs" class="setting-input">
+          <option value="">Use Global Setting</option>
+          <option value="h264">H.264 only</option>
+          <option value="h265">H.265 (HEVC) only</option>
+          <option value="av1">AV1 only</option>
+          <option value="h264,h265">H.264 + H.265 (Recommended)</option>
+          <option value="h264,h265,av1">All codecs</option>
+        </select>
+        <p class="setting-hint">Override preferred video codecs for this streamer</p>
+      </div>
+
+      <!-- Max Concurrent Streams -->
+      <div class="setting-group">
+        <label class="setting-label">Max Concurrent Recordings</label>
+        <input
+          v-model.number="streamerSettings.maxStreams"
+          type="number"
+          class="setting-input"
+          min="1"
+          max="10"
+          placeholder="Unlimited"
+        />
+        <p class="setting-hint">Maximum simultaneous recordings for this streamer (empty = unlimited)</p>
+      </div>
+
+      <!-- Cleanup Policy -->
+      <div class="setting-group">
+        <label class="setting-checkbox">
+          <input type="checkbox" v-model="streamerSettings.useGlobalCleanupPolicy" />
+          <span>Use global cleanup policy</span>
+        </label>
+        <p class="setting-hint">When enabled, this streamer uses the global recording cleanup rules</p>
+      </div>
+
+      <template #footer>
+        <BaseButton variant="secondary" @click="closeSettings">Cancel</BaseButton>
+        <BaseButton variant="primary" :loading="savingSettings" @click="saveSettings">
+          {{ savingSettings ? 'Saving...' : 'Save Settings' }}
+        </BaseButton>
+      </template>
+    </BaseModal>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { streamersApi } from '@/services/api'
 import { useForceRecording } from '@/composables/useForceRecording'
 import { useToast } from '@/composables/useToast'
-import { useModal } from '@/composables/useModal'
 import LoadingSkeleton from '@/components/LoadingSkeleton.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import StatusCard from '@/components/cards/StatusCard.vue'
 import StreamCard from '@/components/cards/StreamCard.vue'
+import BaseModal from '@/components/base/BaseModal.vue'
+import BaseButton from '@/components/base/BaseButton.vue'
 
 // Router & URL params
 const route = useRoute()
@@ -362,14 +335,6 @@ const { forceRecordingStreamerId, forceStartRecording } = useForceRecording()
 // Settings modal
 const showSettings = ref(false)
 const savingSettings = ref(false)
-
-// Modal lifecycles (body-scroll-lock + ESC + focus-trap)
-const confirmModalRef = ref<HTMLElement | null>(null)
-const settingsModalRef = ref<HTMLElement | null>(null)
-const confirmModal = useModal(confirmModalRef, { onClose: () => { showConfirm.value = false } })
-const settingsModal = useModal(settingsModalRef, { onClose: () => { showSettings.value = false } })
-watch(showConfirm, (v) => { if (v) confirmModal.open(); else confirmModal.close() })
-watch(showSettings, (v) => { if (v) settingsModal.open(); else settingsModal.close() })
 const streamerSettings = ref({
   quality: '',
   filenameTemplate: '',

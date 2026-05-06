@@ -260,120 +260,108 @@
     </div>
 
     <!-- Add Proxy Dialog -->
-    <Teleport to="body">
-      <div v-if="showAddDialog" class="modal-overlay" @click.self="closeAddDialog">
-        <GlassCard class="modal-card">
-          <div class="modal-header">
-            <h3>Add Proxy Server</h3>
-            <button @click="closeAddDialog" class="btn-close">×</button>
-          </div>
+    <BaseModal v-model="showAddDialog" title="Add Proxy Server" size="md" @close="closeAddDialog">
+      <form @submit.prevent="handleAddProxy">
+        <!-- Proxy URL -->
+        <div class="form-group">
+          <label class="form-label">Proxy URL *</label>
+          <input
+            v-model="newProxy.proxy_url"
+            type="text"
+            class="form-control"
+            :class="{ error: proxyUrlError }"
+            placeholder="http://user:pass@host:port"
+            required
+          />
+          <p v-if="proxyUrlError" class="error-text">{{ proxyUrlError }}</p>
+          <p v-else class="help-text">
+            Format: http://[user:pass@]host:port or socks5://[user:pass@]host:port
+          </p>
+        </div>
 
-          <div class="modal-body">
-            <form @submit.prevent="handleAddProxy">
-              <!-- Proxy URL -->
-              <div class="form-group">
-                <label class="form-label">Proxy URL *</label>
-                <input
-                  v-model="newProxy.proxy_url"
-                  type="text"
-                  class="form-control"
-                  :class="{ error: proxyUrlError }"
-                  placeholder="http://user:pass@host:port"
-                  required
-                />
-                <p v-if="proxyUrlError" class="error-text">{{ proxyUrlError }}</p>
-                <p v-else class="help-text">
-                  Format: http://[user:pass@]host:port or socks5://[user:pass@]host:port
-                </p>
-              </div>
+        <!-- Priority -->
+        <div class="form-group">
+          <label class="form-label">Priority</label>
+          <input
+            v-model.number="newProxy.priority"
+            type="number"
+            class="form-control"
+            min="1"
+            max="100"
+          />
+          <p class="help-text">
+            Lower numbers = higher priority (1 = highest priority)
+          </p>
+        </div>
 
-              <!-- Priority -->
-              <div class="form-group">
-                <label class="form-label">Priority</label>
-                <input
-                  v-model.number="newProxy.priority"
-                  type="number"
-                  class="form-control"
-                  min="1"
-                  max="100"
-                />
-                <p class="help-text">
-                  Lower numbers = higher priority (1 = highest priority)
-                </p>
-              </div>
+        <!-- Enabled -->
+        <div class="form-group">
+          <label class="checkbox-label">
+            <input type="checkbox" v-model="newProxy.enabled" />
+            <span>Enable immediately</span>
+          </label>
+        </div>
 
-              <!-- Enabled -->
-              <div class="form-group">
-                <label class="checkbox-label">
-                  <input type="checkbox" v-model="newProxy.enabled" />
-                  <span>Enable immediately</span>
-                </label>
-              </div>
+        <!-- Examples -->
+        <div class="proxy-examples">
+          <h4>Examples:</h4>
+          <ul>
+            <li><code>http://proxy.example.com:8080</code> - Simple HTTP proxy</li>
+            <li><code>http://user:pass@proxy.example.com:8080</code> - With authentication</li>
+            <li><code>socks5://user:pass@proxy.example.com:1080</code> - SOCKS5 proxy</li>
+          </ul>
+        </div>
 
-              <!-- Examples -->
-              <div class="proxy-examples">
-                <h4>Examples:</h4>
-                <ul>
-                  <li><code>http://proxy.example.com:8080</code> - Simple HTTP proxy</li>
-                  <li><code>http://user:pass@proxy.example.com:8080</code> - With authentication</li>
-                  <li><code>socks5://user:pass@proxy.example.com:1080</code> - SOCKS5 proxy</li>
-                </ul>
-              </div>
-
-              <!-- Actions -->
-              <div class="modal-actions">
-                <button type="button" @click="closeAddDialog" class="btn btn-secondary">
-                  Cancel
-                </button>
-                <button type="submit" class="btn btn-primary" :disabled="isAddingProxy || !!proxyUrlError">
-                  {{ isAddingProxy ? 'Adding...' : 'Add Proxy' }}
-                </button>
-              </div>
-            </form>
-          </div>
-        </GlassCard>
-      </div>
-    </Teleport>
+        <!-- Actions -->
+        <div class="modal-actions">
+          <BaseButton type="button" variant="secondary" @click="closeAddDialog">
+            Cancel
+          </BaseButton>
+          <BaseButton
+            type="submit"
+            variant="primary"
+            :loading="isAddingProxy"
+            :disabled="!!proxyUrlError"
+          >
+            {{ isAddingProxy ? 'Adding...' : 'Add Proxy' }}
+          </BaseButton>
+        </div>
+      </form>
+    </BaseModal>
 
     <!-- Update Priority Dialog -->
-    <Teleport to="body">
-      <div v-if="showPriorityDialogVisible" class="modal-overlay" @click.self="closePriorityDialog">
-        <GlassCard class="modal-card modal-sm">
-          <div class="modal-header">
-            <h3>Update Priority</h3>
-            <button @click="closePriorityDialog" class="btn-close">×</button>
-          </div>
+    <BaseModal
+      v-model="showPriorityDialogVisible"
+      title="Update Priority"
+      size="sm"
+      @close="closePriorityDialog"
+    >
+      <form @submit.prevent="handleUpdatePriority">
+        <div class="form-group">
+          <label class="form-label">Priority for {{ selectedProxy?.masked_url }}</label>
+          <input
+            v-model.number="newPriority"
+            type="number"
+            class="form-control"
+            min="1"
+            max="100"
+            required
+          />
+          <p class="help-text">
+            Lower numbers = higher priority (1 = highest)
+          </p>
+        </div>
 
-          <div class="modal-body">
-            <form @submit.prevent="handleUpdatePriority">
-              <div class="form-group">
-                <label class="form-label">Priority for {{ selectedProxy?.masked_url }}</label>
-                <input
-                  v-model.number="newPriority"
-                  type="number"
-                  class="form-control"
-                  min="1"
-                  max="100"
-                  required
-                />
-                <p class="help-text">
-                  Lower numbers = higher priority (1 = highest)
-                </p>
-              </div>
-
-              <div class="modal-actions">
-                <button type="button" @click="closePriorityDialog" class="btn btn-secondary">
-                  Cancel
-                </button>
-                <button type="submit" class="btn btn-primary" :disabled="isUpdatingPriority">
-                  {{ isUpdatingPriority ? 'Updating...' : 'Update' }}
-                </button>
-              </div>
-            </form>
-          </div>
-        </GlassCard>
-      </div>
-    </Teleport>
+        <div class="modal-actions">
+          <BaseButton type="button" variant="secondary" @click="closePriorityDialog">
+            Cancel
+          </BaseButton>
+          <BaseButton type="submit" variant="primary" :loading="isUpdatingPriority">
+            {{ isUpdatingPriority ? 'Updating...' : 'Update' }}
+          </BaseButton>
+        </div>
+      </form>
+    </BaseModal>
   </div>
 </template>
 
@@ -382,7 +370,8 @@ import { ref, computed, watch } from 'vue'
 import { useProxySettings } from '@/composables/useProxySettings'
 import { useToast } from '@/composables/useToast'
 import type { ProxySettings, ProxyAddRequest } from '@/types/proxy'
-import GlassCard from '@/components/cards/GlassCard.vue'
+import BaseModal from '@/components/base/BaseModal.vue'
+import BaseButton from '@/components/base/BaseButton.vue'
 import LoadingSkeleton from '@/components/LoadingSkeleton.vue'
 import EmptyState from '@/components/EmptyState.vue'
 
