@@ -977,7 +977,7 @@ onUnmounted(() => {
     .filter-tab {
       flex: 1;
       justify-content: center;
-      min-height: 40px;  // Touch-friendly
+      min-height: 44px;  // WCAG 2.5.5 / Apple HIG touch-target
       padding: var(--spacing-2) var(--spacing-2);
       font-size: var(--text-xs);
       

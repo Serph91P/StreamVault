@@ -173,7 +173,7 @@
     <!-- Delete Confirmation Modal -->
     <Teleport to="body">
       <div v-if="showConfirm" class="modal-overlay" @click.self="showConfirm = false">
-        <div class="modal">
+        <div class="modal" ref="confirmModalRef" role="dialog" aria-modal="true" tabindex="-1">
           <div class="modal-header">
             <h3>Delete All Streams</h3>
             <button class="close-btn" @click="showConfirm = false" v-ripple>×</button>
@@ -207,7 +207,7 @@
     <!-- Settings Modal -->
     <Teleport to="body">
       <div v-if="showSettings" class="modal-overlay" @click.self="closeSettings">
-        <div class="modal settings-modal">
+        <div class="modal settings-modal" ref="settingsModalRef" role="dialog" aria-modal="true" tabindex="-1">
           <div class="modal-header">
             <h3>Settings for {{ streamer?.name || 'Streamer' }}</h3>
             <button class="close-btn" @click="closeSettings" v-ripple>×</button>
@@ -319,11 +319,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { streamersApi } from '@/services/api'
 import { useForceRecording } from '@/composables/useForceRecording'
 import { useToast } from '@/composables/useToast'
+import { useModal } from '@/composables/useModal'
 import LoadingSkeleton from '@/components/LoadingSkeleton.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import StatusCard from '@/components/cards/StatusCard.vue'
@@ -361,6 +362,14 @@ const { forceRecordingStreamerId, forceStartRecording } = useForceRecording()
 // Settings modal
 const showSettings = ref(false)
 const savingSettings = ref(false)
+
+// Modal lifecycles (body-scroll-lock + ESC + focus-trap)
+const confirmModalRef = ref<HTMLElement | null>(null)
+const settingsModalRef = ref<HTMLElement | null>(null)
+const confirmModal = useModal(confirmModalRef, { onClose: () => { showConfirm.value = false } })
+const settingsModal = useModal(settingsModalRef, { onClose: () => { showSettings.value = false } })
+watch(showConfirm, (v) => { if (v) confirmModal.open(); else confirmModal.close() })
+watch(showSettings, (v) => { if (v) settingsModal.open(); else settingsModal.close() })
 const streamerSettings = ref({
   quality: '',
   filenameTemplate: '',
