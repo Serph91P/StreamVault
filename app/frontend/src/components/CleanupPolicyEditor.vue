@@ -130,35 +130,30 @@
     </div>
 
     <!-- Cleanup Results Dialog -->
-    <div v-if="showCleanupResults" class="modal-overlay" @click="closeCleanupResults">
-      <div class="modal-content" @click.stop>
-        <div class="modal-header">
-          <h3>Cleanup Results</h3>
-          <button @click="closeCleanupResults" class="close-btn">&times;</button>
-        </div>
-        <div class="modal-body">
-          <p>{{ cleanupResults.message }}</p>
-          <p><strong>Recordings Deleted:</strong> {{ cleanupResults.deleted_count }}</p>
-          
-          <div v-if="cleanupResults.deleted_paths && cleanupResults.deleted_paths.length > 0">
-            <h4>Deleted Files:</h4>
-            <ul class="deleted-files-list">
-              <li v-for="(path, index) in cleanupResults.deleted_paths" :key="index">
-                {{ path }}
-              </li>
-            </ul>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button @click="closeCleanupResults" class="btn btn-primary">Close</button>
-        </div>
+    <BaseModal v-model="showCleanupResults" title="Cleanup Results" size="md">
+      <p>{{ cleanupResults.message }}</p>
+      <p><strong>Recordings Deleted:</strong> {{ cleanupResults.deleted_count }}</p>
+
+      <div v-if="cleanupResults.deleted_paths && cleanupResults.deleted_paths.length > 0">
+        <h4>Deleted Files:</h4>
+        <ul class="deleted-files-list">
+          <li v-for="(path, index) in cleanupResults.deleted_paths" :key="index">
+            {{ path }}
+          </li>
+        </ul>
       </div>
-    </div>
+
+      <template #footer>
+        <BaseButton variant="primary" @click="closeCleanupResults">Close</BaseButton>
+      </template>
+    </BaseModal>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
+import BaseModal from '@/components/base/BaseModal.vue';
+import BaseButton from '@/components/base/BaseButton.vue';
 import { useRecordingSettings } from '@/composables/useRecordingSettings';
 import type { CleanupPolicy } from '@/types/recording';
 import { CleanupPolicyType } from '@/types/recording';

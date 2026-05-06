@@ -342,44 +342,29 @@
     </GlassCard>
 
     <!-- Logs Modal -->
-    <div v-if="showLogsModal" class="modal-overlay" @click="showLogsModal = false">
-      <div class="modal" @click.stop>
-        <div class="modal-header">
-          <h3>Recent Logs</h3>
-          <button @click="showLogsModal = false" class="close-btn">
-            <i class="fas fa-times"></i>
-          </button>
+    <BaseModal v-model="showLogsModal" size="xl">
+      <template #header>
+        <h3>Recent Logs</h3>
+        <div class="log-controls">
+          <select v-model="logLevel" @change="loadLogs">
+            <option value="ALL">All Levels</option>
+            <option value="ERROR">Errors Only</option>
+            <option value="WARNING">Warnings</option>
+            <option value="INFO">Info</option>
+            <option value="DEBUG">Debug</option>
+          </select>
+          <input v-model="logLines" @change="loadLogs" type="number" min="50" max="1000" step="50">
+          <BaseButton variant="primary" size="sm" @click="loadLogs">Refresh</BaseButton>
         </div>
-        <div class="modal-body">
-          <div class="log-controls">
-            <select v-model="logLevel" @change="loadLogs">
-              <option value="ALL">All Levels</option>
-              <option value="ERROR">Errors Only</option>
-              <option value="WARNING">Warnings</option>
-              <option value="INFO">Info</option>
-              <option value="DEBUG">Debug</option>
-            </select>
-            <input v-model="logLines" @change="loadLogs" type="number" min="50" max="1000" step="50">
-            <button @click="loadLogs" class="btn btn-sm btn-primary">Refresh</button>
-          </div>
-          <div class="logs-content">
-            <pre v-if="logs">{{ logs.logs.join('\n') }}</pre>
-          </div>
-        </div>
+      </template>
+      <div class="logs-content">
+        <pre v-if="logs">{{ logs.logs.join('\n') }}</pre>
       </div>
-    </div>
+    </BaseModal>
 
     <!-- Videos Debug Modal -->
-    <div v-if="showVideosDebugModal" class="modal-overlay" @click="showVideosDebugModal = false">
-      <div class="modal videos-debug-modal" @click.stop>
-        <div class="modal-header">
-          <h3>Videos Database Debug</h3>
-          <button @click="showVideosDebugModal = false" class="close-btn">
-            <i class="fas fa-times"></i>
-          </button>
-        </div>
-        <div class="modal-body">
-          <div v-if="videosDebugData" class="debug-content">
+    <BaseModal v-model="showVideosDebugModal" title="Videos Database Debug" size="xl">
+      <div v-if="videosDebugData" class="debug-content">
             <!-- Summary -->
             <div class="debug-section">
               <h4>Summary</h4>
@@ -481,21 +466,11 @@
               </div>
             </div>
           </div>
-        </div>
-      </div>
-    </div>
+    </BaseModal>
 
     <!-- Recordings Directory Modal -->
-    <div v-if="showRecordingsDirectoryModal" class="modal-overlay" @click="showRecordingsDirectoryModal = false">
-      <div class="modal recordings-directory-modal" @click.stop>
-        <div class="modal-header">
-          <h3>Recordings Directory Scan</h3>
-          <button @click="showRecordingsDirectoryModal = false" class="close-btn">
-            <i class="fas fa-times"></i>
-          </button>
-        </div>
-        <div class="modal-body">
-          <div v-if="recordingsDirectoryData" class="debug-content">
+    <BaseModal v-model="showRecordingsDirectoryModal" title="Recordings Directory Scan" size="xl">
+      <div v-if="recordingsDirectoryData" class="debug-content">
             <div v-if="recordingsDirectoryData.base_recordings_dir_exists">
               <div class="debug-section">
                 <h4>Streamer Directories</h4>
@@ -521,15 +496,15 @@
               Recording directory {{ recordingsDirectoryData.base_recordings_dir }} does not exist!
             </div>
           </div>
-        </div>
-      </div>
-    </div>
+    </BaseModal>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import GlassCard from '../cards/GlassCard.vue'
+import BaseModal from '../base/BaseModal.vue'
+import BaseButton from '../base/BaseButton.vue'
 import WebSocketMonitor from '../WebSocketMonitor.vue'
 import BackgroundQueueMonitor from '../BackgroundQueueMonitor.vue'
 import BackgroundQueueAdmin from './BackgroundQueueAdmin.vue'

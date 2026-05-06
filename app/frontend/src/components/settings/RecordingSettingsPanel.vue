@@ -319,23 +319,19 @@
     </div>
     
     <!-- Per-Streamer Cleanup Policy Editor Dialog -->
-    <div v-if="showStreamerPolicyDialog" class="modal-overlay" @click="closeStreamerPolicyDialog">
-      <div class="modal-content" @click.stop>
-        <div class="modal-header">
-          <h3>Cleanup Policy for {{ selectedStreamer?.username || 'Streamer' }}</h3>
-          <button @click="closeStreamerPolicyDialog" class="close-btn">&times;</button>
-        </div>
-        <div class="modal-body">
-          <CleanupPolicyEditor
-            v-if="selectedStreamer"
-            :streamer-id="selectedStreamer.streamer_id"
-            :title="`Cleanup Policy for ${selectedStreamer.username}`"
-            :is-global="false"
-            @saved="handleStreamerPolicySaved"
-          />
-        </div>
-      </div>
-    </div>
+    <BaseModal
+      v-model="showStreamerPolicyDialog"
+      :title="`Cleanup Policy for ${selectedStreamer?.username || 'Streamer'}`"
+      size="lg"
+    >
+      <CleanupPolicyEditor
+        v-if="selectedStreamer"
+        :streamer-id="selectedStreamer.streamer_id"
+        :title="`Cleanup Policy for ${selectedStreamer.username}`"
+        :is-global="false"
+        @saved="handleStreamerPolicySaved"
+      />
+    </BaseModal>
 </template>
 
 <script setup lang="ts">
@@ -346,6 +342,7 @@ import { useToast } from '@/composables/useToast';
 import { QUALITY_OPTIONS, FILENAME_VARIABLES } from '@/types/recording';
 import type { RecordingSettings, StreamerRecordingSettings } from '@/types/recording';
 import CleanupPolicyEditor from '@/components/CleanupPolicyEditor.vue';
+import BaseModal from '@/components/base/BaseModal.vue';
 
 const props = defineProps<{
   settings: RecordingSettings | null;

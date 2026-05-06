@@ -93,72 +93,60 @@
     </div>
 
     <!-- Log Viewer Modal -->
-    <div v-if="showLogViewer" class="modal-overlay" @click="closeLogViewer">
-      <div class="modal-content log-viewer-modal" @click.stop>
-        <div class="modal-header">
-          <h3>{{ viewingLogFile?.filename }}</h3>
-          <div class="log-controls">
-            <select v-model="tailLines" @change="refreshLogContent">
-              <option value="50">Last 50 lines</option>
-              <option value="100">Last 100 lines</option>
-              <option value="500">Last 500 lines</option>
-              <option value="1000">Last 1000 lines</option>
-            </select>
-            <button @click="refreshLogContent" class="btn btn-sm btn-secondary">
-              Refresh
-            </button>
-          </div>
-          <button @click="closeLogViewer" class="close-btn">&times;</button>
+    <BaseModal v-model="showLogViewer" size="xl" @close="closeLogViewer">
+      <template #header>
+        <h3>{{ viewingLogFile?.filename }}</h3>
+        <div class="log-controls">
+          <select v-model="tailLines" @change="refreshLogContent">
+            <option value="50">Last 50 lines</option>
+            <option value="100">Last 100 lines</option>
+            <option value="500">Last 500 lines</option>
+            <option value="1000">Last 1000 lines</option>
+          </select>
+          <BaseButton variant="secondary" size="sm" @click="refreshLogContent">
+            Refresh
+          </BaseButton>
         </div>
-        <div class="modal-body">
-          <div class="log-content">
-            <pre v-if="logContent">{{ logContent }}</pre>
-            <div v-else-if="isLoadingContent" class="loading">Loading log content...</div>
-            <div v-else class="no-content">No content available</div>
-          </div>
-        </div>
+      </template>
+      <div class="log-content">
+        <pre v-if="logContent">{{ logContent }}</pre>
+        <div v-else-if="isLoadingContent" class="loading">Loading log content...</div>
+        <div v-else class="no-content">No content available</div>
       </div>
-    </div>
+    </BaseModal>
 
     <!-- Cleanup Dialog -->
-    <div v-if="showCleanupDialog" class="modal-overlay" @click="showCleanupDialog = false">
-      <div class="modal-content" @click.stop>
-        <div class="modal-header">
-          <h3>Cleanup Old Logs</h3>
-          <button @click="showCleanupDialog = false" class="close-btn">&times;</button>
-        </div>
-        <div class="modal-body">
-          <div class="form-group">
-            <label for="daysToKeep">Keep logs for how many days?</label>
-            <input 
-              id="daysToKeep"
-              type="number" 
-              v-model="daysToKeep" 
-              min="1" 
-              max="365"
-              class="input-field"
-            >
-            <div class="help-text">
-              Logs older than {{ daysToKeep }} days will be permanently deleted.
-            </div>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button @click="showCleanupDialog = false" class="btn btn-secondary">
-            Cancel
-          </button>
-          <button @click="cleanupLogs" class="btn btn-danger" :disabled="isCleaningUp">
-            <span v-if="isCleaningUp" class="loader"></span>
-            {{ isCleaningUp ? 'Cleaning...' : 'Delete Old Logs' }}
-          </button>
+    <BaseModal v-model="showCleanupDialog" title="Cleanup Old Logs" size="md">
+      <div class="form-group">
+        <label for="daysToKeep">Keep logs for how many days?</label>
+        <input
+          id="daysToKeep"
+          type="number"
+          v-model="daysToKeep"
+          min="1"
+          max="365"
+          class="input-field"
+        >
+        <div class="help-text">
+          Logs older than {{ daysToKeep }} days will be permanently deleted.
         </div>
       </div>
-    </div>
+      <template #footer>
+        <BaseButton variant="secondary" @click="showCleanupDialog = false">
+          Cancel
+        </BaseButton>
+        <BaseButton variant="danger" :loading="isCleaningUp" @click="cleanupLogs">
+          {{ isCleaningUp ? 'Cleaning...' : 'Delete Old Logs' }}
+        </BaseButton>
+      </template>
+    </BaseModal>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import BaseModal from '@/components/base/BaseModal.vue'
+import BaseButton from '@/components/base/BaseButton.vue'
 import { useToast } from '@/composables/useToast'
 
 interface LogFile {
