@@ -337,7 +337,7 @@ const formatDuration = (seconds: number): string => {
   border-radius: 0.375rem;
   background-color: var(--background-card);
   cursor: pointer;
-  transition: all 0.2s;
+  transition: var(--transition-base);
 }
 
 .refresh-button:hover:not(:disabled) {
@@ -545,7 +545,7 @@ const formatDuration = (seconds: number): string => {
   color: var(--text-primary);
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: var(--transition-base);
 }
 
 .action-button:hover:not(:disabled) {

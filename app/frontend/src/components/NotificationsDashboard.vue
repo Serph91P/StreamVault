@@ -426,7 +426,7 @@ const getEventBorderClass = (eventType: string): string => {
   color: var(--text-primary);
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: var(--transition-base);
 }
 
 .refresh-btn:hover:not(:disabled) {
@@ -562,7 +562,7 @@ const getEventBorderClass = (eventType: string): string => {
   border-radius: 0.375rem;
   background: var(--background-card);
   cursor: pointer;
-  transition: all 0.2s;
+  transition: var(--transition-base);
 }
 
 .clear-btn:hover {
@@ -581,9 +581,9 @@ const getEventBorderClass = (eventType: string): string => {
   gap: 1rem;
   padding: 1rem;
   margin-bottom: 0.5rem;
-  background: var(--background-card, #f8fafc);
+  background: var(--background-card);
   border-radius: var(--border-radius, 8px);
-  border: 1px solid var(--border-color, #e2e8f0);
+  border: 1px solid var(--border-color);
   /* Border colors handled by .status-border-* classes */
 }
 
@@ -667,7 +667,7 @@ const getEventBorderClass = (eventType: string): string => {
   color: var(--text-primary);
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: var(--transition-base);
 }
 
 .action-btn:hover {

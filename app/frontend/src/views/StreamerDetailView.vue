@@ -446,7 +446,7 @@ const bannerStyle = computed(() => {
   // Create gradient from primary/accent colors
   return {
     backgroundImage: streamer.value.is_live
-      ? 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)'
+      ? 'linear-gradient(135deg, var(--danger-500) 0%, var(--danger-600) 100%)'
       : 'linear-gradient(135deg, var(--primary-color) 0%, var(--accent-color) 100%)'
   }
 })

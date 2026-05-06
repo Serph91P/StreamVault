@@ -333,10 +333,10 @@ onMounted(async () => {
 
 /* Twitch Import Form Styling */
 .twitch-import-container {
-  background-color: var(--background-card, #1f1f23);
+  background-color: var(--background-card);
   border-radius: var(--border-radius, 8px);
   padding: var(--spacing-lg, 1.5rem);
-  border: 1px solid var(--border-color, #2d2d35);
+  border: 1px solid var(--border-color);
 }
 
 /* Auth Section */
@@ -359,7 +359,7 @@ onMounted(async () => {
   border: none;
   font-weight: 600;
   font-size: 0.95rem;
-  transition: all 0.25s var(--vue-ease, cubic-bezier(0.25, 0.8, 0.5, 1));
+  transition: all var(--duration-250) var(--vue-ease);
   cursor: pointer;
   box-shadow: none;
   position: relative;
@@ -409,7 +409,7 @@ onMounted(async () => {
 }
 
 .setup-hint {
-  background-color: var(--background-darker, #18181b);
+  background-color: var(--background-darker);
   padding: var(--spacing-md, 1rem);
   border-radius: var(--border-radius, 8px);
   /* Border color handled by .status-border-* classes */
@@ -418,7 +418,7 @@ onMounted(async () => {
   margin-bottom: var(--spacing-md, 1rem);
   font-size: 0.95rem;
   line-height: 1.6;
-  color: var(--text-secondary, #adadb8);
+  color: var(--text-secondary);
 }
 
 .callback-url {
@@ -445,14 +445,14 @@ code {
   align-items: center;
   justify-content: center;
   min-height: 200px;
-  color: var(--text-secondary, #adadb8);
+  color: var(--text-secondary);
 }
 
 .spinner {
   width: 40px;
   height: 40px;
   border: 3px solid rgba(var(--primary-color-rgb, 66, 184, 131), 0.1);
-  border-top-color: var(--primary-color, #42b883);
+  border-top-color: var(--primary-color);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
   margin-bottom: var(--spacing-md, 1rem);
@@ -509,15 +509,15 @@ code {
 }
 
 .channel-card {
-  background-color: var(--background-darker, #18181b);
+  background-color: var(--background-darker);
   border-radius: var(--border-radius, 8px);
   padding: var(--spacing-md, 1rem);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border: 1px solid var(--border-color, #2d2d35);
-  transition: all 0.25s var(--vue-ease, cubic-bezier(0.25, 0.8, 0.5, 1));
+  border: 1px solid var(--border-color);
+  transition: all var(--duration-250) var(--vue-ease);
 }
 
 .channel-card:hover {
@@ -528,7 +528,7 @@ code {
 }
 
 .channel-card.selected {
-  border-color: var(--primary-color, #42b883);
+  border-color: var(--primary-color);
   background-color: rgba(var(--primary-color-rgb, 66, 184, 131), 0.1);
 }
 
@@ -539,7 +539,7 @@ code {
 
 .channel-name {
   font-weight: 600;
-  color: var(--text-primary, #efeff1);
+  color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -547,19 +547,19 @@ code {
 
 .channel-login {
   font-size: 0.9rem;
-  color: var(--text-secondary, #adadb8);
+  color: var(--text-secondary);
 }
 
 .selection-indicator {
   opacity: 0;
-  color: var(--primary-color, #42b883);
+  color: var(--primary-color);
   margin-left: var(--spacing-sm, 0.5rem);
   display: flex;
   align-items: center;
   justify-content: center;
   width: 24px;
   height: 24px;
-  transition: opacity 0.2s ease, transform 0.2s ease;
+  transition: opacity var(--duration-200) var(--ease-out), transform var(--duration-200) var(--ease-out);
 }
 
 .channel-card.selected .selection-indicator {
@@ -571,16 +571,16 @@ code {
 .no-data-container {
   text-align: center;
   padding: var(--spacing-xl, 2rem);
-  background-color: var(--background-darker, #18181b);
+  background-color: var(--background-darker);
   border-radius: var(--border-radius, 8px);
-  color: var(--text-secondary, #adadb8);
-  border: 1px dashed var(--border-color, #2d2d35);
+  color: var(--text-secondary);
+  border: 1px dashed var(--border-color);
 }
 
 /* Error Message */
 .error-message {
   background-color: rgba(var(--danger-color-rgb, 239, 68, 68), 0.1);
-  color: var(--danger-color, #ef4444);
+  color: var(--danger-color);
   padding: var(--spacing-md, 1rem);
   border-radius: var(--border-radius, 8px);
   margin-bottom: var(--spacing-lg, 1.5rem);
@@ -600,7 +600,7 @@ code {
   grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
   gap: var(--spacing-md, 1rem);
   margin-bottom: var(--spacing-lg, 1.5rem);
-  background-color: var(--background-darker, #18181b);
+  background-color: var(--background-darker);
   padding: var(--spacing-md, 1rem);
   border-radius: var(--border-radius, 8px);
 }
@@ -616,7 +616,7 @@ code {
   font-weight: 600;
   margin-bottom: var(--spacing-xs, 0.25rem);
   font-size: 0.9rem;
-  color: var(--text-secondary, #adadb8);
+  color: var(--text-secondary);
 }
 
 .result-value {
@@ -625,15 +625,15 @@ code {
 }
 
 .result-value.success {
-  color: var(--success-color, #42b883);
+  color: var(--success-color);
 }
 
 .result-value.error {
-  color: var(--danger-color, #ef4444);
+  color: var(--danger-color);
 }
 
 .result-value.info {
-  color: var(--info-color, #3b82f6);
+  color: var(--info-color);
 }
 
 .failure-list {
@@ -645,7 +645,7 @@ code {
 
 .failure-list h4 {
   margin-top: 0;
-  color: var(--danger-color, #ef4444);
+  color: var(--danger-color);
 }
 
 .failure-list ul {
@@ -659,10 +659,10 @@ code {
 
 .import-results {
   padding: var(--spacing-lg, 1.5rem);
-  background-color: var(--background-card, #1f1f23);
+  background-color: var(--background-card);
   border-radius: var(--border-radius, 8px);
   margin-top: var(--spacing-xl, 2rem);
-  border: 1px solid var(--border-color, #2d2d35);
+  border: 1px solid var(--border-color);
 }
 
 /* Standard buttons - match Vue.js style */
@@ -674,7 +674,7 @@ code {
   border-radius: var(--border-radius-sm, 6px);
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.25s var(--vue-ease, cubic-bezier(0.25, 0.8, 0.5, 1));
+  transition: all var(--duration-250) var(--vue-ease);
   border: none;
   font-size: 0.95rem;
   line-height: 1.5;
@@ -683,20 +683,20 @@ code {
 }
 
 .btn-primary {
-  background-color: var(--primary-color, #42b883);
+  background-color: var(--primary-color);
   color: white;
 }
 
 .btn-primary:hover:not(:disabled) {
-  background-color: var(--primary-color-hover, #3ca978);
+  background-color: var(--primary-color-hover);
   transform: translateY(-1px);
   box-shadow: 0 2px 5px rgba(66, 184, 131, 0.25);
 }
 
 .btn-secondary {
   background-color: rgba(255, 255, 255, 0.1);
-  color: var(--text-primary, #efeff1);
-  border: 1px solid var(--border-color, #2d2d35);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
 }
 
 .btn-secondary:hover:not(:disabled) {

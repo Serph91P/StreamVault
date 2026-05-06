@@ -317,7 +317,7 @@ const emit = defineEmits(['streamer-added'])
 
 .validate-button {
   padding: 10px 16px;
-  background-color: var(--secondary-color, #6441a5);
+  background-color: var(--secondary-color);
   color: white;
   border: none;
   border-radius: 6px;
@@ -326,7 +326,7 @@ const emit = defineEmits(['streamer-added'])
 }
 
 .validate-button:hover:not(:disabled) {
-  background-color: var(--secondary-color-hover, #7d5bbe);
+  background-color: var(--secondary-color-hover);
 }
 
 .validate-button:disabled {
@@ -342,7 +342,7 @@ const emit = defineEmits(['streamer-added'])
 .settings-section {
   margin-bottom: 1.5rem;
   padding-bottom: 1rem;
-  border-bottom: 1px solid var(--border-color, #303034);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .settings-section:last-child {
@@ -354,7 +354,7 @@ const emit = defineEmits(['streamer-added'])
 .settings-section h4 {
   margin-top: 0;
   margin-bottom: 1rem;
-  color: var(--text-primary, #efeff1);
+  color: var(--text-primary);
   font-size: 1.1rem;
   font-weight: 600;
 }
@@ -362,7 +362,7 @@ const emit = defineEmits(['streamer-added'])
 .help-text {
   margin-top: 0.25rem;
   font-size: 14px;
-  color: var(--text-secondary, #adadb8);
+  color: var(--text-secondary);
 }
 
 .notification-options,
@@ -400,18 +400,18 @@ const emit = defineEmits(['streamer-added'])
   left: 0;
   height: 24px;
   width: 24px;
-  background-color: var(--background-darker, #0e0e10);
-  border: 2px solid var(--border-color, #303034);
+  background-color: var(--background-darker);
+  border: 2px solid var(--border-color);
   border-radius: 4px;
 }
 
 .checkbox-container:hover input ~ .checkmark {
-  border-color: var(--primary-color, #42b883);
+  border-color: var(--primary-color);
 }
 
 .checkbox-container input:checked ~ .checkmark {
-  background-color: var(--primary-color, #42b883);
-  border-color: var(--primary-color, #42b883);
+  background-color: var(--primary-color);
+  border-color: var(--primary-color);
 }
 
 .checkmark:after {
@@ -444,12 +444,12 @@ const emit = defineEmits(['streamer-added'])
   font-weight: 500;
   font-size: 16px;
   margin-bottom: 2px;
-  color: var(--text-primary, #efeff1);
+  color: var(--text-primary);
 }
 
 .option-description {
   font-size: 14px;
-  color: var(--text-secondary, #adadb8);
+  color: var(--text-secondary);
   line-height: 1.3;
 }
 
@@ -482,7 +482,7 @@ const emit = defineEmits(['streamer-added'])
 
 .streamer-details {
   font-size: 0.9rem;
-  color: var(--text-secondary, #adadb8);
+  color: var(--text-secondary);
   max-height: 60px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -503,7 +503,7 @@ const emit = defineEmits(['streamer-added'])
   height: 16px;
   border: 2px solid rgba(255, 255, 255, 0.3);
   border-radius: 50%;
-  border-top-color: #fff;
+  border-top-color: var(--text-on-primary);
   animation: spin 1s ease-in-out infinite;
   margin-right: 8px;
 }

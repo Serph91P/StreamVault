@@ -162,7 +162,7 @@ function removeToast(id: string) {
 /* Toast animations */
 .toast-enter-active,
 .toast-leave-active {
-  transition: all 0.3s ease;
+  transition: var(--transition-base);
 }
 
 .toast-enter-from {
@@ -176,6 +176,6 @@ function removeToast(id: string) {
 }
 
 .toast-move {
-  transition: transform 0.3s ease;
+  transition: var(--transition-transform);
 }
 </style>

@@ -378,7 +378,7 @@ watch(() => props.videos, (newVideos) => {
   border: none;
   background: transparent;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: var(--transition-base);
   border-bottom: 3px solid transparent;
   color: var(--text-secondary);
   white-space: nowrap;
@@ -532,7 +532,7 @@ watch(() => props.videos, (newVideos) => {
   color: var(--text-primary);
   cursor: pointer;
   font-size: 1rem;
-  transition: all 0.2s;
+  transition: var(--transition-base);
 }
 
 .sort-order-btn:hover {
@@ -551,7 +551,7 @@ watch(() => props.videos, (newVideos) => {
   border-radius: var(--border-radius);
   overflow: hidden;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: var(--transition-base);
   border: 1px solid var(--border-color);
 }
 

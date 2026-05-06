@@ -347,7 +347,7 @@ function continueToHome() {
   background: linear-gradient(135deg, rgba(145, 70, 255, 0.15) 0%, rgba(100, 65, 165, 0.15) 100%);
 
   .feature-icon {
-    fill: #9146FF; // Twitch purple
+    fill: var(--twitch-purple);
   }
 }
 
@@ -442,7 +442,7 @@ function continueToHome() {
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-semibold);
   text-decoration: none;
-  transition: all 0.2s ease;
+  transition: var(--transition-base);
   position: relative;
   overflow: hidden;
 
@@ -458,7 +458,7 @@ function continueToHome() {
   width: 16px;
   height: 16px;
   fill: currentColor;
-  transition: transform 0.2s ease;
+  transition: var(--transition-transform);
 
   .feature-link:hover & {
     transform: translateX(4px);
@@ -518,7 +518,7 @@ function continueToHome() {
   font-size: var(--font-size-lg);
   font-weight: var(--font-weight-semibold);
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: var(--transition-base);
   position: relative;
   overflow: hidden;
   box-shadow: var(--shadow-lg);
@@ -537,7 +537,7 @@ function continueToHome() {
   width: 20px;
   height: 20px;
   fill: currentColor;
-  transition: transform 0.3s ease;
+  transition: var(--transition-transform);
 
   .btn-continue:hover & {
     transform: translateX(4px);

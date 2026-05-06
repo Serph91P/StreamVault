@@ -463,8 +463,8 @@ onUnmounted(() => {
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background-color: var(--background-dark, #1f1f23);
-  border: 2px solid var(--primary-color, #9147ff);
+  background-color: var(--background-dark);
+  border: 2px solid var(--primary-color);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -495,7 +495,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s ease;
+  transition: var(--transition-base);
   margin-left: 8px;
   
   &:hover {
@@ -534,19 +534,19 @@ onUnmounted(() => {
   margin: 0;
   font-size: 16px;
   font-weight: 600;
-  color: var(--text-primary, #efeff1);
+  color: var(--text-primary);
 }
 
 .section-subtitle {
   margin: 4px 0 0 0;
   font-size: 12px;
-  color: var(--text-secondary, #adadb8);
+  color: var(--text-secondary);
 }
 
 .clear-all-btn {
   background: none;
   border: none;
-  color: var(--text-secondary, #adadb8);
+  color: var(--text-secondary);
   font-size: 13px;
   cursor: pointer;
   display: flex;
@@ -554,7 +554,7 @@ onUnmounted(() => {
   gap: 4px;
   padding: 6px 10px;
   border-radius: var(--border-radius, 4px);
-  transition: all 0.2s ease;
+  transition: var(--transition-base);
   position: relative;
   z-index: 10;
   pointer-events: auto;
@@ -564,7 +564,7 @@ onUnmounted(() => {
 
 .clear-all-btn:hover {
   background-color: rgba(255, 255, 255, 0.1);
-  color: var(--text-primary, #efeff1);
+  color: var(--text-primary);
   transform: scale(1.05);
 }
 
@@ -603,7 +603,7 @@ onUnmounted(() => {
   width: 60px;
   height: 60px;
   border-radius: 50%;
-  background-color: var(--background-dark, #1f1f23);
+  background-color: var(--background-dark);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -614,13 +614,13 @@ onUnmounted(() => {
   margin: 8px 0;
   font-size: 16px;
   font-weight: 500;
-  color: var(--text-primary, #efeff1);
+  color: var(--text-primary);
 }
 
 .empty-state p {
   margin: 0;
   font-size: 14px;
-  color: var(--text-secondary, #adadb8);
+  color: var(--text-secondary);
 }
 
 .notification-list {
@@ -676,35 +676,35 @@ onUnmounted(() => {
 }
 
 .notification-indicator.online {
-  background-color: var(--success-color, #1db954);
+  background-color: var(--success-color);
 }
 
 .notification-indicator.offline {
-  background-color: var(--warning-color, #ff9800);
+  background-color: var(--warning-color);
 }
 
 .notification-indicator.update {
-  background-color: var(--info-color, #00b4d8);
+  background-color: var(--info-color);
 }
 
 .notification-indicator.recording {
-  background-color: var(--danger-color, #f44336);
+  background-color: var(--danger-color);
 }
 
 .notification-indicator.success {
-  background-color: var(--success-color, #1db954);
+  background-color: var(--success-color);
 }
 
 .notification-indicator.error {
-  background-color: var(--danger-color, #f44336);
+  background-color: var(--danger-color);
 }
 
 .notification-indicator.info {
-  background-color: var(--info-color, #00b4d8);
+  background-color: var(--info-color);
 }
 
 .notification-indicator.test {
-  background-color: var(--purple-color, #9147ff);
+  background-color: var(--purple-color);
 }
 
 .notification-icon {
@@ -723,42 +723,42 @@ onUnmounted(() => {
 
 .icon-wrapper.online {
   background-color: rgba(29, 185, 84, 0.1);
-  color: var(--success-color, #1db954);
+  color: var(--success-color);
 }
 
 .icon-wrapper.offline {
   background-color: rgba(255, 152, 0, 0.1);
-  color: var(--warning-color, #ff9800);
+  color: var(--warning-color);
 }
 
 .icon-wrapper.update {
   background-color: rgba(0, 180, 216, 0.1);
-  color: var(--info-color, #00b4d8);
+  color: var(--info-color);
 }
 
 .icon-wrapper.recording {
   background-color: rgba(244, 67, 54, 0.1);
-  color: var(--danger-color, #f44336);
+  color: var(--danger-color);
 }
 
 .icon-wrapper.success {
   background-color: rgba(29, 185, 84, 0.1);
-  color: var(--success-color, #1db954);
+  color: var(--success-color);
 }
 
 .icon-wrapper.error {
   background-color: rgba(244, 67, 54, 0.1);
-  color: var(--danger-color, #f44336);
+  color: var(--danger-color);
 }
 
 .icon-wrapper.info {
   background-color: rgba(0, 180, 216, 0.1);
-  color: var(--info-color, #00b4d8);
+  color: var(--info-color);
 }
 
 .icon-wrapper.test {
   background-color: rgba(145, 71, 255, 0.1);
-  color: var(--purple-color, #9147ff);
+  color: var(--purple-color);
 }
 
 .notification-content {
@@ -774,18 +774,18 @@ onUnmounted(() => {
 
 .notification-title {
   font-weight: 500;
-  color: var(--text-primary, #efeff1);
+  color: var(--text-primary);
   font-size: 14px;
 }
 
 .notification-time {
-  color: var(--text-secondary, #adadb8);
+  color: var(--text-secondary);
   font-size: 12px;
 }
 
 .notification-message {
   margin: 6px 0;
-  color: var(--text-secondary, #adadb8);
+  color: var(--text-secondary);
   font-size: 13px;
   line-height: 1.4;
   word-break: break-word;
@@ -799,11 +799,11 @@ onUnmounted(() => {
 }
 
 .category-tag {
-  background-color: var(--background-dark, #1f1f23);
+  background-color: var(--background-dark);
   border-radius: 16px;
   padding: 3px 8px;
   font-size: 12px;
-  color: var(--text-secondary, #adadb8);
+  color: var(--text-secondary);
   display: flex;
   align-items: center;
   gap: 4px;
@@ -827,7 +827,7 @@ onUnmounted(() => {
 
 .category-image-small .category-icon {
   font-size: 12px;
-  color: #9146ff;
+  color: var(--twitch-purple);
 }
 
 .tag-icon {
@@ -837,7 +837,7 @@ onUnmounted(() => {
 .notification-dismiss {
   background: none;
   border: none;
-  color: var(--text-secondary, #adadb8);
+  color: var(--text-secondary);
   cursor: pointer;
   font-size: 18px;
   line-height: 1;
@@ -851,7 +851,7 @@ onUnmounted(() => {
 
 .notification-dismiss:hover {
   background-color: rgba(255, 255, 255, 0.1);
-  color: var(--text-primary, #efeff1);
+  color: var(--text-primary);
 }
 
 .dismiss-icon {
@@ -861,7 +861,7 @@ onUnmounted(() => {
 /* Animation transitions */
 .notification-enter-active,
 .notification-leave-active {
-  transition: all 0.3s ease;
+  transition: var(--transition-base);
 }
 
 .notification-enter-from {
@@ -875,7 +875,7 @@ onUnmounted(() => {
 }
 
 .notification-move {
-  transition: transform 0.3s ease;
+  transition: var(--transition-transform);
 }
 
 /* Mobile responsiveness */
@@ -931,7 +931,7 @@ onUnmounted(() => {
   
   .notification-item {
     padding: 16px 20px;
-    border-bottom: 1px solid var(--border-color, #2f2f35);
+    border-bottom: 1px solid var(--border-color);
     grid-template-columns: auto 1fr auto;
     gap: 14px;
     align-items: flex-start;

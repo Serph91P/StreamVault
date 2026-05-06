@@ -534,8 +534,8 @@ onMounted(() => {
       color: var(--primary-color);
       
       [data-theme="light"] & {
-        background: var(--primary-50, #e0f2f1);
-        color: var(--primary-700, #0f766e);
+        background: var(--primary-50);
+        color: var(--primary-700);
       }
     }
   }

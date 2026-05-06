@@ -541,7 +541,7 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   gap: 5px;
-  transition: all 0.2s;
+  transition: var(--transition-base);
 }
 
 .btn:disabled {
@@ -586,7 +586,7 @@ onMounted(() => {
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
   cursor: pointer;
-  transition: all 0.2s;
+  transition: var(--transition-base);
   background: var(--background-card);
 }
 
