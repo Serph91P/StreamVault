@@ -179,7 +179,7 @@ defineExpose({
   backdrop-filter: blur(var(--glass-blur-md));
   -webkit-backdrop-filter: blur(var(--glass-blur-md));
   border: 1px solid transparent;
-  transition: all 0.2s ease;
+  transition: var(--transition-base);
   max-width: 100%;
   word-wrap: break-word;
 }
@@ -252,7 +252,7 @@ defineExpose({
   padding: 4px;
   border-radius: var(--radius-sm);
   opacity: 0.7;
-  transition: opacity 0.2s ease;
+  transition: var(--transition-opacity);
   font-size: 12px;
   width: 24px;
   height: 24px;
@@ -268,11 +268,11 @@ defineExpose({
 
 /* Toast animations */
 .toast-enter-active {
-  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  transition: all var(--duration-400) var(--ease-bounce);
 }
 
 .toast-leave-active {
-  transition: all 0.3s ease-in;
+  transition: var(--transition-base);
 }
 
 .toast-enter-from {
@@ -286,7 +286,7 @@ defineExpose({
 }
 
 .toast-move {
-  transition: transform 0.3s ease;
+  transition: var(--transition-transform);
 }
 
 /* Mobile responsive */

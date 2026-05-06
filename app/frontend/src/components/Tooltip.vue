@@ -73,7 +73,7 @@ defineProps<{
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
   opacity: 0;
   visibility: hidden;
-  transition: opacity 0.2s ease, visibility 0.2s ease;
+  transition: opacity var(--duration-200) var(--ease-out), visibility var(--duration-200) var(--ease-out);
   pointer-events: none;
   line-height: 1.5;
   border: 1px solid rgba(255, 255, 255, 0.1);

@@ -862,7 +862,7 @@ defineExpose({ seekToChapter })
   width: 100%;
   height: auto;
   display: block;
-  background: #000;
+  background: var(--background-darker);
   object-fit: contain;
   
   // Desktop: Limit height
@@ -1271,7 +1271,7 @@ defineExpose({ seekToChapter })
   pointer-events: none;
   z-index: 5;
   opacity: 0;
-  transition: opacity 0.3s ease;
+  transition: var(--transition-opacity);
 }
 
 .chapter-list-panel::before {

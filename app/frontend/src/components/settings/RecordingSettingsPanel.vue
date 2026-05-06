@@ -643,7 +643,7 @@ const handleStreamerPolicySaved = (_policy: any) => {
   font-weight: 600;
   font-size: var(--text-base, 16px);
   border-radius: var(--radius-lg, 12px) var(--radius-lg, 12px) 0 0;
-  transition: all 0.2s ease;
+  transition: var(--transition-base);
   border-bottom: 3px solid transparent;
   position: relative;
 
@@ -705,8 +705,8 @@ const handleStreamerPolicySaved = (_policy: any) => {
   width: 100%;
   padding: var(--spacing-3);
   border: 1px solid var(--border-color);
-  background-color: var(--background-dark, #18181b);
-  color: var(--text-primary, #f1f1f3);
+  background-color: var(--background-dark);
+  color: var(--text-primary);
   border-radius: var(--border-radius);
   box-sizing: border-box;
 }

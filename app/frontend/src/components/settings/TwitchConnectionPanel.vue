@@ -727,7 +727,7 @@ function formatExpiration(expiresAt: string): string {
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: var(--transition-base);
   
   &:hover {
     background: var(--background-hover);
@@ -797,7 +797,7 @@ function formatExpiration(expiresAt: string): string {
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-semibold);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: var(--transition-base);
   border: 1px solid;
 
   .icon {

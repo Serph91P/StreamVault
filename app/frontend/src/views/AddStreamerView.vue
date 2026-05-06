@@ -141,7 +141,7 @@ const handleStreamersImported = () => {
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-medium);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: var(--transition-base);
   margin-bottom: var(--spacing-6);
 
   .icon {

@@ -1024,7 +1024,7 @@ watch(streamerId, async (newVal: string | undefined, oldVal: string | undefined)
   border-radius: var(--border-radius);
   color: var(--text-primary);
   text-decoration: none;
-  transition: all 0.2s;
+  transition: var(--transition-base);
   cursor: pointer;
 }
 
@@ -1052,16 +1052,16 @@ watch(streamerId, async (newVal: string | undefined, oldVal: string | undefined)
   gap: 20px;
   
   /* Responsive grid - better desktop utilization */
-  @media (min-width: 1024px) {
+  @include m.respond-to('lg') {
     grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
   }
   
-  @media (min-width: 1440px) {
+  @include m.respond-to('2xl') {
     grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
     gap: 24px;
   }
   
-  @media (min-width: 1920px) {
+  @include m.respond-to('3xl') {
     grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
     gap: 28px;
   }
@@ -1072,7 +1072,7 @@ watch(streamerId, async (newVal: string | undefined, oldVal: string | undefined)
   border: 1px solid var(--border-color);
   border-radius: var(--border-radius);
   overflow: hidden;
-  transition: all 0.3s ease;
+  transition: var(--transition-base);
   display: flex;
   flex-direction: column;
 }
@@ -1116,14 +1116,14 @@ watch(streamerId, async (newVal: string | undefined, oldVal: string | undefined)
   gap: 12px;
   
   /* Desktop: Better layout with more space for title */
-  @media (min-width: 768px) {
+  @include m.respond-to('md') {
     flex-direction: row;
     justify-content: space-between;
     align-items: flex-start;
     gap: 20px;
   }
   
-  @media (min-width: 1024px) {
+  @include m.respond-to('lg') {
     gap: 32px;
   }
 }
@@ -1141,17 +1141,17 @@ watch(streamerId, async (newVal: string | undefined, oldVal: string | undefined)
   min-width: 0; /* Allow flex shrinking */
   
   /* Larger on tablet/desktop for better readability */
-  @media (min-width: 768px) {
+  @include m.respond-to('md') {
     font-size: 1.5rem;
     line-height: 1.3;
   }
   
-  @media (min-width: 1024px) {
+  @include m.respond-to('lg') {
     font-size: 1.75rem;
     max-width: 70%; /* Give title 70% of space on desktop */
   }
   
-  @media (min-width: 1440px) {
+  @include m.respond-to('2xl') {
     font-size: 2rem;
   }
 }
@@ -1164,7 +1164,7 @@ watch(streamerId, async (newVal: string | undefined, oldVal: string | undefined)
   align-items: center;
   
   /* Desktop: Align to top and right */
-  @media (min-width: 768px) {
+  @include m.respond-to('md') {
     align-self: flex-start;
     margin-top: 2px; /* Slight visual alignment with title */
   }
@@ -1288,7 +1288,7 @@ watch(streamerId, async (newVal: string | undefined, oldVal: string | undefined)
 .header-actions .btn {
   font-weight: 600;
   border: 2px solid transparent;
-  transition: all 0.2s ease;
+  transition: var(--transition-base);
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
@@ -1329,7 +1329,7 @@ watch(streamerId, async (newVal: string | undefined, oldVal: string | undefined)
   padding: var(--spacing-2_5) var(--spacing-3_5);
   border-radius: var(--border-radius, 8px);
   font-weight: 600;
-  transition: all 0.2s ease;
+  transition: var(--transition-base);
   border: 2px solid transparent;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   white-space: nowrap;
@@ -1356,7 +1356,7 @@ watch(streamerId, async (newVal: string | undefined, oldVal: string | undefined)
   padding: var(--spacing-2) var(--spacing-3);
   border-radius: var(--border-radius, 8px);
   font-weight: 600;
-  transition: all 0.2s ease;
+  transition: var(--transition-base);
   border: 2px solid transparent;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
@@ -1638,7 +1638,7 @@ watch(streamerId, async (newVal: string | undefined, oldVal: string | undefined)
   font-size: 0.9rem;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: var(--transition-base);
   text-decoration: none;
 }
 

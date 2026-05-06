@@ -408,7 +408,7 @@ defineExpose({ togglePanel, taskCount: combinedActiveTasks })
 .progress-fill {
   height: 100%;
   background: linear-gradient(90deg, var(--info-color) 0%, var(--primary-color) 100%);
-  transition: width 0.3s ease;
+  transition: width var(--duration-300) var(--ease-out);
   border-radius: var(--border-radius-sm, 4px);
 }
 
@@ -445,7 +445,7 @@ defineExpose({ togglePanel, taskCount: combinedActiveTasks })
   background: rgba(255, 255, 255, 0.05);
   border-radius: var(--border-radius, 8px);
   border: 1px solid rgba(255, 255, 255, 0.1);
-  transition: all 0.3s ease;
+  transition: var(--transition-base);
   
   [data-theme="light"] & {
     background: var(--background-darker);
@@ -523,7 +523,7 @@ defineExpose({ togglePanel, taskCount: combinedActiveTasks })
   background: rgba(255, 255, 255, 0.05);
   border-radius: var(--border-radius, 8px);
   border: 1px solid rgba(255, 255, 255, 0.1);
-  transition: all var(--transition-base, 0.3s ease);
+  transition: var(--transition-base);
   /* Border colors handled by .status-border-* classes */
 }
 

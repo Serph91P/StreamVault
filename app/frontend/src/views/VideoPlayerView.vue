@@ -1020,7 +1020,7 @@ onMounted(() => {
   font-size: var(--text-sm);
   font-weight: v.$font-medium;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: var(--transition-base);
   white-space: nowrap;
   
   .copy-icon {
@@ -1095,7 +1095,7 @@ onMounted(() => {
   font-size: var(--text-sm);
   font-weight: v.$font-medium;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: var(--transition-base);
   
   &.cancel {
     background: transparent;

@@ -255,7 +255,7 @@ const confirmDelete = () => {
   background-color: var(--input-bg);
   border: 1px solid var(--border-color);
   border-radius: var(--border-radius);
-  transition: all 0.2s var(--vue-ease);
+  transition: all var(--duration-200) var(--vue-ease);
 }
 
 .form-control:focus {
@@ -306,7 +306,7 @@ const confirmDelete = () => {
   font-size: 1rem;
   line-height: 1.5;
   border-radius: var(--border-radius);
-  transition: all 0.2s var(--vue-ease);
+  transition: all var(--duration-200) var(--vue-ease);
   cursor: pointer;
   border: none;
   position: relative;
@@ -395,7 +395,7 @@ input[type="checkbox"] {
   margin-right: 8px;
   position: relative;
   vertical-align: middle;
-  transition: all 0.2s var(--vue-ease);
+  transition: all var(--duration-200) var(--vue-ease);
 }
 
 input[type="checkbox"]:checked {

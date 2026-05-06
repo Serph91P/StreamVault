@@ -133,7 +133,7 @@ const dismissPrompt = () => {
   animation: slideUp 0.3s ease-out;
 }
 
-@media (min-width: 768px) {
+@include m.respond-to('md') {
   .install-prompt {
     left: auto;
     max-width: 400px;
@@ -182,7 +182,7 @@ const dismissPrompt = () => {
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: var(--transition-base);
 }
 
 .install-btn {

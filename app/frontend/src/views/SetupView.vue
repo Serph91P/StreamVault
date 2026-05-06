@@ -426,7 +426,7 @@ const handleSetup = async () => {
   height: 20px;
   fill: var(--text-tertiary);
   pointer-events: none;
-  transition: fill 0.2s ease;
+  transition: fill var(--duration-200) var(--ease-out);
   z-index: 2;
 }
 
@@ -455,7 +455,7 @@ const handleSetup = async () => {
   border-radius: var(--radius-lg);
   font-size: var(--font-size-base);
   color: var(--text-primary);
-  transition: all 0.2s ease;
+  transition: var(--transition-base);
 
   &::placeholder {
     color: var(--text-tertiary);
@@ -502,7 +502,7 @@ const handleSetup = async () => {
 
 .strength-fill {
   height: 100%;
-  transition: all 0.3s ease;
+  transition: var(--transition-base);
   border-radius: var(--radius-full);
 
   &.weak {
@@ -616,7 +616,7 @@ const handleSetup = async () => {
   font-size: var(--font-size-base);
   font-weight: var(--font-weight-semibold);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: var(--transition-base);
   position: relative;
   overflow: hidden;
 

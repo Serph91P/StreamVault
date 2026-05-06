@@ -262,7 +262,7 @@ onMounted(load)
   font-style: italic;
 }
 .error {
-  color: #ff6b6b;
+  color: var(--danger-color);
   font-size: 0.9rem;
 }
 .btn {
@@ -278,14 +278,14 @@ onMounted(load)
   cursor: not-allowed;
 }
 .btn-primary {
-  background: #6366f1;
-  border-color: #6366f1;
-  color: white;
+  background: var(--primary-color);
+  border-color: var(--primary-color);
+  color: var(--text-on-primary);
 }
 .btn-danger {
   background: rgba(255, 80, 80, 0.15);
   border-color: rgba(255, 80, 80, 0.4);
-  color: #ff8a8a;
+  color: var(--danger-text-color);
 }
 .btn-sm {
   padding: 0.25rem 0.6rem;

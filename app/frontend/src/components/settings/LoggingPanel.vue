@@ -444,7 +444,7 @@ onMounted(() => {
   border-bottom: 2px solid transparent;
   color: var(--text-secondary);
   cursor: pointer;
-  transition: all 0.2s;
+  transition: var(--transition-base);
 }
 
 .tab:hover {

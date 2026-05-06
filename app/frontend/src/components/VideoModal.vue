@@ -488,7 +488,7 @@ onBeforeUnmount(() => {
   padding: 4px;
   font-size: 1.5rem;
   line-height: 1;
-  transition: color 0.2s;
+  transition: var(--transition-colors);
 }
 
 .close-btn:hover {
@@ -568,7 +568,7 @@ onBeforeUnmount(() => {
   border-radius: var(--border-radius);
   cursor: pointer;
   font-weight: 500;
-  transition: all 0.2s;
+  transition: var(--transition-base);
 }
 
 .retry-btn:hover {
@@ -634,7 +634,7 @@ onBeforeUnmount(() => {
   border-radius: var(--border-radius);
   cursor: pointer;
   font-weight: 500;
-  transition: all 0.2s;
+  transition: var(--transition-base);
   font-size: 0.9rem;
   white-space: nowrap;
 }
@@ -686,7 +686,7 @@ onBeforeUnmount(() => {
   padding: 4px;
   font-size: 1.2rem;
   line-height: 1;
-  transition: color 0.2s;
+  transition: var(--transition-colors);
 }
 
 .close-chapters-btn:hover {
@@ -703,7 +703,7 @@ onBeforeUnmount(() => {
   gap: 12px;
   padding: 12px;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: var(--transition-base);
   border-radius: var(--border-radius);
   border: 1px solid transparent;
 }
