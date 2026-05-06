@@ -10,15 +10,16 @@
         class="input-field interactive-element"
         @blur="validateUsername"
       >
-      <button 
-        type="button" 
-        @click="validateUsername" 
-        :disabled="isLoading || isValidating || !username.trim()"
+      <BaseButton
+        type="button"
+        variant="secondary"
+        :loading="isValidating"
+        :disabled="isLoading || !username.trim()"
         class="validate-button interactive-element"
+        @click="validateUsername"
       >
-        <span v-if="isValidating" class="loader"></span>
-        {{ isValidating ? 'Checking...' : 'Check' }}
-      </button>
+        Check
+      </BaseButton>
     </div>
 
     <div v-if="validationMessage" class="notification-item" :class="{ error: !isValid, success: isValid }">
@@ -163,14 +164,14 @@
     </div>
 
     <div class="form-actions">
-      <button 
-        type="submit" 
-        :disabled="isLoading || isValidating || !isValid" 
-        class="btn btn-primary"
+      <BaseButton
+        type="submit"
+        variant="primary"
+        :loading="isLoading"
+        :disabled="isValidating || !isValid"
       >
-        <span v-if="isLoading" class="loader"></span>
-        {{ isLoading ? 'Adding...' : 'Add Streamer' }}
-      </button>
+        Add Streamer
+      </BaseButton>
     </div>
 
     <div v-if="statusMessage" class="notification-item" :class="{ error: hasError }">
@@ -181,6 +182,7 @@
 
 <script setup>
 import { ref, reactive } from 'vue'
+import BaseButton from '@/components/base/BaseButton.vue'
 
 const username = ref('')
 const quality = ref('best') // Default quality

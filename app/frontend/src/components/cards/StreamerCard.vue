@@ -742,8 +742,8 @@ onUnmounted(() => {
 /* Actions - TOP RIGHT CORNER (ABSOLUTE POSITIONING) */
 .streamer-actions {
   position: absolute;
-  top: 0;
-  right: 0;
+  top: var(--spacing-2);
+  right: var(--spacing-2);
   z-index: 10;
 }
 
