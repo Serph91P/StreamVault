@@ -380,7 +380,7 @@
     
     <!-- Delete Confirmation Modal -->
     <div v-if="showDeleteModal" class="modal-overlay" @click.self="cancelDelete">
-      <div class="modal">
+      <div class="modal" ref="deleteModalRef" role="dialog" aria-modal="true" tabindex="-1">
         <div class="modal-header">
           <h3>Delete Stream</h3>
           <button 
@@ -422,7 +422,7 @@
     
     <!-- Delete All Confirmation Modal -->
     <div v-if="showDeleteAllModal" class="modal-overlay" @click.self="cancelDeleteAll">
-      <div class="modal">
+      <div class="modal" ref="deleteAllModalRef" role="dialog" aria-modal="true" tabindex="-1">
         <div class="modal-header">
           <h3>Delete All Streams</h3>
           <button 
@@ -466,6 +466,7 @@ import { useStreams } from '@/composables/useStreams'
 import { useSystemAndRecordingStatus } from '@/composables/useSystemAndRecordingStatus'
 import { useCategoryImages } from '@/composables/useCategoryImages'
 import { useForceRecording } from '@/composables/useForceRecording'
+import { useModal } from '@/composables/useModal'
 import { recordingApi, streamsApi, streamersApi } from '@/services/api'
 import type { Stream } from '@/types/streams'
 
@@ -525,6 +526,14 @@ const showDeleteModal = ref(false)
 const showDeleteAllModal = ref(false)
 const streamToDelete = ref<ExtendedStream | null>(null)
 const stoppingRecordingStreamerId = ref<number | null>(null)
+
+// Modal refs + lifecycles (body-scroll-lock + ESC + focus-trap via useModal)
+const deleteModalRef = ref<HTMLElement | null>(null)
+const deleteAllModalRef = ref<HTMLElement | null>(null)
+const deleteModal = useModal(deleteModalRef, { onClose: () => { showDeleteModal.value = false } })
+const deleteAllModal = useModal(deleteAllModalRef, { onClose: () => { showDeleteAllModal.value = false } })
+watch(showDeleteModal, (v) => { if (v) deleteModal.open(); else deleteModal.close() })
+watch(showDeleteAllModal, (v) => { if (v) deleteAllModal.open(); else deleteAllModal.close() })
 
 // WebSocket State for real-time updates
 const localRecordingState = ref<Record<number, boolean>>({})

@@ -73,7 +73,9 @@
             <div
               v-for="video in sortedVideos"
               :key="video.id"
-              @click="selectVideo(video)"
+              @click="onVideoClick($event, video)"
+              @touchstart.passive="onVideoTouchStart"
+              @touchmove.passive="onVideoTouchMove"
               :class="['video-card', { active: currentVideo?.id === video.id }]"
             >
               <div class="video-thumbnail">
@@ -149,6 +151,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import VideoPlayer from './VideoPlayer.vue'
+import { useTouchClick } from '@/composables/useTouchClick'
 
 interface VideoData {
   id: string
@@ -274,6 +277,21 @@ const gameStats = computed(() => {
 const selectVideo = (video: VideoData) => {
   currentVideo.value = video
   activeTab.value = 'player'
+}
+
+// Scroll-aware tap handling: do not select when user is panning the list.
+let pendingVideo: VideoData | null = null
+const {
+  onClick: onVideoClickGuarded,
+  onTouchStart: onVideoTouchStart,
+  onTouchMove: onVideoTouchMove,
+} = useTouchClick<MouseEvent>(() => {
+  if (pendingVideo) selectVideo(pendingVideo)
+  pendingVideo = null
+})
+const onVideoClick = (event: MouseEvent, video: VideoData) => {
+  pendingVideo = video
+  onVideoClickGuarded(event)
 }
 
 const onChapterChange = (_chapter: any, _index: number) => {
