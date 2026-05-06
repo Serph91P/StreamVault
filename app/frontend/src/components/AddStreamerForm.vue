@@ -1,11 +1,11 @@
 <template>
   <form @submit.prevent="validateAndSubmit" class="streamer-form">
     <div class="input-group">
-      <input 
-        type="text" 
-        v-model="username" 
+      <input
+        type="text"
+        v-model="username"
         :disabled="isLoading || isValidating"
-        placeholder="Enter Twitch username" 
+        placeholder="Enter Twitch username"
         required
         class="input-field interactive-element"
         @blur="validateUsername"
@@ -22,141 +22,24 @@
       </BaseButton>
     </div>
 
-    <!-- Erweiterte Einstellungen (nur anzeigen, wenn der Benutzername gültig ist) -->
+    <!-- Settings only shown after username is validated -->
     <div v-if="isValid && streamerInfo" class="settings-panel content-section">
-      <h3>Streamer Settings for {{ streamerInfo.display_name }}</h3>
-      
       <div class="streamer-preview">
-        <img v-if="streamerInfo.profile_image_url" :src="streamerInfo.profile_image_url" alt="Profile" class="profile-image">
+        <img
+          v-if="streamerInfo.profile_image_url"
+          :src="streamerInfo.profile_image_url"
+          alt="Profile"
+          class="profile-image"
+        >
         <div class="streamer-info">
           <div class="streamer-name">{{ streamerInfo.display_name }}</div>
-          <div class="streamer-details" v-if="streamerInfo.description">{{ streamerInfo.description }}</div>
-        </div>
-      </div>
-
-      <!-- Qualitätseinstellungen -->
-      <div class="settings-section">
-        <h4>Stream Quality</h4>
-        <div class="form-group">
-          <label for="quality-select">Quality:</label>
-          <select 
-            id="quality-select"
-            v-model="quality" 
-            :disabled="isLoading"
-            class="input-field"
-          >
-            <option value="best">Best</option>
-            <option value="1080p60">1080p60</option>
-            <option value="1080p">1080p</option>
-            <option value="720p60">720p60</option>
-            <option value="720p">720p</option>
-            <option value="480p">480p</option>
-            <option value="360p">360p</option>
-            <option value="160p">160p</option>
-            <option value="audio_only">Audio Only</option>
-          </select>
-        </div>
-      </div>
-
-      <!-- Benachrichtigungseinstellungen -->
-      <div class="settings-section">
-        <h4>Notification Settings</h4>
-        <div class="notification-options">
-          <div class="option-item">
-            <label class="checkbox-container">
-              <input type="checkbox" v-model="notifications.notify_online">
-              <span class="checkmark"></span>
-              <div class="option-text">
-                <span class="option-title">Online</span>
-                <span class="option-description">Notify when stream starts</span>
-              </div>
-            </label>
-          </div>
-          
-          <div class="option-item">
-            <label class="checkbox-container">
-              <input type="checkbox" v-model="notifications.notify_offline">
-              <span class="checkmark"></span>
-              <div class="option-text">
-                <span class="option-title">Offline</span>
-                <span class="option-description">Notify when stream ends</span>
-              </div>
-            </label>
-          </div>
-          
-          <div class="option-item">
-            <label class="checkbox-container">
-              <input type="checkbox" v-model="notifications.notify_update">
-              <span class="checkmark"></span>
-              <div class="option-text">
-                <span class="option-title">Updates</span>
-                <span class="option-description">Notify on title/category changes</span>
-              </div>
-            </label>
-          </div>
-          
-          <div class="option-item">
-            <label class="checkbox-container">
-              <input type="checkbox" v-model="notifications.notify_favorite_category">
-              <span class="checkmark"></span>
-              <div class="option-text">
-                <span class="option-title">Favorites</span>
-                <span class="option-description">Notify when streaming favorite games</span>
-              </div>
-            </label>
+          <div class="streamer-details" v-if="streamerInfo.description">
+            {{ streamerInfo.description }}
           </div>
         </div>
       </div>
 
-      <!-- Aufnahmeeinstellungen -->
-      <div class="settings-section">
-        <h4>Recording Settings</h4>
-        <div class="recording-options">
-          <div class="option-item">
-            <label class="checkbox-container">
-              <input type="checkbox" v-model="recording.enabled">
-              <span class="checkmark"></span>
-              <div class="option-text">
-                <span class="option-title">Enable Recording</span>
-                <span class="option-description">Automatically record streams</span>
-              </div>
-            </label>
-          </div>
-          
-          <div class="form-group" v-if="recording.enabled">
-            <label for="recording-quality">Recording Quality:</label>
-            <select 
-              id="recording-quality"
-              v-model="recording.quality" 
-              class="input-field"
-            >
-              <option value="">Use global default</option>
-              <option value="best">Best</option>
-              <option value="1080p60">1080p60</option>
-              <option value="1080p">1080p</option>
-              <option value="720p60">720p60</option>
-              <option value="720p">720p</option>
-              <option value="480p">480p</option>
-              <option value="360p">360p</option>
-              <option value="160p">160p</option>
-            </select>
-          </div>
-          
-          <div class="form-group" v-if="recording.enabled">
-            <label for="custom-filename">Custom Filename Template:</label>
-            <input 
-              id="custom-filename"
-              type="text" 
-              v-model="recording.custom_filename"
-              placeholder="Use global template" 
-              class="input-field"
-            >
-            <div class="help-text">
-              Leave empty to use global template
-            </div>
-          </div>
-        </div>
-      </div>
+      <StreamerSettingsFields v-model="settings" :disabled="isLoading" />
     </div>
 
     <div class="form-actions">
@@ -172,36 +55,34 @@
   </form>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, reactive } from 'vue'
 import BaseButton from '@/components/base/BaseButton.vue'
+import StreamerSettingsFields from '@/components/streamers/StreamerSettingsFields.vue'
+import { buildDefaultState } from '@/schemas/streamerSettings.schema'
 import { useToast } from '@/composables/useToast'
+
+interface StreamerInfo {
+  display_name?: string
+  profile_image_url?: string
+  description?: string
+}
+
+const emit = defineEmits<{
+  (e: 'streamer-added'): void
+}>()
 
 const toast = useToast()
 
 const username = ref('')
-const quality = ref('best') // Default quality
 const isLoading = ref(false)
 const isValidating = ref(false)
 const isValid = ref(false)
-const streamerInfo = ref(null)
+const streamerInfo = ref<StreamerInfo | null>(null)
 
-// Benachrichtigungseinstellungen
-const notifications = reactive({
-  notify_online: true,
-  notify_offline: true,
-  notify_update: true,
-  notify_favorite_category: true
-})
+// Schema-driven reactive state: { quality, notifications: {...}, recording: {...} }
+const settings = reactive<Record<string, unknown>>(buildDefaultState())
 
-// Aufnahmeeinstellungen
-const recording = reactive({
-  enabled: true,
-  quality: '',
-  custom_filename: ''
-})
-
-// Überprüfe den Benutzernamen über die Twitch API
 const validateUsername = async () => {
   if (!username.value.trim()) return
 
@@ -210,9 +91,10 @@ const validateUsername = async () => {
   streamerInfo.value = null
 
   try {
-    const response = await fetch(`/api/streamers/validate/${username.value.trim().toLowerCase()}`, {
-      credentials: 'include' // CRITICAL: Required to send session cookie
-    })
+    const response = await fetch(
+      `/api/streamers/validate/${username.value.trim().toLowerCase()}`,
+      { credentials: 'include' },
+    )
     const data = await response.json()
 
     if (response.ok && data.valid) {
@@ -237,7 +119,6 @@ const validateAndSubmit = () => {
     validateUsername()
     return
   }
-
   addStreamer()
 }
 
@@ -246,42 +127,24 @@ const addStreamer = async () => {
 
   isLoading.value = true
 
+  // Emit immediately so the parent (modal/view) can close. Backend WebSocket
+  // event "streamer.added" + toast handle user feedback.
+  emit('streamer-added')
+
   try {
     const cleanUsername = username.value.trim().toLowerCase()
 
     const response = await fetch(`/api/streamers/${cleanUsername}`, {
       method: 'POST',
-      credentials: 'include', // CRITICAL: Required to send session cookie
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        quality: quality.value,
-        notifications: {
-          notify_online: notifications.notify_online,
-          notify_offline: notifications.notify_offline,
-          notify_update: notifications.notify_update,
-          notify_favorite_category: notifications.notify_favorite_category
-        },
-        recording: {
-          enabled: recording.enabled,
-          quality: recording.quality,
-          custom_filename: recording.custom_filename
-        }
-      })
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(settings),
     })
 
-    const data = await response.json()
+    const data = await response.json().catch(() => ({}))
 
-    if (response.ok) {
-      // Backend emits a streamer.added toast via WebSocket. No local success toast
-      // needed (deduplication in useToast prevents double).
-      username.value = ''
-      isValid.value = false
-      streamerInfo.value = null
-      emit('streamer-added')
-    } else {
-      toast.error(data.message || 'Failed to add streamer')
+    if (!response.ok) {
+      toast.error(data?.message || 'Failed to add streamer')
     }
   } catch (error) {
     toast.error('Error connecting to server')
@@ -290,13 +153,10 @@ const addStreamer = async () => {
     isLoading.value = false
   }
 }
-
-const emit = defineEmits(['streamer-added'])
 </script>
 
 <style scoped lang="scss">
 @use '@/styles/mixins' as m;
-/* Responsive - Use SCSS mixins for breakpoints */
 
 .input-group {
   display: flex;
@@ -307,21 +167,7 @@ const emit = defineEmits(['streamer-added'])
 
 .validate-button {
   padding: 10px 16px;
-  background-color: var(--secondary-color);
-  color: white;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
   font-weight: 600;
-}
-
-.validate-button:hover:not(:disabled) {
-  background-color: var(--secondary-color-hover);
-}
-
-.validate-button:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
 }
 
 .settings-panel {
@@ -329,223 +175,43 @@ const emit = defineEmits(['streamer-added'])
   padding: 1rem;
 }
 
-.settings-section {
-  margin-bottom: 1.5rem;
+.streamer-preview {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
   padding-bottom: 1rem;
   border-bottom: 1px solid var(--border-color);
 }
 
-.settings-section:last-child {
-  border-bottom: none;
-  margin-bottom: 0;
-  padding-bottom: 0;
-}
-
-.settings-section h4 {
-  margin-top: 0;
-  margin-bottom: 1rem;
-  color: var(--text-primary);
-  font-size: 1.1rem;
-  font-weight: 600;
-}
-
-.help-text {
-  margin-top: 0.25rem;
-  font-size: 14px;
-  color: var(--text-secondary);
-}
-
-.notification-options,
-.recording-options {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-  gap: 1rem;
-}
-
-.option-item {
-  margin-bottom: 1rem;
-}
-
-.checkbox-container {
-  display: flex;
-  align-items: flex-start;
-  position: relative;
-  padding-left: 35px;
-  cursor: pointer;
-  font-size: 16px;
-  user-select: none;
-}
-
-.checkbox-container input {
-  position: absolute;
-  opacity: 0;
-  cursor: pointer;
-  height: 0;
-  width: 0;
-}
-
-.checkmark {
-  position: absolute;
-  top: 0;
-  left: 0;
-  height: 24px;
-  width: 24px;
-  background-color: var(--background-darker);
-  border: 2px solid var(--border-color);
-  border-radius: 4px;
-}
-
-.checkbox-container:hover input ~ .checkmark {
-  border-color: var(--primary-color);
-}
-
-.checkbox-container input:checked ~ .checkmark {
-  background-color: var(--primary-color);
-  border-color: var(--primary-color);
-}
-
-.checkmark:after {
-  content: "";
-  position: absolute;
-  display: none;
-}
-
-.checkbox-container input:checked ~ .checkmark:after {
-  display: block;
-}
-
-.checkbox-container .checkmark:after {
-  left: 8px;
-  top: 4px;
-  width: 5px;
-  height: 10px;
-  border: solid white;
-  border-width: 0 2px 2px 0;
-  transform: rotate(45deg);
-}
-
-.option-text {
-  display: flex;
-  flex-direction: column;
-  margin-left: 10px;
-}
-
-.option-title {
-  font-weight: 500;
-  font-size: 16px;
-  margin-bottom: 2px;
-  color: var(--text-primary);
-}
-
-.option-description {
-  font-size: 14px;
-  color: var(--text-secondary);
-  line-height: 1.3;
-}
-
-.streamer-preview {
-  display: flex;
-  align-items: center;
-  margin-bottom: 1.5rem;
-  padding: 1rem;
-  background-color: rgba(0, 0, 0, 0.2);
-  border-radius: 6px;
-}
-
 .profile-image {
-  width: 64px;
-  height: 64px;
+  width: 56px;
+  height: 56px;
   border-radius: 50%;
-  margin-right: 1rem;
   object-fit: cover;
-}
-
-.streamer-info {
-  flex: 1;
+  border: 2px solid var(--color-primary);
 }
 
 .streamer-name {
-  font-size: 1.2rem;
   font-weight: 600;
-  margin-bottom: 0.25rem;
+  color: var(--text-primary);
+  font-size: 1.05rem;
 }
 
 .streamer-details {
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   color: var(--text-secondary);
-  max-height: 60px;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  margin-top: 0.25rem;
   display: -webkit-box;
-  -webkit-line-clamp: 3;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .form-actions {
   margin-top: 1.5rem;
   display: flex;
   justify-content: flex-end;
-}
-
-.loader {
-  display: inline-block;
-  width: 16px;
-  height: 16px;
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  border-radius: 50%;
-  border-top-color: var(--text-on-primary);
-  animation: spin 1s ease-in-out infinite;
-  margin-right: 8px;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
-/* Responsive Anpassungen */
-@include m.respond-below('md') {  // < 768px
-  .notification-options,
-  .recording-options {
-    grid-template-columns: 1fr;
-  }
-  
-  .input-group {
-    flex-direction: column;
-  }
-  
-  .validate-button {
-    width: 100%;
-    margin-top: 0.5rem;
-  }
-  
-  .form-actions {
-    justify-content: center;
-  }
-  
-  .streamer-preview {
-    flex-direction: column;
-    text-align: center;
-  }
-  
-  .profile-image {
-    margin-right: 0;
-    margin-bottom: 1rem;
-  }
-  
-  .checkbox-container {
-    padding-left: 30px;
-  }
-  
-  .checkmark {
-    height: 20px;
-    width: 20px;
-  }
-  
-  .checkbox-container .checkmark:after {
-    left: 6px;
-    top: 3px;
-    width: 4px;
-    height: 8px;
-  }
 }
 </style>

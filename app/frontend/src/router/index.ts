@@ -62,6 +62,16 @@ const router = createRouter({
       component: AddStreamerView,
     },
     {
+      path: '/add-streamer/manual',
+      name: 'add-streamer-manual',
+      component: AddStreamerView,
+    },
+    {
+      path: '/add-streamer/import',
+      name: 'add-streamer-import',
+      component: AddStreamerView,
+    },
+    {
       path: '/auth/setup',
       name: 'setup',
       component: SetupView,
