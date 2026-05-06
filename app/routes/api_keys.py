@@ -8,13 +8,12 @@ revoke/rotate must happen from the web UI.
 import logging
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request
 
 from app.database import SessionLocal
 from app.models import User
 from app.schemas.api_key import ApiKeyCreate, ApiKeyCreated, ApiKeyResponse
 from app.services.core.api_key_service import ApiKeyService
-from app.services.core.auth_service import AuthService
 
 logger = logging.getLogger("streamvault")
 
@@ -100,5 +99,7 @@ async def revoke_api_key(key_id: int, request: Request):
         service = ApiKeyService(db)
         ok = service.revoke(key_id, user_id=user.id)
         if not ok:
-            raise HTTPException(status_code=404, detail="API key not found or already revoked")
+            raise HTTPException(
+                status_code=404, detail="API key not found or already revoked"
+            )
     return None

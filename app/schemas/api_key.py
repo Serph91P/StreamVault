@@ -5,7 +5,9 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class ApiKeyCreate(BaseModel):
-    name: str = Field(..., min_length=1, max_length=100, description="Human readable label")
+    name: str = Field(
+        ..., min_length=1, max_length=100, description="Human readable label"
+    )
 
 
 class ApiKeyResponse(BaseModel):
@@ -24,7 +26,9 @@ class ApiKeyResponse(BaseModel):
 class ApiKeyCreated(ApiKeyResponse):
     """Returned exactly ONCE on creation. Includes the raw key value."""
 
-    key: str = Field(..., description="Raw API key value. Store securely; not retrievable later.")
+    key: str = Field(
+        ..., description="Raw API key value. Store securely; not retrievable later."
+    )
 
 
 class ApiKeyList(BaseModel):
