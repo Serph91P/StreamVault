@@ -376,8 +376,8 @@ onUnmounted(() => {
   // Card-specific overrides
   :deep(.glass-card-content) {
     padding: var(--spacing-4);
-    min-height: 200px;
-    max-height: 260px;
+    min-height: 220px;
+    max-height: 300px;  /* FIX: bumped from 260 so 3-line titles fit without clipping */
     overflow: visible;
     display: flex;
     flex-direction: column;
@@ -583,11 +583,14 @@ onUnmounted(() => {
   font-size: var(--text-base);  /* INCREASED: Better readability */
   font-weight: v.$font-medium;
   color: var(--text-primary);
-  line-height: 1.4;
+  line-height: 1.5;  /* FIX: bumped from 1.4 to give descenders (g, j, p, y) room */
   margin: 0;
   width: 100%;
-  
+
   /* CRITICAL: Max 3 lines for live title (more important than description) */
+  /* FIX: -webkit-line-clamp + overflow:hidden clips descenders on the last line.
+     Use padding-bottom + matching max-height so descenders are not cut off, and
+     keep ellipsis behaviour. */
   overflow: hidden;
   text-overflow: ellipsis;
   display: -webkit-box;
@@ -595,7 +598,9 @@ onUnmounted(() => {
   line-clamp: 3;
   -webkit-box-orient: vertical;
   word-break: break-word;
-  
+  padding-bottom: 0.2em;  /* descender safe-area */
+  max-height: calc(1.5em * 3 + 0.2em);  /* 3 lines * line-height + descender pad */
+
   &.no-title {
     font-style: italic;
     opacity: 0.6;
@@ -616,10 +621,11 @@ onUnmounted(() => {
   font-size: var(--text-sm);
   font-weight: v.$font-medium;
   color: var(--text-secondary);
-  line-height: 1.4;
+  line-height: 1.5;  /* FIX: bumped to give descenders (g, j, p, y) room */
   margin: 0;
-  
+
   /* Max 2 lines for last stream title */
+  /* FIX: descender-safe clamp (see .stream-title comment) */
   overflow: hidden;
   text-overflow: ellipsis;
   display: -webkit-box;
@@ -627,7 +633,8 @@ onUnmounted(() => {
   line-clamp: 2;
   -webkit-box-orient: vertical;
   word-break: break-word;
-  max-height: 2.8em;  /* 2 * 1.4 line-height */
+  padding-bottom: 0.2em;  /* descender safe-area */
+  max-height: calc(1.5em * 2 + 0.2em);  /* 2 lines * line-height + descender pad */
 }
 
 .last-stream-category {
