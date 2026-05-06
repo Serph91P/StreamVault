@@ -4,12 +4,11 @@ import { createRouter, createWebHistory } from 'vue-router';
 const HomeView = () => import('../views/HomeView.vue');
 const SubscriptionsView = () => import('../views/SubscriptionsView.vue');
 const AddStreamerView = () => import('../views/AddStreamerView.vue');
-const SetupView = () => import('../views/SetupView.vue');
+const OnboardingWizardView = () => import('../views/OnboardingWizardView.vue');
 const LoginView = () => import('../views/LoginView.vue');
 const AdminView = () => import('../views/AdminView.vue');
 const SettingsView = () => import('../views/SettingsView.vue');
 const StreamerDetailView = () => import('../views/StreamerDetailView.vue');
-const WelcomeView = () => import('../views/WelcomeView.vue');
 const StreamersView = () => import('../views/StreamersView.vue');
 const VideoPlayerView = () => import('../views/VideoPlayerView.vue');
 const VideosView = () => import('../views/VideosView.vue');
@@ -33,7 +32,7 @@ const router = createRouter({
     {
       path: '/welcome',
       name: 'welcome',
-      component: WelcomeView,
+      component: OnboardingWizardView,
     },
     {
       path: '/streamers',
@@ -74,7 +73,12 @@ const router = createRouter({
     {
       path: '/auth/setup',
       name: 'setup',
-      component: SetupView,
+      component: OnboardingWizardView,
+    },
+    {
+      path: '/onboarding',
+      name: 'onboarding',
+      component: OnboardingWizardView,
     },
     {
       path: '/auth/login',
@@ -104,7 +108,8 @@ const router = createRouter({
   ],
 });
 
-// Show WelcomeView only if onboarding has not been completed yet (server-side flag)
+// Route everything through the OnboardingWizardView until both setup and
+// the welcome step have been completed (server-side flag).
 router.beforeEach(async (to, from, next) => {
   // 🎭 MOCK MODE: Bypass auth checks in development
   const USE_MOCK_DATA = import.meta.env.VITE_USE_MOCK_DATA === 'true';
@@ -128,8 +133,13 @@ router.beforeEach(async (to, from, next) => {
       data = await response.json();
     } catch (jsonError) {
       console.error('Failed to parse setup response as JSON:', jsonError);
-      // Avoid infinite loop: only redirect if not already heading to setup/login
-      if (to.path !== '/auth/setup' && to.path !== '/auth/login') {
+      // Avoid infinite loop: only redirect if not already heading to onboarding/login
+      if (
+        to.path !== '/auth/setup' &&
+        to.path !== '/auth/login' &&
+        to.path !== '/welcome' &&
+        to.path !== '/onboarding'
+      ) {
         return next('/auth/login');
       }
       return next();
@@ -140,22 +150,28 @@ router.beforeEach(async (to, from, next) => {
     // clearing browser storage.
     const welcomeCompleted = Boolean(data.welcome_completed);
 
+    // Treat the wizard routes as one logical group. The wizard component
+    // figures out which step to show based on `setup_required` itself.
+    const isWizardRoute =
+      to.path === '/auth/setup' || to.path === '/welcome' || to.path === '/onboarding';
+
     if (data.setup_required) {
-      if (to.path !== '/auth/setup') {
+      if (!isWizardRoute) {
         return next('/auth/setup');
       }
       return next();
     }
 
-    // Setup is done; gate `/welcome` on the persisted flag.
-    if (to.path === '/auth/setup') {
-      return next(welcomeCompleted ? '/' : '/welcome');
-    }
+    // Setup is done; gate other routes on the persisted welcome flag.
     if (to.path === '/' && !welcomeCompleted) {
       return next('/welcome');
     }
-    if (to.path === '/welcome' && welcomeCompleted) {
+    if (isWizardRoute && welcomeCompleted) {
       return next('/');
+    }
+    if (isWizardRoute) {
+      // Wizard handles its own internal routing once setup is done.
+      return next();
     }
 
     const authResponse = await fetch('/auth/check', {
