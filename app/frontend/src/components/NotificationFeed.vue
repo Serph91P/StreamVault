@@ -935,6 +935,14 @@ onUnmounted(() => {
     grid-template-columns: auto 1fr auto;
     gap: 14px;
     align-items: flex-start;
+
+    &:last-child {
+      border-bottom: none;
+    }
+
+    &:first-child {
+      border-top: none;
+    }
   }
   
   .notification-icon {
