@@ -1,6 +1,7 @@
 from fastapi import Request
 from fastapi.responses import RedirectResponse, JSONResponse
 from app.services.core.auth_service import AuthService
+from app.services.core.api_key_service import ApiKeyService
 from app.database import SessionLocal
 import logging
 
@@ -19,6 +20,35 @@ def _extract_bearer_token(headers: list) -> str | None:
             value = header_value.decode("utf-8", errors="ignore")
             if value.startswith("Bearer "):
                 return value[7:]  # Strip "Bearer " prefix
+    return None
+
+
+def _extract_api_key(request_or_headers) -> str | None:
+    """Extract a long-lived API key from the request.
+
+    Accepts either:
+      - X-API-Key: sv_<token>
+      - Authorization: ApiKey sv_<token>
+
+    Cookies/Bearer session tokens are handled separately and take precedence.
+    """
+    # Accept both a Request object and the raw scope headers list
+    if isinstance(request_or_headers, list):
+        for header_name, header_value in request_or_headers:
+            name = header_name.decode("ascii", errors="ignore").lower()
+            value = header_value.decode("utf-8", errors="ignore")
+            if name == "x-api-key" and value:
+                return value.strip()
+            if name == "authorization" and value.startswith("ApiKey "):
+                return value[7:].strip()
+        return None
+
+    api_key = request_or_headers.headers.get("x-api-key")
+    if api_key:
+        return api_key.strip()
+    auth = request_or_headers.headers.get("authorization", "")
+    if auth.startswith("ApiKey "):
+        return auth[7:].strip()
     return None
 
 
@@ -135,6 +165,34 @@ class AuthMiddleware:
                 auth_header = request.headers.get("authorization", "")
                 if auth_header.startswith("Bearer "):
                     session_token = auth_header[7:]
+
+            # API-key fallback (X-API-Key or "Authorization: ApiKey <token>").
+            # Sessions/cookies always take precedence. The /api/api-keys
+            # management endpoints intentionally REJECT API-key auth — those
+            # routes re-validate that an interactive session exists, so a
+            # stolen key cannot be used to mint or revoke more keys.
+            if not session_token:
+                api_key = _extract_api_key(request)
+                if api_key:
+                    # SECURITY: Never allow API-key auth on the management
+                    # endpoints — minting/revoking keys must require an
+                    # interactive session.
+                    if request.url.path.startswith("/api/api-keys"):
+                        logger.warning(
+                            f"Blocked API-key auth attempt on management endpoint {request.url.path}"
+                        )
+                    else:
+                        api_key_service = ApiKeyService(db=db)
+                        record = api_key_service.validate(api_key)
+                        if record:
+                            logger.debug(
+                                f"Authenticated via API key id={record.id} for {request.url.path}"
+                            )
+                            return await self.app(scope, receive, send)
+                        else:
+                            logger.warning(
+                                f"Rejected invalid API key for {request.url.path}"
+                            )
 
             if not session_token:
                 logger.debug(

@@ -215,6 +215,25 @@
           </GlassCard>
         </div>
 
+        <!-- API Keys -->
+        <div v-if="activeSection === 'api-keys'" class="settings-section">
+          <div class="section-header">
+            <h2 class="section-title">
+              <svg class="section-icon">
+                <use href="#icon-key" />
+              </svg>
+              API Keys
+            </h2>
+            <p class="section-description">
+              Manage long-lived tokens for external clients (monitoring, scripts, dashboards).
+            </p>
+          </div>
+
+          <GlassCard variant="strong" padding="lg">
+            <ApiKeysPanel />
+          </GlassCard>
+        </div>
+
         <!-- About Settings -->
         <div v-if="activeSection === 'about'" class="settings-section">
           <div class="section-header">
@@ -310,6 +329,7 @@ import ProxySettingsPanel from '@/components/settings/ProxySettingsPanel.vue'
 import FavoritesSettingsPanel from '@/components/settings/FavoritesSettingsPanel.vue'
 import PWAPanel from '@/components/settings/PWAPanel.vue'
 import TwitchConnectionPanel from '@/components/settings/TwitchConnectionPanel.vue'
+import ApiKeysPanel from '@/components/settings/ApiKeysPanel.vue'
 import type { NotificationSettings, StreamerNotificationSettings } from '@/types/settings'
 import type { RecordingSettings } from '@/types/recording'
 
@@ -350,6 +370,12 @@ const sections = [
     label: 'PWA & Mobile',
     description: 'Mobile app settings',
     icon: 'smartphone'
+  },
+  {
+    id: 'api-keys',
+    label: 'API Keys',
+    description: 'External access tokens',
+    icon: 'key'
   },
   {
     id: 'about',
