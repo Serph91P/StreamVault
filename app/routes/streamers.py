@@ -944,7 +944,8 @@ async def get_streamer(
             if notification_settings
             else False,
         },
-        "quality": (recording_settings.quality if recording_settings else "best") or "best",
+        "quality": (recording_settings.quality if recording_settings else "best")
+        or "best",
         "title": streamer.title if streamer.is_live else None,
         "category_name": streamer.category_name if streamer.is_live else None,
         "profile_image_url": profile_image_url,
@@ -994,8 +995,16 @@ async def update_streamer_settings(
         #   * legacy flat keys (autoRecord, quality, filenameTemplate, ...)
         #   * schema-driven nested payload from StreamerSettingsFields:
         #       { quality, recording: {...}, notifications: {...} }
-        recording_block = settings.get("recording") if isinstance(settings.get("recording"), dict) else None
-        notifications_block = settings.get("notifications") if isinstance(settings.get("notifications"), dict) else None
+        recording_block = (
+            settings.get("recording")
+            if isinstance(settings.get("recording"), dict)
+            else None
+        )
+        notifications_block = (
+            settings.get("notifications")
+            if isinstance(settings.get("notifications"), dict)
+            else None
+        )
 
         # --- Recording fields ---
         if recording_block is not None:
@@ -1017,7 +1026,11 @@ async def update_streamer_settings(
                 )
 
         # Schema also sends top-level "quality" (stream quality picker)
-        if "quality" in settings and isinstance(settings.get("quality"), str) and settings["quality"]:
+        if (
+            "quality" in settings
+            and isinstance(settings.get("quality"), str)
+            and settings["quality"]
+        ):
             recording_settings.quality = settings["quality"]
 
         # --- Legacy flat keys (kept for backwards compat) ---

@@ -361,8 +361,10 @@ async def emit_event(event_type: str, data: Dict[str, Any] = None):
     Use this for app-level events that frontend stores listen on
     (e.g. 'streamer.added', 'streamer.removed').
     """
-    await websocket_manager.send_notification({
-        "type": event_type,
-        "data": data or {},
-        "timestamp": datetime.utcnow().isoformat(),
-    })
+    await websocket_manager.send_notification(
+        {
+            "type": event_type,
+            "data": data or {},
+            "timestamp": datetime.utcnow().isoformat(),
+        }
+    )
