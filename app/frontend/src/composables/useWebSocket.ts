@@ -10,7 +10,7 @@ interface WebSocketMessage {
 }
 
 // Singleton WebSocket Manager - ONE connection for the entire app
-class WebSocketManager {
+export class WebSocketManager {
   private static instance: WebSocketManager | null = null
   private ws: WebSocket | null = null
   private reconnectTimer: number | null = null
@@ -76,6 +76,19 @@ class WebSocketManager {
       console.log('🔌 Last subscriber gone - disconnecting WebSocket')
       this.disconnect()
     }
+  }
+
+  /**
+   * Public connect entrypoint. Safe to call multiple times. No-op if already
+   * open/connecting. Used by useAuth.login() to eliminate the race where the
+   * WebSocket would otherwise stay disconnected until the next component mount.
+   */
+  public ensureConnected() {
+    if (this.subscribers.size === 0) {
+      // No active subscriber yet, the next subscribe() will connect for us.
+      return
+    }
+    this.connect()
   }
 
   private connect() {

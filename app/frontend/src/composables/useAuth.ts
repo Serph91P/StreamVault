@@ -119,7 +119,18 @@ export function useAuth() {
           sessionToken.value = token
           localStorage.setItem('streamvault_session', token)
         }
-        
+
+        // Eagerly trigger the WebSocket connection so realtime events start
+        // flowing as soon as the user lands on a protected route. Without
+        // this, the singleton only connects on the next component mount and
+        // any push that arrives in between is missed.
+        try {
+          const { WebSocketManager } = await import('@/composables/useWebSocket')
+          WebSocketManager.getInstance().ensureConnected()
+        } catch (e) {
+          console.warn('Failed to eagerly connect WebSocket after login:', e)
+        }
+
         return { success: true, data }
       } else {
         const error = await response.json()

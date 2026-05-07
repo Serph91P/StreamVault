@@ -207,11 +207,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { streamersApi } from '@/services/api'
 import { useForceRecording } from '@/composables/useForceRecording'
 import { useToast } from '@/composables/useToast'
+import { useWebSocket } from '@/composables/useWebSocket'
 import LoadingSkeleton from '@/components/LoadingSkeleton.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import StatusCard from '@/components/cards/StatusCard.vue'
@@ -493,6 +494,85 @@ onMounted(async () => {
     fetchStreamer(),
     fetchStreams()
   ])
+})
+
+// WebSocket: live update streamer status (live/recording/title/category) without polling.
+const { messages } = useWebSocket()
+
+const matchesCurrentStreamer = (data: any): boolean => {
+  if (!data || !streamer.value) return false
+  const idMatch =
+    (data.streamer_id !== undefined && String(data.streamer_id) === streamerId.value) ||
+    (data.id !== undefined && String(data.id) === streamerId.value)
+  if (idMatch) return true
+  const username = (data.username || data.streamer_name || '').toLowerCase()
+  if (!username) return false
+  return (
+    streamer.value.username?.toLowerCase() === username ||
+    streamer.value.name?.toLowerCase() === username
+  )
+}
+
+watch(messages, (newMessages) => {
+  if (!newMessages || newMessages.length === 0 || !streamer.value) return
+  const latest = newMessages[newMessages.length - 1]
+  const data = latest.data
+  if (!data || !matchesCurrentStreamer(data)) return
+
+  const updated = { ...streamer.value }
+  let changed = false
+
+  switch (latest.type) {
+    case 'stream.online':
+      updated.is_live = true
+      if (data.title) updated.title = data.title
+      if (data.category_name) updated.category_name = data.category_name
+      changed = true
+      break
+    case 'stream.offline':
+      updated.is_live = false
+      updated.title = null
+      updated.category_name = null
+      changed = true
+      break
+    case 'channel.update':
+    case 'stream.update':
+      if (data.title) { updated.title = data.title; changed = true }
+      if (data.category_name) { updated.category_name = data.category_name; changed = true }
+      break
+    case 'recording_started':
+    case 'recording.started':
+      updated.is_recording = true
+      if (!updated.is_live) updated.is_live = true
+      changed = true
+      break
+    case 'recording_finished':
+    case 'recording.finished':
+    case 'recording_stopped':
+    case 'recording.stopped':
+      updated.is_recording = false
+      changed = true
+      // Refresh stream list so the just-finished recording shows up.
+      fetchStreams()
+      break
+  }
+
+  if (changed) {
+    streamer.value = updated
+  }
+})
+
+// Recording lifecycle: cross-check against the global active recordings broadcast.
+watch(messages, (newMessages) => {
+  if (!newMessages || newMessages.length === 0 || !streamer.value) return
+  const latest = newMessages[newMessages.length - 1]
+  if (latest.type !== 'active_recordings_update') return
+  const list = latest.data?.recordings ?? latest.data
+  if (!Array.isArray(list)) return
+  const activeForThis = list.some((r: any) => matchesCurrentStreamer(r))
+  if (Boolean(streamer.value.is_recording) !== activeForThis) {
+    streamer.value = { ...streamer.value, is_recording: activeForThis }
+  }
 })
 </script>
 
