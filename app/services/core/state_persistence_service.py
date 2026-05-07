@@ -336,6 +336,39 @@ class StatePersistenceService:
         except Exception:
             return False
 
+    async def _refresh_heartbeats_for_live_processes(self) -> int:
+        """Refresh last_heartbeat for every active entry whose process is still alive.
+
+        Without this the entries get marked stale after stale_timeout and pruned,
+        defeating crash recovery. We treat the OS process table as the source of
+        truth: as long as the recorder PID is alive, the entry is fresh.
+        """
+        try:
+            with SessionLocal() as db:
+                states = (
+                    db.query(ActiveRecordingState)
+                    .filter(ActiveRecordingState.status == "active")
+                    .all()
+                )
+                if not states:
+                    return 0
+
+                now = datetime.now(timezone.utc)
+                refreshed = 0
+                for state in states:
+                    if state.process_id and self._process_exists(state.process_id):
+                        state.last_heartbeat = now
+                        refreshed += 1
+                if refreshed:
+                    db.commit()
+                    logger.debug(
+                        f"Refreshed heartbeat for {refreshed}/{len(states)} active recording(s)"
+                    )
+                return refreshed
+        except Exception as e:
+            logger.error(f"Failed to refresh heartbeats: {e}", exc_info=True)
+            return 0
+
     async def _heartbeat_loop(self):
         """Background task to maintain heartbeats and cleanup stale entries"""
 
@@ -346,6 +379,11 @@ class StatePersistenceService:
         try:
             while self.is_running:
                 try:
+                    # Refresh heartbeats for live recorder processes BEFORE
+                    # cleanup so we don't accidentally prune entries whose
+                    # owners simply forgot to call update_heartbeat().
+                    await self._refresh_heartbeats_for_live_processes()
+
                     # Cleanup stale entries periodically
                     await self.cleanup_stale_entries()
 
