@@ -1056,11 +1056,11 @@ watch(messages, (newMessages) => {
 
 // Show elements on mobile only, hide on desktop
 .mobile-only {
-  display: flex;
+  display: flex !important;
   align-items: center;
   
   @include m.respond-to('md') {
-    display: none;
+    display: none !important;
   }
 }
 

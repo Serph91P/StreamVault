@@ -7,7 +7,6 @@ This module handles all configuration access with efficient caching.
 import logging
 from datetime import datetime
 from typing import Optional
-import os
 
 from app.database import SessionLocal
 from app.models import RecordingSettings, StreamerRecordingSettings
@@ -185,27 +184,6 @@ class ConfigManager:
     def get_recordings_directory(self) -> str:
         """Get recordings directory - hardcoded for Docker consistency"""
         return "/recordings"
-
-    def get_max_concurrent_recordings(self) -> int:
-        """Get maximum number of concurrent recordings"""
-        # 1) Environment variable override takes precedence if set and valid
-        try:
-            env_val = os.getenv("STREAMVAULT_MAX_CONCURRENT_RECORDINGS")
-            if env_val is not None:
-                env_int = int(env_val)
-                if env_int > 0:
-                    return env_int
-        except Exception:
-            # Ignore malformed env var and fall back to DB/default
-            pass
-
-        # 2) Database/global settings (if column exists in schema)
-        global_settings = self.get_global_settings()
-        if global_settings and hasattr(global_settings, "max_concurrent_recordings"):
-            return getattr(global_settings, "max_concurrent_recordings", 3)
-
-        # 3) Safe default
-        return 3  # Default to 3 concurrent recordings
 
     def get_check_interval(self) -> int:
         """Get check interval for recording service in seconds"""

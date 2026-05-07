@@ -71,8 +71,12 @@ function onClick(ev: MouseEvent) {
     :aria-label="ariaLabel"
     @click="onClick"
   >
-    <span v-if="loading" class="loader" aria-hidden="true" />
-    <slot />
+    <span class="btn-content" :class="{ 'is-hidden': loading }">
+      <slot />
+    </span>
+    <span v-if="loading" class="btn-loader-overlay" aria-hidden="true">
+      <span class="loader" />
+    </span>
   </button>
 </template>
 
@@ -81,5 +85,32 @@ function onClick(ev: MouseEvent) {
 // Only layout helpers that don't exist there live here.
 .btn-block {
   width: 100%;
+}
+
+// Loading-state without layout shift:
+// - Keep slot content rendered (visibility: hidden) so the button keeps its width.
+// - Overlay the spinner absolutely centered.
+:deep(.btn).is-loading,
+.btn.is-loading {
+  position: relative;
+}
+
+.btn-content {
+  display: inline-flex;
+  align-items: center;
+  gap: inherit;
+
+  &.is-hidden {
+    visibility: hidden;
+  }
+}
+
+.btn-loader-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
 }
 </style>

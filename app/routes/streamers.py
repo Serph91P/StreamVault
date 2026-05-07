@@ -5,7 +5,11 @@ from fastapi import APIRouter, Depends, HTTPException, Body
 from fastapi.responses import JSONResponse
 from app.services.streamer_service import StreamerService
 from app.services.unified_image_service import unified_image_service
-from app.services.communication.websocket_manager import websocket_manager
+from app.services.communication.websocket_manager import (
+    websocket_manager,
+    emit_toast,
+    emit_event,
+)
 from app.events.handler_registry import EventHandlerRegistry
 from app.dependencies import get_streamer_service, get_event_registry
 from app.database import get_db
@@ -17,6 +21,7 @@ from app.models import (
     StreamEvent,
     Recording,
     ActiveRecordingState,
+    NotificationSettings,
 )
 from sqlalchemy.orm import Session, joinedload
 import logging
@@ -560,8 +565,8 @@ async def add_streamer(
                 f"Set recording settings for streamer {new_streamer.username}: enabled={recording_enabled}"
             )
 
-        # Convert to response format
-        return {
+        # Build response payload (also used for event emit)
+        payload = {
             "id": new_streamer.id,
             "username": new_streamer.username,
             "twitch_id": new_streamer.twitch_id,
@@ -580,6 +585,21 @@ async def add_streamer(
             else None,
             "original_profile_image_url": new_streamer.original_profile_image_url,
         }
+
+        # Emit toast + typed event so frontend can update without reload
+        try:
+            await emit_toast(
+                level="success",
+                title="Streamer added",
+                message=f"{new_streamer.username} has been added",
+                duration=4000,
+                extra_data={"streamer_id": new_streamer.id},
+            )
+            await emit_event("streamer.added", payload)
+        except Exception as notify_err:
+            logger.warning(f"Failed to emit streamer.added notifications: {notify_err}")
+
+        return payload
 
     except HTTPException:
         raise
@@ -798,6 +818,24 @@ async def delete_streamer(
         else:
             message += " (recording files kept)"
 
+        # Emit toast + typed event so frontend can update without reload
+        try:
+            await emit_toast(
+                level="success",
+                title="Streamer removed",
+                message=f"{streamer_username} has been removed",
+                duration=4000,
+                extra_data={"streamer_id": streamer_id},
+            )
+            await emit_event(
+                "streamer.removed",
+                {"streamer_id": streamer_id, "username": streamer_username},
+            )
+        except Exception as notify_err:
+            logger.warning(
+                f"Failed to emit streamer.removed notifications: {notify_err}"
+            )
+
         return {
             "success": True,
             "message": message,
@@ -848,6 +886,12 @@ async def get_streamer(
         .first()
     )
 
+    notification_settings = (
+        db.query(NotificationSettings)
+        .filter(NotificationSettings.streamer_id == streamer.id)
+        .first()
+    )
+
     # Return normalized format for frontend
     return {
         "id": streamer.id,
@@ -870,6 +914,38 @@ async def get_streamer(
         "use_global_cleanup_policy": recording_settings.use_global_cleanup_policy
         if recording_settings
         else True,
+        # Schema-aligned nested blocks (consumed by StreamerSettingsFields)
+        "recording": {
+            "enabled": recording_settings.enabled if recording_settings else True,
+            "quality": (recording_settings.quality if recording_settings else "") or "",
+            "custom_filename": (
+                recording_settings.custom_filename if recording_settings else ""
+            )
+            or "",
+            "supported_codecs": (
+                recording_settings.supported_codecs if recording_settings else ""
+            )
+            or "",
+            "use_global_cleanup_policy": recording_settings.use_global_cleanup_policy
+            if recording_settings
+            else True,
+        },
+        "notifications": {
+            "notify_online": notification_settings.notify_online
+            if notification_settings
+            else True,
+            "notify_offline": notification_settings.notify_offline
+            if notification_settings
+            else True,
+            "notify_update": notification_settings.notify_update
+            if notification_settings
+            else True,
+            "notify_favorite_category": notification_settings.notify_favorite_category
+            if notification_settings
+            else False,
+        },
+        "quality": (recording_settings.quality if recording_settings else "best")
+        or "best",
         "title": streamer.title if streamer.is_live else None,
         "category_name": streamer.category_name if streamer.is_live else None,
         "profile_image_url": profile_image_url,
@@ -915,16 +991,53 @@ async def update_streamer_settings(
             db.add(recording_settings)
 
         # Update settings from request body
+        # Supports BOTH:
+        #   * legacy flat keys (autoRecord, quality, filenameTemplate, ...)
+        #   * schema-driven nested payload from StreamerSettingsFields:
+        #       { quality, recording: {...}, notifications: {...} }
+        recording_block = (
+            settings.get("recording")
+            if isinstance(settings.get("recording"), dict)
+            else None
+        )
+        notifications_block = (
+            settings.get("notifications")
+            if isinstance(settings.get("notifications"), dict)
+            else None
+        )
+
+        # --- Recording fields ---
+        if recording_block is not None:
+            if "enabled" in recording_block:
+                recording_settings.enabled = bool(recording_block["enabled"])
+            if "quality" in recording_block and recording_block["quality"]:
+                recording_settings.quality = recording_block["quality"]
+            if "custom_filename" in recording_block:
+                recording_settings.custom_filename = (
+                    recording_block["custom_filename"] or None
+                )
+            if "supported_codecs" in recording_block:
+                recording_settings.supported_codecs = (
+                    recording_block["supported_codecs"] or None
+                )
+            if "use_global_cleanup_policy" in recording_block:
+                recording_settings.use_global_cleanup_policy = bool(
+                    recording_block["use_global_cleanup_policy"]
+                )
+
+        # Schema also sends top-level "quality" (stream quality picker)
+        if (
+            "quality" in settings
+            and isinstance(settings.get("quality"), str)
+            and settings["quality"]
+        ):
+            recording_settings.quality = settings["quality"]
+
+        # --- Legacy flat keys (kept for backwards compat) ---
         if "autoRecord" in settings:
             recording_settings.enabled = settings["autoRecord"]
             logger.info(
                 f"Updated recording enabled for {streamer.username}: {recording_settings.enabled}"
-            )
-
-        if "quality" in settings and settings["quality"]:
-            recording_settings.quality = settings["quality"]
-            logger.info(
-                f"Updated recording quality for {streamer.username}: {recording_settings.quality}"
             )
 
         if "filenameTemplate" in settings:
@@ -958,6 +1071,26 @@ async def update_streamer_settings(
             logger.info(
                 f"Updated use global cleanup for {streamer.username}: {recording_settings.use_global_cleanup_policy}"
             )
+
+        # --- Notification fields (nested schema only) ---
+        if notifications_block is not None:
+            notification_settings = (
+                db.query(NotificationSettings)
+                .filter(NotificationSettings.streamer_id == streamer_id)
+                .first()
+            )
+            if not notification_settings:
+                notification_settings = NotificationSettings(streamer_id=streamer_id)
+                db.add(notification_settings)
+
+            for key in (
+                "notify_online",
+                "notify_offline",
+                "notify_update",
+                "notify_favorite_category",
+            ):
+                if key in notifications_block:
+                    setattr(notification_settings, key, bool(notifications_block[key]))
 
         db.commit()
         db.refresh(recording_settings)

@@ -194,91 +194,7 @@
       size="lg"
       @close="closeSettings"
     >
-      <!-- Recording Quality Override -->
-      <div class="setting-group">
-        <label class="setting-label">Recording Quality</label>
-        <select v-model="streamerSettings.quality" class="setting-input">
-          <option value="">Use Global Setting</option>
-          <option value="best">Best Available</option>
-          <option value="1080p60">1080p60</option>
-          <option value="720p60">720p60</option>
-          <option value="720p">720p</option>
-          <option value="480p">480p</option>
-        </select>
-        <p class="setting-hint">Override global recording quality for this streamer</p>
-      </div>
-
-      <!-- Custom Filename Template -->
-      <div class="setting-group">
-        <label class="setting-label">Custom Filename Template</label>
-        <input
-          v-model="streamerSettings.filenameTemplate"
-          type="text"
-          class="setting-input"
-          placeholder="Leave empty to use global template"
-        />
-        <p class="setting-hint">
-          Available variables: {streamer}, {title}, {game}, {date}, {time}
-        </p>
-      </div>
-
-      <!-- Auto-Record Toggle -->
-      <div class="setting-group">
-        <label class="setting-checkbox">
-          <input type="checkbox" v-model="streamerSettings.autoRecord" />
-          <span>Auto-record when this streamer goes live</span>
-        </label>
-      </div>
-
-      <!-- Notification Preferences -->
-      <div class="setting-group">
-        <label class="setting-label">Notifications</label>
-        <label class="setting-checkbox">
-          <input type="checkbox" v-model="streamerSettings.notifyOnline" />
-          <span>Notify when goes online</span>
-        </label>
-        <label class="setting-checkbox">
-          <input type="checkbox" v-model="streamerSettings.notifyOffline" />
-          <span>Notify when goes offline</span>
-        </label>
-      </div>
-
-      <!-- Codec Preferences -->
-      <div class="setting-group">
-        <label class="setting-label">Codec Preferences</label>
-        <select v-model="streamerSettings.supportedCodecs" class="setting-input">
-          <option value="">Use Global Setting</option>
-          <option value="h264">H.264 only</option>
-          <option value="h265">H.265 (HEVC) only</option>
-          <option value="av1">AV1 only</option>
-          <option value="h264,h265">H.264 + H.265 (Recommended)</option>
-          <option value="h264,h265,av1">All codecs</option>
-        </select>
-        <p class="setting-hint">Override preferred video codecs for this streamer</p>
-      </div>
-
-      <!-- Max Concurrent Streams -->
-      <div class="setting-group">
-        <label class="setting-label">Max Concurrent Recordings</label>
-        <input
-          v-model.number="streamerSettings.maxStreams"
-          type="number"
-          class="setting-input"
-          min="1"
-          max="10"
-          placeholder="Unlimited"
-        />
-        <p class="setting-hint">Maximum simultaneous recordings for this streamer (empty = unlimited)</p>
-      </div>
-
-      <!-- Cleanup Policy -->
-      <div class="setting-group">
-        <label class="setting-checkbox">
-          <input type="checkbox" v-model="streamerSettings.useGlobalCleanupPolicy" />
-          <span>Use global cleanup policy</span>
-        </label>
-        <p class="setting-hint">When enabled, this streamer uses the global recording cleanup rules</p>
-      </div>
+      <StreamerSettingsFields v-model="streamerSettings" :disabled="savingSettings" />
 
       <template #footer>
         <BaseButton variant="secondary" @click="closeSettings">Cancel</BaseButton>
@@ -302,6 +218,8 @@ import StatusCard from '@/components/cards/StatusCard.vue'
 import StreamCard from '@/components/cards/StreamCard.vue'
 import BaseModal from '@/components/base/BaseModal.vue'
 import BaseButton from '@/components/base/BaseButton.vue'
+import StreamerSettingsFields from '@/components/streamers/StreamerSettingsFields.vue'
+import { buildDefaultState } from '@/schemas/streamerSettings.schema'
 
 // Router & URL params
 const route = useRoute()
@@ -332,33 +250,27 @@ const deletingAll = ref(false)
 // Force recording
 const { forceRecordingStreamerId, forceStartRecording } = useForceRecording()
 
-// Settings modal
+// Settings modal - schema-driven (single source of truth: streamerSettings.schema.ts)
 const showSettings = ref(false)
 const savingSettings = ref(false)
-const streamerSettings = ref({
-  quality: '',
-  filenameTemplate: '',
-  autoRecord: true,
-  notifyOnline: true,
-  notifyOffline: true,
-  maxStreams: null as number | null,
-  supportedCodecs: '',
-  useGlobalCleanupPolicy: true
-})
+const streamerSettings = ref<Record<string, unknown>>(buildDefaultState())
 
 const openSettings = () => {
-  // Load current settings from streamer data
-  if (streamer.value) {
-    streamerSettings.value = {
-      quality: streamer.value.recording_quality || '',
-      filenameTemplate: streamer.value.custom_filename || '',
-      autoRecord: streamer.value.recording_enabled !== false,
-      notifyOnline: true,
-      notifyOffline: true,
-      maxStreams: streamer.value.max_streams ?? null,
-      supportedCodecs: streamer.value.supported_codecs || '',
-      useGlobalCleanupPolicy: streamer.value.use_global_cleanup_policy !== false
-    }
+  // Hydrate from server payload (GET returns nested `recording` and `notifications` blocks).
+  const defaults = buildDefaultState()
+  const s = streamer.value || {}
+
+  streamerSettings.value = {
+    ...defaults,
+    quality: s.quality || s.recording_quality || (defaults.quality as string) || 'best',
+    recording: {
+      ...((defaults.recording as Record<string, unknown>) || {}),
+      ...((s.recording as Record<string, unknown>) || {}),
+    },
+    notifications: {
+      ...((defaults.notifications as Record<string, unknown>) || {}),
+      ...((s.notifications as Record<string, unknown>) || {}),
+    },
   }
   showSettings.value = true
 }
@@ -369,32 +281,25 @@ const closeSettings = () => {
 
 const saveSettings = async () => {
   savingSettings.value = true
-  
+
   try {
     const response = await fetch(`/api/streamers/streamer/${streamerId.value}/settings`, {
       method: 'PUT',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        autoRecord: streamerSettings.value.autoRecord,
-        quality: streamerSettings.value.quality || undefined,
-        filenameTemplate: streamerSettings.value.filenameTemplate || undefined,
-        maxStreams: streamerSettings.value.maxStreams,
-        supportedCodecs: streamerSettings.value.supportedCodecs || undefined,
-        useGlobalCleanupPolicy: streamerSettings.value.useGlobalCleanupPolicy
-      })
+      body: JSON.stringify(streamerSettings.value),
     })
-    
+
     if (!response.ok) {
-      const data = await response.json()
+      const data = await response.json().catch(() => ({}))
       throw new Error(data.detail || `HTTP error! Status: ${response.status}`)
     }
-    
+
     toast.success('Settings saved successfully!')
-    
+
     // Reload streamer data to reflect changes
     await fetchStreamer()
-    
+
     closeSettings()
   } catch (error) {
     console.error('Failed to save settings:', error)

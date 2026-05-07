@@ -61,7 +61,9 @@ async def _check_for_updates() -> dict:
     try:
         # Only check for updates on main/develop branches
         if BRANCH not in ["main", "develop"]:
-            result["update_check_error"] = "Not checking updates for feature branches"
+            # Not an error — feature/local branches simply don't get
+            # update notifications (Sprint 8 requirement).
+            result["update_check_error"] = None
             return result
 
         # Determine which releases to check
@@ -105,7 +107,13 @@ async def _check_for_updates() -> dict:
                     r for r in data if "develop" in r.get("tag_name", "").lower()
                 ]
                 if not develop_releases:
-                    result["update_check_error"] = "No develop releases found"
+                    # No develop tagged releases yet — treat as up-to-date
+                    # instead of surfacing an error (Sprint 8 requirement).
+                    result["update_check_error"] = None
+                    result["update_available"] = False
+                    result["latest_version"] = VERSION
+                    _update_check_cache["data"] = result
+                    _update_check_cache["expires_at"] = now + timedelta(minutes=5)
                     return result
 
                 latest_release = develop_releases[0]
