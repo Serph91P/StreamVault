@@ -211,6 +211,13 @@ class BackgroundQueueService:
         """Update external task progress"""
         self.queue_manager.update_external_task_progress(task_id, progress)
 
+    def update_task_progress(self, task_id: str, progress: float):
+        """Update progress for any tracked task (internal queue task or
+        external). Each tracker silently no-ops if the task isn't theirs,
+        so calling both is safe and saves callers from knowing the kind."""
+        self.queue_manager.progress_tracker.update_task_progress(task_id, progress)
+        self.queue_manager.update_external_task_progress(task_id, progress)
+
     def complete_external_task(self, task_id: str, success: bool = True):
         """Mark external task as completed"""
         self.queue_manager.complete_external_task(task_id, success)
