@@ -396,7 +396,7 @@ onMounted(loadSubscriptions)
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-semibold);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: var(--transition-base);
   border: none;
 
   .icon {
@@ -518,7 +518,7 @@ onMounted(loadSubscriptions)
   tbody {
     tr {
       border-bottom: 1px solid var(--border-color);
-      transition: background 0.2s ease;
+      transition: var(--transition-colors);
 
       &:hover {
         background: rgba(var(--color-primary-rgb), 0.03);
@@ -606,7 +606,7 @@ onMounted(loadSubscriptions)
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: var(--transition-base);
 
   .icon {
     width: 16px;

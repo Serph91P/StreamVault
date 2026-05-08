@@ -123,36 +123,65 @@ tests/                          # Pytest tests (integration + unit)
 **CRITICAL**: Use [Conventional Commits](https://conventionalcommits.org/) for semantic versioning.
 
 ```
-<type>[scope]: <description>
+<type>(<scope>): <description>
 
 [optional body]
+
+[optional footer(s)]
 ```
 
-### Types & Version Impact
+### Types
 
-**Minor Bump (1.0.x → 1.1.0):**
-- `feat:` / `feature:` / `add:` - New features
-- `refactor:` - Code restructuring
-- `perf:` - Performance improvements
+| Type | Purpose | Version Impact |
+|------|---------|----------------|
+| `feat` | New feature or capability | **Minor** bump (0.X.0) |
+| `fix` | Bug fix | **Patch** bump (0.0.X) |
+| `docs` | Documentation only | Patch bump |
+| `style` | Formatting, whitespace, no code change | Patch bump |
+| `refactor` | Code restructuring, no behavior change | Patch bump |
+| `perf` | Performance improvement | Patch bump |
+| `test` | Adding or updating tests | Patch bump |
+| `chore` | Build, tooling, dependencies | Patch bump |
+| `ci` | CI/CD pipeline changes | Patch bump |
 
-**Patch Bump (1.0.0 → 1.0.1):**
-- `fix:` / `bugfix:` - Bug fixes
-- `docs:` - Documentation only
-- `chore:` - Dependencies, tooling
-- `test:` - Test updates
-- `ci:` - CI/CD changes
+### Breaking Changes → Major Bump
 
-**Major Bump (1.x.x → 2.0.0):**
-- `BREAKING CHANGE:` in body
-- `<type>!:` - Any type with `!` suffix
+A breaking change triggers a **Major** version bump (X.0.0). Mark it with either:
+
+- An `!` after the type/scope: `feat!: remove legacy API`
+- A `BREAKING CHANGE:` footer in the commit body
+
+### Scopes
+
+- `api` – Backend API routes/endpoints
+- `ui` – Frontend components/pages
+- `auth` – Authentication/security
+- `db` – Database/models/migrations
+- `docker` – Docker/deployment
+- `recording` – Recording engine/Streamlink
+- `notifications` – Notification system
+- `scheduler` – Background jobs/task queue
+- `ws` – WebSocket connections
+
+### Rules
+
+- Type and description are **required**
+- Scope is optional but encouraged
+- Description must be lowercase, imperative mood ("add" not "added" or "adds")
+- No period at the end of the description
+- Body and footer are optional
+- Use `!` or `BREAKING CHANGE:` only for genuinely incompatible changes
 
 ### Examples
 
 ```bash
 feat(api): add multi-proxy health checks
-fix(videos): thumbnail endpoint graceful degradation (404 not 500)
-refactor(frontend): eliminate hardcoded colors
+fix(recording): handle streamlink timeout gracefully
+refactor(ui): eliminate hardcoded colors
 chore(deps): update Python dependencies
+feat!: redesign recording scheduling API
+ci: add ARM64 Docker build
+perf(db): add index on recording.created_at
 ```
 
 ## CI/CD Pipeline

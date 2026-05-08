@@ -311,6 +311,68 @@ watch(messages, (newMessages) => {
       ...streamers.value.slice(streamerIndex + 1)
     ]
   }
+
+  // Recording lifecycle: keep activeRecordings list live without polling.
+  if (latestMessage.type === 'active_recordings_update') {
+    const list = latestMessage.data?.recordings ?? latestMessage.data
+    if (Array.isArray(list)) {
+      activeRecordings.value = list
+    }
+  } else if (latestMessage.type === 'recording_started') {
+    const rec = latestMessage.data
+    if (rec) {
+      const recId = rec.id ?? rec.recording_id ?? rec.streamer_id
+      const exists = activeRecordings.value.some((r: any) => {
+        const rid = r.id ?? r.recording_id ?? r.streamer_id
+        return rid !== undefined && recId !== undefined && String(rid) === String(recId)
+      })
+      if (!exists) {
+        activeRecordings.value = [...activeRecordings.value, rec]
+      }
+      // Refresh streamer card state (is_live etc.) so the dashboard tile reflects the recording.
+      const username = rec.streamer_name || rec.username
+      if (username) {
+        const idx = streamers.value.findIndex(
+          s => s.username?.toLowerCase() === username.toLowerCase() ||
+               s.name?.toLowerCase() === username.toLowerCase()
+        )
+        if (idx !== -1 && !streamers.value[idx].is_live) {
+          streamers.value = [
+            ...streamers.value.slice(0, idx),
+            { ...streamers.value[idx], is_live: true },
+            ...streamers.value.slice(idx + 1)
+          ]
+        }
+      }
+    } else {
+      // Fallback: refetch if payload is missing.
+      fetchActiveRecordings()
+    }
+  } else if (latestMessage.type === 'recording_stopped') {
+    const rec = latestMessage.data
+    const recId = rec?.id ?? rec?.recording_id ?? rec?.streamer_id
+    if (recId !== undefined) {
+      activeRecordings.value = activeRecordings.value.filter((r: any) => {
+        const rid = r.id ?? r.recording_id ?? r.streamer_id
+        return rid === undefined || String(rid) !== String(recId)
+      })
+    } else {
+      fetchActiveRecordings()
+    }
+  }
+
+  // Streamer lifecycle: keep home grid in sync without manual reload.
+  if (latestMessage.type === 'streamer.added') {
+    const newId = latestMessage.data?.id
+    if (newId && !streamers.value.some(s => s.id === newId)) {
+      fetchStreamers()
+    }
+  } else if (latestMessage.type === 'streamer.removed') {
+    const removedId = latestMessage.data?.streamer_id
+    if (removedId !== undefined && removedId !== null) {
+      streamers.value = streamers.value.filter(s => String(s.id) !== String(removedId))
+    }
+  }
 }, { deep: true })
 
 // Initialize

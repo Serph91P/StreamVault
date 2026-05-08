@@ -27,6 +27,7 @@ from app.routes import push as push_router
 from app.routes import admin as admin_router
 from app.routes import migration as migration_router
 from app.routes import version as version_router
+from app.routes import api_keys as api_keys_router
 from app.api import unified_recovery_endpoints
 from app.api import automated_recovery_endpoints
 from app.services.system.development_test_runner import run_development_tests
@@ -1041,6 +1042,9 @@ app.include_router(migration_router.router)
 
 # Version routes
 app.include_router(version_router.router, prefix="/api")
+
+# API key management routes (session-protected, never API-key-protected)
+app.include_router(api_keys_router.router)
 
 # Explicit SPA routes - these must come after API routes but before static files
 

@@ -333,3 +333,38 @@ class ConnectionManager:
 
 # Global instance for backward compatibility
 websocket_manager = ConnectionManager()
+
+
+async def emit_toast(
+    level: str,
+    title: str,
+    message: str,
+    duration: int = 5000,
+    extra_data: Dict[str, Any] = None,
+):
+    """Convenience wrapper to emit a toast notification from anywhere.
+
+    level: one of 'success', 'error', 'warning', 'info'
+    """
+    await websocket_manager.send_toast_notification(
+        toast_type=level,
+        title=title,
+        message=message,
+        duration=duration,
+        extra_data=extra_data,
+    )
+
+
+async def emit_event(event_type: str, data: Dict[str, Any] = None):
+    """Emit a generic typed event to all WebSocket clients.
+
+    Use this for app-level events that frontend stores listen on
+    (e.g. 'streamer.added', 'streamer.removed').
+    """
+    await websocket_manager.send_notification(
+        {
+            "type": event_type,
+            "data": data or {},
+            "timestamp": datetime.utcnow().isoformat(),
+        }
+    )

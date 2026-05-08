@@ -379,83 +379,41 @@
     </div>
     
     <!-- Delete Confirmation Modal -->
-    <div v-if="showDeleteModal" class="modal-overlay" @click.self="cancelDelete">
-      <div class="modal">
-        <div class="modal-header">
-          <h3>Delete Stream</h3>
-          <button 
-            @click="cancelDelete" 
-            class="close-btn"
-            aria-label="Close delete confirmation dialog"
-          >
-            ×
-          </button>
-        </div>
-        <div class="modal-body">
-          <p>Are you sure you want to delete this stream?</p>
-          <div v-if="streamToDelete" class="stream-preview">
-            <p><strong>Title:</strong> {{ streamToDelete.title || 'Untitled' }}</p>
-            <p><strong>Date:</strong> {{ formatDate(streamToDelete.started_at) }}</p>
-            <p><strong>Category:</strong> {{ streamToDelete.category_name || 'Unknown' }}</p>
-          </div>
-          <p class="warning">⚠️ This action cannot be undone and will delete all associated files.</p>
-        </div>
-        <div class="modal-actions">
-          <button 
-            @click="cancelDelete" 
-            class="btn btn-secondary"
-            aria-label="Cancel stream deletion"
-          >
-            Cancel
-          </button>
-          <button 
-            @click="deleteStream" 
-            class="btn btn-danger" 
-            :disabled="deletingStreamId !== null"
-            :aria-label="`Confirm deletion of stream ${streamToDelete?.title || 'Untitled'} - this action cannot be undone`"
-          >
-            {{ deletingStreamId !== null ? '⏳ Deleting...' : '🗑️ Delete Stream' }}
-          </button>
-        </div>
+    <BaseModal v-model="showDeleteModal" title="Delete Stream" size="md" @close="cancelDelete">
+      <p>Are you sure you want to delete this stream?</p>
+      <div v-if="streamToDelete" class="stream-preview">
+        <p><strong>Title:</strong> {{ streamToDelete.title || 'Untitled' }}</p>
+        <p><strong>Date:</strong> {{ formatDate(streamToDelete.started_at) }}</p>
+        <p><strong>Category:</strong> {{ streamToDelete.category_name || 'Unknown' }}</p>
       </div>
-    </div>
-    
+      <p class="warning">⚠️ This action cannot be undone and will delete all associated files.</p>
+      <template #footer>
+        <BaseButton variant="secondary" @click="cancelDelete">Cancel</BaseButton>
+        <BaseButton
+          variant="danger"
+          :loading="deletingStreamId !== null"
+          @click="deleteStream"
+        >
+          {{ deletingStreamId !== null ? 'Deleting...' : '🗑️ Delete Stream' }}
+        </BaseButton>
+      </template>
+    </BaseModal>
+
     <!-- Delete All Confirmation Modal -->
-    <div v-if="showDeleteAllModal" class="modal-overlay" @click.self="cancelDeleteAll">
-      <div class="modal">
-        <div class="modal-header">
-          <h3>Delete All Streams</h3>
-          <button 
-            @click="cancelDeleteAll" 
-            class="close-btn"
-            aria-label="Close delete all confirmation dialog"
-          >
-            ×
-          </button>
-        </div>
-        <div class="modal-body">
-          <p>Delete <strong>ALL {{ streams.length }} streams</strong> for this streamer?</p>
-          <p class="warning">⚠️ Active recordings will be skipped to avoid data loss. All other stream records and files will be permanently deleted.</p>
-        </div>
-        <div class="modal-actions">
-          <button 
-            @click="cancelDeleteAll" 
-            class="btn btn-secondary"
-            aria-label="Cancel delete all operation"
-          >
-            Cancel
-          </button>
-          <button 
-            @click="deleteAllStreams" 
-            class="btn btn-danger" 
-            :disabled="deletingAllStreams"
-            :aria-label="`Confirm deletion of all ${streams.length} streams - this action cannot be undone`"
-          >
-            {{ deletingAllStreams ? '⏳ Deleting...' : '🗑️ Delete All Streams' }}
-          </button>
-        </div>
-      </div>
-    </div>
+    <BaseModal v-model="showDeleteAllModal" title="Delete All Streams" size="md" @close="cancelDeleteAll">
+      <p>Delete <strong>ALL {{ streams.length }} streams</strong> for this streamer?</p>
+      <p class="warning">⚠️ Active recordings will be skipped to avoid data loss. All other stream records and files will be permanently deleted.</p>
+      <template #footer>
+        <BaseButton variant="secondary" @click="cancelDeleteAll">Cancel</BaseButton>
+        <BaseButton
+          variant="danger"
+          :loading="deletingAllStreams"
+          @click="deleteAllStreams"
+        >
+          {{ deletingAllStreams ? 'Deleting...' : '🗑️ Delete All Streams' }}
+        </BaseButton>
+      </template>
+    </BaseModal>
   </div>
 </template>
 
@@ -466,6 +424,8 @@ import { useStreams } from '@/composables/useStreams'
 import { useSystemAndRecordingStatus } from '@/composables/useSystemAndRecordingStatus'
 import { useCategoryImages } from '@/composables/useCategoryImages'
 import { useForceRecording } from '@/composables/useForceRecording'
+import BaseModal from '@/components/base/BaseModal.vue'
+import BaseButton from '@/components/base/BaseButton.vue'
 import { recordingApi, streamsApi, streamersApi } from '@/services/api'
 import type { Stream } from '@/types/streams'
 
@@ -1024,7 +984,7 @@ watch(streamerId, async (newVal: string | undefined, oldVal: string | undefined)
   border-radius: var(--border-radius);
   color: var(--text-primary);
   text-decoration: none;
-  transition: all 0.2s;
+  transition: var(--transition-base);
   cursor: pointer;
 }
 
@@ -1052,16 +1012,16 @@ watch(streamerId, async (newVal: string | undefined, oldVal: string | undefined)
   gap: 20px;
   
   /* Responsive grid - better desktop utilization */
-  @media (min-width: 1024px) {
+  @include m.respond-to('lg') {
     grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
   }
   
-  @media (min-width: 1440px) {
+  @include m.respond-to('2xl') {
     grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
     gap: 24px;
   }
   
-  @media (min-width: 1920px) {
+  @include m.respond-to('3xl') {
     grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
     gap: 28px;
   }
@@ -1072,7 +1032,7 @@ watch(streamerId, async (newVal: string | undefined, oldVal: string | undefined)
   border: 1px solid var(--border-color);
   border-radius: var(--border-radius);
   overflow: hidden;
-  transition: all 0.3s ease;
+  transition: var(--transition-base);
   display: flex;
   flex-direction: column;
 }
@@ -1116,14 +1076,14 @@ watch(streamerId, async (newVal: string | undefined, oldVal: string | undefined)
   gap: 12px;
   
   /* Desktop: Better layout with more space for title */
-  @media (min-width: 768px) {
+  @include m.respond-to('md') {
     flex-direction: row;
     justify-content: space-between;
     align-items: flex-start;
     gap: 20px;
   }
   
-  @media (min-width: 1024px) {
+  @include m.respond-to('lg') {
     gap: 32px;
   }
 }
@@ -1141,17 +1101,17 @@ watch(streamerId, async (newVal: string | undefined, oldVal: string | undefined)
   min-width: 0; /* Allow flex shrinking */
   
   /* Larger on tablet/desktop for better readability */
-  @media (min-width: 768px) {
+  @include m.respond-to('md') {
     font-size: 1.5rem;
     line-height: 1.3;
   }
   
-  @media (min-width: 1024px) {
+  @include m.respond-to('lg') {
     font-size: 1.75rem;
     max-width: 70%; /* Give title 70% of space on desktop */
   }
   
-  @media (min-width: 1440px) {
+  @include m.respond-to('2xl') {
     font-size: 2rem;
   }
 }
@@ -1164,7 +1124,7 @@ watch(streamerId, async (newVal: string | undefined, oldVal: string | undefined)
   align-items: center;
   
   /* Desktop: Align to top and right */
-  @media (min-width: 768px) {
+  @include m.respond-to('md') {
     align-self: flex-start;
     margin-top: 2px; /* Slight visual alignment with title */
   }
@@ -1288,7 +1248,7 @@ watch(streamerId, async (newVal: string | undefined, oldVal: string | undefined)
 .header-actions .btn {
   font-weight: 600;
   border: 2px solid transparent;
-  transition: all 0.2s ease;
+  transition: var(--transition-base);
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
@@ -1329,7 +1289,7 @@ watch(streamerId, async (newVal: string | undefined, oldVal: string | undefined)
   padding: var(--spacing-2_5) var(--spacing-3_5);
   border-radius: var(--border-radius, 8px);
   font-weight: 600;
-  transition: all 0.2s ease;
+  transition: var(--transition-base);
   border: 2px solid transparent;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   white-space: nowrap;
@@ -1356,7 +1316,7 @@ watch(streamerId, async (newVal: string | undefined, oldVal: string | undefined)
   padding: var(--spacing-2) var(--spacing-3);
   border-radius: var(--border-radius, 8px);
   font-weight: 600;
-  transition: all 0.2s ease;
+  transition: var(--transition-base);
   border: 2px solid transparent;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
@@ -1638,7 +1598,7 @@ watch(streamerId, async (newVal: string | undefined, oldVal: string | undefined)
   font-size: 0.9rem;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: var(--transition-base);
   text-decoration: none;
 }
 

@@ -105,8 +105,8 @@
     <div class="streamer-notifications">
       <h3>Streamer Notifications</h3>
       <div class="table-controls">
-        <button @click="toggleAllStreamers(true)" class="btn btn-secondary">Enable All</button>
-        <button @click="toggleAllStreamers(false)" class="btn btn-secondary">Disable All</button>
+        <BaseButton variant="secondary" @click="toggleAllStreamers(true)">Enable All</BaseButton>
+        <BaseButton variant="secondary" @click="toggleAllStreamers(false)">Disable All</BaseButton>
       </div>
       
       <div class="table-wrapper">
@@ -193,6 +193,7 @@
 import { ref, computed, onUnmounted } from 'vue'
 import { useToast } from '@/composables/useToast'
 import { UI } from '@/config/constants'
+import BaseButton from '@/components/base/BaseButton.vue'
 import type { NotificationSettings, StreamerNotificationSettings } from '@/types/settings'
 
 // Props

@@ -4,17 +4,6 @@
     class="sidebar-nav"
     :class="{ expanded: sidebarExpanded, collapsed: !sidebarExpanded }"
   >
-    <!-- Toggle Button -->
-    <button 
-      @click="toggleSidebar"
-      class="sidebar-toggle"
-      :aria-label="sidebarExpanded ? 'Collapse sidebar' : 'Expand sidebar'"
-    >
-      <svg class="icon">
-        <use :href="sidebarExpanded ? '#icon-chevron-left' : '#icon-chevron-right'" />
-      </svg>
-    </button>
-    
     <!-- Navigation Items -->
     <nav class="sidebar-nav-list">
       <router-link
@@ -51,6 +40,20 @@
         <span v-if="!sidebarExpanded" class="nav-tooltip">{{ tab.label }}</span>
       </router-link>
     </nav>
+
+    <!-- Footer with collapse/expand toggle -->
+    <div class="sidebar-footer">
+      <button
+        @click="toggleSidebar"
+        class="sidebar-toggle"
+        :aria-label="sidebarExpanded ? 'Collapse sidebar' : 'Expand sidebar'"
+      >
+        <svg class="toggle-icon">
+          <use :href="sidebarExpanded ? '#icon-chevron-left' : '#icon-chevron-right'" />
+        </svg>
+        <span v-if="sidebarExpanded" class="toggle-label">Collapse</span>
+      </button>
+    </div>
   </aside>
 </template>
 
@@ -82,9 +85,11 @@ onMounted(() => {
   bottom: 0;
   width: 260px;
   z-index: 1000;
-  overflow-x: hidden;
-  overflow-y: auto;
-  
+  overflow: hidden;
+
+  display: flex;
+  flex-direction: column;
+
   // Glass effect
   background: var(--glass-bg-strong);
   backdrop-filter: blur(var(--glass-blur-lg));
@@ -109,47 +114,60 @@ onMounted(() => {
       justify-content: center;
       padding: v.$spacing-3;
     }
+
+    .sidebar-toggle {
+      justify-content: center;
+      padding: v.$spacing-2;
+    }
   }
 }
 
+.sidebar-footer {
+  padding: v.$spacing-3;
+  border-top: 1px solid var(--glass-border);
+  background: var(--glass-bg-subtle);
+  flex-shrink: 0;
+}
+
 .sidebar-toggle {
-  position: absolute;
-  top: v.$spacing-4;
-  right: 2px;
-  z-index: 1100;
-  width: 24px;
-  height: 24px;
-  padding: 0;
-  
-  background: var(--glass-bg-medium);
-  border: 1px solid var(--glass-border);
-  border-radius: v.$border-radius-full;
-  
+  width: 100%;
+  padding: v.$spacing-2 v.$spacing-3;
+
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
+  gap: v.$spacing-2;
   cursor: pointer;
-  
-  box-shadow: var(--glass-shadow-sm);
-  transition: all v.$duration-200 v.$ease-in-out;
-  
-  .icon {
-    width: 16px;
-    height: 16px;
-    stroke: var(--text-secondary);
+
+  transition: background v.$duration-200 v.$ease-in-out,
+              color v.$duration-200 v.$ease-in-out,
+              border-color v.$duration-200 v.$ease-in-out;
+
+  .toggle-icon {
+    width: 18px;
+    height: 18px;
+    stroke: currentColor;
     fill: none;
+    flex-shrink: 0;
   }
-  
+
+  .toggle-label {
+    font-size: v.$text-sm;
+    font-weight: v.$font-medium;
+    line-height: 1;
+  }
+
   &:hover {
-    background: var(--primary-color);
-    border-color: var(--primary-color);
-    box-shadow: var(--glass-shadow-md);
-    
-    .icon {
-      stroke: white;
-    }
+    background: var(--glass-bg-medium);
+    color: var(--text-primary);
+    border-color: var(--glass-border);
   }
-  
+
   &:focus-visible {
     outline: 2px solid var(--primary-color);
     outline-offset: 2px;
@@ -161,6 +179,9 @@ onMounted(() => {
   flex-direction: column;
   gap: v.$spacing-2;
   padding: v.$spacing-6 v.$spacing-3;
+  flex: 1 1 auto;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .sidebar-nav-item {

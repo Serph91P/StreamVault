@@ -121,7 +121,7 @@ onMounted(() => {
   border: none;
   border-radius: var(--radius-sm);
   cursor: pointer;
-  transition: background-color 0.2s;
+  transition: var(--transition-colors);
 }
 
 .refresh-btn:hover:not(:disabled) {

@@ -215,6 +215,25 @@
           </GlassCard>
         </div>
 
+        <!-- API Keys -->
+        <div v-if="activeSection === 'api-keys'" class="settings-section">
+          <div class="section-header">
+            <h2 class="section-title">
+              <svg class="section-icon">
+                <use href="#icon-key" />
+              </svg>
+              API Keys
+            </h2>
+            <p class="section-description">
+              Manage long-lived tokens for external clients (monitoring, scripts, dashboards).
+            </p>
+          </div>
+
+          <GlassCard variant="strong" padding="lg">
+            <ApiKeysPanel />
+          </GlassCard>
+        </div>
+
         <!-- About Settings -->
         <div v-if="activeSection === 'about'" class="settings-section">
           <div class="section-header">
@@ -242,29 +261,32 @@
                 <!-- Version Info -->
                 <div v-if="versionInfo" class="version-info">
                   <p class="about-version">
-                    {{ versionInfo.version }}
-                    <span v-if="versionInfo.branch" class="version-branch">{{ versionInfo.branch }}</span>
+                    {{ displayVersion }}
+                    <span v-if="versionInfo.branch && versionInfo.branch !== 'unknown'" class="version-branch">{{ versionInfo.branch }}</span>
+                  </p>
+                  <p v-if="versionInfo.commit_sha && versionInfo.commit_sha !== 'unknown'" class="build-date">
+                    Commit: <code>{{ versionInfo.commit_sha.substring(0, 7) }}</code>
                   </p>
                   <p v-if="versionInfo.build_date" class="build-date">
                     Built: {{ formatBuildDate(versionInfo.build_date) }}
                   </p>
-                  
+
                   <!-- Update Check -->
                   <div v-if="versionInfo.update_available" class="update-notice">
                     <span class="update-icon">🎉</span>
                     <span class="update-text">
                       Update available: <strong>{{ versionInfo.latest_version }}</strong>
                     </span>
-                    <a v-if="versionInfo.latest_version_url" 
-                       :href="versionInfo.latest_version_url" 
-                       target="_blank" 
+                    <a v-if="versionInfo.latest_version_url"
+                       :href="versionInfo.latest_version_url"
+                       target="_blank"
                        class="btn btn-sm btn-primary">
                       View Release
                     </a>
                   </div>
                   <div v-else-if="!versionInfo.update_check_error" class="up-to-date">
                     <span class="check-icon">✅</span>
-                    <span>You're running the latest version</span>
+                    <span>{{ upToDateText }}</span>
                   </div>
                 </div>
                 <p v-else class="about-version">Loading version...</p>
@@ -310,6 +332,7 @@ import ProxySettingsPanel from '@/components/settings/ProxySettingsPanel.vue'
 import FavoritesSettingsPanel from '@/components/settings/FavoritesSettingsPanel.vue'
 import PWAPanel from '@/components/settings/PWAPanel.vue'
 import TwitchConnectionPanel from '@/components/settings/TwitchConnectionPanel.vue'
+import ApiKeysPanel from '@/components/settings/ApiKeysPanel.vue'
 import type { NotificationSettings, StreamerNotificationSettings } from '@/types/settings'
 import type { RecordingSettings } from '@/types/recording'
 
@@ -352,6 +375,12 @@ const sections = [
     icon: 'smartphone'
   },
   {
+    id: 'api-keys',
+    label: 'API Keys',
+    description: 'External access tokens',
+    icon: 'key'
+  },
+  {
     id: 'about',
     label: 'About',
     description: 'App information',
@@ -367,6 +396,23 @@ const hasUnsavedChanges = ref(false)
 
 // Version information
 const versionInfo = ref<any>(null)
+
+// Display fallback: version → 'dev-<sha7>' → 'dev'
+const displayVersion = computed(() => {
+  const v = versionInfo.value
+  if (!v) return 'dev'
+  if (v.version && v.version !== 'unknown' && v.version !== 'dev') return v.version
+  if (v.commit_sha && v.commit_sha !== 'unknown') return `dev-${v.commit_sha.substring(0, 7)}`
+  return 'dev'
+})
+
+const upToDateText = computed(() => {
+  const v = versionInfo.value
+  if (!v) return "You're running the latest version"
+  if (v.branch === 'develop') return "You're running the latest develop build"
+  if (v.branch && !['main', 'develop'].includes(v.branch)) return `Running ${v.branch} build (no update checks)`
+  return "You're running the latest version"
+})
 
 // Theme management - use global theme composable
 const { theme, setTheme } = useTheme()

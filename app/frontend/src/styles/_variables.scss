@@ -197,7 +197,9 @@ $breakpoints: (
   'sm': 640px,   // Mobile / Phablet (most phones in landscape)
   'md': 768px,   // Tablet portrait
   'lg': 1024px,  // Desktop / Tablet landscape
-  'xl': 1200px   // Large desktop
+  'xl': 1200px,  // Large desktop
+  '2xl': 1440px, // Wide desktop
+  '3xl': 1920px  // Ultra-wide / 4K
 );
 
 // Container max-widths - beibehalten für Rückwärtskompatibilität
@@ -319,6 +321,7 @@ $duration-400: 400ms;  // Missing in original list
   --primary-bg: #{rgba($primary-500, 0.1)};
   --primary-hover: #{$primary-600};
   --primary-hover-color: #{$primary-600};
+  --primary-color-hover: #{$primary-600};
   
   // ===== ACCENT COLORS (Purple) =====
   --accent-color: #{$accent-500};
@@ -515,17 +518,27 @@ $duration-400: 400ms;  // Missing in original list
   --shadow-primary: #{$shadow-primary};
   
   // ===== ANIMATIONS & TRANSITIONS =====
+  --transition-fast: #{$transition-fast};
   --transition-base: #{$transition-base};
+  --transition-slow: #{$transition-slow};
   --transition-colors: #{$transition-colors};
+  --transition-opacity: #{$transition-opacity};
+  --transition-transform: #{$transition-transform};
   --transition-all: #{$transition-all};
   --vue-ease: #{$vue-ease};
   --vue-ease-out: #{$vue-ease-out};
   --ease-out: #{$ease-out};
+  --ease-in: #{$ease-in};
+  --ease-in-out: #{$ease-in-out};
+  --ease-bounce: #{$ease-bounce};
   
   // Durations
   --duration-150: #{$duration-150};
   --duration-200: #{$duration-200};
+  --duration-250: #{$duration-250};
   --duration-300: #{$duration-300};
+  --duration-400: #{$duration-400};
+  --duration-500: #{$duration-500};
   
   // ===== GRADIENTS =====
   --gradient-primary: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-600) 100%);
@@ -559,6 +572,7 @@ $duration-400: 400ms;  // Missing in original list
   --primary-bg: #{rgba($primary-600, 0.1)};
   --primary-hover: #{$primary-700};
   --primary-hover-color: #{$primary-700};
+  --primary-color-hover: #{$primary-700};
   
   // ===== ACCENT COLORS (Light Mode) =====
   --accent-color: #{$accent-600};

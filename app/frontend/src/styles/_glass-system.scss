@@ -718,12 +718,32 @@ $glass-shadow-xl: 0 12px 48px rgba(0, 0, 0, 0.3);
     background: var(--glass-bg-solid);
   }
 
+  // Flex column so the header stays pinned and only the content area scrolls.
+  // Without this, the panel itself becomes the scroll container and the
+  // (non-sticky) header gets overlapped by the first content row when you scroll.
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+
   // Desktop: dropdown from header
   top: 72px;
   right: var(--spacing-4);
   width: min(420px, 90vw);
   max-height: 70vh;
-  overflow-y: auto;
+
+  .glass-popup-header {
+    flex-shrink: 0;
+  }
+
+  // Direct child that is NOT the header becomes the scroll area.
+  // This covers the NotificationFeed pattern (no .glass-popup-content wrapper)
+  // while leaving .glass-popup-content (BackgroundQueueMonitor pattern) to manage
+  // its own scroll behaviour.
+  > :not(.glass-popup-header):not(.glass-popup-content) {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+  }
 
   // Full-screen overlay for tablets and below
   @include m.respond-below('lg') {
@@ -735,11 +755,8 @@ $glass-shadow-xl: 0 12px 48px rgba(0, 0, 0, 0.3);
     max-height: 100dvh;
     height: 100dvh;
     border-radius: 0;
-    display: flex;
-    flex-direction: column;
 
     .glass-popup-header {
-      flex-shrink: 0;
       border-radius: 0;
     }
   }

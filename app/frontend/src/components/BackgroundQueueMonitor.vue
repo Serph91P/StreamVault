@@ -70,9 +70,12 @@
                   <div class="pulse-indicator"></div>
                   <span class="recording-text">Recording Live</span>
                 </div>
-                <div v-else class="progress-bar">
+                <div v-else-if="typeof task.progress === 'number'" class="progress-bar">
                   <div class="progress-fill" :style="{ width: `${task.progress}%` }"></div>
                   <span class="progress-text">{{ Math.round(task.progress) }}%</span>
+                </div>
+                <div v-else class="progress-bar progress-bar-indeterminate">
+                  <div class="progress-fill progress-fill-indeterminate"></div>
                 </div>
               </div>
               
@@ -199,7 +202,7 @@ const combinedActiveTasks = computed(() => {
       id: queueId,
       task_type: 'recording',
       status: 'running',
-      progress: 0,
+      progress: null,
       created_at: rec.started_at,
       started_at: rec.started_at,
       payload: {
@@ -408,7 +411,7 @@ defineExpose({ togglePanel, taskCount: combinedActiveTasks })
 .progress-fill {
   height: 100%;
   background: linear-gradient(90deg, var(--info-color) 0%, var(--primary-color) 100%);
-  transition: width 0.3s ease;
+  transition: width var(--duration-300) var(--ease-out);
   border-radius: var(--border-radius-sm, 4px);
 }
 
@@ -445,7 +448,7 @@ defineExpose({ togglePanel, taskCount: combinedActiveTasks })
   background: rgba(255, 255, 255, 0.05);
   border-radius: var(--border-radius, 8px);
   border: 1px solid rgba(255, 255, 255, 0.1);
-  transition: all 0.3s ease;
+  transition: var(--transition-base);
   
   [data-theme="light"] & {
     background: var(--background-darker);
@@ -523,7 +526,7 @@ defineExpose({ togglePanel, taskCount: combinedActiveTasks })
   background: rgba(255, 255, 255, 0.05);
   border-radius: var(--border-radius, 8px);
   border: 1px solid rgba(255, 255, 255, 0.1);
-  transition: all var(--transition-base, 0.3s ease);
+  transition: var(--transition-base);
   /* Border colors handled by .status-border-* classes */
 }
 
@@ -570,6 +573,27 @@ defineExpose({ togglePanel, taskCount: combinedActiveTasks })
 
 .task-progress .progress-fill {
   background: linear-gradient(90deg, var(--info-color) 0%, var(--primary-color) 100%);
+}
+
+.progress-bar-indeterminate {
+  position: relative;
+  overflow: hidden;
+}
+
+.progress-fill-indeterminate {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 40% !important;
+  height: 100%;
+  background: linear-gradient(90deg, var(--info-color) 0%, var(--primary-color) 100%);
+  border-radius: var(--border-radius-sm, 4px);
+  animation: indeterminate-slide 1.5s var(--ease-in-out, ease-in-out) infinite;
+}
+
+@keyframes indeterminate-slide {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(250%); }
 }
 
 .progress-text {

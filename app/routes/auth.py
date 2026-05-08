@@ -1,12 +1,15 @@
 import logging
 import time
 from collections import defaultdict
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse, RedirectResponse, FileResponse
+from sqlalchemy.orm import Session
 from app.services.core.auth_service import AuthService
-from app.dependencies import get_auth_service
+from app.dependencies import get_auth_service, get_current_user, get_db
 from app.schemas.auth import UserCreate
 from app.config.settings import get_settings
+from app.models import SystemState, User
 
 logger = logging.getLogger("streamvault")
 
@@ -50,9 +53,22 @@ def _record_login_attempt(client_ip: str) -> None:
     _login_attempts[client_ip].append(time.monotonic())
 
 
+def _get_or_create_system_state(db: Session) -> SystemState:
+    """Return the singleton SystemState row, creating it on first access."""
+    state = db.query(SystemState).filter(SystemState.id == 1).first()
+    if state is None:
+        state = SystemState(id=1, welcome_completed=False)
+        db.add(state)
+        db.commit()
+        db.refresh(state)
+    return state
+
+
 @router.api_route("/setup", methods=["GET", "HEAD"])
 async def setup_page(
-    request: Request, auth_service: AuthService = Depends(get_auth_service)
+    request: Request,
+    auth_service: AuthService = Depends(get_auth_service),
+    db: Session = Depends(get_db),
 ):
     admin_exists = await auth_service.admin_exists()
 
@@ -60,8 +76,12 @@ async def setup_page(
     if request.headers.get(
         "X-Requested-With"
     ) == "XMLHttpRequest" or "application/json" in request.headers.get("accept", ""):
+        state = _get_or_create_system_state(db)
         return JSONResponse(
-            content={"setup_required": not admin_exists},
+            content={
+                "setup_required": not admin_exists,
+                "welcome_completed": bool(state.welcome_completed),
+            },
             headers={"Content-Type": "application/json"},
         )
 
@@ -256,3 +276,48 @@ async def keepalive(
     except Exception as e:
         logger.error(f"Keepalive error: {e}")
         return JSONResponse(content={"ok": False}, status_code=500)
+
+
+@router.get("/onboarding-state")
+async def get_onboarding_state(db: Session = Depends(get_db)):
+    """Return persistent onboarding flags so the frontend router can decide
+    whether to show the welcome screen without relying on browser localStorage.
+    """
+    state = _get_or_create_system_state(db)
+    return JSONResponse(
+        content={
+            "welcome_completed": bool(state.welcome_completed),
+            "welcome_completed_at": state.welcome_completed_at.isoformat()
+            if state.welcome_completed_at
+            else None,
+        }
+    )
+
+
+@router.post("/onboarding/complete")
+async def complete_onboarding(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Mark the welcome screen as completed for the whole installation.
+
+    Authenticated only: anonymous callers must not be able to flip the flag.
+    Idempotent: repeated calls do not change `welcome_completed_at`.
+    """
+    state = _get_or_create_system_state(db)
+    if not state.welcome_completed:
+        state.welcome_completed = True
+        state.welcome_completed_at = datetime.now(timezone.utc)
+        db.commit()
+        db.refresh(state)
+        logger.info(
+            f"Onboarding completed by user {current_user.username} (id={current_user.id})"
+        )
+    return JSONResponse(
+        content={
+            "welcome_completed": bool(state.welcome_completed),
+            "welcome_completed_at": state.welcome_completed_at.isoformat()
+            if state.welcome_completed_at
+            else None,
+        }
+    )

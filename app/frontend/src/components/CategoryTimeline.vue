@@ -299,7 +299,7 @@ const calculateDuration = (startTime: string | null, endTime: string | null): st
   align-items: center;
   justify-content: center;
   box-shadow: 0 2px 8px rgba(var(--twitch-purple-rgb), 0.4);
-  transition: all 0.3s ease;
+  transition: var(--transition-base);
 }
 
 .timeline-item:hover .marker-content {
@@ -331,7 +331,7 @@ const calculateDuration = (startTime: string | null, endTime: string | null): st
   min-width: 180px;
   opacity: 0;
   visibility: hidden;
-  transition: all 0.3s ease;
+  transition: var(--transition-base);
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.8);
   z-index: 99999; /* Very high z-index to ensure tooltip is always visible */
   backdrop-filter: blur(8px);
@@ -416,7 +416,7 @@ const calculateDuration = (startTime: string | null, endTime: string | null): st
   background: var(--background-darker);
   border-radius: var(--radius-2);
   border: 1px solid var(--border-color);
-  transition: all 0.2s ease;
+  transition: var(--transition-base);
 }
 
 .category-item:hover {

@@ -73,7 +73,9 @@
             <div
               v-for="video in sortedVideos"
               :key="video.id"
-              @click="selectVideo(video)"
+              @click="onVideoClick($event, video)"
+              @touchstart.passive="onVideoTouchStart"
+              @touchmove.passive="onVideoTouchMove"
               :class="['video-card', { active: currentVideo?.id === video.id }]"
             >
               <div class="video-thumbnail">
@@ -149,6 +151,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import VideoPlayer from './VideoPlayer.vue'
+import { useTouchClick } from '@/composables/useTouchClick'
 
 interface VideoData {
   id: string
@@ -276,6 +279,21 @@ const selectVideo = (video: VideoData) => {
   activeTab.value = 'player'
 }
 
+// Scroll-aware tap handling: do not select when user is panning the list.
+let pendingVideo: VideoData | null = null
+const {
+  onClick: onVideoClickGuarded,
+  onTouchStart: onVideoTouchStart,
+  onTouchMove: onVideoTouchMove,
+} = useTouchClick<MouseEvent>(() => {
+  if (pendingVideo) selectVideo(pendingVideo)
+  pendingVideo = null
+})
+const onVideoClick = (event: MouseEvent, video: VideoData) => {
+  pendingVideo = video
+  onVideoClickGuarded(event)
+}
+
 const onChapterChange = (_chapter: any, _index: number) => {
   // Handle chapter changes
 }
@@ -360,7 +378,7 @@ watch(() => props.videos, (newVideos) => {
   border: none;
   background: transparent;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: var(--transition-base);
   border-bottom: 3px solid transparent;
   color: var(--text-secondary);
   white-space: nowrap;
@@ -514,7 +532,7 @@ watch(() => props.videos, (newVideos) => {
   color: var(--text-primary);
   cursor: pointer;
   font-size: 1rem;
-  transition: all 0.2s;
+  transition: var(--transition-base);
 }
 
 .sort-order-btn:hover {
@@ -533,7 +551,7 @@ watch(() => props.videos, (newVideos) => {
   border-radius: var(--border-radius);
   overflow: hidden;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: var(--transition-base);
   border: 1px solid var(--border-color);
 }
 

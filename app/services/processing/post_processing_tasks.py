@@ -5,7 +5,6 @@ Defines specific handlers for different post-processing tasks
 that run in the background queue.
 """
 
-import asyncio
 import os
 import logging
 from pathlib import Path
@@ -408,14 +407,15 @@ class PostProcessingTasks:
     async def _convert_ts_to_mp4(
         self, ts_file_path: str, mp4_output_path: str, task: QueueTask
     ):
-        """Convert TS file to MP4 using FFmpeg"""
+        """Convert TS file to MP4 using FFmpeg with live progress reporting."""
 
         # Get streamer name from task
         streamer_name = (
             task.streamer_name if hasattr(task, "streamer_name") else "unknown"
         )
 
-        # FFmpeg command for conversion
+        # FFmpeg command for conversion (no -progress / -nostats here; the
+        # tracker injects them so we get k=v progress on stdout).
         cmd = [
             "ffmpeg",
             "-i",
@@ -430,33 +430,39 @@ class PostProcessingTasks:
             mp4_output_path,
         ]
 
-        # Use the logging service to create per-streamer logs
-        if self.logging_service:
-            streamer_log_path = self.logging_service.log_ffmpeg_start(
-                "ts_to_mp4_task", cmd, streamer_name
-            )
-            logger.info(f"FFmpeg logs will be written to: {streamer_log_path}")
+        # Stream progress back into the queue tracker so the BackgroundQueueMonitor
+        # shows a real percentage instead of jumping 0 -> 50 -> 100.
+        try:
+            from app.services.background_queue_service import background_queue_service
+        except Exception:
+            background_queue_service = None
 
-        # Create process
-        process = await asyncio.create_subprocess_exec(
-            *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+        def _on_progress(pct: float) -> None:
+            if background_queue_service is not None:
+                try:
+                    background_queue_service.update_task_progress(task.id, pct)
+                except Exception:
+                    pass
+
+        from app.services.processing.ffmpeg_progress_tracker import (
+            get_ffmpeg_progress_tracker,
         )
 
-        # Monitor progress (simplified)
-        stdout, stderr = await process.communicate()
+        tracker = get_ffmpeg_progress_tracker(logging_service=self.logging_service)
+        return_code, _stdout, stderr = await tracker.run(
+            cmd,
+            operation="ts_to_mp4_task",
+            streamer_name=streamer_name,
+            progress_callback=_on_progress,
+            input_path=ts_file_path,
+        )
 
-        # Log the FFmpeg output using the logging service
-        if self.logging_service:
-            self.logging_service.log_ffmpeg_output(
-                "ts_to_mp4_task", stdout, stderr, process.returncode, streamer_name
-            )
-
-        if process.returncode != 0:
+        if return_code != 0:
             error_msg = stderr.decode("utf-8", errors="ignore")
             raise Exception(f"FFmpeg conversion failed: {error_msg}")
 
-        # Update progress during conversion
-        task.progress = 50.0
+        # Mark conversion done; downstream steps push progress further.
+        task.progress = 100.0
 
         # Verify output file was created
         if not os.path.exists(mp4_output_path):

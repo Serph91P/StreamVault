@@ -94,6 +94,10 @@ jobs:
         working-directory: app/frontend
         run: npm run lint
 
+      - name: Lint design tokens (no hardcoded hex/breakpoints/transitions)
+        working-directory: app/frontend
+        run: npm run lint:tokens
+
       - name: Type check TypeScript code
         working-directory: app/frontend
         run: npm run type-check

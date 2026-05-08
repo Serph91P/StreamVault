@@ -171,163 +171,56 @@
     />
 
     <!-- Delete Confirmation Modal -->
-    <Teleport to="body">
-      <div v-if="showConfirm" class="modal-overlay" @click.self="showConfirm = false">
-        <div class="modal">
-          <div class="modal-header">
-            <h3>Delete All Streams</h3>
-            <button class="close-btn" @click="showConfirm = false" v-ripple>×</button>
-          </div>
-          <div class="modal-body">
-            <p>Are you sure you want to delete all streams for this streamer?</p>
-            <p class="warning">
-              <svg class="icon-warning">
-                <use href="#icon-alert-triangle" />
-              </svg>
-              Active recordings will be skipped to avoid data loss.
-            </p>
-          </div>
-          <div class="modal-actions">
-            <button class="btn-secondary" @click="showConfirm = false" v-ripple>
-              Cancel
-            </button>
-            <button
-              class="btn-danger"
-              :disabled="deletingAll"
-              @click="deleteAll"
-              v-ripple
-            >
-              {{ deletingAll ? 'Deleting...' : 'Delete All' }}
-            </button>
-          </div>
-        </div>
-      </div>
-    </Teleport>
+    <BaseModal v-model="showConfirm" title="Delete All Streams" size="md">
+      <p>Are you sure you want to delete all streams for this streamer?</p>
+      <p class="warning">
+        <svg class="icon-warning">
+          <use href="#icon-alert-triangle" />
+        </svg>
+        Active recordings will be skipped to avoid data loss.
+      </p>
+      <template #footer>
+        <BaseButton variant="secondary" @click="showConfirm = false">Cancel</BaseButton>
+        <BaseButton variant="danger" :loading="deletingAll" @click="deleteAll">
+          {{ deletingAll ? 'Deleting...' : 'Delete All' }}
+        </BaseButton>
+      </template>
+    </BaseModal>
 
     <!-- Settings Modal -->
-    <Teleport to="body">
-      <div v-if="showSettings" class="modal-overlay" @click.self="closeSettings">
-        <div class="modal settings-modal">
-          <div class="modal-header">
-            <h3>Settings for {{ streamer?.name || 'Streamer' }}</h3>
-            <button class="close-btn" @click="closeSettings" v-ripple>×</button>
-          </div>
-          <div class="modal-body">
-            <!-- Recording Quality Override -->
-            <div class="setting-group">
-              <label class="setting-label">Recording Quality</label>
-              <select v-model="streamerSettings.quality" class="setting-input">
-                <option value="">Use Global Setting</option>
-                <option value="best">Best Available</option>
-                <option value="1080p60">1080p60</option>
-                <option value="720p60">720p60</option>
-                <option value="720p">720p</option>
-                <option value="480p">480p</option>
-              </select>
-              <p class="setting-hint">Override global recording quality for this streamer</p>
-            </div>
+    <BaseModal
+      v-model="showSettings"
+      :title="`Settings for ${streamer?.name || 'Streamer'}`"
+      size="lg"
+      @close="closeSettings"
+    >
+      <StreamerSettingsFields v-model="streamerSettings" :disabled="savingSettings" />
 
-            <!-- Custom Filename Template -->
-            <div class="setting-group">
-              <label class="setting-label">Custom Filename Template</label>
-              <input 
-                v-model="streamerSettings.filenameTemplate" 
-                type="text"
-                class="setting-input"
-                placeholder="Leave empty to use global template"
-              />
-              <p class="setting-hint">
-                Available variables: {streamer}, {title}, {game}, {date}, {time}
-              </p>
-            </div>
-
-            <!-- Auto-Record Toggle -->
-            <div class="setting-group">
-              <label class="setting-checkbox">
-                <input type="checkbox" v-model="streamerSettings.autoRecord" />
-                <span>Auto-record when this streamer goes live</span>
-              </label>
-            </div>
-
-            <!-- Notification Preferences -->
-            <div class="setting-group">
-              <label class="setting-label">Notifications</label>
-              <label class="setting-checkbox">
-                <input type="checkbox" v-model="streamerSettings.notifyOnline" />
-                <span>Notify when goes online</span>
-              </label>
-              <label class="setting-checkbox">
-                <input type="checkbox" v-model="streamerSettings.notifyOffline" />
-                <span>Notify when goes offline</span>
-              </label>
-            </div>
-
-            <!-- Codec Preferences -->
-            <div class="setting-group">
-              <label class="setting-label">Codec Preferences</label>
-              <select v-model="streamerSettings.supportedCodecs" class="setting-input">
-                <option value="">Use Global Setting</option>
-                <option value="h264">H.264 only</option>
-                <option value="h265">H.265 (HEVC) only</option>
-                <option value="av1">AV1 only</option>
-                <option value="h264,h265">H.264 + H.265 (Recommended)</option>
-                <option value="h264,h265,av1">All codecs</option>
-              </select>
-              <p class="setting-hint">Override preferred video codecs for this streamer</p>
-            </div>
-
-            <!-- Max Concurrent Streams -->
-            <div class="setting-group">
-              <label class="setting-label">Max Concurrent Recordings</label>
-              <input
-                v-model.number="streamerSettings.maxStreams"
-                type="number"
-                class="setting-input"
-                min="1"
-                max="10"
-                placeholder="Unlimited"
-              />
-              <p class="setting-hint">Maximum simultaneous recordings for this streamer (empty = unlimited)</p>
-            </div>
-
-            <!-- Cleanup Policy -->
-            <div class="setting-group">
-              <label class="setting-checkbox">
-                <input type="checkbox" v-model="streamerSettings.useGlobalCleanupPolicy" />
-                <span>Use global cleanup policy</span>
-              </label>
-              <p class="setting-hint">When enabled, this streamer uses the global recording cleanup rules</p>
-            </div>
-          </div>
-          <div class="modal-actions">
-            <button class="btn-secondary" @click="closeSettings" v-ripple>
-              Cancel
-            </button>
-            <button
-              class="btn-primary"
-              :disabled="savingSettings"
-              @click="saveSettings"
-              v-ripple
-            >
-              {{ savingSettings ? 'Saving...' : 'Save Settings' }}
-            </button>
-          </div>
-        </div>
-      </div>
-    </Teleport>
+      <template #footer>
+        <BaseButton variant="secondary" @click="closeSettings">Cancel</BaseButton>
+        <BaseButton variant="primary" :loading="savingSettings" @click="saveSettings">
+          {{ savingSettings ? 'Saving...' : 'Save Settings' }}
+        </BaseButton>
+      </template>
+    </BaseModal>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { streamersApi } from '@/services/api'
 import { useForceRecording } from '@/composables/useForceRecording'
 import { useToast } from '@/composables/useToast'
+import { useWebSocket } from '@/composables/useWebSocket'
 import LoadingSkeleton from '@/components/LoadingSkeleton.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import StatusCard from '@/components/cards/StatusCard.vue'
 import StreamCard from '@/components/cards/StreamCard.vue'
+import BaseModal from '@/components/base/BaseModal.vue'
+import BaseButton from '@/components/base/BaseButton.vue'
+import StreamerSettingsFields from '@/components/streamers/StreamerSettingsFields.vue'
+import { buildDefaultState } from '@/schemas/streamerSettings.schema'
 
 // Router & URL params
 const route = useRoute()
@@ -358,33 +251,27 @@ const deletingAll = ref(false)
 // Force recording
 const { forceRecordingStreamerId, forceStartRecording } = useForceRecording()
 
-// Settings modal
+// Settings modal - schema-driven (single source of truth: streamerSettings.schema.ts)
 const showSettings = ref(false)
 const savingSettings = ref(false)
-const streamerSettings = ref({
-  quality: '',
-  filenameTemplate: '',
-  autoRecord: true,
-  notifyOnline: true,
-  notifyOffline: true,
-  maxStreams: null as number | null,
-  supportedCodecs: '',
-  useGlobalCleanupPolicy: true
-})
+const streamerSettings = ref<Record<string, unknown>>(buildDefaultState())
 
 const openSettings = () => {
-  // Load current settings from streamer data
-  if (streamer.value) {
-    streamerSettings.value = {
-      quality: streamer.value.recording_quality || '',
-      filenameTemplate: streamer.value.custom_filename || '',
-      autoRecord: streamer.value.recording_enabled !== false,
-      notifyOnline: true,
-      notifyOffline: true,
-      maxStreams: streamer.value.max_streams ?? null,
-      supportedCodecs: streamer.value.supported_codecs || '',
-      useGlobalCleanupPolicy: streamer.value.use_global_cleanup_policy !== false
-    }
+  // Hydrate from server payload (GET returns nested `recording` and `notifications` blocks).
+  const defaults = buildDefaultState()
+  const s = streamer.value || {}
+
+  streamerSettings.value = {
+    ...defaults,
+    quality: s.quality || s.recording_quality || (defaults.quality as string) || 'best',
+    recording: {
+      ...((defaults.recording as Record<string, unknown>) || {}),
+      ...((s.recording as Record<string, unknown>) || {}),
+    },
+    notifications: {
+      ...((defaults.notifications as Record<string, unknown>) || {}),
+      ...((s.notifications as Record<string, unknown>) || {}),
+    },
   }
   showSettings.value = true
 }
@@ -395,32 +282,25 @@ const closeSettings = () => {
 
 const saveSettings = async () => {
   savingSettings.value = true
-  
+
   try {
     const response = await fetch(`/api/streamers/streamer/${streamerId.value}/settings`, {
       method: 'PUT',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        autoRecord: streamerSettings.value.autoRecord,
-        quality: streamerSettings.value.quality || undefined,
-        filenameTemplate: streamerSettings.value.filenameTemplate || undefined,
-        maxStreams: streamerSettings.value.maxStreams,
-        supportedCodecs: streamerSettings.value.supportedCodecs || undefined,
-        useGlobalCleanupPolicy: streamerSettings.value.useGlobalCleanupPolicy
-      })
+      body: JSON.stringify(streamerSettings.value),
     })
-    
+
     if (!response.ok) {
-      const data = await response.json()
+      const data = await response.json().catch(() => ({}))
       throw new Error(data.detail || `HTTP error! Status: ${response.status}`)
     }
-    
+
     toast.success('Settings saved successfully!')
-    
+
     // Reload streamer data to reflect changes
     await fetchStreamer()
-    
+
     closeSettings()
   } catch (error) {
     console.error('Failed to save settings:', error)
@@ -437,7 +317,7 @@ const bannerStyle = computed(() => {
   // Create gradient from primary/accent colors
   return {
     backgroundImage: streamer.value.is_live
-      ? 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)'
+      ? 'linear-gradient(135deg, var(--danger-500) 0%, var(--danger-600) 100%)'
       : 'linear-gradient(135deg, var(--primary-color) 0%, var(--accent-color) 100%)'
   }
 })
@@ -614,6 +494,85 @@ onMounted(async () => {
     fetchStreamer(),
     fetchStreams()
   ])
+})
+
+// WebSocket: live update streamer status (live/recording/title/category) without polling.
+const { messages } = useWebSocket()
+
+const matchesCurrentStreamer = (data: any): boolean => {
+  if (!data || !streamer.value) return false
+  const idMatch =
+    (data.streamer_id !== undefined && String(data.streamer_id) === streamerId.value) ||
+    (data.id !== undefined && String(data.id) === streamerId.value)
+  if (idMatch) return true
+  const username = (data.username || data.streamer_name || '').toLowerCase()
+  if (!username) return false
+  return (
+    streamer.value.username?.toLowerCase() === username ||
+    streamer.value.name?.toLowerCase() === username
+  )
+}
+
+watch(messages, (newMessages) => {
+  if (!newMessages || newMessages.length === 0 || !streamer.value) return
+  const latest = newMessages[newMessages.length - 1]
+  const data = latest.data
+  if (!data || !matchesCurrentStreamer(data)) return
+
+  const updated = { ...streamer.value }
+  let changed = false
+
+  switch (latest.type) {
+    case 'stream.online':
+      updated.is_live = true
+      if (data.title) updated.title = data.title
+      if (data.category_name) updated.category_name = data.category_name
+      changed = true
+      break
+    case 'stream.offline':
+      updated.is_live = false
+      updated.title = null
+      updated.category_name = null
+      changed = true
+      break
+    case 'channel.update':
+    case 'stream.update':
+      if (data.title) { updated.title = data.title; changed = true }
+      if (data.category_name) { updated.category_name = data.category_name; changed = true }
+      break
+    case 'recording_started':
+    case 'recording.started':
+      updated.is_recording = true
+      if (!updated.is_live) updated.is_live = true
+      changed = true
+      break
+    case 'recording_finished':
+    case 'recording.finished':
+    case 'recording_stopped':
+    case 'recording.stopped':
+      updated.is_recording = false
+      changed = true
+      // Refresh stream list so the just-finished recording shows up.
+      fetchStreams()
+      break
+  }
+
+  if (changed) {
+    streamer.value = updated
+  }
+})
+
+// Recording lifecycle: cross-check against the global active recordings broadcast.
+watch(messages, (newMessages) => {
+  if (!newMessages || newMessages.length === 0 || !streamer.value) return
+  const latest = newMessages[newMessages.length - 1]
+  if (latest.type !== 'active_recordings_update') return
+  const list = latest.data?.recordings ?? latest.data
+  if (!Array.isArray(list)) return
+  const activeForThis = list.some((r: any) => matchesCurrentStreamer(r))
+  if (Boolean(streamer.value.is_recording) !== activeForThis) {
+    streamer.value = { ...streamer.value, is_recording: activeForThis }
+  }
 })
 </script>
 

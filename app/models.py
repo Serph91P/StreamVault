@@ -247,6 +247,50 @@ class Session(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
+class SystemState(Base):
+    """Singleton row holding global one-shot UI/onboarding flags.
+
+    Replaces browser localStorage flags (e.g. `welcome_seen`) that used to
+    re-trigger the welcome screen on every new device or after clearing
+    browser storage. The table always has exactly one row with id = 1.
+    """
+
+    __tablename__ = "system_state"
+    __table_args__ = {"extend_existing": True}
+
+    id = Column(Integer, primary_key=True, default=1)
+    welcome_completed = Column(Boolean, nullable=False, default=False)
+    welcome_completed_at = Column(DateTime(timezone=True), nullable=True)
+    updated_at = Column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
+class ApiKey(Base):
+    """Long-lived API key for programmatic access without an interactive session.
+
+    Key value is generated server-side, returned to the user ONCE on creation,
+    and only the SHA-256 hash is persisted. Keys are scoped to the user that
+    created them and can be revoked at any time. Used for monitoring/automation
+    that needs to call StreamVault endpoints (e.g. /api/status/recordings-active)
+    without performing an interactive login.
+    """
+
+    __tablename__ = "api_keys"
+    __table_args__ = {"extend_existing": True}
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    name = Column(String, nullable=False)
+    key_hash = Column(String, unique=True, nullable=False, index=True)
+    key_prefix = Column(String(12), nullable=False)  # First chars of raw key for UI
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    last_used_at = Column(DateTime(timezone=True), nullable=True)
+    revoked_at = Column(DateTime(timezone=True), nullable=True)
+
+
 class NotificationSettings(Base):
     __tablename__ = "notification_settings"
     __table_args__ = {"extend_existing": True}

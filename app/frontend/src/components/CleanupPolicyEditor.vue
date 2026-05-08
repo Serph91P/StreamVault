@@ -130,35 +130,30 @@
     </div>
 
     <!-- Cleanup Results Dialog -->
-    <div v-if="showCleanupResults" class="modal-overlay" @click="closeCleanupResults">
-      <div class="modal-content" @click.stop>
-        <div class="modal-header">
-          <h3>Cleanup Results</h3>
-          <button @click="closeCleanupResults" class="close-btn">&times;</button>
-        </div>
-        <div class="modal-body">
-          <p>{{ cleanupResults.message }}</p>
-          <p><strong>Recordings Deleted:</strong> {{ cleanupResults.deleted_count }}</p>
-          
-          <div v-if="cleanupResults.deleted_paths && cleanupResults.deleted_paths.length > 0">
-            <h4>Deleted Files:</h4>
-            <ul class="deleted-files-list">
-              <li v-for="(path, index) in cleanupResults.deleted_paths" :key="index">
-                {{ path }}
-              </li>
-            </ul>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button @click="closeCleanupResults" class="btn btn-primary">Close</button>
-        </div>
+    <BaseModal v-model="showCleanupResults" title="Cleanup Results" size="md">
+      <p>{{ cleanupResults.message }}</p>
+      <p><strong>Recordings Deleted:</strong> {{ cleanupResults.deleted_count }}</p>
+
+      <div v-if="cleanupResults.deleted_paths && cleanupResults.deleted_paths.length > 0">
+        <h4>Deleted Files:</h4>
+        <ul class="deleted-files-list">
+          <li v-for="(path, index) in cleanupResults.deleted_paths" :key="index">
+            {{ path }}
+          </li>
+        </ul>
       </div>
-    </div>
+
+      <template #footer>
+        <BaseButton variant="primary" @click="closeCleanupResults">Close</BaseButton>
+      </template>
+    </BaseModal>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
+import BaseModal from '@/components/base/BaseModal.vue';
+import BaseButton from '@/components/base/BaseButton.vue';
 import { useRecordingSettings } from '@/composables/useRecordingSettings';
 import type { CleanupPolicy } from '@/types/recording';
 import { CleanupPolicyType } from '@/types/recording';
@@ -544,7 +539,7 @@ onMounted(() => {
 
 .card-title {
   margin: 0 0 20px 0;
-  color: var(--text-primary, #f1f1f3);
+  color: var(--text-primary);
   font-size: 1.2rem;
   font-weight: 600;
 }
@@ -570,7 +565,7 @@ onMounted(() => {
   display: block;
   margin-bottom: 8px;
   font-weight: 500;
-  color: var(--text-primary, #f1f1f3);
+  color: var(--text-primary);
 }
 
 .checkbox-label {
@@ -594,9 +589,9 @@ onMounted(() => {
 .form-control {
   width: 100%;
   padding: 10px;
-  border: 1px solid var(--border-color, #303034);
-  background-color: var(--background-dark, #18181b);
-  color: var(--text-primary, #f1f1f3);
+  border: 1px solid var(--border-color);
+  background-color: var(--background-dark);
+  color: var(--text-primary);
   border-radius: var(--border-radius, 6px);
   box-sizing: border-box;
   font-size: 14px;
@@ -604,13 +599,13 @@ onMounted(() => {
 
 .form-control:focus {
   outline: none;
-  border-color: var(--primary-color, #42b883);
+  border-color: var(--primary-color);
   box-shadow: 0 0 0 2px rgba(66, 184, 131, 0.2);
 }
 
 select.form-control {
-  background-image: linear-gradient(45deg, transparent 50%, var(--text-primary, #f1f1f3) 50%),
-                    linear-gradient(135deg, var(--text-primary, #f1f1f3) 50%, transparent 50%);
+  background-image: linear-gradient(45deg, transparent 50%, var(--text-primary) 50%),
+                    linear-gradient(135deg, var(--text-primary) 50%, transparent 50%);
   background-position: calc(100% - 15px) calc(1em + 2px),
                        calc(100% - 10px) calc(1em + 2px);
   background-size: 5px 5px, 5px 5px;
@@ -620,14 +615,14 @@ select.form-control {
 }
 
 select.form-control option {
-  background-color: var(--background-darker, #1f1f23);
-  color: var(--text-primary, #f1f1f3);
+  background-color: var(--background-darker);
+  color: var(--text-primary);
   padding: 8px;
 }
 
 .help-text {
   font-size: 0.85rem;
-  color: var(--text-secondary, #adadb8);
+  color: var(--text-secondary);
   margin-top: 4px;
 }
 
@@ -639,22 +634,22 @@ select.form-control option {
 }
 
 .stat-item {
-  background-color: var(--background-dark, #18181b);
+  background-color: var(--background-dark);
   padding: 15px;
   border-radius: var(--border-radius, 6px);
-  border: 1px solid var(--border-color, #303034);
+  border: 1px solid var(--border-color);
 }
 
 .stat-label {
   font-size: 0.9rem;
-  color: var(--text-secondary, #adadb8);
+  color: var(--text-secondary);
   margin-bottom: 5px;
 }
 
 .stat-value {
   font-size: 1.1rem;
   font-weight: 600;
-  color: var(--text-primary, #f1f1f3);
+  color: var(--text-primary);
 }
 
 .form-actions {
@@ -668,28 +663,28 @@ select.form-control option {
   border-radius: var(--border-radius, 6px);
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: var(--transition-base);
   border: none;
   font-size: 14px;
 }
 
 .btn-primary {
-  background-color: var(--primary-color, #42b883);
+  background-color: var(--primary-color);
   color: white;
 }
 
 .btn-secondary {
-  background-color: var(--secondary-color, #6c757d);
+  background-color: var(--secondary-color);
   color: white;
 }
 
 .btn-warning {
-  background-color: var(--warning-color, #ffc107);
-  color: #212529;
+  background-color: var(--warning-color);
+  color: var(--text-on-warning);
 }
 
 .btn-danger {
-  background-color: var(--danger-color, #dc3545);
+  background-color: var(--danger-color);
   color: white;
 }
 
@@ -719,13 +714,13 @@ select.form-control option {
 
 .message.success {
   background-color: rgba(40, 167, 69, 0.2);
-  color: var(--success-color, #28a745);
+  color: var(--success-color);
   border: 1px solid rgba(40, 167, 69, 0.3);
 }
 
 .message.error {
   background-color: rgba(220, 53, 69, 0.2);
-  color: var(--danger-color, #dc3545);
+  color: var(--danger-color);
   border: 1px solid rgba(220, 53, 69, 0.3);
 }
 
@@ -733,7 +728,7 @@ select.form-control option {
   background: none;
   border: none;
   font-size: 18px;
-  color: var(--text-secondary, #adadb8);
+  color: var(--text-secondary);
   cursor: pointer;
   padding: 0;
   width: 24px;
@@ -742,12 +737,12 @@ select.form-control option {
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  transition: background-color 0.2s ease;
+  transition: var(--transition-colors);
 }
 
 .close-btn:hover {
   background-color: rgba(255, 255, 255, 0.1);
-  color: var(--text-primary, #f1f1f3);
+  color: var(--text-primary);
 }
 
 .modal-overlay {
@@ -765,9 +760,9 @@ select.form-control option {
 }
 
 .modal-content {
-  background-color: var(--background-darker, #1f1f23);
+  background-color: var(--background-darker);
   border-radius: var(--border-radius, 8px);
-  border: 1px solid var(--border-color, #303034);
+  border: 1px solid var(--border-color);
   max-width: 90vw;
   max-height: 90vh;
   width: 600px;
@@ -780,12 +775,12 @@ select.form-control option {
   justify-content: space-between;
   align-items: center;
   padding: 20px;
-  border-bottom: 1px solid var(--border-color, #303034);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .modal-header h3 {
   margin: 0;
-  color: var(--text-primary, #f1f1f3);
+  color: var(--text-primary);
 }
 
 .modal-header .close-btn {
@@ -796,12 +791,12 @@ select.form-control option {
 
 .modal-body {
   padding: 20px;
-  color: var(--text-primary, #f1f1f3);
+  color: var(--text-primary);
 }
 
 .modal-footer {
   padding: 20px;
-  border-top: 1px solid var(--border-color, #303034);
+  border-top: 1px solid var(--border-color);
   display: flex;
   justify-content: flex-end;
 }
@@ -809,8 +804,8 @@ select.form-control option {
 .deleted-files-list {
   max-height: 300px;
   overflow-y: auto;
-  background-color: var(--background-dark, #18181b);
-  border: 1px solid var(--border-color, #303034);
+  background-color: var(--background-dark);
+  border: 1px solid var(--border-color);
   border-radius: var(--border-radius, 6px);
   padding: 15px;
   margin: 10px 0;
@@ -833,15 +828,15 @@ select.form-control option {
 .disabled-section {
   opacity: 0.5;
   pointer-events: none;
-  transition: opacity 0.3s ease;
+  transition: var(--transition-opacity);
 }
 
 .disabled-section .form-control:disabled,
 .disabled-section input:disabled,
 .disabled-section select:disabled {
-  background-color: var(--background-dark, #18181b);
-  color: var(--text-secondary, #adadb8);
-  border-color: var(--border-color, #303034);
+  background-color: var(--background-dark);
+  color: var(--text-secondary);
+  border-color: var(--border-color);
   cursor: not-allowed;
 }
 </style>

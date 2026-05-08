@@ -20,10 +20,10 @@
             <span class="button-icon">{{ showFavoritesOnly ? '★' : '☆' }}</span>
             <span class="button-text">{{ showFavoritesOnly ? 'Show All' : 'Favorites Only' }}</span>
           </button>
-          <button @click="fetchCategories" class="btn btn-secondary">
+          <BaseButton variant="secondary" @click="fetchCategories">
             <span class="button-icon">↻</span>
             <span class="button-text">Refresh</span>
-          </button>
+          </BaseButton>
         </div>
       </div>
     </div>
@@ -109,6 +109,7 @@ import { useCategoryImages } from '@/composables/useCategoryImages';
 import { useToast } from '@/composables/useToast';
 import { IMAGE_LOADING } from '@/config/constants';
 import { mockCategories } from '@/mocks/mockData';
+import BaseButton from '@/components/base/BaseButton.vue';
 
 // Check if mock data should be used
 const USE_MOCK_DATA = import.meta.env.VITE_USE_MOCK_DATA === 'true';

@@ -873,7 +873,7 @@
 // ============================================================================
 
 // Glassmorphism card (pure blur effect - no background color)
-// NOTE: GlassCard.vue component uses _glass.scss mixin instead
+// NOTE: GlassCard.vue component implements its own scoped glass styles via mixins/variables
 // This utility class kept for backwards compatibility but should use GlassCard component
 .glass-card {
   // NO background - pure blur effect only

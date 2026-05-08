@@ -254,14 +254,14 @@ onMounted(() => {
 }
 
 .streamer-card {
-  background-color: var(--background-card, #1f1f23);
+  background-color: var(--background-card);
   border-radius: var(--border-radius, 8px);
   overflow: hidden;
-  transition: all 0.3s var(--vue-ease, cubic-bezier(0.25, 0.8, 0.5, 1));
+  transition: all var(--duration-300) var(--vue-ease);
   position: relative;
   display: flex;
   flex-direction: column;
-  border: 1px solid var(--border-color, #2d2d35);
+  border: 1px solid var(--border-color);
   margin-bottom: 0;
   box-shadow: none;
 }
@@ -290,15 +290,15 @@ onMounted(() => {
   bottom: 0;
   width: 3px;
   background-color: transparent;
-  transition: background-color 0.3s var(--vue-ease, cubic-bezier(0.25, 0.8, 0.5, 1));
+  transition: background-color var(--duration-300) var(--vue-ease);
 }
 
 .streamer-card:hover::before {
-  background-color: var(--primary-color, #42b883);
+  background-color: var(--primary-color);
 }
 
 .streamer-card.live::before {
-  background-color: var(--danger-color, #ef4444);
+  background-color: var(--danger-color);
   animation: subtle-pulse 2s infinite;
 }
 
@@ -315,12 +315,12 @@ onMounted(() => {
 }
 
 .streamer-header {
-  background-color: var(--background-darker, #18181b);
+  background-color: var(--background-darker);
   padding: 8px 16px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-bottom: 1px solid var(--border-color, #2d2d35);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .status-badges {
@@ -348,7 +348,7 @@ onMounted(() => {
   height: 38px;
   border-radius: 50%;
   object-fit: cover;
-  border: 2px solid var(--border-color, #2d2d35);
+  border: 2px solid var(--border-color);
 }
 
 .status-dot {
@@ -358,12 +358,12 @@ onMounted(() => {
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  background-color: var(--text-muted-color, #6d6d6d);
-  border: 2px solid var(--background-darker, #18181b);
+  background-color: var(--text-muted-color);
+  border: 2px solid var(--background-darker);
 }
 
 .status-dot.live {
-  background-color: var(--danger-color, #ef4444);
+  background-color: var(--danger-color);
   animation: pulse 2s infinite;
 }
 
@@ -384,15 +384,15 @@ onMounted(() => {
   font-size: 1rem;
   font-weight: 600;
   cursor: pointer;
-  color: var(--text-primary, #efeff1);
-  transition: color 0.2s ease;
+  color: var(--text-primary);
+  transition: var(--transition-colors);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .streamer-name-link:hover {
-  color: var(--primary-color, #42b883);
+  color: var(--primary-color);
   text-decoration: underline;
 }
 
@@ -408,7 +408,7 @@ onMounted(() => {
   margin: 0;
   font-size: 0.9rem;
   line-height: 1.4;
-  color: var(--text-secondary, #adadb8);
+  color: var(--text-secondary);
   display: -webkit-box;
   -webkit-line-clamp: 2;
   line-clamp: 2;
@@ -417,7 +417,7 @@ onMounted(() => {
 }
 
 .streamer-content p strong {
-  color: var(--text-primary, #efeff1);
+  color: var(--text-primary);
   margin-right: 4px;
 }
 
@@ -426,8 +426,8 @@ onMounted(() => {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
-  border-top: 1px solid var(--border-color, #2d2d35);
-  background-color: var(--background-darker, #18181b);
+  border-top: 1px solid var(--border-color);
+  background-color: var(--background-darker);
 }
 
 .status-badge {
@@ -435,24 +435,24 @@ onMounted(() => {
   font-weight: 600;
   padding: 3px 8px;
   border-radius: 12px;
-  background-color: var(--background-dark, #121214);
-  color: var(--text-secondary, #adadb8);
+  background-color: var(--background-dark);
+  color: var(--text-secondary);
   letter-spacing: 0.5px;
 }
 
 .status-badge.live {
-  background-color: var(--danger-color, #ef4444);
+  background-color: var(--danger-color);
   color: white;
 }
 
 .status-badge.recording {
-  background-color: var(--success-color, #22c55e);
+  background-color: var(--success-color);
   color: white;
   animation: pulse 2s infinite;
 }
 
 .status-badge.not-recording {
-  background-color: var(--warning-color, #f59e0b);
+  background-color: var(--warning-color);
   color: white;
 }
 
@@ -474,7 +474,7 @@ onMounted(() => {
   border-radius: 6px;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: var(--transition-base);
   border: none;
   font-size: 0.875rem;
   line-height: 1.5;
@@ -486,23 +486,23 @@ onMounted(() => {
 }
 
 .btn-primary {
-  background-color: var(--primary-color, #42b883);
+  background-color: var(--primary-color);
   color: white;
 }
 
 .btn-primary:hover:not(:disabled) {
-  background-color: var(--primary-color-hover, #3ca978);
+  background-color: var(--primary-color-hover);
   transform: translateY(-1px);
   box-shadow: 0 2px 5px rgba(66, 184, 131, 0.25);
 }
 
 .btn-danger {
-  background-color: var(--danger-color, #ef4444);
+  background-color: var(--danger-color);
   color: white;
 }
 
 .btn-danger:hover:not(:disabled) {
-  background-color: var(--danger-color-hover, #dc2626);
+  background-color: var(--danger-color-hover);
   transform: translateY(-1px);
   box-shadow: 0 2px 5px rgba(239, 68, 68, 0.25);
 }
@@ -539,9 +539,9 @@ onMounted(() => {
   justify-content: center;
   align-items: center;
   padding: 32px 16px;
-  background-color: var(--background-card, #1f1f23);
+  background-color: var(--background-card);
   border-radius: var(--border-radius, 8px);
-  border: 1px dashed var(--border-color, #2d2d35);
+  border: 1px dashed var(--border-color);
   margin: 16px 0;
 }
 
@@ -557,18 +557,18 @@ onMounted(() => {
 
 .empty-state h3 {
   margin: 0 0 8px;
-  color: var(--text-primary, #efeff1);
+  color: var(--text-primary);
 }
 
 .empty-state p {
   margin: 0 0 16px;
-  color: var(--text-secondary, #adadb8);
+  color: var(--text-secondary);
 }
 
 /* Card transition animations */
 .streamer-card-enter-active,
 .streamer-card-leave-active {
-  transition: all 0.3s var(--vue-ease, cubic-bezier(0.25, 0.8, 0.5, 1));
+  transition: all var(--duration-300) var(--vue-ease);
 }
 
 .streamer-card-enter-from {
@@ -582,7 +582,7 @@ onMounted(() => {
 }
 
 .streamer-card-move {
-  transition: transform 0.5s var(--vue-ease, cubic-bezier(0.25, 0.8, 0.5, 1));
+  transition: transform var(--duration-500) var(--vue-ease);
 }
 
 /* Responsive adjustments */

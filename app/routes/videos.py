@@ -8,9 +8,10 @@ from pathlib import Path
 import mimetypes
 import re
 from secrets import token_urlsafe
+from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 from app.database import get_db
-from app.models import Stream, Streamer, Recording
+from app.models import Stream, Streamer, Recording, ActiveRecordingState
 from app.utils.security_enhanced import (
     safe_file_access,
     safe_error_message,
@@ -376,6 +377,76 @@ async def get_videos(request: Request, db: Session = Depends(get_db)):
             except Exception as e:
                 logger.error(f"Error processing recording {recording.id}: {e}")
                 continue
+
+        # Strategy 3: Surface CURRENTLY-RECORDING streams so the user can see
+        # them on the videos list before the recording finishes. We pull from
+        # ActiveRecordingState (the persistence table) which is the same source
+        # the recovery loop trusts. The .ts file may still be growing, so we
+        # report best-effort size and mark is_recording=True so the frontend
+        # can render a "Live recording" badge instead of a play button.
+        try:
+            active_states = (
+                db.query(ActiveRecordingState, Stream, Streamer)
+                .join(Stream, ActiveRecordingState.stream_id == Stream.id)
+                .join(Streamer, Stream.streamer_id == Streamer.id)
+                .filter(ActiveRecordingState.status == "active")
+                .all()
+            )
+
+            for state, stream, streamer in active_states:
+                if stream.id in added_stream_ids:
+                    # Already covered (e.g. a finished mp4 exists alongside the live ts).
+                    continue
+                try:
+                    ts_path = (
+                        Path(state.ts_output_path) if state.ts_output_path else None
+                    )
+                    file_size = 0
+                    file_path_str = str(ts_path) if ts_path else None
+                    if ts_path and ts_path.exists() and ts_path.is_file():
+                        file_size = ts_path.stat().st_size
+
+                    started = state.started_at or stream.started_at
+                    duration = None
+                    if started:
+                        duration = (
+                            datetime.now(timezone.utc) - started
+                        ).total_seconds()
+
+                    thumbnail_url = (
+                        get_video_thumbnail_url(stream.id, file_path_str)
+                        if file_path_str
+                        else None
+                    )
+
+                    videos.append(
+                        {
+                            "id": stream.id,
+                            "title": stream.title or f"Stream {stream.id}",
+                            "streamer_name": streamer.username,
+                            "streamer_id": streamer.id,
+                            "file_path": file_path_str,
+                            "file_size": file_size,
+                            "created_at": started.isoformat() if started else None,
+                            "started_at": started.isoformat() if started else None,
+                            "ended_at": None,
+                            "duration": duration,
+                            "category_name": stream.category_name,
+                            "language": stream.language,
+                            "thumbnail_url": thumbnail_url,
+                            "has_thumbnail": thumbnail_url is not None,
+                            "is_recording": True,
+                            "recording_id": state.recording_id,
+                        }
+                    )
+                    added_stream_ids.add(stream.id)
+                except Exception as e:
+                    logger.error(
+                        f"Error surfacing active recording {state.recording_id}: {e}"
+                    )
+                    continue
+        except Exception as e:
+            logger.error(f"Error querying active recording states: {e}")
 
         # Commit any auto-updates to recording_path
         if len(videos) > len(streams_with_paths):

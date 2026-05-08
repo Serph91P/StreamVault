@@ -84,6 +84,7 @@ interface Video {
   streamer_name?: string
   streamer_id?: number  // Required for navigation to video player
   status?: 'recording' | 'processing' | 'ready' | 'failed'
+  is_recording?: boolean
 }
 
 interface Props {
@@ -137,7 +138,10 @@ const formattedDate = computed(() => {
 })
 
 const statusBadge = computed(() => {
-  if (!props.video.status) return null
+  // Treat backend `is_recording=true` (Strategy 3 in /api/videos) as a live
+  // recording, even if the persisted `status` is missing or still 'ready'.
+  const effectiveStatus = props.video.is_recording ? 'recording' : props.video.status
+  if (!effectiveStatus) return null
 
   const badges = {
     recording: { text: 'RECORDING', type: 'recording' },
@@ -146,7 +150,7 @@ const statusBadge = computed(() => {
     ready: null
   }
 
-  return badges[props.video.status] || null
+  return badges[effectiveStatus] || null
 })
 
 const formatNumber = (num: number) => {
