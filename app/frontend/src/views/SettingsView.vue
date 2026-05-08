@@ -1139,7 +1139,7 @@ onMounted(() => {
 }
 
 .update-error {
-  color: var(--warning-color, #f59e0b);
+  color: var(--warning-color);
 }
 
 .channel-badge {
