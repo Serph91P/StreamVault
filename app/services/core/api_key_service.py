@@ -39,7 +39,9 @@ def hash_api_key(raw_key: str) -> str:
     Mirrors the strategy used by GitHub PATs, AWS access keys, Stripe secret
     keys, and StreamVault's own AuthService session tokens.
     """
-    return hashlib.sha256(raw_key.encode("utf-8")).hexdigest()  # lgtm[py/weak-sensitive-data-hashing]
+    return hashlib.sha256(
+        raw_key.encode("utf-8")
+    ).hexdigest()  # lgtm[py/weak-sensitive-data-hashing]
     # codeql[py/weak-sensitive-data-hashing]: input is a 256-bit random token, not a password.
 
 
