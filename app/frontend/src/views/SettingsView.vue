@@ -297,7 +297,6 @@
                     </span>
                   </div>
                   <div v-else class="up-to-date">
-                    <span class="check-icon">✅</span>
                     <span>{{ upToDateText }}</span>
                     <a v-if="versionInfo.latest_version_url"
                        :href="versionInfo.latest_version_url"
@@ -1122,10 +1121,6 @@ onMounted(() => {
   color: var(--success-color);
   margin: var(--spacing-3) 0;
   flex-wrap: wrap;
-
-  .check-icon {
-    font-size: var(--text-lg);
-  }
 
   .release-link {
     color: var(--text-secondary);
