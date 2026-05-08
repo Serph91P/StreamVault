@@ -25,8 +25,24 @@ _PREFIX_DISPLAY_LEN = 10  # Number of chars stored for UI display (e.g. "sv_abcd
 
 
 def hash_api_key(raw_key: str) -> str:
-    """SECURITY: SHA-256 the raw key before DB lookup/storage (CWE-312)."""
-    return hashlib.sha256(raw_key.encode("utf-8")).hexdigest()
+    """Hash a raw API key for DB lookup/storage.
+
+    SECURITY NOTE (CodeQL py/weak-sensitive-data-hashing, false positive):
+    SHA-256 is used here intentionally instead of bcrypt/argon2/scrypt.
+    Slow KDFs exist to make brute-forcing low-entropy human-chosen passwords
+    economically infeasible. The input here is NOT a password: it is a
+    cryptographically random token produced by ``secrets.token_urlsafe(32)``
+    (~256 bits of entropy, prefixed with ``sv_``). Brute-forcing such a token
+    is computationally infeasible regardless of hash speed, so a slow KDF
+    would only add per-request latency without improving security.
+    SHA-256 also gives us constant-time DB lookups via an indexed hash column.
+    Mirrors the strategy used by GitHub PATs, AWS access keys, Stripe secret
+    keys, and StreamVault's own AuthService session tokens.
+    """
+    return hashlib.sha256(
+        raw_key.encode("utf-8")
+    ).hexdigest()  # lgtm[py/weak-sensitive-data-hashing]
+    # codeql[py/weak-sensitive-data-hashing]: input is a 256-bit random token, not a password.
 
 
 class ApiKeyService:
