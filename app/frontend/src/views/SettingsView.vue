@@ -275,7 +275,13 @@
                   <div v-if="versionInfo.update_available" class="update-notice">
                     <span class="update-icon">🎉</span>
                     <span class="update-text">
-                      Update available: <strong>{{ versionInfo.latest_version }}</strong>
+                      Update available:
+                      <strong>{{ displayVersion }}</strong>
+                      &rarr;
+                      <strong>{{ versionInfo.latest_version }}</strong>
+                      <span v-if="versionInfo.release_channel" class="channel-badge">
+                        {{ versionInfo.release_channel }}
+                      </span>
                     </span>
                     <a v-if="versionInfo.latest_version_url"
                        :href="versionInfo.latest_version_url"
@@ -284,9 +290,21 @@
                       View Release
                     </a>
                   </div>
-                  <div v-else-if="!versionInfo.update_check_error" class="up-to-date">
+                  <div v-else-if="versionInfo.update_check_error" class="update-notice update-error">
+                    <span class="update-icon">⚠️</span>
+                    <span class="update-text">
+                      Update check failed: {{ versionInfo.update_check_error }}
+                    </span>
+                  </div>
+                  <div v-else class="up-to-date">
                     <span class="check-icon">✅</span>
                     <span>{{ upToDateText }}</span>
+                    <a v-if="versionInfo.latest_version_url"
+                       :href="versionInfo.latest_version_url"
+                       target="_blank"
+                       class="release-link">
+                      View release
+                    </a>
                   </div>
                 </div>
                 <p v-else class="about-version">Loading version...</p>
@@ -409,9 +427,11 @@ const displayVersion = computed(() => {
 const upToDateText = computed(() => {
   const v = versionInfo.value
   if (!v) return "You're running the latest version"
-  if (v.branch === 'develop') return "You're running the latest develop build"
-  if (v.branch && !['main', 'develop'].includes(v.branch)) return `Running ${v.branch} build (no update checks)`
-  return "You're running the latest version"
+  const channel = v.release_channel === 'prerelease' ? 'develop' : 'stable'
+  if (v.latest_version) {
+    return `You're on the latest ${channel} release (${v.latest_version})`
+  }
+  return `You're on the latest ${channel} release`
 })
 
 // Theme management - use global theme composable
@@ -1101,10 +1121,37 @@ onMounted(() => {
   font-size: var(--text-sm);
   color: var(--success-color);
   margin: var(--spacing-3) 0;
-  
+  flex-wrap: wrap;
+
   .check-icon {
     font-size: var(--text-lg);
   }
+
+  .release-link {
+    color: var(--text-secondary);
+    text-decoration: underline;
+    font-size: var(--text-xs);
+
+    &:hover {
+      color: var(--text-primary);
+    }
+  }
+}
+
+.update-error {
+  color: var(--warning-color, #f59e0b);
+}
+
+.channel-badge {
+  display: inline-block;
+  margin-left: var(--spacing-2);
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--surface-secondary, rgba(255, 255, 255, 0.08));
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .about-description {
