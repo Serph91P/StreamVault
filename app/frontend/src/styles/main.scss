@@ -74,6 +74,19 @@ html, body {
   width: 100%;
   height: 100%;
   -webkit-overflow-scrolling: touch;
+  // Prevent iOS Safari rubber-band horizontal sliding when user swipes
+  // diagonally over fixed elements (e.g. bottom-nav).
+  overscroll-behavior-x: none;
+}
+
+// Vue mount root. Use overflow-x: clip so transformed/sticky descendants
+// (modals, drawers, decorations using 100vw) cannot create a horizontal
+// scrollbar. `clip` is preferred over `hidden` because it does not create
+// a new scroll container, which would break position: sticky inside.
+#app {
+  overflow-x: clip;
+  width: 100%;
+  min-height: 100%;
 }
 
 body {

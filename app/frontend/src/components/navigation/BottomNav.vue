@@ -1,5 +1,5 @@
 <template>
-  <nav v-if="isMobile" class="bottom-nav">
+  <nav v-show="isMobile" class="bottom-nav">
     <button
       v-for="tab in navigationTabs"
       :key="tab.route"
@@ -53,6 +53,14 @@ const handleTabClick = (route: string) => {
   right: 0;
   height: 64px;
   z-index: 1000;
+
+  // Force own compositing layer. Without this, iOS Safari can drop the
+  // fixed-positioning context when the page is scrolled and the URL bar
+  // collapses, which is what was making the nav appear "to disappear"
+  // mid-scroll.
+  transform: translateZ(0);
+  will-change: transform;
+  backface-visibility: hidden;
   
   // Glass effect
   background: var(--glass-bg-strong);

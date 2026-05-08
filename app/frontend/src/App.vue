@@ -575,7 +575,7 @@ const notificationCount = ref(0)
 const lastReadTimestamp = ref(localStorage.getItem('lastReadTimestamp') || '0')
 
 const { messages } = useWebSocket()
-const { logout: authLogout, checkStoredAuth } = useAuth()
+const { logout: authLogout } = useAuth()
 
 // PWA-compatible logout function
 async function logout() {
@@ -655,10 +655,12 @@ function processToastNotification(message) {
   }
 }
 
-// PWA AUTH FIX: Check stored auth on app start
-onMounted(async () => {
-  await checkStoredAuth()
-})
+// Auth state is hydrated by router.beforeEach (which calls /auth/setup +
+// /auth/check on every navigation, including the initial one). Calling
+// checkStoredAuth() here a second time produced a visible "reload" effect:
+// the page rendered after the router-guard, then this onMounted hook fired
+// another /auth/check which could race and trigger its own router.push.
+// Keep the import for explicit logout flows; remove the duplicate boot call.
 
 // WebSocket message processing - moved here so it runs even when notification panel is closed
 const processWebSocketMessage = (message) => {
