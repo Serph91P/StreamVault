@@ -35,8 +35,27 @@ export function useNavigation() {
   // Responsive breakpoints (Tailwind defaults)
   const breakpoints = useBreakpoints(breakpointsTailwind)
 
-  const isMobile = breakpoints.smaller('lg')  // < 1024px
-  const isDesktop = breakpoints.greaterOrEqual('lg')  // >= 1024px
+  // Use computed wrappers so we can ensure a sensible value during the
+  // first paint frame. `useBreakpoints` evaluates window.matchMedia lazily
+  // and previously returned `false` for both flags on the very first tick
+  // after a hard reload — that made BottomNav (gated by v-if="isMobile")
+  // pop in/out and look "missing" right after page load.
+  const lgQuery = breakpoints.smaller('lg')
+  const lgUpQuery = breakpoints.greaterOrEqual('lg')
+
+  const isMobile = computed<boolean>(() => {
+    if (typeof window === 'undefined') return false
+    // Trust matchMedia first — VueUse hydrates it synchronously, but on
+    // some browsers the reactive ref needs a tick. Fall back to width check.
+    if (lgQuery.value) return true
+    return window.matchMedia('(max-width: 1023.98px)').matches
+  })
+
+  const isDesktop = computed<boolean>(() => {
+    if (typeof window === 'undefined') return true
+    if (lgUpQuery.value) return true
+    return window.matchMedia('(min-width: 1024px)').matches
+  })
 
   // Sidebar state (desktop only)
   const sidebarExpanded = ref(true)
