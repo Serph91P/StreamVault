@@ -467,9 +467,20 @@
           <div v-if="showNotifications" ref="notificationPanelRef" class="glass-popup-panel notification-panel">
             <div class="glass-popup-header">
               <h3>Notifications</h3>
-              <button class="glass-btn-icon" @click="closeNotificationPanel" aria-label="Close notifications">
-                <svg><use href="#icon-x" /></svg>
-              </button>
+              <div class="notification-header-actions">
+                <button
+                  v-if="notificationCount > 0"
+                  class="glass-btn-text clear-all-btn"
+                  @click="clearAllNotifications"
+                  aria-label="Clear all notifications"
+                  title="Clear all notifications"
+                >
+                  Clear all
+                </button>
+                <button class="glass-btn-icon" @click="closeNotificationPanel" aria-label="Close notifications">
+                  <svg><use href="#icon-x" /></svg>
+                </button>
+              </div>
             </div>
             <NotificationFeed 
               @notifications-read="markAsRead" 
@@ -560,6 +571,7 @@ onMounted(() => {
 
 const showNotifications = ref(false)
 const unreadCount = ref(0)
+const notificationCount = ref(0)
 const lastReadTimestamp = ref(localStorage.getItem('lastReadTimestamp') || '0')
 
 const { messages } = useWebSocket()
@@ -821,6 +833,7 @@ async function clearAllNotifications() {
   markAsRead()
   // Reset notification count
   unreadCount.value = 0
+  notificationCount.value = 0
   // Dispatch event to notify other components
   window.dispatchEvent(new CustomEvent('notificationsUpdated', {
     detail: { count: 0 }
@@ -844,6 +857,9 @@ function updateUnreadCountFromStorage() {
       const notifications = JSON.parse(notificationsStr)
       
       if (Array.isArray(notifications)) {
+        // Total count includes ALL notifications in storage. Used to decide
+        // whether to render the "Clear all" button in the panel header.
+        notificationCount.value = notifications.length
         // Only count real notification types, not connection status
         const validNotificationTypes = [
           'stream.online', 
@@ -871,6 +887,7 @@ function updateUnreadCountFromStorage() {
     }
   } else {
     unreadCount.value = 0
+    notificationCount.value = 0
   }
 }
 
@@ -1203,6 +1220,37 @@ watch(messages, (newMessages) => {
   // Must beat scoped selector specificity: .feed-header[data-v-xxx]
   .notification-feed .feed-header {
     display: none !important;
+  }
+
+  // Header action group: "Clear all" text button + close icon button
+  .notification-header-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-2);
+  }
+
+  .clear-all-btn {
+    background: transparent;
+    border: 1px solid var(--glass-border-hover);
+    color: var(--text-secondary);
+    font-size: 13px;
+    font-weight: 500;
+    padding: 6px 12px;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: background var(--duration-150) var(--ease-out),
+                color var(--duration-150) var(--ease-out),
+                border-color var(--duration-150) var(--ease-out);
+
+    &:hover {
+      background: var(--glass-bg-subtle);
+      color: var(--text-primary);
+      border-color: var(--text-secondary);
+    }
+
+    &:active {
+      transform: translateY(1px);
+    }
   }
   
   @include m.respond-below('lg') {
