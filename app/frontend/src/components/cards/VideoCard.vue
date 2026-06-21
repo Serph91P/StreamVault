@@ -90,13 +90,16 @@ interface Video {
 interface Props {
   video: Video
   viewMode?: 'grid' | 'list'
+  disableNavigation?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  viewMode: 'grid'
+  viewMode: 'grid',
+  disableNavigation: false
 })
 const emit = defineEmits<{
   play: [video: Video]
+  select: [video: Video]
 }>()
 
 const router = useRouter()
@@ -166,6 +169,10 @@ const formatFileSize = (bytes: number) => {
 }
 
 const handleClick = () => {
+  if (props.disableNavigation) {
+    return
+  }
+
   // Navigate to video player with correct route parameters
   // Route expects: /streamer/:streamerId/stream/:streamId/watch
   router.push({
@@ -182,6 +189,11 @@ const handleClick = () => {
 }
 
 const handlePlay = () => {
+  if (props.disableNavigation) {
+    emit('select', props.video)
+    return
+  }
+
   emit('play', props.video)
 }
 </script>

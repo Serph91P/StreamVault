@@ -536,6 +536,14 @@ export const videoApi = {
   getThumbnail: (streamId: number) => 
     apiClient.get(`/api/videos/${streamId}/thumbnail`),
 
+  // Delete videos. VideosView receives stream IDs from /api/videos, and the
+  // backend deletion implementation lives under /api/streams/{stream_id}.
+  delete: (streamId: number) =>
+    apiClient.delete(`/api/streams/${streamId}`),
+
+  deleteMultiple: (streamIds: number[]) =>
+    Promise.all(streamIds.map(streamId => apiClient.delete(`/api/streams/${streamId}`))),
+
   // Get public video (shared)
   getPublicVideo: (streamId: number) => 
     apiClient.get(`/api/videos/public/${streamId}`),
