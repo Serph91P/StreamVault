@@ -48,6 +48,10 @@ class TwitchTokenService:
     # Notify one day before manual browser tokens expire.
     MANUAL_TOKEN_NOTIFICATION_BUFFER_SECONDS = 24 * 3600
 
+    # Conservative fallback when Twitch validation confirms a manual browser
+    # token but does not include a usable expires_in value.
+    DEFAULT_MANUAL_TOKEN_EXPIRES_IN_SECONDS = 60 * 24 * 3600
+
     # Global lock for token refresh (prevents duplicate refreshes)
     _refresh_lock = asyncio.Lock()
     _last_expiry_notification_at: Optional[datetime] = None
@@ -360,11 +364,14 @@ class TwitchTokenService:
                 return False, validation
 
             expires_in = int(validation.get("expires_in") or 0)
-            expires_at = (
-                datetime.utcnow() + timedelta(seconds=expires_in)
-                if expires_in > 0
-                else None
-            )
+            if expires_in <= 0:
+                logger.warning(
+                    "Twitch token validation did not include a usable expires_in; "
+                    "using default manual token lifetime"
+                )
+                expires_in = self.DEFAULT_MANUAL_TOKEN_EXPIRES_IN_SECONDS
+
+            expires_at = datetime.utcnow() + timedelta(seconds=expires_in)
 
             global_settings.twitch_access_token = self.encryption.encrypt(clean_token)
             global_settings.twitch_token_expires_at = expires_at
@@ -390,6 +397,54 @@ class TwitchTokenService:
             logger.error(f"Error storing manual Twitch token: {e}")
             self.db.rollback()
             return False, validation
+
+    async def revalidate_stored_manual_token(
+        self, global_settings: GlobalSettings
+    ) -> bool:
+        """Live-validate a stored manual browser token and repair its expiry.
+
+        Manual browser tokens do not have refresh tokens. Older installs may
+        have a valid encrypted token with a missing or stale expiry timestamp,
+        which makes the UI report "Browser Token Expired" even though Twitch
+        still accepts the token. This method validates the decrypted token with
+        Twitch and updates the stored expiry from the validation response.
+
+        Returns True when Twitch confirms the token is currently valid.
+        """
+        if (
+            not global_settings
+            or not global_settings.twitch_access_token
+            or global_settings.twitch_refresh_token
+        ):
+            return False
+
+        try:
+            access_token = self.encryption.decrypt(global_settings.twitch_access_token)
+            if not access_token:
+                return False
+
+            validation = await self.validate_token(access_token)
+            if not validation:
+                return False
+
+            expires_in = int(validation.get("expires_in") or 0)
+            if expires_in <= 0:
+                logger.warning(
+                    "Twitch token revalidation did not include a usable expires_in; "
+                    "using default manual token lifetime"
+                )
+                expires_in = self.DEFAULT_MANUAL_TOKEN_EXPIRES_IN_SECONDS
+
+            global_settings.twitch_token_expires_at = datetime.utcnow() + timedelta(
+                seconds=expires_in
+            )
+            self.db.commit()
+
+            return True
+        except Exception as e:
+            logger.error(f"Error revalidating stored manual Twitch token: {e}")
+            self.db.rollback()
+            return False
 
     async def _send_expiry_notification_if_needed(
         self, global_settings: GlobalSettings, expired: bool = False

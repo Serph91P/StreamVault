@@ -251,6 +251,28 @@ async def get_connection_status():
     with SessionLocal() as db:
         try:
             global_settings = db.query(GlobalSettings).first()
+
+            # If a stored manual browser token has a missing/stale expiry, do a
+            # live Twitch validation before building status. This covers valid
+            # tokens saved by older versions or interrupted saves. If validation
+            # fails, _build_connection_status still reports a valid
+            # TWITCH_OAUTH_TOKEN fallback instead of the stale DB token.
+            if (
+                global_settings
+                and global_settings.twitch_access_token
+                and not global_settings.twitch_refresh_token
+            ):
+                _, is_manual_token_current = _normalize_expires_at(
+                    global_settings.twitch_token_expires_at
+                )
+                if not is_manual_token_current:
+                    from app.services.system.twitch_token_service import (
+                        TwitchTokenService,
+                    )
+
+                    token_service = TwitchTokenService(db)
+                    await token_service.revalidate_stored_manual_token(global_settings)
+
             return _build_connection_status(
                 global_settings, settings.TWITCH_OAUTH_TOKEN
             )
