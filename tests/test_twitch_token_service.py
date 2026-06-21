@@ -141,3 +141,133 @@ async def test_store_manual_access_token_encrypts_and_clears_refresh_token(monke
     assert stored.twitch_token_expires_at is not None
     assert service.settings.TWITCH_OAUTH_TOKEN is None
     assert service.db.committed is True
+
+
+@pytest.mark.asyncio
+async def test_store_manual_access_token_uses_default_expiry_when_expires_in_missing(
+    monkeypatch,
+):
+    stored = SimpleNamespace(
+        twitch_access_token=None,
+        twitch_refresh_token="enc:old-refresh",
+        twitch_token_expires_at=None,
+    )
+    service = TwitchTokenService.__new__(TwitchTokenService)
+    service.db = _Db(stored)
+    service.settings = SimpleNamespace(TWITCH_OAUTH_TOKEN=None)
+    service.encryption = _Encryption()
+
+    async def _validate(token):
+        assert token == "manual-token"
+        return {"client_id": "client", "login": "user"}
+
+    monkeypatch.setattr(service, "validate_token", _validate)
+
+    success, validation = await service.store_manual_access_token("manual-token")
+
+    assert success is True
+    assert validation == {"client_id": "client", "login": "user"}
+    assert stored.twitch_access_token == "enc:manual-token"
+    assert stored.twitch_refresh_token is None
+    assert stored.twitch_token_expires_at > datetime.utcnow() + timedelta(days=59)
+    assert service.db.committed is True
+
+
+@pytest.mark.asyncio
+async def test_store_manual_access_token_uses_default_expiry_when_expires_in_zero(
+    monkeypatch,
+):
+    stored = SimpleNamespace(
+        twitch_access_token=None,
+        twitch_refresh_token="enc:old-refresh",
+        twitch_token_expires_at=None,
+    )
+    service = TwitchTokenService.__new__(TwitchTokenService)
+    service.db = _Db(stored)
+    service.settings = SimpleNamespace(TWITCH_OAUTH_TOKEN=None)
+    service.encryption = _Encryption()
+
+    async def _validate(_token):
+        return {"expires_in": 0}
+
+    monkeypatch.setattr(service, "validate_token", _validate)
+
+    success, validation = await service.store_manual_access_token("manual-token")
+
+    assert success is True
+    assert validation == {"expires_in": 0}
+    assert stored.twitch_token_expires_at > datetime.utcnow() + timedelta(days=59)
+    assert service.db.committed is True
+
+
+@pytest.mark.asyncio
+async def test_revalidate_stored_manual_token_repairs_stale_expiry(monkeypatch):
+    stored = SimpleNamespace(
+        twitch_access_token="enc:manual-token",
+        twitch_refresh_token=None,
+        twitch_token_expires_at=datetime.utcnow() - timedelta(days=1),
+    )
+    service = TwitchTokenService.__new__(TwitchTokenService)
+    service.db = _Db(stored)
+    service.settings = SimpleNamespace(TWITCH_OAUTH_TOKEN=None)
+    service.encryption = _Encryption()
+
+    async def _validate(token):
+        assert token == "manual-token"
+        return {"expires_in": 7200}
+
+    monkeypatch.setattr(service, "validate_token", _validate)
+
+    assert await service.revalidate_stored_manual_token(stored) is True
+    assert stored.twitch_token_expires_at > datetime.utcnow() + timedelta(hours=1)
+    assert service.db.committed is True
+
+
+@pytest.mark.asyncio
+async def test_revalidate_stored_manual_token_uses_default_expiry_when_expires_in_missing(
+    monkeypatch,
+):
+    stored = SimpleNamespace(
+        twitch_access_token="enc:manual-token",
+        twitch_refresh_token=None,
+        twitch_token_expires_at=datetime.utcnow() - timedelta(days=1),
+    )
+    service = TwitchTokenService.__new__(TwitchTokenService)
+    service.db = _Db(stored)
+    service.settings = SimpleNamespace(TWITCH_OAUTH_TOKEN=None)
+    service.encryption = _Encryption()
+
+    async def _validate(token):
+        assert token == "manual-token"
+        return {"client_id": "client", "login": "user"}
+
+    monkeypatch.setattr(service, "validate_token", _validate)
+
+    assert await service.revalidate_stored_manual_token(stored) is True
+    assert stored.twitch_token_expires_at > datetime.utcnow() + timedelta(days=59)
+    assert service.db.committed is True
+
+
+@pytest.mark.asyncio
+async def test_revalidate_stored_manual_token_keeps_stale_expiry_when_invalid(
+    monkeypatch,
+):
+    stale_expiry = datetime.utcnow() - timedelta(days=1)
+    stored = SimpleNamespace(
+        twitch_access_token="enc:manual-token",
+        twitch_refresh_token=None,
+        twitch_token_expires_at=stale_expiry,
+    )
+    service = TwitchTokenService.__new__(TwitchTokenService)
+    service.db = _Db(stored)
+    service.settings = SimpleNamespace(TWITCH_OAUTH_TOKEN=None)
+    service.encryption = _Encryption()
+
+    async def _validate(_token):
+        return None
+
+    monkeypatch.setattr(service, "validate_token", _validate)
+
+    assert await service.revalidate_stored_manual_token(stored) is False
+    assert stored.twitch_token_expires_at == stale_expiry
+    assert service.db.committed is False
