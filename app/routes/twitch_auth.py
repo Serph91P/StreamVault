@@ -1,14 +1,27 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from fastapi.responses import RedirectResponse
+from pydantic import BaseModel, Field
 from app.services.api.twitch_oauth_service import TwitchOAuthService
 from app.services.streamer_service import StreamerService
 from app.dependencies import get_streamer_service
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import logging
 
 logger = logging.getLogger("streamvault")
 
 router = APIRouter(prefix="/api/twitch", tags=["twitch-oauth"])
+
+
+class ManualTokenRequest(BaseModel):
+    token: str = Field(..., min_length=1, description="Twitch browser OAuth token")
+
+
+class ConnectionStatusResponse(BaseModel):
+    connected: bool
+    valid: bool
+    expires_at: Optional[str]
+    source: Optional[str] = None
+    has_env_token: bool = False
 
 
 def get_twitch_oauth_service(
@@ -161,9 +174,12 @@ async def get_callback_url():
     return {"url": callback_url}
 
 
-@router.get("/connection-status")
+@router.get("/connection-status", response_model=ConnectionStatusResponse)
 async def get_connection_status():
-    """Check if Twitch OAuth is connected (has valid refresh token)"""
+    """Check if a Twitch token is available in DB or env fallback."""
+    from datetime import datetime, timezone
+
+    from app.config.settings import settings
     from app.database import SessionLocal
     from app.models import GlobalSettings
 
@@ -171,38 +187,86 @@ async def get_connection_status():
         try:
             global_settings = db.query(GlobalSettings).first()
 
-            # Check if refresh token exists
+            has_db_token = bool(
+                global_settings
+                and global_settings.twitch_access_token
+                and global_settings.twitch_access_token.strip()
+            )
             has_refresh_token = bool(
                 global_settings
                 and global_settings.twitch_refresh_token
                 and global_settings.twitch_refresh_token.strip()
             )
+            has_env_token = bool(
+                settings.TWITCH_OAUTH_TOKEN and settings.TWITCH_OAUTH_TOKEN.strip()
+            )
 
-            # Check if token is still valid (not expired)
             is_valid = False
-            if has_refresh_token and global_settings.twitch_token_expires_at:
-                from datetime import datetime, timezone
-
-                # Make both datetimes timezone-aware for comparison
+            expires_at_value = None
+            if global_settings and global_settings.twitch_token_expires_at:
                 now_utc = datetime.now(timezone.utc)
                 expires_at = global_settings.twitch_token_expires_at
                 if expires_at.tzinfo is None:
-                    # If stored as naive, assume it's UTC
                     expires_at = expires_at.replace(tzinfo=timezone.utc)
                 is_valid = now_utc < expires_at
+                expires_at_value = global_settings.twitch_token_expires_at.isoformat()
+
+            source = None
+            if has_db_token and not has_refresh_token:
+                source = "database_manual"
+            elif has_db_token:
+                source = "database_oauth"
+            elif has_env_token:
+                source = "environment"
+                is_valid = True
+            elif has_refresh_token:
+                source = "oauth_refresh"
 
             return {
-                "connected": has_refresh_token,
+                "connected": has_db_token or has_refresh_token or has_env_token,
                 "valid": is_valid,
-                "expires_at": (
-                    global_settings.twitch_token_expires_at.isoformat()
-                    if global_settings and global_settings.twitch_token_expires_at
-                    else None
-                ),
+                "expires_at": expires_at_value,
+                "source": source,
+                "has_env_token": has_env_token,
             }
         except Exception as e:
             logger.error(f"Error checking connection status: {e}")
-            return {"connected": False, "valid": False, "expires_at": None}
+            return {
+                "connected": False,
+                "valid": False,
+                "expires_at": None,
+                "source": None,
+                "has_env_token": False,
+            }
+
+
+@router.post("/manual-token")
+async def save_manual_token(payload: ManualTokenRequest):
+    """Validate and store a manually supplied Twitch browser token encrypted in DB."""
+    from app.database import SessionLocal
+    from app.services.system.twitch_token_service import TwitchTokenService
+
+    with SessionLocal() as db:
+        try:
+            token_service = TwitchTokenService(db)
+            success, validation = await token_service.store_manual_access_token(
+                payload.token
+            )
+            if not success:
+                raise HTTPException(status_code=400, detail="Invalid Twitch OAuth token")
+
+            expires_in = validation.get("expires_in") if validation else None
+            logger.info("✅ Manual Twitch OAuth token saved")
+            return {
+                "success": True,
+                "message": "Twitch OAuth token saved",
+                "expires_in": expires_in,
+            }
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Error saving manual Twitch OAuth token: {e}")
+            raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/disconnect")
