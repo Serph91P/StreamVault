@@ -45,8 +45,12 @@ class TwitchTokenService:
     # Token expiration buffer (refresh 1 hour before expiration)
     EXPIRATION_BUFFER_SECONDS = 3600
 
+    # Notify one day before manual browser tokens expire.
+    MANUAL_TOKEN_NOTIFICATION_BUFFER_SECONDS = 24 * 3600
+
     # Global lock for token refresh (prevents duplicate refreshes)
     _refresh_lock = asyncio.Lock()
+    _last_expiry_notification_at: Optional[datetime] = None
 
     def __init__(self, db: Session):
         self.db = db
@@ -58,51 +62,49 @@ class TwitchTokenService:
         Get a valid Twitch OAuth access token.
 
         Returns either:
-        1. Browser token from environment variable (PRIORITY - works for H.265/1440p)
-        2. Database token from OAuth flow (FALLBACK - limited quality, used for EventSub)
-        3. None (if no token available)
+        1. Encrypted browser token stored in the database (preferred)
+        2. Browser token from environment variable (backward compatibility)
+        3. Database token from OAuth flow (auto-refreshed when possible)
+        4. None (if no token available)
 
-        Priority Order:
-        - Environment variable (TWITCH_OAUTH_TOKEN) - Browser token with full access
-        - Database token (OAuth flow) - Limited access, but auto-refreshed
-
-        Note: Twitch restricts third-party OAuth apps from H.265/1440p streams.
-        Only browser tokens (auth-token cookie) grant full quality access.
+        Tokens entered on the Twitch Connection page replace the legacy
+        TWITCH_OAUTH_TOKEN environment variable. The environment variable is
+        still used as a fallback for existing installations.
 
         Returns:
             Optional[str]: Valid access token or None
         """
         try:
-            # === PRIORITY 1: Environment variable (browser token) ===
-            # Browser tokens have FULL access (H.265, AV1, 1440p, ad-free with Turbo)
+            global_settings = self.db.query(GlobalSettings).first()
+
+            # === PRIORITY 1: Encrypted manual browser token from database ===
+            # Manual tokens saved from the Twitch Connection page clear the
+            # refresh token. That lets us prefer the encrypted DB token over
+            # the legacy env var without accidentally letting an older app
+            # OAuth token override a browser token from TWITCH_OAUTH_TOKEN.
+            if (
+                global_settings
+                and global_settings.twitch_access_token
+                and not global_settings.twitch_refresh_token
+            ):
+                if self._is_token_valid(global_settings):
+                    logger.debug("✅ Using encrypted Twitch OAuth token from database")
+                    await self._send_expiry_notification_if_needed(global_settings)
+                    return self.encryption.decrypt(global_settings.twitch_access_token)
+
+                await self._send_expiry_notification_if_needed(
+                    global_settings, expired=True
+                )
+
+            # === PRIORITY 2: Environment variable fallback/backward compatibility ===
             if self.settings.TWITCH_OAUTH_TOKEN:
                 logger.debug(
-                    "✅ Using browser token from environment variable (TWITCH_OAUTH_TOKEN)"
-                )
-                logger.debug(
-                    "   → Full quality access: H.265/AV1 codecs, 1440p, ad-free (Turbo)"
+                    "✅ Using browser token from environment variable fallback (TWITCH_OAUTH_TOKEN)"
                 )
                 return self.settings.TWITCH_OAUTH_TOKEN
 
-            # === PRIORITY 2: Database token (OAuth flow) ===
-            # OAuth flow tokens are LIMITED (Twitch API restriction)
-            # Only used if no browser token available (for EventSub, follower lists, etc.)
-            global_settings = self.db.query(GlobalSettings).first()
-
+            # === PRIORITY 3: Database refresh token from OAuth flow ===
             if global_settings and global_settings.twitch_refresh_token:
-                # Check if access token is still valid
-                if self._is_token_valid(global_settings):
-                    logger.debug("⚠️ Using OAuth token from database (limited quality)")
-                    logger.debug("   → Limited to 1080p H.264 (Twitch API restriction)")
-                    logger.debug(
-                        "   → For H.265/1440p: Set TWITCH_OAUTH_TOKEN environment variable"
-                    )
-                    # Decrypt and return access token from database
-                    if global_settings.twitch_access_token:
-                        return self.encryption.decrypt(
-                            global_settings.twitch_access_token
-                        )
-
                 # Token expired → Refresh it (with lock to prevent duplicate refreshes)
                 async with self._refresh_lock:
                     # Double-check: Another task may have refreshed while we waited
@@ -120,19 +122,14 @@ class TwitchTokenService:
                         return new_access_token
 
                     logger.warning(
-                        "⚠️ Token refresh failed and no environment token available"
+                        "⚠️ Token refresh failed and no valid database token available"
                     )
 
-            # === PRIORITY 3: No token available ===
+            # === PRIORITY 4: No token available ===
             logger.warning(
                 "❌ No Twitch OAuth token available. H.265/1440p quality unavailable."
             )
-            logger.warning(
-                "   → Set TWITCH_OAUTH_TOKEN environment variable for full quality"
-            )
-            logger.warning(
-                "   → See: Settings → Twitch Connection → Manual Token Setup"
-            )
+            logger.warning("   → Add a token in Settings → Twitch Connection")
             return None
 
         except Exception as e:
@@ -338,6 +335,103 @@ class TwitchTokenService:
             logger.error(f"Error storing OAuth tokens: {e}")
             self.db.rollback()
             return False
+
+    async def store_manual_access_token(
+        self, access_token: str
+    ) -> tuple[bool, Optional[dict]]:
+        """Validate and store a manually supplied browser OAuth token encrypted in DB."""
+        clean_token = access_token.strip()
+        if clean_token.lower().startswith("oauth:"):
+            clean_token = clean_token.split(":", 1)[1].strip()
+        if clean_token.lower().startswith("oauth "):
+            clean_token = clean_token.split(" ", 1)[1].strip()
+
+        if not clean_token:
+            return False, None
+
+        validation = await self.validate_token(clean_token)
+        if not validation:
+            return False, None
+
+        try:
+            global_settings = self.db.query(GlobalSettings).first()
+            if not global_settings:
+                logger.error("GlobalSettings not found, cannot store manual token")
+                return False, validation
+
+            expires_in = int(validation.get("expires_in") or 0)
+            expires_at = (
+                datetime.utcnow() + timedelta(seconds=expires_in)
+                if expires_in > 0
+                else None
+            )
+
+            global_settings.twitch_access_token = self.encryption.encrypt(clean_token)
+            global_settings.twitch_token_expires_at = expires_at
+            # Manual browser tokens have no refresh token. Clear any older OAuth
+            # refresh token so status accurately reports manual-token behavior.
+            global_settings.twitch_refresh_token = None
+            self.db.commit()
+
+            try:
+                from app.services.system.streamlink_config_service import (
+                    streamlink_config_service,
+                )
+
+                await streamlink_config_service.regenerate_config()
+            except Exception as config_error:
+                logger.error(
+                    f"❌ Error updating Streamlink config after manual token save: {config_error}"
+                )
+
+            logger.info("✅ Manual Twitch OAuth token stored in database")
+            return True, validation
+        except Exception as e:
+            logger.error(f"Error storing manual Twitch token: {e}")
+            self.db.rollback()
+            return False, validation
+
+    async def _send_expiry_notification_if_needed(
+        self, global_settings: GlobalSettings, expired: bool = False
+    ) -> None:
+        """Send an Apprise notification when the stored token is expired or near expiry."""
+        expires_at = global_settings.twitch_token_expires_at
+        if not expires_at:
+            return
+
+        now = datetime.utcnow()
+        if (
+            self.__class__._last_expiry_notification_at
+            and now - self.__class__._last_expiry_notification_at < timedelta(hours=12)
+        ):
+            return
+
+        seconds_remaining = (expires_at - now).total_seconds()
+        if (
+            not expired
+            and seconds_remaining > self.MANUAL_TOKEN_NOTIFICATION_BUFFER_SECONDS
+        ):
+            return
+
+        try:
+            from app.services.notification_service import NotificationService
+
+            title = (
+                "StreamVault Twitch OAuth token expired"
+                if expired
+                else "StreamVault Twitch OAuth token expires soon"
+            )
+            body = (
+                "Your stored Twitch OAuth token has expired. Open Settings > Twitch Connection "
+                "and save a fresh browser token to keep H.265/1440p recordings working."
+                if expired
+                else "Your stored Twitch OAuth token expires soon. Open Settings > Twitch Connection "
+                "and save a fresh browser token to avoid recording quality fallback."
+            )
+            await NotificationService().send_notification(body, title)
+            self.__class__._last_expiry_notification_at = now
+        except Exception as e:
+            logger.debug(f"Could not send Twitch token expiry notification: {e}")
 
     async def validate_token(self, access_token: str) -> Optional[dict]:
         """
