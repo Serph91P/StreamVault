@@ -550,6 +550,7 @@ function formatSource(source: string): string {
 .detail-item {
   display: flex;
   justify-content: space-between;
+  gap: v.$spacing-4;
   font-size: v.$text-sm;
   
   &:not(:last-child) {
@@ -558,6 +559,7 @@ function formatSource(source: string): string {
 }
 
 .detail-label {
+  flex-shrink: 0;
   color: var(--text-secondary);
   font-weight: v.$font-medium;
 }
@@ -565,6 +567,7 @@ function formatSource(source: string): string {
 .detail-value {
   color: var(--text-primary);
   font-weight: v.$font-semibold;
+  text-align: right;
 }
 
 @keyframes pulse {
