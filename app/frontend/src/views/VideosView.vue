@@ -211,7 +211,7 @@
           :video="video"
           :view-mode="viewMode"
           :disable-navigation="selectMode"
-          @click="selectMode ? toggleSelection(video.id) : playVideo(video)"
+          @play="playVideo"
           @select="toggleSelection(video.id)"
         />
       </div>
@@ -392,17 +392,10 @@ const filteredAndSortedVideos = computed(() => {
 async function fetchVideos() {
   isLoading.value = true
   try {
-    console.log('[VideosView] Fetching all videos...')
     const response = await videoApi.getAll()
-    console.log('[VideosView] API response:', response)
     
     // Backend returns array directly (not wrapped in { data: [] })
     videos.value = Array.isArray(response) ? response : (response.data || [])
-    console.log('[VideosView] Loaded videos count:', videos.value.length)
-    
-    if (videos.value.length > 0) {
-      console.log('[VideosView] Sample video:', videos.value[0])
-    }
   } catch (error: any) {
     console.error('[VideosView] Failed to fetch videos:', error)
     console.error('[VideosView] Error details:', {

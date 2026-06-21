@@ -170,6 +170,7 @@ const formatFileSize = (bytes: number) => {
 
 const handleClick = () => {
   if (props.disableNavigation) {
+    emit('select', props.video)
     return
   }
 

@@ -18,7 +18,7 @@
           <div class="detail-item">
             <span class="detail-label">Status:</span>
             <span class="detail-value" :class="{ 'text-success': connectionStatus.valid, 'text-warning': !connectionStatus.valid }">
-              {{ connectionStatus.valid ? 'Active & Valid' : 'Token Expired or Needs Refresh' }}
+              {{ statusDetailText }}
             </span>
           </div>
           <div v-if="connectionStatus.source" class="detail-item">
@@ -213,17 +213,34 @@ const statusClass = computed(() => ({
 
 const statusTitle = computed(() => {
   if (!connectionStatus.value.connected) return 'Twitch Connection'
-  if (!connectionStatus.value.valid) return 'Connected (Token Expiring)'
-  return 'Connected to Twitch'
+  if (connectionStatus.value.valid) return 'Connected to Twitch'
+  if (connectionStatus.value.source === 'database_manual') return 'Connected (Browser Token Expired)'
+  if (connectionStatus.value.source === 'database_oauth' || connectionStatus.value.source === 'oauth_refresh') {
+    return 'Connected (Refresh Needed)'
+  }
+  return 'Connected (Token Needs Attention)'
 })
 
 const statusDescription = computed(() => {
   if (!connectionStatus.value.connected) return 'No Twitch token is configured yet'
   if (connectionStatus.value.source === 'environment') return 'Using TWITCH_OAUTH_TOKEN environment fallback. You can save a replacement below.'
-  if (!connectionStatus.value.valid) {
-    return 'Your token will be automatically refreshed on next recording'
+  if (!connectionStatus.value.valid && connectionStatus.value.source === 'database_manual') {
+    return 'Save a fresh browser token below. Manual browser tokens cannot auto-refresh.'
   }
+  if (!connectionStatus.value.valid && (connectionStatus.value.source === 'database_oauth' || connectionStatus.value.source === 'oauth_refresh')) {
+    return 'The OAuth app token will be refreshed on the next recording.'
+  }
+  if (!connectionStatus.value.valid) return 'The configured Twitch token needs attention.'
   return 'Your account is connected and tokens are valid'
+})
+
+const statusDetailText = computed(() => {
+  if (connectionStatus.value.valid) return 'Active & Valid'
+  if (connectionStatus.value.source === 'database_manual') return 'Browser Token Expired'
+  if (connectionStatus.value.source === 'database_oauth' || connectionStatus.value.source === 'oauth_refresh') {
+    return 'Refresh Needed'
+  }
+  return 'Token Needs Attention'
 })
 
 onMounted(async () => {
