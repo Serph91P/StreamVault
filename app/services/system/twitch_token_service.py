@@ -92,7 +92,9 @@ class TwitchTokenService:
                     await self._send_expiry_notification_if_needed(global_settings)
                     return self.encryption.decrypt(global_settings.twitch_access_token)
 
-                await self._send_expiry_notification_if_needed(global_settings, expired=True)
+                await self._send_expiry_notification_if_needed(
+                    global_settings, expired=True
+                )
 
             # === PRIORITY 2: Environment variable fallback/backward compatibility ===
             if self.settings.TWITCH_OAUTH_TOKEN:
@@ -127,9 +129,7 @@ class TwitchTokenService:
             logger.warning(
                 "❌ No Twitch OAuth token available. H.265/1440p quality unavailable."
             )
-            logger.warning(
-                "   → Add a token in Settings → Twitch Connection"
-            )
+            logger.warning("   → Add a token in Settings → Twitch Connection")
             return None
 
         except Exception as e:
@@ -407,7 +407,10 @@ class TwitchTokenService:
             return
 
         seconds_remaining = (expires_at - now).total_seconds()
-        if not expired and seconds_remaining > self.MANUAL_TOKEN_NOTIFICATION_BUFFER_SECONDS:
+        if (
+            not expired
+            and seconds_remaining > self.MANUAL_TOKEN_NOTIFICATION_BUFFER_SECONDS
+        ):
             return
 
         try:

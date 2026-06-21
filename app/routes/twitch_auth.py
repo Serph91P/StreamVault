@@ -253,7 +253,9 @@ async def save_manual_token(payload: ManualTokenRequest):
                 payload.token
             )
             if not success:
-                raise HTTPException(status_code=400, detail="Invalid Twitch OAuth token")
+                raise HTTPException(
+                    status_code=400, detail="Invalid Twitch OAuth token"
+                )
 
             expires_in = validation.get("expires_in") if validation else None
             logger.info("✅ Manual Twitch OAuth token saved")
