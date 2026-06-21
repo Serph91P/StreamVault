@@ -6,8 +6,7 @@ from datetime import datetime, timedelta
 from types import SimpleNamespace
 
 _module_path = (
-    Path(__file__).resolve().parents[1]
-    / "app/services/system/twitch_token_service.py"
+    Path(__file__).resolve().parents[1] / "app/services/system/twitch_token_service.py"
 )
 _spec = importlib.util.spec_from_file_location(
     "twitch_token_service_under_test", _module_path
@@ -74,7 +73,9 @@ async def test_manual_database_token_preferred_over_environment_token(monkeypatc
 
 
 @pytest.mark.asyncio
-async def test_environment_token_used_as_fallback_when_database_token_expired(monkeypatch):
+async def test_environment_token_used_as_fallback_when_database_token_expired(
+    monkeypatch,
+):
     stored = SimpleNamespace(
         twitch_access_token="enc:expired-token",
         twitch_refresh_token=None,
@@ -138,4 +139,5 @@ async def test_store_manual_access_token_encrypts_and_clears_refresh_token(monke
     assert stored.twitch_access_token == "enc:manual-token"
     assert stored.twitch_refresh_token is None
     assert stored.twitch_token_expires_at is not None
+    assert service.settings.TWITCH_OAUTH_TOKEN is None
     assert service.db.committed is True
