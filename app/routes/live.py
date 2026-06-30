@@ -18,7 +18,6 @@ from fastapi import (
     HTTPException,
     Depends,
     Request,
-    Response,
 )
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
