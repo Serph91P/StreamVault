@@ -54,7 +54,9 @@ async def start_live_stream(
         # Verify streamer exists
         streamer = db.query(Streamer).filter(Streamer.username == streamer_name).first()
         if not streamer:
-            raise HTTPException(status_code=404, detail=f"Streamer '{streamer_name}' not found")
+            raise HTTPException(
+                status_code=404, detail=f"Streamer '{streamer_name}' not found"
+            )
 
         # Start the streaming service if not already running
         await live_streaming_service.start()
@@ -69,7 +71,9 @@ async def start_live_stream(
 
         playlist_url = f"/api/live/stream/{session_id}/playlist.m3u8"
 
-        logger.info(f"[LIVE] Stream started by user {user_id}: {session_id} ({streamer_name})")
+        logger.info(
+            f"[LIVE] Stream started by user {user_id}: {session_id} ({streamer_name})"
+        )
 
         return {
             "success": True,
@@ -106,7 +110,9 @@ async def stop_live_stream(
         # Verify ownership (optional - can skip for simplicity)
         session = live_streaming_service.get_session(session_id)
         if not session:
-            raise HTTPException(status_code=404, detail="Session not found or already stopped")
+            raise HTTPException(
+                status_code=404, detail="Session not found or already stopped"
+            )
 
         success = await live_streaming_service.stop_stream(session_id)
 
@@ -156,10 +162,13 @@ async def get_hls_playlist(session_id: str):
         # Wait a moment for playlist to be created
         if not playlist_path.exists():
             import asyncio
+
             await asyncio.sleep(0.5)
 
         if not playlist_path.exists():
-            raise HTTPException(status_code=503, detail="Stream not ready yet, retry shortly")
+            raise HTTPException(
+                status_code=503, detail="Stream not ready yet, retry shortly"
+            )
 
         # Update access time
         session.touch()
@@ -233,14 +242,16 @@ async def get_active_streams(current_user: User = Depends(get_current_user)):
 
         for session_id, session in live_streaming_service.sessions.items():
             if session.user_id == user_id or user_id is None:
-                streams.append({
-                    "session_id": session.session_id,
-                    "streamer_name": session.streamer_name,
-                    "quality": session.quality,
-                    "playlist_url": f"/api/live/stream/{session_id}/playlist.m3u8",
-                    "is_active": session.is_active,
-                    "created_at": session.created_at.isoformat(),
-                })
+                streams.append(
+                    {
+                        "session_id": session.session_id,
+                        "streamer_name": session.streamer_name,
+                        "quality": session.quality,
+                        "playlist_url": f"/api/live/stream/{session_id}/playlist.m3u8",
+                        "is_active": session.is_active,
+                        "created_at": session.created_at.isoformat(),
+                    }
+                )
 
         return {"streams": streams}
 

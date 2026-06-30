@@ -70,7 +70,9 @@ class LiveStreamSession:
 
     def is_expired(self, timeout_seconds: int = 60) -> bool:
         """Check if session has timed out due to inactivity"""
-        return (datetime.utcnow() - self.last_accessed).total_seconds() > timeout_seconds
+        return (
+            datetime.utcnow() - self.last_accessed
+        ).total_seconds() > timeout_seconds
 
 
 class LiveStreamingService:
@@ -308,9 +310,7 @@ class LiveStreamingService:
             "playlist_url": f"/api/live/stream/{session_id}/playlist.m3u8",
         }
 
-    async def _build_streamlink_command(
-        self, streamer_name: str, quality: str
-    ) -> list:
+    async def _build_streamlink_command(self, streamer_name: str, quality: str) -> list:
         """Build Streamlink command for live streaming (no file output)"""
         cmd = [
             "streamlink",
@@ -352,14 +352,22 @@ class LiveStreamingService:
         return [
             ffmpeg_bin,
             "-hide_banner",
-            "-loglevel", "error",
-            "-i", "-",  # Read from stdin
-            "-c", "copy",  # Copy streams without re-encoding
-            "-f", "hls",
-            "-hls_time", str(self.HLS_SEGMENT_DURATION),
-            "-hls_list_size", str(self.HLS_LIST_SIZE),
-            "-hls_flags", "delete_segments+omit_endlist",
-            "-hls_segment_filename", str(output_dir / "segment_%03d.ts"),
+            "-loglevel",
+            "error",
+            "-i",
+            "-",  # Read from stdin
+            "-c",
+            "copy",  # Copy streams without re-encoding
+            "-f",
+            "hls",
+            "-hls_time",
+            str(self.HLS_SEGMENT_DURATION),
+            "-hls_list_size",
+            str(self.HLS_LIST_SIZE),
+            "-hls_flags",
+            "delete_segments+omit_endlist",
+            "-hls_segment_filename",
+            str(output_dir / "segment_%03d.ts"),
             str(playlist_path),
         ]
 
@@ -391,9 +399,7 @@ class LiveStreamingService:
             # Wait for either process to exit
             while session.is_active:
                 # Check if processes are still running
-                streamlink_done = (
-                    session.streamlink_process.returncode is not None
-                )
+                streamlink_done = session.streamlink_process.returncode is not None
                 ffmpeg_done = session.ffmpeg_process.returncode is not None
 
                 if streamlink_done or ffmpeg_done:
