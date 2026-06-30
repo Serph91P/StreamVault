@@ -12,8 +12,6 @@ Endpoints:
 """
 
 import logging
-import os
-from pathlib import Path
 
 from fastapi import (
     APIRouter,
@@ -22,7 +20,7 @@ from fastapi import (
     Request,
     Response,
 )
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.database import get_db
