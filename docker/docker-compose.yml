@@ -36,7 +36,11 @@ services:
       - ./config/streamlink:/app/config/streamlink
     
     ports:
-      - "7000:7000"    
+      - "7000:7000"    # Main web interface & HLS live streaming
+    
+    # Ephemeral tmpfs for HLS segments (live streaming performance)
+    tmpfs:
+      - /tmp/streamvault-live:noexec,nosuid,size=500m,mode=1777
     
     environment:
       - PUID=1000
