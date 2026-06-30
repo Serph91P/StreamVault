@@ -54,6 +54,17 @@
           <!-- Action Buttons -->
           <div class="profile-actions">
             <button
+              v-if="streamer.is_live"
+              @click="handleWatchLive(null)"
+              class="btn-action btn-live"
+              v-ripple
+            >
+              <svg class="icon">
+                <use href="#icon-play" />
+              </svg>
+              Watch Live
+            </button>
+            <button
               v-if="!streamer.is_recording"
               @click="forceStartRecording(Number(streamerId))"
               class="btn-action btn-primary"
@@ -450,6 +461,12 @@ async function deleteAll() {
 }
 
 function handleWatchLive(_stream: any) {
+  if (!streamer.value) return
+  // Route to internal live player instead of external Twitch
+  router.push(`/live/${streamer.value.username}`)
+}
+
+function handleWatchLiveExternal() {
   if (!streamer.value) return
   window.open(`https://twitch.tv/${streamer.value.username}`, '_blank', 'noopener,noreferrer')
 }
