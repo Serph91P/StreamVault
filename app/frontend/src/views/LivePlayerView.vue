@@ -787,7 +787,7 @@ onUnmounted(() => {
   background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 100%);
   z-index: 10;
   opacity: 0;
-  transition: opacity 0.3s ease;
+  transition: var(--transition-base);
 
   .video-container:hover &,
   .video-container:focus-within & {
