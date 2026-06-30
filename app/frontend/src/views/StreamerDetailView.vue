@@ -827,6 +827,18 @@ watch(messages, (newMessages) => {
     }
   }
 
+  &.btn-live {
+    background: var(--danger-color);
+    color: white;
+    box-shadow: var(--glass-shadow-sm);
+
+    &:hover:not(:disabled) {
+      background: var(--danger-600);
+      transform: translateY(-2px);
+      box-shadow: var(--glass-shadow-md);
+    }
+  }
+
   &.btn-secondary {
     background: var(--glass-bg-medium);
     color: var(--text-primary);

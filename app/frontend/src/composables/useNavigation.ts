@@ -121,7 +121,7 @@ export function useNavigation() {
   // Update live badge count (convenience method)
   const updateLiveBadgeCount = (count: number) => {
     liveBadgeCount.value = count > 0 ? count : null
-    updateTabBadge('/subscriptions', liveBadgeCount.value)
+    updateTabBadge('/streamers', liveBadgeCount.value)
   }
 
   return {
