@@ -8,7 +8,6 @@ Covers:
 """
 
 import pytest
-import asyncio
 from unittest.mock import patch, AsyncMock, MagicMock
 from datetime import datetime
 
@@ -25,10 +24,13 @@ def service():
 @pytest.mark.asyncio
 async def test_build_streamlink_command(service):
     """Test that Streamlink command includes all required parameters"""
-    with patch('app.services.live_streaming_service.TwitchTokenService') as mock_token_cls, \
-         patch('app.services.live_streaming_service.proxy_health_service') as mock_proxy, \
-         patch('app.services.live_streaming_service.SessionLocal') as mock_db:
-
+    with (
+        patch(
+            "app.services.live_streaming_service.TwitchTokenService"
+        ) as mock_token_cls,
+        patch("app.services.live_streaming_service.proxy_health_service") as mock_proxy,
+        patch("app.services.live_streaming_service.SessionLocal") as mock_db,
+    ):
         mock_token = MagicMock()
         mock_token.get_valid_access_token = AsyncMock(return_value="test_token_123")
         mock_token_cls.return_value = mock_token
@@ -53,6 +55,7 @@ async def test_build_streamlink_command(service):
 async def test_build_ffmpeg_command(service):
     """Test FFmpeg command structure"""
     from pathlib import Path
+
     output_dir = Path("/tmp/test-hls")
     cmd = service._build_ffmpeg_command(output_dir)
 
@@ -68,11 +71,14 @@ async def test_build_ffmpeg_command(service):
 @pytest.mark.asyncio
 async def test_session_lifecycle(service):
     """Test session start, lookup, and stop"""
-    with patch('app.services.live_streaming_service.TwitchTokenService') as mock_token_cls, \
-         patch('app.services.live_streaming_service.proxy_health_service') as mock_proxy, \
-         patch('app.services.live_streaming_service.SessionLocal') as mock_db, \
-         patch('asyncio.create_subprocess_exec') as mock_proc:
-
+    with (
+        patch(
+            "app.services.live_streaming_service.TwitchTokenService"
+        ) as mock_token_cls,
+        patch("app.services.live_streaming_service.proxy_health_service") as mock_proxy,
+        patch("app.services.live_streaming_service.SessionLocal") as mock_db,
+        patch("asyncio.create_subprocess_exec") as mock_proc,
+    ):
         mock_token = MagicMock()
         mock_token.get_valid_access_token = AsyncMock(return_value="test_token")
         mock_token_cls.return_value = mock_token
@@ -143,18 +149,23 @@ def test_session_expired():
     assert session.is_expired(timeout_seconds=60) is False
 
     # Simulate old session
-    session.last_accessed = datetime.utcnow() - __import__('datetime').timedelta(seconds=120)
+    session.last_accessed = datetime.utcnow() - __import__("datetime").timedelta(
+        seconds=120
+    )
     assert session.is_expired(timeout_seconds=60) is True
 
 
 @pytest.mark.asyncio
 async def test_max_concurrent_streams(service):
     """Test global concurrent stream limit"""
-    with patch('app.services.live_streaming_service.TwitchTokenService') as mock_token_cls, \
-         patch('app.services.live_streaming_service.proxy_health_service') as mock_proxy, \
-         patch('app.services.live_streaming_service.SessionLocal') as mock_db, \
-         patch('asyncio.create_subprocess_exec') as mock_proc:
-
+    with (
+        patch(
+            "app.services.live_streaming_service.TwitchTokenService"
+        ) as mock_token_cls,
+        patch("app.services.live_streaming_service.proxy_health_service") as mock_proxy,
+        patch("app.services.live_streaming_service.SessionLocal") as mock_db,
+        patch("asyncio.create_subprocess_exec") as mock_proc,
+    ):
         mock_token = MagicMock()
         mock_token.get_valid_access_token = AsyncMock(return_value="test_token")
         mock_token_cls.return_value = mock_token
@@ -195,11 +206,14 @@ async def test_max_concurrent_streams(service):
 @pytest.mark.asyncio
 async def test_per_user_limit(service):
     """Test per-user concurrent stream limit"""
-    with patch('app.services.live_streaming_service.TwitchTokenService') as mock_token_cls, \
-         patch('app.services.live_streaming_service.proxy_health_service') as mock_proxy, \
-         patch('app.services.live_streaming_service.SessionLocal') as mock_db, \
-         patch('asyncio.create_subprocess_exec') as mock_proc:
-
+    with (
+        patch(
+            "app.services.live_streaming_service.TwitchTokenService"
+        ) as mock_token_cls,
+        patch("app.services.live_streaming_service.proxy_health_service") as mock_proxy,
+        patch("app.services.live_streaming_service.SessionLocal") as mock_db,
+        patch("asyncio.create_subprocess_exec") as mock_proc,
+    ):
         mock_token = MagicMock()
         mock_token.get_valid_access_token = AsyncMock(return_value="test_token")
         mock_token_cls.return_value = mock_token
