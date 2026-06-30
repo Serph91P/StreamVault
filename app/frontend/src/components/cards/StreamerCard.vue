@@ -142,11 +142,17 @@
             :style="dropdownStyle"
             @click.stop
           >
-            <button v-if="isLive" @click="handleWatch" class="action-item">
+            <button v-if="isLive" @click="handleWatchInternal" class="action-item action-primary">
               <svg class="icon">
                 <use href="#icon-play" />
               </svg>
               Watch Live
+            </button>
+            <button v-if="isLive" @click="handleWatchExternal" class="action-item">
+              <svg class="icon">
+                <use href="#icon-external-link" />
+              </svg>
+              Watch on Twitch
             </button>
             <button v-if="!streamer.is_recording" @click="handleForceRecord" class="action-item">
               <svg class="icon">
@@ -340,7 +346,13 @@ const handleDelete = () => {
   emit('delete', props.streamer)
 }
 
-const handleWatch = () => {
+const handleWatchInternal = () => {
+  showActions.value = false
+  // Route to internal live player
+  router.push(`/live/${props.streamer.username}`)
+}
+
+const handleWatchExternal = () => {
   // Open Twitch stream in new tab
   window.open(`https://twitch.tv/${props.streamer.username}`, '_blank', 'noopener,noreferrer')
 }

@@ -238,6 +238,13 @@ Comprehensive guides are available in the `docs/` directory:
 
 ### Managing Recordings
 
+**Live Streaming:**
+- Click the **Watch Live** button on any streamer card to start a live HLS stream in your browser
+- StreamVault fetches the Twitch stream via Streamlink and transmuxes it into HLS segments using FFmpeg
+- Playback uses **hls.js** (dynamically loaded from CDN) for broad browser compatibility
+- Streams auto-stop after 60 seconds of inactivity or can be stopped manually
+- Supports up to 5 global concurrent live streams (2 per user)
+
 **Manual Recording:**
 - Click the record button on any streamer card to start recording
 - Stop recording anytime from the dashboard or streamer page
