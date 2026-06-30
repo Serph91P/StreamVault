@@ -466,11 +466,6 @@ function handleWatchLive(_stream: any) {
   router.push(`/live/${streamer.value.username}`)
 }
 
-function handleWatchLiveExternal() {
-  if (!streamer.value) return
-  window.open(`https://twitch.tv/${streamer.value.username}`, '_blank', 'noopener,noreferrer')
-}
-
 function handleForceRecord(_stream: any) {
   forceStartRecording(Number(streamerId.value))
 }
