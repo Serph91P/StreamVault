@@ -498,6 +498,29 @@ export const filenamePresetsApi = {
     apiClient.get('/api/recording/filename-presets')
 }
 
+// Live Streaming API endpoints
+export const liveApi = {
+  // Start a live stream for a streamer
+  startLiveStream: (streamerName: string, quality: string = 'best') =>
+    apiClient.post(`/api/live/start/${streamerName}`, { quality }),
+
+  // Stop a live stream session
+  stopLiveStream: (sessionId: string) =>
+    apiClient.delete(`/api/live/stop/${sessionId}`),
+
+  // Get live stream status
+  getLiveStreamStatus: (sessionId: string) =>
+    apiClient.get(`/api/live/status/${sessionId}`),
+
+  // Get all active live streams
+  getActiveLiveStreams: () =>
+    apiClient.get('/api/live/active'),
+
+  // Get HLS playlist URL
+  getPlaylistUrl: (sessionId: string): string =>
+    `/api/live/stream/${sessionId}/playlist.m3u8`,
+}
+
 // Video API endpoints
 export const videoApi = {
   // Get all videos

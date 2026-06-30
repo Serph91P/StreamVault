@@ -1,0 +1,1007 @@
+<template>
+  <div class="page-view live-player-view fade-in">
+    <!-- Loading State -->
+    <div v-if="isLoading" class="content-state">
+      <LoadingSkeleton type="video" />
+      <p class="state-text">Starting live stream...</p>
+    </div>
+
+    <!-- Error State -->
+    <div v-else-if="error" class="content-state">
+      <EmptyState
+        icon="alert-circle"
+        title="Stream Error"
+        :description="error"
+        action-label="Retry"
+        action-icon="refresh-cw"
+        @action="retryStart"
+      />
+    </div>
+
+    <!-- Live Player -->
+    <div v-else-if="sessionId" class="player-layout">
+      <div class="player-main">
+        <GlassCard variant="strong" :padding="false" class="player-card">
+          <!-- Header -->
+          <div class="player-header">
+            <button @click="goBack" class="back-button" v-ripple>
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M19 12H5M12 19l-7-7 7-7" />
+              </svg>
+              Back
+            </button>
+
+            <h1 class="stream-title">{{ streamerName }}</h1>
+
+            <div v-if="streamInfo" class="live-badge-inline">
+              <span class="live-indicator"></span>
+              <span>LIVE</span>
+            </div>
+          </div>
+
+          <!-- Video Container -->
+          <div class="video-container" ref="videoContainer">
+            <video
+              ref="videoElement"
+              class="video-element"
+              playsinline
+              autoplay
+              muted
+              @waiting="onBuffering"
+              @playing="onPlaying"
+              @error="onVideoError"
+            ></video>
+
+            <!-- Buffering Overlay -->
+            <div v-if="isBuffering" class="buffering-overlay">
+              <div class="spinner"></div>
+              <p>Buffering...</p>
+            </div>
+
+            <!-- Quality Selector -->
+            <div class="quality-selector" v-if="hlsInstance && qualityLevels.length > 0">
+              <select v-model="selectedQuality" @change="changeQuality" class="quality-select">
+                <option value="-1">Auto</option>
+                <option v-for="(level, index) in qualityLevels" :key="index" :value="index">
+                  {{ level.name }}
+                </option>
+              </select>
+            </div>
+
+            <!-- Controls Overlay -->
+            <div class="live-controls-overlay">
+              <div class="controls-bottom">
+                <button @click="togglePlayPause" class="control-button">
+                  <svg v-if="isPlaying" viewBox="0 0 24 24" fill="currentColor" class="control-icon">
+                    <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z"/>
+                  </svg>
+                  <svg v-else viewBox="0 0 24 24" fill="currentColor" class="control-icon">
+                    <path d="M8 5v14l11-7z"/>
+                  </svg>
+                </button>
+
+                <button @click="toggleMute" class="control-button">
+                  <svg v-if="!isMuted" viewBox="0 0 24 24" fill="currentColor" class="control-icon">
+                    <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
+                  </svg>
+                  <svg v-else viewBox="0 0 24 24" fill="currentColor" class="control-icon">
+                    <path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3z"/>
+                  </svg>
+                </button>
+
+                <div class="stream-meta">
+                  <span class="meta-quality">{{ selectedQualityLabel }}</span>
+                  <span class="meta-separator">|</span>
+                  <span class="meta-status">{{ isBuffering ? 'Buffering' : 'Playing' }}</span>
+                </div>
+
+                <button @click="toggleFullscreen" class="control-button fullscreen-button">
+                  <svg v-if="!isFullscreen" viewBox="0 0 24 24" fill="currentColor" class="control-icon">
+                    <path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/>
+                  </svg>
+                  <svg v-else viewBox="0 0 24 24" fill="currentColor" class="control-icon">
+                    <path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        </GlassCard>
+
+        <!-- Info Sidebar -->
+        <aside class="info-sidebar">
+          <GlassCard variant="subtle" class="info-card">
+            <h3 class="info-title">
+              <svg class="info-icon">
+                <use href="#icon-info" />
+              </svg>
+              Stream Info
+            </h3>
+            <div class="info-list">
+              <div class="info-row">
+                <span class="info-label">Streamer</span>
+                <span class="info-value highlight">{{ streamerName }}</span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">Session</span>
+                <span class="info-value">{{ sessionIdShort }}</span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">Quality</span>
+                <span class="info-value">{{ selectedQualityLabel }}</span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">Status</span>
+                <span class="info-value" :class="{ 'text-live': isPlaying && !isBuffering }">
+                  {{ streamStatusText }}
+                </span>
+              </div>
+            </div>
+          </GlassCard>
+
+          <GlassCard variant="subtle" class="info-card">
+            <h3 class="info-title">
+              <svg class="info-icon">
+                <use href="#icon-settings" />
+              </svg>
+              Actions
+            </h3>
+            <div class="action-buttons">
+              <button class="action-btn danger" @click="stopStream" :disabled="isStopping" v-ripple>
+                <svg class="action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                </svg>
+                {{ isStopping ? 'Stopping...' : 'Stop Stream' }}
+              </button>
+            </div>
+          </GlassCard>
+        </aside>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import LoadingSkeleton from '@/components/LoadingSkeleton.vue'
+import EmptyState from '@/components/EmptyState.vue'
+import GlassCard from '@/components/cards/GlassCard.vue'
+import { liveApi } from '@/services/api'
+
+// Hls.js type declaration (loaded dynamically)
+declare global {
+  interface Window {
+    Hls?: any
+  }
+}
+
+interface HlsLevel {
+  height?: number
+  width?: number
+  bitrate?: number
+}
+
+const route = useRoute()
+const router = useRouter()
+
+const streamerName = computed(() => route.params.streamer as string)
+
+// Reactive state
+const isLoading = ref(true)
+const error = ref<string | null>(null)
+const sessionId = ref<string | null>(null)
+const streamInfo = ref<any>(null)
+const isStopping = ref(false)
+const isBuffering = ref(false)
+const isPlaying = ref(false)
+const isMuted = ref(true)
+const isFullscreen = ref(false)
+const hlsInstance = ref<any>(null)
+const qualityLevels = ref<Array<{ name: string; index: number }>>([])
+const selectedQuality = ref<string | number>('-1')
+const retryCount = ref(0)
+const retryTimer = ref<number | null>(null)
+
+// Refs
+const videoElement = ref<HTMLVideoElement | null>(null)
+const videoContainer = ref<HTMLDivElement | null>(null)
+
+const sessionIdShort = computed(() => {
+  if (!sessionId.value) return ''
+  return sessionId.value.length > 12 ? sessionId.value.slice(0, 12) + '...' : sessionId.value
+})
+
+const selectedQualityLabel = computed(() => {
+  if (selectedQuality.value === '-1') return 'Auto'
+  const level = qualityLevels.value.find(l => l.index === Number(selectedQuality.value))
+  return level ? level.name : 'Auto'
+})
+
+const streamStatusText = computed(() => {
+  if (isBuffering.value) return 'Buffering'
+  if (isPlaying.value) return 'Live'
+  return 'Connecting'
+})
+
+// Load hls.js dynamically
+const loadHlsJs = (): Promise<any> => {
+  return new Promise((resolve, reject) => {
+    if (window.Hls) {
+      resolve(window.Hls)
+      return
+    }
+
+    const script = document.createElement('script')
+    script.src = 'https://cdn.jsdelivr.net/npm/hls.js@1.5.8/dist/hls.min.js'
+    script.crossOrigin = 'anonymous'
+    script.onload = () => resolve(window.Hls)
+    script.onerror = () => reject(new Error('Failed to load hls.js'))
+    document.head.appendChild(script)
+  })
+}
+
+// Start stream
+const startStream = async () => {
+  try {
+    isLoading.value = true
+    error.value = null
+    retryCount.value = 0
+
+    const quality = (route.query.quality as string) || 'best'
+    const response = await liveApi.startLiveStream(streamerName.value, quality)
+
+    if (!response.success || !response.session_id) {
+      throw new Error(response.message || 'Failed to start stream')
+    }
+
+    sessionId.value = response.session_id
+    streamInfo.value = response
+
+    // Wait a moment for the playlist to be generated
+    await new Promise(r => setTimeout(r, 1500))
+
+    await initPlayer(response.session_id)
+  } catch (err: any) {
+    console.error('Error starting stream:', err)
+    error.value = err instanceof Error ? err.message : 'Failed to start live stream'
+  } finally {
+    isLoading.value = false
+  }
+}
+
+// Initialize HLS player
+const initPlayer = async (sid: string) => {
+  if (!videoElement.value) return
+
+  try {
+    const Hls = await loadHlsJs()
+    const playlistUrl = liveApi.getPlaylistUrl(sid)
+
+    if (Hls.isSupported()) {
+      const hls = new Hls({
+        enableWorker: true,
+        lowLatencyMode: true,
+        backBufferLength: 90,
+        maxBufferLength: 30,
+        liveSyncDurationCount: 3,
+        liveMaxLatencyDurationCount: 5,
+      })
+
+      hlsInstance.value = hls
+
+      hls.on(Hls.Events.MANIFEST_PARSED, (_event: string, data: any) => {
+        isBuffering.value = false
+        // Build quality levels
+        const levels: Array<{ name: string; index: number }> = []
+        if (data.levels) {
+          data.levels.forEach((level: HlsLevel, index: number) => {
+            const height = level.height || 0
+            const name = height >= 1080 ? '1080p' : height >= 720 ? '720p' : height >= 480 ? '480p' : `${height}p`
+            levels.push({ name, index })
+          })
+        }
+        qualityLevels.value = levels
+        videoElement.value?.play().catch(() => {})
+      })
+
+      hls.on(Hls.Events.ERROR, (_event: string, data: any) => {
+        if (data.fatal) {
+          switch (data.type) {
+            case Hls.ErrorTypes.NETWORK_ERROR:
+              console.warn('HLS network error, attempting recovery...')
+              hls.startLoad()
+              break
+            case Hls.ErrorTypes.MEDIA_ERROR:
+              console.warn('HLS media error, attempting recovery...')
+              hls.recoverMediaError()
+              break
+            default:
+              console.error('Fatal HLS error:', data)
+              error.value = 'Stream playback failed. Please try again.'
+              destroyPlayer()
+              break
+          }
+        }
+      })
+
+      hls.on(Hls.Events.LEVEL_SWITCHED, (_event: string, data: any) => {
+        console.log('Quality switched to level', data.level)
+      })
+
+      hls.loadSource(playlistUrl)
+      hls.attachMedia(videoElement.value)
+    } else if (videoElement.value.canPlayType('application/vnd.apple.mpegurl')) {
+      // Native HLS support (Safari)
+      videoElement.value.src = playlistUrl
+      videoElement.value.addEventListener('loadedmetadata', () => {
+        videoElement.value?.play().catch(() => {})
+      })
+    } else {
+      throw new Error('HLS is not supported in this browser')
+    }
+  } catch (err: any) {
+    console.error('Error initializing player:', err)
+    error.value = err instanceof Error ? err.message : 'Failed to initialize player'
+  }
+}
+
+// Destroy player and cleanup
+const destroyPlayer = () => {
+  if (hlsInstance.value) {
+    hlsInstance.value.destroy()
+    hlsInstance.value = null
+  }
+  if (videoElement.value) {
+    videoElement.value.pause()
+    videoElement.value.removeAttribute('src')
+    videoElement.value.load()
+  }
+  qualityLevels.value = []
+}
+
+// Quality change
+const changeQuality = () => {
+  if (!hlsInstance.value) return
+  const level = Number(selectedQuality.value)
+  hlsInstance.value.currentLevel = level
+}
+
+// Stop stream
+const stopStream = async () => {
+  if (!sessionId.value || isStopping.value) return
+
+  try {
+    isStopping.value = true
+    destroyPlayer()
+    await liveApi.stopLiveStream(sessionId.value)
+    sessionId.value = null
+    streamInfo.value = null
+    router.push('/streamers')
+  } catch (err: any) {
+    console.error('Error stopping stream:', err)
+    error.value = err instanceof Error ? err.message : 'Failed to stop stream'
+  } finally {
+    isStopping.value = false
+  }
+}
+
+// Retry start
+const retryStart = () => {
+  if (retryTimer.value) {
+    clearTimeout(retryTimer.value)
+    retryTimer.value = null
+  }
+  startStream()
+}
+
+// Auto-retry logic
+const scheduleRetry = () => {
+  if (retryCount.value >= 10) {
+    error.value = 'Stream could not be started after multiple attempts. The streamer may be offline.'
+    return
+  }
+  retryCount.value++
+  retryTimer.value = window.setTimeout(() => {
+    if (!isPlaying.value && sessionId.value) {
+      console.log(`Auto-retry attempt ${retryCount.value}...`)
+      initPlayer(sessionId.value)
+    }
+  }, 3000)
+}
+
+// Video event handlers
+const onBuffering = () => {
+  isBuffering.value = true
+}
+
+const onPlaying = () => {
+  isBuffering.value = false
+  isPlaying.value = true
+}
+
+const onVideoError = () => {
+  console.error('Video element error')
+  isBuffering.value = false
+  isPlaying.value = false
+  scheduleRetry()
+}
+
+// Controls
+const togglePlayPause = () => {
+  if (!videoElement.value) return
+  if (videoElement.value.paused) {
+    videoElement.value.play().catch(() => {})
+  } else {
+    videoElement.value.pause()
+  }
+  isPlaying.value = !videoElement.value.paused
+}
+
+const toggleMute = () => {
+  if (!videoElement.value) return
+  videoElement.value.muted = !videoElement.value.muted
+  isMuted.value = videoElement.value.muted
+}
+
+const toggleFullscreen = async () => {
+  if (!videoContainer.value) return
+  try {
+    if (!document.fullscreenElement) {
+      await videoContainer.value.requestFullscreen()
+      isFullscreen.value = true
+    } else {
+      await document.exitFullscreen()
+      isFullscreen.value = false
+    }
+  } catch (err) {
+    console.error('Fullscreen error:', err)
+  }
+}
+
+const goBack = () => {
+  router.back()
+}
+
+const onFullscreenChange = () => {
+  isFullscreen.value = !!document.fullscreenElement
+}
+
+onMounted(() => {
+  document.addEventListener('fullscreenchange', onFullscreenChange)
+  startStream()
+})
+
+onUnmounted(() => {
+  document.removeEventListener('fullscreenchange', onFullscreenChange)
+  if (retryTimer.value) {
+    clearTimeout(retryTimer.value)
+  }
+  destroyPlayer()
+  // Also stop the stream on the backend if still active
+  if (sessionId.value) {
+    liveApi.stopLiveStream(sessionId.value).catch(() => {})
+  }
+})
+</script>
+
+<style scoped lang="scss">
+@use '@/styles/variables' as v;
+@use '@/styles/mixins' as m;
+
+.live-player-view {
+  overflow-x: hidden;
+  max-width: 100%;
+
+  @include m.respond-below('sm') {
+    padding: var(--spacing-2) var(--spacing-2);
+  }
+}
+
+.fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.content-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 50vh;
+  padding: var(--spacing-8);
+}
+
+.state-text {
+  margin-top: var(--spacing-4);
+  color: var(--text-secondary);
+  font-size: var(--text-base);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.player-layout {
+  display: flex;
+  flex-direction: column;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.player-main {
+  display: grid;
+  grid-template-columns: 1fr 300px;
+  gap: var(--spacing-4);
+  align-items: start;
+  max-width: 100%;
+  overflow: hidden;
+
+  @include m.respond-below('xl') {
+    grid-template-columns: 1fr 280px;
+  }
+
+  @include m.respond-below('lg') {
+    grid-template-columns: 1fr;
+  }
+
+  @include m.respond-below('sm') {
+    gap: var(--spacing-2);
+  }
+}
+
+.player-card {
+  overflow: hidden;
+
+  :deep(.glass-card-content) {
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+  }
+}
+
+.player-header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  padding: var(--spacing-3) var(--spacing-4);
+
+  @include m.respond-below('md') {
+    flex-wrap: wrap;
+    padding: var(--spacing-3);
+  }
+}
+
+.back-button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-4);
+  background: var(--background-darker);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  font-weight: v.$font-medium;
+  font-size: var(--text-sm);
+  cursor: pointer;
+  transition: all v.$duration-200 v.$ease-out;
+  flex-shrink: 0;
+  min-height: 44px;
+
+  .icon {
+    width: 16px;
+    height: 16px;
+    stroke: currentColor;
+    fill: none;
+  }
+
+  &:hover {
+    background: var(--primary-color);
+    border-color: var(--primary-color);
+    color: white;
+  }
+
+  @include m.respond-below('md') {
+    min-height: 44px;
+    padding: var(--spacing-2) var(--spacing-4);
+    font-size: var(--text-sm);
+  }
+}
+
+.stream-title {
+  flex: 1;
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: v.$font-semibold;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+
+  @include m.respond-below('lg') {
+    white-space: normal;
+    overflow: visible;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+
+  @include m.respond-below('md') {
+    font-size: var(--text-base);
+    order: 3;
+    flex-basis: 100%;
+    margin-top: var(--spacing-2);
+  }
+}
+
+.live-badge-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  background: var(--danger-color);
+  color: white;
+  border-radius: var(--radius-pill);
+  padding: var(--spacing-1) var(--spacing-3);
+  font-size: var(--text-sm);
+  font-weight: v.$font-bold;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+.live-indicator {
+  width: 8px;
+  height: 8px;
+  background: white;
+  border-radius: 50%;
+  animation: pulse-live 2s ease-in-out infinite;
+}
+
+@keyframes pulse-live {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(1.2); }
+}
+
+.video-container {
+  position: relative;
+  width: 100%;
+  background: var(--background-darker);
+  overflow: hidden;
+
+  @include m.respond-to('md') {
+    max-width: min(70vw, 1280px);
+    margin: 0 auto;
+    aspect-ratio: 16/9;
+  }
+
+  @include m.respond-below('md') {
+    width: 100%;
+    max-width: 100%;
+    margin: 0;
+    aspect-ratio: 16/9;
+  }
+}
+
+.video-element {
+  width: 100%;
+  height: auto;
+  display: block;
+  background: var(--background-darker);
+  object-fit: contain;
+
+  @include m.respond-to('md') {
+    max-height: 70vh;
+  }
+
+  @include m.respond-below('md') {
+    max-height: none;
+  }
+}
+
+// Mobile Landscape
+@media (max-width: 767px) and (orientation: landscape) {
+  .video-container {
+    height: 100vh;
+    width: auto;
+    aspect-ratio: auto;
+    margin: 0;
+  }
+
+  .video-element {
+    height: 100%;
+    width: 100%;
+    max-height: 100vh;
+  }
+}
+
+.buffering-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(4px);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  color: white;
+  z-index: 20;
+  gap: var(--spacing-4);
+
+  .spinner {
+    width: 48px;
+    height: 48px;
+    border: 4px solid rgba(255, 255, 255, 0.2);
+    border-top-color: var(--primary-color);
+    border-radius: var(--radius-full);
+    animation: spin 1s linear infinite;
+  }
+
+  p {
+    font-size: var(--text-sm);
+    color: rgba(255, 255, 255, 0.8);
+  }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.quality-selector {
+  position: absolute;
+  top: var(--spacing-3);
+  right: var(--spacing-3);
+  z-index: 15;
+}
+
+.quality-select {
+  background: rgba(0, 0, 0, 0.7);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-1) var(--spacing-3);
+  font-size: var(--text-sm);
+  cursor: pointer;
+  backdrop-filter: blur(4px);
+
+  option {
+    background: var(--background-darker);
+    color: var(--text-primary);
+  }
+}
+
+.live-controls-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: var(--spacing-3) var(--spacing-4);
+  background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 100%);
+  z-index: 10;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+
+  .video-container:hover &,
+  .video-container:focus-within & {
+    opacity: 1;
+  }
+}
+
+.controls-bottom {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+}
+
+.control-button {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  background: rgba(255, 255, 255, 0.15);
+  border: none;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background v.$duration-200 v.$ease-out;
+  color: white;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.3);
+  }
+
+  .control-icon {
+    width: 20px;
+    height: 20px;
+  }
+}
+
+.fullscreen-button {
+  margin-left: auto;
+}
+
+.stream-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  color: rgba(255, 255, 255, 0.8);
+  font-size: var(--text-xs);
+  font-weight: v.$font-medium;
+}
+
+.meta-separator {
+  opacity: 0.5;
+}
+
+.meta-quality {
+  background: rgba(var(--primary-500-rgb), 0.3);
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+}
+
+.meta-status {
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.text-live {
+  color: var(--danger-color);
+}
+
+// Info Sidebar
+.info-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+  min-width: 0;
+  max-width: 100%;
+
+  @include m.respond-below('lg') {
+    flex-direction: row;
+    flex-wrap: wrap;
+
+    .info-card {
+      flex: 1;
+      min-width: 280px;
+    }
+  }
+
+  @include m.respond-below('sm') {
+    flex-direction: column;
+    gap: var(--spacing-2);
+
+    .info-card {
+      min-width: 0;
+      width: 100%;
+      max-width: 100%;
+    }
+  }
+}
+
+.info-card {
+  flex-shrink: 0;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+
+  :deep(.glass-card-content) {
+    max-width: 100%;
+    overflow: hidden;
+  }
+}
+
+.info-title {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  margin: 0 0 var(--spacing-3) 0;
+  font-size: var(--text-base);
+  font-weight: v.$font-semibold;
+  color: var(--text-primary);
+
+  .info-icon {
+    width: 18px;
+    height: 18px;
+    stroke: var(--primary-color);
+    fill: none;
+  }
+}
+
+.info-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-2) 0;
+  border-bottom: 1px solid var(--border-color);
+
+  &:last-child {
+    border-bottom: none;
+  }
+}
+
+.info-label {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.info-value {
+  font-size: var(--text-sm);
+  font-weight: v.$font-medium;
+  color: var(--text-primary);
+
+  &.highlight {
+    color: var(--primary-color);
+    font-weight: v.$font-bold;
+  }
+}
+
+// Action Buttons
+.action-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+  max-width: 100%;
+
+  @include m.respond-below('sm') {
+    gap: var(--spacing-2);
+  }
+}
+
+.action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-3);
+  background: var(--background-darker);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  font-weight: v.$font-medium;
+  cursor: pointer;
+  transition: all v.$duration-200 v.$ease-out;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+
+  .action-icon {
+    width: 16px;
+    height: 16px;
+    stroke: currentColor;
+    fill: none;
+    flex-shrink: 0;
+  }
+
+  &:hover:not(:disabled) {
+    background: var(--primary-color);
+    border-color: var(--primary-color);
+    color: white;
+  }
+
+  &.danger:hover:not(:disabled) {
+    background: var(--danger-color);
+    border-color: var(--danger-color);
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+}
+</style>
