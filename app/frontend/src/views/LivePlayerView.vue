@@ -162,7 +162,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import LoadingSkeleton from '@/components/LoadingSkeleton.vue'
 import EmptyState from '@/components/EmptyState.vue'
@@ -259,7 +259,13 @@ const startStream = async () => {
     sessionId.value = response.session_id
     streamInfo.value = response
 
-    // Wait a moment for the playlist to be generated
+    // CRITICAL FIX: Set loading false BEFORE initPlayer so videoElement exists in DOM
+    isLoading.value = false
+
+    // Wait for Vue to render the player block (videoElement must exist)
+    await nextTick()
+
+    // Small delay to ensure HLS playlist exists on backend
     await new Promise(r => setTimeout(r, 1500))
 
     await initPlayer(response.session_id)
@@ -269,7 +275,10 @@ const startStream = async () => {
     sessionId.value = null
     streamInfo.value = null
   } finally {
-    isLoading.value = false
+    // Ensure loading is cleared in error cases too (success path clears it above)
+    if (!sessionId.value) {
+      isLoading.value = false
+    }
   }
 }
 
