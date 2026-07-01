@@ -501,8 +501,14 @@ export const filenamePresetsApi = {
 // Live Streaming API endpoints
 export const liveApi = {
   // Start a live stream for a streamer
-  startLiveStream: (streamerName: string, quality: string = 'best') =>
-    apiClient.post(`/api/live/start/${streamerName}`, { quality }),
+  startLiveStream: (
+    streamerName: string,
+    quality: string = 'best',
+    supportedCodecs: string = 'h264'
+  ) => apiClient.post(`/api/live/start/${streamerName}`, {
+    quality,
+    supported_codecs: supportedCodecs
+  }),
 
   // Stop a live stream session
   stopLiveStream: (sessionId: string) =>

@@ -224,11 +224,16 @@ const mockFilenamePresetsApi = {
 }
 
 const mockLiveApi = {
-  startLiveStream: (streamerName: string, _quality: string = 'best') => mockResponse({
+  startLiveStream: (
+    streamerName: string,
+    quality: string = 'best',
+    supportedCodecs: string = 'h264'
+  ) => mockResponse({
     success: true,
     session_id: `mock-live-${Date.now()}`,
     streamer_name: streamerName,
-    quality: 'best',
+    quality,
+    supported_codecs: supportedCodecs,
     playlist_url: '/api/live/stream/mock/playlist.m3u8',
     message: 'Stream started (mock)'
   }),

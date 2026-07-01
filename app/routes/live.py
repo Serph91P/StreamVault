@@ -12,6 +12,7 @@ Endpoints:
 """
 
 import logging
+from typing import Optional
 
 from fastapi import (
     APIRouter,
@@ -20,6 +21,7 @@ from fastapi import (
     Request,
 )
 from fastapi.responses import FileResponse
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -30,6 +32,11 @@ from app.services.live_streaming_service import live_streaming_service
 logger = logging.getLogger("streamvault")
 
 router = APIRouter(prefix="/api/live", tags=["live"])
+
+
+class LiveStartRequest(BaseModel):
+    quality: Optional[str] = None
+    supported_codecs: Optional[str] = None
 
 
 @router.post("/start/{streamer_name}")
@@ -51,6 +58,18 @@ async def start_live_stream(
         {"session_id": str, "playlist_url": str, "streamer_name": str}
     """
     try:
+        body = LiveStartRequest()
+        if request.headers.get("content-type", "").startswith("application/json"):
+            try:
+                payload = await request.json()
+                if isinstance(payload, dict):
+                    body = LiveStartRequest(**payload)
+            except Exception:
+                logger.debug("[LIVE] Ignoring invalid JSON body for live start")
+
+        requested_quality = body.quality or quality
+        supported_codecs = body.supported_codecs or "h264"
+
         # Verify streamer exists
         streamer = db.query(Streamer).filter(Streamer.username == streamer_name).first()
         if not streamer:
@@ -65,7 +84,8 @@ async def start_live_stream(
         user_id = str(current_user.id) if current_user else None
         session_id = await live_streaming_service.start_stream(
             streamer_name=streamer_name,
-            quality=quality,
+            quality=requested_quality,
+            supported_codecs=supported_codecs,
             user_id=user_id,
         )
 
@@ -79,7 +99,10 @@ async def start_live_stream(
             "success": True,
             "session_id": session_id,
             "streamer_name": streamer_name,
-            "quality": quality,
+            "quality": requested_quality,
+            "supported_codecs": live_streaming_service._normalize_supported_codecs(
+                supported_codecs
+            ),
             "playlist_url": playlist_url,
             "message": "Stream started successfully",
         }
