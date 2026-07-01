@@ -169,7 +169,7 @@ import EmptyState from '@/components/EmptyState.vue'
 import GlassCard from '@/components/cards/GlassCard.vue'
 import { liveApi } from '@/services/api'
 
-// Hls.js type declaration (loaded dynamically)
+// Hls.js type declaration (loaded via npm, no longer from CDN)
 declare global {
   interface Window {
     Hls?: any
@@ -224,21 +224,11 @@ const streamStatusText = computed(() => {
   return 'Connecting'
 })
 
-// Load hls.js dynamically
-const loadHlsJs = (): Promise<any> => {
-  return new Promise((resolve, reject) => {
-    if (window.Hls) {
-      resolve(window.Hls)
-      return
-    }
+// Load hls.js (bundled locally, no CDN dependency)
+import Hls from 'hls.js'
 
-    const script = document.createElement('script')
-    script.src = 'https://cdn.jsdelivr.net/npm/hls.js@1.5.8/dist/hls.min.js'
-    script.crossOrigin = 'anonymous'
-    script.onload = () => resolve(window.Hls)
-    script.onerror = () => reject(new Error('Failed to load hls.js'))
-    document.head.appendChild(script)
-  })
+const loadHlsJs = (): Promise<any> => {
+  return Promise.resolve(Hls)
 }
 
 // Start stream
