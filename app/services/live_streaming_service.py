@@ -22,6 +22,7 @@ Features:
 import asyncio
 import logging
 import os
+import secrets
 import shutil
 import uuid
 from datetime import datetime
@@ -56,6 +57,7 @@ class LiveStreamSession:
         self.ffmpeg_process = ffmpeg_process
         self.output_dir = output_dir
         self.user_id = user_id
+        self.playback_token = secrets.token_urlsafe(32)
         self.created_at = datetime.utcnow()
         self.last_accessed = datetime.utcnow()
         self.is_active = True
@@ -67,6 +69,10 @@ class LiveStreamSession:
     @property
     def playlist_path(self) -> Path:
         return self.output_dir / "playlist.m3u8"
+
+    def validate_playback_token(self, token: Optional[str]) -> bool:
+        """Validate the bearer token used by native HLS/video requests."""
+        return bool(token) and secrets.compare_digest(token, self.playback_token)
 
     def is_expired(self, timeout_seconds: int = 60) -> bool:
         """Check if session has timed out due to inactivity"""

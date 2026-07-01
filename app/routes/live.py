@@ -13,6 +13,7 @@ Endpoints:
 
 import logging
 from typing import Optional
+from urllib.parse import quote
 
 from fastapi import (
     APIRouter,
@@ -20,7 +21,7 @@ from fastapi import (
     Depends,
     Request,
 )
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -32,6 +33,24 @@ from app.services.live_streaming_service import live_streaming_service
 logger = logging.getLogger("streamvault")
 
 router = APIRouter(prefix="/api/live", tags=["live"])
+
+
+def _append_playback_token_to_playlist(playlist: str, token: str) -> str:
+    """Append the playback token to segment URIs in a media playlist."""
+    encoded_token = quote(token, safe="")
+    rewritten_lines = []
+
+    for line in playlist.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            rewritten_lines.append(line)
+            continue
+
+        separator = "&" if "?" in line else "?"
+        rewritten_lines.append(f"{line}{separator}token={encoded_token}")
+
+    trailing_newline = "\n" if playlist.endswith("\n") else ""
+    return "\n".join(rewritten_lines) + trailing_newline
 
 
 class LiveStartRequest(BaseModel):
@@ -89,7 +108,16 @@ async def start_live_stream(
             user_id=user_id,
         )
 
-        playlist_url = f"/api/live/stream/{session_id}/playlist.m3u8"
+        session = live_streaming_service.get_session(session_id)
+        if not session:
+            raise HTTPException(
+                status_code=500, detail="Stream session not found after start"
+            )
+
+        playlist_url = (
+            f"/api/live/stream/{session_id}/playlist.m3u8"
+            f"?token={quote(session.playback_token, safe='')}"
+        )
 
         logger.info(
             f"[LIVE] Stream started by user {user_id}: {session_id} ({streamer_name})"
@@ -169,7 +197,7 @@ async def get_stream_status(session_id: str):
 
 
 @router.get("/stream/{session_id}/playlist.m3u8")
-async def get_hls_playlist(session_id: str):
+async def get_hls_playlist(session_id: str, token: Optional[str] = None):
     """
     Serve the HLS playlist (.m3u8) for a live stream.
 
@@ -179,6 +207,8 @@ async def get_hls_playlist(session_id: str):
         session = live_streaming_service.get_session(session_id)
         if not session:
             raise HTTPException(status_code=404, detail="Stream session not found")
+        if not session.validate_playback_token(token):
+            raise HTTPException(status_code=403, detail="Invalid live playback token")
 
         playlist_path = session.playlist_path
 
@@ -196,9 +226,12 @@ async def get_hls_playlist(session_id: str):
         # Update access time
         session.touch()
 
+        playlist = playlist_path.read_text(encoding="utf-8")
+        playlist = _append_playback_token_to_playlist(playlist, session.playback_token)
+
         # Serve with appropriate HLS headers
-        return FileResponse(
-            path=str(playlist_path),
+        return Response(
+            content=playlist,
             media_type="application/vnd.apple.mpegurl",
             headers={
                 "Cache-Control": "no-cache",
@@ -214,7 +247,9 @@ async def get_hls_playlist(session_id: str):
 
 
 @router.get("/stream/{session_id}/{segment_name}")
-async def get_hls_segment(session_id: str, segment_name: str):
+async def get_hls_segment(
+    session_id: str, segment_name: str, token: Optional[str] = None
+):
     """
     Serve an HLS segment (.ts file) for a live stream.
 
@@ -226,6 +261,8 @@ async def get_hls_segment(session_id: str, segment_name: str):
         session = live_streaming_service.get_session(session_id)
         if not session:
             raise HTTPException(status_code=404, detail="Stream session not found")
+        if not session.validate_playback_token(token):
+            raise HTTPException(status_code=403, detail="Invalid live playback token")
 
         segment_path = session.output_dir / segment_name
 
@@ -270,7 +307,10 @@ async def get_active_streams(current_user: User = Depends(get_current_user)):
                         "session_id": session.session_id,
                         "streamer_name": session.streamer_name,
                         "quality": session.quality,
-                        "playlist_url": f"/api/live/stream/{session_id}/playlist.m3u8",
+                        "playlist_url": (
+                            f"/api/live/stream/{session_id}/playlist.m3u8"
+                            f"?token={quote(session.playback_token, safe='')}"
+                        ),
                         "is_active": session.is_active,
                         "created_at": session.created_at.isoformat(),
                     }
