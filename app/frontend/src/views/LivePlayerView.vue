@@ -58,16 +58,6 @@
               <p>Buffering...</p>
             </div>
 
-            <!-- Quality Selector -->
-            <div class="quality-selector" v-if="hlsInstance && qualityLevels.length > 0">
-              <select v-model="selectedQuality" @change="changeQuality" class="quality-select">
-                <option value="-1">Auto</option>
-                <option v-for="(level, index) in qualityLevels" :key="index" :value="index">
-                  {{ level.name }}
-                </option>
-              </select>
-            </div>
-
             <!-- Controls Overlay -->
             <div class="live-controls-overlay">
               <div class="controls-bottom">
@@ -224,6 +214,7 @@ const error = ref<string | null>(null)
 const sessionId = ref<string | null>(null)
 const streamInfo = ref<any>(null)
 const isStopping = ref(false)
+const isStarting = ref(false)
 const isBuffering = ref(false)
 const isPlaying = ref(false)
 const isMuted = ref(true)
@@ -252,7 +243,10 @@ const sessionIdShort = computed(() => {
 })
 
 const selectedQualityLabel = computed(() => {
-  if (selectedQuality.value === '-1') return 'Auto'
+  if (selectedQuality.value === '-1') {
+    const requestedQuality = streamInfo.value?.quality
+    return requestedQuality && requestedQuality !== 'best' ? requestedQuality : 'Auto'
+  }
   const level = qualityLevels.value.find(l => l.index === Number(selectedQuality.value))
   return level ? level.name : 'Auto'
 })
@@ -331,7 +325,10 @@ const resolveLiveCodecSelection = (): LiveCodecSelection => {
 
 // Start stream
 const startStream = async () => {
+  if (isStarting.value) return
+
   try {
+    isStarting.value = true
     isLoading.value = true
     error.value = null
     retryCount.value = 0
@@ -376,6 +373,7 @@ const startStream = async () => {
     if (!sessionId.value) {
       isLoading.value = false
     }
+    isStarting.value = false
   }
 }
 
@@ -408,11 +406,15 @@ const initPlayer = async (sid: string, useNativeHls: boolean = preferNativeHls.v
 
       hls.on(Hls.Events.MANIFEST_PARSED, (_event: string, data: any) => {
         isBuffering.value = false
-        // Build quality levels
+        // StreamVault remuxes one selected Twitch rendition into a local HLS stream.
+        // hls.js can report that single remuxed rendition as height=0 because the
+        // generated playlist has no adaptive RESOLUTION metadata. Do not surface
+        // those pseudo-levels as a broken "0p" quality picker.
         const levels: Array<{ name: string; index: number }> = []
         if (data.levels) {
           data.levels.forEach((level: HlsLevel, index: number) => {
             const height = level.height || 0
+            if (height <= 0) return
             const name = height >= 1080 ? '1080p' : height >= 720 ? '720p' : height >= 480 ? '480p' : `${height}p`
             levels.push({ name, index })
           })
@@ -480,13 +482,6 @@ const destroyPlayer = () => {
   qualityLevels.value = []
 }
 
-// Quality change
-const changeQuality = () => {
-  if (!hlsInstance.value) return
-  const level = Number(selectedQuality.value)
-  hlsInstance.value.currentLevel = level
-}
-
 // Stop stream
 const stopStream = async () => {
   if (!sessionId.value || isStopping.value) return
@@ -516,6 +511,8 @@ const retryStart = () => {
 }
 
 const restartWithCodecMode = async () => {
+  if (isStarting.value || isStopping.value) return
+
   localStorage.setItem('streamvault-live-codec-mode', codecMode.value)
   router.replace({
     query: {
@@ -829,11 +826,27 @@ onUnmounted(() => {
     margin: 0;
     aspect-ratio: 16/9;
   }
+
+  &:fullscreen {
+    width: 100vw;
+    height: 100vh;
+    max-width: none;
+    margin: 0;
+    aspect-ratio: auto;
+    background: var(--background-darker);
+  }
+
+  &:fullscreen .video-element {
+    width: 100%;
+    height: 100%;
+    max-height: none;
+    object-fit: contain;
+  }
 }
 
 .video-element {
   width: 100%;
-  height: auto;
+  height: 100%;
   display: block;
   background: var(--background-darker);
   object-fit: contain;
@@ -896,29 +909,6 @@ onUnmounted(() => {
 
 @keyframes spin {
   to { transform: rotate(360deg); }
-}
-
-.quality-selector {
-  position: absolute;
-  top: var(--spacing-3);
-  right: var(--spacing-3);
-  z-index: 15;
-}
-
-.quality-select {
-  background: rgba(0, 0, 0, 0.7);
-  color: white;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: var(--radius-md);
-  padding: var(--spacing-1) var(--spacing-3);
-  font-size: var(--text-sm);
-  cursor: pointer;
-  backdrop-filter: blur(4px);
-
-  option {
-    background: var(--background-darker);
-    color: var(--text-primary);
-  }
 }
 
 .live-controls-overlay {
