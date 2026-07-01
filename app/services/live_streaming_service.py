@@ -270,11 +270,15 @@ class LiveStreamingService:
 
     async def _wait_for_playlist(self, playlist_path: Path, timeout: int = 15) -> bool:
         """Poll until the HLS playlist file exists or timeout is reached."""
+        logger.info(f"[LIVE] Waiting for HLS playlist to appear: {playlist_path}")
         deadline = asyncio.get_event_loop().time() + timeout
         while asyncio.get_event_loop().time() < deadline:
             if playlist_path.exists() and playlist_path.stat().st_size > 0:
+                elapsed = timeout - (deadline - asyncio.get_event_loop().time())
+                logger.info(f"[LIVE] HLS playlist ready after {elapsed:.1f}s")
                 return True
             await asyncio.sleep(0.5)
+        logger.warning(f"[LIVE] HLS playlist did not appear within {timeout}s: {playlist_path}")
         return False
 
     async def _log_stderr(
