@@ -394,6 +394,10 @@ class LiveStreamingService:
             f"twitch.tv/{streamer_name}",
             quality,
             "--stdout",  # Output to stdout instead of file
+            # Force H.264 only for live playback: browsers cannot decode H.265/HEVC
+            # via Media Source Extensions (hls.js + MSE). H.265 is fine for file
+            # recordings but causes audio-only playback in the browser player.
+            "--twitch-supported-codecs=h264",
         ]
 
         # Get fresh OAuth token
