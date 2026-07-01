@@ -207,18 +207,15 @@ jobs:
         id: frontend-cache
         uses: actions/cache@v6
         with:
-          path: |
-            app/frontend/dist
-            app/frontend/node_modules
-          key: frontend-build-${{ hashFiles('app/frontend/package-lock.json', 'app/frontend/src/**') }}
+          path: app/frontend/node_modules
+          key: frontend-build-${{ hashFiles('app/frontend/package-lock.json') }}
           restore-keys: |
             frontend-build-
 
       - name: Build Frontend
-        if: steps.frontend-cache.outputs.cache-hit != 'true'
         working-directory: app/frontend
         run: |
-          npm ci
+          npm ci --no-audit
           rm -rf dist || true
           npm run build
 
