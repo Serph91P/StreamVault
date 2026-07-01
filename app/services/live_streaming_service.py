@@ -278,7 +278,9 @@ class LiveStreamingService:
                 logger.info(f"[LIVE] HLS playlist ready after {elapsed:.1f}s")
                 return True
             await asyncio.sleep(0.5)
-        logger.warning(f"[LIVE] HLS playlist did not appear within {timeout}s: {playlist_path}")
+        logger.warning(
+            f"[LIVE] HLS playlist did not appear within {timeout}s: {playlist_path}"
+        )
         return False
 
     async def _log_stderr(
