@@ -282,6 +282,10 @@ const loadHlsJs = (): Promise<any> => {
   return Promise.resolve(Hls)
 }
 
+const getStoredSessionToken = (): string | null => {
+  return localStorage.getItem('streamvault_session')
+}
+
 const canUseNativeHls = (): boolean => {
   const video = document.createElement('video')
   return Boolean(video.canPlayType('application/vnd.apple.mpegurl'))
@@ -400,6 +404,13 @@ const initPlayer = async (sid: string, useNativeHls: boolean = preferNativeHls.v
         maxBufferLength: 30,
         liveSyncDurationCount: 3,
         liveMaxLatencyDurationCount: 5,
+        xhrSetup: (xhr: XMLHttpRequest) => {
+          xhr.withCredentials = true
+          const sessionToken = getStoredSessionToken()
+          if (sessionToken) {
+            xhr.setRequestHeader('Authorization', `Bearer ${sessionToken}`)
+          }
+        },
       })
 
       hlsInstance.value = hls
