@@ -131,3 +131,45 @@ def test_stop_stream_not_found():
     svc = LiveStreamingService()
     result = asyncio.run(svc.stop_stream("nonexistent"))
     assert result is False
+
+
+def test_stop_existing_user_streams_replaces_same_streamer():
+    """Test replacement cleanup only stops matching user/streamer sessions."""
+    import asyncio
+    from app.services.live_streaming_service import (
+        LiveStreamingService,
+        LiveStreamSession,
+    )
+
+    svc = LiveStreamingService()
+
+    def make_session(session_id: str, streamer_name: str, user_id: str):
+        streamlink_process = MagicMock()
+        streamlink_process.returncode = 0
+        ffmpeg_process = MagicMock()
+        ffmpeg_process.returncode = 0
+        output_dir = MagicMock()
+        output_dir.exists.return_value = False
+        return LiveStreamSession(
+            session_id=session_id,
+            streamer_name=streamer_name,
+            quality="best",
+            streamlink_process=streamlink_process,
+            ffmpeg_process=ffmpeg_process,
+            output_dir=output_dir,
+            user_id=user_id,
+        )
+
+    svc.sessions = {
+        "old": make_session("old", "HandOfBlood", "user-1"),
+        "other-streamer": make_session("other-streamer", "maxim", "user-1"),
+        "other-user": make_session("other-user", "HandOfBlood", "user-2"),
+    }
+    svc.user_sessions = {"user-1": {"old", "other-streamer"}, "user-2": {"other-user"}}
+
+    asyncio.run(svc._stop_existing_user_streams("user-1", "handofblood"))
+
+    assert "old" not in svc.sessions
+    assert "old" not in svc.user_sessions["user-1"]
+    assert "other-streamer" in svc.sessions
+    assert "other-user" in svc.sessions

@@ -126,6 +126,7 @@ class LiveStreamingService:
         quality: str = "best",
         supported_codecs: str = "h264",
         user_id: Optional[str] = None,
+        replace_existing: bool = True,
     ) -> str:
         """
         Start a new live streaming session.
@@ -135,6 +136,7 @@ class LiveStreamingService:
             quality: Stream quality (best, 1080p, 720p, etc.)
             supported_codecs: Comma-separated Twitch codecs supported by the player
             user_id: Optional user ID for session tracking
+            replace_existing: Stop an existing live session for the same user/streamer
 
         Returns:
             session_id: Unique identifier for this streaming session
@@ -142,6 +144,9 @@ class LiveStreamingService:
         Raises:
             RuntimeError: If max concurrent streams reached or stream start fails
         """
+        if replace_existing and user_id:
+            await self._stop_existing_user_streams(user_id, streamer_name)
+
         async with self._lock:
             # Check global concurrent limit
             active_count = sum(1 for s in self.sessions.values() if s.is_active)
@@ -270,6 +275,28 @@ class LiveStreamingService:
                 ffmpeg_process.kill()
             shutil.rmtree(output_dir, ignore_errors=True)
             raise
+
+    async def _stop_existing_user_streams(
+        self, user_id: str, streamer_name: str
+    ) -> None:
+        """Stop older sessions for the same user and streamer before replacement."""
+        async with self._lock:
+            session_ids = [
+                session_id
+                for session_id, session in self.sessions.items()
+                if session.is_active
+                and session.user_id == user_id
+                and session.streamer_name.lower() == streamer_name.lower()
+            ]
+
+        for session_id in session_ids:
+            logger.info(
+                "[LIVE] Replacing existing session %s for user %s (%s)",
+                session_id,
+                user_id,
+                streamer_name,
+            )
+            await self.stop_stream(session_id)
 
     async def _wait_for_playlist(self, playlist_path: Path, timeout: int = 15) -> bool:
         """Poll until the HLS playlist file exists or timeout is reached."""
