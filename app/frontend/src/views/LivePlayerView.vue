@@ -7,11 +7,11 @@
     </div>
 
     <!-- Error State -->
-    <div v-else-if="error" class="content-state">
+    <div v-else-if="error || !sessionId" class="content-state">
       <EmptyState
         icon="alert-circle"
         title="Stream Error"
-        :description="error"
+        :description="error || 'Unknown error occurred'"
         action-label="Retry"
         action-icon="refresh-cw"
         @action="retryStart"
@@ -247,6 +247,7 @@ const startStream = async () => {
     isLoading.value = true
     error.value = null
     retryCount.value = 0
+    sessionId.value = null
 
     const quality = (route.query.quality as string) || 'best'
     const response = await liveApi.startLiveStream(streamerName.value, quality)
@@ -265,6 +266,8 @@ const startStream = async () => {
   } catch (err: any) {
     console.error('Error starting stream:', err)
     error.value = err instanceof Error ? err.message : 'Failed to start live stream'
+    sessionId.value = null
+    streamInfo.value = null
   } finally {
     isLoading.value = false
   }
@@ -319,6 +322,7 @@ const initPlayer = async (sid: string) => {
             default:
               console.error('Fatal HLS error:', data)
               error.value = 'Stream playback failed. Please try again.'
+              sessionId.value = null
               destroyPlayer()
               break
           }
@@ -343,6 +347,9 @@ const initPlayer = async (sid: string) => {
   } catch (err: any) {
     console.error('Error initializing player:', err)
     error.value = err instanceof Error ? err.message : 'Failed to initialize player'
+    sessionId.value = null
+    streamInfo.value = null
+    destroyPlayer()
   }
 }
 

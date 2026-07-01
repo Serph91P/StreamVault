@@ -145,8 +145,9 @@ class LiveStreamingService:
             active_count = sum(1 for s in self.sessions.values() if s.is_active)
             if active_count >= self.MAX_CONCURRENT_STREAMS:
                 raise RuntimeError(
-                    f"Maximum concurrent streams reached ({self.MAX_CONCURRENT_STREAMS}). "
-                    "Please stop another stream first."
+                    f"Maximum concurrent streams reached"
+                    f" ({self.MAX_CONCURRENT_STREAMS})."
+                    " Please stop another stream first."
                 )
 
             # Limit per-user concurrent streams
@@ -154,8 +155,16 @@ class LiveStreamingService:
                 user_stream_count = len(self.user_sessions.get(user_id, set()))
                 if user_stream_count >= 2:
                     raise RuntimeError(
-                        "Maximum 2 concurrent streams per user. Please stop another stream first."
+                        "Maximum 2 concurrent streams per user."
+                        " Please stop another stream first."
                     )
+
+        # Verify FFmpeg is available before starting anything
+        ffmpeg_bin = os.environ.get("FFMPEG_PATH") or "ffmpeg"
+        if shutil.which(ffmpeg_bin) is None:
+            raise RuntimeError(
+                f"FFmpeg not found at '{ffmpeg_bin}'. Live streaming unavailable."
+            )
 
         # Generate unique session ID
         session_id = str(uuid.uuid4())[:8]
@@ -164,6 +173,8 @@ class LiveStreamingService:
         output_dir = Path(f"/tmp/streamvault-live/{session_id}")
         output_dir.mkdir(parents=True, exist_ok=True)
 
+        streamlink_process = None
+        ffmpeg_process = None
         try:
             # Get fresh OAuth token and proxy settings
             streamlink_cmd = await self._build_streamlink_command(
@@ -193,10 +204,36 @@ class LiveStreamingService:
                 stderr=asyncio.subprocess.PIPE,
             )
 
-            # Start background task to pipe streamlink stdout -> ffmpeg stdin
+            # Start background stderr loggers so we can diagnose failures
+            asyncio.create_task(
+                self._log_stderr(streamlink_process, f"streamlink-{session_id}")
+            )
+            asyncio.create_task(
+                self._log_stderr(ffmpeg_process, f"ffmpeg-{session_id}")
+            )
+
+            # Start piping data from streamlink stdout -> ffmpeg stdin
             asyncio.create_task(
                 self._pipe_streamlink_to_ffmpeg(streamlink_process, ffmpeg_process)
             )
+
+            # Wait for the HLS playlist to appear (with timeout)
+            playlist_path = output_dir / "playlist.m3u8"
+            playlist_ready = await self._wait_for_playlist(playlist_path, timeout=15)
+
+            if not playlist_ready:
+                # Check if processes already died
+                sl_code = streamlink_process.returncode
+                ff_code = ffmpeg_process.returncode
+                if sl_code is not None or ff_code is not None:
+                    raise RuntimeError(
+                        f"Streamlink/FFmpeg exited early (sl={sl_code}, ff={ff_code}). "
+                        "Streamer may be offline or stream is geo-blocked."
+                    )
+                raise RuntimeError(
+                    "HLS playlist did not appear within timeout. "
+                    "Streamer may be offline or stream is not accessible."
+                )
 
             # Create session
             session = LiveStreamSession(
@@ -222,11 +259,42 @@ class LiveStreamingService:
             logger.info(f"[LIVE] Session {session_id} started successfully")
             return session_id
 
-        except Exception as e:
-            # Cleanup on failure
+        except Exception:
+            # Cleanup on any failure
+            if streamlink_process and streamlink_process.returncode is None:
+                streamlink_process.kill()
+            if ffmpeg_process and ffmpeg_process.returncode is None:
+                ffmpeg_process.kill()
             shutil.rmtree(output_dir, ignore_errors=True)
-            logger.error(f"[LIVE] Failed to start stream for {streamer_name}: {e}")
-            raise RuntimeError(f"Failed to start live stream: {e}")
+            raise
+
+    async def _wait_for_playlist(self, playlist_path: Path, timeout: int = 15) -> bool:
+        """Poll until the HLS playlist file exists or timeout is reached."""
+        deadline = asyncio.get_event_loop().time() + timeout
+        while asyncio.get_event_loop().time() < deadline:
+            if playlist_path.exists() and playlist_path.stat().st_size > 0:
+                return True
+            await asyncio.sleep(0.5)
+        return False
+
+    async def _log_stderr(
+        self,
+        process: asyncio.subprocess.Process,
+        name: str,
+    ):
+        """Read stderr from a subprocess and log it for diagnostics."""
+        if not process.stderr:
+            return
+        try:
+            while True:
+                line = await process.stderr.readline()
+                if not line:
+                    break
+                text = line.decode("utf-8", errors="replace").rstrip()
+                if text:
+                    logger.debug(f"[LIVE][{name}] {text}")
+        except Exception as e:
+            logger.debug(f"[LIVE][{name}] stderr logger ended: {e}")
 
     async def stop_stream(self, session_id: str) -> bool:
         """
@@ -261,7 +329,8 @@ class LiveStreamingService:
                         await asyncio.wait_for(proc.wait(), timeout=5.0)
                     except asyncio.TimeoutError:
                         logger.warning(
-                            f"[LIVE] {name} process did not terminate gracefully, killing..."
+                            f"[LIVE] {name} process did not terminate"
+                            " gracefully, killing..."
                         )
                         proc.kill()
                         await proc.wait()
