@@ -66,6 +66,23 @@ def test_live_streaming_service_init():
     assert svc.user_sessions == {}
 
 
+def test_normalize_supported_codecs_for_live_playback():
+    """Test live codec normalization keeps recordings config out of live playback."""
+    from app.services.live_streaming_service import LiveStreamingService
+
+    assert LiveStreamingService._normalize_supported_codecs("h264") == "h264"
+    assert LiveStreamingService._normalize_supported_codecs("h264,h265") == "h264,h265"
+    assert (
+        LiveStreamingService._normalize_supported_codecs(" h265 , h264 ") == "h265,h264"
+    )
+    assert (
+        LiveStreamingService._normalize_supported_codecs("h264,h264,h265")
+        == "h264,h265"
+    )
+    assert LiveStreamingService._normalize_supported_codecs("vp9,unknown") == "h264"
+    assert LiveStreamingService._normalize_supported_codecs("") == "h264"
+
+
 def test_build_ffmpeg_command_structure():
     """Test FFmpeg command contains required arguments"""
     from app.services.live_streaming_service import LiveStreamingService

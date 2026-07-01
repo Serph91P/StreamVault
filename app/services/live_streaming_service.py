@@ -124,6 +124,7 @@ class LiveStreamingService:
         self,
         streamer_name: str,
         quality: str = "best",
+        supported_codecs: str = "h264",
         user_id: Optional[str] = None,
     ) -> str:
         """
@@ -132,6 +133,7 @@ class LiveStreamingService:
         Args:
             streamer_name: Twitch username to stream
             quality: Stream quality (best, 1080p, 720p, etc.)
+            supported_codecs: Comma-separated Twitch codecs supported by the player
             user_id: Optional user ID for session tracking
 
         Returns:
@@ -178,7 +180,7 @@ class LiveStreamingService:
         try:
             # Get fresh OAuth token and proxy settings
             streamlink_cmd = await self._build_streamlink_command(
-                streamer_name, quality
+                streamer_name, quality, supported_codecs=supported_codecs
             )
 
             # Build FFmpeg HLS command
@@ -186,7 +188,8 @@ class LiveStreamingService:
 
             logger.info(
                 f"[LIVE] Starting stream session {session_id} for {streamer_name} "
-                f"(quality: {quality})"
+                f"(quality: {quality}, codecs: "
+                f"{self._normalize_supported_codecs(supported_codecs)})"
             )
 
             # Start FFmpeg first (reads from stdin)
@@ -385,8 +388,28 @@ class LiveStreamingService:
             "playlist_url": f"/api/live/stream/{session_id}/playlist.m3u8",
         }
 
-    async def _build_streamlink_command(self, streamer_name: str, quality: str) -> list:
+    @staticmethod
+    def _normalize_supported_codecs(supported_codecs: str) -> str:
+        """Normalize live-player codec list to Streamlink's supported Twitch codecs."""
+        allowed = {"h264", "h265", "av1"}
+        codecs = []
+        for codec in (supported_codecs or "h264").split(","):
+            normalized = codec.strip().lower()
+            if normalized in allowed and normalized not in codecs:
+                codecs.append(normalized)
+
+        # Compatibility-first fallback: never let recording config leak into live
+        # playback implicitly. HEVC/AV1 must be requested by the browser/player.
+        return ",".join(codecs) if codecs else "h264"
+
+    async def _build_streamlink_command(
+        self,
+        streamer_name: str,
+        quality: str,
+        supported_codecs: str = "h264",
+    ) -> list:
         """Build Streamlink command for live streaming (no file output)"""
+        normalized_codecs = self._normalize_supported_codecs(supported_codecs)
         cmd = [
             "streamlink",
             "--config",
@@ -394,10 +417,9 @@ class LiveStreamingService:
             f"twitch.tv/{streamer_name}",
             quality,
             "--stdout",  # Output to stdout instead of file
-            # Force H.264 only for live playback: browsers cannot decode H.265/HEVC
-            # via Media Source Extensions (hls.js + MSE). H.265 is fine for file
-            # recordings but causes audio-only playback in the browser player.
-            "--twitch-supported-codecs=h264",
+            # Live playback must use the codecs the current browser/player pipeline
+            # can actually decode. Recordings may still use the global codec config.
+            f"--twitch-supported-codecs={normalized_codecs}",
         ]
 
         # Get fresh OAuth token

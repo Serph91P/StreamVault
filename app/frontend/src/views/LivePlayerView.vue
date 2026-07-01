@@ -131,6 +131,14 @@
                 <span class="info-value">{{ selectedQualityLabel }}</span>
               </div>
               <div class="info-row">
+                <span class="info-label">Codec Mode</span>
+                <span class="info-value">{{ codecModeLabel }}</span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">Codecs</span>
+                <span class="info-value">{{ activeSupportedCodecs }}</span>
+              </div>
+              <div class="info-row">
                 <span class="info-label">Status</span>
                 <span class="info-value" :class="{ 'text-live': isPlaying && !isBuffering }">
                   {{ streamStatusText }}
@@ -147,6 +155,21 @@
               Actions
             </h3>
             <div class="action-buttons">
+              <label class="codec-selector">
+                <span class="codec-selector-label">Live codec</span>
+                <select
+                  v-model="codecMode"
+                  class="codec-select"
+                  :disabled="isLoading || isStopping"
+                  @change="restartWithCodecMode"
+                >
+                  <option value="auto">Auto detect</option>
+                  <option value="h264">H264 compatibility</option>
+                  <option value="hevc">HEVC/1440p experimental</option>
+                </select>
+              </label>
+              <p class="codec-hint">{{ codecHint }}</p>
+
               <button class="action-btn danger" @click="stopStream" :disabled="isStopping" v-ripple>
                 <svg class="action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
@@ -182,6 +205,14 @@ interface HlsLevel {
   bitrate?: number
 }
 
+type LiveCodecMode = 'auto' | 'h264' | 'hevc'
+
+interface LiveCodecSelection {
+  supportedCodecs: string
+  useNativeHls: boolean
+  hevcSupported: boolean
+}
+
 const route = useRoute()
 const router = useRouter()
 
@@ -202,6 +233,14 @@ const qualityLevels = ref<Array<{ name: string; index: number }>>([])
 const selectedQuality = ref<string | number>('-1')
 const retryCount = ref(0)
 const retryTimer = ref<number | null>(null)
+const codecMode = ref<LiveCodecMode>(
+  ((route.query.codec as LiveCodecMode) ||
+    localStorage.getItem('streamvault-live-codec-mode') ||
+    'auto') as LiveCodecMode
+)
+const activeSupportedCodecs = ref('h264')
+const preferNativeHls = ref(false)
+const hevcSupported = ref(false)
 
 // Refs
 const videoElement = ref<HTMLVideoElement | null>(null)
@@ -224,11 +263,70 @@ const streamStatusText = computed(() => {
   return 'Connecting'
 })
 
+const codecModeLabel = computed(() => {
+  if (codecMode.value === 'h264') return 'H264 compatibility'
+  if (codecMode.value === 'hevc') return 'HEVC/1440p experimental'
+  return hevcSupported.value ? 'Auto (HEVC enabled)' : 'Auto (H264 fallback)'
+})
+
+const codecHint = computed(() => {
+  if (codecMode.value === 'h264') {
+    return 'Most compatible; caps live playback to H264-compatible qualities.'
+  }
+  if (codecMode.value === 'hevc') {
+    return 'Tries Twitch HEVC/1440p. If video is black, switch back to H264.'
+  }
+  return hevcSupported.value
+    ? 'HEVC appears supported here; Auto will allow 1440p/HEVC.'
+    : 'HEVC is not supported by this playback pipeline; Auto uses H264.'
+})
+
 // Load hls.js (bundled locally, no CDN dependency)
 import Hls from 'hls.js'
 
 const loadHlsJs = (): Promise<any> => {
   return Promise.resolve(Hls)
+}
+
+const canUseNativeHls = (): boolean => {
+  const video = document.createElement('video')
+  return Boolean(video.canPlayType('application/vnd.apple.mpegurl'))
+}
+
+const canUseHevcWithMse = (): boolean => {
+  if (typeof MediaSource === 'undefined') return false
+
+  const hevcCodecStrings = [
+    'video/mp4; codecs="hvc1.1.6.L120.90, mp4a.40.2"',
+    'video/mp4; codecs="hev1.1.6.L120.90, mp4a.40.2"',
+    'video/mp4; codecs="hvc1.1.6.L123.B0, mp4a.40.2"',
+    'video/mp4; codecs="hev1.1.6.L123.B0, mp4a.40.2"'
+  ]
+
+  return hevcCodecStrings.some(codec => MediaSource.isTypeSupported(codec))
+}
+
+const resolveLiveCodecSelection = (): LiveCodecSelection => {
+  const nativeHls = canUseNativeHls()
+  const mseHevc = canUseHevcWithMse()
+  const supportsHevc = nativeHls || mseHevc
+  const mode = ['auto', 'h264', 'hevc'].includes(codecMode.value)
+    ? codecMode.value
+    : 'auto'
+
+  hevcSupported.value = supportsHevc
+
+  if (mode === 'h264') {
+    return { supportedCodecs: 'h264', useNativeHls: false, hevcSupported: supportsHevc }
+  }
+
+  if (mode === 'hevc') {
+    return { supportedCodecs: 'h264,h265', useNativeHls: nativeHls, hevcSupported: supportsHevc }
+  }
+
+  return supportsHevc
+    ? { supportedCodecs: 'h264,h265', useNativeHls: nativeHls, hevcSupported: supportsHevc }
+    : { supportedCodecs: 'h264', useNativeHls: false, hevcSupported: supportsHevc }
 }
 
 // Start stream
@@ -240,7 +338,16 @@ const startStream = async () => {
     sessionId.value = null
 
     const quality = (route.query.quality as string) || 'best'
-    const response = await liveApi.startLiveStream(streamerName.value, quality)
+    const codecSelection = resolveLiveCodecSelection()
+    activeSupportedCodecs.value = codecSelection.supportedCodecs
+    preferNativeHls.value = codecSelection.useNativeHls
+    localStorage.setItem('streamvault-live-codec-mode', codecMode.value)
+
+    const response = await liveApi.startLiveStream(
+      streamerName.value,
+      quality,
+      codecSelection.supportedCodecs
+    )
 
     if (!response.success || !response.session_id) {
       throw new Error(response.message || 'Failed to start stream')
@@ -258,7 +365,7 @@ const startStream = async () => {
     // Small delay to ensure HLS playlist exists on backend
     await new Promise(r => setTimeout(r, 1500))
 
-    await initPlayer(response.session_id)
+    await initPlayer(response.session_id, codecSelection.useNativeHls)
   } catch (err: any) {
     console.error('Error starting stream:', err)
     error.value = err instanceof Error ? err.message : 'Failed to start live stream'
@@ -273,14 +380,21 @@ const startStream = async () => {
 }
 
 // Initialize HLS player
-const initPlayer = async (sid: string) => {
+const initPlayer = async (sid: string, useNativeHls: boolean = preferNativeHls.value) => {
   if (!videoElement.value) return
 
   try {
     const Hls = await loadHlsJs()
     const playlistUrl = liveApi.getPlaylistUrl(sid)
 
-    if (Hls.isSupported()) {
+    if (useNativeHls && videoElement.value.canPlayType('application/vnd.apple.mpegurl')) {
+      // Native HLS is preferred for HEVC-capable Safari/WebKit pipelines.
+      hlsInstance.value = null
+      videoElement.value.src = playlistUrl
+      videoElement.value.addEventListener('loadedmetadata', () => {
+        videoElement.value?.play().catch(() => {})
+      }, { once: true })
+    } else if (Hls.isSupported()) {
       const hls = new Hls({
         enableWorker: true,
         lowLatencyMode: true,
@@ -399,6 +513,29 @@ const retryStart = () => {
     retryTimer.value = null
   }
   startStream()
+}
+
+const restartWithCodecMode = async () => {
+  localStorage.setItem('streamvault-live-codec-mode', codecMode.value)
+  router.replace({
+    query: {
+      ...route.query,
+      codec: codecMode.value
+    }
+  }).catch(() => {})
+
+  const currentSessionId = sessionId.value
+  destroyPlayer()
+  sessionId.value = null
+  streamInfo.value = null
+  isPlaying.value = false
+  isBuffering.value = false
+
+  if (currentSessionId) {
+    await liveApi.stopLiveStream(currentSessionId).catch(() => {})
+  }
+
+  await startStream()
 }
 
 // Auto-retry logic
@@ -966,6 +1103,37 @@ onUnmounted(() => {
   @include m.respond-below('sm') {
     gap: var(--spacing-2);
   }
+}
+
+.codec-selector {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+}
+
+.codec-selector-label {
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  font-weight: v.$font-medium;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.codec-select {
+  width: 100%;
+  padding: var(--spacing-2) var(--spacing-3);
+  background: var(--background-darker);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+}
+
+.codec-hint {
+  margin: calc(var(--spacing-2) * -1) 0 0;
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  line-height: 1.4;
 }
 
 .action-btn {
