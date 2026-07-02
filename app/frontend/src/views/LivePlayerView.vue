@@ -387,7 +387,7 @@ const initPlayer = async (sid: string, useNativeHls: boolean = preferNativeHls.v
 
   try {
     const Hls = await loadHlsJs()
-    const playlistUrl = liveApi.getPlaylistUrl(sid)
+    const playlistUrl = streamInfo.value?.playlist_url || liveApi.getPlaylistUrl(sid)
 
     if (useNativeHls && videoElement.value.canPlayType('application/vnd.apple.mpegurl')) {
       // Native HLS is preferred for HEVC-capable Safari/WebKit pipelines.

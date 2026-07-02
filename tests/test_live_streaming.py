@@ -26,6 +26,10 @@ def test_live_stream_session_properties():
     assert session.streamer_name == "test_streamer"
     assert session.quality == "best"
     assert session.is_active is True
+    assert session.playback_token
+    assert session.validate_playback_token(session.playback_token) is True
+    assert session.validate_playback_token("wrong-token") is False
+    assert session.validate_playback_token(None) is False
 
     # Fresh session not expired
     assert session.is_expired(timeout_seconds=60) is False
@@ -81,6 +85,20 @@ def test_normalize_supported_codecs_for_live_playback():
     )
     assert LiveStreamingService._normalize_supported_codecs("vp9,unknown") == "h264"
     assert LiveStreamingService._normalize_supported_codecs("") == "h264"
+
+
+def test_append_playback_token_to_playlist():
+    """Test live playlist segment URIs receive playback tokens."""
+    from app.routes.live import _append_playback_token_to_playlist
+
+    playlist = "#EXTM3U\n#EXTINF:2.0,\nsegment_000.ts\nsegment_001.ts?range=1\n"
+
+    rewritten = _append_playback_token_to_playlist(playlist, "abc+/=")
+
+    assert "#EXTM3U" in rewritten
+    assert "segment_000.ts?token=abc%2B%2F%3D" in rewritten
+    assert "segment_001.ts?range=1&token=abc%2B%2F%3D" in rewritten
+    assert rewritten.endswith("\n")
 
 
 def test_build_ffmpeg_command_structure():

@@ -121,6 +121,9 @@ class AuthMiddleware:
             "/api/twitch/auth-url",
             # Public video sharing (share-token authenticated)
             "/api/videos/public/",
+            # Live HLS playback uses per-session playback tokens in the route.
+            # Native video/HLS requests cannot reliably attach Authorization headers.
+            "/api/live/stream/",
             # PWA assets (must load before login screen renders)
             "/assets/",
             "/registerSW.js",
