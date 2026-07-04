@@ -405,18 +405,19 @@ async def get_quality_options():
     Get available quality options based on OAuth token configuration.
 
     Returns quality options with enabled/disabled status based on whether
-    TWITCH_OAUTH_TOKEN is configured. 1440p requires OAuth authentication.
+    a database or environment Twitch token is configured. 1440p requires
+    OAuth authentication.
     """
     try:
-        from app.config.settings import settings
+        from app.database import SessionLocal
         from app.services.system.streamlink_config_service import (
             streamlink_config_service,
         )
+        from app.services.system.twitch_token_service import TwitchTokenService
 
-        # Check if OAuth token is configured
-        has_oauth = bool(
-            settings.TWITCH_OAUTH_TOKEN and settings.TWITCH_OAUTH_TOKEN.strip()
-        )
+        with SessionLocal() as db:
+            token_service = TwitchTokenService(db)
+            has_oauth = bool(await token_service.get_valid_access_token())
 
         # Get quality options with availability info
         qualities = streamlink_config_service.get_available_qualities(has_oauth)
@@ -426,7 +427,7 @@ async def get_quality_options():
             "oauth_configured": has_oauth,
             "message": "H.265/1440p available"
             if has_oauth
-            else "Set TWITCH_OAUTH_TOKEN for H.265/1440p access",
+            else "Save a Twitch OAuth token for H.265/1440p access",
         }
     except Exception as e:
         logger.error(f"Error getting quality options: {e}")
@@ -442,12 +443,12 @@ async def get_codec_options():
     H.265/HEVC and AV1 require OAuth authentication on Twitch.
     """
     try:
-        from app.config.settings import settings
+        from app.database import SessionLocal
+        from app.services.system.twitch_token_service import TwitchTokenService
 
-        # Check if OAuth token is configured
-        has_oauth = bool(
-            settings.TWITCH_OAUTH_TOKEN and settings.TWITCH_OAUTH_TOKEN.strip()
-        )
+        with SessionLocal() as db:
+            token_service = TwitchTokenService(db)
+            has_oauth = bool(await token_service.get_valid_access_token())
 
         codecs = [
             {
@@ -489,7 +490,7 @@ async def get_codec_options():
             "oauth_configured": has_oauth,
             "message": "H.265/AV1 codecs available"
             if has_oauth
-            else "Set TWITCH_OAUTH_TOKEN for H.265/AV1 codecs",
+            else "Save a Twitch OAuth token for H.265/AV1 codecs",
             "note": "Codec availability depends on streamer's broadcast settings and Twitch's transcoding",
         }
     except Exception as e:

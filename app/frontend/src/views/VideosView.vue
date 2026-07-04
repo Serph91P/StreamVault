@@ -191,24 +191,56 @@
         v-for="video in filteredAndSortedVideos"
         :key="video.id"
         class="video-wrapper"
-        :class="{ selected: isSelected(video.id) }"
+        :class="{ selected: isSelected(video.id), selectable: selectMode }"
       >
         <!-- Checkbox for Select Mode -->
-        <div v-if="selectMode" class="select-checkbox" @click.stop="toggleSelection(video.id)">
+        <label v-if="selectMode" class="select-checkbox" :aria-label="`Select ${video.title || 'video'}`" @click.stop>
           <input
             type="checkbox"
             :checked="isSelected(video.id)"
-            @change="toggleSelection(video.id)"
+            @change="handleSelectionChange(video.id, $event)"
           />
-        </div>
+          <span class="checkbox-box" aria-hidden="true">
+            <svg class="checkbox-check">
+              <use href="#icon-check" />
+            </svg>
+          </span>
+        </label>
 
         <VideoCard
           :video="video"
           :view-mode="viewMode"
-          @click="selectMode ? toggleSelection(video.id) : playVideo(video)"
+          :disable-navigation="selectMode"
+          @play="playVideo"
+          @select="toggleSelection(video.id)"
         />
       </div>
     </div>
+
+    <BaseModal
+      v-model="showDeleteConfirm"
+      title="Delete selected videos?"
+      size="sm"
+      :close-on-backdrop="!isDeleting"
+      :close-on-esc="!isDeleting"
+    >
+      <p class="confirm-message">
+        This will delete {{ selectedVideos.length }} selected {{ selectedVideos.length === 1 ? 'video' : 'videos' }} and queue cleanup of associated files. This action cannot be undone.
+      </p>
+      <p v-if="deleteError" class="delete-error" role="alert">{{ deleteError }}</p>
+
+      <template #footer>
+        <button type="button" class="btn-action btn-secondary" :disabled="isDeleting" @click="showDeleteConfirm = false">
+          No, keep videos
+        </button>
+        <button type="button" class="btn-action btn-danger" :disabled="isDeleting" @click="confirmBatchDelete">
+          <svg v-if="!isDeleting" class="icon">
+            <use href="#icon-trash" />
+          </svg>
+          {{ isDeleting ? 'Deleting…' : 'Yes, delete' }}
+        </button>
+      </template>
+    </BaseModal>
   </div>
 </template>
 
@@ -219,6 +251,7 @@ import { videoApi } from '@/services/api'
 import LoadingSkeleton from '@/components/LoadingSkeleton.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import VideoCard from '@/components/cards/VideoCard.vue'
+import BaseModal from '@/components/base/BaseModal.vue'
 
 const router = useRouter()
 
@@ -238,6 +271,9 @@ const filterDuration = ref('')
 // Selection
 const selectMode = ref(false)
 const selectedVideos = ref<number[]>([])
+const showDeleteConfirm = ref(false)
+const isDeleting = ref(false)
+const deleteError = ref('')
 
 // Available filter options
 const availableStreamers = computed(() => {
@@ -356,17 +392,10 @@ const filteredAndSortedVideos = computed(() => {
 async function fetchVideos() {
   isLoading.value = true
   try {
-    console.log('[VideosView] Fetching all videos...')
     const response = await videoApi.getAll()
-    console.log('[VideosView] API response:', response)
     
     // Backend returns array directly (not wrapped in { data: [] })
     videos.value = Array.isArray(response) ? response : (response.data || [])
-    console.log('[VideosView] Loaded videos count:', videos.value.length)
-    
-    if (videos.value.length > 0) {
-      console.log('[VideosView] Sample video:', videos.value[0])
-    }
   } catch (error: any) {
     console.error('[VideosView] Failed to fetch videos:', error)
     console.error('[VideosView] Error details:', {
@@ -401,6 +430,8 @@ function toggleSelectMode() {
   selectMode.value = !selectMode.value
   if (!selectMode.value) {
     selectedVideos.value = []
+    showDeleteConfirm.value = false
+    deleteError.value = ''
   }
 }
 
@@ -417,9 +448,42 @@ function toggleSelection(id: number) {
   }
 }
 
+function handleSelectionChange(id: number, event: Event) {
+  const checked = (event.target as HTMLInputElement).checked
+  const isAlreadySelected = selectedVideos.value.includes(id)
+
+  if (checked && !isAlreadySelected) {
+    selectedVideos.value.push(id)
+  } else if (!checked && isAlreadySelected) {
+    selectedVideos.value = selectedVideos.value.filter(videoId => videoId !== id)
+  }
+}
+
 function handleBatchDelete() {
-  console.log('Batch delete:', selectedVideos.value)
-  // TODO: Implement batch delete
+  if (selectedVideos.value.length === 0) return
+  deleteError.value = ''
+  showDeleteConfirm.value = true
+}
+
+async function confirmBatchDelete() {
+  if (selectedVideos.value.length === 0 || isDeleting.value) return
+
+  const idsToDelete = [...selectedVideos.value]
+  isDeleting.value = true
+  deleteError.value = ''
+
+  try {
+    await videoApi.deleteMultiple(idsToDelete)
+    videos.value = videos.value.filter(video => !idsToDelete.includes(video.id))
+    selectedVideos.value = []
+    selectMode.value = false
+    showDeleteConfirm.value = false
+  } catch (error: any) {
+    console.error('[VideosView] Failed to delete selected videos:', error)
+    deleteError.value = error?.message || 'Failed to delete selected videos. Please try again.'
+  } finally {
+    isDeleting.value = false
+  }
 }
 
 function clearFilters() {
@@ -837,10 +901,18 @@ onMounted(() => {
   position: relative;
   transition: all v.$duration-200 v.$ease-out;
 
+  &.selectable {
+    cursor: pointer;
+  }
+
   &.selected {
-    outline: 2px solid var(--primary-color);
-    outline-offset: 4px;
+    outline: 2px solid rgba(var(--primary-500-rgb), 0.75);
+    outline-offset: 3px;
     border-radius: var(--radius-xl);
+
+    :deep(.video-card) {
+      box-shadow: 0 0 0 1px rgba(var(--primary-500-rgb), 0.3), 0 12px 32px rgba(var(--primary-500-rgb), 0.18);
+    }
   }
 }
 
@@ -849,43 +921,93 @@ onMounted(() => {
   top: var(--spacing-2);
   left: var(--spacing-2);
   z-index: 10;
-  min-width: 44px;
-  min-height: 44px;
+  width: 48px;
+  height: 48px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--glass-bg-strong);
+  background: rgba(15, 23, 42, 0.58);
   backdrop-filter: blur(var(--glass-blur-md));
   -webkit-backdrop-filter: blur(var(--glass-blur-md));
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-sm);
+  border: none;
+  border-radius: var(--radius-full);
   cursor: pointer;
   transition: all v.$duration-200 v.$ease-out;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
 
   &:hover {
-    background: var(--glass-bg-solid);
-    border-color: var(--primary-color);
+    background: rgba(15, 23, 42, 0.78);
     transform: scale(1.05);
   }
 
   input[type="checkbox"] {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    cursor: pointer;
+    margin: 0;
+  }
+
+  .checkbox-box {
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid rgba(255, 255, 255, 0.85);
+    border-radius: var(--radius-md);
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+    transition: all v.$duration-200 v.$ease-out;
+  }
+
+  .checkbox-check {
     width: 16px;
     height: 16px;
-    cursor: pointer;
-    accent-color: var(--primary-color);
-    margin: 0;
+    stroke: currentColor;
+    fill: none;
+    opacity: 0;
+    transform: scale(0.75);
+    transition: all v.$duration-150 v.$ease-out;
+  }
+
+  input[type="checkbox"]:checked + .checkbox-box {
+    border-color: var(--primary-color);
+    background: var(--primary-color);
+  }
+
+  input[type="checkbox"]:checked + .checkbox-box .checkbox-check {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  input[type="checkbox"]:focus-visible + .checkbox-box {
+    outline: 2px solid white;
+    outline-offset: 3px;
   }
 
   // Mobile: Larger touch target
   @include m.respond-below('md') {  // < 768px
-    min-width: 44px;
-    min-height: 44px;
-    
-    input[type="checkbox"] {
-      width: 20px;
-      height: 20px;
-    }
+    width: 52px;
+    height: 52px;
   }
+}
+
+.confirm-message {
+  margin: 0;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.delete-error {
+  margin: var(--spacing-4) 0 0;
+  padding: var(--spacing-3);
+  border-radius: var(--radius-md);
+  background: rgba(var(--danger-500-rgb), 0.1);
+  color: var(--danger-color);
+  font-size: var(--text-sm);
 }
 
 // Transitions

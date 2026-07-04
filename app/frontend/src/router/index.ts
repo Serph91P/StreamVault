@@ -12,6 +12,7 @@ const StreamerDetailView = () => import('../views/StreamerDetailView.vue');
 const StreamersView = () => import('../views/StreamersView.vue');
 const VideoPlayerView = () => import('../views/VideoPlayerView.vue');
 const VideosView = () => import('../views/VideosView.vue');
+const LivePlayerView = () => import('../views/LivePlayerView.vue');
 
 // Disable browser's native scroll restoration so we control scroll manually
 if ('scrollRestoration' in history) {
@@ -104,6 +105,11 @@ const router = createRouter({
       path: '/streamer/:streamerId/stream/:streamId/watch',
       name: 'VideoPlayer',
       component: VideoPlayerView
+    },
+    {
+      path: '/live/:streamer',
+      name: 'live-player',
+      component: LivePlayerView
     },
   ],
 });

@@ -54,6 +54,17 @@
           <!-- Action Buttons -->
           <div class="profile-actions">
             <button
+              v-if="streamer.is_live"
+              @click="handleWatchLive(null)"
+              class="btn-action btn-live"
+              v-ripple
+            >
+              <svg class="icon">
+                <use href="#icon-play" />
+              </svg>
+              Watch Live
+            </button>
+            <button
               v-if="!streamer.is_recording"
               @click="forceStartRecording(Number(streamerId))"
               class="btn-action btn-primary"
@@ -451,7 +462,8 @@ async function deleteAll() {
 
 function handleWatchLive(_stream: any) {
   if (!streamer.value) return
-  window.open(`https://twitch.tv/${streamer.value.username}`, '_blank', 'noopener,noreferrer')
+  // Route to internal live player instead of external Twitch
+  router.push(`/live/${streamer.value.username}`)
 }
 
 function handleForceRecord(_stream: any) {
@@ -799,6 +811,18 @@ watch(messages, (newMessages) => {
   }
 
   &.btn-danger {
+    background: var(--danger-color);
+    color: white;
+    box-shadow: var(--glass-shadow-sm);
+
+    &:hover:not(:disabled) {
+      background: var(--danger-600);
+      transform: translateY(-2px);
+      box-shadow: var(--glass-shadow-md);
+    }
+  }
+
+  &.btn-live {
     background: var(--danger-color);
     color: white;
     box-shadow: var(--glass-shadow-sm);

@@ -498,6 +498,35 @@ export const filenamePresetsApi = {
     apiClient.get('/api/recording/filename-presets')
 }
 
+// Live Streaming API endpoints
+export const liveApi = {
+  // Start a live stream for a streamer
+  startLiveStream: (
+    streamerName: string,
+    quality: string = 'best',
+    supportedCodecs: string = 'h264'
+  ) => apiClient.post(`/api/live/start/${streamerName}`, {
+    quality,
+    supported_codecs: supportedCodecs
+  }),
+
+  // Stop a live stream session
+  stopLiveStream: (sessionId: string) =>
+    apiClient.delete(`/api/live/stop/${sessionId}`),
+
+  // Get live stream status
+  getLiveStreamStatus: (sessionId: string) =>
+    apiClient.get(`/api/live/status/${sessionId}`),
+
+  // Get all active live streams
+  getActiveLiveStreams: () =>
+    apiClient.get('/api/live/active'),
+
+  // Get HLS playlist URL
+  getPlaylistUrl: (sessionId: string): string =>
+    `/api/live/stream/${sessionId}/playlist.m3u8`,
+}
+
 // Video API endpoints
 export const videoApi = {
   // Get all videos
@@ -535,6 +564,14 @@ export const videoApi = {
   // Get video thumbnail
   getThumbnail: (streamId: number) => 
     apiClient.get(`/api/videos/${streamId}/thumbnail`),
+
+  // Delete videos. VideosView receives stream IDs from /api/videos, and the
+  // backend deletion implementation lives under /api/streams/{stream_id}.
+  delete: (streamId: number) =>
+    apiClient.delete(`/api/streams/${streamId}`),
+
+  deleteMultiple: (streamIds: number[]) =>
+    Promise.all(streamIds.map(streamId => apiClient.delete(`/api/streams/${streamId}`))),
 
   // Get public video (shared)
   getPublicVideo: (streamId: number) => 

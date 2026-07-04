@@ -18,8 +18,12 @@
           <div class="detail-item">
             <span class="detail-label">Status:</span>
             <span class="detail-value" :class="{ 'text-success': connectionStatus.valid, 'text-warning': !connectionStatus.valid }">
-              {{ connectionStatus.valid ? 'Active & Valid' : 'Token Expired (will auto-refresh)' }}
+              {{ statusDetailText }}
             </span>
+          </div>
+          <div v-if="connectionStatus.source" class="detail-item">
+            <span class="detail-label">Source:</span>
+            <span class="detail-value">{{ formatSource(connectionStatus.source) }}</span>
           </div>
           <div v-if="connectionStatus.expires_at" class="detail-item">
             <span class="detail-label">Expires:</span>
@@ -29,14 +33,14 @@
       </div>
 
       <!-- Browser Token Setup (Recommended Method) -->
-      <div v-if="!connectionStatus.connected" class="setup-section">
+      <div class="setup-section">
         <div class="setup-header">
           <svg class="setup-icon" viewBox="0 0 24 24">
             <path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
           </svg>
           <div>
             <h4 class="setup-title">Manual Token Setup (Recommended)</h4>
-            <p class="setup-subtitle">For H.265/1440p quality, you need a browser authentication token</p>
+            <p class="setup-subtitle">Save or replace the browser authentication token used for H.265/1440p quality</p>
           </div>
         </div>
 
@@ -87,14 +91,32 @@
             <li class="step-item">
               <span class="step-number">5</span>
               <div class="step-content">
-                <strong>Set it as environment variable</strong> in docker-compose.yml:
-                <div class="code-block">
-                  <code>TWITCH_OAUTH_TOKEN=your_token_here</code>
-                </div>
+                <strong>Paste and save it below</strong>. StreamVault stores the token encrypted in the database. Existing TWITCH_OAUTH_TOKEN environment values are still used as a fallback.
               </div>
             </li>
           </ol>
         </div>
+
+        <form class="manual-token-form" @submit.prevent="saveManualToken">
+          <label class="token-label" for="twitch-oauth-token">Twitch OAuth token</label>
+          <div class="token-input-row">
+            <input
+              id="twitch-oauth-token"
+              v-model="manualToken"
+              class="token-input"
+              type="password"
+              autocomplete="off"
+              placeholder="Paste your auth-token value"
+              :disabled="isLoading"
+            />
+            <button type="submit" class="btn-action btn-primary" :disabled="isLoading || !manualToken.trim()" v-ripple>
+              Save token
+            </button>
+          </div>
+          <p class="token-help">
+            The token is validated with Twitch before it is stored. It is never shown again after saving.
+          </p>
+        </form>
 
         <div class="info-box info-box-info">
           <svg class="info-icon" viewBox="0 0 24 24">
@@ -167,6 +189,8 @@ interface ConnectionStatus {
   connected: boolean
   valid: boolean
   expires_at: string | null
+  source?: string | null
+  has_env_token?: boolean
 }
 
 const toast = useToast()
@@ -179,6 +203,7 @@ const connectionStatus = ref<ConnectionStatus>({
 
 const isLoading = ref(false)
 const callbackUrl = ref('')
+const manualToken = ref('')
 
 const statusClass = computed(() => ({
   'status-connected': connectionStatus.value.connected && connectionStatus.value.valid,
@@ -188,18 +213,34 @@ const statusClass = computed(() => ({
 
 const statusTitle = computed(() => {
   if (!connectionStatus.value.connected) return 'Twitch Connection'
-  if (!connectionStatus.value.valid) return 'Connected (Token Expiring)'
-  return 'Connected to Twitch'
+  if (connectionStatus.value.valid) return 'Connected to Twitch'
+  if (connectionStatus.value.source === 'database_manual') return 'Connected (Browser Token Expired)'
+  if (connectionStatus.value.source === 'database_oauth' || connectionStatus.value.source === 'oauth_refresh') {
+    return 'Connected (Refresh Needed)'
+  }
+  return 'Connected (Token Needs Attention)'
 })
 
 const statusDescription = computed(() => {
-  if (!connectionStatus.value.connected) {
-    return 'Browser token from environment is used for recordings. OAuth optional for follower sync.'
+  if (!connectionStatus.value.connected) return 'No Twitch token is configured yet'
+  if (connectionStatus.value.source === 'environment') return 'Using TWITCH_OAUTH_TOKEN environment fallback. You can save a replacement below.'
+  if (!connectionStatus.value.valid && connectionStatus.value.source === 'database_manual') {
+    return 'Save a fresh browser token below. Manual browser tokens cannot auto-refresh.'
   }
-  if (!connectionStatus.value.valid) {
-    return 'Your token will be automatically refreshed on next recording'
+  if (!connectionStatus.value.valid && (connectionStatus.value.source === 'database_oauth' || connectionStatus.value.source === 'oauth_refresh')) {
+    return 'The OAuth app token will be refreshed on the next recording.'
   }
+  if (!connectionStatus.value.valid) return 'The configured Twitch token needs attention.'
   return 'Your account is connected and tokens are valid'
+})
+
+const statusDetailText = computed(() => {
+  if (connectionStatus.value.valid) return 'Active & Valid'
+  if (connectionStatus.value.source === 'database_manual') return 'Browser Token Expired'
+  if (connectionStatus.value.source === 'database_oauth' || connectionStatus.value.source === 'oauth_refresh') {
+    return 'Refresh Needed'
+  }
+  return 'Token Needs Attention'
 })
 
 onMounted(async () => {
@@ -291,7 +332,9 @@ async function disconnectTwitch() {
       connectionStatus.value = {
         connected: false,
         valid: false,
-        expires_at: null
+        expires_at: null,
+        source: null,
+        has_env_token: false
       }
       
       toast.success('Your Twitch account has been disconnected')
@@ -310,6 +353,38 @@ async function refreshStatus() {
   isLoading.value = false
   
   toast.info('Connection status has been updated')
+}
+
+async function saveManualToken() {
+  const token = manualToken.value.trim()
+  if (!token) return
+
+  try {
+    isLoading.value = true
+
+    const response = await fetch('/api/twitch/manual-token', {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ token })
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.detail || 'Failed to save token')
+    }
+
+    manualToken.value = ''
+    await fetchConnectionStatus()
+    toast.success('Twitch OAuth token saved securely')
+  } catch (error) {
+    console.error('Failed to save Twitch OAuth token:', error)
+    toast.error(error instanceof Error ? error.message : 'Could not save Twitch OAuth token')
+  } finally {
+    isLoading.value = false
+  }
 }
 
 async function copyTokenCommand() {
@@ -338,6 +413,14 @@ function formatExpiration(expiresAt: string): string {
   } else {
     return 'Expired (will auto-refresh)'
   }
+}
+
+function formatSource(source: string): string {
+  if (source === 'database_manual') return 'Encrypted database browser token'
+  if (source === 'database_oauth') return 'Encrypted OAuth app token'
+  if (source === 'environment') return 'TWITCH_OAUTH_TOKEN environment fallback'
+  if (source === 'oauth_refresh') return 'OAuth refresh token'
+  return source
 }
 </script>
 
@@ -467,6 +550,7 @@ function formatExpiration(expiresAt: string): string {
 .detail-item {
   display: flex;
   justify-content: space-between;
+  gap: v.$spacing-4;
   font-size: v.$text-sm;
   
   &:not(:last-child) {
@@ -475,6 +559,7 @@ function formatExpiration(expiresAt: string): string {
 }
 
 .detail-label {
+  flex-shrink: 0;
   color: var(--text-secondary);
   font-weight: v.$font-medium;
 }
@@ -482,6 +567,7 @@ function formatExpiration(expiresAt: string): string {
 .detail-value {
   color: var(--text-primary);
   font-weight: v.$font-semibold;
+  text-align: right;
 }
 
 @keyframes pulse {
@@ -702,7 +788,9 @@ function formatExpiration(expiresAt: string): string {
 }
 
 .code-block {
-  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
   margin-top: var(--spacing-2);
   padding: var(--spacing-3);
   background: transparent;
@@ -710,22 +798,29 @@ function formatExpiration(expiresAt: string): string {
   border: 1px solid var(--border-color);
   font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
   font-size: 12px;
-  overflow-x: auto;
+  overflow: hidden;
 
   code {
+    flex: 1;
     color: var(--text-primary);
-    word-break: break-all;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    min-width: 0;
   }
 }
 
 .btn-copy {
-  position: absolute;
-  top: var(--spacing-2);
-  right: var(--spacing-2);
-  padding: var(--spacing-2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
   background: var(--background-card);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
+  flex-shrink: 0;
   cursor: pointer;
   transition: var(--transition-base);
   
@@ -739,6 +834,46 @@ function formatExpiration(expiresAt: string): string {
     height: 16px;
     display: block;
   }
+}
+
+// Manual Token Form
+.manual-token-form {
+  padding: var(--spacing-4);
+  margin: var(--spacing-4) 0;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  background: rgba(var(--primary-color-rgb, 66, 184, 131), 0.04);
+}
+
+.token-label {
+  display: block;
+  margin-bottom: var(--spacing-2);
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+}
+
+.token-input-row {
+  display: flex;
+  gap: var(--spacing-3);
+  align-items: stretch;
+}
+
+.token-input {
+  flex: 1;
+  min-width: 0;
+  padding: var(--spacing-3);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--background-card);
+  color: var(--text-primary);
+  font: inherit;
+}
+
+.token-help {
+  margin: var(--spacing-2) 0 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
 }
 
 // Benefits Section
@@ -824,7 +959,8 @@ function formatExpiration(expiresAt: string): string {
     margin-bottom: v.$spacing-4;
   }
   
-  .form-actions {
+  .form-actions,
+  .token-input-row {
     flex-direction: column;
     
     .btn {

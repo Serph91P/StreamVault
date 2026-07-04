@@ -28,6 +28,7 @@ from app.routes import admin as admin_router
 from app.routes import migration as migration_router
 from app.routes import version as version_router
 from app.routes import api_keys as api_keys_router
+from app.routes import live as live_router
 from app.api import unified_recovery_endpoints
 from app.api import automated_recovery_endpoints
 from app.services.system.development_test_runner import run_development_tests
@@ -360,6 +361,16 @@ async def lifespan(app: FastAPI):
             logger.info("✅ Recording service shutdown completed")
         except Exception as e:
             logger.error(f"❌ Error during recording service shutdown: {e}")
+
+    # Shutdown live streaming service
+    try:
+        logger.info("🔄 Stopping live streaming service...")
+        from app.services.live_streaming_service import live_streaming_service
+
+        await live_streaming_service.stop()
+        logger.info("✅ Live streaming service stopped successfully")
+    except Exception as e:
+        logger.error(f"❌ Error during live streaming service shutdown: {e}")
 
     # Shutdown active recordings broadcaster
     try:
@@ -1013,6 +1024,7 @@ app.include_router(
 app.include_router(logging_router.router)
 app.include_router(categories.router)
 app.include_router(videos.router)  # Router already has /api prefix
+app.include_router(live_router.router)  # Live streaming routes
 app.include_router(images.router)  # Images serving routes
 app.include_router(api_images.router)  # Images API routes
 app.include_router(background_queue.router, prefix="/api")  # Background queue routes

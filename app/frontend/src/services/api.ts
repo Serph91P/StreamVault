@@ -223,6 +223,37 @@ const mockFilenamePresetsApi = {
   delete: (_id: number) => mockResponse({ success: true })
 }
 
+const mockLiveApi = {
+  startLiveStream: (
+    streamerName: string,
+    quality: string = 'best',
+    supportedCodecs: string = 'h264'
+  ) => mockResponse({
+    success: true,
+    session_id: `mock-live-${Date.now()}`,
+    streamer_name: streamerName,
+    quality,
+    supported_codecs: supportedCodecs,
+    playlist_url: '/api/live/stream/mock/playlist.m3u8',
+    message: 'Stream started (mock)'
+  }),
+  stopLiveStream: (_sessionId: string) => mockResponse({
+    success: true,
+    message: 'Stream stopped (mock)'
+  }),
+  getLiveStreamStatus: (sessionId: string) => mockResponse({
+    session_id: sessionId,
+    streamer_name: 'mock_streamer',
+    quality: 'best',
+    is_active: true,
+    created_at: new Date().toISOString(),
+    last_accessed: new Date().toISOString(),
+    playlist_url: '/api/live/stream/mock/playlist.m3u8'
+  }),
+  getActiveLiveStreams: () => mockResponse({ streams: [] }),
+  getPlaylistUrl: (sessionId: string): string => `/api/live/stream/${sessionId}/playlist.m3u8`
+}
+
 // ============================================================================
 // REAL API IMPORTS
 // ============================================================================
@@ -262,3 +293,11 @@ export const proxyApi = USE_MOCK_DATA ? mockProxyApi : {
   test: () => Promise.resolve({ success: false }),
   healthCheck: () => Promise.resolve({ healthy: 0, unhealthy: 0 })
 }
+
+export const liveApi = USE_MOCK_DATA ? mockLiveApi : (realApi.liveApi || {
+  startLiveStream: () => Promise.resolve({ success: false }),
+  stopLiveStream: () => Promise.resolve({ success: false }),
+  getLiveStreamStatus: () => Promise.resolve(null),
+  getActiveLiveStreams: () => Promise.resolve({ streams: [] }),
+  getPlaylistUrl: (sessionId: string) => `/api/live/stream/${sessionId}/playlist.m3u8`
+})
