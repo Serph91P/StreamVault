@@ -157,31 +157,10 @@
 
         <div v-if="notificationPermission === 'granted' && pushState === 'subscribed'" class="setting-item settings-item">
           <div class="setting-info settings-item__info">
-            <label>Test Notification</label>
+            <label>Delivery Test</label>
             <p class="setting-description">
-              Send a test push notification to verify everything is working
+              Push tests are available in Admin Diagnostics so routine settings stay focused on user preferences.
             </p>
-          </div>
-          <div class="setting-control settings-item__actions">
-            <button
-              @click="sendTestNotification"
-              class="btn btn-secondary"
-              :disabled="isSendingTest"
-            >
-              <svg class="icon" aria-hidden="true">
-                <use xlink:href="#icon-send"></use>
-              </svg>
-              {{ isSendingTest ? 'Sending...' : 'Send Test' }}
-            </button>
-            <button
-              @click="sendLocalTestNotification"
-              class="btn btn-primary btn-spacing"
-            >
-              <svg class="icon" aria-hidden="true">
-                <use xlink:href="#icon-smartphone"></use>
-              </svg>
-              Test Local
-            </button>
           </div>
         </div>
       </div>
@@ -236,13 +215,11 @@ const {
   installPWA,
   subscribeToPush,
   unsubscribeFromPush,
-  showNotification,
   requestNotificationPermission
 } = usePWA()
 
 const isEnablingNotifications = ref(false)
 const isDisablingNotifications = ref(false)
-const isSendingTest = ref(false)
 const statusMessage = ref('')
 const statusType = ref('')
 
@@ -318,71 +295,6 @@ const disableNotifications = async () => {
   }
 }
 
-const sendTestNotification = async () => {
-  if (!('Notification' in window) || Notification.permission !== 'granted') {
-    showStatus('Notification permission not granted. Enable notifications first.', 'error')
-    return
-  }
-
-  try {
-    isSendingTest.value = true
-
-    const response = await fetch('/api/push/test', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      credentials: 'include'
-    })
-
-    if (response.ok) {
-      const result = await response.json()
-      if (result.success && result.sent_count > 0) {
-        showStatus(result.message, 'success')
-        return
-      } else {
-        console.warn('Server push failed:', result.message)
-      }
-    }
-
-    try {
-      await showNotification('StreamVault Test (Local)', {
-        body: 'This is a local test notification. If you see this, your browser supports notifications!',
-        icon: '/android-icon-192x192.png',
-        badge: '/android-icon-96x96.png',
-        tag: 'test-local-notification',
-        requireInteraction: true,
-        data: {
-          type: 'test_local',
-          timestamp: Date.now()
-        }
-      })
-
-      showStatus('Local test notification sent successfully', 'success')
-
-    } catch (localError) {
-      console.error('Local notification also failed:', localError)
-
-      if ('Notification' in window && Notification.permission === 'granted') {
-        new Notification('StreamVault Test (Native)', {
-          body: 'This is a native browser notification. Notifications are working!',
-          icon: '/android-icon-192x192.png',
-          tag: 'test-native-notification'
-        })
-        showStatus('Native test notification sent successfully', 'success')
-      } else {
-        throw new Error('All notification methods failed')
-      }
-    }
-
-  } catch (error) {
-    console.error('Failed to send test notification:', error)
-    showStatus('Failed to send test notification. Check console for details.', 'error')
-  } finally {
-    isSendingTest.value = false
-  }
-}
-
 const showStatus = (message: string, type: 'success' | 'error' | 'info') => {
   statusMessage.value = message
   statusType.value = type
@@ -391,41 +303,6 @@ const showStatus = (message: string, type: 'success' | 'error' | 'info') => {
     statusMessage.value = ''
     statusType.value = ''
   }, 5000)
-}
-
-const sendLocalTestNotification = async () => {
-  if (!('serviceWorker' in navigator) || !('Notification' in window)) {
-    showStatus('PWA features not supported in this browser', 'error')
-    return
-  }
-
-  if (Notification.permission !== 'granted') {
-    showStatus('Notification permission not granted. Enable notifications first.', 'error')
-    return
-  }
-
-  try {
-    const notificationOptions: any = {
-      body: 'This is a local PWA test notification. If you see this, your PWA notifications are working!',
-      icon: '/android-icon-192x192.png',
-      badge: '/android-icon-96x96.png',
-      tag: 'pwa-test',
-      requireInteraction: true,
-      vibrate: [200, 100, 200],
-      actions: [
-        {
-          action: 'close',
-          title: 'Close'
-        }
-      ]
-    }
-
-    await showNotification('StreamVault PWA Test', notificationOptions)
-    showStatus('Local PWA notification sent! Check your device.', 'success')
-  } catch (error) {
-    console.error('Local test notification failed:', error)
-    showStatus('Local test notification failed', 'error')
-  }
 }
 
 </script>
