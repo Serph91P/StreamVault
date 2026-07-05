@@ -15,6 +15,16 @@ export const useNotificationStore = defineStore('notifications', () => {
   const notifications = ref<StoredNotification[]>([])
   const filter = ref<NotificationFilter>('all')
 
+  function notificationIdentity(notification: Pick<StoredNotification, 'event_id' | 'dedupe_key' | 'type' | 'timestamp'>): string {
+    const eventId = notification.event_id?.trim()
+    if (eventId) return `event:${eventId}`
+
+    const dedupeKey = notification.dedupe_key?.trim()
+    if (dedupeKey) return `dedupe:${dedupeKey}`
+
+    return `fallback:${notification.type}:${notification.timestamp}`
+  }
+
   const sortedNotifications = computed(() => {
     return [...notifications.value].sort((a, b) => {
       return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
@@ -89,12 +99,8 @@ export const useNotificationStore = defineStore('notifications', () => {
       read: false
     }
 
-    const existingIndex = notifications.value.findIndex((n) => {
-      return (
-        n.event_id === newNotification.event_id ||
-        n.dedupe_key === newNotification.dedupe_key
-      )
-    })
+    const newIdentity = notificationIdentity(newNotification)
+    const existingIndex = notifications.value.findIndex((n) => notificationIdentity(n) === newIdentity)
 
     if (existingIndex >= 0) {
       newNotification.read = notifications.value[existingIndex].read
@@ -118,6 +124,10 @@ export const useNotificationStore = defineStore('notifications', () => {
       n.read_at = n.read_at || now
     })
     writeNotifications(notifications.value)
+
+    notificationApi.markRead(now).catch((error) => {
+      console.error('Failed to mark notifications as read on backend:', error)
+    })
   }
 
   function markRead(id: string): void {

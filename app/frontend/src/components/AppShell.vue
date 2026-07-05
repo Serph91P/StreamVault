@@ -48,10 +48,20 @@
           aria-labelledby="notification-panel-title"
           tabindex="-1"
           @keydown.esc="closeNotificationPanel"
+          @keydown.tab="handlePanelTab"
         >
           <div class="glass-popup-header">
             <h3 id="notification-panel-title">Notifications</h3>
             <div class="notification-header-actions">
+              <button
+                v-if="unreadCount > 0"
+                class="glass-btn-text mark-read-btn"
+                aria-label="Mark all notifications read"
+                title="Mark all notifications read"
+                @click="markAsRead"
+              >
+                Mark all read
+              </button>
               <button
                 v-if="notificationCount > 0"
                 class="glass-btn-text clear-all-btn"
@@ -136,8 +146,35 @@ function closeNotificationPanel() {
   if (showNotifications.value) {
     showNotifications.value = false
     document.body.style.overflow = ''
-    notificationStore.markAllRead()
     notificationBellRef.value?.focus?.()
+  }
+}
+
+function handlePanelTab(event: KeyboardEvent) {
+  const panel = notificationPanelRef.value
+  if (!panel) return
+
+  const focusable = Array.from(
+    panel.querySelectorAll<HTMLElement>(
+      'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    )
+  )
+
+  if (!focusable.length) {
+    event.preventDefault()
+    panel.focus()
+    return
+  }
+
+  const first = focusable[0]
+  const last = focusable[focusable.length - 1]
+
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault()
+    last.focus()
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault()
+    first.focus()
   }
 }
 
