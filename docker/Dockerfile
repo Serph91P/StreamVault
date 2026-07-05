@@ -67,7 +67,7 @@ COPY requirements.txt ./
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt && \
-    pip install --no-cache-dir streamlink==8.2.1
+    pip install --no-cache-dir streamlink==8.4.0
 
 # =============================================================================
 # Stage 2: Frontend Build (only rebuilt when frontend changes)
