@@ -8,6 +8,8 @@ Head: 8766fe23
 
 This is a fresh phase 1 audit against current `develop` after the previous frontend overhaul landed. It does not assume that the prior overhaul satisfies the new prompt. It uses Graphify output, current source inventory and the historical docs as context only.
 
+The follow-up KAN2-002 concept is now captured in `.hermes/streamvault-ux-ia-concept.md`. Downstream implementation tasks must treat that file as the IA contract for navigation, Jobs to be Done, journeys, task flows, accessibility and perceived performance.
+
 ## Jobs to be Done
 
 | Job | Current support | Gap to close |
@@ -114,3 +116,12 @@ This is a fresh phase 1 audit against current `develop` after the previous front
 - Realtime store is better than scattered raw message watchers, but high event rate behavior still needs profiling.
 - Video thumbnails and HLS/player initialization remain key perceived performance risks.
 - Real LCP, INP and CLS were not measured yet.
+
+## KAN2-002 IA decision summary
+
+- Product target: StreamVault becomes a status first self hosted streaming and recording control center with media library polish, monitoring clarity and first class mobile PWA behavior.
+- Desktop IA: keep sidebar primary navigation for Dashboard, Streamers, Library, Subscriptions and Settings. Keep Admin Diagnostics reachable but outside primary product navigation.
+- Mobile IA: keep a five item bottom navigation and expose Jobs, Notifications, Add Streamer shortcuts, filters and recovery detail as sheets or context routes.
+- Context routes: preserve Streamer Detail, Add Streamer, stored player, legacy watch route, Live Player, Setup, Onboarding and Login. Do not remove any route in the feature parity map.
+- Progressive disclosure: surface status and recovery first, move raw diagnostics and advanced settings one level deeper.
+- Accessibility and performance: status text must accompany color, panels need focus behavior, media and list routes need skeletons, players initialize lazily and mobile widths must avoid horizontal scroll.

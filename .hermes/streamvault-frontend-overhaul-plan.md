@@ -35,6 +35,15 @@ Tasks:
 
 Definition of Done: product target and navigation decisions are documented before code changes.
 
+KAN2-002 artifact: `.hermes/streamvault-ux-ia-concept.md` is the source of truth for the phase 2 UX and IA contract. It defines the product target, primary and context routes, desktop sidebar, mobile bottom navigation, sheet behavior, journeys, task flows, progressive disclosure rules, accessibility expectations and perceived performance expectations.
+
+Downstream consumption:
+
+- KAN2-003 must map the IA contract into design-system status language, components and motion rules.
+- KAN2-004 must implement or verify desktop sidebar, header utilities, mobile bottom nav and context route behavior against the IA contract.
+- KAN2-007 must implement or verify mobile PWA behavior, safe areas, bottom sheets and push permission copy against the IA contract.
+- Core page tasks must preserve the feature parity map and use the KAN2-002 task flows before changing views.
+
 ### EPIC 3: Design system
 
 Tasks:
@@ -125,7 +134,7 @@ Definition of Done: final checks and limitations are documented with real output
 
 ## Immediate next tasks
 
-1. Create the real Kanban cards for all epics.
-2. Assign parallel discovery and design tasks to workers.
-3. Produce design-system and IA artifacts.
-4. Only then start code changes on this branch.
+1. Consume `.hermes/streamvault-ux-ia-concept.md` in KAN2-003 before design-system work.
+2. Consume `.hermes/streamvault-ux-ia-concept.md` in KAN2-004 before app shell and navigation code changes.
+3. Consume `.hermes/streamvault-ux-ia-concept.md` in KAN2-007 before PWA and mobile code changes.
+4. Keep `.hermes/streamvault-feature-parity-map.md` open while changing any route, panel, store or player behavior.
