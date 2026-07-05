@@ -25,6 +25,13 @@ from typing import Dict, Optional, Callable, Awaitable
 from pathlib import Path
 from sqlalchemy.orm import joinedload
 
+try:
+    import psutil  # noqa: F401
+
+    HAS_PSUTIL = True
+except ImportError:
+    HAS_PSUTIL = False
+
 # Import utilities
 from app.utils.streamlink_utils import get_streamlink_command
 from app.services.recording.exceptions import ProcessError
@@ -110,11 +117,8 @@ class ProcessManager:
             )
             self.logging_service = None
 
-        # Try to import psutil for process monitoring
-        try:
-            self.psutil_available = True
-        except ImportError:
-            self.psutil_available = False
+        self.psutil_available = HAS_PSUTIL
+        if not self.psutil_available:
             logger.warning("psutil not available - process monitoring will be limited")
 
         # Shutdown management
