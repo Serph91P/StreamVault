@@ -16,6 +16,102 @@ Core principles:
 - Realtime and Push are separate channels with shared event contracts.
 - UI primitives are shared, typed and accessible.
 
+## Final information architecture decision
+
+Source verification: the current router exposes Home, Streamers, Videos, Subscriptions, Settings, Admin, Add Streamer, setup, onboarding, login, streamer detail, video player and live player routes. The current primary navigation is defined in `app/frontend/src/composables/useNavigation.ts` and renders the same five tabs in desktop sidebar and mobile bottom nav: Home, Streamers, Videos, Subs and Settings. App-level notifications and queue controls currently live in `App.vue` header actions and mobile menu, while Admin is routable but outside primary navigation.
+
+Final target model:
+
+| Layer | Desktop target | Mobile/PWA target | Decision |
+| --- | --- | --- | --- |
+| Primary navigation | Sidebar with Dashboard, Streamers, Library, Subscriptions and Settings | Bottom nav with the same five items | Keep five primary destinations to avoid crowding. Rename Home to Dashboard and Videos to Library in product copy when implementation starts. |
+| Global actions | Header icons for Notifications, Queue, PWA update/install and account | Header actions plus sheets launched from badges | Notifications and Queue are global utilities, not primary tabs. |
+| Context routes | Streamer detail, live player, video player, add streamer | Full-screen routes with back affordance | Keep as routes because they need deep links and direct notification targets. |
+| Secondary settings | Twitch, Recording, Favorites, Proxy, Notifications, PWA, API Keys, Logging | One focused panel per screen with sticky save | Settings is user-facing configuration only. |
+| Admin diagnostics | Admin route outside normal primary navigation | Read-mostly diagnostics route reachable from Settings or privileged menu | WebSocket monitor, push tests, queue internals and raw diagnostics belong here, not in user flows. |
+| Transient surfaces | Notification popover, Queue panel, PWA update banner | Bottom sheets and banners | Use sheets for temporary tasks that should not reset the user journey. |
+
+Route and surface decisions:
+
+| Surface | Final shape | Primary entry | Deep link target | Notes |
+| --- | --- | --- | --- | --- |
+| Dashboard | Page | Primary nav | `/` | Operational overview and first landing after auth. |
+| Streamers | Page | Primary nav | `/streamers` | Search, filters and bulk status scanning. |
+| Add Streamer | Modal-like route or sheet over Streamers | Streamers CTA | `/add-streamer` plus import/manual subroutes | Current routes can remain, but the visual model should feel like a focused task. |
+| Streamer detail | Page | Streamer card, notification, search | `/streamers/:id` | Cockpit with tabs and status-specific actions. |
+| Live player | Page | Dashboard, streamer detail, streamer card | `/live/:streamer` | Player-first route with status side panel or mobile sheet. |
+| Library | Page | Primary nav | `/videos` | Stored recordings browser. |
+| Video player | Page | Video card, notification | `/videos/:id` and legacy watch route | Full-screen playback route. |
+| Active recordings | Dashboard panel plus optional route later | Dashboard card, Queue panel | Later `/recordings/active` if needed | Start as panel and sheet. Promote only if usage requires a dedicated route. |
+| Queue | Panel or sheet | Header badge, Dashboard status strip | No route in first pass | Admin keeps detailed internals. User queue stays concise. |
+| Notification Center | Popover or sheet with optional page later | Header bell, mobile menu or badge | Event target URLs, not notification page by default | Product history with filters and read state. Add a page only if history depth needs it. |
+| Settings | Page with section navigation | Primary nav | `/settings` | User settings only. Diagnostics link out to Admin. |
+| Admin diagnostics | Page | Privileged menu or Settings diagnostics link | `/admin` | Keep outside bottom nav and sidebar primary list. |
+| Setup and onboarding | Full-screen flow | Router guard | `/auth/setup`, `/welcome`, `/onboarding` | No WebSocket and no push permission request before explanation. |
+| Login | Full-screen flow | Router guard | `/auth/login` | Branded auth card. |
+| PWA install and push | Settings panel, prompt, onboarding sheet | Install prompt, Settings, mobile status sheet | Push notification click target URL | Permission request only after user intent. |
+
+## Target journeys
+
+### Journey 1: monitor active recording
+
+1. User lands on Dashboard and sees live, recording, queue and failure summary.
+2. User opens an active recording card.
+3. Desktop shows player or detail context with a status side panel. Mobile opens the live player route with status in a sheet.
+4. Queue progress stays available through the header badge or sheet.
+5. Failure events create a notification with a direct target back to the recording, streamer or video.
+
+### Journey 2: manage a streamer
+
+1. User opens Streamers from primary navigation.
+2. User searches or filters by live, recording or offline.
+3. User opens Streamer detail.
+4. Detail page shows profile status, videos, recording settings and event timeline as tabs.
+5. Primary actions remain contextual: open live player, open latest video, adjust recording and notification settings.
+
+### Journey 3: find and play a recording
+
+1. User opens Library.
+2. User filters by streamer, date, category, processing state or error state.
+3. User opens Video player.
+4. Playback errors stay in the player route and also create critical notification events when appropriate.
+5. Completed recording notifications deep link directly to the video.
+
+### Journey 4: configure notifications and PWA push
+
+1. User opens Settings, then Notifications or PWA.
+2. In-app, Web Push and Apprise are separated as settings sections.
+3. PWA push explains browser support, service worker state and permission impact before triggering the browser prompt.
+4. Permission denied and subscription errors stay in the PWA panel with troubleshooting steps.
+5. Admin-only test sends and raw diagnostics move to Admin Diagnostics.
+
+### Journey 5: handle background jobs
+
+1. User sees a queue badge or Dashboard queue summary.
+2. User opens the Queue panel or mobile sheet for active and recent jobs.
+3. Routine progress stays in the queue UI.
+4. Failed jobs create notifications with target links.
+5. Detailed internals, retries and post-processing diagnostics stay in Admin.
+
+### Journey 6: first setup and installed app flow
+
+1. Router guard sends unauthenticated or unconfigured users to setup, onboarding or login.
+2. Setup uses a full-screen product-branded flow with no normal app chrome.
+3. Push permission is not requested during first setup.
+4. After setup, Dashboard becomes the first product page.
+5. Installed PWA users get safe-area aware navigation, update banners and platform-specific install or push guidance.
+
+## Design review checklist
+
+- Dashboard, Streamers, Streamer detail, Library, live player, video player, Settings, Admin, Notifications, Queue and PWA each have a decided page, panel or sheet shape.
+- Primary navigation remains five destinations on desktop and mobile.
+- Admin diagnostics are reachable but not mixed into normal user navigation.
+- Notifications have read state, filtering, severity, target links and event schema alignment.
+- Queue is visible globally but detailed internals stay in Admin.
+- Mobile routes use bottom nav for primary destinations and sheets for temporary global surfaces.
+- PWA push permission is only requested after explanation and user action.
+- Every page has explicit empty, loading and error states before implementation begins.
+
 ## 1. Dashboard / Home
 
 | Topic | Plan |
@@ -220,6 +316,13 @@ Core principles:
 | Komponenten | PWAStatusPanel, PushPermissionCard, InstallPrompt, UpdateAvailableBanner. |
 | Stores/Services | pwaStore or usePWA refactor, service worker service, push API. |
 
+Push click platform notes:
+
+- Android Chrome shows Web Push notifications for installed PWAs and browser tabs after the user grants notification permission. A click should focus an existing StreamVault tab when possible, then route in-app through the service worker `navigate` message.
+- iOS and iPadOS Web Push requires Safari 16.4 or newer and a StreamVault app installed from Share > Add to Home Screen. Browser tabs alone do not receive Web Push.
+- Notification payloads should prefer `data.target_url`, then `data.internal_url`, then `data.url`. Legacy streamer links shaped as `/streamer/:id` are normalized to `/streamers/:id`; recording watch links shaped as `/streamer/:streamerId/stream/:streamId/watch` remain supported by the current router.
+- Manual verification matrix: Android Chrome installed PWA, Android Chrome browser tab, iOS or iPadOS Home Screen app, and unsupported iOS browser tab. If a platform is unavailable, document it as unverified rather than marking it passed.
+
 ## Cross-cutting target architecture
 
 - `stores/realtime.ts`: owns connection, event stream, connection state, dedupe and future replay.
@@ -231,3 +334,7 @@ Core principles:
 - `components/notifications/NotificationCenter.vue`: product notification surface.
 - `components/pwa/PWAStatus.vue`: install, update and push state.
 - `components/ui/*`: stable primitives for Button, Card, Modal, Drawer, Sheet, Table, Badge and FormField.
+
+## Realtime replay backend gap
+
+KAN-015 source check found the current backend WebSocket endpoint at `app/main.py` `/ws` only accepts a live socket and keeps it open. `ConnectionManager` broadcasts events directly to active sockets and does not persist an event log, expose event ids, or provide a `since` cursor/replay endpoint. The frontend can show reconnect state, retry on online and visible events, refresh REST-backed status after reconnect, and dedupe repeated live events, but missed-event replay needs backend support for durable event ids and a replay API.

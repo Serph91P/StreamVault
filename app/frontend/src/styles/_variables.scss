@@ -306,6 +306,9 @@ $duration-400: 400ms;  // Missing in original list
 // ============================================================================
 // CSS CUSTOM PROPERTIES - Complete Design System
 // ============================================================================
+// Ownership: this file owns canonical app tokens, theme overrides and
+// deprecated compatibility aliases. Glass-only tokens belong in
+// _glass-system.scss. Global component classes belong in _components.scss.
 // CRITICAL: All CSS variables used in components must be defined here!
 // Dark Mode (Default)
 :root {
@@ -543,7 +546,9 @@ $duration-400: 400ms;  // Missing in original list
   // ===== GRADIENTS =====
   --gradient-primary: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-600) 100%);
   
-  // ===== LEGACY/COMPATIBILITY =====
+  // ===== DEPRECATED COMPATIBILITY ALIASES =====
+  // Keep these aliases for current consumers only. New styles should use the
+  // canonical groups above and must not add new alias names.
   --color-primary: #{$primary-500};
   --color-primary-rgb: 20, 184, 166;
   --color-accent: #{$accent-500};
@@ -671,7 +676,8 @@ $duration-400: 400ms;  // Missing in original list
   --shadow-2xl: 0 25px 50px -12px rgb(0 0 0 / 0.25);
   --shadow-primary: 0 0 0 3px rgba(var(--primary-color-rgb), 0.1);
   
-  // ===== LEGACY/COMPATIBILITY (Light Mode) =====
+  // ===== DEPRECATED COMPATIBILITY ALIASES (Light Mode) =====
+  // Mirrors the root compatibility aliases without introducing new names.
   --color-primary: #{$primary-600};
   --color-accent: #{$accent-600};
   --highlight-color: #{$primary-600};

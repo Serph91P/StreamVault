@@ -129,7 +129,6 @@ class AuthMiddleware:
             "/registerSW.js",
             "/sw.js",
             "/pwa",
-            "/pwa-helper.js",
             "/workbox-",
             "/manifest.json",
             "/manifest.webmanifest",
@@ -171,14 +170,14 @@ class AuthMiddleware:
 
             # API-key fallback (X-API-Key or "Authorization: ApiKey <token>").
             # Sessions/cookies always take precedence. The /api/api-keys
-            # management endpoints intentionally REJECT API-key auth — those
+            # management endpoints intentionally REJECT API-key auth because those
             # routes re-validate that an interactive session exists, so a
             # stolen key cannot be used to mint or revoke more keys.
             if not session_token:
                 api_key = _extract_api_key(request)
                 if api_key:
                     # SECURITY: Never allow API-key auth on the management
-                    # endpoints — minting/revoking keys must require an
+                    # endpoints. Minting/revoking keys must require an
                     # interactive session.
                     if request.url.path.startswith("/api/api-keys"):
                         logger.warning(
@@ -231,7 +230,7 @@ class AuthMiddleware:
             return await self.app(scope, receive, send)
         except Exception as e:
             logger.error(f"Auth middleware error for {request.url.path}: {e}")
-            # SECURITY: Fail closed — deny access when auth cannot be verified (CWE-280)
+            # SECURITY: Fail closed when auth cannot be verified (CWE-280)
             if is_json_request:
                 return await JSONResponse(
                     {"error": "Authentication service unavailable"}, status_code=503

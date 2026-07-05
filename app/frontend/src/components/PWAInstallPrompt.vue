@@ -21,6 +21,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import { usePWA } from '@/composables/usePWA'
+import { appStorage } from '@/services/storage'
 import BaseButton from '@/components/base/BaseButton.vue'
 
 const { isInstallable, isInstalled, installPWA, getPlatformInfo: _getPlatformInfo } = usePWA()
@@ -79,7 +80,7 @@ const installDescription = computed(() => {
 
 onMounted(() => {
   // Show install prompt if app is installable and hasn't been dismissed
-  const dismissed = localStorage.getItem('pwa-install-dismissed')
+  const dismissed = appStorage.pwaInstallDismissed
   hasBeenDismissed.value = dismissed === 'true'
   
   // Show prompt after 3 seconds if installable and not dismissed
@@ -109,11 +110,11 @@ const installApp = async () => {
 const dismissPrompt = () => {
   showInstallPrompt.value = false
   hasBeenDismissed.value = true
-  localStorage.setItem('pwa-install-dismissed', 'true')
+  appStorage.setPwaInstallDismissed(true)
   
   // Show again after 7 days
   setTimeout(() => {
-    localStorage.removeItem('pwa-install-dismissed')
+    appStorage.clearPwaInstallDismissed()
   }, 7 * 24 * 60 * 60 * 1000)
 }
 </script>

@@ -179,10 +179,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { streamersApi } from '@/services/api'
-import { useWebSocket } from '@/composables/useWebSocket'
+import { useRealtimeStore } from '@/stores/realtime'
+import { hasRealtimeEventType } from '@/types/events'
 import { useForceRecording } from '@/composables/useForceRecording'  // NEW: Import composable
 import LoadingSkeleton from '@/components/LoadingSkeleton.vue'
 import EmptyState from '@/components/EmptyState.vue'
@@ -190,8 +191,8 @@ import StreamerCard from '@/components/cards/StreamerCard.vue'
 
 const router = useRouter()
 
-// WebSocket for real-time updates
-const { messages } = useWebSocket()
+// Real-time store for live updates
+const realtime = useRealtimeStore()
 
 // Force recording composable
 const { forceStartRecording } = useForceRecording()  // NEW: Use composable
@@ -224,6 +225,11 @@ const filterTabs = computed(() => [
     count: liveStreamers.value.length
   },
   {
+    label: 'Recording',
+    value: 'recording',
+    count: recordingStreamers.value.length
+  },
+  {
     label: 'Offline',
     value: 'offline',
     count: streamers.value.length - liveStreamers.value.length
@@ -233,6 +239,11 @@ const filterTabs = computed(() => [
 // Live streamers
 const liveStreamers = computed(() => {
   return streamers.value.filter(s => s.is_live)
+})
+
+// Recording streamers
+const recordingStreamers = computed(() => {
+  return streamers.value.filter(s => s.is_recording)
 })
 
 // Filtered and sorted streamers
@@ -252,6 +263,9 @@ const filteredAndSortedStreamers = computed(() => {
   switch (activeFilter.value) {
     case 'live':
       filtered = filtered.filter(s => s.is_live)
+      break
+    case 'recording':
+      filtered = filtered.filter(s => s.is_recording)
       break
     case 'offline':
       filtered = filtered.filter(s => !s.is_live)
@@ -418,77 +432,8 @@ async function handleDelete(streamer: any) {
   }
 }
 
-// WebSocket: Real-time updates for streamer status
-watch(messages, (newMessages) => {
-  if (!newMessages || newMessages.length === 0) return
-  
-  // Process latest message
-  const latestMessage = newMessages[newMessages.length - 1]
-  
-  // Handle stream status changes
-  if (latestMessage.type === 'stream.online' || 
-      latestMessage.type === 'stream.offline' ||
-      latestMessage.type === 'channel.update' ||
-      latestMessage.type === 'stream.update') {
-    
-    const username = latestMessage.data?.username || latestMessage.data?.streamer_name
-    if (!username) return
-    
-    // Find streamer in list
-    const streamerIndex = streamers.value.findIndex(
-      s => s.username?.toLowerCase() === username.toLowerCase() ||
-           s.name?.toLowerCase() === username.toLowerCase()
-    )
-    
-    if (streamerIndex === -1) return
-    
-    // Update streamer data based on message type
-    const streamer = { ...streamers.value[streamerIndex] }
-    
-    if (latestMessage.type === 'stream.online') {
-      streamer.is_live = true
-      streamer.title = latestMessage.data?.title
-      streamer.category_name = latestMessage.data?.category_name
-      console.log(`[WebSocket] ${username} went LIVE: ${streamer.title}`)
-    } else if (latestMessage.type === 'stream.offline') {
-      streamer.is_live = false
-      streamer.title = null
-      streamer.category_name = null
-      console.log(`[WebSocket] ${username} went OFFLINE`)
-    } else if (latestMessage.type === 'channel.update' || latestMessage.type === 'stream.update') {
-      // Update title and category in real-time
-      if (latestMessage.data?.title) {
-        streamer.title = latestMessage.data.title
-      }
-      if (latestMessage.data?.category_name) {
-        streamer.category_name = latestMessage.data.category_name
-      }
-      console.log(`[WebSocket] ${username} updated: ${streamer.title} | ${streamer.category_name}`)
-    }
-    
-    // Update the streamer in array (trigger reactivity)
-    streamers.value = [
-      ...streamers.value.slice(0, streamerIndex),
-      streamer,
-      ...streamers.value.slice(streamerIndex + 1)
-    ]
-  }
-
-  // Handle streamer lifecycle events (add/remove from elsewhere in the app
-  // or other devices) so the list stays in sync without a manual refresh.
-  if (latestMessage.type === 'streamer.added') {
-    const newId = latestMessage.data?.id
-    if (newId && !streamers.value.some(s => s.id === newId)) {
-      // Authoritative re-fetch keeps shape consistent with the list endpoint.
-      fetchStreamers()
-    }
-  } else if (latestMessage.type === 'streamer.removed') {
-    const removedId = latestMessage.data?.streamer_id
-    if (removedId !== undefined && removedId !== null) {
-      streamers.value = streamers.value.filter(s => String(s.id) !== String(removedId))
-    }
-  }
-}, { deep: true })
+// Real-time event handlers
+const realtimeCleanups: (() => void)[] = []
 
 // Lifecycle
 onMounted(async () => {
@@ -496,10 +441,97 @@ onMounted(async () => {
   if (autoRefresh.value) {
     startAutoRefresh()
   }
+
+  // Subscribe to real-time events
+  realtimeCleanups.push(
+    realtime.onEvents(
+      ['stream.online', 'stream.offline', 'channel.update', 'stream.update', 'recording.started', 'recording.finished', 'recording.stopped', 'recording.completed', 'recording_status_update'],
+      (event: any) => {
+        const username = event.data?.username || event.data?.streamer_name
+        if (!username) return
+
+        const streamerIndex = streamers.value.findIndex(
+          s => s.username?.toLowerCase() === username.toLowerCase() ||
+               s.name?.toLowerCase() === username.toLowerCase()
+        )
+        if (streamerIndex === -1) return
+
+        const streamer = { ...streamers.value[streamerIndex] }
+
+        if (hasRealtimeEventType(event, 'stream.online')) {
+          streamer.is_live = true
+          streamer.title = event.data?.title
+          streamer.category_name = event.data?.category_name
+        } else if (hasRealtimeEventType(event, 'stream.offline')) {
+          streamer.is_live = false
+          streamer.title = null
+          streamer.category_name = null
+        } else if (hasRealtimeEventType(event, 'recording.started')) {
+          streamer.is_recording = true
+          if (!streamer.is_live) streamer.is_live = true
+        } else if (hasRealtimeEventType(event, 'recording.finished', 'recording.stopped', 'recording.completed', 'recording_status_update')) {
+          if (hasRealtimeEventType(event, 'recording_status_update')) {
+            const recording = event.data
+            if (recording?.status === 'recording' || recording?.status === 'started') {
+              streamer.is_recording = true
+            } else if (recording?.status === 'completed' || recording?.status === 'finished' || recording?.status === 'stopped' || recording?.status === 'failed') {
+              streamer.is_recording = false
+            }
+          } else {
+            streamer.is_recording = false
+          }
+        } else {
+          if (event.data?.title) streamer.title = event.data.title
+          if (event.data?.category_name) streamer.category_name = event.data.category_name
+        }
+
+        streamers.value = [
+          ...streamers.value.slice(0, streamerIndex),
+          streamer,
+          ...streamers.value.slice(streamerIndex + 1)
+        ]
+      }
+    ),
+    realtime.onEvent('streamer.added', (event: any) => {
+      const newId = event.data?.id
+      if (newId && !streamers.value.some(s => s.id === newId)) {
+        fetchStreamers()
+      }
+    }),
+    realtime.onEvent('streamer.removed', (event: any) => {
+      const removedId = event.data?.streamer_id
+      if (removedId !== undefined && removedId !== null) {
+        streamers.value = streamers.value.filter(s => String(s.id) !== String(removedId))
+      }
+    }),
+    realtime.onEvent('active_recordings_update', (event: any) => {
+      const list = event.data?.recordings ?? event.data
+      if (!Array.isArray(list)) return
+      const recordingUsernames = new Set(
+        list.map((r: any) => (r.username || r.streamer_name || '').toLowerCase()).filter(Boolean)
+      )
+      const recordingStreamerIds = new Set(
+        list
+          .map((r: any) => r.streamer_id)
+          .filter((id: unknown) => id !== undefined && id !== null)
+          .map((id: unknown) => String(id))
+      )
+      streamers.value = streamers.value.map(s => {
+        const match =
+          recordingStreamerIds.has(String(s.id)) ||
+          recordingUsernames.has((s.username || s.name || '').toLowerCase())
+        if (Boolean(s.is_recording) !== match) {
+          return { ...s, is_recording: match }
+        }
+        return s
+      })
+    }),
+  )
 })
 
 onUnmounted(() => {
   stopAutoRefresh()
+  realtimeCleanups.forEach(fn => fn())
 })
 </script>
 

@@ -1,6 +1,8 @@
 // ============================================================================
 // UNIFIED GLASSMORPHISM DESIGN SYSTEM
-// Single source of truth for all glass effects, surfaces, and components
+// Single source of truth for glass effects, surfaces and utility classes.
+// Ownership: this file owns only glass tokens, glass mixins and glass classes.
+// Non-glass app tokens belong in _variables.scss.
 // ============================================================================
 
 @use 'variables' as v;
@@ -8,6 +10,7 @@
 
 // ============================================================================
 // GLASS SURFACE TOKENS
+// Canonical names for glass-only implementation work. Do not add aliases here.
 // ============================================================================
 
 // Glass backgrounds with consistent opacity levels
@@ -684,7 +687,7 @@ $glass-shadow-xl: 0 12px 48px rgba(0, 0, 0, 0.3);
 }
 
 // ============================================================================
-// GLASS POPUP PANEL — Shared overlay for notifications, background jobs, etc.
+// GLASS POPUP PANEL - Shared overlay for notifications, background jobs, etc.
 // Usage: .glass-popup-backdrop + .glass-popup-panel > .glass-popup-header + content
 // ============================================================================
 

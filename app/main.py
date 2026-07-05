@@ -5,6 +5,7 @@ from fastapi import (
     Request,
     HTTPException,
     Depends,
+    Query,
 )
 from fastapi.responses import Response, FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -826,6 +827,28 @@ async def websocket_endpoint(websocket: WebSocket):
         await websocket_manager.disconnect(websocket)
 
 
+@app.get("/api/realtime/events")
+async def replay_realtime_events(
+    since: int = Query(0, ge=0),
+    limit: int = Query(500, ge=1, le=500),
+    current_user=Depends(get_current_user),
+):
+    """Return recent authenticated realtime events after a client cursor.
+
+    Retention is bounded in memory by the WebSocket manager. Clients should
+    pass the highest event_id they have already processed as since to avoid
+    duplicate replay of live events received before reconnect.
+    """
+    events = await websocket_manager.get_events_since(since=since, limit=limit)
+    replay_state = await websocket_manager.get_replay_state()
+
+    return {
+        "events": events,
+        "since": since,
+        **replay_state,
+    }
+
+
 @app.get("/health")
 async def health_check():
     return {"status": "ok", "service": "StreamVault"}
@@ -895,7 +918,7 @@ async def eventsub_callback(request: Request):
         # Debug logging
         logger.debug(f"Message ID: {message_id}")
         logger.debug(f"Timestamp: {timestamp}")
-        # SECURITY: Do not log signatures or raw body — CWE-532
+        # SECURITY: Do not log signatures or raw body, CWE-532
 
         # Validate required headers
         if not all([message_id, timestamp, received_signature, message_type]):
@@ -1204,24 +1227,20 @@ async def serve_push_sw_helper():
 
 @app.get("/registerSW.js")
 async def register_service_worker():
-    """Serve the service worker registration script"""
-    for path in [
-        "app/frontend/dist/registerSW.js",
-        "/app/app/frontend/dist/registerSW.js",
-    ]:
-        try:
-            return FileResponse(
-                path,
-                media_type="application/javascript",
-                headers={
-                    "Cache-Control": "no-cache, no-store, must-revalidate",
-                    "Pragma": "no-cache",
-                    "Expires": "0",
-                },
-            )
-        except (FileNotFoundError, PermissionError):
-            continue
-    return Response(status_code=404)
+    """Serve a compatibility no-op for stale cached pages.
+
+    Runtime service worker registration is owned by VitePWA in frontend main.ts.
+    Keeping this endpoint as a no-op avoids duplicate /sw.js registration paths.
+    """
+    return Response(
+        content="// VitePWA owns service worker registration.\n",
+        media_type="application/javascript",
+        headers={
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Pragma": "no-cache",
+            "Expires": "0",
+        },
+    )
 
 
 @app.get("/sw.js")
@@ -1292,33 +1311,7 @@ async def serve_browserconfig():
     return Response(status_code=404)
 
 
-@app.get("/pwa-test.html")
-async def serve_pwa_test():
-    for path in [
-        "app/frontend/public/pwa-test.html",
-        "/app/app/frontend/public/pwa-test.html",
-    ]:
-        try:
-            return FileResponse(path, media_type="text/html")
-        except (FileNotFoundError, PermissionError):
-            continue
-    return Response(status_code=404)
-
-
-@app.get("/pwa-helper.js")
-async def serve_pwa_helper():
-    for path in [
-        "app/frontend/public/pwa-helper.js",
-        "/app/app/frontend/public/pwa-helper.js",
-    ]:
-        try:
-            return FileResponse(path, media_type="application/javascript")
-        except (FileNotFoundError, PermissionError):
-            continue
-    return Response(status_code=404)
-
-
-# (Removed duplicate /registerSW.js endpoint; single secured version is defined later)
+# /registerSW.js compatibility endpoint is defined above as a no-op.
 
 
 @app.get("/workbox-{filename:path}")
@@ -1557,54 +1550,6 @@ app.add_exception_handler(Exception, error_handler)
 # Auth Middleware
 app.add_middleware(AuthMiddleware)
 
-# Service Worker registration script with enhanced security
-
-
-@app.get("/registerSW.js")
-async def serve_register_sw():
-    """Serve the service worker registration script"""
-    for base_path in ["/app/app/frontend/dist", "app/frontend/dist"]:
-        sw_path = Path(base_path) / "registerSW.js"
-        if sw_path.exists():
-            # Validate file content (basic check)
-            try:
-                with open(sw_path, "r") as f:
-                    content = f.read()
-                    # Basic validation - should contain service worker registration code
-                    if "serviceWorker" not in content:
-                        logger.warning(
-                            "Service worker file doesn't contain expected content"
-                        )
-                        continue
-            except Exception as e:
-                logger.error(f"Error reading service worker file: {e}")
-                continue
-
-            return FileResponse(
-                sw_path,
-                media_type="application/javascript",
-                headers={
-                    "Service-Worker-Allowed": "/",
-                    "Cache-Control": "no-cache, no-store, must-revalidate",
-                    "X-Content-Type-Options": "nosniff",  # Override for service worker
-                },
-            )
-
-    # If not found in dist, serve a minimal registration script
-    minimal_sw = """
-    if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/sw.js', { scope: '/' })
-            .then(reg => console.log('Service Worker registered', reg))
-            .catch(err => console.error('Service Worker registration failed', err));
-    }
-    """
-    return Response(
-        content=minimal_sw,
-        media_type="application/javascript",
-        headers={"Service-Worker-Allowed": "/", "Cache-Control": "no-cache"},
-    )
-
-
 # SPA catch-all route must be last - only serve for non-API paths
 
 
@@ -1626,8 +1571,6 @@ async def serve_spa(full_path: str):
             "manifest.webmanifest",
             "sw.js",
             "browserconfig.xml",
-            "pwa-test.html",
-            "pwa-helper.js",
         }
         or full_path.endswith(
             (

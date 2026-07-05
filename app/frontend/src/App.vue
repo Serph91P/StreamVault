@@ -376,16 +376,17 @@
           <span class="app-logo" aria-label="StreamVault">StreamVault</span>
           
           <div class="header-actions">
-            <!-- Background Queue Monitor (indicator hidden on mobile, panel still works) -->
-            <BackgroundQueueMonitor ref="queueMonitorRef" />
+            <BackgroundQueueMonitor />
             
-            <!-- Desktop: Show all buttons inline -->
             <button
               ref="notificationBellRef"
               @click.stop="toggleNotifications"
-              class="glass-btn-icon desktop-only"
+              class="glass-btn-icon"
               :class="{ 'has-badge': unreadCount > 0 }"
               aria-label="Notifications"
+              aria-haspopup="dialog"
+              :aria-expanded="showNotifications"
+              aria-controls="notification-panel"
             >
               <svg>
                 <use href="#icon-bell" />
@@ -393,80 +394,35 @@
               <span v-if="unreadCount > 0" class="badge">{{ unreadCount > 99 ? '99+' : unreadCount }}</span>
             </button>
             
-            <div class="desktop-only">
-              <ThemeToggle />
-            </div>
+            <ThemeToggle />
             
-            <button @click="logout" class="glass-btn-danger header-logout-btn desktop-only">
+            <button @click="logout" class="glass-btn-danger header-logout-btn">
               <svg><use href="#icon-log-out" /></svg>
               <span class="logout-text">Logout</span>
-            </button>
-            
-            <!-- Mobile: Hamburger menu -->
-            <button
-              @click.stop="toggleMobileMenu"
-              class="glass-btn-icon mobile-only"
-              aria-label="Menu"
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <line x1="3" y1="6" x2="21" y2="6" />
-                <line x1="3" y1="12" x2="21" y2="12" />
-                <line x1="3" y1="18" x2="21" y2="18" />
-              </svg>
             </button>
           </div>
         </div>
       </header>
       
-      <!-- Mobile Menu Dropdown -->
-      <Teleport to="body">
-        <Transition name="fade">
-          <div v-if="showMobileMenu" class="mobile-menu-backdrop" @click="closeMobileMenu"></div>
-        </Transition>
-        <Transition name="slide-down">
-          <div v-if="showMobileMenu" class="mobile-menu-panel" @click.stop>
-            <button
-              @click.stop="openJobsFromMenu"
-              class="mobile-menu-item"
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M12 5v14M5 12h14" />
-              </svg>
-              <span>Background Jobs</span>
-              <span v-if="jobCount > 0" class="badge mobile-badge">{{ jobCount }}</span>
-            </button>
-            <button
-              @click.stop="openNotificationsFromMenu"
-              class="mobile-menu-item"
-            >
-              <svg><use href="#icon-bell" /></svg>
-              <span>Notifications</span>
-              <span v-if="unreadCount > 0" class="badge mobile-badge">{{ unreadCount > 99 ? '99+' : unreadCount }}</span>
-            </button>
-            <div class="mobile-menu-item theme-menu-item">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
-              </svg>
-              <span>Theme</span>
-              <ThemeToggle />
-            </div>
-            <button @click="logoutFromMenu" class="mobile-menu-item mobile-menu-danger">
-              <svg><use href="#icon-log-out" /></svg>
-              <span>Logout</span>
-            </button>
-          </div>
-        </Transition>
-      </Teleport>
-    
       <!-- Notification Panel -->
       <Teleport to="body">
         <Transition name="fade">
-          <div v-if="showNotifications" class="glass-popup-backdrop" @click="closeNotificationPanel"></div>
+          <div v-if="showNotifications" class="glass-popup-backdrop" aria-hidden="true" @click="closeNotificationPanel"></div>
         </Transition>
         <Transition name="slide-up">
-          <div v-if="showNotifications" ref="notificationPanelRef" class="glass-popup-panel notification-panel">
+          <div
+            v-if="showNotifications"
+            id="notification-panel"
+            ref="notificationPanelRef"
+            class="glass-popup-panel notification-panel"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="notification-panel-title"
+            tabindex="-1"
+            @keydown.esc="closeNotificationPanel"
+          >
             <div class="glass-popup-header">
-              <h3>Notifications</h3>
+              <h3 id="notification-panel-title">Notifications</h3>
               <div class="notification-header-actions">
                 <button
                   v-if="notificationCount > 0"
@@ -525,14 +481,15 @@ import ToastContainer from '@/components/ToastContainer.vue'
 import ThemeToggle from '@/components/ThemeToggle.vue'
 import NavigationWrapper from '@/components/navigation/NavigationWrapper.vue'
 import '@/styles/main.scss'
-import { ref, onMounted, onUnmounted, watch, provide, computed } from 'vue'
+import { ref, onMounted, onUnmounted, watch, provide, computed, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
-import { useWebSocket } from '@/composables/useWebSocket'
 import { useAuth } from '@/composables/useAuth'
 import { useSystemAndRecordingStatus } from '@/composables/useSystemAndRecordingStatus'
 import { useTheme } from '@/composables/useTheme'
 import { useToast } from '@/composables/useToast'
-import { notificationApi } from '@/services/api'
+import { useNotificationStore } from '@/stores/notifications'
+import { useRealtimeStore } from '@/stores/realtime'
+import { hasRealtimeEventType, toCanonicalNotificationEvent } from '@/types/events'
 
 // Initialize theme
 const { initializeTheme } = useTheme()
@@ -570,11 +527,11 @@ onMounted(() => {
 })
 
 const showNotifications = ref(false)
-const unreadCount = ref(0)
-const notificationCount = ref(0)
-const lastReadTimestamp = ref(localStorage.getItem('lastReadTimestamp') || '0')
+const notificationStore = useNotificationStore()
+const unreadCount = computed(() => notificationStore.unreadCount)
+const notificationCount = computed(() => notificationStore.totalCount)
 
-const { messages } = useWebSocket()
+const realtime = useRealtimeStore()
 const { logout: authLogout } = useAuth()
 
 // PWA-compatible logout function
@@ -582,37 +539,6 @@ async function logout() {
   if (confirm('Are you sure you want to logout?')) {
     await authLogout()
   }
-}
-
-// Mobile hamburger menu
-const showMobileMenu = ref(false)
-const queueMonitorRef = ref(null)
-
-const jobCount = computed(() => {
-  return queueMonitorRef.value?.taskCount?.value?.length ?? 0
-})
-
-function toggleMobileMenu() {
-  showMobileMenu.value = !showMobileMenu.value
-}
-
-function closeMobileMenu() {
-  showMobileMenu.value = false
-}
-
-function openJobsFromMenu() {
-  closeMobileMenu()
-  queueMonitorRef.value?.togglePanel()
-}
-
-function openNotificationsFromMenu() {
-  closeMobileMenu()
-  toggleNotifications()
-}
-
-async function logoutFromMenu() {
-  closeMobileMenu()
-  await logout()
 }
 
 // Scroll to top on page transitions (for out-in mode)
@@ -623,7 +549,7 @@ function scrollToTop() {
 
 // Process toast notifications from WebSocket - uses unified useToast system
 function processToastNotification(message) {
-  if (message.type === 'toast_notification') {
+  if (hasRealtimeEventType(message, 'toast_notification')) {
     const { 
       toast_type = 'info',    // Backend sends "toast_type", not "type"
       title = '',
@@ -641,7 +567,7 @@ function processToastNotification(message) {
   }
   
   // CRITICAL: Listen for recording_failed WebSocket events
-  if (message.type === 'recording_failed') {
+  if (hasRealtimeEventType(message, 'recording_failed')) {
     const streamer_name = message.data?.streamer_name || 'Unknown'
     const error_message = message.data?.error_message || 'Unknown error'
     
@@ -662,266 +588,83 @@ function processToastNotification(message) {
 // another /auth/check which could race and trigger its own router.push.
 // Keep the import for explicit logout flows; remove the duplicate boot call.
 
-// WebSocket message processing - moved here so it runs even when notification panel is closed
-const processWebSocketMessage = (message) => {
-  if (!message || !message.type) {
-    return
-  }
-  
-  // Process toast notifications first
-  if (message.type === 'toast_notification') {
-    processToastNotification(message)
-    return // Don't store toast notifications in regular notification history
-  }
-  
-  // Skip connection status messages
-  if (message.type === 'connection.status') {
-    return
-  }
-  
-  // Valid notification types for history
-  const validTypes = [
-    'stream.online', 
-    'stream.offline',
-    'channel.update',
-    'stream.update',
-    'recording.started',
-    'recording.completed',
-    'recording.failed',
-    'test'
-  ]
-  
-  if (validTypes.includes(message.type)) {
-    addNotificationToStorage(message)
+const addNotificationFromRealtime = (message) => {
+  const notificationEvent = toCanonicalNotificationEvent(message)
+  if (notificationEvent) {
+    notificationStore.addFromEvent(notificationEvent)
   }
 }
 
-// Add notification to localStorage with duplicate detection
-const addNotificationToStorage = (message) => {
-  try {
-    const id = message.data?.test_id || `${message.type}_${Date.now()}_${Math.random()}`
-    
-    const timestamp = message.data?.timestamp 
-      ? new Date(parseInt(message.data.timestamp) || message.data.timestamp).toISOString()
-      : new Date().toISOString()
-    
-    const streamer_username = message.data?.username || 
-                             message.data?.streamer_name || 
-                             'Unknown'
-    
-    const newNotification = {
-      id,
-      type: message.type,
-      timestamp,
-      streamer_username,
-      data: message.data || {}
-    }
-    
-    // Get existing notifications
-    let notifications = []
-    try {
-      const existing = localStorage.getItem('streamvault_notifications')
-      if (existing) {
-        notifications = JSON.parse(existing)
-      }
-    } catch (e) {
-      notifications = []
-    }
-    
-    // Duplicate detection function
-    const isDuplicate = (existing, incoming) => {
-      // Same type and streamer
-      if (existing.type !== incoming.type || existing.streamer_username !== incoming.streamer_username) {
-        return false
-      }
-      
-      const timeDiff = Math.abs(new Date(existing.timestamp).getTime() - new Date(incoming.timestamp).getTime())
-      
-      // For stream updates, check if title is the same within 30 seconds
-      if (incoming.type === 'channel.update' || incoming.type === 'stream.update') {
-        const existingTitle = existing.data?.title || ''
-        const incomingTitle = incoming.data?.title || ''
-        if (existingTitle === incomingTitle && timeDiff < 30000) {
-          return true
-        }
-      }
-      
-      // For stream.online/offline, check within 10 seconds
-      if (incoming.type === 'stream.online' || incoming.type === 'stream.offline') {
-        return timeDiff < 10000
-      }
-      
-      // For recording events, check within 5 seconds
-      if (incoming.type.startsWith('recording.')) {
-        return timeDiff < 5000
-      }
-      
-      return false
-    }
-    
-    // Check for duplicate
-    const existingIndex = notifications.findIndex(n => isDuplicate(n, newNotification))
-    
-    if (existingIndex >= 0) {
-      // Update existing notification instead of adding duplicate
-      notifications[existingIndex] = newNotification
-    } else {
-      // Add new notification to beginning
-      notifications.unshift(newNotification)
-    }
-    
-    // Limit notifications
-    if (notifications.length > 100) {
-      notifications = notifications.slice(0, 100)
-    }
-    
-    // Save back to localStorage
-    localStorage.setItem('streamvault_notifications', JSON.stringify(notifications))
-    
-    // Update unread count
-    updateUnreadCountFromStorage()
-    
-    // Dispatch event for other components (NotificationFeed will reload from localStorage)
-    window.dispatchEvent(new CustomEvent('notificationsUpdated', {
-      detail: { count: notifications.length }
-    }))
-    
-  } catch (error) {
-    console.error('❌ App: Error adding notification to localStorage:', error)
-  }
-}
+const notificationRealtimeTypes = [
+  'stream.online',
+  'stream.offline',
+  'channel.update',
+  'stream.update',
+  'recording.started',
+  'recording.completed',
+  'recording.failed',
+  'recording.finished',
+  'recording.available',
+  'stream_online',
+  'stream_offline',
+  'recording_started',
+  'recording_completed',
+  'recording_failed',
+  'recording_finished',
+  'recording_available',
+  'notification_event',
+  'test'
+]
 
-// Track previous message count to detect new messages
-let previousMessageCount = 0
+const appRealtimeUnsubs = []
 
-// Watch for new WebSocket messages
-watch(() => messages.value.length, (newLength) => {
-  if (newLength > previousMessageCount) {
-    // Process only the new messages
-    const newCount = newLength - previousMessageCount
-    const messagesToProcess = messages.value.slice(-newCount)
-    
-    messagesToProcess.forEach((message, _index) => {
-      processWebSocketMessage(message)
-    })
-    
-    previousMessageCount = newLength
-  }
-}, { immediate: false })
+onMounted(() => {
+  appRealtimeUnsubs.push(
+    realtime.onEvent('toast_notification', processToastNotification),
+    realtime.onEvent('recording_failed', processToastNotification),
+    realtime.onEvents(notificationRealtimeTypes, addNotificationFromRealtime)
+  )
+})
+
+onUnmounted(() => {
+  appRealtimeUnsubs.forEach((fn) => fn())
+})
 
 function toggleNotifications() {
   showNotifications.value = !showNotifications.value
   // Lock/unlock body scroll when panel is open on mobile
   document.body.style.overflow = showNotifications.value ? 'hidden' : ''
-}
 
-function markAsRead() {
-  unreadCount.value = 0
-  lastReadTimestamp.value = Date.now().toString()
-  localStorage.setItem('lastReadTimestamp', lastReadTimestamp.value)
+  if (showNotifications.value) {
+    nextTick(() => notificationPanelRef.value?.focus?.())
+  } else {
+    notificationBellRef.value?.focus?.()
+  }
 }
 
 async function clearAllNotifications() {
-  try {
-    // Clear on backend (sets last_cleared_timestamp)
-    await notificationApi.clear()
-  } catch (error) {
-    console.error('Failed to clear notifications on backend:', error)
-  }
-  
-  // Clear the notifications from localStorage
-  localStorage.removeItem('streamvault_notifications')
-  // Mark as read
-  markAsRead()
-  // Reset notification count
-  unreadCount.value = 0
-  notificationCount.value = 0
-  // Dispatch event to notify other components
-  window.dispatchEvent(new CustomEvent('notificationsUpdated', {
-    detail: { count: 0 }
-  }))
+  await notificationStore.clearAll()
+}
+
+function markAsRead() {
+  notificationStore.markAllRead()
 }
 
 function closeNotificationPanel() {
   if (showNotifications.value) {
     showNotifications.value = false
     document.body.style.overflow = ''
-    markAsRead() // Mark as read when panel closes
-  }
-}
-
-// Function to update unread count from localStorage
-function updateUnreadCountFromStorage() {
-  const notificationsStr = localStorage.getItem('streamvault_notifications')
-  
-  if (notificationsStr) {
-    try {
-      const notifications = JSON.parse(notificationsStr)
-      
-      if (Array.isArray(notifications)) {
-        // Total count includes ALL notifications in storage. Used to decide
-        // whether to render the "Clear all" button in the panel header.
-        notificationCount.value = notifications.length
-        // Only count real notification types, not connection status
-        const validNotificationTypes = [
-          'stream.online', 
-          'stream.offline', 
-          'channel.update',
-          'stream.update',
-          'recording.started',
-          'recording.completed',
-          'recording.failed',
-          'test' // Add test notification type to be counted
-        ]
-        
-        const unread = notifications.filter(n => {
-          const notifTimestamp = new Date(n.timestamp).getTime()
-          const isValidType = validNotificationTypes.includes(n.type)
-          const isUnread = notifTimestamp > parseInt(lastReadTimestamp.value)
-          
-          return isValidType && isUnread
-        })
-        
-        unreadCount.value = unread.length
-      }
-    } catch (e) {
-      console.error('❌ App: Failed to parse notifications from localStorage', e)
-    }
-  } else {
-    unreadCount.value = 0
-    notificationCount.value = 0
+    notificationStore.markAllRead()
+    notificationBellRef.value?.focus?.()
   }
 }
 
 // Load notification state from backend on mount
 onMounted(async () => {
-  // Load backend notification state (last read/cleared timestamps)
-  try {
-    const backendState = await notificationApi.getState()
-    if (backendState.last_cleared_timestamp) {
-      // Use backend cleared timestamp if more recent than localStorage
-      const backendCleared = new Date(backendState.last_cleared_timestamp).getTime()
-      const localCleared = parseInt(lastReadTimestamp.value) || 0
-      if (backendCleared > localCleared) {
-        lastReadTimestamp.value = backendCleared.toString()
-        localStorage.setItem('lastReadTimestamp', lastReadTimestamp.value)
-      }
-    }
-  } catch (error) {
-    console.error('Failed to load notification state from backend:', error)
-  }
+  notificationStore.load()
+  await notificationStore.syncBackendState()
   
-  updateUnreadCountFromStorage()
-  
-  // Set initial message count
-  previousMessageCount = messages.value.length
-  
-  // Process any existing WebSocket messages
-  if (messages.value.length > 0) {
-    messages.value.forEach((message, _index) => {
-      processWebSocketMessage(message)
-    })
-  }
+  realtime.recentEvents.forEach(addNotificationFromRealtime)
   
   // Click-outside handler for notification panel using refs
   const handleClickOutside = (event) => {
@@ -944,61 +687,7 @@ onMounted(async () => {
     document.removeEventListener('click', handleClickOutside)
   })
   
-  // Listen for localStorage changes to update count
-  window.addEventListener('storage', (e) => {
-    if (e.key === 'streamvault_notifications') {
-      updateUnreadCountFromStorage()
-    }
-  })
-  
-  // Listen for custom notifications updated event
-  window.addEventListener('notificationsUpdated', () => {
-    updateUnreadCountFromStorage()
-  })
 })
-
-// Track the previous message count to detect actual changes
-const previousMessageCountApp = ref(0)
-
-// Watch for new messages and update unread count
-watch(messages, (newMessages) => {
-  if (!newMessages || newMessages.length === 0) return
-  
-  // Check if we have new messages
-  if (newMessages.length > previousMessageCountApp.value) {
-    // Get only the new messages since last check
-    const newCount = newMessages.length - previousMessageCountApp.value
-    const newMessagesToProcess = newMessages.slice(-newCount)
-    
-    // Update our counter for next time
-    previousMessageCountApp.value = newMessages.length
-    
-    // Process each new message - but only count them, don't store them (NotificationFeed handles storage)
-    newMessagesToProcess.forEach(newMessage => {
-      
-      // Only count specific notification types (exclude connection.status to prevent false positives)
-      const notificationTypes = [
-        'stream.online', 
-        'stream.offline', 
-        'channel.update',  
-        'stream.update',
-        'recording.started',
-        'recording.completed',
-        'recording.failed',
-        'test'  
-      ]
-      
-      // Only increment if it's a valid notification type AND panel is not currently shown
-      if (notificationTypes.includes(newMessage.type) && !showNotifications.value) {
-        // Check if this notification has already been counted
-        const notificationTimestamp = newMessage.data?.timestamp || Date.now()
-        if (parseInt(notificationTimestamp) > parseInt(lastReadTimestamp.value)) {
-          unreadCount.value++
-        }
-      }
-    })
-  }
-}, { deep: true, immediate: false }) // Don't process immediately
 </script>
 
 <style lang="scss">
@@ -1063,122 +752,6 @@ watch(messages, (newMessages) => {
   }
 }
 
-// Hide elements on mobile, show on desktop
-.desktop-only {
-  display: none !important;
-  
-  @include m.respond-to('md') {
-    display: flex !important;
-    align-items: center;
-  }
-}
-
-// Show elements on mobile only, hide on desktop
-.mobile-only {
-  display: flex !important;
-  align-items: center;
-  
-  @include m.respond-to('md') {
-    display: none !important;
-  }
-}
-
-// ============================================================================
-// MOBILE MENU
-// ============================================================================
-
-.mobile-menu-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.3);
-  z-index: 10000;
-}
-
-.mobile-menu-panel {
-  position: fixed;
-  top: 64px;
-  right: var(--spacing-3);
-  width: min(260px, 80vw);
-  background: var(--glass-bg-strong);
-  backdrop-filter: blur(var(--glass-blur-lg));
-  -webkit-backdrop-filter: blur(var(--glass-blur-lg));
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-xl);
-  box-shadow: var(--glass-shadow-lg);
-  z-index: 10001;
-  padding: var(--spacing-2);
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-1);
-  
-  @supports not (backdrop-filter: blur(1px)) {
-    background: var(--glass-bg-solid);
-  }
-}
-
-.mobile-menu-item {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-3);
-  padding: var(--spacing-3) var(--spacing-4);
-  background: none;
-  border: none;
-  border-radius: var(--radius-lg);
-  color: var(--text-primary);
-  font-size: var(--text-sm);
-  font-weight: v.$font-medium;
-  cursor: pointer;
-  transition: background v.$duration-200 v.$ease-out;
-  width: 100%;
-  text-align: left;
-  
-  svg {
-    width: 20px;
-    height: 20px;
-    stroke: var(--text-secondary);
-    fill: none;
-    flex-shrink: 0;
-  }
-  
-  span {
-    flex: 1;
-  }
-  
-  .mobile-badge {
-    position: static;
-    min-width: 18px;
-    height: 18px;
-    padding: 0 4px;
-    background: var(--danger-color);
-    color: white;
-    font-size: 10px;
-    font-weight: v.$font-bold;
-    border-radius: var(--radius-full);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  
-  &:hover {
-    background: var(--glass-bg-subtle);
-  }
-  
-  &.mobile-menu-danger {
-    color: var(--danger-color);
-    
-    svg {
-      stroke: var(--danger-color);
-    }
-  }
-}
-
-.theme-menu-item {
-  // Push the ThemeToggle to the right
-  :deep(.icon-btn) {
-    margin-left: auto;
-  }
-}
-
 .header-logout-btn {
   padding: var(--spacing-2) var(--spacing-3) !important;
   min-height: 36px !important;
@@ -1214,11 +787,11 @@ watch(messages, (newMessages) => {
 }
 
 // ============================================================================
-// NOTIFICATION PANEL — overrides on top of shared .glass-popup-panel
+// NOTIFICATION PANEL - overrides on top of shared .glass-popup-panel
 // ============================================================================
 
 .notification-panel {
-  // Hide the internal feed header — panel has its own header
+  // Hide the internal feed header - panel has its own header
   // Must beat scoped selector specificity: .feed-header[data-v-xxx]
   .notification-feed .feed-header {
     display: none !important;
@@ -1291,20 +864,6 @@ watch(messages, (newMessages) => {
   opacity: 0;
 }
 
-// Slide-down transition for mobile menu
-.slide-down-enter-active,
-.slide-down-leave-active {
-  transition: transform v.$duration-200 v.$ease-out, opacity v.$duration-150 v.$ease-out;
-}
-.slide-down-enter-from {
-  transform: translateY(-10px);
-  opacity: 0;
-}
-.slide-down-leave-to {
-  transform: translateY(-5px);
-  opacity: 0;
-}
-
 // Page transitions
 .page-enter-active,
 .page-leave-active {
@@ -1313,6 +872,19 @@ watch(messages, (newMessages) => {
 .page-enter-from,
 .page-leave-to {
   opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .glass-btn-icon.has-badge svg,
+  .fade-enter-active,
+  .fade-leave-active,
+  .slide-up-enter-active,
+  .slide-up-leave-active,
+  .page-enter-active,
+  .page-leave-active {
+    animation: none;
+    transition: none;
+  }
 }
 
 // Mobile header styles

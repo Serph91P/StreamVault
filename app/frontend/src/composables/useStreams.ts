@@ -1,5 +1,6 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import type { Stream } from '@/types/streams'
+import { streamersApi } from '@/services/api'
 
 export function useStreams() {
   const streams = ref<Stream[]>([])
@@ -19,16 +20,7 @@ export function useStreams() {
     error.value = null
     
     try {
-      const response = await fetch(`/api/streamers/${streamerId}/streams`, {
-        credentials: 'include' // CRITICAL: Required to send session cookie
-      })
-      
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.detail || `Failed to fetch streams for streamer ID ${streamerId}`)
-      }
-      
-      const data = await response.json()
+      const data = await streamersApi.getStreams(Number(streamerId))
       // Safety net: only keep streams that belong to the requested streamer
       streams.value = Array.isArray(data.streams)
         ? data.streams.filter((s: Stream) => Number(s.streamer_id) === Number(streamerId))

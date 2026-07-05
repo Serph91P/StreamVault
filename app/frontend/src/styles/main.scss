@@ -12,8 +12,9 @@
 @use 'tables';  // Unified table system
 @use 'settings-panels';  // Unified settings panels design
 
-// Import FontAwesome
-@import '@fortawesome/fontawesome-free/css/all.css';
+// SCSS ownership: main.scss owns import order, reset, document base styles and
+// legacy global element defaults. Do not define design tokens or component
+// token aliases here.
 
 // CSS Reset und moderne Basis
 *, *::before, *::after {

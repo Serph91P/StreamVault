@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import GlassCard from '@/components/cards/GlassCard.vue'
 import BaseButton from '@/components/base/BaseButton.vue'
+import { appStorage } from '@/services/storage'
 
 /**
  * Unified onboarding wizard. Both `/auth/setup` and `/welcome` route
@@ -115,7 +116,7 @@ async function startTwitchOAuth(): Promise<void> {
     const data = await res.json()
     if (data.auth_url) {
       // After callback we want to land back on the wizard at the next step.
-      sessionStorage.setItem('oauth_return_url', '/onboarding?step=recording')
+      appStorage.setOauthReturnUrl('/onboarding?step=recording')
       window.location.href = data.auth_url
       return
     }

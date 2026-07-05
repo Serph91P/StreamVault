@@ -1,631 +1,317 @@
-<template>
-  <div class="notification-feed">
-    <div class="feed-header">
-      <div class="header-content">
-        <div class="header-icon">
-          <div class="icon-ring">
-            <svg class="bell-svg"><use href="#icon-bell" /></svg>
-          </div>
-        </div>
-        <div class="header-text">
-          <h2 class="section-title">Notifications</h2>
-          <p class="section-subtitle">{{ notifications.length }} recent update{{ notifications.length !== 1 ? 's' : '' }}</p>
-        </div>
-      </div>
-      <button 
-        v-if="notifications.length > 0"
-        @click.stop="clearAllNotifications" 
-        @mousedown.stop
-        @mouseup.stop
-        @touchstart.stop="clearAllNotifications"
-        class="clear-all-btn" 
-        aria-label="Clear all notifications"
-        type="button"
-        ref="clearButton"
-      >
-        <svg class="clear-svg" @click.stop="clearAllNotifications"><use href="#icon-trash-2" /></svg>
-        <span class="clear-text" @click.stop="clearAllNotifications">Clear</span>
-      </button>
-      <button 
-        class="close-feed-btn"
-        @click="$emit('close')"
-        aria-label="Close notifications"
-        type="button"
-      >
-        <svg class="close-svg"><use href="#icon-x" /></svg>
-      </button>
-    </div>
-    
-    <div v-if="notifications.length === 0" class="no-notifications">
-      <div class="empty-state">
-        <div class="empty-icon">
-          <div class="icon-circle">
-            <svg class="empty-svg"><use href="#icon-inbox" /></svg>
-          </div>
-        </div>
-        <h3>All caught up!</h3>
-        <p>No new notifications</p>
-      </div>
-    </div>
-    
-    <TransitionGroup v-else name="notification" tag="div" class="notification-list">
-      <div v-for="notification in sortedNotifications" 
-          :key="notification.id" 
-          class="notification-item"
-          :class="getNotificationClass(notification.type, notification)">
-        <div class="notification-indicator" :class="getNotificationClass(notification.type, notification)"></div>
-        
-        <div class="notification-icon">
-          <div class="icon-wrapper" :class="getNotificationClass(notification.type, notification)">
-            <!-- Toast notification icons -->
-            <svg v-if="notification.type === 'toast_notification' && notification.data?.toast_type === 'success'" class="notif-svg"><use href="#icon-check-circle" /></svg>
-            <svg v-else-if="notification.type === 'toast_notification' && notification.data?.toast_type === 'error'" class="notif-svg"><use href="#icon-x-circle" /></svg>
-            <svg v-else-if="notification.type === 'toast_notification' && notification.data?.toast_type === 'warning'" class="notif-svg"><use href="#icon-alert-triangle" /></svg>
-            <svg v-else-if="notification.type === 'toast_notification' && notification.data?.toast_type === 'info'" class="notif-svg"><use href="#icon-info" /></svg>
-            <!-- Regular notification icons -->
-            <svg v-else-if="notification.type === 'stream.online'" class="notif-svg"><use href="#icon-radio" /></svg>
-            <svg v-else-if="notification.type === 'stream.offline'" class="notif-svg"><use href="#icon-circle" /></svg>
-            <svg v-else-if="notification.type === 'channel.update' || notification.type === 'stream.update'" class="notif-svg"><use href="#icon-edit" /></svg>
-            <svg v-else-if="notification.type === 'recording.started'" class="notif-svg"><use href="#icon-video" /></svg>
-            <svg v-else-if="notification.type === 'recording.completed'" class="notif-svg"><use href="#icon-check-circle" /></svg>
-            <svg v-else-if="notification.type === 'recording.failed'" class="notif-svg"><use href="#icon-x-circle" /></svg>
-            <svg v-else-if="notification.type === 'test'" class="notif-svg"><use href="#icon-zap" /></svg>
-            <svg v-else class="notif-svg"><use href="#icon-info" /></svg>
-          </div>
-        </div>
-        
-        <div class="notification-content">
-          <div class="notification-header">
-            <span class="notification-title">{{ formatTitle(notification) }}</span>
-            <span class="notification-time">{{ formatTime(notification.timestamp) }}</span>
-          </div>
-          <p class="notification-message">{{ formatMessage(notification) }}</p>
-          
-          <div v-if="notification.data?.game_name || notification.data?.category_name" class="notification-meta">
-            <span class="category-tag">
-              <span class="category-image-small">
-                <img 
-                  v-if="!getCategoryImage(notification.data?.game_name || notification.data?.category_name || '').startsWith('icon:')"
-                  :src="getCategoryImage(notification.data?.game_name || notification.data?.category_name || '')" 
-                  :alt="notification.data?.game_name || notification.data?.category_name"
-                  loading="lazy"
-                />
-                <i 
-                  v-else 
-                  :class="getCategoryImage(notification.data?.game_name || notification.data?.category_name || '').replace('icon:', '')"
-                  class="category-icon"
-                ></i>
-              </span>
-              {{ notification.data?.game_name || notification.data?.category_name }}
-            </span>
-          </div>
-        </div>
-        
-        <button @click="removeNotification(notification.id)" class="notification-dismiss" aria-label="Dismiss notification">
-          <span class="dismiss-icon">×</span>
-        </button>
-      </div>
-    </TransitionGroup>
-  </div>
-</template>
-
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { useCategoryImages } from '@/composables/useCategoryImages'
-import { notificationApi } from '@/services/api'
+import { computed, onUnmounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
+import NotificationFilters from '@/components/notifications/NotificationFilters.vue'
+import NotificationItem from '@/components/notifications/NotificationItem.vue'
+import NotificationState from '@/components/notifications/NotificationState.vue'
+import { useNotificationStore, type NotificationFilter } from '@/stores/notifications'
+import type { StoredNotification } from '@/services/notificationStorage'
+import { normalizeNotificationTargetUrl } from '@/types/events'
 
-const emit = defineEmits(['notifications-read', 'close-panel', 'clear-all', 'close'])
+const emit = defineEmits<{
+  (e: 'notifications-read'): void
+  (e: 'close-panel'): void
+  (e: 'clear-all'): void
+  (e: 'close'): void
+}>()
 
-/**
- * NotificationFeed Component
- * 
- * ARCHITECTURE NOTE:
- * This component ONLY reads from localStorage. All WebSocket message processing
- * is handled centrally in App.vue, which stores notifications in localStorage.
- * This ensures:
- * 1. Notifications are captured even when this panel is closed
- * 2. No duplicate processing of messages
- * 3. Consistent state across the app
- * 
- * The component listens for 'notificationsUpdated' events to refresh its view.
- */
+const notificationStore = useNotificationStore()
+const router = useRouter()
+const isLoading = ref(false)
+const errorMessage = ref('')
 
-interface NotificationData {
-  [key: string]: any;
-}
+const notifications = computed(() => notificationStore.filteredNotifications)
+const allNotifications = computed(() => notificationStore.sortedNotifications)
+const totalCount = computed(() => notificationStore.totalCount)
+const unreadCount = computed(() => notificationStore.unreadCount)
 
-interface Notification {
-  id: string;
-  type: string;
-  timestamp: string;
-  streamer_username?: string;
-  title?: string;
-  data?: NotificationData;
-}
-
-const notifications = ref<Notification[]>([])
-const { getCategoryImage } = useCategoryImages()
-
-const MAX_NOTIFICATIONS = 100
-
-// Sort notifications by timestamp (newest first)
-const sortedNotifications = computed(() => {
-  return [...notifications.value].sort((a, b) => {
-    return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-  })
+const activeFilter = computed<NotificationFilter>({
+  get: () => notificationStore.filter,
+  set: (value) => notificationStore.setFilter(value)
 })
 
-// Format relative time (e.g. "5 minutes ago")
-const formatTime = (timestamp: string): string => {
-  const now = new Date()
-  const time = new Date(timestamp)
-  const diff = now.getTime() - time.getTime()
-  
-  if (diff < 60 * 1000) {
-    return 'Just now'
-  }
-  
-  if (diff < 60 * 60 * 1000) {
-    const minutes = Math.floor(diff / (60 * 1000))
-    return `${minutes} minute${minutes !== 1 ? 's' : ''} ago`
-  }
-  
-  if (diff < 24 * 60 * 60 * 1000) {
-    const hours = Math.floor(diff / (60 * 60 * 1000))
-    return `${hours} hour${hours !== 1 ? 's' : ''} ago`
-  }
-  
-  if (diff < 7 * 24 * 60 * 60 * 1000) {
-    const days = Math.floor(diff / (24 * 60 * 60 * 1000))
-    return `${days} day${days !== 1 ? 's' : ''} ago`
-  }
-  
-  return time.toLocaleDateString()
-}
+const severityCounts = computed<Record<string, number>>(() => {
+  return allNotifications.value.reduce<Record<string, number>>((counts, notification) => {
+    counts[notification.severity] = (counts[notification.severity] || 0) + 1
+    return counts
+  }, {})
+})
 
-// Format notification title based on type
-const formatTitle = (notification: Notification): string => {
-  const username = notification.streamer_username || notification.data?.streamer_name || notification.data?.username || 'Unknown'
-  
-  if (notification.data?.test_id) {
-    return 'Test Notification'
-  }
-  
-  // Handle toast notifications
-  if (notification.type === 'toast_notification') {
-    return notification.data?.title || 'Notification'
-  }
-  
-  switch (notification.type) {
-    case 'stream.online':
-      return `${username} is Live`
-    case 'stream.offline':
-      return `${username} Stream Ended`
-    case 'channel.update':
-    case 'stream.update':
-      return `${username} Updated Stream`
-    case 'recording.started':
-      return `Recording Started`
-    case 'recording.completed':
-      return `Recording Completed`
-    case 'recording.failed':
-      return `Recording Failed`
-    default:
-      return notification.title || 'Notification'
-  }
-}
+const typeOptions = computed(() => {
+  const counts = allNotifications.value.reduce<Record<string, number>>((result, notification) => {
+    result[notification.type] = (result[notification.type] || 0) + 1
+    return result
+  }, {})
 
-// Format notification message based on type and data
-const formatMessage = (notification: Notification): string => {
-  const { type, data } = notification
-  const username = notification.streamer_username || data?.streamer_name || data?.username || 'Unknown'
-  
-  if (data?.message) {
-    return data.message
-  }
-  
-  // Handle toast notifications
-  if (type === 'toast_notification') {
-    return data?.message || 'Toast notification'
-  }
-  
-  switch (type) {
-    case 'stream.online':
-      return data?.title ? `${username} is live: "${data.title}"` : `${username} is now streaming`
-    case 'stream.offline':
-      return `${username} has gone offline`
-    case 'channel.update':
-    case 'stream.update':
-      return data?.title ? `New title: ${data.title}` : `${username} updated their stream`
-    case 'recording.started':
-      return `Started recording ${username}'s stream`
-    case 'recording.completed':
-      return `Successfully completed recording ${username}'s stream`
-    case 'recording.failed':
-      // Support both error and error_message fields
-      const errorMsg = data?.error_message || data?.error || 'Unknown error'
-      return `Recording failed for ${username}: ${errorMsg}`
-    case 'test':
-      return data?.message || 'This is a test notification to verify the system is working properly'
-    default:
-      return `New notification for ${username}`
-  }
-}
+  return Object.entries(counts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 8)
+    .map(([value, count]) => ({
+      value,
+      count,
+      label: value.replaceAll('.', ' ')
+    }))
+})
 
-// Get CSS class based on notification type
-const getNotificationClass = (type: string, notification?: Notification): string => {
-  switch (type) {
-    case 'stream.online':
-      return 'online'
-    case 'stream.offline':
-      return 'offline'
-    case 'channel.update':
-    case 'stream.update':
-      return 'update'
-    case 'recording.started':
-      return 'recording'
-    case 'recording.completed':
-      return 'success'
-    case 'recording.failed':
-      return 'error'
-    case 'toast_notification':
-      // Use the toast_type from data if available
-      return notification?.data?.toast_type || 'info'
-    case 'test':
-      return 'test'
-    default:
-      return 'info'
+const subtitle = computed(() => {
+  if (unreadCount.value > 0) {
+    return `${unreadCount.value} unread of ${totalCount.value} notification${totalCount.value !== 1 ? 's' : ''}`
   }
-}
+  return `${totalCount.value} notification${totalCount.value !== 1 ? 's' : ''} in history`
+})
 
-// Remove a specific notification
-const removeNotification = (id: string): void => {
-  notifications.value = notifications.value.filter(n => n.id !== id)
-  saveNotifications()
-}
-
-// Clear all notifications
-const clearAllNotifications = async (event?: Event): Promise<void> => {
-  // Prevent any default behavior or propagation
-  if (event) {
-    event.preventDefault()
-    event.stopPropagation()
-    event.stopImmediatePropagation()
+async function openNotificationTarget(notification: StoredNotification): Promise<void> {
+  if (!notification.target_url) {
+    return
   }
-  
+
+  notificationStore.markRead(notification.id)
+
   try {
-    // Clear on backend (sets last_cleared_timestamp in DB)
-    await notificationApi.clear()
-    console.log('✅ NotificationFeed: Backend cleared successfully')
+    const target = normalizeNotificationTargetUrl(notification.target_url)
+    if (target.startsWith(window.location.origin)) {
+      const targetUrl = new URL(target)
+      await router.push(targetUrl.pathname + targetUrl.search + targetUrl.hash)
+    } else if (target.startsWith('/')) {
+      await router.push(target)
+    } else {
+      window.open(target, '_blank', 'noopener,noreferrer')
+    }
+    emit('close-panel')
   } catch (error) {
-    console.error('❌ NotificationFeed: Failed to clear on backend:', error)
+    errorMessage.value = 'The notification target could not be opened.'
+    console.error('NotificationFeed: Failed to open notification target:', error)
   }
-  
-  // Clear notifications directly
-  notifications.value = []
-  
-  // Clear localStorage immediately
-  try {
-    localStorage.removeItem('streamvault_notifications')
-    localStorage.setItem('streamvault_notifications', JSON.stringify([]))
-  } catch (error) {
-    console.error('❌ NotificationFeed: Error clearing localStorage:', error)
+}
+
+function toggleRead(notification: StoredNotification): void {
+  if (notification.read) {
+    notificationStore.markUnread(notification.id)
+  } else {
+    notificationStore.markRead(notification.id)
   }
-  
-  // Dispatch event immediately
-  window.dispatchEvent(new CustomEvent('notificationsUpdated', {
-    detail: { count: 0 }
-  }))
-  
-  // Also emit to App.vue for any additional cleanup
+}
+
+function removeNotification(id: string): void {
+  notificationStore.remove(id)
+}
+
+async function clearAllNotifications(event?: Event): Promise<void> {
+  event?.preventDefault()
+  event?.stopPropagation()
+  await notificationStore.clearAll()
   emit('clear-all')
-  
-  // Close the panel after clearing
   emit('close-panel')
 }
 
-// Save notifications to localStorage
-const saveNotifications = (): void => {
-  try {
-    localStorage.setItem('streamvault_notifications', JSON.stringify(notifications.value))
-
-    
-    // Dispatch a custom event to notify other components (like App.vue) that notifications changed
-    window.dispatchEvent(new CustomEvent('notificationsUpdated', {
-      detail: { count: notifications.value.length }
-    }))
-  } catch (error) {
-    console.error('❌ NotificationFeed: Error saving notifications:', error)
-  }
+function closeFeed(): void {
+  emit('close')
 }
 
-// Load notifications from localStorage
-const loadNotifications = (): void => {
-  try {
-    const saved = localStorage.getItem('streamvault_notifications')
-    
-    if (saved) {
-      const parsed = JSON.parse(saved)
-
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        notifications.value = parsed.slice(0, MAX_NOTIFICATIONS)
-      } else {
-        notifications.value = []
-      }
-    } else {
-      notifications.value = []
-    }
-  } catch (error) {
-    console.error('❌ NotificationFeed: Error loading notifications:', error)
-    notifications.value = []
-  }
-}
-
-// On mount - simplified: only loads from localStorage
-// WebSocket processing is handled centrally in App.vue
-onMounted(async () => {
-  console.log('🚀 NotificationFeed: Component mounted')
-  
-  // Load backend notification state (last_cleared_timestamp)
-  let lastClearedTimestamp: number | null = null
-  try {
-    const backendState = await notificationApi.getState()
-    if (backendState.last_cleared_timestamp) {
-      lastClearedTimestamp = new Date(backendState.last_cleared_timestamp).getTime()
-      console.log('🚀 NotificationFeed: Backend last cleared:', new Date(lastClearedTimestamp).toISOString())
-    }
-  } catch (error) {
-    console.error('❌ NotificationFeed: Failed to load backend state:', error)
-  }
-  
-  // Load existing notifications from localStorage
-  loadNotifications()
-  
-  // Filter out notifications that were cleared on backend
-  if (lastClearedTimestamp) {
-    const beforeFilter = notifications.value.length
-    notifications.value = notifications.value.filter(n => {
-      const notifTime = new Date(n.timestamp).getTime()
-      return notifTime > lastClearedTimestamp!
-    })
-    const afterFilter = notifications.value.length
-    if (beforeFilter !== afterFilter) {
-      console.log(`🚀 NotificationFeed: Filtered ${beforeFilter - afterFilter} cleared notifications`)
-      saveNotifications() // Update localStorage
-    }
-  }
-  
-  console.log('🚀 NotificationFeed: Loaded', notifications.value.length, 'notifications from localStorage')
-  
-  // Listen for external notification updates (from App.vue WebSocket processing)
-  window.addEventListener('notificationsUpdated', handleNotificationsUpdated)
-})
-
-// Handle external notification updates
-const handleNotificationsUpdated = (event: any) => {
-  console.log('📡 NotificationFeed: Received notificationsUpdated event:', event.detail)
-  // Reload notifications from localStorage to stay in sync
-  loadNotifications()
-}
-
-// Mark notifications as read when component is unmounted (panel closes)
 onUnmounted(() => {
-  console.log('🚀 NotificationFeed: Component unmounting, marking notifications as read')
-  // Remove event listener
-  window.removeEventListener('notificationsUpdated', handleNotificationsUpdated)
+  notificationStore.markAllRead()
   emit('notifications-read')
 })
 </script>
 
+<template>
+  <section class="notification-feed" aria-label="Notification Center">
+    <header class="feed-header">
+      <div class="header-content">
+        <div class="header-icon" aria-hidden="true">
+          <svg class="bell-svg"><use href="#icon-bell" /></svg>
+        </div>
+        <div class="header-text">
+          <p class="eyebrow">Notification Center</p>
+          <h2 class="section-title">Stay on top of StreamVault</h2>
+          <p class="section-subtitle">{{ subtitle }}</p>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button
+          v-if="totalCount > 0"
+          type="button"
+          class="header-action clear-action"
+          aria-label="Clear all notifications"
+          @click="clearAllNotifications"
+        >
+          Clear all
+        </button>
+        <button
+          type="button"
+          class="header-action icon-action"
+          aria-label="Close notifications"
+          @click="closeFeed"
+        >
+          <svg class="close-svg"><use href="#icon-x" /></svg>
+        </button>
+      </div>
+    </header>
+
+    <NotificationFilters
+      v-if="totalCount > 0"
+      v-model="activeFilter"
+      :total-count="totalCount"
+      :unread-count="unreadCount"
+      :severity-counts="severityCounts"
+      :type-options="typeOptions"
+    />
+
+    <NotificationState
+      v-if="isLoading"
+      state="loading"
+      title="Loading notifications"
+      message="Fetching your latest stream, recording and system events."
+    />
+    <NotificationState
+      v-else-if="errorMessage"
+      state="error"
+      title="Notification Center needs attention"
+      :message="errorMessage"
+    />
+    <NotificationState
+      v-else-if="totalCount === 0"
+      state="empty"
+      title="All caught up"
+      message="Important stream, recording, queue and system events will appear here."
+    />
+    <NotificationState
+      v-else-if="notifications.length === 0"
+      state="empty"
+      title="No matches"
+      message="Try another filter or switch back to all notifications."
+    />
+
+    <TransitionGroup v-else name="notification" tag="div" class="notification-list">
+      <NotificationItem
+        v-for="notification in notifications"
+        :key="notification.id"
+        :notification="notification"
+        @open="openNotificationTarget"
+        @remove="removeNotification"
+        @toggle-read="toggleRead"
+      />
+    </TransitionGroup>
+  </section>
+</template>
+
 <style scoped lang="scss">
 @use '@/styles/mixins' as m;
-/* Responsive - Use SCSS mixins for breakpoints */
 
-// NOTE: Container styling (glass bg, border, shadow, sizing) is provided by the
-// parent .glass-popup-panel in App.vue. This component only styles its internals.
 .notification-feed {
   display: flex;
   flex-direction: column;
   width: 100%;
-  overflow-y: auto;
-}
-
-@keyframes slideIn {
-  from {
-    transform: translateY(-10px);
-    opacity: 0;
-  }
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
+  min-height: 0;
+  overflow: hidden;
 }
 
 .feed-header {
-  padding: 16px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  border-bottom: 1px solid var(--glass-border);
-  background: var(--glass-bg-medium);
   position: sticky;
   top: 0;
   z-index: 10;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--spacing-4);
+  padding: var(--spacing-5);
+  border-bottom: 1px solid var(--glass-border);
+  background: var(--glass-bg-medium);
 }
 
 .header-content {
   display: flex;
-  align-items: center;
-  gap: 12px;
+  gap: var(--spacing-3);
+  min-width: 0;
 }
 
-.header-icon .icon-ring {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background-color: var(--background-dark);
-  border: 2px solid var(--primary-color);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-right: 10px;
+.header-icon {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border: 1px solid rgba(145, 71, 255, 0.5);
+  border-radius: var(--radius-full);
+  background: rgba(145, 71, 255, 0.16);
+  color: var(--primary-color);
 }
 
-.bell-svg {
-  width: 16px;
-  height: 16px;
-  stroke: var(--primary-color);
-  fill: none;
-}
-
-.clear-svg {
-  width: 14px;
-  height: 14px;
-  stroke: currentColor;
-  fill: none;
-}
-
-.close-feed-btn {
-  background: none;
-  border: none;
-  color: var(--text-secondary);
-  cursor: pointer;
-  padding: 8px;
-  border-radius: var(--radius-md);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: var(--transition-base);
-  margin-left: 8px;
-  
-  &:hover {
-    background: rgba(255, 255, 255, 0.1);
-    color: var(--text-primary);
-  }
-  
-  .close-svg {
-    width: 20px;
-    height: 20px;
-    stroke: currentColor;
-    fill: none;
-  }
-}
-
-.empty-svg {
-  width: 32px;
-  height: 32px;
-  stroke: var(--text-secondary);
-  fill: none;
-}
-
-.notif-svg {
-  width: 18px;
-  height: 18px;
+.bell-svg,
+.close-svg {
+  width: 1.15rem;
+  height: 1.15rem;
   stroke: currentColor;
   fill: none;
 }
 
 .header-text {
-  display: flex;
-  flex-direction: column;
+  min-width: 0;
+}
+
+.eyebrow {
+  margin: 0 0 var(--spacing-1);
+  color: var(--primary-color);
+  font-size: var(--text-xs);
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .section-title {
   margin: 0;
-  font-size: 16px;
-  font-weight: 600;
   color: var(--text-primary);
+  font-size: var(--text-lg);
+  font-weight: 800;
+  line-height: 1.2;
 }
 
 .section-subtitle {
-  margin: 4px 0 0 0;
-  font-size: 12px;
+  margin: var(--spacing-1) 0 0;
   color: var(--text-secondary);
+  font-size: var(--text-sm);
 }
 
-.clear-all-btn {
-  background: none;
-  border: none;
+.header-actions {
+  display: inline-flex;
+  flex: 0 0 auto;
+  gap: var(--spacing-2);
+}
+
+.header-action {
+  min-height: 2.25rem;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-full);
+  background: var(--glass-bg-subtle);
   color: var(--text-secondary);
-  font-size: 13px;
+  font-size: var(--text-sm);
+  font-weight: 700;
   cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 6px 10px;
-  border-radius: var(--border-radius, 4px);
-  transition: var(--transition-base);
-  position: relative;
-  z-index: 10;
-  pointer-events: auto;
-  user-select: none;
-  -webkit-user-select: none;
 }
 
-.clear-all-btn:hover {
-  background-color: rgba(255, 255, 255, 0.1);
+.header-action:hover,
+.header-action:focus-visible {
+  border-color: var(--primary-color);
   color: var(--text-primary);
-  transform: scale(1.05);
+  outline: none;
 }
 
-.clear-all-btn:active {
-  transform: scale(0.95);
-  background-color: rgba(255, 255, 255, 0.2);
+.clear-action {
+  padding: 0 var(--spacing-3);
 }
 
-.clear-all-btn:focus {
-  outline: 2px solid rgba(255, 255, 255, 0.3);
-  outline-offset: 2px;
-}
-
-.clear-icon {
-  font-size: 14px;
-}
-
-.no-notifications {
-  padding: 48px 16px;
-  text-align: center;
-}
-
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 30px 0;
-}
-
-.empty-state .empty-icon {
-  margin-bottom: 16px;
-}
-
-.empty-state .icon-circle {
-  width: 60px;
-  height: 60px;
-  border-radius: 50%;
-  background-color: var(--background-dark);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 30px;
-}
-
-.empty-state h3 {
-  margin: 8px 0;
-  font-size: 16px;
-  font-weight: 500;
-  color: var(--text-primary);
-}
-
-.empty-state p {
-  margin: 0;
-  font-size: 14px;
-  color: var(--text-secondary);
+.icon-action {
+  display: grid;
+  place-items: center;
+  width: 2.25rem;
+  padding: 0;
 }
 
 .notification-list {
-  flex-grow: 1;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
+  padding: var(--spacing-1) 0 var(--spacing-4);
 }
 
 .notification-list::-webkit-scrollbar {
@@ -637,482 +323,52 @@ onUnmounted(() => {
 }
 
 .notification-list::-webkit-scrollbar-thumb {
-  background-color: rgba(255, 255, 255, 0.1);
-  border-radius: 3px;
+  border-radius: var(--radius-full);
+  background-color: rgba(255, 255, 255, 0.14);
 }
 
-.notification-list::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(255, 255, 255, 0.2);
-}
-
-.notification-item {
-  padding: 16px;
-  margin: var(--spacing-2) var(--spacing-3);
-  border-radius: var(--radius-lg);
-  background: var(--glass-bg-subtle);
-  border: 1px solid var(--glass-border);
-  position: relative;
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  gap: 12px;
-  align-items: flex-start;
-  animation: slideIn 0.3s ease;
-  transition: all var(--duration-200) var(--ease-out);
-}
-
-.notification-item:hover {
-  background: var(--glass-bg-medium);
-  border-color: var(--glass-border-hover);
-  transform: translateY(-1px);
-}
-
-.notification-indicator {
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 2px;
-  opacity: 0.5;
-}
-
-.notification-indicator.online {
-  background-color: var(--success-color);
-}
-
-.notification-indicator.offline {
-  background-color: var(--warning-color);
-}
-
-.notification-indicator.update {
-  background-color: var(--info-color);
-}
-
-.notification-indicator.recording {
-  background-color: var(--danger-color);
-}
-
-.notification-indicator.success {
-  background-color: var(--success-color);
-}
-
-.notification-indicator.error {
-  background-color: var(--danger-color);
-}
-
-.notification-indicator.info {
-  background-color: var(--info-color);
-}
-
-.notification-indicator.test {
-  background-color: var(--purple-color);
-}
-
-.notification-icon {
-  margin-top: 3px;
-}
-
-.icon-wrapper {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 16px;
-}
-
-.icon-wrapper.online {
-  background-color: rgba(29, 185, 84, 0.1);
-  color: var(--success-color);
-}
-
-.icon-wrapper.offline {
-  background-color: rgba(255, 152, 0, 0.1);
-  color: var(--warning-color);
-}
-
-.icon-wrapper.update {
-  background-color: rgba(0, 180, 216, 0.1);
-  color: var(--info-color);
-}
-
-.icon-wrapper.recording {
-  background-color: rgba(244, 67, 54, 0.1);
-  color: var(--danger-color);
-}
-
-.icon-wrapper.success {
-  background-color: rgba(29, 185, 84, 0.1);
-  color: var(--success-color);
-}
-
-.icon-wrapper.error {
-  background-color: rgba(244, 67, 54, 0.1);
-  color: var(--danger-color);
-}
-
-.icon-wrapper.info {
-  background-color: rgba(0, 180, 216, 0.1);
-  color: var(--info-color);
-}
-
-.icon-wrapper.test {
-  background-color: rgba(145, 71, 255, 0.1);
-  color: var(--purple-color);
-}
-
-.notification-content {
-  flex: 1;
-  min-width: 0; /* Ensure text wrapping */
-}
-
-.notification-header {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 4px;
-}
-
-.notification-title {
-  font-weight: 500;
-  color: var(--text-primary);
-  font-size: 14px;
-}
-
-.notification-time {
-  color: var(--text-secondary);
-  font-size: 12px;
-}
-
-.notification-message {
-  margin: 6px 0;
-  color: var(--text-secondary);
-  font-size: 13px;
-  line-height: 1.4;
-  word-break: break-word;
-}
-
-.notification-meta {
-  margin-top: 8px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.category-tag {
-  background-color: var(--background-dark);
-  border-radius: 16px;
-  padding: 3px 8px;
-  font-size: 12px;
-  color: var(--text-secondary);
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.category-image-small {
-  width: 16px;
-  height: 16px;
-  border-radius: 2px;
-  overflow: hidden;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.category-image-small img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.category-image-small .category-icon {
-  font-size: 12px;
-  color: var(--twitch-purple);
-}
-
-.tag-icon {
-  font-size: 12px;
-}
-
-.notification-dismiss {
-  background: none;
-  border: none;
-  color: var(--text-secondary);
-  cursor: pointer;
-  font-size: 18px;
-  line-height: 1;
-  padding: 5px 8px;
-  border-radius: 50%;
-  margin: -5px -8px 0 0; /* Negative margin to increase hit area */
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.notification-dismiss:hover {
-  background-color: rgba(255, 255, 255, 0.1);
-  color: var(--text-primary);
-}
-
-.dismiss-icon {
-  display: inline-block;
-}
-
-/* Animation transitions */
 .notification-enter-active,
 .notification-leave-active {
-  transition: var(--transition-base);
+  transition: opacity var(--duration-200) var(--ease-out), transform var(--duration-200) var(--ease-out);
 }
 
 .notification-enter-from {
   opacity: 0;
-  transform: translateY(-20px);
+  transform: translateY(-0.75rem);
 }
 
 .notification-leave-to {
   opacity: 0;
-  transform: translateX(20px);
+  transform: translateX(1rem);
 }
 
 .notification-move {
-  transition: var(--transition-transform);
+  transition: transform var(--duration-200) var(--ease-out);
 }
 
-/* Mobile responsiveness */
-@include m.respond-below('md') {  // < 768px
+@include m.respond-below('md') {
+  .notification-feed {
+    max-height: calc(100dvh - var(--safe-area-inset-top, 0px));
+  }
+
   .feed-header {
-    padding: 16px 20px;
-    border-bottom: 1px solid var(--glass-border);
-    position: sticky;
-    top: 0;
-    z-index: 10;
-  }
-  
-  .header-content {
-    align-items: center;
-  }
-  
-  .header-icon .icon-ring {
-    width: 28px;
-    height: 28px;
-  }
-  
-  .bell-icon {
-    font-size: 14px;
-  }
-  
-  .section-title {
-    font-size: 18px;
-    font-weight: 700;
-  }
-  
-  .section-subtitle {
-    font-size: 13px;
-    margin-top: 2px;
-  }
-  
-  .clear-all-btn {
-    padding: 8px 12px;
-    font-size: 14px;
-    min-height: 44px;
-    border-radius: 8px;
-    touch-action: manipulation;
-  }
-  
-  .clear-all-btn:active {
-    transform: scale(0.98);
-  }
-  
-  .notification-list {
-    flex-grow: 1;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-  }
-  
-  .notification-item {
-    padding: 16px 20px;
-    border-bottom: 1px solid var(--border-color);
-    grid-template-columns: auto 1fr auto;
-    gap: 14px;
     align-items: flex-start;
+    padding: var(--spacing-4);
+  }
 
-    &:last-child {
-      border-bottom: none;
-    }
-
-    &:first-child {
-      border-top: none;
-    }
-  }
-  
-  .notification-icon {
-    margin-top: 2px;
-  }
-  
-  .icon-wrapper {
-    width: 36px;
-    height: 36px;
-    font-size: 18px;
-  }
-  
-  .notification-content {
-    flex: 1;
-    min-width: 0;
-    padding-right: 8px;
-  }
-  
-  .notification-header {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    margin-bottom: 6px;
-  }
-  
-  .notification-title {
-    font-size: 15px;
-    font-weight: 600;
-    line-height: 1.3;
-  }
-  
-  .notification-time {
-    font-size: 12px;
-    opacity: 0.8;
-  }
-  
-  .notification-message {
-    font-size: 14px;
-    line-height: 1.4;
-    margin: 8px 0;
-    word-break: break-word;
-  }
-  
-  .notification-meta {
-    margin-top: 10px;
-  }
-  
-  .category-tag {
-    padding: 4px 8px;
-    font-size: 11px;
-    border-radius: 12px;
-  }
-  
-  .category-image-small {
-    width: 14px;
-    height: 14px;
-  }
-  
-  .notification-dismiss {
-    padding: 8px;
-    font-size: 20px;
-    width: 36px;
-    height: 36px;
-    margin: -4px -8px 0 0;
-    touch-action: manipulation;
-    border-radius: 50%;
-  }
-  
-  .notification-dismiss:active {
-    transform: scale(0.95);
-  }
-  
-  .empty-state {
-    padding: 60px 20px;
-  }
-  
-  .empty-state .icon-circle {
-    width: 80px;
-    height: 80px;
-    font-size: 40px;
-    margin: 0 auto 20px;
-  }
-  
-  .empty-state h3 {
-    font-size: 20px;
-    margin: 16px 0 8px;
-  }
-  
-  .empty-state p {
-    font-size: 16px;
-  }
-}
-
-/* Extra small screens (phones in portrait) */
-@include m.respond-below('xs') {  // < 480px
-  .feed-header {
-    padding: 12px 16px;
-  }
-  
   .section-title {
-    font-size: 16px;
+    font-size: var(--text-base);
   }
-  
-  .section-subtitle {
-    font-size: 12px;
+
+  .header-actions {
+    flex-direction: column-reverse;
+    align-items: flex-end;
   }
-  
-  .clear-all-btn {
-    padding: 6px 10px;
-    font-size: 13px;
-  }
-  
-  .notification-item {
-    padding: 14px 16px;
-    gap: 12px;
-  }
-  
-  .icon-wrapper {
-    width: 32px;
-    height: 32px;
-    font-size: 16px;
-  }
-  
-  .notification-title {
-    font-size: 14px;
-  }
-  
-  .notification-message {
-    font-size: 13px;
-  }
-  
-  .notification-dismiss {
-    width: 32px;
-    height: 32px;
-    font-size: 18px;
-  }
-  
-  .empty-state {
-    padding: 40px 16px;
-  }
-  
-  .empty-state .icon-circle {
-    width: 60px;
-    height: 60px;
-    font-size: 30px;
-  }
-  
-  .empty-state h3 {
-    font-size: 18px;
-  }
-  
-  .empty-state p {
-    font-size: 14px;
+
+  .clear-action {
+    min-height: 2rem;
+    padding: 0 var(--spacing-2);
+    font-size: var(--text-xs);
   }
 }
-
-/* Landscape phones */
-@media (max-width: 767px) and (orientation: landscape) {  // Cannot use mixins for orientation queries
-  .notification-list {
-    max-height: calc(100vh - 70px);
-  }
-  
-  .notification-item {
-    padding: 12px 20px;
-  }
-  
-  .empty-state {
-    padding: 30px 20px;
-  }
-}
-
-/* Dark mode enhancements — box-shadow removed; parent .glass-popup-panel provides styling */
 </style>

@@ -1,6 +1,7 @@
 import { ref, onMounted, reactive } from 'vue';
 import type { FilenamePreset } from '@/types/recording';
 import { FILENAME_PRESETS as STATIC_FILENAME_PRESETS } from '@/types/recording';
+import { filenamePresetsApi } from '@/services/api';
 
 interface FilenamePresetsResponse {
   status: string;
@@ -17,15 +18,7 @@ export function useFilenamePresets() {
     error.value = null;
     
     try {
-      const response = await fetch('/api/recording/filename-presets', {
-        credentials: 'include' // CRITICAL: Required to send session cookie
-      });
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
-      const data: FilenamePresetsResponse = await response.json();
+      const data: FilenamePresetsResponse = await filenamePresetsApi.getAll();
       
       if (data.status === 'success') {
         // Clear and populate the reactive array

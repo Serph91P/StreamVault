@@ -83,44 +83,55 @@
               </svg>
               Delete All
             </button>
-            <button @click="openSettings" class="btn-action btn-secondary btn-icon-mobile" v-ripple>
-              <svg class="icon">
-                <use href="#icon-settings" />
-              </svg>
-              <span class="button-text">Settings</span>
-            </button>
           </div>
         </div>
       </div>
 
-      <!-- Stats Section -->
-      <div class="stats-section">
-        <StatusCard
-          :value="streamCount"
-          label="Total Streams"
-          icon="film"
-          type="primary"
-        />
-        <StatusCard
-          :value="recordedStreamsCount"
-          label="Recorded"
-          icon="check-circle"
-          type="success"
-        />
-        <StatusCard
-          :value="averageDuration"
-          label="Avg Duration"
-          icon="clock"
-          type="info"
-        />
+      <!-- Cockpit Tab Navigation -->
+      <div class="cockpit-tabs">
+        <button
+          v-for="tab in cockpitTabs"
+          :key="tab.id"
+          @click="activeCockpitTab = tab.id"
+          :class="['cockpit-tab', { active: activeCockpitTab === tab.id }]"
+          v-ripple
+        >
+          <svg class="icon">
+            <use :href="tab.icon" />
+          </svg>
+          {{ tab.label }}
+        </button>
       </div>
 
-      <!-- Stream History Section -->
-      <div class="history-section">
+      <!-- Overview Tab -->
+      <div v-if="activeCockpitTab === 'overview'" class="cockpit-panel">
+        <div class="stats-section">
+          <StatusCard
+            :value="streamCount"
+            label="Total Streams"
+            icon="film"
+            type="primary"
+          />
+          <StatusCard
+            :value="recordedStreamsCount"
+            label="Recorded"
+            icon="check-circle"
+            type="success"
+          />
+          <StatusCard
+            :value="averageDuration"
+            label="Avg Duration"
+            icon="clock"
+            type="info"
+          />
+        </div>
+      </div>
+
+      <!-- Videos Tab -->
+      <div v-if="activeCockpitTab === 'videos'" class="cockpit-panel">
         <div class="history-header">
           <h2 class="section-title">Stream History</h2>
 
-          <!-- Sort Dropdown -->
           <div class="view-controls">
             <div class="select-wrapper">
               <svg class="select-icon">
@@ -136,7 +147,6 @@
           </div>
         </div>
 
-        <!-- Streams Loading -->
         <div v-if="isLoadingStreams" class="streams-container">
           <LoadingSkeleton
             v-for="i in 6"
@@ -145,7 +155,6 @@
           />
         </div>
 
-        <!-- Streams Empty State -->
         <EmptyState
           v-else-if="sortedStreams.length === 0"
           title="No Streams Yet"
@@ -156,7 +165,6 @@
           @action="forceStartRecording(Number(streamerId))"
         />
 
-        <!-- Streams List -->
         <div v-else class="streams-container">
           <StreamCard
             v-for="stream in sortedStreams"
@@ -167,6 +175,48 @@
             @watch="handleWatchRecording"
             @delete="handleDeleteStream"
           />
+        </div>
+      </div>
+
+      <!-- Recording Settings Tab -->
+      <div v-if="activeCockpitTab === 'settings'" class="cockpit-panel">
+        <div class="settings-header">
+          <h2 class="section-title">Recording Settings</h2>
+        </div>
+        <StreamerSettingsFields v-model="streamerSettings" :disabled="savingSettings" />
+        <div class="settings-actions">
+          <BaseButton variant="secondary" @click="loadSettings">Cancel</BaseButton>
+          <BaseButton variant="primary" :loading="savingSettings" @click="saveSettings">
+            {{ savingSettings ? 'Saving...' : 'Save Settings' }}
+          </BaseButton>
+        </div>
+      </div>
+
+      <!-- Events Tab -->
+      <div v-if="activeCockpitTab === 'events'" class="cockpit-panel">
+        <div class="events-header">
+          <h2 class="section-title">Recent Events</h2>
+        </div>
+        <div v-if="streamerEvents.length === 0" class="events-empty">
+          <EmptyState
+            title="No Events Yet"
+            description="Real-time events for this streamer will appear here."
+            icon="activity"
+          />
+        </div>
+        <div v-else class="events-list">
+          <div
+            v-for="(evt, idx) in streamerEvents"
+            :key="idx"
+            class="event-item"
+          >
+            <span class="event-dot" :class="eventDotClass(evt.type)"></span>
+            <div class="event-content">
+              <span class="event-type">{{ evt.type }}</span>
+              <span v-if="evt.message" class="event-message">{{ evt.message }}</span>
+            </div>
+            <span class="event-time">{{ formatEventTime(evt.timestamp) }}</span>
+          </div>
         </div>
       </div>
     </div>
@@ -198,32 +248,17 @@
       </template>
     </BaseModal>
 
-    <!-- Settings Modal -->
-    <BaseModal
-      v-model="showSettings"
-      :title="`Settings for ${streamer?.name || 'Streamer'}`"
-      size="lg"
-      @close="closeSettings"
-    >
-      <StreamerSettingsFields v-model="streamerSettings" :disabled="savingSettings" />
-
-      <template #footer>
-        <BaseButton variant="secondary" @click="closeSettings">Cancel</BaseButton>
-        <BaseButton variant="primary" :loading="savingSettings" @click="saveSettings">
-          {{ savingSettings ? 'Saving...' : 'Save Settings' }}
-        </BaseButton>
-      </template>
-    </BaseModal>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { streamersApi } from '@/services/api'
 import { useForceRecording } from '@/composables/useForceRecording'
 import { useToast } from '@/composables/useToast'
-import { useWebSocket } from '@/composables/useWebSocket'
+import { useRealtimeStore } from '@/stores/realtime'
+import { hasRealtimeEventType } from '@/types/events'
 import LoadingSkeleton from '@/components/LoadingSkeleton.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import StatusCard from '@/components/cards/StatusCard.vue'
@@ -262,13 +297,20 @@ const deletingAll = ref(false)
 // Force recording
 const { forceRecordingStreamerId, forceStartRecording } = useForceRecording()
 
-// Settings modal - schema-driven (single source of truth: streamerSettings.schema.ts)
-const showSettings = ref(false)
+// Cockpit tabs
+const activeCockpitTab = ref('overview')
+const cockpitTabs = [
+  { id: 'overview', label: 'Overview', icon: '#icon-activity' },
+  { id: 'videos', label: 'Videos', icon: '#icon-film' },
+  { id: 'settings', label: 'Recording Settings', icon: '#icon-settings' },
+  { id: 'events', label: 'Events', icon: '#icon-clock' },
+]
+
+// Settings inline - schema-driven (single source of truth: streamerSettings.schema.ts)
 const savingSettings = ref(false)
 const streamerSettings = ref<Record<string, unknown>>(buildDefaultState())
 
-const openSettings = () => {
-  // Hydrate from server payload (GET returns nested `recording` and `notifications` blocks).
+const loadSettings = () => {
   const defaults = buildDefaultState()
   const s = streamer.value || {}
 
@@ -284,11 +326,6 @@ const openSettings = () => {
       ...((s.notifications as Record<string, unknown>) || {}),
     },
   }
-  showSettings.value = true
-}
-
-const closeSettings = () => {
-  showSettings.value = false
 }
 
 const saveSettings = async () => {
@@ -308,11 +345,7 @@ const saveSettings = async () => {
     }
 
     toast.success('Settings saved successfully!')
-
-    // Reload streamer data to reflect changes
     await fetchStreamer()
-
-    closeSettings()
   } catch (error) {
     console.error('Failed to save settings:', error)
     toast.error('Failed to save settings. Please try again.')
@@ -320,6 +353,55 @@ const saveSettings = async () => {
     savingSettings.value = false
   }
 }
+
+// Events tab - filter recentEvents for this streamer
+const streamerEvents = computed(() => {
+  const events = realtime.recentEvents
+  if (!events || !Array.isArray(events)) return []
+  return events.filter((evt: any) => {
+    const data = evt.data || evt
+    const idMatch =
+      (data.streamer_id !== undefined && String(data.streamer_id) === streamerId.value) ||
+      (data.id !== undefined && String(data.id) === streamerId.value)
+    if (idMatch) return true
+    if (!streamer.value) return false
+    const username = (data.username || data.streamer_name || '').toLowerCase()
+    if (!username) return false
+    return (
+      streamer.value.username?.toLowerCase() === username ||
+      streamer.value.name?.toLowerCase() === username
+    )
+  }).slice(-50).reverse()
+})
+
+const formatEventTime = (ts: string | number | undefined): string => {
+  if (!ts) return ''
+  const date = new Date(ts)
+  const now = new Date()
+  const diffMs = now.getTime() - date.getTime()
+  const diffMin = Math.floor(diffMs / 60000)
+  if (diffMin < 1) return 'just now'
+  if (diffMin < 60) return `${diffMin}m ago`
+  const diffHour = Math.floor(diffMin / 60)
+  if (diffHour < 24) return `${diffHour}h ago`
+  const diffDay = Math.floor(diffHour / 24)
+  return `${diffDay}d ago`
+}
+
+const eventDotClass = (type: string): string => {
+  if (type.includes('online') || type.includes('started')) return 'dot-success'
+  if (type.includes('offline') || type.includes('stopped') || type.includes('finished') || type.includes('completed')) return 'dot-info'
+  if (type.includes('failed') || type.includes('error')) return 'dot-danger'
+  if (type.includes('update')) return 'dot-warning'
+  return 'dot-default'
+}
+
+// Load settings when the settings tab is activated
+watch(activeCockpitTab, (tab) => {
+  if (tab === 'settings') {
+    loadSettings()
+  }
+})
 
 // Banner gradient style
 const bannerStyle = computed(() => {
@@ -506,10 +588,70 @@ onMounted(async () => {
     fetchStreamer(),
     fetchStreams()
   ])
+
+  // Subscribe to real-time events
+  realtimeCleanups.push(
+    realtime.onEvents(
+      ['stream.online', 'stream.offline', 'channel.update', 'stream.update', 'recording.started', 'recording.finished', 'recording.stopped', 'recording.completed', 'recording_status_update'],
+      (event: any) => {
+        if (!streamer.value) return
+        const data = event.data
+        if (!data || !matchesCurrentStreamer(data)) return
+
+        const updated = { ...streamer.value }
+        let changed = false
+
+        if (hasRealtimeEventType(event, 'stream.online')) {
+          updated.is_live = true
+          if (data.title) updated.title = data.title
+          if (data.category_name) updated.category_name = data.category_name
+          changed = true
+        } else if (hasRealtimeEventType(event, 'stream.offline')) {
+          updated.is_live = false
+          updated.title = null
+          updated.category_name = null
+          changed = true
+        } else if (hasRealtimeEventType(event, 'channel.update', 'stream.update')) {
+          if (data.title) { updated.title = data.title; changed = true }
+          if (data.category_name) { updated.category_name = data.category_name; changed = true }
+        } else if (hasRealtimeEventType(event, 'recording.started')) {
+          updated.is_recording = true
+          if (!updated.is_live) updated.is_live = true
+          changed = true
+        } else if (hasRealtimeEventType(event, 'recording_status_update')) {
+          if (data.status === 'recording' || data.status === 'started') {
+            updated.is_recording = true
+            changed = true
+          } else if (data.status === 'completed' || data.status === 'finished' || data.status === 'stopped' || data.status === 'failed') {
+            updated.is_recording = false
+            changed = true
+            fetchStreams()
+          }
+        } else if (hasRealtimeEventType(event, 'recording.finished', 'recording.stopped', 'recording.completed')) {
+          updated.is_recording = false
+          changed = true
+          fetchStreams()
+        }
+
+        if (changed) {
+          streamer.value = updated
+        }
+      }
+    ),
+    realtime.onEvent('active_recordings_update', (event: any) => {
+      if (!streamer.value) return
+      const list = event.data?.recordings ?? event.data
+      if (!Array.isArray(list)) return
+      const activeForThis = list.some((r: any) => matchesCurrentStreamer(r))
+      if (Boolean(streamer.value.is_recording) !== activeForThis) {
+        streamer.value = { ...streamer.value, is_recording: activeForThis }
+      }
+    }),
+  )
 })
 
-// WebSocket: live update streamer status (live/recording/title/category) without polling.
-const { messages } = useWebSocket()
+// Real-time store for live updates
+const realtime = useRealtimeStore()
 
 const matchesCurrentStreamer = (data: any): boolean => {
   if (!data || !streamer.value) return false
@@ -525,66 +667,11 @@ const matchesCurrentStreamer = (data: any): boolean => {
   )
 }
 
-watch(messages, (newMessages) => {
-  if (!newMessages || newMessages.length === 0 || !streamer.value) return
-  const latest = newMessages[newMessages.length - 1]
-  const data = latest.data
-  if (!data || !matchesCurrentStreamer(data)) return
+// Real-time event handlers
+const realtimeCleanups: (() => void)[] = []
 
-  const updated = { ...streamer.value }
-  let changed = false
-
-  switch (latest.type) {
-    case 'stream.online':
-      updated.is_live = true
-      if (data.title) updated.title = data.title
-      if (data.category_name) updated.category_name = data.category_name
-      changed = true
-      break
-    case 'stream.offline':
-      updated.is_live = false
-      updated.title = null
-      updated.category_name = null
-      changed = true
-      break
-    case 'channel.update':
-    case 'stream.update':
-      if (data.title) { updated.title = data.title; changed = true }
-      if (data.category_name) { updated.category_name = data.category_name; changed = true }
-      break
-    case 'recording_started':
-    case 'recording.started':
-      updated.is_recording = true
-      if (!updated.is_live) updated.is_live = true
-      changed = true
-      break
-    case 'recording_finished':
-    case 'recording.finished':
-    case 'recording_stopped':
-    case 'recording.stopped':
-      updated.is_recording = false
-      changed = true
-      // Refresh stream list so the just-finished recording shows up.
-      fetchStreams()
-      break
-  }
-
-  if (changed) {
-    streamer.value = updated
-  }
-})
-
-// Recording lifecycle: cross-check against the global active recordings broadcast.
-watch(messages, (newMessages) => {
-  if (!newMessages || newMessages.length === 0 || !streamer.value) return
-  const latest = newMessages[newMessages.length - 1]
-  if (latest.type !== 'active_recordings_update') return
-  const list = latest.data?.recordings ?? latest.data
-  if (!Array.isArray(list)) return
-  const activeForThis = list.some((r: any) => matchesCurrentStreamer(r))
-  if (Boolean(streamer.value.is_recording) !== activeForThis) {
-    streamer.value = { ...streamer.value, is_recording: activeForThis }
-  }
+onUnmounted(() => {
+  realtimeCleanups.forEach((fn) => fn())
 })
 </script>
 
@@ -858,11 +945,6 @@ watch(messages, (newMessages) => {
   animation: fade-in v.$duration-500 v.$ease-out 200ms backwards;
 }
 
-// History Section
-.history-section {
-  animation: fade-in v.$duration-500 v.$ease-out 400ms backwards;
-}
-
 .history-header {
   display: flex;
   justify-content: space-between;
@@ -945,217 +1027,163 @@ watch(messages, (newMessages) => {
   gap: var(--spacing-3);
 }
 
-// Modal
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(var(--glass-blur-sm));
-  -webkit-backdrop-filter: blur(var(--glass-blur-sm));
+// Cockpit Tabs
+.cockpit-tabs {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 9999;
-  padding: var(--spacing-4);
-  animation: fade-in v.$duration-200 v.$ease-out;
+  gap: var(--spacing-1);
+  margin-bottom: var(--spacing-6);
+  background: var(--background-card);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-1);
+  border: 1px solid var(--border-color);
+  overflow-x: auto;
 }
 
-.modal {
-  background: var(--glass-bg-solid);
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-2xl);
-  max-width: 500px;
-  width: 100%;
-  animation: slide-in-up v.$duration-300 v.$ease-out;
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
+.cockpit-tab {
+  display: inline-flex;
   align-items: center;
-  padding: var(--spacing-6);
-  border-bottom: 1px solid var(--border-color);
-
-  h3 {
-    font-size: var(--text-xl);
-    font-weight: v.$font-bold;
-    color: var(--text-primary);
-    margin: 0;
-  }
-}
-
-.close-btn {
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-4);
   background: transparent;
   border: none;
   border-radius: var(--radius-md);
-  font-size: 28px;
   color: var(--text-secondary);
+  font-size: var(--text-sm);
+  font-weight: v.$font-medium;
   cursor: pointer;
   transition: all v.$duration-200 v.$ease-out;
+  white-space: nowrap;
 
-  &:hover {
-    background: rgba(var(--danger-500-rgb), 0.1);
-    color: var(--danger-color);
+  .icon {
+    width: 16px;
+    height: 16px;
+    stroke: currentColor;
+    fill: none;
+  }
+
+  &.active {
+    background: var(--primary-color);
+    color: white;
+  }
+
+  &:hover:not(.active) {
+    background: rgba(var(--primary-500-rgb), 0.1);
+    color: var(--primary-color);
   }
 }
 
-.modal-body {
-  padding: var(--spacing-6);
-
-  p {
-    margin: 0 0 var(--spacing-4) 0;
-    color: var(--text-primary);
-    line-height: v.$leading-relaxed;
-  }
-
-  .warning {
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-2);
-    padding: var(--spacing-3);
-    background: rgba(var(--warning-500-rgb), 0.1);
-    border: 1px solid var(--warning-color);
-    border-radius: var(--radius-md);
-    color: var(--warning-color);
-    font-size: var(--text-sm);
-
-    .icon-warning {
-      width: 20px;
-      height: 20px;
-      stroke: currentColor;
-      fill: none;
-      flex-shrink: 0;
-    }
-  }
+// Cockpit Panel
+.cockpit-panel {
+  animation: fade-in v.$duration-500 v.$ease-out backwards;
 }
 
-.modal-actions {
+// Stats Section (inside Overview tab)
+.stats-section {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: var(--spacing-5);
+}
+
+// Settings Tab
+.settings-header {
+  margin-bottom: var(--spacing-6);
+}
+
+.settings-actions {
   display: flex;
   gap: var(--spacing-3);
-  padding: var(--spacing-6);
+  margin-top: var(--spacing-6);
+  padding-top: var(--spacing-6);
   border-top: 1px solid var(--border-color);
-  justify-content: flex-end;
-
-  button {
-    padding: var(--spacing-3) var(--spacing-5);
-    border-radius: var(--radius-lg);
-    font-weight: v.$font-semibold;
-    border: none;
-    cursor: pointer;
-    transition: all v.$duration-200 v.$ease-out;
-
-    &:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
-  }
-
-  .btn-secondary {
-    background: var(--background-darker);
-    color: var(--text-primary);
-    border: 1px solid var(--border-color);
-
-    &:hover:not(:disabled) {
-      background: var(--background-dark);
-    }
-  }
-
-  .btn-danger {
-    background: var(--danger-color);
-    color: white;
-
-    &:hover:not(:disabled) {
-      background: var(--danger-600);
-      box-shadow: var(--shadow-md);
-    }
-  }
 }
 
-// Settings Modal
-.settings-modal {
-  max-width: 600px;
-
-  .modal-body {
-    max-height: 60vh;
-    overflow-y: auto;
-  }
-}
-
-.setting-group {
+// Events Tab
+.events-header {
   margin-bottom: var(--spacing-6);
-
-  &:last-child {
-    margin-bottom: 0;
-  }
 }
 
-.setting-label {
-  display: block;
-  margin-bottom: var(--spacing-2);
-  font-weight: v.$font-semibold;
-  color: var(--text-primary);
-  font-size: var(--text-sm);
+.events-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
 }
 
-.setting-input {
-  width: 100%;
-  padding: var(--spacing-3);
-  background: var(--background-darker);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-  color: var(--text-primary);
-  font-size: var(--text-base);
-  transition: all v.$duration-200 v.$ease-out;
-
-  &:focus {
-    outline: none;
-    border-color: var(--primary-color);
-    box-shadow: 0 0 0 3px rgba(var(--primary-500-rgb), 0.1);
-  }
-
-  &::placeholder {
-    color: var(--text-tertiary);
-  }
-}
-
-.setting-hint {
-  margin-top: var(--spacing-2);
-  font-size: var(--text-xs);
-  color: var(--text-secondary);
-  line-height: v.$leading-relaxed;
-}
-
-.setting-checkbox {
+.event-item {
   display: flex;
   align-items: center;
-  gap: var(--spacing-2);
-  margin-bottom: var(--spacing-2);
-  cursor: pointer;
-  user-select: none;
-
-  input[type="checkbox"] {
-    width: 18px;
-    height: 18px;
-    cursor: pointer;
-    accent-color: var(--primary-color);
-  }
-
-  span {
-    color: var(--text-primary);
-    font-size: var(--text-sm);
-  }
+  gap: var(--spacing-3);
+  padding: var(--spacing-3);
+  background: var(--background-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  transition: all v.$duration-200 v.$ease-out;
 
   &:hover {
-    span {
-      color: var(--primary-color);
-    }
+    border-color: var(--primary-color);
   }
+}
+
+.event-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+
+  &.dot-success {
+    background: var(--success-color);
+  }
+
+  &.dot-info {
+    background: var(--info-color);
+  }
+
+  &.dot-danger {
+    background: var(--danger-color);
+  }
+
+  &.dot-warning {
+    background: var(--warning-color);
+  }
+
+  &.dot-default {
+    background: var(--text-tertiary);
+  }
+}
+
+.event-content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+}
+
+.event-type {
+  font-size: var(--text-sm);
+  font-weight: v.$font-medium;
+  color: var(--text-primary);
+  word-break: break-all;
+}
+
+.event-message {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.event-time {
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+}
+
+.events-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-8);
 }
 
 @include m.respond-below('lg') {  // < 1024px

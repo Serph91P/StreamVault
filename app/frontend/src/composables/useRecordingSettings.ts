@@ -1,4 +1,4 @@
-import { ref, Ref, watch } from 'vue';
+import { ref, Ref, onMounted, onUnmounted } from 'vue';
 import type { 
   RecordingSettings, 
   StreamerRecordingSettings, 
@@ -6,7 +6,7 @@ import type {
   CleanupPolicy
 } from '@/types/recording';
 import { CleanupPolicyType } from '@/types/recording';
-import { useWebSocket } from '@/composables/useWebSocket';
+import { useRealtimeStore } from '@/stores/realtime';
 
 export function useRecordingSettings() {
   const settings: Ref<RecordingSettings | null> = ref(null);
@@ -15,100 +15,101 @@ export function useRecordingSettings() {
   const isLoading = ref(false);
   const error = ref<string | null>(null);
   
-  // WebSocket connection for real-time updates
-  const { messages } = useWebSocket();
+  // WebSocket connection via central store
+  const realtime = useRealtimeStore();
+  const realtimeUnsubs: Array<() => void> = [];
 
   // Listen for WebSocket messages related to active recordings
-  watch(messages, (newMessages) => {
-    if (newMessages.length > 0) {
-      const latestMessage = newMessages[newMessages.length - 1];
-      
-      if (latestMessage.type === 'active_recordings_update') {
-        
-        if (Array.isArray(latestMessage.data)) {
-          activeRecordings.value = latestMessage.data.map(rec => ({
+  onMounted(() => {
+    realtimeUnsubs.push(
+      realtime.onEvent('active_recordings_update', (event) => {
+        if (Array.isArray(event.data)) {
+          activeRecordings.value = event.data.map(rec => ({
             ...rec,
             streamer_id: parseInt(rec.streamer_id.toString())
           }));
         }
-      } else if (latestMessage.type === 'recording_started') {
-        
-        // Add the new recording to active recordings
-        if (latestMessage.data) {
+      }),
+
+      realtime.onEvent('recording_started', (event) => {
+        if (event.data) {
           const newRecording = {
-            ...latestMessage.data,
-            streamer_id: parseInt(latestMessage.data.streamer_id.toString())
+            ...event.data,
+            streamer_id: parseInt(event.data.streamer_id.toString())
           };
-          
-          // Check if recording already exists to avoid duplicates
           const existingIndex = activeRecordings.value.findIndex(
             rec => rec.id === newRecording.recording_id
           );
-          
           if (existingIndex === -1) {
             activeRecordings.value.push(newRecording);
           } else {
-            // Update existing recording
             activeRecordings.value[existingIndex] = newRecording;
           }
         }
-      } else if (latestMessage.type === 'recording_stopped' || latestMessage.type === 'recording_status_update') {
-        
-        // Handle recording stopped or status update
-        if (latestMessage.type === 'recording_status_update') {
-          // For status updates, only remove if status indicates recording is no longer active
-          const inactiveStatuses = ['completed', 'failed', 'stopped', 'cancelled'];
-          if (!inactiveStatuses.includes(latestMessage.data?.status)) {
-            return; // Recording is still active, don't remove from list
-          }
-        }
-        
-        // Remove the recording from active recordings
-        if (latestMessage.data?.recording_id) {
+      }),
+
+      realtime.onEvent('recording_stopped', (event) => {
+        if (event.data?.recording_id) {
           activeRecordings.value = activeRecordings.value.filter(
-            rec => rec.id !== latestMessage.data.recording_id
+            rec => rec.id !== event.data.recording_id
           );
-        } else if (latestMessage.data?.streamer_id) {
-          // Fallback to streamer_id if recording_id not available
+        } else if (event.data?.streamer_id) {
           activeRecordings.value = activeRecordings.value.filter(
-            rec => rec.streamer_id !== latestMessage.data.streamer_id
+            rec => rec.streamer_id !== event.data.streamer_id
           );
         }
-      } else if (latestMessage.type === 'recording_completed') {
-        
-        // Recording completed - remove from active recordings and trigger stream refresh
-        if (latestMessage.data?.recording_id) {
+      }),
+
+      realtime.onEvent('recording_status_update', (event) => {
+        const inactiveStatuses = ['completed', 'failed', 'stopped', 'cancelled'];
+        if (!inactiveStatuses.includes(event.data?.status)) {
+          return;
+        }
+        if (event.data?.recording_id) {
           activeRecordings.value = activeRecordings.value.filter(
-            rec => rec.id !== latestMessage.data.recording_id
+            rec => rec.id !== event.data.recording_id
           );
-          
-          // Emit event to trigger stream refresh in components that listen for it
+        } else if (event.data?.streamer_id) {
+          activeRecordings.value = activeRecordings.value.filter(
+            rec => rec.streamer_id !== event.data.streamer_id
+          );
+        }
+      }),
+
+      realtime.onEvent('recording_completed', (event) => {
+        if (event.data?.recording_id) {
+          activeRecordings.value = activeRecordings.value.filter(
+            rec => rec.id !== event.data.recording_id
+          );
           window.dispatchEvent(new CustomEvent('recording_completed', {
             detail: {
-              recording_id: latestMessage.data.recording_id,
-              file_path: latestMessage.data.file_path,
-              stream_id: latestMessage.data?.stream_id
+              recording_id: event.data.recording_id,
+              file_path: event.data.file_path,
+              stream_id: event.data?.stream_id
             }
           }));
         }
-      } else if (latestMessage.type === 'recording_available') {
-        
-        // Recording is now available (post-processing completed, recording_path updated)
-        // Trigger stream refresh to update the UI with the new recording path
-        if (latestMessage.data?.stream_id) {
+      }),
+
+      realtime.onEvent('recording_available', (event) => {
+        if (event.data?.stream_id) {
           window.dispatchEvent(new CustomEvent('recording_available', {
             detail: {
-              stream_id: latestMessage.data.stream_id,
-              recording_path: latestMessage.data.recording_path,
-              streamer_id: latestMessage.data?.streamer_id,
-              streamer_name: latestMessage.data?.streamer_name,
-              title: latestMessage.data?.title
+              stream_id: event.data.stream_id,
+              recording_path: event.data.recording_path,
+              streamer_id: event.data?.streamer_id,
+              streamer_name: event.data?.streamer_name,
+              title: event.data?.title
             }
           }));
         }
-      }
-    }
-  }, { deep: true });
+      })
+    )
+  })
+
+  onUnmounted(() => {
+    realtimeUnsubs.forEach((fn) => fn());
+  });
 
   const fetchSettings = async (): Promise<void> => {
     try {

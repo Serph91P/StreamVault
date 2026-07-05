@@ -86,8 +86,8 @@
           <button class="copy-btn" @click="copyShareLink" :disabled="shareCopied">
             {{ shareCopied ? '✔ Copied' : 'Copy' }}
           </button>
-          <span v-if="shareCopied" class="copied-hint">Link copied – In VLC: Media → Open Network Stream</span>
-          <span v-else-if="copyError" class="copy-error-hint">Could not copy automatically – select the field and press {{ copyShortcut }}</span>
+          <span v-if="shareCopied" class="copied-hint">Link copied - In VLC: Media → Open Network Stream</span>
+          <span v-else-if="copyError" class="copy-error-hint">Could not copy automatically - select the field and press {{ copyShortcut }}</span>
         </div>
         
         <!-- Chapter Navigation -->

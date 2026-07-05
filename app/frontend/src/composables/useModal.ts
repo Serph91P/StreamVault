@@ -1,5 +1,5 @@
 /**
- * useModal — uniform modal/dialog behaviour:
+ * useModal - uniform modal/dialog behaviour:
  *  - body scroll lock while open (preserves scrollY, restores on close)
  *  - ESC closes
  *  - basic focus trap (TAB / SHIFT+TAB cycle within container)

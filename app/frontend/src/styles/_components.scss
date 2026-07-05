@@ -3,6 +3,10 @@
 @use 'variables' as v;
 @use 'mixins' as m;
 
+// SCSS ownership: this file owns existing legacy global component classes while
+// migration to shared Vue primitives is in progress. Do not define design
+// tokens or add CSS custom property aliases here.
+
 // ============================================================================
 // NAVIGATION SYSTEM - Modern Design
 // ============================================================================

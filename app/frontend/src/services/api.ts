@@ -113,7 +113,8 @@ const mockBackgroundQueueApi = {
   enqueueMetadataGeneration: (streamId: number) => mockResponse({ success: true, streamId }),
   enqueueThumbnailGeneration: (streamId: number) => mockResponse({ success: true, streamId }),
   enqueueFileCleanup: (streamerId: number) => mockResponse({ success: true, streamerId }),
-  getHealth: () => mockResponse({ healthy: true })
+  getHealth: () => mockResponse({ healthy: true }),
+  cancelStreamTasks: (streamId: number) => mockResponse({ success: true, streamId })
 }
 
 const mockSettingsApi = {
@@ -141,7 +142,7 @@ const mockProxyApi = {
 }
 
 const mockSystemApi = {
-  getStatus: () => mockResponse({ 
+  getStatus: (_params: Record<string, any> = {}) => mockResponse({
     status: 'ok', 
     version: '1.0.0',
     uptime: 123456,
@@ -149,11 +150,11 @@ const mockSystemApi = {
     storage_used: 1024 * 1024 * 5000 // 5GB
   }),
   getVersion: () => mockResponse({ version: '1.0.0', build: 'mock' }),
-  getStreamersStatus: () => mockResponse({ live: 2, offline: 2, total: 4 }),
-  getStreamsStatus: () => mockResponse({ live: 2, total: 4 }),
-  getActiveRecordingsStatus: () => mockResponse({ active: 1, total: 1 }),
+  getStreamersStatus: (_params: Record<string, any> = {}) => mockResponse({ live: 2, offline: 2, total: 4 }),
+  getStreamsStatus: (_params: Record<string, any> = {}) => mockResponse({ live: 2, total: 4 }),
+  getActiveRecordingsStatus: (_params: Record<string, any> = {}) => mockResponse({ active: 1, total: 1 }),
   getBackgroundQueueStatus: () => mockResponse(mockQueueStats),
-  getNotificationsStatus: () => mockResponse({ unread: 0, total: 0 })
+  getNotificationsStatus: (_params: Record<string, any> = {}) => mockResponse({ unread: 0, total: 0 })
 }
 
 const mockStreamsApi = {
@@ -217,7 +218,7 @@ const mockCategoriesApi = {
 }
 
 const mockFilenamePresetsApi = {
-  getAll: () => mockResponse([]),
+  getAll: () => mockResponse({ status: 'success', data: [] }),
   create: (data: any) => mockResponse({ ...data, id: Date.now() }),
   update: (_id: number, _data: any) => mockResponse({ success: true }),
   delete: (_id: number) => mockResponse({ success: true })

@@ -161,8 +161,8 @@ Gaps:
 
 - No single typed frontend notification event contract.
 - Push payloads and WebSocket notification data are related but not unified.
-- notificationclick has target routing support through `data.internal_url || data.url || '/'`, but app-side message handling must remain verified.
-- iOS Home Screen and Android Chrome flows are not documented as tested.
+- notificationclick has target routing support through `data.target_url || data.internal_url || data.url || '/'`; app-side message handling normalizes legacy `/streamer/:id` detail links to `/streamers/:id`.
+- iOS Home Screen and Android Chrome flows need manual device verification and are documented in the product UX plan.
 
 ## 10. Aktueller WebSocket-/Realtime-Stand
 
