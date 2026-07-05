@@ -3,7 +3,7 @@
     <!-- Loading State -->
     <div v-if="isLoading" class="content-state">
       <LoadingSkeleton type="video" />
-      <p class="state-text">Starting live stream...</p>
+      <p class="state-text" role="status" aria-live="polite">Starting live stream...</p>
     </div>
 
     <!-- Error State -->
@@ -36,6 +36,10 @@
             <div v-if="streamInfo" class="live-badge-inline">
               <span class="live-indicator"></span>
               <span>LIVE</span>
+            </div>
+            <div class="player-state-indicator" role="status" aria-live="polite">
+              <span class="player-state-dot" :class="{ 'dot-live': isPlaying && !isBuffering, 'dot-buffering': isBuffering }"></span>
+              <span class="player-state-text">{{ isBuffering ? 'Buffering' : isPlaying ? 'Playing' : 'Connecting' }}</span>
             </div>
           </div>
 
@@ -818,6 +822,40 @@ onUnmounted(() => {
 @keyframes pulse-live {
   0%, 100% { opacity: 1; transform: scale(1); }
   50% { opacity: 0.5; transform: scale(1.2); }
+}
+
+.player-state-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  padding: var(--spacing-1) var(--spacing-3);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-xs);
+  font-weight: v.$font-semibold;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+  flex-shrink: 0;
+}
+
+.player-state-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-tertiary);
+}
+
+.player-state-dot.dot-live {
+  background: var(--danger-color);
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+
+.player-state-dot.dot-buffering {
+  background: var(--warning-color);
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
 }
 
 .video-container {

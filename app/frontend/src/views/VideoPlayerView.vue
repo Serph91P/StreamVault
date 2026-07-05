@@ -3,7 +3,7 @@
     <!-- Loading State -->
     <div v-if="isLoading" class="content-state">
       <LoadingSkeleton type="video" />
-      <p class="state-text">Loading video player...</p>
+      <p class="state-text" role="status" aria-live="polite">Loading video player...</p>
     </div>
 
     <!-- Error State -->
@@ -38,7 +38,7 @@
         <GlassCard variant="strong" :padding="false" class="player-card">
           <!-- Header inside the card -->
           <div class="player-header">
-            <button @click="goBack" class="back-button" v-ripple>
+            <button @click="goBack" class="back-button" aria-label="Back to previous page" v-ripple>
               <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M19 12H5M12 19l-7-7 7-7" />
               </svg>
@@ -47,11 +47,15 @@
             
             <h1 class="video-title">{{ streamTitle }}</h1>
             
-            <div v-if="streamerName" class="streamer-badge">
-              <svg class="icon-streamer">
+            <div v-if="streamerName" class="streamer-badge" :aria-label="`Streamed by ${streamerName}`">
+              <svg class="icon-streamer" aria-hidden="true">
                 <use href="#icon-user" />
               </svg>
               <span>{{ streamerName }}</span>
+            </div>
+            <div class="player-state-indicator" role="status" aria-live="polite">
+              <span class="player-state-dot"></span>
+              <span class="player-state-text">{{ playerStateLabel }}</span>
             </div>
           </div>
 
@@ -235,6 +239,15 @@ const streamerName = computed(() => route.query.streamerName as string)
 const chapterData = ref<ChapterData | null>(null)
 const isLoading = ref(true)
 const error = ref<string | null>(null)
+const playerReady = ref(false)
+
+const playerStateLabel = computed(() => {
+  if (isLoading.value) return 'Loading'
+  if (error.value) return 'Error'
+  if (!chapterData.value?.video_url) return 'No video'
+  if (playerReady.value) return 'Playing'
+  return 'Loading player'
+})
 
 // Action button states
 const isDownloading = ref(false)
@@ -311,7 +324,7 @@ const onChapterChange = (_chapter: any, index: number) => {
 }
 
 const onVideoReady = (duration: number) => {
-  console.log('Video ready, duration:', duration)
+  playerReady.value = true
   if (chapterData.value) {
     chapterData.value.duration = duration
   }
@@ -709,6 +722,30 @@ onMounted(() => {
     stroke: currentColor;
     fill: none;
   }
+}
+
+.player-state-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  padding: var(--spacing-1) var(--spacing-3);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-xs);
+  font-weight: v.$font-semibold;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+  flex-shrink: 0;
+}
+
+.player-state-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-tertiary);
+}
+
+.player-state-indicator:has(.player-state-text:empty) {
+  display: none;
 }
 
 // ============================================================================

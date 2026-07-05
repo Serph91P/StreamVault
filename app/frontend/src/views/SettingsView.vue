@@ -1,38 +1,28 @@
 <template>
   <div class="page-view settings-view">
-    <!-- Header -->
-    <div class="view-header">
-      <div class="header-content">
-        <h1 class="page-title desktop-settings-title">
-          <svg class="icon-title">
-            <use href="#icon-settings" />
-          </svg>
-          Settings
-        </h1>
-        <!-- Mobile: Show active section name instead of "Settings" -->
-        <h1 class="page-title mobile-settings-title">
-          <svg class="icon-title">
-            <use :href="`#icon-${activeSectionData?.icon || 'settings'}`" />
-          </svg>
-          {{ activeSectionData?.label || 'Settings' }}
-        </h1>
-      </div>
-
-      <div class="header-actions" v-if="hasUnsavedChanges">
-        <button @click="resetChanges" class="btn-action btn-secondary" v-ripple>
-          <svg class="icon">
-            <use href="#icon-x" />
-          </svg>
-          Discard
-        </button>
-        <button @click="saveAllChanges" class="btn-action btn-primary" v-ripple>
-          <svg class="icon">
-            <use href="#icon-check" />
-          </svg>
-          Save Changes
-        </button>
-      </div>
-    </div>
+    <PageHeader
+      title="Settings"
+      icon="settings"
+      :mobile-title="activeSectionData?.label || 'Settings'"
+      :mobile-icon="activeSectionData?.icon || 'settings'"
+    >
+      <template #actions>
+        <template v-if="hasUnsavedChanges">
+          <button @click="resetChanges" class="btn-action btn-secondary" v-ripple>
+            <svg class="icon">
+              <use href="#icon-x" />
+            </svg>
+            Discard
+          </button>
+          <button @click="saveAllChanges" class="btn-action btn-primary" v-ripple>
+            <svg class="icon">
+              <use href="#icon-check" />
+            </svg>
+            Save Changes
+          </button>
+        </template>
+      </template>
+    </PageHeader>
 
     <!-- Loading State -->
     <div v-if="isLoading" class="loading-container">
@@ -349,6 +339,7 @@ import FavoritesSettingsPanel from '@/components/settings/FavoritesSettingsPanel
 import PWAPanel from '@/components/settings/PWAPanel.vue'
 import TwitchConnectionPanel from '@/components/settings/TwitchConnectionPanel.vue'
 import ApiKeysPanel from '@/components/settings/ApiKeysPanel.vue'
+import PageHeader from '@/components/base/PageHeader.vue'
 import type { NotificationSettings, StreamerNotificationSettings } from '@/types/settings'
 import type { RecordingSettings } from '@/types/recording'
 
@@ -613,49 +604,6 @@ onMounted(() => {
 .settings-view {
   // .page-view provides padding/sizing via global styles
   // Page-specific overrides only
-}
-
-// Header
-.view-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: var(--spacing-6);
-  gap: var(--spacing-4);
-  flex-wrap: wrap;
-}
-
-.header-content {
-  flex: 1;
-  min-width: 250px;
-}
-
-.page-title {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-3);
-  font-size: var(--text-3xl);
-  font-weight: v.$font-bold;
-  color: var(--text-primary);
-  margin: 0 0 var(--spacing-2) 0;
-
-  .icon-title {
-    width: 32px;
-    height: 32px;
-    stroke: var(--primary-color);
-    fill: none;
-  }
-}
-
-.page-subtitle {
-  font-size: var(--text-base);
-  color: var(--text-secondary);
-  margin: 0;
-}
-
-.header-actions {
-  display: flex;
-  gap: var(--spacing-3);
 }
 
 .btn-action {
@@ -1172,11 +1120,6 @@ onMounted(() => {
   display: none;
 }
 
-// Title variants - by default show desktop, hide mobile
-.mobile-settings-title {
-  display: none !important;
-}
-
 // Animations
 @keyframes fade-in {
   from {
@@ -1241,13 +1184,13 @@ onMounted(() => {
     }
   }
 
-  // Switch titles
-  .desktop-settings-title {
-    display: none !important;
+  // Override PageHeader title visibility at settings breakpoint
+  :deep(.page-header .desktop-title) {
+    display: none;
   }
-  
-  .mobile-settings-title {
-    display: flex !important;
+
+  :deep(.page-header .mobile-title) {
+    display: flex;
   }
 
   // Hide section header on mobile (already shown in mobile page title)
@@ -1260,41 +1203,15 @@ onMounted(() => {
   }
 }
 
-@include m.respond-below('md') {  // < 768px
-  .view-header {
-    flex-direction: column;
-    align-items: stretch;
-    gap: var(--spacing-4);
-  }
-  
-  .header-content {
-    width: 100%;
-  }
-}
-
 @include m.respond-below('sm') {  // < 640px
   .settings-view {
     padding: var(--spacing-4) var(--spacing-3);
   }
 
-  .page-title {
-    font-size: var(--text-2xl);
-    flex-wrap: wrap;
-  }
-  
-  .page-subtitle {
-    margin-top: var(--spacing-2);
-  }
-
-  .header-actions {
+  .btn-action {
     width: 100%;
-    flex-direction: column;
-
-    .btn-action {
-      width: 100%;
-      min-height: 44px;  // Touch-friendly
-      justify-content: center;
-    }
+    min-height: 44px;  // Touch-friendly
+    justify-content: center;
   }
 
   // Reduce card-content padding on mobile for better content visibility

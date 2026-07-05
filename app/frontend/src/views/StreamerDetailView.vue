@@ -1,7 +1,54 @@
 <template>
   <div class="page-view streamer-detail-view">
+    <PageHeader
+      :title="streamer?.name || 'Streamer Detail'"
+      :icon="streamer?.is_live ? 'radio' : 'user'"
+      :subtitle="headerSubtitle"
+    >
+      <template #status>
+        <span v-if="streamer?.is_live" class="live-status-badge">
+          <span class="live-pulse-dot"></span>
+          LIVE
+        </span>
+      </template>
+      <template #actions>
+        <button
+          v-if="streamer?.is_live"
+          @click="handleWatchLive(null)"
+          class="btn-action btn-live"
+          v-ripple
+          aria-label="Watch live stream"
+        >
+          <svg class="icon">
+            <use href="#icon-play" />
+          </svg>
+          Watch Live
+        </button>
+        <button
+          v-if="streamer && !streamer.is_recording"
+          @click="forceStartRecording(Number(streamerId))"
+          class="btn-action btn-primary"
+          :disabled="forceRecordingStreamerId === Number(streamerId)"
+          v-ripple
+          aria-label="Start recording"
+        >
+          <svg v-if="forceRecordingStreamerId !== Number(streamerId)" class="icon">
+            <use href="#icon-video" />
+          </svg>
+          <span v-if="forceRecordingStreamerId === Number(streamerId)">Recording...</span>
+          <span v-else>Record Now</span>
+        </button>
+        <button @click="confirmDeleteAll" class="btn-action btn-danger" v-ripple aria-label="Delete all streams">
+          <svg class="icon">
+            <use href="#icon-trash" />
+          </svg>
+          Delete All
+        </button>
+      </template>
+    </PageHeader>
+
     <!-- Back Button -->
-    <button @click="goBackToStreamers" class="back-button" v-ripple>
+    <button @click="goBackToStreamers" class="back-button" aria-label="Back to streamers list" v-ripple>
       <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M19 12H5M12 19l-7-7 7-7" />
       </svg>
@@ -51,49 +98,19 @@
             </p>
           </div>
 
-          <!-- Action Buttons -->
-          <div class="profile-actions">
-            <button
-              v-if="streamer.is_live"
-              @click="handleWatchLive(null)"
-              class="btn-action btn-live"
-              v-ripple
-            >
-              <svg class="icon">
-                <use href="#icon-play" />
-              </svg>
-              Watch Live
-            </button>
-            <button
-              v-if="!streamer.is_recording"
-              @click="forceStartRecording(Number(streamerId))"
-              class="btn-action btn-primary"
-              :disabled="forceRecordingStreamerId === Number(streamerId)"
-              v-ripple
-            >
-              <svg v-if="forceRecordingStreamerId !== Number(streamerId)" class="icon">
-                <use href="#icon-video" />
-              </svg>
-              <span v-if="forceRecordingStreamerId === Number(streamerId)">Recording...</span>
-              <span v-else>Record Now</span>
-            </button>
-            <button @click="confirmDeleteAll" class="btn-action btn-danger" v-ripple>
-              <svg class="icon">
-                <use href="#icon-trash" />
-              </svg>
-              Delete All
-            </button>
-          </div>
+
         </div>
       </div>
 
       <!-- Cockpit Tab Navigation -->
-      <div class="cockpit-tabs">
+      <div class="cockpit-tabs" role="tablist">
         <button
           v-for="tab in cockpitTabs"
           :key="tab.id"
           @click="activeCockpitTab = tab.id"
           :class="['cockpit-tab', { active: activeCockpitTab === tab.id }]"
+          :aria-selected="activeCockpitTab === tab.id"
+          role="tab"
           v-ripple
         >
           <svg class="icon">
@@ -265,6 +282,7 @@ import StatusCard from '@/components/cards/StatusCard.vue'
 import StreamCard from '@/components/cards/StreamCard.vue'
 import BaseModal from '@/components/base/BaseModal.vue'
 import BaseButton from '@/components/base/BaseButton.vue'
+import PageHeader from '@/components/base/PageHeader.vue'
 import StreamerSettingsFields from '@/components/streamers/StreamerSettingsFields.vue'
 import { buildDefaultState } from '@/schemas/streamerSettings.schema'
 
@@ -289,6 +307,17 @@ const streams = ref<any[]>([])
 
 // View controls
 const sortBy = ref('newest')
+
+const headerSubtitle = computed(() => {
+  if (!streamer.value) return ''
+  const parts: string[] = []
+  if (streamer.value.is_live) parts.push('Currently live')
+  if (streamer.value.is_recording) parts.push('Recording in progress')
+  if (streamer.value.display_name && streamer.value.display_name !== streamer.value.name) {
+    parts.push(`@${streamer.value.display_name}`)
+  }
+  return parts.join(' \u2022 ') || (streamer.value.description?.slice(0, 80) || '')
+})
 
 // Delete flow
 const showConfirm = ref(false)
@@ -681,6 +710,90 @@ onUnmounted(() => {
 .streamer-detail-view {
   // .page-view provides padding/sizing via global styles
   // Page-specific overrides only
+}
+
+// PageHeader action button styles
+.btn-action {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-4);
+  border-radius: var(--radius-lg);
+  font-size: var(--text-sm);
+  font-weight: v.$font-semibold;
+  border: none;
+  cursor: pointer;
+  transition: all v.$duration-200 v.$ease-out;
+  min-height: 44px;
+
+  .icon {
+    width: 18px;
+    height: 18px;
+    stroke: currentColor;
+    fill: none;
+    flex-shrink: 0;
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  &.btn-primary {
+    background: var(--primary-color);
+    color: white;
+
+    &:hover:not(:disabled) {
+      background: var(--primary-600);
+    }
+  }
+
+  &.btn-danger {
+    background: var(--danger-color);
+    color: white;
+
+    &:hover:not(:disabled) {
+      background: var(--danger-600);
+    }
+  }
+
+  &.btn-live {
+    background: var(--danger-color);
+    color: white;
+
+    &:hover:not(:disabled) {
+      background: var(--danger-600);
+    }
+  }
+
+  @include m.respond-below('sm') {
+    flex: 1;
+    justify-content: center;
+    min-height: 44px;
+  }
+}
+
+.live-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-1) var(--spacing-3);
+  background: var(--danger-color);
+  color: white;
+  font-size: var(--text-xs);
+  font-weight: v.$font-bold;
+  border-radius: var(--radius-pill);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.live-pulse-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  background: white;
+  border-radius: 50%;
+  animation: pulse 1.5s ease-in-out infinite;
 }
 
 // Back Button
