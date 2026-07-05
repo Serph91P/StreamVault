@@ -334,13 +334,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useNotificationSettings } from '@/composables/useNotificationSettings'
 import { useRecordingSettings } from '@/composables/useRecordingSettings'
-import { useRealtimeStore } from '@/stores/realtime'
 import { useTheme } from '@/composables/useTheme'
 import { useToast } from '@/composables/useToast'
-import { hasRealtimeEventType } from '@/types/events'
 import { systemApi } from '@/services/api'
 import LoadingSkeleton from '@/components/LoadingSkeleton.vue'
 import GlassCard from '@/components/cards/GlassCard.vue'
@@ -526,28 +524,6 @@ function formatBuildDate(isoDate: string): string {
     return isoDate
   }
 }
-
-// Real-time store for live updates
-const realtime = useRealtimeStore()
-const realtimeUnsubs: Array<() => void> = []
-
-onMounted(() => {
-  realtimeUnsubs.push(realtime.onEvents([
-    'active_recordings_update',
-    'recording_started',
-    'recording_stopped',
-  ], (event) => {
-    if (hasRealtimeEventType(event, 'active_recordings_update')) {
-      activeRecordings.value = Array.isArray(event.data) ? event.data : []
-    } else if (hasRealtimeEventType(event, 'recording_started', 'recording_stopped')) {
-      fetchActiveRecordings()
-    }
-  }))
-})
-
-onUnmounted(() => {
-  realtimeUnsubs.forEach((fn) => fn())
-})
 
 // Watch theme changes from dropdown and apply via setTheme
 watch(theme, (newTheme) => {
