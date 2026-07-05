@@ -1,7 +1,12 @@
 <template>
   <div class="background-queue-monitor">
     <!-- Queue Status Indicator -->
-    <div class="queue-status-indicator" @click.stop="togglePanel">
+    <button
+      type="button"
+      class="queue-status-indicator"
+      aria-label="Open background jobs"
+      @click.stop="togglePanel"
+    >
       <svg class="plus-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M12 5v14M5 12h14" />
       </svg>
@@ -15,7 +20,7 @@
       <div v-if="hasActiveTasks" class="progress-bar">
         <div class="progress-fill" :style="{ width: `${totalProgress}%` }"></div>
       </div>
-    </div>
+    </button>
 
     <!-- Teleport to body so panel isn't trapped inside scoped component -->
     <Teleport to="body">
@@ -217,7 +222,7 @@ const combinedActiveTasks = computed(() => {
 })
 
 const hasActiveTasks = computed(() => combinedActiveTasks.value.length > 0)
-const isConnected = computed(() => connectionStatus.value === 'connected')
+const isConnected = computed(() => connectionStatus === 'connected')
 
 const totalProgress = computed(() => {
   if (!hasActiveTasks.value) return 0
@@ -340,11 +345,6 @@ defineExpose({ togglePanel, taskCount: combinedActiveTasks })
 .queue-status-indicator {
   display: flex;
   align-items: center;
-  
-  // Hide on mobile — accessed via hamburger menu instead
-  @include m.respond-below('md') {
-    display: none;
-  }
   gap: var(--spacing-2);
   padding: var(--spacing-2) var(--spacing-3);
   background: var(--glass-bg-subtle);
@@ -354,8 +354,10 @@ defineExpose({ togglePanel, taskCount: combinedActiveTasks })
   backdrop-filter: blur(var(--glass-blur-sm));
   -webkit-backdrop-filter: blur(var(--glass-blur-sm));
   border: 1px solid var(--glass-border);
-  height: 36px;
+  min-height: 44px;
   min-width: auto;
+  color: var(--text-primary);
+  font: inherit;
 }
 
 .queue-status-indicator:hover {
@@ -415,7 +417,7 @@ defineExpose({ togglePanel, taskCount: combinedActiveTasks })
   border-radius: var(--border-radius-sm, 4px);
 }
 
-// Queue panel — uses shared .glass-popup-panel, only component-specific overrides here
+// Queue panel - uses shared .glass-popup-panel, only component-specific overrides here
 .queue-panel {
   // Desktop width override (shared class defaults to 420px)
   @include m.respond-to('lg') {
@@ -713,7 +715,7 @@ defineExpose({ togglePanel, taskCount: combinedActiveTasks })
   .queue-status-indicator {
     padding: 6px 10px;
     gap: 6px;
-    height: 32px;
+    min-height: 44px;
     min-width: 60px;
   }
   

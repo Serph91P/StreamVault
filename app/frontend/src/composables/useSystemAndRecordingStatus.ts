@@ -13,14 +13,17 @@
  */
 
 import { ref, computed, onMounted, onUnmounted, watch, readonly } from 'vue'
-import { useWebSocket } from './useWebSocket'
-import { logDebug, logError, logWebSocket } from '@/utils/logger'
+import { useRealtimeStore } from '@/stores/realtime'
+import { systemApi } from '@/services/api'
+import { logDebug, logError } from '@/utils/logger'
 
 // Mock mode check
 const USE_MOCK_DATA = import.meta.env.VITE_USE_MOCK_DATA === 'true'
 
 // Configuration constants
 const _TIMEOUT_THRESHOLD_MS = 45000 // 45 seconds - fallback to REST if no WebSocket updates
+
+const cacheParams = (useCache: boolean) => useCache ? {} : { t: Date.now() }
 
 interface SystemStatus {
   active_recordings: number
@@ -94,11 +97,12 @@ export function useSystemAndRecordingStatus() {
   const error = ref<string | null>(null)
   const lastUpdate = ref<Date | null>(null)
   
-  // WebSocket integration
-  const { messages, connectionStatus } = useWebSocket()
+  // WebSocket integration via central store
+  const realtime = useRealtimeStore()
+  const realtimeUnsubs: Array<() => void> = []
   
   // Computed properties
-  const isOnline = computed(() => connectionStatus.value === 'connected')
+  const isOnline = computed(() => realtime.connectionStatus === 'connected')
   const hasActiveRecordings = computed(() => activeRecordings.value.length > 0)
   const activeRecordingsCount = computed(() => activeRecordings.value.length)
   
@@ -108,16 +112,7 @@ export function useSystemAndRecordingStatus() {
       isLoading.value = true
       error.value = null
       
-      const cacheParam = useCache ? '' : `?t=${Date.now()}`
-      const response = await fetch(`/api/status/system${cacheParam}`, {
-        credentials: 'include' // CRITICAL: Required to send session cookie
-      })
-      
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
-      }
-      
-      const data = await response.json()
+      const data = await systemApi.getStatus(cacheParams(useCache))
       systemStatus.value = data.system
       lastUpdate.value = new Date()
       
@@ -134,16 +129,7 @@ export function useSystemAndRecordingStatus() {
       isLoading.value = true
       error.value = null
       
-      const cacheParam = useCache ? '' : `?t=${Date.now()}`
-      const response = await fetch(`/api/status/active-recordings${cacheParam}`, {
-        credentials: 'include' // CRITICAL: Required to send session cookie
-      })
-      
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
-      }
-      
-      const data = await response.json()
+      const data = await systemApi.getActiveRecordingsStatus(cacheParams(useCache))
       activeRecordings.value = data.active_recordings || []
       lastUpdate.value = new Date()
       
@@ -160,16 +146,7 @@ export function useSystemAndRecordingStatus() {
       isLoading.value = true
       error.value = null
       
-      const cacheParam = useCache ? '' : `?t=${Date.now()}`
-      const response = await fetch(`/api/status/streamers${cacheParam}`, {
-        credentials: 'include' // CRITICAL: Required to send session cookie
-      })
-      
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
-      }
-      
-      const data = await response.json()
+      const data = await systemApi.getStreamersStatus(cacheParams(useCache))
       streamersStatus.value = data.streamers || []
       lastUpdate.value = new Date()
       
@@ -186,16 +163,7 @@ export function useSystemAndRecordingStatus() {
       isLoading.value = true
       error.value = null
       
-      const cacheParam = useCache ? '' : `?t=${Date.now()}`
-      const response = await fetch(`/api/status/streams${cacheParam}`, {
-        credentials: 'include' // CRITICAL: Required to send session cookie
-      })
-      
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
-      }
-      
-      const data = await response.json()
+      const data = await systemApi.getStreamsStatus(cacheParams(useCache))
       streamsStatus.value = data.streams || []
       lastUpdate.value = new Date()
       
@@ -212,16 +180,7 @@ export function useSystemAndRecordingStatus() {
       isLoading.value = true
       error.value = null
       
-      const cacheParam = useCache ? '' : `?t=${Date.now()}`
-      const response = await fetch(`/api/status/notifications${cacheParam}`, {
-        credentials: 'include' // CRITICAL: Required to send session cookie
-      })
-      
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
-      }
-      
-      const data = await response.json()
+      const data = await systemApi.getNotificationsStatus(cacheParams(useCache))
       notificationsStatus.value = data
       lastUpdate.value = new Date()
       
@@ -278,220 +237,184 @@ export function useSystemAndRecordingStatus() {
     return fetchAllStatus(false)
   }
   
-  // WebSocket message processing
-  const processWebSocketMessage = (message: any) => {
-    // Only log in development mode
-    if (import.meta.env?.DEV) {
-      logWebSocket('useSystemAndRecordingStatus', 'received', `Processing message type: ${message.type}`, message.data)
-    }
-    
-    switch (message.type) {
-      case 'active_recordings_update':
-        if (Array.isArray(message.data)) {
-          activeRecordings.value = message.data
-          lastUpdate.value = new Date()
-        }
-        break
-        
-      case 'streamers_update':
-        if (Array.isArray(message.data)) {
-          streamersStatus.value = message.data
-          lastUpdate.value = new Date()
-        }
-        break
-        
-      case 'streams_update':
-        if (Array.isArray(message.data)) {
-          streamsStatus.value = message.data
-          lastUpdate.value = new Date()
-        }
-        break
-        
-      case 'channel.update':
-        // Handle Twitch channel updates (title, category, language changes)
-        if (message.data && message.data.streamer_name) {
-          const streamerIndex = streamersStatus.value.findIndex(
-            s => s.name === message.data.streamer_name || s.name === message.data.username
-          )
-          if (streamerIndex !== -1) {
-            if (message.data.title) {
-              streamersStatus.value[streamerIndex].current_title = message.data.title
-            }
-            if (message.data.category_name) {
-              streamersStatus.value[streamerIndex].current_category = message.data.category_name
-            }
-            if (message.data.language) {
-              streamersStatus.value[streamerIndex].language = message.data.language
-            }
-            streamersStatus.value[streamerIndex].last_seen = new Date().toISOString()
-            lastUpdate.value = new Date()
-            logDebug('useSystemAndRecordingStatus', `Updated streamer ${message.data.streamer_name} from WebSocket channel.update`)
-          }
-        }
-        break
-        
-      case 'stream.online':
-        // Handle Twitch stream going live
-        if (message.data && message.data.streamer_name) {
-          const streamerIndex = streamersStatus.value.findIndex(
-            s => s.name === message.data.streamer_name || s.name === message.data.username
-          )
-          if (streamerIndex !== -1) {
-            streamersStatus.value[streamerIndex].is_live = true
-            streamersStatus.value[streamerIndex].last_seen = new Date().toISOString()
-            lastUpdate.value = new Date()
-            logDebug('useSystemAndRecordingStatus', `Streamer ${message.data.streamer_name} went LIVE via WebSocket`)
-          }
-        }
-        break
-        
-      case 'stream.offline':
-        // Handle Twitch stream going offline
-        if (message.data && message.data.streamer_name) {
-          const streamerIndex = streamersStatus.value.findIndex(
-            s => s.name === message.data.streamer_name || s.name === message.data.username
-          )
-          if (streamerIndex !== -1) {
-            streamersStatus.value[streamerIndex].is_live = false
-            streamersStatus.value[streamerIndex].current_title = null
-            streamersStatus.value[streamerIndex].current_category = null
-            streamersStatus.value[streamerIndex].last_seen = new Date().toISOString()
-            lastUpdate.value = new Date()
-            logDebug('useSystemAndRecordingStatus', `Streamer ${message.data.streamer_name} went OFFLINE via WebSocket`)
-          }
-        }
-        break
-        
-      case 'streamer_online':
-        // Update specific streamer status
-        if (message.data && message.data.streamer_id) {
-          const streamerIndex = streamersStatus.value.findIndex(
-            s => s.id === message.data.streamer_id
-          )
-          if (streamerIndex !== -1) {
-            streamersStatus.value[streamerIndex].is_live = true
-            streamersStatus.value[streamerIndex].current_title = message.data.title || null
-            streamersStatus.value[streamerIndex].current_category = message.data.category || null
-            lastUpdate.value = new Date()
-          }
-        }
-        break
-        
-      case 'streamer_offline':
-        // Update specific streamer status
-        if (message.data && message.data.streamer_id) {
-          const streamerIndex = streamersStatus.value.findIndex(
-            s => s.id === message.data.streamer_id
-          )
-          if (streamerIndex !== -1) {
-            streamersStatus.value[streamerIndex].is_live = false
-            streamersStatus.value[streamerIndex].current_title = null
-            streamersStatus.value[streamerIndex].current_category = null
-            lastUpdate.value = new Date()
-          }
-        }
-        break
-        
-      case 'recording_started':
-        // Add to active recordings if not already present
-        if (message.data && message.data.recording_id) {
-          const existingIndex = activeRecordings.value.findIndex(
-            rec => rec.id === message.data.recording_id
-          )
-          if (existingIndex === -1) {
-            const newRecording = {
-              id: message.data.recording_id,
-              stream_id: message.data.stream_id,
-              streamer_id: message.data.streamer_id,
-              streamer_name: message.data.streamer_name || 'Unknown',
-              title: message.data.title || '',
-              started_at: message.data.started_at || new Date().toISOString(),
-              file_path: message.data.file_path || '',
-              status: 'recording',
-              duration: 0
-            }
-            activeRecordings.value.push(newRecording)
-            
-            // Also update streamer recording status
-            const streamerIndex = streamersStatus.value.findIndex(
-              s => s.id === message.data.streamer_id
-            )
-            if (streamerIndex !== -1) {
-              streamersStatus.value[streamerIndex].is_recording = true
-            }
-            
-            lastUpdate.value = new Date()
-          }
-        }
-        break
-        
-      case 'recording_stopped':
-      case 'recording_completed':
-        // Remove from active recordings
-        if (message.data && (message.data.recording_id || message.data.streamer_id)) {
-          if (message.data.recording_id) {
-            activeRecordings.value = activeRecordings.value.filter(
-              rec => rec.id !== message.data.recording_id
-            )
-          } else if (message.data.streamer_id) {
-            activeRecordings.value = activeRecordings.value.filter(
-              rec => rec.streamer_id !== message.data.streamer_id
-            )
-            
-            // Update streamer recording status
-            const streamerIndex = streamersStatus.value.findIndex(
-              s => s.id === message.data.streamer_id
-            )
-            if (streamerIndex !== -1) {
-              streamersStatus.value[streamerIndex].is_recording = false
-            }
-          }
-          lastUpdate.value = new Date()
-        }
-        break
-        
-      case 'notification_event':
-        // Add to recent notifications
-        if (message.data && notificationsStatus.value) {
-          notificationsStatus.value.recent_events.unshift({
-            id: Date.now(), // temporary ID
-            type: message.data.type,
-            streamer_name: message.data.streamer_name,
-            message: message.data.message,
-            timestamp: new Date().toISOString()
-          })
-          
-          // Keep only last 20 events
-          if (notificationsStatus.value.recent_events.length > 20) {
-            notificationsStatus.value.recent_events = notificationsStatus.value.recent_events.slice(0, 20)
-          }
-          
-          lastUpdate.value = new Date()
-        }
-        break
-    }
-  }
-  
-  // Watch for WebSocket messages
-  watch(messages, (newMessages) => {
-    if (newMessages.length > 0) {
-      const latestMessage = newMessages[newMessages.length - 1]
-      // Only log in development mode to avoid performance impact
-      if (import.meta.env?.DEV) {
-        logWebSocket('useSystemAndRecordingStatus', 'received', 'New WebSocket message', latestMessage)
-      }
-      processWebSocketMessage(latestMessage)
-    }
-  }, { deep: true })
-  
   // Watch connection status and refresh on reconnect
-  watch(connectionStatus, (status, oldStatus) => {
+  watch(() => realtime.connectionStatus, (status, oldStatus) => {
     if (status === 'connected' && oldStatus !== 'connected') {
       // Reconnected - refresh all data to ensure consistency
       setTimeout(() => {
         fetchAllStatus(false) // Force refresh without cache
       }, 1000) // Small delay to allow WebSocket to stabilize
     }
+  })
+
+  // WebSocket event subscriptions via central store
+  onMounted(() => {
+    const markupStreamer = (name: string) => {
+      return streamersStatus.value.findIndex(
+        s => s.name === name || s.display_name === name
+      )
+    }
+
+    realtimeUnsubs.push(
+      realtime.onEvent('active_recordings_update', (event) => {
+        if (Array.isArray(event.data)) {
+          activeRecordings.value = event.data
+          lastUpdate.value = new Date()
+        }
+      }),
+
+      realtime.onEvent('streamers_update', (event) => {
+        if (Array.isArray(event.data)) {
+          streamersStatus.value = event.data
+          lastUpdate.value = new Date()
+        }
+      }),
+
+      realtime.onEvent('streams_update', (event) => {
+        if (Array.isArray(event.data)) {
+          streamsStatus.value = event.data
+          lastUpdate.value = new Date()
+        }
+      }),
+
+      realtime.onEvent('channel.update', (event) => {
+        const d = event.data
+        if (d && d.streamer_name) {
+          const idx = markupStreamer(d.streamer_name)
+          if (idx !== -1) {
+            const s = streamersStatus.value[idx]
+            if (d.title) s.current_title = d.title
+            if (d.category_name) s.current_category = d.category_name
+            if (d.language) s.language = d.language
+            s.last_seen = new Date().toISOString()
+            lastUpdate.value = new Date()
+          }
+        }
+      }),
+
+      realtime.onEvent('stream.online', (event) => {
+        const d = event.data
+        if (d && d.streamer_name) {
+          const idx = markupStreamer(d.streamer_name)
+          if (idx !== -1) {
+            streamersStatus.value[idx].is_live = true
+            streamersStatus.value[idx].last_seen = new Date().toISOString()
+            lastUpdate.value = new Date()
+          }
+        }
+      }),
+
+      realtime.onEvent('stream.offline', (event) => {
+        const d = event.data
+        if (d && d.streamer_name) {
+          const idx = markupStreamer(d.streamer_name)
+          if (idx !== -1) {
+            const s = streamersStatus.value[idx]
+            s.is_live = false
+            s.current_title = null
+            s.current_category = null
+            s.last_seen = new Date().toISOString()
+            lastUpdate.value = new Date()
+          }
+        }
+      }),
+
+      realtime.onEvent('streamer_online', (event) => {
+        const d = event.data
+        if (d && d.streamer_id) {
+          const idx = streamersStatus.value.findIndex(s => s.id === d.streamer_id)
+          if (idx !== -1) {
+            streamersStatus.value[idx].is_live = true
+            streamersStatus.value[idx].current_title = d.title || null
+            streamersStatus.value[idx].current_category = d.category || null
+            lastUpdate.value = new Date()
+          }
+        }
+      }),
+
+      realtime.onEvent('streamer_offline', (event) => {
+        const d = event.data
+        if (d && d.streamer_id) {
+          const idx = streamersStatus.value.findIndex(s => s.id === d.streamer_id)
+          if (idx !== -1) {
+            streamersStatus.value[idx].is_live = false
+            streamersStatus.value[idx].current_title = null
+            streamersStatus.value[idx].current_category = null
+            lastUpdate.value = new Date()
+          }
+        }
+      }),
+
+      realtime.onEvent('recording.started', (event) => {
+        const d = event.data
+        if (d && d.recording_id) {
+          const exists = activeRecordings.value.some(rec => rec.id === d.recording_id)
+          if (!exists) {
+            activeRecordings.value.push({
+              id: d.recording_id,
+              stream_id: d.stream_id,
+              streamer_id: d.streamer_id,
+              streamer_name: d.streamer_name || 'Unknown',
+              title: d.title || '',
+              started_at: d.started_at || new Date().toISOString(),
+              file_path: d.file_path || '',
+              status: 'recording',
+              duration: 0
+            })
+            const si = streamersStatus.value.findIndex(s => s.id === d.streamer_id)
+            if (si !== -1) {
+              streamersStatus.value[si].is_recording = true
+            }
+            lastUpdate.value = new Date()
+          }
+        }
+      }),
+
+      realtime.onEvent('recording.stopped', (event) => {
+        const d = event.data
+        if (d && (d.recording_id || d.streamer_id)) {
+          if (d.recording_id) {
+            activeRecordings.value = activeRecordings.value.filter(rec => rec.id !== d.recording_id)
+          } else if (d.streamer_id) {
+            activeRecordings.value = activeRecordings.value.filter(rec => rec.streamer_id !== d.streamer_id)
+            const si = streamersStatus.value.findIndex(s => s.id === d.streamer_id)
+            if (si !== -1) streamersStatus.value[si].is_recording = false
+          }
+          lastUpdate.value = new Date()
+        }
+      }),
+
+      realtime.onEvent('recording.completed', (event) => {
+        const d = event.data
+        if (d && (d.recording_id || d.streamer_id)) {
+          if (d.recording_id) {
+            activeRecordings.value = activeRecordings.value.filter(rec => rec.id !== d.recording_id)
+          } else if (d.streamer_id) {
+            activeRecordings.value = activeRecordings.value.filter(rec => rec.streamer_id !== d.streamer_id)
+            const si = streamersStatus.value.findIndex(s => s.id === d.streamer_id)
+            if (si !== -1) streamersStatus.value[si].is_recording = false
+          }
+          lastUpdate.value = new Date()
+        }
+      }),
+
+      realtime.onEvent('notification_event', (event) => {
+        const d = event.data
+        if (d && notificationsStatus.value) {
+          notificationsStatus.value.recent_events.unshift({
+            id: Date.now(),
+            type: d.type,
+            streamer_name: d.streamer_name,
+            message: d.message,
+            timestamp: new Date().toISOString()
+          })
+          if (notificationsStatus.value.recent_events.length > 20) {
+            notificationsStatus.value.recent_events = notificationsStatus.value.recent_events.slice(0, 20)
+          }
+          lastUpdate.value = new Date()
+        }
+      })
+    )
   })
   
   // Periodic refresh interval (DISABLED - WebSocket provides all updates)
@@ -539,6 +462,7 @@ export function useSystemAndRecordingStatus() {
   })
   
   onUnmounted(() => {
+    realtimeUnsubs.forEach((fn) => fn())
     stopPeriodicRefresh()
   })
   

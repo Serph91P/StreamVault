@@ -24,7 +24,7 @@
         <GlassCard variant="strong" :padding="false" class="player-card">
           <!-- Header -->
           <div class="player-header">
-            <button @click="goBack" class="back-button" v-ripple>
+            <button @click="goBack" class="back-button" aria-label="Go back" v-ripple>
               <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M19 12H5M12 19l-7-7 7-7" />
               </svg>
@@ -61,7 +61,7 @@
             <!-- Controls Overlay -->
             <div class="live-controls-overlay">
               <div class="controls-bottom">
-                <button @click="togglePlayPause" class="control-button">
+                <button @click="togglePlayPause" class="control-button" :aria-label="isPlaying ? 'Pause live stream' : 'Play live stream'">
                   <svg v-if="isPlaying" viewBox="0 0 24 24" fill="currentColor" class="control-icon">
                     <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z"/>
                   </svg>
@@ -70,7 +70,7 @@
                   </svg>
                 </button>
 
-                <button @click="toggleMute" class="control-button">
+                <button @click="toggleMute" class="control-button" :aria-label="isMuted ? 'Unmute live stream' : 'Mute live stream'">
                   <svg v-if="!isMuted" viewBox="0 0 24 24" fill="currentColor" class="control-icon">
                     <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
                   </svg>
@@ -85,7 +85,7 @@
                   <span class="meta-status">{{ isBuffering ? 'Buffering' : 'Playing' }}</span>
                 </div>
 
-                <button @click="toggleFullscreen" class="control-button fullscreen-button">
+                <button @click="toggleFullscreen" class="control-button fullscreen-button" :aria-label="isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'">
                   <svg v-if="!isFullscreen" viewBox="0 0 24 24" fill="currentColor" class="control-icon">
                     <path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/>
                   </svg>
@@ -181,6 +181,7 @@ import LoadingSkeleton from '@/components/LoadingSkeleton.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import GlassCard from '@/components/cards/GlassCard.vue'
 import { liveApi } from '@/services/api'
+import { appStorage } from '@/services/storage'
 
 // Hls.js type declaration (loaded via npm, no longer from CDN)
 declare global {
@@ -226,7 +227,7 @@ const retryCount = ref(0)
 const retryTimer = ref<number | null>(null)
 const codecMode = ref<LiveCodecMode>(
   ((route.query.codec as LiveCodecMode) ||
-    localStorage.getItem('streamvault-live-codec-mode') ||
+    appStorage.liveCodecMode ||
     'auto') as LiveCodecMode
 )
 const activeSupportedCodecs = ref('h264')
@@ -283,7 +284,7 @@ const loadHlsJs = (): Promise<any> => {
 }
 
 const getStoredSessionToken = (): string | null => {
-  return localStorage.getItem('streamvault_session')
+  return appStorage.sessionToken
 }
 
 const canUseNativeHls = (): boolean => {
@@ -342,7 +343,7 @@ const startStream = async () => {
     const codecSelection = resolveLiveCodecSelection()
     activeSupportedCodecs.value = codecSelection.supportedCodecs
     preferNativeHls.value = codecSelection.useNativeHls
-    localStorage.setItem('streamvault-live-codec-mode', codecMode.value)
+    appStorage.setLiveCodecMode(codecMode.value)
 
     const response = await liveApi.startLiveStream(
       streamerName.value,
@@ -524,7 +525,7 @@ const retryStart = () => {
 const restartWithCodecMode = async () => {
   if (isStarting.value || isStopping.value) return
 
-  localStorage.setItem('streamvault-live-codec-mode', codecMode.value)
+  appStorage.setLiveCodecMode(codecMode.value)
   router.replace({
     query: {
       ...route.query,
@@ -946,8 +947,8 @@ onUnmounted(() => {
 }
 
 .control-button {
-  width: 36px;
-  height: 36px;
+  min-width: 44px;
+  min-height: 44px;
   padding: 0;
   background: rgba(255, 255, 255, 0.15);
   border: none;
@@ -961,6 +962,11 @@ onUnmounted(() => {
 
   &:hover {
     background: rgba(255, 255, 255, 0.3);
+  }
+
+  &:focus-visible {
+    outline: 2px solid white;
+    outline-offset: 2px;
   }
 
   .control-icon {
@@ -1122,12 +1128,18 @@ onUnmounted(() => {
 
 .codec-select {
   width: 100%;
+  min-height: 44px;
   padding: var(--spacing-2) var(--spacing-3);
   background: var(--background-darker);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
   color: var(--text-primary);
   font-size: var(--text-sm);
+
+  &:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
+  }
 }
 
 .codec-hint {
@@ -1151,6 +1163,7 @@ onUnmounted(() => {
   font-weight: v.$font-medium;
   cursor: pointer;
   transition: all v.$duration-200 v.$ease-out;
+  min-height: 44px;
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
@@ -1177,6 +1190,11 @@ onUnmounted(() => {
   &:disabled {
     opacity: 0.6;
     cursor: not-allowed;
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
   }
 }
 </style>

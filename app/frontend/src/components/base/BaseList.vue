@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * BaseList — opinionated list primitive used as a card-stack on every
+ * BaseList is an opinionated list primitive used as a card-stack on every
  * breakpoint. Items render as separate surfaces (no inner dividers,
  * no first/last edge artifacts) and slot whatever content the caller
  * needs. Designed as the "default list" for new views; existing tables

@@ -50,7 +50,7 @@ interface Props {
   title: string
   /** Description text (optional) */
   description?: string
-  /** Icon name (from icons.svg) */
+  /** Icon name from the StreamVault icon sprite */
   icon?: string
   /** Action button label */
   actionLabel?: string

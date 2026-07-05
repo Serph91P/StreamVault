@@ -9,6 +9,7 @@
 import { ref, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useBreakpoints, breakpointsTailwind } from '@vueuse/core'
+import { appStorage } from '@/services/storage'
 
 export interface NavigationTab {
   route: string
@@ -21,10 +22,10 @@ export interface NavigationTab {
 
 // Navigation configuration
 export const navigationTabs: NavigationTab[] = [
-  { route: '/', label: 'Home', icon: 'home', description: 'Dashboard overview', badge: null },
+  { route: '/', label: 'Dashboard', icon: 'home', description: 'Dashboard overview', badge: null },
   { route: '/streamers', label: 'Streamers', icon: 'users', description: 'Manage creators', badge: null },
-  { route: '/videos', label: 'Videos', icon: 'video', description: 'Recorded sessions', badge: null },
-  { route: '/subscriptions', label: 'Subs', icon: 'bell', description: 'Alerts & favorites', badge: null },
+  { route: '/videos', label: 'Library', icon: 'video', description: 'Video library', badge: null },
+  { route: '/subscriptions', label: 'Subscriptions', icon: 'bell', description: 'Manage subscriptions', badge: null },
   { route: '/settings', label: 'Settings', icon: 'settings', description: 'App preferences', badge: null }
 ]
 
@@ -38,14 +39,14 @@ export function useNavigation() {
   // Use computed wrappers so we can ensure a sensible value during the
   // first paint frame. `useBreakpoints` evaluates window.matchMedia lazily
   // and previously returned `false` for both flags on the very first tick
-  // after a hard reload — that made BottomNav (gated by v-if="isMobile")
+  // after a hard reload - that made BottomNav (gated by v-if="isMobile")
   // pop in/out and look "missing" right after page load.
   const lgQuery = breakpoints.smaller('lg')
   const lgUpQuery = breakpoints.greaterOrEqual('lg')
 
   const isMobile = computed<boolean>(() => {
     if (typeof window === 'undefined') return false
-    // Trust matchMedia first — VueUse hydrates it synchronously, but on
+    // Trust matchMedia first - VueUse hydrates it synchronously, but on
     // some browsers the reactive ref needs a tick. Fall back to width check.
     if (lgQuery.value) return true
     return window.matchMedia('(max-width: 1023.98px)').matches
@@ -99,12 +100,12 @@ export function useNavigation() {
   // Toggle sidebar (desktop)
   const toggleSidebar = () => {
     sidebarExpanded.value = !sidebarExpanded.value
-    localStorage.setItem('sidebar-expanded', String(sidebarExpanded.value))
+    appStorage.setSidebarExpanded(sidebarExpanded.value)
   }
 
   // Initialize sidebar state from localStorage
   const initializeSidebar = () => {
-    const stored = localStorage.getItem('sidebar-expanded')
+    const stored = appStorage.sidebarExpanded
     if (stored !== null) {
       sidebarExpanded.value = stored === 'true'
     }

@@ -12,7 +12,7 @@
       <div v-if="!hideHeader" class="page-header" style="margin-bottom: 20px;">
         <div class="header-left">
           <button @click="handleBack" class="back-button">
-            <i class="fas fa-arrow-left"></i>
+            <SvgIcon name="arrow-left" />
             Streamers
           </button>
           <div class="header-info">
@@ -31,10 +31,10 @@
             :aria-describedby="forceRecordingStreamerId === Number(streamerId) ? 'force-recording-status' : undefined"
           >
             <span v-if="forceRecordingStreamerId === Number(streamerId)" id="force-recording-status">
-              <i class="fas fa-spinner fa-spin" aria-hidden="true"></i> Checking & Starting...
+              <SvgIcon name="refresh-cw" class="spinning" aria-hidden="true" /> Checking & Starting...
             </span>
             <span v-else>
-              <i class="fas fa-record-vinyl" aria-hidden="true"></i> Force Record Streamer
+              <SvgIcon name="circle" aria-hidden="true" /> Force Record Streamer
             </span>
           </button>
         </div>
@@ -51,7 +51,7 @@
       <div v-if="!hideHeader" class="page-header">
         <div class="header-left">
           <button @click="handleBack" class="back-button">
-            <i class="fas fa-arrow-left"></i>
+            <SvgIcon name="arrow-left" />
             Streamers
           </button>
           <div class="header-info">
@@ -70,10 +70,10 @@
             :aria-describedby="forceRecordingStreamerId === Number(streamerId) ? 'force-recording-status' : undefined"
           >
             <span v-if="forceRecordingStreamerId === Number(streamerId)" id="force-recording-status">
-              <i class="fas fa-spinner fa-spin" aria-hidden="true"></i> Checking & Starting...
+              <SvgIcon name="refresh-cw" class="spinning" aria-hidden="true" /> Checking & Starting...
             </span>
             <span v-else>
-              <i class="fas fa-record-vinyl" aria-hidden="true"></i> Force Record Streamer
+              <SvgIcon name="circle" aria-hidden="true" /> Force Record Streamer
             </span>
           </button>
           
@@ -113,30 +113,30 @@
                 <h3 class="stream-title">{{ stream.title || 'Untitled Stream' }}</h3>
                 <div class="stream-meta-badges">
                   <span v-if="!stream.ended_at" class="status-badge live">
-                    <i class="fas fa-circle"></i> LIVE
+                    <SvgIcon name="circle" /> LIVE
                   </span>
                   <span v-else class="status-badge ended">
-                    <i class="fas fa-stop-circle"></i> ENDED
+                    <SvgIcon name="stop-circle" /> ENDED
                   </span>
                   
                   <span 
                     v-if="!stream.ended_at && isStreamBeingRecorded(stream)" 
                     class="status-badge recording"
                   >
-                    <i class="fas fa-record-vinyl recording-pulse"></i> RECORDING
+                    <SvgIcon name="circle" class="recording-pulse" /> RECORDING
                   </span>
                   <span 
                     v-else-if="!stream.ended_at" 
                     class="status-badge not-recording"
                   >
-                    <i class="fas fa-circle-o"></i> NOT RECORDING
+                    <SvgIcon name="circle" /> NOT RECORDING
                   </span>
                   
                   <span 
                     v-if="stream.ended_at && hasRecording(stream)" 
                     class="status-badge has-recording"
                   >
-                    <i class="fas fa-video"></i> VIDEO
+                    <SvgIcon name="video" /> VIDEO
                   </span>
                 </div>
               </div>
@@ -144,7 +144,7 @@
               <div class="stream-meta">
                 <span class="stream-date">{{ formatDate(stream.started_at) }}</span>
                 <span v-if="stream.category_name" class="stream-category">
-                  <i class="fas fa-tag"></i> {{ stream.category_name }}
+                  <SvgIcon name="tag" /> {{ stream.category_name }}
                 </span>
               </div>
             </div>
@@ -161,7 +161,7 @@
                   title="Watch Video"
                   :aria-label="`Watch recorded video of ${stream.title || 'Untitled Stream'}`"
                 >
-                  <i class="fas fa-play" aria-hidden="true"></i> Watch Video
+                  <SvgIcon name="play" aria-hidden="true" /> Watch Video
                 </button>
                 
                 <!-- Stop Recording Button (for active recordings) -->
@@ -174,10 +174,10 @@
                   :aria-label="`Stop recording ${stream.title || 'stream'} (currently recording)`"
                 >
                   <span v-if="stoppingRecordingStreamerId === stream.streamer_id">
-                    <i class="fas fa-spinner fa-spin" aria-hidden="true"></i> Stopping...
+                    <SvgIcon name="refresh-cw" class="spinning" aria-hidden="true" /> Stopping...
                   </span>
                   <span v-else>
-                    <i class="fas fa-stop" aria-hidden="true"></i> Stop Recording
+                    <SvgIcon name="stop-circle" aria-hidden="true" /> Stop Recording
                   </span>
                 </button>
               </div>
@@ -194,10 +194,7 @@
                   :aria-expanded="expandedStreams.has(stream.id)"
                   :aria-controls="`stream-details-${stream.id}`"
                 >
-                  <i 
-                    :class="['fas', expandedStreams.has(stream.id) ? 'fa-chevron-up' : 'fa-chevron-down']" 
-                    aria-hidden="true"
-                  ></i>
+                  <SvgIcon :name="expandedStreams.has(stream.id) ? 'chevron-up' : 'chevron-down'" />
                   {{ expandedStreams.has(stream.id) ? 'Hide Details' : 'Show Details' }}
                 </button>                <!-- Delete Stream Button -->
                 <button 
@@ -208,10 +205,10 @@
                   :aria-label="`Delete stream ${stream.title || 'Untitled Stream'} - this action cannot be undone`"
                 >
                   <span v-if="deletingStreamId === stream.id">
-                    <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+                    <SvgIcon name="refresh-cw" class="spinning" aria-hidden="true" />
                   </span>
                   <span v-else>
-                    <i class="fas fa-trash" aria-hidden="true"></i>
+                    <SvgIcon name="trash" aria-hidden="true" />
                   </span>
                 </button>
               </div>
@@ -228,7 +225,7 @@
               <!-- Basic Information Section -->
               <div class="details-section">
                 <h4 class="section-title">
-                  <i class="fas fa-info-circle"></i> Stream Information
+                  <SvgIcon name="info" /> Stream Information
                 </h4>
                 <div class="details-grid">
                   <div class="detail-item">
@@ -261,7 +258,7 @@
               <!-- Categories Section -->
               <div class="details-section">
                 <h4 class="section-title">
-                  <i class="fas fa-tags"></i> Categories
+                  <SvgIcon name="tag" /> Categories
                 </h4>
                 <div class="categories-container">
           <template v-if="getCategoryHistory(stream).length > 0">
@@ -273,7 +270,7 @@
                       <div class="category-image-wrapper">
                         <template v-if="getCategoryImageSrc(cat.name).startsWith('icon:')">
                           <div class="category-icon-small">
-                            <i :class="`fas ${getCategoryImageSrc(cat.name).replace('icon:', '')}`"></i>
+                            <SvgIcon :name="getCategoryImageSrc(cat.name).replace('icon:', '')" />
                           </div>
                         </template>
                         <template v-else>
@@ -295,7 +292,7 @@
                     </div>
                   </template>
                   <div v-else class="no-categories">
-                    <i class="fas fa-question-circle"></i>
+                    <SvgIcon name="help-circle" />
                     <span>No category information available</span>
                   </div>
                 </div>
@@ -304,17 +301,17 @@
               <!-- Chapters Section -->
               <div class="details-section">
                 <h4 class="section-title">
-                  <i class="fas fa-list-ol"></i> Chapter Timeline
+                  <SvgIcon name="list-ordered" /> Chapter Timeline
                 </h4>
                 <div v-if="getChaptersState(stream.id).isLoading" class="chapters-loading">
-                  <i class="fas fa-spinner fa-spin"></i> Loading chapters...
+                  <SvgIcon name="refresh-cw" class="spinning" /> Loading chapters...
                 </div>
                 <div v-else-if="getChaptersState(stream.id).error" class="chapters-error">
-                  <i class="fas fa-exclamation-triangle"></i> {{ getChaptersState(stream.id).error }}
+                  <SvgIcon name="alert-triangle" /> {{ getChaptersState(stream.id).error }}
                 </div>
                 <div v-else>
                   <div v-if="getChaptersState(stream.id).chapters.length === 0" class="no-chapters">
-                    <i class="fas fa-info-circle"></i> No chapters available
+                    <SvgIcon name="info" /> No chapters available
                   </div>
                   <ul v-else class="chapters-list">
                     <li v-for="(ch, idx) in getChaptersState(stream.id).chapters" :key="idx" class="chapter-item">
@@ -328,7 +325,7 @@
               <!-- Recording Status Section -->
               <div class="details-section">
                 <h4 class="section-title">
-                  <i class="fas fa-video"></i> Recording Status
+                  <SvgIcon name="video" /> Recording Status
                 </h4>
                 <div class="recording-status-details">
                   <div class="status-item">
@@ -336,15 +333,15 @@
                     <span class="status-value">
                       <span v-if="!stream.ended_at">
                         <span v-if="isStreamBeingRecorded(stream)" class="status-recording">
-                          <i class="fas fa-record-vinyl recording-pulse"></i> Currently Recording
+                          <SvgIcon name="circle" class="recording-pulse" /> Currently Recording
                         </span>
                         <span v-else class="status-not-recording">
-                          <i class="fas fa-circle-o"></i> Not Recording
+                          <SvgIcon name="circle" /> Not Recording
                         </span>
                       </span>
                       <span v-else>
                         <span class="status-ended">
-                          <i class="fas fa-stop-circle"></i> Stream Ended
+                          <SvgIcon name="stop-circle" /> Stream Ended
                         </span>
                       </span>
                     </span>
@@ -353,10 +350,10 @@
                     <span class="status-label">Recording Available:</span>
                     <span class="status-value">
                       <span v-if="hasRecording(stream)" class="status-available">
-                        <i class="fas fa-check-circle"></i> Yes
+                        <SvgIcon name="check-circle" /> Yes
                       </span>
                       <span v-else class="status-unavailable">
-                        <i class="fas fa-times-circle"></i> No
+                        <SvgIcon name="x-circle" /> No
                       </span>
                     </span>
                   </div>
@@ -418,6 +415,7 @@
 </template>
 
 <script setup lang="ts">
+import SvgIcon from '@/components/icons/SvgIcon.vue'
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useStreams } from '@/composables/useStreams'
@@ -573,7 +571,7 @@ const isStreamBeingRecorded = (stream: Stream): boolean => {
 // Utility Functions
 const getCategoryImageSrc = (categoryName: string): string => {
   const imageUrl = getCategoryImage(categoryName)
-  return imageUrl || 'icon:fa-gamepad'
+  return imageUrl || 'icon:gamepad'
 }
 
 const getDisplayPath = (recordingPath: string): string => {
@@ -599,9 +597,7 @@ const handleImageError = (event: Event, _categoryName: string) => {
     // Use safer DOM methods instead of innerHTML to prevent XSS
     const iconDiv = document.createElement('div')
     iconDiv.className = 'category-icon'
-    const icon = document.createElement('i')
-    icon.className = 'fas fa-gamepad'
-    iconDiv.appendChild(icon)
+    iconDiv.textContent = 'Game'
     wrapper.replaceChildren(iconDiv)
   }
 }

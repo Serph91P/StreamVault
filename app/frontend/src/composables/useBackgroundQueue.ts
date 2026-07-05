@@ -1,6 +1,7 @@
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
-import { useWebSocket } from './useWebSocket'
-import { logDebug, logError, logWebSocket } from '@/utils/logger'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { useRealtimeStore } from '@/stores/realtime'
+import { backgroundQueueApi } from '@/services/api'
+import { logDebug, logError } from '@/utils/logger'
 
 interface Task {
   id: string
@@ -45,7 +46,8 @@ export function useBackgroundQueue() {
     is_running: false
   })
 
-  const { messages, connectionStatus } = useWebSocket()
+  const realtime = useRealtimeStore()
+  const realtimeUnsubs: Array<() => void> = []
   const isLoading = ref(false)
 
   // Computed properties
@@ -63,26 +65,15 @@ export function useBackgroundQueue() {
     isLoading.value = true
     
     try {
-      const [statsRes, activeRes, recentRes] = await Promise.all([
-        fetch('/api/background-queue/stats', { credentials: 'include' }),
-        fetch('/api/background-queue/active-tasks', { credentials: 'include' }),
-        fetch('/api/background-queue/recent-tasks', { credentials: 'include' })
+      const [stats, active, recent] = await Promise.all([
+        backgroundQueueApi.getStats(),
+        backgroundQueueApi.getActiveTasks(),
+        backgroundQueueApi.getRecentTasks()
       ])
 
-      if (statsRes.ok) {
-        const stats = await statsRes.json()
-        queueStats.value = stats
-      }
-      
-      if (activeRes.ok) {
-        const tasks = await activeRes.json()
-        activeTasks.value = Array.isArray(tasks) ? tasks : []
-      }
-      
-      if (recentRes.ok) {
-        const tasks = await recentRes.json()
-        recentTasks.value = Array.isArray(tasks) ? tasks : []
-      }
+      queueStats.value = stats
+      activeTasks.value = Array.isArray(active) ? active : []
+      recentTasks.value = Array.isArray(recent) ? recent : []
       
       logDebug('useBackgroundQueue', 'FORCE REFRESH: API data loaded as fallback')
     } catch (error) {
@@ -94,81 +85,62 @@ export function useBackgroundQueue() {
 
   const cancelStreamTasks = async (streamId: number) => {
     try {
-      const response = await fetch(`/api/background-queue/cancel-stream/${streamId}`, {
-        method: 'POST',
-        credentials: 'include' // CRITICAL: Required to send session cookie
-      })
-      if (response.ok) {
-        logDebug('useBackgroundQueue', 'Stream tasks cancelled - waiting for WebSocket update')
-        // Don't manually refresh - let WebSocket handle the update
-      }
+      await backgroundQueueApi.cancelStreamTasks(streamId)
+      logDebug('useBackgroundQueue', 'Stream tasks cancelled - waiting for WebSocket update')
+      // Don't manually refresh - let WebSocket handle the update
     } catch (error) {
       logError('useBackgroundQueue', 'Failed to cancel stream tasks', error)
     }
   }
 
-  // WebSocket message handling - SIMPLIFIED: Only one handler
-  watch(messages, async (newMessages) => {
-    if (newMessages.length === 0) return
-    
-    const latestMessage = newMessages[newMessages.length - 1]
-    logWebSocket('useBackgroundQueue', 'received', `WebSocket message: ${latestMessage.type}`)
-    
-    // Handle queue-related WebSocket messages
-    if (latestMessage.type === 'background_queue_update') {
-      // PRIORITY: WebSocket data overwrites everything
-      logDebug('useBackgroundQueue', 'Updating background queue from WebSocket data')
-      
-      if (latestMessage.data.stats) {
-        Object.assign(queueStats.value, latestMessage.data.stats)
-        logDebug('useBackgroundQueue', 'Updated queue stats')
-      }
-      if (Array.isArray(latestMessage.data.active_tasks)) {
-        activeTasks.value = latestMessage.data.active_tasks
-        logDebug('useBackgroundQueue', `Set ${latestMessage.data.active_tasks.length} active tasks`)
-      }
-      if (Array.isArray(latestMessage.data.recent_tasks)) {
-        recentTasks.value = latestMessage.data.recent_tasks
-        logDebug('useBackgroundQueue', `Set ${latestMessage.data.recent_tasks.length} recent tasks`)
-      }
-      
-    } else if (latestMessage.type === 'queue_stats_update') {
-      Object.assign(queueStats.value, latestMessage.data)
-      logDebug('useBackgroundQueue', 'Updated queue stats only')
-      
-    } else if (latestMessage.type === 'task_status_update') {
-      const taskData = latestMessage.data
-      logDebug('useBackgroundQueue', `Task status update for ${taskData.id}: ${taskData.status}`)
-      
-      // Update or add task in activeTasks
-      const existingIndex = activeTasks.value.findIndex(t => t.id === taskData.id)
-      if (existingIndex >= 0) {
-        activeTasks.value[existingIndex] = taskData
-      } else if (taskData.status === 'running' || taskData.status === 'pending') {
-        activeTasks.value.push(taskData)
-      }
-      
-      // Remove completed tasks from active list
-      if (taskData.status === 'completed' || taskData.status === 'failed') {
-        activeTasks.value = activeTasks.value.filter(t => t.id !== taskData.id)
-        // Add to recent tasks
-        recentTasks.value.unshift(taskData)
-        // Keep only last 50 recent tasks
-        if (recentTasks.value.length > 50) {
-          recentTasks.value = recentTasks.value.slice(0, 50)
+  // WebSocket message handling via central store subscriptions
+  onMounted(() => {
+    realtimeUnsubs.push(
+      realtime.onEvent('background_queue_update', (event) => {
+        logDebug('useBackgroundQueue', 'Updating background queue from WebSocket data')
+        if (event.data.stats) {
+          Object.assign(queueStats.value, event.data.stats)
         }
-      }
-      
-    } else if (latestMessage.type === 'task_progress_update') {
-      const { task_id, progress } = latestMessage.data
-      logDebug('useBackgroundQueue', `Progress update for ${task_id}: ${progress}%`)
-      
-      // Update progress for the specific task
-      const task = activeTasks.value.find(t => t.id === task_id)
-      if (task) {
-        task.progress = progress
-      }
-    }
+        if (Array.isArray(event.data.active_tasks)) {
+          activeTasks.value = event.data.active_tasks
+        }
+        if (Array.isArray(event.data.recent_tasks)) {
+          recentTasks.value = event.data.recent_tasks
+        }
+      }),
+
+      realtime.onEvent('queue_stats_update', (event) => {
+        Object.assign(queueStats.value, event.data)
+        logDebug('useBackgroundQueue', 'Updated queue stats only')
+      }),
+
+      realtime.onEvent('task_status_update', (event) => {
+        const taskData = event.data
+        logDebug('useBackgroundQueue', `Task status update for ${taskData.id}: ${taskData.status}`)
+        const existingIndex = activeTasks.value.findIndex(t => t.id === taskData.id)
+        if (existingIndex >= 0) {
+          activeTasks.value[existingIndex] = taskData
+        } else if (taskData.status === 'running' || taskData.status === 'pending') {
+          activeTasks.value.push(taskData)
+        }
+        if (taskData.status === 'completed' || taskData.status === 'failed') {
+          activeTasks.value = activeTasks.value.filter(t => t.id !== taskData.id)
+          recentTasks.value.unshift(taskData)
+          if (recentTasks.value.length > 50) {
+            recentTasks.value = recentTasks.value.slice(0, 50)
+          }
+        }
+      }),
+
+      realtime.onEvent('task_progress_update', (event) => {
+        const { task_id, progress } = event.data
+        logDebug('useBackgroundQueue', `Progress update for ${task_id}: ${progress}%`)
+        const task = activeTasks.value.find(t => t.id === task_id)
+        if (task) {
+          task.progress = progress
+        }
+      })
+    )
   })
 
   // Lifecycle
@@ -177,14 +149,14 @@ export function useBackgroundQueue() {
     logDebug('useBackgroundQueue', 'Background Queue: Waiting for WebSocket data (no API calls)')
     
     // If WebSocket is not connected yet, use fallback once
-    if (connectionStatus.value !== 'connected') {
+    if (realtime.connectionStatus !== 'connected') {
       logDebug('useBackgroundQueue', 'WebSocket not connected yet - using API fallback for initial load')
       await forceRefreshFromAPI()
     }
   })
 
   onUnmounted(() => {
-    // Cleanup if needed
+    realtimeUnsubs.forEach((fn) => fn())
   })
 
   return {
@@ -194,7 +166,7 @@ export function useBackgroundQueue() {
     hasActiveTasks,
     totalProgress,
     isLoading,
-    connectionStatus,
+    connectionStatus: realtime.connectionStatus,
     // Methods
     forceRefreshFromAPI,
     cancelStreamTasks

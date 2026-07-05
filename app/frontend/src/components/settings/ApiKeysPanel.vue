@@ -36,7 +36,7 @@
     <!-- Freshly created key (only shown once) -->
     <div v-if="freshKey" class="fresh-key">
       <div class="fresh-key-header">
-        <strong>New API key created – copy it now.</strong>
+        <strong>New API key created - copy it now.</strong>
         <button class="btn btn-sm" @click="freshKey = null">Dismiss</button>
       </div>
       <p class="fresh-key-warning">

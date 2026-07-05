@@ -47,7 +47,7 @@ onMounted(() => {
   width: 100%;
   // Prevent rogue 100vw children (modals, decorations) from creating a
   // horizontal scroll on mobile. body has overflow-x: hidden but flex/position
-  // children can still escape that — clip is the modern, transform-safe answer.
+  // children can still escape that - clip is the modern, transform-safe answer.
   overflow-x: clip;
 }
 

@@ -2,7 +2,7 @@
  * Theme Management Composable
  * 
  * Provides theme switching functionality between dark and light mode.
- * Theme preference is persisted in localStorage.
+ * Theme preference is persisted through the app storage service.
  * 
  * Usage:
  * ```ts
@@ -13,10 +13,10 @@
  */
 
 import { ref, computed, onMounted } from 'vue'
+import { appStorage } from '@/services/storage'
 
 export type Theme = 'dark' | 'light'
 
-const STORAGE_KEY = 'streamvault-theme'
 const DEFAULT_THEME: Theme = 'dark'
 
 // Reactive theme state (shared across all components)
@@ -27,11 +27,11 @@ const currentTheme = ref<Theme>(DEFAULT_THEME)
  */
 export function useTheme() {
   /**
-   * Initialize theme from localStorage or system preference
+   * Initialize theme from app storage or system preference
    */
   const initializeTheme = () => {
-    // 1. Check localStorage first
-    const stored = localStorage.getItem(STORAGE_KEY) as Theme | null
+    // 1. Check stored preference first
+    const stored = appStorage.theme as Theme | null
     
     if (stored && (stored === 'dark' || stored === 'light')) {
       currentTheme.value = stored
@@ -60,7 +60,7 @@ export function useTheme() {
    */
   const setTheme = (theme: Theme) => {
     currentTheme.value = theme
-    localStorage.setItem(STORAGE_KEY, theme)
+    appStorage.setTheme(theme)
     applyTheme(theme)
   }
   
@@ -88,7 +88,7 @@ export function useTheme() {
     
     const handleChange = (e: MediaQueryListEvent) => {
       // Only auto-switch if user hasn't explicitly set a preference
-      const hasExplicitPreference = localStorage.getItem(STORAGE_KEY)
+      const hasExplicitPreference = appStorage.hasThemePreference()
       
       if (!hasExplicitPreference) {
         const newTheme: Theme = e.matches ? 'dark' : 'light'

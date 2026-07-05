@@ -36,7 +36,20 @@
         @touchstart="onControlsTouch"
       >
         <!-- Progress Bar with Chapter Markers -->
-        <div class="progress-container" @click="seekVideo">
+        <div
+          class="progress-container"
+          role="slider"
+          tabindex="0"
+          aria-label="Video progress"
+          aria-valuemin="0"
+          :aria-valuemax="Math.round(videoDuration)"
+          :aria-valuenow="Math.round(currentTime)"
+          @click="seekVideo"
+          @keydown.left.prevent="seekByKeyboard(-5)"
+          @keydown.right.prevent="seekByKeyboard(5)"
+          @keydown.home.prevent="seekToTime(0)"
+          @keydown.end.prevent="seekToTime(videoDuration)"
+        >
           <div class="progress-bar-track">
             <!-- Chapter markers background -->
             <div class="chapter-markers" v-if="parsedChapters.length > 0">
@@ -162,16 +175,18 @@
       </div>
       
       <!-- Loading State -->
-      <div v-if="isLoading" class="loading-overlay">
-        <div class="spinner"></div>
-        <p>Loading video...</p>
+      <div v-if="isLoading && !error" class="loading-overlay">
+        <PlayerStatus state="loading" message="Preparing video for playback..." />
       </div>
 
       <!-- Error State -->
       <div v-if="error" class="error-overlay">
-        <div class="error-icon">⚠️</div>
-        <div class="error-message">{{ error }}</div>
-        <button @click="retryLoad" class="retry-btn">🔄 Retry</button>
+        <PlayerError
+          title="Playback Error"
+          :message="error"
+          action-label="Retry"
+          @action="retryLoad"
+        />
       </div>
       
       <!-- Chapter List Panel (Overlay inside video) -->
@@ -184,12 +199,13 @@
         >
         <div class="chapter-list-header">
           <h3>📋 Chapters</h3>
-          <button @click="toggleChapterUI" class="close-btn">×</button>
+          <button @click="toggleChapterUI" class="close-btn" aria-label="Close chapters">×</button>
         </div>
         <div class="chapter-list" ref="chapterList">
-          <div 
-            v-for="(chapter, index) in parsedChapters" 
+          <button
+            v-for="(chapter, index) in parsedChapters"
             :key="index"
+            type="button"
             class="chapter-item"
             :class="{ 'active': currentChapterIndex === index }"
             :ref="el => { if (el) chapterItemRefs[index] = el as HTMLElement }"
@@ -199,13 +215,13 @@
               <img :src="chapter.thumbnail" :alt="chapter.title" />
             </div>
             <div class="chapter-icon" v-else-if="chapter.gameIcon">
-              <img 
+              <img
                 v-if="!chapter.gameIcon.startsWith('icon:')"
-                :src="chapter.gameIcon" 
-                :alt="chapter.title" 
+                :src="chapter.gameIcon"
+                :alt="chapter.title"
               />
-              <i 
-                v-else 
+              <i
+                v-else
                 :class="chapter.gameIcon.replace('icon:', '')"
                 class="category-icon"
               ></i>
@@ -213,7 +229,7 @@
             <div class="chapter-placeholder" v-else>
               🎬
             </div>
-            
+
             <div class="chapter-info">
               <div class="chapter-title">{{ chapter.title }}</div>
               <div class="chapter-time">{{ formatTime(chapter.startTime) }}</div>
@@ -221,7 +237,7 @@
                 {{ formatDuration(chapter.duration) }}
               </div>
             </div>
-          </div>
+          </button>
         </div>
       </div>
       </transition>
@@ -243,6 +259,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useCategoryImages } from '@/composables/useCategoryImages'
+import PlayerStatus from '@/components/player/PlayerStatus.vue'
+import PlayerError from '@/components/player/PlayerError.vue'
 
 interface Chapter {
   title: string
@@ -355,14 +373,24 @@ const toggleMute = () => {
 
 const seekVideo = (event: MouseEvent) => {
   if (!videoElement.value) return
-  
+
   const progressBar = event.currentTarget as HTMLElement
   const rect = progressBar.getBoundingClientRect()
   const clickX = event.clientX - rect.left
   const percentage = clickX / rect.width
   const seekTime = percentage * videoDuration.value
-  
+
   videoElement.value.currentTime = seekTime
+}
+
+const seekToTime = (time: number) => {
+  if (!videoElement.value) return
+
+  videoElement.value.currentTime = Math.min(Math.max(time, 0), videoDuration.value)
+}
+
+const seekByKeyboard = (deltaSeconds: number) => {
+  seekToTime(currentTime.value + deltaSeconds)
 }
 
 const toggleFullscreen = async () => {
@@ -1046,6 +1074,13 @@ defineExpose({ seekToChapter })
   transition: all var(--duration-300) var(--ease-out);
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .slide-panel-enter-active,
+  .slide-panel-leave-active {
+    transition: none;
+  }
+}
+
 .slide-panel-enter-from {
   opacity: 0;
   transform: translateX(20px);
@@ -1162,7 +1197,13 @@ defineExpose({ seekToChapter })
   @include m.list-item-interactive;
   
   & {  // ✅ Wrap declaration to avoid mixed-decls warning
+    width: 100%;
+    appearance: none;
+    border: 0;
     border-left: 3px solid transparent;  /* Default border for active state */
+    color: inherit;
+    font: inherit;
+    text-align: left;
   }
 }
 
@@ -1335,6 +1376,11 @@ defineExpose({ seekToChapter })
   height: 12px;  /* Thicker on hover */
 }
 
+.progress-container:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 3px;
+}
+
 /* Chapter Markers - Integrated into Progress Bar */
 .chapter-markers {
   position: absolute;
@@ -1499,7 +1545,7 @@ defineExpose({ seekToChapter })
   /* Same size as standard controls */
   opacity: 0.9;
   
-  // Hide prev/next on portrait mobile — chapters list below video is used instead
+  // Hide prev/next on portrait mobile - chapters list below video is used instead
   @media (max-width: 767px) and (orientation: portrait) {
     display: none;
   }

@@ -127,7 +127,6 @@
               :streamer-settings="notificationStreamerSettings"
               @update-settings="handleUpdateNotificationSettings"
               @update-streamer-settings="handleUpdateStreamerNotificationSettings"
-              @test-notification="handleTestNotification"
             />
           </GlassCard>
         </div>
@@ -335,12 +334,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useNotificationSettings } from '@/composables/useNotificationSettings'
 import { useRecordingSettings } from '@/composables/useRecordingSettings'
-import { useWebSocket } from '@/composables/useWebSocket'
+import { useRealtimeStore } from '@/stores/realtime'
 import { useTheme } from '@/composables/useTheme'
 import { useToast } from '@/composables/useToast'
+import { hasRealtimeEventType } from '@/types/events'
+import { systemApi } from '@/services/api'
 import LoadingSkeleton from '@/components/LoadingSkeleton.vue'
 import GlassCard from '@/components/cards/GlassCard.vue'
 import NotificationSettingsPanel from '@/components/settings/NotificationSettingsPanel.vue'
@@ -504,13 +505,7 @@ async function loadAllSettings() {
 // Load version information
 async function loadVersionInfo() {
   try {
-    const response = await fetch('/api/version', {
-      credentials: 'include'
-    })
-    
-    if (response.ok) {
-      versionInfo.value = await response.json()
-    }
+    versionInfo.value = await systemApi.getVersion()
   } catch (error) {
     console.error('Failed to load version info:', error)
   }
@@ -532,19 +527,26 @@ function formatBuildDate(isoDate: string): string {
   }
 }
 
-// WebSocket integration for real-time updates
-const { messages } = useWebSocket()
+// Real-time store for live updates
+const realtime = useRealtimeStore()
+const realtimeUnsubs: Array<() => void> = []
 
-watch(messages, (newMessages) => {
-  if (newMessages.length === 0) return
+onMounted(() => {
+  realtimeUnsubs.push(realtime.onEvents([
+    'active_recordings_update',
+    'recording_started',
+    'recording_stopped',
+  ], (event) => {
+    if (hasRealtimeEventType(event, 'active_recordings_update')) {
+      activeRecordings.value = Array.isArray(event.data) ? event.data : []
+    } else if (hasRealtimeEventType(event, 'recording_started', 'recording_stopped')) {
+      fetchActiveRecordings()
+    }
+  }))
+})
 
-  const latestMessage = newMessages[newMessages.length - 1]
-
-  if (latestMessage.type === 'active_recordings_update') {
-    activeRecordings.value = latestMessage.data || []
-  } else if (latestMessage.type === 'recording_started' || latestMessage.type === 'recording_stopped') {
-    fetchActiveRecordings()
-  }
+onUnmounted(() => {
+  realtimeUnsubs.forEach((fn) => fn())
 })
 
 // Watch theme changes from dropdown and apply via setTheme
@@ -577,28 +579,6 @@ async function handleUpdateStreamerNotificationSettings(
   } catch (error) {
     console.error('Failed to update streamer notification settings:', error)
     toast.error('Failed to save streamer notification settings')
-  }
-}
-
-async function handleTestNotification() {
-  try {
-    const response = await fetch('/api/settings/test-notification', {
-      method: 'POST',
-      credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json'
-      }
-    })
-    
-    if (response.ok) {
-      toast.success('Test notification sent successfully')
-    } else {
-      const errorData = await response.json()
-      toast.error(`Failed to send test notification: ${errorData.detail || 'Unknown error'}`)
-    }
-  } catch (error) {
-    console.error('Failed to send test notification:', error)
-    toast.error('Failed to send test notification')
   }
 }
 
@@ -707,6 +687,7 @@ onMounted(() => {
   align-items: center;
   gap: var(--spacing-2);
   padding: var(--spacing-3) var(--spacing-4);
+  min-height: 44px;
   border-radius: var(--radius-lg);
   font-size: var(--text-sm);
   font-weight: v.$font-semibold;
@@ -739,6 +720,11 @@ onMounted(() => {
     &:hover {
       border-color: var(--primary-color);
     }
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
   }
 }
 
@@ -778,6 +764,7 @@ onMounted(() => {
   align-items: center;
   gap: var(--spacing-3);
   padding: var(--spacing-3);
+  min-height: 44px;
   background: transparent;
   border: none;
   border-radius: var(--radius-lg);
@@ -806,6 +793,11 @@ onMounted(() => {
     .nav-indicator {
       stroke: white;
     }
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
   }
 }
 

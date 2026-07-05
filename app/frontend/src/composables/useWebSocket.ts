@@ -2,11 +2,24 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import type { Ref } from 'vue'
 import { logDebug, logWebSocket } from '@/utils/logger'
 import router from '@/router'
+import { hasRealtimeEventType, parseRealtimeEvent } from '@/types/events'
+import type { RealtimeEvent } from '@/types/events'
 
-interface WebSocketMessage {
-  type: string
-  data?: any
-  message?: string
+type ConnectionStatus = 'auth_failed' | 'connected' | 'connecting' | 'disconnected' | 'error' | 'failed' | 'offline' | 'reconnecting'
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {}
+}
+
+function firstString(...values: unknown[]): string | undefined {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim()) {
+      return value
+    }
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return String(value)
+    }
+  }
 }
 
 // Singleton WebSocket Manager - ONE connection for the entire app
@@ -19,11 +32,18 @@ export class WebSocketManager {
   private wsUrl: string
   private connectionId: string | null = null
   private isRedirecting = false
+  private recentEventKeys = new Map<string, number>()
+  private readonly dedupeWindowMs = 5000
+  private readonly maxRecentEventKeys = 200
   
   // Reactive state shared across all components
-  public messages: Ref<WebSocketMessage[]> = ref([])
-  public connectionStatus = ref('disconnected')
+  public messages: Ref<RealtimeEvent<string>[]> = ref([])
+  public connectionStatus = ref<ConnectionStatus>('disconnected')
+  public isBrowserOnline = ref(typeof navigator === 'undefined' ? true : navigator.onLine)
+  public reconnectAttempt = ref(0)
+  public maxReconnectAttemptCount = this.maxReconnectAttempts
   private subscribers: Set<() => void> = new Set()
+  private messageListeners: Set<(event: RealtimeEvent<string>) => void> = new Set()
 
   private constructor() {
     const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
@@ -36,6 +56,33 @@ export class WebSocketManager {
     }
     
     logDebug('WebSocketManager', `Singleton created with URL: ${this.wsUrl}`)
+
+    window.addEventListener('online', this.handleOnline)
+    window.addEventListener('offline', this.handleOffline)
+    document.addEventListener('visibilitychange', this.handleVisibilityChange)
+  }
+
+  private handleOnline = () => {
+    this.isBrowserOnline.value = true
+    if (this.connectionStatus.value === 'offline') {
+      this.connectionStatus.value = 'disconnected'
+    }
+    this.ensureConnected()
+  }
+
+  private handleOffline = () => {
+    this.isBrowserOnline.value = false
+    this.connectionStatus.value = 'offline'
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer)
+      this.reconnectTimer = null
+    }
+  }
+
+  private handleVisibilityChange = () => {
+    if (document.visibilityState === 'visible') {
+      this.ensureConnected()
+    }
   }
 
   public static getInstance(): WebSocketManager {
@@ -78,6 +125,13 @@ export class WebSocketManager {
     }
   }
 
+  public onMessage(callback: (event: RealtimeEvent<string>) => void): () => void {
+    this.messageListeners.add(callback)
+    return () => {
+      this.messageListeners.delete(callback)
+    }
+  }
+
   /**
    * Public connect entrypoint. Safe to call multiple times. No-op if already
    * open/connecting. Used by useAuth.login() to eliminate the race where the
@@ -91,8 +145,23 @@ export class WebSocketManager {
     this.connect()
   }
 
+  public reconnectNow() {
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer)
+      this.reconnectTimer = null
+    }
+    this.reconnectAttempts = 0
+    this.reconnectAttempt.value = 0
+    this.connect()
+  }
+
   private connect() {
-    // Don't connect on auth pages — there's no valid session
+    if (!this.isBrowserOnline.value) {
+      this.connectionStatus.value = 'offline'
+      return
+    }
+
+    // Don't connect on auth pages - there's no valid session
     const path = window.location.pathname
     if (path.startsWith('/auth/')) {
       console.log('⏭️ Skipping WebSocket connection on auth page')
@@ -100,8 +169,8 @@ export class WebSocketManager {
     }
 
     // Prevent multiple connections
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      console.log('⚠️ WebSocket already connected, skipping')
+    if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) {
+      console.log('⚠️ WebSocket already connected or connecting, skipping')
       return
     }
     
@@ -118,6 +187,7 @@ export class WebSocketManager {
       logWebSocket('WebSocketManager', 'connected', 'WebSocket connected successfully')
       this.connectionStatus.value = 'connected'
       this.reconnectAttempts = 0
+      this.reconnectAttempt.value = 0
       
       if (this.reconnectTimer) {
         clearTimeout(this.reconnectTimer)
@@ -127,11 +197,21 @@ export class WebSocketManager {
 
     this.ws.onmessage = (event) => {
       try {
-        const message = JSON.parse(event.data)
+        const message = parseRealtimeEvent(JSON.parse(event.data))
+        if (!message) {
+          console.warn('Ignoring invalid WebSocket message:', event.data)
+          return
+        }
+
+        if (this.isDuplicateMessage(message)) {
+          logDebug('WebSocketManager', `Skipping duplicate WebSocket event: ${message.type}`)
+          return
+        }
+
         this.messages.value.push(message)
         
         // Store connection ID from server for debugging
-        if (message.type === 'connection.status' && message.data?.connection_id) {
+        if (hasRealtimeEventType(message, 'connection.status') && message.data?.connection_id) {
           this.connectionId = message.data.connection_id
           const realIp = message.data.real_ip
           const isProxied = message.data.is_reverse_proxied
@@ -143,6 +223,14 @@ export class WebSocketManager {
         if (this.messages.value.length > 100) {
           this.messages.value = this.messages.value.slice(-100)
         }
+
+        this.messageListeners.forEach((listener) => {
+          try {
+            listener(message)
+          } catch (listenerError) {
+            console.error('Error in WebSocket message listener:', listenerError)
+          }
+        })
       } catch (error) {
         console.error('Error parsing WebSocket message:', error)
       }
@@ -154,9 +242,9 @@ export class WebSocketManager {
       this.ws = null
       
       // SECURITY: Don't reconnect on auth failures (code 4001/4003)
-      // These indicate the session is invalid/expired — redirect to login
+      // These indicate the session is invalid/expired - redirect to login
       if (event.code === 4001 || event.code === 4003) {
-        console.warn('🔒 WebSocket auth failed — session invalid or expired')
+        console.warn('🔒 WebSocket auth failed - session invalid or expired')
         this.connectionStatus.value = 'auth_failed'
         // Use Vue Router (soft navigation) instead of window.location.href
         // to prevent full page reload → reconnect → auth fail → reload loop
@@ -197,6 +285,11 @@ export class WebSocketManager {
   }
 
   private attemptReconnect() {
+    if (!this.isBrowserOnline.value) {
+      this.connectionStatus.value = 'offline'
+      return
+    }
+
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
       console.error('❌ Max reconnection attempts reached')
       this.connectionStatus.value = 'failed'
@@ -206,6 +299,7 @@ export class WebSocketManager {
         if (this.subscribers.size > 0) {
           console.log('🔄 Resetting retry counter after cooldown period')
           this.reconnectAttempts = 0
+          this.reconnectAttempt.value = 0
           this.connectionStatus.value = 'disconnected'
           this.attemptReconnect()
         }
@@ -214,6 +308,8 @@ export class WebSocketManager {
     }
     
     this.reconnectAttempts++
+    this.reconnectAttempt.value = this.reconnectAttempts
+    this.connectionStatus.value = 'reconnecting'
     // Exponential backoff with jitter to prevent thundering herd
     const baseDelay = 1000 * Math.pow(2, this.reconnectAttempts - 1)
     const jitter = Math.random() * 0.3 * baseDelay  // Add 0-30% jitter
@@ -226,6 +322,56 @@ export class WebSocketManager {
         this.connect()
       }
     }, delay)
+  }
+
+  private getMessageDedupeKey(message: RealtimeEvent<string>): string | null {
+    const data = asRecord(message.data)
+    const eventId = firstString(
+      message.event_id,
+      message.dedupe_key,
+      message.id,
+      data.event_id,
+      data.dedupe_key,
+      data.dedupeKey,
+      data.id,
+      data.test_id
+    )
+
+    if (eventId) {
+      return `${message.type}:${eventId}`
+    }
+
+    const timestamp = firstString(message.timestamp, data.timestamp, data.created_at)
+    if (!timestamp) {
+      return null
+    }
+
+    return [
+      message.type,
+      firstString(data.streamer_id, data.streamerId, data.streamer_name, data.username),
+      firstString(data.recording_id, data.recordingId, data.video_id, data.videoId),
+      firstString(data.task_id, data.taskId),
+      timestamp
+    ].filter(Boolean).join(':')
+  }
+
+  private isDuplicateMessage(message: RealtimeEvent<string>): boolean {
+    const key = this.getMessageDedupeKey(message)
+    if (!key) {
+      return false
+    }
+
+    const now = Date.now()
+    const lastSeen = this.recentEventKeys.get(key)
+    this.recentEventKeys.set(key, now)
+
+    for (const [recentKey, seenAt] of this.recentEventKeys) {
+      if (now - seenAt > this.dedupeWindowMs || this.recentEventKeys.size > this.maxRecentEventKeys) {
+        this.recentEventKeys.delete(recentKey)
+      }
+    }
+
+    return lastSeen !== undefined && now - lastSeen < this.dedupeWindowMs
   }
 }
 
@@ -252,6 +398,10 @@ export function useWebSocket() {
   
   return {
     messages: manager.messages,
-    connectionStatus: manager.connectionStatus
+    connectionStatus: manager.connectionStatus,
+    isBrowserOnline: manager.isBrowserOnline,
+    reconnectAttempt: manager.reconnectAttempt,
+    maxReconnectAttempts: manager.maxReconnectAttemptCount,
+    reconnectNow: () => manager.reconnectNow()
   }
 }

@@ -12,8 +12,9 @@ import { useTheme } from './composables/useTheme'
 const { initializeTheme } = useTheme()
 initializeTheme()
 
-// PWA Debug helper (nur in development)
-import('./utils/pwaDebug')
+if (import.meta.env.DEV) {
+  import('./utils/pwaDebug')
+}
 
 // Import directives
 import rippleDirective from './directives/ripple'

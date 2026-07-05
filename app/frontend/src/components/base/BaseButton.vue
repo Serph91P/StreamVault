@@ -13,9 +13,9 @@ type Variant =
   | 'outline-danger'
 
 interface Props {
-  /** Visual style — maps to .btn-{variant} class on the design-system .btn base */
+  /** Visual style maps to .btn-{variant} class on the design-system .btn base */
   variant?: Variant
-  /** Size — maps to .btn-sm / .btn-lg, default is medium */
+  /** Size maps to .btn-sm / .btn-lg, default is medium */
   size?: 'sm' | 'md' | 'lg'
   /** Native button type. Defaults to 'button' to avoid accidental form submits. */
   type?: 'button' | 'submit' | 'reset'

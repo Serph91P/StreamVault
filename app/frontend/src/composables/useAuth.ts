@@ -4,6 +4,7 @@
  */
 import { ref, computed } from 'vue'
 import router from '@/router'
+import { appStorage } from '@/services/storage'
 
 // Mock mode check (evaluated once at module load)
 const USE_MOCK_DATA = import.meta.env.VITE_USE_MOCK_DATA === 'true'
@@ -27,7 +28,7 @@ export function useAuth() {
       return
     }
 
-    const storedToken = localStorage.getItem('streamvault_session')
+    const storedToken = appStorage.sessionToken
     
     // Check current path to determine if we're on a protected page
     const currentPath = window.location.pathname
@@ -117,7 +118,7 @@ export function useAuth() {
         if (sessionCookie) {
           const token = sessionCookie.split('=')[1]
           sessionToken.value = token
-          localStorage.setItem('streamvault_session', token)
+          appStorage.setSessionToken(token)
         }
 
         // Eagerly trigger the WebSocket connection so realtime events start
@@ -161,8 +162,8 @@ export function useAuth() {
     isAuthenticated.value = false
     sessionToken.value = null
     user.value = null
-    localStorage.removeItem('streamvault_session')
-    sessionStorage.clear()
+    appStorage.clearSessionToken()
+    appStorage.clearSessionStorage()
   }
   
   return {

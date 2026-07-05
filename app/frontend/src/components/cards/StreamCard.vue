@@ -271,7 +271,7 @@ function toggleActions() {
 }
 
 function formatDuration(start?: string, end?: string) {
-  if (!start) return '—'
+  if (!start) return '-'
   
   const startDate = new Date(start)
   const endDate = end ? new Date(end) : new Date()
@@ -288,7 +288,7 @@ function formatDuration(start?: string, end?: string) {
 }
 
 function formatDate(dateStr?: string) {
-  if (!dateStr) return '—'
+  if (!dateStr) return '-'
   
   const date = new Date(dateStr)
   return date.toLocaleString('de-DE', {
