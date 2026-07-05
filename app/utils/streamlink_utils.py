@@ -12,6 +12,7 @@ import subprocess
 import json
 from typing import List, Optional, Dict, Any, Tuple
 from pathlib import Path
+from urllib.parse import urlparse
 
 from app.models import GlobalSettings
 
@@ -426,6 +427,29 @@ def get_proxy_settings_from_db() -> Dict[str, str]:
     return proxy_settings
 
 
+def _validate_twitch_video_id(video_id: str) -> str:
+    normalized = video_id.strip()
+    if not normalized.isdigit():
+        raise ValueError("Twitch video ID must contain digits only")
+
+    return normalized
+
+
+def _validate_twitch_clip_url(clip_url: str) -> str:
+    parsed = urlparse(clip_url.strip())
+    host = parsed.netloc.lower()
+    allowed_hosts = {"clips.twitch.tv", "www.twitch.tv", "twitch.tv"}
+
+    if (
+        parsed.scheme != "https"
+        or host not in allowed_hosts
+        or not parsed.path.strip("/")
+    ):
+        raise ValueError("Clip URL must be an https Twitch clip URL")
+
+    return parsed.geturl()
+
+
 def get_streamlink_vod_command(
     video_id: str,
     quality: str,
@@ -447,6 +471,7 @@ def get_streamlink_vod_command(
         List of command arguments for streamlink
     """
     # Find ffmpeg binary path (use env var or default)
+    normalized_video_id = _validate_twitch_video_id(video_id)
     ffmpeg_bin: str = os.environ.get("FFMPEG_PATH") or "ffmpeg"
 
     # Core command for VOD download
@@ -459,14 +484,14 @@ def get_streamlink_vod_command(
         "--stream-segment-threads",
         "10",
         "--url",
-        f"https://www.twitch.tv/videos/{video_id}",
+        f"https://www.twitch.tv/videos/{normalized_video_id}",
         "--default-stream",
         quality,
     ]
 
     # Add logging level
     log_dir = Path(output_path).parent
-    log_file = os.path.join(log_dir, f"streamlink_vod_{video_id}.log")
+    log_file = os.path.join(log_dir, f"streamlink_vod_{normalized_video_id}.log")
     cmd.extend(["--loglevel", "debug", "--logfile", log_file])
 
     # Add proxy settings if provided
@@ -495,6 +520,7 @@ def get_streamlink_clip_command(
         List of command arguments for streamlink
     """
     # Find ffmpeg binary path (use env var or default)
+    normalized_clip_url = _validate_twitch_clip_url(clip_url)
     ffmpeg_bin: str = os.environ.get("FFMPEG_PATH") or "ffmpeg"
 
     # Core command for clip download
@@ -507,7 +533,7 @@ def get_streamlink_clip_command(
         "--stream-segment-threads",
         "10",
         "--url",
-        clip_url,
+        normalized_clip_url,
         "--default-stream",
         quality,
     ]

@@ -156,5 +156,5 @@ The UI provides:
 ---
 
 **Last Updated**: November 20, 2025  
-**Streamlink Version**: 8.0.0  
+**Streamlink Version**: 8.4.0
 **Related Commits**: 0dcd6f4b (Streamlink format fix), 3d85055d (UI guide)

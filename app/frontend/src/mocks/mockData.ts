@@ -449,5 +449,5 @@ export const mockVersionInfo = {
   version: '1.2.3',
   build_date: '2025-11-15',
   python_version: '3.12.0',
-  streamlink_version: '8.0.0'
+  streamlink_version: '8.4.0'
 }
