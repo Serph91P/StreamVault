@@ -215,7 +215,7 @@
       </div>
     </div>
 
-    <div v-if="statusMessage" class="status-message" :class="statusType">
+    <div v-if="statusMessage" class="status-message" :class="statusType" role="status">
       {{ statusMessage }}
     </div>
   </div>
@@ -592,6 +592,14 @@ const sendLocalTestNotification = async () => {
 @include m.respond-below('md') {
   .form-actions {
     flex-direction: column;
+
+    .btn {
+      width: 100%;
+    }
+  }
+
+  .setting-item .setting-control {
+    width: 100%;
 
     .btn {
       width: 100%;

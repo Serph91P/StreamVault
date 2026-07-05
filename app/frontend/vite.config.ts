@@ -15,6 +15,9 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2,ttf}'],
         navigateFallback: 'index.html',
+        // Import push handler so VitePWA owns the generated SW while
+        // push and notificationclick listeners stay functional.
+        importScripts: ['push-sw.js'],
         // Prevent service worker from intercepting API, auth, and WebSocket paths
         navigateFallbackDenylist: [/^\/api\//, /^\/auth\//, /^\/ws/, /^\/eventsub/, /^\/health/],
         runtimeCaching: [

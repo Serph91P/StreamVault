@@ -19,83 +19,54 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted, watch, computed } from 'vue'
 import { usePWA } from '@/composables/usePWA'
 import { appStorage } from '@/services/storage'
 import BaseButton from '@/components/base/BaseButton.vue'
 
-const { isInstallable, isInstalled, installPWA, getPlatformInfo: _getPlatformInfo } = usePWA()
+const { isInstallable, isInstalled, installPWA } = usePWA()
 const showInstallPrompt = ref(false)
-const hasBeenDismissed = ref(false)
-const platformInfo = ref(null)
+const hasBeenDismissed = ref(appStorage.pwaInstallDismissed === 'true')
 
-// Computed properties for platform-specific content
+const showTimeout = ref<ReturnType<typeof setTimeout> | null>(null)
+const dismissResetTimeout = ref<ReturnType<typeof setTimeout> | null>(null)
+
 const installText = computed(() => {
-  if (!platformInfo.value) return 'Install StreamVault'
-  
-  const { platform, browser } = platformInfo.value
-  
-  if (platform === 'iOS' && browser === 'Safari') {
-    return 'Add StreamVault to Home Screen'
-  }
-  if (platform === 'Android') {
-    return 'Install StreamVault App'
-  }
-  if (platform === 'Windows') {
-    return 'Install StreamVault'
-  }
-  if (platform === 'macOS') {
-    return 'Add StreamVault to Dock'
-  }
-  if (platform === 'Linux') {
-    return 'Install StreamVault'
-  }
-  
-  return 'Install StreamVault'
+  return 'Install StreamVault App'
 })
 
 const installDescription = computed(() => {
-  if (!platformInfo.value) return 'Install this app on your device for a better experience'
-  
-  const { platform, browser } = platformInfo.value
-  
-  if (platform === 'iOS' && browser === 'Safari') {
-    return 'Tap the Share button, then "Add to Home Screen" for quick access'
-  }
-  if (platform === 'Android') {
-    return 'Install for faster loading and offline access'
-  }
-  if (platform === 'Windows') {
-    return 'Install to your Start Menu and taskbar'
-  }
-  if (platform === 'macOS') {
-    return 'Add to your Dock for quick access'
-  }
-  if (platform === 'Linux') {
-    return 'Install for better performance and offline use'
-  }
-  
-  return 'Install this app on your device for a better experience'
+  return 'Install for faster loading, offline access, and a dedicated app experience.'
 })
 
 onMounted(() => {
-  // Show install prompt if app is installable and hasn't been dismissed
-  const dismissed = appStorage.pwaInstallDismissed
-  hasBeenDismissed.value = dismissed === 'true'
-  
-  // Show prompt after 3 seconds if installable and not dismissed
-  setTimeout(() => {
-    if (isInstallable.value && !isInstalled.value && !hasBeenDismissed.value) {
-      showInstallPrompt.value = true
-    }
-  }, 3000)
-  
-  // Also check periodically for installability changes (mobile browsers)
-  setInterval(() => {
-    if (isInstallable.value && !isInstalled.value && !hasBeenDismissed.value && !showInstallPrompt.value) {
-      showInstallPrompt.value = true
-    }
-  }, 10000)
+  hasBeenDismissed.value = appStorage.pwaInstallDismissed === 'true'
+})
+
+watch(isInstallable, (installable) => {
+  if (showTimeout.value) {
+    clearTimeout(showTimeout.value)
+    showTimeout.value = null
+  }
+
+  if (!installable || isInstalled.value || hasBeenDismissed.value) {
+    showInstallPrompt.value = false
+    return
+  }
+
+  if (installable && !isInstalled.value && !hasBeenDismissed.value && !showInstallPrompt.value) {
+    showTimeout.value = setTimeout(() => {
+      if (isInstallable.value && !isInstalled.value && !hasBeenDismissed.value) {
+        showInstallPrompt.value = true
+      }
+      showTimeout.value = null
+    }, 3000)
+  }
+}, { immediate: true })
+
+onUnmounted(() => {
+  if (showTimeout.value) clearTimeout(showTimeout.value)
+  if (dismissResetTimeout.value) clearTimeout(dismissResetTimeout.value)
 })
 
 const installApp = async () => {
@@ -111,9 +82,7 @@ const dismissPrompt = () => {
   showInstallPrompt.value = false
   hasBeenDismissed.value = true
   appStorage.setPwaInstallDismissed(true)
-  
-  // Show again after 7 days
-  setTimeout(() => {
+  dismissResetTimeout.value = setTimeout(() => {
     appStorage.clearPwaInstallDismissed()
   }, 7 * 24 * 60 * 60 * 1000)
 }
@@ -125,7 +94,7 @@ const dismissPrompt = () => {
 
 .install-prompt {
   position: fixed;
-  bottom: v.$spacing-6;
+  bottom: calc(v.$spacing-6 + env(safe-area-inset-bottom, 0px));
   left: v.$spacing-6;
   right: v.$spacing-6;
   background: var(--background-card);
@@ -135,6 +104,7 @@ const dismissPrompt = () => {
   animation: slideUp v.$duration-300 v.$vue-ease-out;
 
   @include m.respond-to('md') {
+    bottom: v.$spacing-6;
     left: auto;
     max-width: 400px;
   }
