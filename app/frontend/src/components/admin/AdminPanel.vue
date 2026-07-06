@@ -111,66 +111,71 @@
       <WebSocketMonitor />
     </GlassCard>
 
-    <!-- Notification Diagnostics -->
-    <GlassCard variant="medium" :padding="true" class="admin-section">
-      <div class="section-header">
-        <h2>Notification Diagnostics</h2>
-        <p class="section-description">Test notification channels: Apprise, Web Push and WebSocket</p>
-      </div>
-
-      <div class="diagnostic-channels">
-        <div class="channel-card">
-          <div class="channel-header">
-            <SvgIcon name="bell" />
-            <h3>Apprise (External Notifications)</h3>
-          </div>
-          <p class="channel-description">
-            Send a test notification through configured Apprise webhooks (Discord, Telegram, etc.)
-          </p>
-          <button @click="testAppriseNotification" :disabled="appriseTestLoading" class="btn btn-primary">
-            <SvgIcon name="bell" />
-            {{ appriseTestLoading ? 'Sending...' : 'Test Apprise Notification' }}
-          </button>
-          <div v-if="appriseTestResult" class="test-result" :class="appriseTestResult.success ? 'success' : 'error'">
-            {{ appriseTestResult.message }}
-          </div>
+    <details class="admin-disclosure">
+      <summary>
+        <span>Notification Diagnostics</span>
+        <span>Test notification channels: Apprise, Web Push and WebSocket</span>
+      </summary>
+      <GlassCard variant="medium" :padding="true" class="admin-section">
+        <div class="section-header">
+          <h2>Notification Diagnostics</h2>
+          <p class="section-description">Test notification channels: Apprise, Web Push and WebSocket</p>
         </div>
 
-        <div class="channel-card">
-          <div class="channel-header">
-            <SvgIcon name="send" />
-            <h3>Web Push (Browser Push)</h3>
+        <div class="diagnostic-channels">
+          <div class="channel-card">
+            <div class="channel-header">
+              <SvgIcon name="bell" />
+              <h3>Apprise (External Notifications)</h3>
+            </div>
+            <p class="channel-description">
+              Send a test notification through configured Apprise webhooks (Discord, Telegram, etc.)
+            </p>
+            <button @click="testAppriseNotification" :disabled="appriseTestLoading" class="btn btn-primary">
+              <SvgIcon name="bell" />
+              {{ appriseTestLoading ? 'Sending...' : 'Test Apprise Notification' }}
+            </button>
+            <div v-if="appriseTestResult" class="test-result" :class="appriseTestResult.success ? 'success' : 'error'">
+              {{ appriseTestResult.message }}
+            </div>
           </div>
-          <p class="channel-description">
-            Send a server-side browser push test to subscribed devices.
-          </p>
-          <button @click="testWebPushNotification" :disabled="webPushTestLoading" class="btn btn-primary">
-            <SvgIcon name="send" />
-            {{ webPushTestLoading ? 'Sending...' : 'Test Web Push Notification' }}
-          </button>
-          <div v-if="webPushTestResult" class="test-result" :class="webPushTestResult.success ? 'success' : 'error'">
-            {{ webPushTestResult.message }}
-          </div>
-        </div>
 
-        <div class="channel-card">
-          <div class="channel-header">
-            <SvgIcon name="wifi" />
-            <h3>WebSocket (In-App Notifications)</h3>
+          <div class="channel-card">
+            <div class="channel-header">
+              <SvgIcon name="send" />
+              <h3>Web Push (Browser Push)</h3>
+            </div>
+            <p class="channel-description">
+              Send a server-side browser push test to subscribed devices.
+            </p>
+            <button @click="testWebPushNotification" :disabled="webPushTestLoading" class="btn btn-primary">
+              <SvgIcon name="send" />
+              {{ webPushTestLoading ? 'Sending...' : 'Test Web Push Notification' }}
+            </button>
+            <div v-if="webPushTestResult" class="test-result" :class="webPushTestResult.success ? 'success' : 'error'">
+              {{ webPushTestResult.message }}
+            </div>
           </div>
-          <p class="channel-description">
-            Send a test WebSocket event to verify real-time notification delivery
-          </p>
-          <button @click="testWebSocketDiagnostic" :disabled="wsTestLoading" class="btn btn-primary">
-            <SvgIcon name="wifi" />
-            {{ wsTestLoading ? 'Sending...' : 'Test WebSocket Notification' }}
-          </button>
-          <div v-if="wsTestResult" class="test-result" :class="wsTestResult.success ? 'success' : 'error'">
-            {{ wsTestResult.message }}
+
+          <div class="channel-card">
+            <div class="channel-header">
+              <SvgIcon name="wifi" />
+              <h3>WebSocket (In-App Notifications)</h3>
+            </div>
+            <p class="channel-description">
+              Send a test WebSocket event to verify real-time notification delivery
+            </p>
+            <button @click="testWebSocketDiagnostic" :disabled="wsTestLoading" class="btn btn-primary">
+              <SvgIcon name="wifi" />
+              {{ wsTestLoading ? 'Sending...' : 'Test WebSocket Notification' }}
+            </button>
+            <div v-if="wsTestResult" class="test-result" :class="wsTestResult.success ? 'success' : 'error'">
+              {{ wsTestResult.message }}
+            </div>
           </div>
         </div>
-      </div>
-    </GlassCard>
+      </GlassCard>
+    </details>
 
     <!-- Background Queue Monitoring -->
     <GlassCard variant="medium" :padding="true" class="admin-section">
