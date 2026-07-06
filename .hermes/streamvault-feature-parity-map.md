@@ -38,3 +38,11 @@ The current `develop` branch already contains a substantial previous overhaul, s
 - Settings PWA and notification panels keep preference flows, but send delivery tests to Admin Diagnostics instead of showing test buttons in the user settings flow.
 - Admin Diagnostics keeps productive repair and troubleshooting functions, but advanced queue, post-processing, verification, maintenance and video recording diagnostics are collapsed behind labeled disclosure controls.
 - Dev PWA diagnostics no longer auto-run on mobile page load. The helper is available as `window.debugStreamVaultPWA()` only in development builds.
+
+## Final QA result for KAN2-010
+
+- Final route source review confirms every productive route in this map remains present in `app/frontend/src/router/index.ts`.
+- Browser smoke covered Dashboard, Streamers, Library, Subscriptions, Settings, Admin Diagnostics, Add Streamer, stored player and live player in mock mode.
+- Notification Center remains reachable from the shell and keeps dialog close plus keyboard return behavior.
+- PWA and push preference flows remain in Settings, while push and notification test actions remain in Admin Diagnostics.
+- Known validation limits are documented in `.hermes/streamvault-frontend-qa-report.md`: no full viewport matrix, no real backend WebSocket, no real HLS media, no real push device and no Lighthouse or axe tooling in this repo session.
