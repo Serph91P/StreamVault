@@ -368,103 +368,14 @@
   </Teleport>
 
   <div class="app">
-    <!-- Show header and navigation ONLY on authenticated pages -->
-    <template v-if="!isAuthPage">
-      <!-- Unified Glass Header -->
-      <header class="app-header glass-header">
-        <div class="header-content">
-          <span class="app-logo" aria-label="StreamVault">StreamVault</span>
-          
-          <div class="header-actions">
-            <BackgroundQueueMonitor />
-            
-            <button
-              ref="notificationBellRef"
-              @click.stop="toggleNotifications"
-              class="glass-btn-icon"
-              :class="{ 'has-badge': unreadCount > 0 }"
-              aria-label="Notifications"
-              aria-haspopup="dialog"
-              :aria-expanded="showNotifications"
-              aria-controls="notification-panel"
-            >
-              <svg>
-                <use href="#icon-bell" />
-              </svg>
-              <span v-if="unreadCount > 0" class="badge">{{ unreadCount > 99 ? '99+' : unreadCount }}</span>
-            </button>
-            
-            <ThemeToggle />
-            
-            <button @click="logout" class="glass-btn-danger header-logout-btn">
-              <svg><use href="#icon-log-out" /></svg>
-              <span class="logout-text">Logout</span>
-            </button>
-          </div>
-        </div>
-      </header>
-      
-      <!-- Notification Panel -->
-      <Teleport to="body">
-        <Transition name="fade">
-          <div v-if="showNotifications" class="glass-popup-backdrop" aria-hidden="true" @click="closeNotificationPanel"></div>
-        </Transition>
-        <Transition name="slide-up">
-          <div
-            v-if="showNotifications"
-            id="notification-panel"
-            ref="notificationPanelRef"
-            class="glass-popup-panel notification-panel"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="notification-panel-title"
-            tabindex="-1"
-            @keydown.esc="closeNotificationPanel"
-          >
-            <div class="glass-popup-header">
-              <h3 id="notification-panel-title">Notifications</h3>
-              <div class="notification-header-actions">
-                <button
-                  v-if="notificationCount > 0"
-                  class="glass-btn-text clear-all-btn"
-                  @click="clearAllNotifications"
-                  aria-label="Clear all notifications"
-                  title="Clear all notifications"
-                >
-                  Clear all
-                </button>
-                <button class="glass-btn-icon" @click="closeNotificationPanel" aria-label="Close notifications">
-                  <svg><use href="#icon-x" /></svg>
-                </button>
-              </div>
-            </div>
-            <NotificationFeed 
-              @notifications-read="markAsRead" 
-              @close-panel="closeNotificationPanel"
-              @clear-all="clearAllNotifications"
-              @close="closeNotificationPanel"
-            />
-          </div>
-        </Transition>
-      </Teleport>
-    </template>
-    
-    <!-- Navigation Wrapper with Bottom Nav + Sidebar (only on authenticated pages) -->
-    <NavigationWrapper v-if="!isAuthPage">
+    <AppShell :show-shell="!isAuthPage">
       <router-view v-slot="{ Component }">
         <transition name="page" mode="out-in" @before-enter="scrollToTop">
           <component :is="Component" />
         </transition>
       </router-view>
-    </NavigationWrapper>
-    
-    <!-- Auth pages without navigation -->
-    <router-view v-else v-slot="{ Component }">
-      <transition name="page" mode="out-in" @before-enter="scrollToTop">
-        <component :is="Component" />
-      </transition>
-    </router-view>
-    
+    </AppShell>
+
     <!-- Toast Notification System (CRITICAL: Always visible) -->
     <ToastContainer />
     
@@ -474,16 +385,12 @@
 </template>
 
 <script setup>
-import NotificationFeed from '@/components/NotificationFeed.vue'
 import PWAInstallPrompt from '@/components/PWAInstallPrompt.vue'
-import BackgroundQueueMonitor from '@/components/BackgroundQueueMonitor.vue'
 import ToastContainer from '@/components/ToastContainer.vue'
-import ThemeToggle from '@/components/ThemeToggle.vue'
-import NavigationWrapper from '@/components/navigation/NavigationWrapper.vue'
+import AppShell from '@/components/AppShell.vue'
 import '@/styles/main.scss'
-import { ref, onMounted, onUnmounted, watch, provide, computed, nextTick } from 'vue'
+import { onMounted, onUnmounted, watch, provide, computed } from 'vue'
 import { useRoute } from 'vue-router'
-import { useAuth } from '@/composables/useAuth'
 import { useSystemAndRecordingStatus } from '@/composables/useSystemAndRecordingStatus'
 import { useTheme } from '@/composables/useTheme'
 import { useToast } from '@/composables/useToast'
@@ -508,13 +415,9 @@ watch(() => route.fullPath, () => {
 })
 
 const isAuthPage = computed(() => {
-  const authPaths = ['/auth/login', '/auth/setup', '/welcome']
+  const authPaths = ['/auth/login', '/auth/setup', '/welcome', '/onboarding']
   return authPaths.includes(route.path)
 })
-
-// Refs for click-outside detection
-const notificationBellRef = ref(null)
-const notificationPanelRef = ref(null)
 
 // Provide hybrid status globally
 const hybridStatus = useSystemAndRecordingStatus()
@@ -526,20 +429,9 @@ onMounted(() => {
   hybridStatus.fetchAllStatus()
 })
 
-const showNotifications = ref(false)
 const notificationStore = useNotificationStore()
-const unreadCount = computed(() => notificationStore.unreadCount)
-const notificationCount = computed(() => notificationStore.totalCount)
 
 const realtime = useRealtimeStore()
-const { logout: authLogout } = useAuth()
-
-// PWA-compatible logout function
-async function logout() {
-  if (confirm('Are you sure you want to logout?')) {
-    await authLogout()
-  }
-}
 
 // Scroll to top on page transitions (for out-in mode)
 function scrollToTop() {
@@ -630,239 +522,17 @@ onUnmounted(() => {
   appRealtimeUnsubs.forEach((fn) => fn())
 })
 
-function toggleNotifications() {
-  showNotifications.value = !showNotifications.value
-  // Lock/unlock body scroll when panel is open on mobile
-  document.body.style.overflow = showNotifications.value ? 'hidden' : ''
-
-  if (showNotifications.value) {
-    nextTick(() => notificationPanelRef.value?.focus?.())
-  } else {
-    notificationBellRef.value?.focus?.()
-  }
-}
-
-async function clearAllNotifications() {
-  await notificationStore.clearAll()
-}
-
-function markAsRead() {
-  notificationStore.markAllRead()
-}
-
-function closeNotificationPanel() {
-  if (showNotifications.value) {
-    showNotifications.value = false
-    document.body.style.overflow = ''
-    notificationStore.markAllRead()
-    notificationBellRef.value?.focus?.()
-  }
-}
-
 // Load notification state from backend on mount
 onMounted(async () => {
   notificationStore.load()
   await notificationStore.syncBackendState()
   
   realtime.recentEvents.forEach(addNotificationFromRealtime)
-  
-  // Click-outside handler for notification panel using refs
-  const handleClickOutside = (event) => {
-    if (!showNotifications.value) return
-    
-    const bell = notificationBellRef.value
-    const panel = notificationPanelRef.value
-    
-    // Don't close if clicking the bell itself or the panel
-    if (bell && bell.contains(event.target)) return
-    if (panel && panel.contains(event.target)) return
-    
-    closeNotificationPanel()
-  }
-  
-  document.addEventListener('click', handleClickOutside)
-  
-  // Clean up on unmount
-  onUnmounted(() => {
-    document.removeEventListener('click', handleClickOutside)
-  })
-  
 })
 </script>
 
 <style lang="scss">
 @use '@/styles/variables' as v;
-@use '@/styles/mixins' as m;
-
-// ============================================================================
-// APP HEADER - Unified Glass Design
-// ============================================================================
-
-.app-header {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 64px;
-  z-index: 1100;
-  
-  // Glass effect
-  background: var(--glass-bg-strong);
-  backdrop-filter: blur(var(--glass-blur-lg));
-  -webkit-backdrop-filter: blur(var(--glass-blur-lg));
-  border-bottom: 1px solid var(--glass-border);
-  box-shadow: var(--glass-shadow-sm);
-  
-  @supports not (backdrop-filter: blur(1px)) {
-    background: var(--glass-bg-solid);
-  }
-}
-
-.app-header .header-content {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  height: 100%;
-  padding: 0 var(--spacing-4);
-  
-  @include m.respond-to('md') {
-    padding: 0 var(--spacing-6);
-  }
-}
-
-.app-logo {
-  font-size: var(--text-lg);
-  font-weight: v.$font-bold;
-  color: var(--primary-color);
-  line-height: 1;
-  user-select: none;
-  
-  @include m.respond-to('md') {
-    font-size: var(--text-xl);
-  }
-}
-
-.header-actions {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-1);
-  
-  @include m.respond-to('md') {
-    gap: var(--spacing-2);
-  }
-}
-
-.header-logout-btn {
-  padding: var(--spacing-2) var(--spacing-3) !important;
-  min-height: 36px !important;
-  font-size: v.$text-sm;
-  
-  // On mobile, show icon only
-  .logout-text {
-    display: none;
-    
-    @include m.respond-to('md') {
-      display: inline;
-    }
-  }
-}
-
-// Bell shake animation for unread notifications
-.glass-btn-icon.has-badge svg {
-  animation: bell-shake 1s cubic-bezier(.36,.07,.19,.97) both;
-  transform-origin: top center;
-  color: var(--primary-color);
-}
-
-@keyframes bell-shake {
-  0% { transform: rotate(0); }
-  15% { transform: rotate(5deg); }
-  30% { transform: rotate(-5deg); }
-  45% { transform: rotate(4deg); }
-  60% { transform: rotate(-4deg); }
-  75% { transform: rotate(2deg); }
-  85% { transform: rotate(-2deg); }
-  92% { transform: rotate(1deg); }
-  100% { transform: rotate(0); }
-}
-
-// ============================================================================
-// NOTIFICATION PANEL - overrides on top of shared .glass-popup-panel
-// ============================================================================
-
-.notification-panel {
-  // Hide the internal feed header - panel has its own header
-  // Must beat scoped selector specificity: .feed-header[data-v-xxx]
-  .notification-feed .feed-header {
-    display: none !important;
-  }
-
-  // Header action group: "Clear all" text button + close icon button
-  .notification-header-actions {
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-2);
-  }
-
-  .clear-all-btn {
-    background: transparent;
-    border: 1px solid var(--glass-border-hover);
-    color: var(--text-secondary);
-    font-size: 13px;
-    font-weight: 500;
-    padding: 6px 12px;
-    border-radius: var(--radius-md);
-    cursor: pointer;
-    transition: background var(--duration-150) var(--ease-out),
-                color var(--duration-150) var(--ease-out),
-                border-color var(--duration-150) var(--ease-out);
-
-    &:hover {
-      background: var(--glass-bg-subtle);
-      color: var(--text-primary);
-      border-color: var(--text-secondary);
-    }
-
-    &:active {
-      transform: translateY(1px);
-    }
-  }
-  
-  @include m.respond-below('lg') {
-    .notification-feed {
-      flex: 1;
-      overflow-y: auto;
-    }
-  }
-}
-
-// ============================================================================
-// TRANSITIONS
-// ============================================================================
-
-// Fade transition for backdrop
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity v.$duration-200 v.$ease-out;
-}
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
-}
-
-// Slide-up transition for bottom sheet / dropdown
-.slide-up-enter-active,
-.slide-up-leave-active {
-  transition: transform v.$duration-300 v.$ease-out, opacity v.$duration-200 v.$ease-out;
-}
-.slide-up-enter-from {
-  transform: translateY(20px);
-  opacity: 0;
-}
-.slide-up-leave-to {
-  transform: translateY(10px);
-  opacity: 0;
-}
 
 // Page transitions
 .page-enter-active,
@@ -875,22 +545,9 @@ onMounted(async () => {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .glass-btn-icon.has-badge svg,
-  .fade-enter-active,
-  .fade-leave-active,
-  .slide-up-enter-active,
-  .slide-up-leave-active,
   .page-enter-active,
   .page-leave-active {
-    animation: none;
     transition: none;
-  }
-}
-
-// Mobile header styles
-@include m.respond-below('md') {
-  .app-header .header-content {
-    padding: 0 var(--spacing-3);
   }
 }
 </style>

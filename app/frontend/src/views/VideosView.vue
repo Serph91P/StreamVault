@@ -1,18 +1,11 @@
 <template>
   <div class="page-view videos-view">
-    <!-- Header with Actions -->
-    <div class="view-header">
-      <div class="header-content">
-        <h1 class="page-title">
-          <svg class="icon-title">
-            <use href="#icon-video" />
-          </svg>
-          Videos
-        </h1>
-        <p class="page-subtitle">Browse and manage all recorded streams</p>
-      </div>
-
-      <div class="header-actions">
+    <PageHeader
+      title="Videos"
+      icon="video"
+      subtitle="Browse and manage all recorded streams"
+    >
+      <template #actions>
         <button
           v-if="selectedVideos.length > 0"
           @click="handleBatchDelete"
@@ -35,8 +28,8 @@
           </svg>
           {{ selectMode ? 'Cancel' : 'Select' }}
         </button>
-      </div>
-    </div>
+      </template>
+    </PageHeader>
 
     <!-- Search and Filters -->
     <div class="controls-bar">
@@ -252,6 +245,7 @@ import LoadingSkeleton from '@/components/LoadingSkeleton.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import VideoCard from '@/components/cards/VideoCard.vue'
 import BaseModal from '@/components/base/BaseModal.vue'
+import PageHeader from '@/components/base/PageHeader.vue'
 
 const router = useRouter()
 
@@ -512,50 +506,6 @@ onMounted(() => {
 .videos-view {
   // .page-view provides padding/sizing via global styles
   // Page-specific overrides only
-}
-
-// Header
-.view-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: var(--spacing-6);
-  gap: var(--spacing-4);
-  flex-wrap: wrap;
-}
-
-.header-content {
-  flex: 1;
-  min-width: 250px;
-}
-
-.page-title {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-3);
-  font-size: var(--text-3xl);
-  font-weight: v.$font-bold;
-  color: var(--text-primary);
-  margin: 0 0 var(--spacing-2) 0;
-
-  .icon-title {
-    width: 32px;
-    height: 32px;
-    stroke: var(--primary-color);
-    fill: none;
-  }
-}
-
-.page-subtitle {
-  font-size: var(--text-base);
-  color: var(--text-secondary);
-  margin: 0;
-}
-
-.header-actions {
-  display: flex;
-  gap: var(--spacing-3);
-  flex-wrap: wrap;
 }
 
 .btn-action {
@@ -1041,34 +991,15 @@ onMounted(() => {
 
 }
 
-@include m.respond-below('md') {  // < 768px
-  .view-header {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .header-content {
-    width: 100%;
-  }
-}
-
 @include m.respond-below('sm') {  // < 640px
   .videos-view {
     padding: var(--spacing-4) var(--spacing-3);
   }
 
-  .page-title {
-    font-size: var(--text-2xl);
-  }
-
-  .header-actions {
-    width: 100%;
-
-    .btn-action {
-      flex: 1;
-      justify-content: center;
-      min-height: 44px;  // Touch-friendly
-    }
+  .btn-action {
+    flex: 1;
+    justify-content: center;
+    min-height: 44px;  // Touch-friendly
   }
   
   // Filter and sort controls

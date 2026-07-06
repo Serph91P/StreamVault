@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onUnmounted, ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import NotificationFilters from '@/components/notifications/NotificationFilters.vue'
 import NotificationItem from '@/components/notifications/NotificationItem.vue'
@@ -96,6 +96,13 @@ function removeNotification(id: string): void {
   notificationStore.remove(id)
 }
 
+function markAllRead(event?: Event): void {
+  event?.preventDefault()
+  event?.stopPropagation()
+  notificationStore.markAllRead()
+  emit('notifications-read')
+}
+
 async function clearAllNotifications(event?: Event): Promise<void> {
   event?.preventDefault()
   event?.stopPropagation()
@@ -107,11 +114,6 @@ async function clearAllNotifications(event?: Event): Promise<void> {
 function closeFeed(): void {
   emit('close')
 }
-
-onUnmounted(() => {
-  notificationStore.markAllRead()
-  emit('notifications-read')
-})
 </script>
 
 <template>
@@ -125,9 +127,21 @@ onUnmounted(() => {
           <p class="eyebrow">Notification Center</p>
           <h2 class="section-title">Stay on top of StreamVault</h2>
           <p class="section-subtitle">{{ subtitle }}</p>
+          <p class="channel-explainer">
+            In-app events arrive live over WebSocket. External delivery still uses your configured Apprise and push targets.
+          </p>
         </div>
       </div>
       <div class="header-actions">
+        <button
+          v-if="unreadCount > 0"
+          type="button"
+          class="header-action mark-read-action"
+          aria-label="Mark all notifications read"
+          @click="markAllRead"
+        >
+          Mark all read
+        </button>
         <button
           v-if="totalCount > 0"
           type="button"
@@ -267,9 +281,17 @@ onUnmounted(() => {
 }
 
 .section-subtitle {
-  margin: var(--spacing-1) 0 0;
+  margin: 0;
   color: var(--text-secondary);
   font-size: var(--text-sm);
+}
+
+.channel-explainer {
+  max-width: 28rem;
+  margin: var(--spacing-2) 0 0;
+  color: var(--text-tertiary);
+  font-size: var(--text-xs);
+  line-height: 1.45;
 }
 
 .header-actions {

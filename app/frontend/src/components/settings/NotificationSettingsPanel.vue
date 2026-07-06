@@ -85,20 +85,9 @@
         >
           {{ isSaving ? 'Saving...' : 'Save Settings' }}
         </button>
-        <button 
-          @click="testNotification" 
-          class="btn btn-secondary"
-          :disabled="!data.notificationsEnabled || !data.notificationUrl"
-        >
-          Test Notification
-        </button>
-        <button 
-          @click="testWebSocketNotification" 
-          class="btn btn-secondary"
-          style="margin-left: 10px;"
-        >
-          Test WebSocket
-        </button>
+        <p class="diagnostics-note">
+          Delivery tests live in Admin Diagnostics so notification settings stay focused on preferences.
+        </p>
       </div>
 
     <!-- Streamer Notification Table -->
@@ -191,7 +180,6 @@
 
 <script setup lang="ts">
 import { ref, computed, onUnmounted } from 'vue'
-import { useToast } from '@/composables/useToast'
 import { UI } from '@/config/constants'
 import BaseButton from '@/components/base/BaseButton.vue'
 import type { NotificationSettings, StreamerNotificationSettings } from '@/types/settings'
@@ -214,8 +202,7 @@ const typedStreamerSettings = computed(() => {
 })
 
 // Emits
-const emit = defineEmits(['update-settings', 'update-streamer-settings', 'test-notification'])
-const toast = useToast()
+const emit = defineEmits(['update-settings', 'update-streamer-settings'])
 
 // Data kopieren, um sie im Formular zu verwenden
 const data = ref({
@@ -382,30 +369,6 @@ const toggleAllStreamers = (enabled: boolean) => {
   }
 }
 
-const testNotification = () => {
-  emit('test-notification')
-}
-
-const testWebSocketNotification = async () => {
-  try {
-    const response = await fetch('/api/settings/test-websocket-notification', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      credentials: 'include'
-    })
-
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.detail || 'Failed to send test WebSocket notification')
-    }
-
-    toast.success('Test WebSocket notification sent! Check the notification bell.')
-  } catch (error) {
-    toast.error(error instanceof Error ? error.message : 'Failed to send test WebSocket notification')
-  }
-}
 </script>
 
 <style scoped lang="scss">
@@ -464,36 +427,6 @@ const testWebSocketNotification = async () => {
   .type-description {
     font-size: v.$text-sm;
     color: var(--text-secondary);
-  }
-}
-
-// ============================================================================
-// TEST NOTIFICATION BUTTON
-// ============================================================================
-
-.test-notification-section {
-  margin-top: v.$spacing-6;
-  padding: v.$spacing-4;
-  background: var(--info-bg-color);
-  border: 1px solid var(--info-border-color);
-  border-radius: var(--radius-md);
-  
-  .test-result {
-    margin-top: v.$spacing-3;
-    padding: v.$spacing-3;
-    border-radius: var(--radius-sm);
-    
-    &.success {
-      background: var(--success-bg-color);
-      border: 1px solid var(--success-border-color);
-      color: var(--success-color);
-    }
-    
-    &.error {
-      background: var(--danger-bg-color);
-      border: 1px solid var(--danger-border-color);
-      color: var(--danger-color);
-    }
   }
 }
 
@@ -563,6 +496,15 @@ const testWebSocketNotification = async () => {
       margin-left: 0 !important;  // Remove inline margin
     }
   }
+}
+
+.diagnostics-note {
+  flex: 2;
+  min-width: 240px;
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: v.$text-sm;
+  line-height: var(--leading-relaxed);
 }
 
 // ============================================================================

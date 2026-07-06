@@ -27,11 +27,13 @@ const categoryImage = computed(() => {
 
 const severityClass = computed(() => getNotificationClass(props.notification))
 const hasTarget = computed(() => Boolean(props.notification.target_url))
-const dedupeLabel = computed(() => {
-  const key = props.notification.dedupe_key
-  if (!key) return ''
-  return key.length > 34 ? `${key.slice(0, 31)}...` : key
+const deliveryLabel = computed(() => {
+  if (props.notification.source === 'push') return 'Push delivery'
+  if (props.notification.source === 'test') return 'Test channel'
+  if (props.notification.source === 'system') return 'System event'
+  return 'Live WebSocket event'
 })
+const typeLabel = computed(() => props.notification.type.replaceAll('.', ' '))
 
 function formatTime(timestamp: string): string {
   const now = new Date()
@@ -126,6 +128,7 @@ function openNotification() {
     :tabindex="hasTarget ? 0 : undefined"
     @click="openNotification"
     @keydown.enter="openNotification"
+    @keydown.space.prevent="openNotification"
   >
     <div class="notification-accent" aria-hidden="true"></div>
 
@@ -146,9 +149,8 @@ function openNotification() {
 
       <div class="notification-meta" aria-label="Notification details">
         <span class="meta-pill severity" :class="severityClass">{{ notification.severity }}</span>
-        <span class="meta-pill">{{ notification.type.replaceAll('.', ' ') }}</span>
-        <span class="meta-pill">{{ notification.source }}</span>
-        <span v-if="dedupeLabel" class="meta-pill dedupe" :title="notification.dedupe_key">Dedupe {{ dedupeLabel }}</span>
+        <span class="meta-pill">{{ typeLabel }}</span>
+        <span class="meta-pill" :title="notification.dedupe_key || undefined">{{ deliveryLabel }}</span>
         <span v-if="categoryName" class="meta-pill category-tag">
           <span class="category-image-small" aria-hidden="true">
             <img
@@ -169,7 +171,7 @@ function openNotification() {
         v-if="hasTarget"
         type="button"
         class="item-action primary"
-        aria-label="Open notification target"
+        :aria-label="`Open notification target for ${notification.title}`"
         @click.stop="emit('open', notification)"
       >
         Open
@@ -177,7 +179,7 @@ function openNotification() {
       <button
         type="button"
         class="item-action"
-        :aria-label="notification.read ? 'Mark notification unread' : 'Mark notification read'"
+        :aria-label="notification.read ? `Mark ${notification.title} unread` : `Mark ${notification.title} read`"
         @click.stop="emit('toggle-read', notification)"
       >
         {{ notification.read ? 'Unread' : 'Read' }}
@@ -185,7 +187,7 @@ function openNotification() {
       <button
         type="button"
         class="item-action icon-only"
-        aria-label="Dismiss notification"
+        :aria-label="`Dismiss ${notification.title}`"
         @click.stop="emit('remove', notification.id)"
       >
         ×

@@ -1,10 +1,5 @@
 <template>
   <div class="admin-panel">
-    <div class="page-header">
-      <h1>StreamVault Admin Panel</h1>
-      <p class="subtitle">System Testing & Diagnostics</p>
-    </div>
-
     <!-- Quick Health Check -->
     <GlassCard variant="medium" :padding="true" class="admin-section">
       <div class="section-header">
@@ -186,32 +181,46 @@
       <BackgroundQueueMonitor />
     </GlassCard>
 
-    <!-- Background Queue Management & Cleanup -->
-    <GlassCard variant="medium" :padding="true" class="admin-section">
+    <details class="admin-disclosure">
+      <summary>
+        <span>Background Queue Tools</span>
+        <span>Repair stuck jobs and inspect queue cleanup actions</span>
+      </summary>
+      <GlassCard variant="medium" :padding="true" class="admin-section">
       <div class="section-header">
         <h2>🔧 Background Queue Management</h2>
         <p class="section-description">
           Fix Background Queue Problems: Stuck Recording Jobs, Continuous Orphaned Recovery, Unknown Task Names
         </p>
       </div>
-      <BackgroundQueueAdmin />
-    </GlassCard>
+        <BackgroundQueueAdmin />
+      </GlassCard>
+    </details>
 
-    <!-- Post-Processing Management -->
-    <GlassCard variant="medium" :padding="true" class="admin-section">
+    <details class="admin-disclosure">
+      <summary>
+        <span>Post-Processing Tools</span>
+        <span>Retry failed recordings and clean segment files</span>
+      </summary>
+      <GlassCard variant="medium" :padding="true" class="admin-section">
       <div class="section-header">
         <h2>🔄 Post-Processing Management</h2>
         <p class="section-description">
           Manual Post-Processing for Failed Recordings and Cleanup of Orphaned Files
         </p>
       </div>
-      <PostProcessingManagement />
-    </GlassCard>
+        <PostProcessingManagement />
+      </GlassCard>
+    </details>
 
-    <!-- Test Suite -->
-    <GlassCard variant="medium" :padding="true" class="admin-section">
+    <details class="admin-disclosure">
+      <summary>
+        <span>Admin Verification Suite</span>
+        <span>Run diagnostic checks only when troubleshooting</span>
+      </summary>
+      <GlassCard variant="medium" :padding="true" class="admin-section">
       <div class="section-header">
-        <h2>Comprehensive Test Suite</h2>
+        <h2>Admin Verification Suite</h2>
         <div class="test-controls">
           <button @click="runAllTests" :disabled="testsLoading" class="btn btn-success">
             <SvgIcon name="play" />
@@ -327,10 +336,15 @@
           </div>
         </div>
       </div>
-    </GlassCard>
+      </GlassCard>
+    </details>
 
-    <!-- Maintenance -->
-    <GlassCard variant="medium" :padding="true" class="admin-section">
+    <details class="admin-disclosure">
+      <summary>
+        <span>Maintenance</span>
+        <span>Review logs and cleanup temporary files</span>
+      </summary>
+      <GlassCard variant="medium" :padding="true" class="admin-section">
       <div class="section-header">
         <h2>Maintenance</h2>
       </div>
@@ -360,13 +374,18 @@
           </li>
         </ul>
       </div>
-    </GlassCard>
+      </GlassCard>
+    </details>
 
-    <!-- Video Debug Section -->
-    <GlassCard variant="medium" :padding="true" class="admin-section">
+    <details class="admin-disclosure">
+      <summary>
+        <span>Video and Recording Diagnostics</span>
+        <span>Inspect storage state and repair recording paths</span>
+      </summary>
+      <GlassCard variant="medium" :padding="true" class="admin-section">
       <div class="section-header">
-        <h2>Video & Recording Debug</h2>
-        <p class="section-description">Debug video availability and recording file system status</p>
+        <h2>Video and Recording Diagnostics</h2>
+        <p class="section-description">Inspect video availability and recording file system status</p>
       </div>
 
       <div class="debug-actions">
@@ -400,7 +419,8 @@
           {{ cleaningZombies ? 'Cleaning...' : 'Cleanup Zombie Recordings' }}
         </button>
       </div>
-    </GlassCard>
+      </GlassCard>
+    </details>
 
     <!-- Logs Modal -->
     <BaseModal v-model="showLogsModal" size="xl">
@@ -1071,27 +1091,54 @@ onMounted(() => {
   margin: 0 auto;
 }
 
-.page-header {
-  text-align: center;
-  margin-bottom: var(--spacing-8);
-}
-
-.page-header h1 {
-  color: var(--text-primary);
-  margin-bottom: var(--spacing-1);
-  font-size: var(--text-3xl);
-  font-weight: var(--font-bold);
-}
-
-.subtitle {
-  color: var(--text-secondary);
-  font-size: var(--text-lg);
-  line-height: var(--leading-normal);
-}
-
 /* Admin Sections - GlassCard wrappers */
 .admin-section {
   margin-bottom: var(--spacing-6);
+}
+
+.admin-disclosure {
+  margin-bottom: var(--spacing-4);
+}
+
+.admin-disclosure > summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--spacing-4);
+  padding: var(--spacing-4) var(--spacing-5);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  background: var(--background-card);
+  color: var(--text-primary);
+  cursor: pointer;
+  font-weight: var(--font-semibold);
+  list-style: none;
+}
+
+.admin-disclosure > summary::-webkit-details-marker {
+  display: none;
+}
+
+.admin-disclosure > summary::after {
+  content: '+';
+  color: var(--text-secondary);
+  font-size: var(--text-xl);
+}
+
+.admin-disclosure[open] > summary {
+  margin-bottom: var(--spacing-3);
+  border-color: var(--primary-color);
+}
+
+.admin-disclosure[open] > summary::after {
+  content: '-';
+}
+
+.admin-disclosure > summary span:last-child {
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  font-weight: var(--font-normal);
+  text-align: right;
 }
 
 .section-header {

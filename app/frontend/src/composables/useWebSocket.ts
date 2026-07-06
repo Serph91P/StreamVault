@@ -2,7 +2,7 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import type { Ref } from 'vue'
 import { logDebug, logWebSocket } from '@/utils/logger'
 import router from '@/router'
-import { hasRealtimeEventType, parseRealtimeEvent } from '@/types/events'
+import { hasRealtimeEventType, normalizeRealtimeEventType, parseRealtimeEvent } from '@/types/events'
 import type { RealtimeEvent } from '@/types/events'
 
 type ConnectionStatus = 'auth_failed' | 'connected' | 'connecting' | 'disconnected' | 'error' | 'failed' | 'offline' | 'reconnecting'
@@ -337,8 +337,10 @@ export class WebSocketManager {
       data.test_id
     )
 
+    const normalizedType = normalizeRealtimeEventType(message.type)
+
     if (eventId) {
-      return `${message.type}:${eventId}`
+      return `${normalizedType}:${eventId}`
     }
 
     const timestamp = firstString(message.timestamp, data.timestamp, data.created_at)
@@ -347,7 +349,7 @@ export class WebSocketManager {
     }
 
     return [
-      message.type,
+      normalizedType,
       firstString(data.streamer_id, data.streamerId, data.streamer_name, data.username),
       firstString(data.recording_id, data.recordingId, data.video_id, data.videoId),
       firstString(data.task_id, data.taskId),

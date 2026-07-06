@@ -1,27 +1,17 @@
 <template>
   <div class="page-view streamers-view">
-    <!-- Header -->
-    <div class="view-header">
-      <div class="header-content">
-        <h1 class="page-title">
-          <svg class="icon-title">
-            <use href="#icon-users" />
-          </svg>
-          Streamers
-        </h1>
-        <p class="page-subtitle">
-          Manage your tracked streamers •
-          <span v-if="!isLoading" class="status-text">
-            {{ liveStreamers.length }} live now
-          </span>
-          <span v-if="autoRefresh" class="auto-refresh-indicator">
-            <span class="pulse-dot"></span>
-            Auto-refresh
-          </span>
-        </p>
-      </div>
-
-      <div class="header-actions">
+    <PageHeader
+      title="Streamers"
+      icon="users"
+      :subtitle="isLoading ? 'Manage your tracked streamers' : `Manage your tracked streamers \u2022 ${liveStreamers.length} live now`"
+    >
+      <template #status>
+        <span v-if="autoRefresh" class="auto-refresh-indicator">
+          <span class="pulse-dot"></span>
+          Auto-refresh
+        </span>
+      </template>
+      <template #actions>
         <button
           @click="toggleAutoRefresh"
           class="btn-action"
@@ -39,8 +29,8 @@
           </svg>
           Add Streamer
         </router-link>
-      </div>
-    </div>
+      </template>
+    </PageHeader>
 
     <!-- Controls Bar -->
     <div class="controls-bar">
@@ -187,6 +177,7 @@ import { hasRealtimeEventType } from '@/types/events'
 import { useForceRecording } from '@/composables/useForceRecording'  // NEW: Import composable
 import LoadingSkeleton from '@/components/LoadingSkeleton.vue'
 import EmptyState from '@/components/EmptyState.vue'
+import PageHeader from '@/components/base/PageHeader.vue'
 import StreamerCard from '@/components/cards/StreamerCard.vue'
 
 const router = useRouter()
@@ -543,53 +534,6 @@ onUnmounted(() => {
   // Page-specific overrides only
 }
 
-// Header
-.view-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: var(--spacing-6);
-  gap: var(--spacing-4);
-  flex-wrap: wrap;
-}
-
-.header-content {
-  flex: 1;
-  min-width: 250px;
-}
-
-.page-title {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-3);
-  font-size: var(--text-3xl);
-  font-weight: v.$font-bold;
-  color: var(--text-primary);
-  margin: 0 0 var(--spacing-2) 0;
-
-  .icon-title {
-    width: 32px;
-    height: 32px;
-    stroke: var(--primary-color);
-    fill: none;
-  }
-}
-
-.page-subtitle {
-  font-size: var(--text-base);
-  color: var(--text-secondary);
-  margin: 0;
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-2);
-  flex-wrap: wrap;
-}
-
-.status-text {
-  color: var(--danger-color);
-  font-weight: v.$font-semibold;
-}
-
 .auto-refresh-indicator {
   display: inline-flex;
   align-items: center;
@@ -620,12 +564,6 @@ onUnmounted(() => {
     opacity: 0.5;
     transform: scale(1.2);
   }
-}
-
-.header-actions {
-  display: flex;
-  gap: var(--spacing-3);
-  flex-wrap: wrap;
 }
 
 .btn-action {
@@ -964,34 +902,15 @@ onUnmounted(() => {
   }
 }
 
-@include m.respond-below('md') {  // < 768px
-  .view-header {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .header-content {
-    width: 100%;
-  }
-}
-
 @include m.respond-below('sm') {  // < 640px
   .streamers-view {
     padding: var(--spacing-4) var(--spacing-3);
   }
 
-  .page-title {
-    font-size: var(--text-2xl);
-  }
-
-  .header-actions {
-    width: 100%;
-
-    .btn-action {
-      flex: 1;
-      justify-content: center;
-      min-height: 44px;  // Touch-friendly
-    }
+  .btn-action {
+    flex: 1;
+    justify-content: center;
+    min-height: 44px;  // Touch-friendly
   }
   
   .controls-bar {
