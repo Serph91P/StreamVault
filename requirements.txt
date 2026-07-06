@@ -21,7 +21,7 @@ aiohttp==3.14.1
 aiofiles==25.1.0
 
 # Image processing
-pillow==12.2.0
+pillow==12.3.0
 
 # Notifications
 apprise==1.12.0
