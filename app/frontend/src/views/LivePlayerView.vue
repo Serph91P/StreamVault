@@ -43,11 +43,14 @@
 
             <h1 class="stream-title">{{ streamerName }}</h1>
 
-            <div v-if="streamInfo" class="live-badge-inline">
-              <span class="live-indicator"></span>
-              <span>LIVE</span>
+            <div v-if="streamInfo" class="live-status-strip" :aria-label="`Live stream status: ${streamStatusText}`">
+              <span class="live-status-pill">
+                <span class="live-indicator"></span>
+                Live
+              </span>
+              <span>{{ streamStatusText }}</span>
+              <span>{{ selectedQualityLabel }}</span>
             </div>
-            <PlayerStatus :state="currentPlayerState" />
           </div>
 
           <!-- Video Container -->
@@ -295,17 +298,6 @@ const codecHint = computed(() => {
   return hevcSupported.value
     ? 'HEVC appears supported here; Auto will allow 1440p/HEVC.'
     : 'HEVC is not supported by this playback pipeline; Auto uses H264.'
-})
-
-const currentPlayerState = computed(() => {
-  if (isLoading.value) return 'loading'
-  if (error.value && !sessionId.value) return 'error'
-  if (isStopped.value) return 'stopped'
-  if (isRetrying.value) return 'connecting'
-  if (isBuffering.value) return 'buffering'
-  if (isPlaying.value) return 'live'
-  if (sessionId.value) return 'connecting'
-  return 'idle'
 })
 
 const hlsErrorToMessage = (data: any): string => {
@@ -893,18 +885,27 @@ onUnmounted(() => {
   }
 }
 
-.live-badge-inline {
+.live-status-strip {
   display: inline-flex;
   align-items: center;
   gap: var(--spacing-2);
-  background: var(--danger-color);
-  color: white;
+  border: 1px solid rgba(var(--danger-500-rgb), 0.35);
   border-radius: var(--radius-pill);
-  padding: var(--spacing-1) var(--spacing-3);
-  font-size: var(--text-sm);
+  background: rgba(var(--danger-500-rgb), 0.12);
+  color: var(--text-secondary);
+  padding: var(--spacing-1) var(--spacing-2);
+  font-size: var(--text-xs);
+  font-weight: v.$font-semibold;
+  flex-shrink: 0;
+}
+
+.live-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  color: var(--danger-text-color);
   font-weight: v.$font-bold;
   text-transform: uppercase;
-  flex-shrink: 0;
 }
 
 .live-indicator {
@@ -959,10 +960,11 @@ onUnmounted(() => {
   width: 100%;
   background: var(--background-darker);
   overflow: hidden;
+  border-top: 1px solid var(--border-color);
 
   @include m.respond-to('md') {
-    max-width: min(70vw, 1280px);
-    margin: 0 auto;
+    max-width: none;
+    margin: 0;
     aspect-ratio: 16/9;
   }
 
@@ -998,7 +1000,7 @@ onUnmounted(() => {
   object-fit: contain;
 
   @include m.respond-to('md') {
-    max-height: 70vh;
+    max-height: none;
   }
 
   @include m.respond-below('md') {

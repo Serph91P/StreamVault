@@ -125,15 +125,21 @@
       </button>
 
       <!-- Sort Dropdown -->
-      <select v-model="sortBy" class="sort-select" aria-label="Sort videos">
-        <option value="newest">Newest First</option>
-        <option value="oldest">Oldest First</option>
-        <option value="duration-desc">Longest Duration</option>
-        <option value="duration-asc">Shortest Duration</option>
-        <option value="size-desc">Largest Size</option>
-        <option value="size-asc">Smallest Size</option>
-        <option value="title">Title A-Z</option>
-      </select>
+      <label class="sort-control-wrap">
+        <svg class="sort-icon" aria-hidden="true">
+          <use href="#icon-list-ordered" />
+        </svg>
+        <span class="sort-label">Sort</span>
+        <select v-model="sortBy" class="sort-select" aria-label="Sort videos">
+          <option value="newest">Newest First</option>
+          <option value="oldest">Oldest First</option>
+          <option value="duration-desc">Longest Duration</option>
+          <option value="duration-asc">Shortest Duration</option>
+          <option value="size-desc">Largest Size</option>
+          <option value="size-asc">Smallest Size</option>
+          <option value="title">Title A-Z</option>
+        </select>
+      </label>
     </div>
 
     <!-- Filter Panel -->
@@ -946,29 +952,56 @@ onMounted(() => {
   }
 }
 
-.sort-select {
-  width: auto;
-  min-width: 156px;
+.sort-control-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-2);
   min-height: 44px;
-  flex: 0 0 auto;
-  padding: var(--spacing-3) var(--spacing-8) var(--spacing-3) var(--spacing-4);
-  background: var(--background-card);
+  padding: 0 var(--spacing-3);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
+  background: var(--background-card);
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.sort-icon {
+  width: 18px;
+  height: 18px;
+  color: var(--text-secondary);
+  stroke: currentColor;
+  fill: none;
+}
+
+.sort-label {
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  font-weight: v.$font-semibold;
+}
+
+.sort-select {
+  min-width: 156px;
+  min-height: 40px;
+  margin: 0;
+  padding: 0 var(--spacing-6) 0 0;
+  appearance: none;
+  background: transparent;
+  background-color: transparent;
+  border: 0;
+  box-shadow: none;
   color: var(--text-primary);
   font-size: var(--text-sm);
   font-weight: v.$font-medium;
   cursor: pointer;
-  transition: all v.$duration-200 v.$ease-out;
+}
 
-  &:hover {
-    border-color: var(--primary-color);
-  }
+.sort-select:focus {
+  outline: none;
+}
 
-  &:focus {
-    outline: 2px solid var(--primary-color);
-    outline-offset: 2px;
-  }
+.sort-control-wrap:focus-within {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px rgba(var(--primary-500-rgb), 0.1);
 }
 
 // Filter Panel

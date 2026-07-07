@@ -5,7 +5,6 @@
     class="stream-card"
     :class="{
       'is-expanded': isExpanded,
-      'actions-open': showActions,
       'is-recording': isRecording
     }"
   >
@@ -139,66 +138,35 @@
             </svg>
             Watch Recording
           </button>
-        </div>
-      </transition>
 
-      <!-- Context Menu (Top Right) -->
-      <div class="stream-actions">
-        <button
-          ref="moreButtonRef"
-          @click.stop="toggleActions"
-          class="btn-action btn-more"
-          :class="{ active: showActions }"
-          :aria-label="`Stream actions for ${stream.title || 'untitled stream'}`"
-          aria-haspopup="menu"
-          :aria-expanded="showActions"
-        >
-          <svg class="icon">
-            <use href="#icon-more-vertical" />
-          </svg>
-        </button>
-
-        <Teleport to="body">
-          <div
-            v-if="showActions"
-            class="actions-dropdown"
-            :style="dropdownStyle"
-            @click.stop
-          >
-            <button v-if="isRecording || isLive" @click="handleWatchLive" class="action-item">
+          <div class="expanded-actions" aria-label="Stream actions">
+            <button v-if="isRecording || isLive" @click.stop="handleWatchLive" class="action-item">
               <svg class="icon">
                 <use href="#icon-external-link" />
               </svg>
               Watch Live
             </button>
-            <button v-if="!isRecording && isLive" @click="handleForceRecord" class="action-item">
+            <button v-if="!isRecording && isLive" @click.stop="handleForceRecord" class="action-item">
               <svg class="icon">
                 <use href="#icon-video" />
               </svg>
               Force Record
             </button>
-            <button v-if="hasRecording" @click="handleWatch" class="action-item">
-              <svg class="icon">
-                <use href="#icon-play" />
-              </svg>
-              Watch Recording
-            </button>
-            <button @click="handleDelete" class="action-item action-danger">
+            <button @click.stop="handleDelete" class="action-item action-danger">
               <svg class="icon">
                 <use href="#icon-trash" />
               </svg>
               Delete Stream
             </button>
           </div>
-        </Teleport>
-      </div>
+        </div>
+      </transition>
     </div>
   </GlassCard>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, computed } from 'vue'
 import StatusBadge from '@/components/base/StatusBadge.vue'
 import GlassCard from './GlassCard.vue'
 
@@ -239,10 +207,7 @@ const emit = defineEmits<{
   delete: [stream: Stream]
 }>()
 
-const _router = useRouter()
 const isExpanded = ref(false)
-const showActions = ref(false)
-const moreButtonRef = ref<HTMLButtonElement | null>(null)
 
 const isRecording = computed(() => props.stream.is_recording || false)
 const isLive = computed(() => props.stream.is_live || false)
@@ -257,33 +222,8 @@ const categoryEvents = computed(() => {
   )
 })
 
-// Dropdown positioning
-const dropdownStyle = computed(() => {
-  if (!moreButtonRef.value) {
-    return {
-      position: 'fixed' as const,
-      top: '50%',
-      left: '50%',
-      transform: 'translate(-50%, -50%)',
-      zIndex: 10000
-    }
-  }
-
-  const rect = moreButtonRef.value.getBoundingClientRect()
-  return {
-    position: 'fixed' as const,
-    top: `${rect.bottom + 8}px`,
-    right: `${Math.max(8, window.innerWidth - rect.right)}px`,
-    zIndex: 10000
-  }
-})
-
 function toggleExpand() {
   isExpanded.value = !isExpanded.value
-}
-
-function toggleActions() {
-  showActions.value = !showActions.value
 }
 
 function formatDuration(start?: string, end?: string) {
@@ -343,49 +283,20 @@ function formatEventDuration(event: StreamEvent, index: number) {
 }
 
 function handleWatchLive() {
-  showActions.value = false
   emit('watch-live', props.stream)
 }
 
 function handleForceRecord() {
-  showActions.value = false
   emit('force-record', props.stream)
 }
 
 function handleWatch() {
-  showActions.value = false
   emit('watch', props.stream)
 }
 
 function handleDelete() {
-  showActions.value = false
   emit('delete', props.stream)
 }
-
-// Close dropdown when clicking outside
-const handleClickOutside = (event: MouseEvent) => {
-  if (!showActions.value) return
-
-  const dropdown = document.querySelector('.actions-dropdown')
-  const target = event.target as Node
-
-  if (
-    moreButtonRef.value &&
-    !moreButtonRef.value.contains(target) &&
-    dropdown &&
-    !dropdown.contains(target)
-  ) {
-    showActions.value = false
-  }
-}
-
-onMounted(() => {
-  document.addEventListener('click', handleClickOutside)
-})
-
-onUnmounted(() => {
-  document.removeEventListener('click', handleClickOutside)
-})
 </script>
 
 <style scoped lang="scss">
@@ -449,6 +360,7 @@ onUnmounted(() => {
   max-width: 220px;
   padding: var(--spacing-1) var(--spacing-2);
   background: rgba(var(--primary-500-rgb), 0.1);
+  border: 1px solid rgba(var(--primary-500-rgb), 0.22);
   border-radius: var(--radius-sm);
   font-size: var(--text-sm);
   color: var(--primary-color);
@@ -677,87 +589,18 @@ onUnmounted(() => {
   }
 }
 
-/* Actions Dropdown */
-.stream-actions {
-  position: absolute;
-  top: var(--spacing-2);
-  right: var(--spacing-2);
-  z-index: 10;
-}
-
-.btn-action {
-  width: 32px;
-  height: 32px;
-  padding: 0;
-  background: transparent;
-  border: none;
-  border-radius: var(--radius-md);
+.expanded-actions {
   display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-2);
   align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all v.$duration-200 v.$ease-out;
-
-  .icon {
-    width: 16px;
-    height: 16px;
-    stroke: var(--text-secondary);
-    fill: none;
-    transition: stroke v.$duration-200 v.$ease-out;
-  }
-
-  &:hover {
-    background: rgba(var(--primary-500-rgb), 0.1);
-
-    .icon {
-      stroke: var(--text-primary);
-    }
-  }
-
-  &.active {
-    background: rgba(var(--primary-500-rgb), 0.15);
-
-    .icon {
-      stroke: var(--primary-color);
-    }
-  }
 }
 
-.actions-dropdown {
-  position: fixed;
-  background: var(--background-darker);
+.expanded-actions .action-item {
+  width: auto;
+  min-height: 40px;
   border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-xl);
-  min-width: 160px;
-  padding: var(--spacing-1);
-  overflow: hidden;
-  z-index: 10000;
-  animation: dropdown-appear 0.15s ease-out;
-
-  // Mobile: Make dropdown full-width and position at bottom
-  @include m.respond-below('sm') {
-    position: fixed;
-    left: var(--spacing-2) !important;
-    right: var(--spacing-2) !important;
-    bottom: var(--spacing-2) !important;
-    top: auto !important;
-    width: auto;
-    min-width: unset;
-    border-radius: var(--radius-lg);
-    padding: var(--spacing-2);
-  }
-}
-
-@keyframes dropdown-appear {
-  from {
-    opacity: 0;
-    transform: translateY(-4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  background: var(--background-darker);
 }
 
 .action-item {
@@ -866,22 +709,6 @@ onUnmounted(() => {
   /* Hide expand button on mobile - card tap expands instead */
   .expand-btn {
     display: none;
-  }
-
-  /* Hide action button when collapsed on mobile */
-  .stream-actions {
-    display: none;
-  }
-}
-
-/* Mobile: Show actions when expanded */
-.stream-card.is-expanded {
-  @include m.respond-below('sm') {
-    .stream-actions {
-      display: block;
-      position: static;
-      margin-top: var(--spacing-3);
-    }
   }
 }
 </style>

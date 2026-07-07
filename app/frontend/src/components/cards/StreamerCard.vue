@@ -635,23 +635,23 @@ onUnmounted(() => {
   font-size: var(--text-base);  /* INCREASED: Better readability */
   font-weight: v.$font-medium;
   color: var(--text-primary);
-  line-height: 1.5;  /* FIX: bumped from 1.4 to give descenders (g, j, p, y) room */
+  line-height: 1.45;  /* FIX: bumped from 1.4 to give descenders (g, j, p, y) room */
   margin: 0;
   width: 100%;
 
-  /* CRITICAL: Max 3 lines for live title (more important than description) */
+  /* CRITICAL: Max 4 lines for live title (more important than description) */
   /* FIX: -webkit-line-clamp + overflow:hidden clips descenders on the last line.
      Use padding-bottom + matching max-height so descenders are not cut off, and
      keep ellipsis behaviour. */
   overflow: hidden;
   text-overflow: ellipsis;
   display: -webkit-box;
-  -webkit-line-clamp: 3;  /* 3 lines for live streams */
-  line-clamp: 3;
+  -webkit-line-clamp: 4;  /* 4 lines for live streams */
+  line-clamp: 4;
   -webkit-box-orient: vertical;
   word-break: break-word;
   padding-bottom: 0.2em;  /* descender safe-area */
-  max-height: calc(1.5em * 3 + 0.2em);  /* 3 lines * line-height + descender pad */
+  max-height: calc(1.45em * 4 + 0.2em);  /* 4 lines * line-height + descender pad */
 
   &.no-title {
     font-style: italic;
@@ -925,19 +925,21 @@ onUnmounted(() => {
 
   .streamer-card-content {
     display: grid;
-    grid-template-columns: auto 1fr auto auto;
-    grid-template-rows: auto auto auto auto;
+    grid-template-columns: auto minmax(12rem, 0.7fr) minmax(18rem, 1.3fr) auto;
+    grid-template-rows: 1fr 1fr;
     align-items: center;
-    gap: 0;
+    gap: var(--spacing-2) var(--spacing-4);
     width: 100%;
+    min-height: 104px;
+    padding: var(--spacing-3);
   }
 
   .streamer-avatar-container {
-    grid-row: 1 / 5;
+    grid-row: 1 / 3;
     grid-column: 1;
     margin-bottom: 0;
     width: auto;
-    padding: var(--spacing-3);
+    padding: 0;
   }
 
   .streamer-avatar {
@@ -947,11 +949,11 @@ onUnmounted(() => {
 
   .streamer-name-link {
     grid-row: 1;
-    grid-column: 2 / -1;
+    grid-column: 2;
+    align-self: end;
     text-align: left;
     width: auto;
-    padding-top: var(--spacing-2);
-    padding-right: var(--spacing-3);
+    padding: 0;
 
     .streamer-name {
       font-size: var(--text-sm);
@@ -964,25 +966,27 @@ onUnmounted(() => {
 
   .status-row {
     grid-row: 2;
-    grid-column: 2 / -1;
+    grid-column: 2;
+    align-self: start;
     justify-content: flex-start;
     min-height: 24px;
-    padding-right: var(--spacing-3);
+    align-content: flex-start;
   }
 
   .stream-info-container {
-    grid-row: 3;
-    grid-column: 2 / -1;
+    grid-row: 1 / 3;
+    grid-column: 3;
+    justify-content: center;
     text-align: left;
     min-width: 0;
-    padding: 0 var(--spacing-3) 0 0;
+    padding: 0;
 
     .stream-title,
     .last-stream-title,
     .streamer-description,
     .last-stream-category {
-      -webkit-line-clamp: 1;
-      line-clamp: 1;
+      -webkit-line-clamp: 2;
+      line-clamp: 2;
       font-size: var(--text-xs);
       text-align: left;
     }
@@ -994,14 +998,17 @@ onUnmounted(() => {
   }
 
   .streamer-stats {
-    grid-row: 4;
-    grid-column: 2;
+    grid-row: 1 / 3;
+    grid-column: 4;
     display: flex;
-    flex-direction: row;
-    flex-wrap: wrap;
+    flex-direction: column;
+    flex-wrap: nowrap;
     gap: var(--spacing-2) var(--spacing-3);
-    padding: 0 0 var(--spacing-2) 0;
-    align-items: center;
+    margin-top: 0;
+    padding: 0 var(--spacing-12) 0 0;
+    align-items: flex-start;
+    justify-content: center;
+    width: auto;
 
     .stat {
       font-size: var(--text-xs);
@@ -1016,12 +1023,11 @@ onUnmounted(() => {
   }
 
   .streamer-actions {
-    grid-row: 4;
-    grid-column: 4;
-    position: relative;
-    top: auto;
-    right: auto;
-    padding-right: var(--spacing-3);
+    position: absolute;
+    top: 50%;
+    right: var(--spacing-3);
+    transform: translateY(-50%);
+    padding-right: 0;
     align-self: center;
   }
 }

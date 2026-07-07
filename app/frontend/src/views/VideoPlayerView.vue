@@ -45,18 +45,6 @@
 
             <h1 class="video-title">{{ streamTitle }}</h1>
 
-            <button
-              type="button"
-              class="theater-toggle"
-              :aria-pressed="theaterMode"
-              @click="theaterMode = !theaterMode"
-            >
-              <svg class="icon" aria-hidden="true">
-                <use :href="theaterMode ? '#icon-grid' : '#icon-film'" />
-              </svg>
-              {{ theaterMode ? 'Show details' : 'Theater' }}
-            </button>
-
             <div v-if="streamerName" class="streamer-badge" :aria-label="`Streamed by ${streamerName}`">
               <svg class="icon-streamer" aria-hidden="true">
                 <use href="#icon-user" />
@@ -73,11 +61,13 @@
             :chapters="chapterData.chapters"
             :stream-title="chapterData.stream_title"
             :stream-id="parseInt(streamId)"
+            :theater-mode="theaterMode"
             @chapter-change="onChapterChange"
             @video-ready="onVideoReady"
             @video-loading="onVideoLoading"
             @video-error="onVideoError"
             @time-update="onTimeUpdate"
+            @toggle-theater="theaterMode = !theaterMode"
           />
         </GlassCard>
 
@@ -244,7 +234,7 @@ const streamId = computed(() => {
   // Fallback to 'streamId' parameter (from legacy route)
   return route.params.streamId as string
 })
-const streamTitle = computed(() => (route.query.title as string) || `Stream ${streamId.value}`)
+const streamTitle = computed(() => chapterData.value?.stream_title || (route.query.title as string) || `Stream #${streamId.value}`)
 const streamerName = computed(() => route.query.streamerName as string)
 
 const chapterData = ref<ChapterData | null>(null)
@@ -282,9 +272,16 @@ const loadChapterData = async () => {
     // Load video chapters using the new API
     let chapters: any[] = []
     let videoUrl = `/api/videos/${streamId.value}/stream`
+    let resolvedTitle = (route.query.title as string) || ''
 
     try {
       chapters = await videoApi.getChapters(parseInt(streamId.value))
+      if (!resolvedTitle) {
+        const videos = await videoApi.getAll()
+        const videoList = Array.isArray(videos) ? videos : videos?.data || videos?.videos || []
+        const currentVideo = videoList.find((video: any) => String(video.id ?? video.stream_id) === String(streamId.value))
+        resolvedTitle = currentVideo?.title || currentVideo?.stream_title || currentVideo?.name || ''
+      }
     } catch {
       // If no chapters available, use mock data for development
       chapters = [
@@ -307,7 +304,7 @@ const loadChapterData = async () => {
         type: 'chapter'
       })),
       stream_id: parseInt(streamId.value),
-      stream_title: streamTitle.value,
+      stream_title: resolvedTitle || `Stream ${streamId.value}`,
       duration: 596, // Big Buck Bunny duration
       video_url: videoUrl,
       video_file: '',
