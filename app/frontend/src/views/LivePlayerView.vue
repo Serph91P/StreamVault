@@ -1,5 +1,5 @@
 <template>
-  <div class="page-view live-player-view fade-in">
+  <div class="page-view live-player-view fade-in" :class="{ 'theater-mode': theaterMode }">
     <!-- Loading State -->
     <div v-if="isLoading" class="content-state">
       <LoadingSkeleton type="video" />
@@ -46,11 +46,20 @@
             <div v-if="streamInfo" class="live-status-strip" :aria-label="`Live stream status: ${streamStatusText}`">
               <span class="live-status-pill">
                 <span class="live-indicator"></span>
-                Live
+                {{ streamStatusText }}
               </span>
-              <span>{{ streamStatusText }}</span>
-              <span>{{ selectedQualityLabel }}</span>
             </div>
+            <button
+              type="button"
+              class="header-theater-toggle"
+              :aria-pressed="theaterMode"
+              @click="theaterMode = !theaterMode"
+            >
+              <svg viewBox="0 0 24 24" fill="currentColor" class="header-theater-icon" aria-hidden="true">
+                <path d="M3 5h18v12H3V5zm2 2v8h14V7H5zm4 12h6v2H9v-2z"/>
+              </svg>
+              {{ theaterMode ? 'Exit theater' : 'Theater' }}
+            </button>
           </div>
 
           <!-- Video Container -->
@@ -101,6 +110,11 @@
                   <span class="meta-status">{{ streamStatusText }}</span>
                 </div>
 
+                <button @click="theaterMode = !theaterMode" class="control-button theater-button" :class="{ active: theaterMode }" :aria-label="theaterMode ? 'Show details' : 'Theater mode'">
+                  <svg viewBox="0 0 24 24" fill="currentColor" class="control-icon">
+                    <path d="M3 5h18v12H3V5zm2 2v8h14V7H5zm4 12h6v2H9v-2z"/>
+                  </svg>
+                </button>
                 <button @click="toggleFullscreen" class="control-button fullscreen-button" :aria-label="isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'">
                   <svg v-if="!isFullscreen" viewBox="0 0 24 24" fill="currentColor" class="control-icon">
                     <path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/>
@@ -240,6 +254,7 @@ const isPlaying = ref(false)
 const isRetrying = ref(false)
 const isMuted = ref(true)
 const isFullscreen = ref(false)
+const theaterMode = ref(false)
 const showControls = ref(true)
 const controlsTimeout = ref<number | null>(null)
 const hlsInstance = ref<any>(null)
@@ -740,6 +755,41 @@ onUnmounted(() => {
   @include m.respond-below('sm') {
     padding: var(--spacing-2) var(--spacing-2);
   }
+
+  &.theater-mode {
+    .player-main {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .info-sidebar {
+      display: none;
+    }
+
+    .player-header {
+      min-height: 0;
+      padding: var(--spacing-2) var(--spacing-3);
+    }
+
+    .stream-title {
+      font-size: var(--text-base);
+    }
+
+    .back-button {
+      min-height: 36px;
+      padding: var(--spacing-1) var(--spacing-3);
+      font-size: var(--text-xs);
+    }
+
+    .live-status-strip {
+      display: none;
+    }
+
+    .video-container {
+      aspect-ratio: auto;
+      max-height: calc(100dvh - var(--app-header-height, 56px) - 80px);
+      min-height: min(70dvh, calc(100dvh - var(--app-header-height, 56px) - 80px));
+    }
+  }
 }
 
 .fade-in {
@@ -897,6 +947,33 @@ onUnmounted(() => {
   font-size: var(--text-xs);
   font-weight: v.$font-semibold;
   flex-shrink: 0;
+}
+
+.header-theater-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1-5);
+  min-height: 36px;
+  padding: var(--spacing-1) var(--spacing-3);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  background: var(--background-darker);
+  color: var(--text-primary);
+  font-size: var(--text-xs);
+  font-weight: v.$font-semibold;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.header-theater-toggle[aria-pressed="true"] {
+  border-color: var(--primary-color);
+  background: rgba(var(--primary-500-rgb), 0.16);
+  color: var(--primary-color);
+}
+
+.header-theater-icon {
+  width: 16px;
+  height: 16px;
 }
 
 .live-status-pill {
@@ -1115,6 +1192,10 @@ onUnmounted(() => {
     width: 20px;
     height: 20px;
   }
+}
+
+.theater-button.active {
+  background: var(--primary-color);
 }
 
 .fullscreen-button {

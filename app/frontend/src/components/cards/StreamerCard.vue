@@ -436,19 +436,15 @@ onUnmounted(() => {
   :deep(.glass-card-content) {
     padding: var(--spacing-4);
     min-height: 240px;
-    max-height: 320px;  /* Status row and 3-line titles fit without clipping */
     overflow: visible;
     display: flex;
     flex-direction: column;
   }
 
-  // LIVE indicator: REMOVED - Red border now only on avatar (line 377)
-  // Keeps card cleaner and less overwhelming
-
   // RECORDING indicator: Pulsing border animation on the card itself
   &.is-recording {
     animation: pulse-recording 2s ease-in-out infinite;
-    border-radius: var(--radius-xl);  /* Ensure rounded during animation */
+    border-radius: var(--radius-xl);
   }
 
   // When actions dropdown is open, increase z-index to appear above other cards
@@ -459,14 +455,13 @@ onUnmounted(() => {
 }
 
 .streamer-card-content {
-  /* VERTICAL LAYOUT: Stack everything vertically */
   display: flex;
   flex-direction: column;
-  align-items: center;  /* Center horizontally */
-  gap: var(--spacing-3);
+  align-items: center;
+  gap: var(--spacing-2);
   flex: 1;
   min-height: 0;
-  position: relative;  /* For absolute positioning of actions button */
+  position: relative;
   cursor: pointer;
 }
 
@@ -490,7 +485,7 @@ onUnmounted(() => {
   width: 100%;
   display: flex;
   justify-content: center;
-  margin-bottom: var(--spacing-2);
+  margin-bottom: var(--spacing-1);
 }
 
 .streamer-avatar {
@@ -598,7 +593,7 @@ onUnmounted(() => {
   flex-direction: column;
   justify-content: flex-start;
   overflow: hidden;
-  padding: var(--spacing-2) 0;  /* Add vertical spacing */
+  padding: var(--spacing-1) 0;
 }
 
 .streamer-description {
@@ -632,26 +627,21 @@ onUnmounted(() => {
 }
 
 .stream-title {
-  font-size: var(--text-base);  /* INCREASED: Better readability */
+  font-size: var(--text-base);
   font-weight: v.$font-medium;
   color: var(--text-primary);
-  line-height: 1.45;  /* FIX: bumped from 1.4 to give descenders (g, j, p, y) room */
+  line-height: 1.5;
   margin: 0;
   width: 100%;
 
-  /* CRITICAL: Max 4 lines for live title (more important than description) */
-  /* FIX: -webkit-line-clamp + overflow:hidden clips descenders on the last line.
-     Use padding-bottom + matching max-height so descenders are not cut off, and
-     keep ellipsis behaviour. */
   overflow: hidden;
   text-overflow: ellipsis;
   display: -webkit-box;
-  -webkit-line-clamp: 4;  /* 4 lines for live streams */
-  line-clamp: 4;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
   -webkit-box-orient: vertical;
   word-break: break-word;
-  padding-bottom: 0.2em;  /* descender safe-area */
-  max-height: calc(1.45em * 4 + 0.2em);  /* 4 lines * line-height + descender pad */
+  padding-bottom: 0.15em;
 
   &.no-title {
     font-style: italic;
@@ -701,12 +691,12 @@ onUnmounted(() => {
 /* Stats - AT BOTTOM, CENTERED */
 .streamer-stats {
   display: flex;
-  gap: var(--spacing-3);  /* REDUCED: Smaller gap for better fit */
+  gap: var(--spacing-2);
   justify-content: center;
   align-items: center;
   flex-wrap: wrap;
   margin-top: auto;
-  padding-top: var(--spacing-3);
+  padding-top: var(--spacing-2);
   width: 100%;
 }
 
@@ -913,25 +903,27 @@ onUnmounted(() => {
 // ============================================================================
 
 .streamer-card.list-mode {
+  max-width: none;
+  min-height: 0;
+
   :deep(.glass-card-content) {
     display: flex;
     flex-direction: row;
     align-items: center;
     min-height: auto;
-    max-height: none;
     padding: 0;
     gap: 0;
   }
 
   .streamer-card-content {
     display: grid;
-    grid-template-columns: auto minmax(12rem, 0.7fr) minmax(18rem, 1.3fr) auto;
-    grid-template-rows: 1fr 1fr;
+    grid-template-columns: auto 1fr auto auto;
+    grid-template-rows: auto auto;
     align-items: center;
-    gap: var(--spacing-2) var(--spacing-4);
+    gap: var(--spacing-1) var(--spacing-4);
     width: 100%;
-    min-height: 104px;
-    padding: var(--spacing-3);
+    min-height: 80px;
+    padding: var(--spacing-3) var(--spacing-10) var(--spacing-3) var(--spacing-3);
   }
 
   .streamer-avatar-container {
@@ -943,8 +935,8 @@ onUnmounted(() => {
   }
 
   .streamer-avatar {
-    width: 56px;
-    height: 56px;
+    width: 48px;
+    height: 48px;
   }
 
   .streamer-name-link {
@@ -969,7 +961,7 @@ onUnmounted(() => {
     grid-column: 2;
     align-self: start;
     justify-content: flex-start;
-    min-height: 24px;
+    min-height: 22px;
     align-content: flex-start;
   }
 
@@ -980,6 +972,7 @@ onUnmounted(() => {
     text-align: left;
     min-width: 0;
     padding: 0;
+    max-width: 320px;
 
     .stream-title,
     .last-stream-title,
@@ -1003,10 +996,10 @@ onUnmounted(() => {
     display: flex;
     flex-direction: column;
     flex-wrap: nowrap;
-    gap: var(--spacing-2) var(--spacing-3);
+    gap: var(--spacing-1);
     margin-top: 0;
-    padding: 0 var(--spacing-12) 0 0;
-    align-items: flex-start;
+    padding: 0;
+    align-items: flex-end;
     justify-content: center;
     width: auto;
 
@@ -1025,7 +1018,7 @@ onUnmounted(() => {
   .streamer-actions {
     position: absolute;
     top: 50%;
-    right: var(--spacing-3);
+    right: var(--spacing-2);
     transform: translateY(-50%);
     padding-right: 0;
     align-self: center;

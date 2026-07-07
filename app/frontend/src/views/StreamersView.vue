@@ -223,7 +223,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { streamersApi } from '@/services/api'
 import { useRealtimeStore } from '@/stores/realtime'
 import { hasRealtimeEventType } from '@/types/events'
@@ -236,6 +237,7 @@ import StreamerCard from '@/components/cards/StreamerCard.vue'
 
 // Real-time store for live updates
 const realtime = useRealtimeStore()
+const route = useRoute()
 
 // Force recording composable
 const { forceStartRecording } = useForceRecording()  // NEW: Use composable
@@ -251,6 +253,15 @@ const activeFilter = ref('all')
 const autoRefresh = ref(true)
 const lastUpdateTime = ref<Date | null>(null)
 const fetchError = ref('')
+
+const validFilters = new Set(['all', 'live', 'recording', 'offline'])
+
+function applyFilterFromRoute() {
+  const routeFilter = Array.isArray(route.query.filter) ? route.query.filter[0] : route.query.filter
+  if (typeof routeFilter === 'string' && validFilters.has(routeFilter)) {
+    activeFilter.value = routeFilter
+  }
+}
 
 // Auto-refresh interval
 let refreshInterval: number | null = null
@@ -490,6 +501,7 @@ const realtimeCleanups: (() => void)[] = []
 
 // Lifecycle
 onMounted(async () => {
+  applyFilterFromRoute()
   await loadStreamers()
   if (autoRefresh.value) {
     startAutoRefresh()
@@ -581,6 +593,11 @@ onMounted(async () => {
     }),
   )
 })
+
+watch(
+  () => route.query.filter,
+  () => applyFilterFromRoute()
+)
 
 onUnmounted(() => {
   stopAutoRefresh()
@@ -786,32 +803,35 @@ onUnmounted(() => {
 
 // Controls Bar
 .controls-bar {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(180px, auto);
   gap: var(--spacing-3);
-  margin-bottom: var(--spacing-4);
-  flex-wrap: wrap;
   align-items: center;
+  margin-bottom: var(--spacing-4);
 }
 
+$ctrl-h: 40px;
+
 .search-box {
+  grid-column: 1 / -1;
   position: relative;
-  flex: 1;
-  min-width: 280px;
+  min-width: 0;
 
   .icon {
     position: absolute;
     left: var(--spacing-3);
     top: 50%;
     transform: translateY(-50%);
-    width: 20px;
-    height: 20px;
+    width: 18px;
+    height: 18px;
     pointer-events: none;
     z-index: 10;
   }
 
   .search-input {
     width: 100%;
-    padding: var(--spacing-3) var(--spacing-10) var(--spacing-3) var(--spacing-10);
+    min-height: $ctrl-h;
+    padding: 0 var(--spacing-10);
     background: var(--background-card);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-lg);
@@ -851,6 +871,8 @@ onUnmounted(() => {
       height: 16px;
       stroke: var(--text-secondary);
       fill: none;
+      position: static;
+      transform: none;
     }
 
     &:hover {
@@ -868,16 +890,16 @@ onUnmounted(() => {
   gap: var(--spacing-1);
   background: var(--background-card);
   border-radius: var(--radius-lg);
-  padding: var(--spacing-1);
+  padding: 3px;
   border: 1px solid var(--border-color);
 }
 
 .filter-tab {
   display: inline-flex;
   align-items: center;
-  gap: var(--spacing-2);
-  min-height: 44px;
-  padding: var(--spacing-2) var(--spacing-3);
+  gap: var(--spacing-1-5);
+  min-height: $ctrl-h;
+  padding: 0 var(--spacing-3);
   background: transparent;
   border: none;
   border-radius: var(--radius-md);
@@ -922,14 +944,14 @@ onUnmounted(() => {
   gap: var(--spacing-1);
   background: var(--background-card);
   border-radius: var(--radius-lg);
-  padding: var(--spacing-1);
+  padding: 3px;
   border: 1px solid var(--border-color);
 }
 
 .toggle-btn {
-  min-width: 44px;
-  min-height: 44px;
-  padding: var(--spacing-2);
+  width: $ctrl-h;
+  min-height: $ctrl-h;
+  padding: 0;
   background: transparent;
   border: none;
   cursor: pointer;
@@ -937,8 +959,8 @@ onUnmounted(() => {
   transition: all v.$duration-200 v.$ease-out;
 
   .icon {
-    width: 20px;
-    height: 20px;
+    width: 18px;
+    height: 18px;
     stroke: var(--text-secondary);
     fill: none;
   }
@@ -957,11 +979,13 @@ onUnmounted(() => {
 }
 
 .sort-control-wrap {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: var(--spacing-2);
-  min-height: 44px;
-  padding: 0 var(--spacing-3);
+  min-height: $ctrl-h;
+  min-width: 180px;
+  padding: 0 var(--spacing-8) 0 var(--spacing-3);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
   background: var(--background-card);
@@ -969,28 +993,45 @@ onUnmounted(() => {
   overflow: hidden;
 }
 
+.sort-control-wrap::after {
+  content: '';
+  position: absolute;
+  right: var(--spacing-3);
+  width: 0.45rem;
+  height: 0.45rem;
+  border-right: 2px solid var(--text-secondary);
+  border-bottom: 2px solid var(--text-secondary);
+  pointer-events: none;
+  transform: translateY(-15%) rotate(45deg);
+}
+
 .sort-icon {
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
   color: var(--text-secondary);
   stroke: currentColor;
   fill: none;
+  flex-shrink: 0;
 }
 
 .sort-label {
   color: var(--text-secondary);
   font-size: var(--text-sm);
   font-weight: v.$font-semibold;
+  white-space: nowrap;
 }
 
 .sort-control {
-  min-width: 132px;
-  min-height: 40px;
+  min-width: 0;
+  min-height: $ctrl-h;
   margin: 0;
-  padding: 0 var(--spacing-6) 0 0;
+  padding: 0;
   appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
   background: transparent;
   background-color: transparent;
+  background-image: none;
   border: 0;
   box-shadow: none;
   color: var(--text-primary);
@@ -1012,14 +1053,11 @@ onUnmounted(() => {
 .results-info {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--spacing-3);
-  flex: 0 1 auto;
-  margin-left: auto;
-  min-height: 44px;
-  padding: 0 var(--spacing-2) 0 var(--spacing-3);
-  background: transparent;
-  border: 0;
+  justify-content: flex-end;
+  gap: var(--spacing-2);
+  grid-column: 1 / -1;
+  min-height: $ctrl-h;
+  padding: 0 var(--spacing-2);
   font-size: var(--text-sm);
   color: var(--text-secondary);
 }
@@ -1032,8 +1070,8 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 44px;
-  height: 44px;
+  width: $ctrl-h;
+  min-height: $ctrl-h;
   padding: 0;
   background: transparent;
   border: none;
@@ -1110,18 +1148,11 @@ onUnmounted(() => {
   }
 
   .controls-bar {
-    flex-wrap: wrap;
-  }
-
-  .search-box {
-    order: -1;
-    width: 100%;
-    flex-basis: 100%;
-    min-width: unset;
+    grid-template-columns: minmax(0, 1fr) auto minmax(204px, auto);
   }
 
   .filter-tabs {
-    flex: 1;
+    min-width: 0;
   }
 }
 
@@ -1165,11 +1196,6 @@ onUnmounted(() => {
     min-width: 0;
   }
 
-  .results-info {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
   .btn-action {
     flex: 1;
     justify-content: center;
@@ -1178,13 +1204,14 @@ onUnmounted(() => {
 
   .controls-bar {
     gap: var(--spacing-2);
+    grid-template-columns: minmax(0, 1fr) auto;
   }
 
   .search-box {
     .search-input {
       min-height: 44px;  // Touch-friendly
       font-size: 16px;  // Prevent iOS zoom
-      padding: var(--spacing-3) var(--spacing-10);
+      padding: 0 var(--spacing-10);
     }
 
     .clear-btn {
@@ -1199,9 +1226,9 @@ onUnmounted(() => {
   }
 
   .filter-tabs {
+    grid-column: 1 / -1;
     width: 100%;
     justify-content: stretch;
-    flex: none;  // Don't shrink
 
     .filter-tab {
       flex: 1;
@@ -1233,17 +1260,20 @@ onUnmounted(() => {
     }
   }
 
-  .sort-control {
-    flex: 1;
-    min-width: 0;
-
-    :deep(select) {
-      min-height: 44px;
-      font-size: 16px;
-      padding: var(--spacing-3);
-      padding-left: var(--spacing-4);
-    }
+  .sort-control-wrap {
+    grid-column: 1 / -1;
+    min-height: 44px;
   }
 
+  .sort-control {
+    min-width: 0;
+    min-height: 44px;
+    font-size: 16px;
+  }
+
+  .results-info {
+    width: 100%;
+    justify-content: flex-start;
+  }
 }
 </style>

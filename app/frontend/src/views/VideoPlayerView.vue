@@ -52,6 +52,17 @@
               <span>{{ streamerName }}</span>
             </div>
             <PlayerStatus :state="currentPlayerState" />
+            <button
+              type="button"
+              class="theater-toggle"
+              :aria-pressed="theaterMode"
+              @click="theaterMode = !theaterMode"
+            >
+              <svg class="icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path d="M3 5h18v12H3V5zm2 2v8h14V7H5zm4 12h6v2H9v-2z"/>
+              </svg>
+              {{ theaterMode ? 'Exit theater' : 'Theater' }}
+            </button>
           </div>
 
           <!-- Video Player - directly in card, no wrapper -->
@@ -249,7 +260,7 @@ const currentPlayerState = computed(() => {
   if (error.value) return 'error'
   if (playerError.value) return 'error'
   if (!chapterData.value?.video_url) return 'idle'
-  return playerReady.value ? 'live' : 'loading'
+  return playerReady.value ? 'recorded' : 'loading'
 })
 
 // Action button states
@@ -621,8 +632,27 @@ onMounted(() => {
     display: none;
   }
 
+  .player-header {
+    min-height: 0;
+    padding: var(--spacing-2) var(--spacing-3);
+  }
+
+  .player-header .video-title {
+    font-size: var(--text-base);
+  }
+
+  .player-header .back-button {
+    min-height: 36px;
+    padding: var(--spacing-1) var(--spacing-3);
+    font-size: var(--text-xs);
+  }
+
+  .player-header .streamer-badge {
+    display: none;
+  }
+
   .player-card :deep(video) {
-    max-height: calc(100dvh - var(--app-header-height, 56px) - 132px);
+    max-height: calc(100dvh - var(--app-header-height, 56px) - 80px);
   }
 }
 
@@ -666,27 +696,29 @@ onMounted(() => {
 }
 
 .player-card :deep(video) {
-  max-height: calc(100dvh - var(--app-header-height, 56px) - 168px);
+  max-height: calc(100dvh - var(--app-header-height, 56px) - 100px);
   object-fit: contain;
 }
 
 .player-header {
   display: flex;
   align-items: center;
-  gap: var(--spacing-3);
-  padding: var(--spacing-3) var(--spacing-4);
+  gap: var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-3);
+  min-height: 48px;
 
   @include m.respond-below('md') {
     flex-wrap: wrap;
-    padding: var(--spacing-3);
+    padding: var(--spacing-2);
+    gap: var(--spacing-2);
   }
 }
 
 .back-button {
   display: inline-flex;
   align-items: center;
-  gap: var(--spacing-2);
-  padding: var(--spacing-2) var(--spacing-4);
+  gap: var(--spacing-1-5);
+  padding: var(--spacing-1) var(--spacing-3);
   background: var(--background-darker);
   color: var(--text-primary);
   border: 1px solid var(--border-color);
@@ -696,11 +728,11 @@ onMounted(() => {
   cursor: pointer;
   transition: all v.$duration-200 v.$ease-out;
   flex-shrink: 0;
-  min-height: 44px;
+  min-height: 36px;
 
   .icon {
-    width: 16px;
-    height: 16px;
+    width: 14px;
+    height: 14px;
     stroke: currentColor;
     fill: none;
   }
@@ -709,12 +741,6 @@ onMounted(() => {
     background: var(--primary-color);
     border-color: var(--primary-color);
     color: white;
-  }
-
-  @include m.respond-below('md') {
-    min-height: 44px;  // Touch-friendly
-    padding: var(--spacing-2) var(--spacing-4);
-    font-size: var(--text-sm);
   }
 }
 
@@ -751,7 +777,7 @@ onMounted(() => {
 .video-title {
   flex: 1;
   margin: 0;
-  font-size: var(--text-lg);
+  font-size: var(--text-sm);
   font-weight: v.$font-semibold;
   color: var(--text-primary);
   white-space: nowrap;
@@ -762,35 +788,37 @@ onMounted(() => {
     white-space: normal;
     overflow: visible;
     display: -webkit-box;
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
+    -webkit-line-clamp: 1;
+    line-clamp: 1;
     -webkit-box-orient: vertical;
   }
 
   @include m.respond-below('md') {
-    font-size: var(--text-base);
-    order: 3;
+    order: 100;
     flex-basis: 100%;
-    margin-top: var(--spacing-2);
+    margin-top: var(--spacing-1);
+    white-space: normal;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
   }
 }
 
 .streamer-badge {
   display: inline-flex;
   align-items: center;
-  gap: var(--spacing-2);
+  gap: var(--spacing-1);
   background: rgba(var(--primary-500-rgb), 0.15);
   border: 1px solid rgba(var(--primary-500-rgb), 0.3);
   border-radius: var(--radius-pill);
-  padding: var(--spacing-1) var(--spacing-3);
-  font-size: var(--text-sm);
+  padding: var(--spacing-0-5) var(--spacing-2);
+  font-size: var(--text-xs);
   font-weight: v.$font-medium;
   color: var(--primary-color);
   flex-shrink: 0;
 
   .icon-streamer {
-    width: 14px;
-    height: 14px;
+    width: 12px;
+    height: 12px;
     stroke: currentColor;
     fill: none;
   }

@@ -143,7 +143,7 @@ function updateFilter(value: NotificationFilter) {
   gap: var(--spacing-2);
   padding: var(--spacing-2) var(--spacing-4);
   border-bottom: 1px solid var(--glass-border);
-  background: linear-gradient(180deg, var(--glass-bg-medium), transparent);
+  background: transparent;
 }
 
 .filter-summary-row {
@@ -218,9 +218,8 @@ function updateFilter(value: NotificationFilter) {
   align-items: center;
   gap: var(--spacing-2);
   min-width: 0;
+  width: auto;
   min-height: 2.25rem;
-  width: 100%;
-  justify-content: space-between;
   padding: 0 var(--spacing-3);
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-full);

@@ -36,16 +36,18 @@
           <p>{{ dashboardStateDescription }}</p>
           <p class="brief-status-line">{{ dashboardStatusLine }}</p>
         </div>
-        <button type="button" class="brief-primary-action" @click="handleDashboardPrimaryAction">
-          <svg aria-hidden="true"><use :href="primaryAction.icon" /></svg>
-          {{ primaryAction.label }}
-        </button>
+        <div class="brief-actions">
+          <button type="button" class="brief-primary-action" @click="handleDashboardPrimaryAction">
+            <svg aria-hidden="true"><use :href="primaryAction.icon" /></svg>
+            {{ primaryAction.label }}
+          </button>
+        </div>
       </div>
-
       <div class="brief-grid" aria-label="Dashboard status snapshot">
-        <article
+        <router-link
           v-for="item in dashboardBriefItems"
           :key="item.label"
+          :to="item.route"
           class="brief-item"
           :class="`brief-item-${item.tone}`"
         >
@@ -57,7 +59,10 @@
             <strong>{{ item.value }}</strong>
             <span class="brief-item-detail">{{ item.detail }}</span>
           </span>
-        </article>
+          <span class="brief-item-arrow" aria-hidden="true">
+            <svg><use href="#icon-chevron-right" /></svg>
+          </span>
+        </router-link>
       </div>
     </section>
 
@@ -114,7 +119,7 @@
             v-else-if="liveStreamers.length === 0"
             variant="compact"
             title="No Live Streams"
-            description="No tracked streamer is live right now. Recent recordings and queue state stay available below."
+            description="No tracked streamer is live right now. Recent recordings and the dashboard summary stay available below."
             icon="video-off"
             :show-decoration="false"
           />
@@ -244,121 +249,6 @@
         </BasePanel>
       </div>
 
-      <aside class="dashboard-sidebar" aria-label="Dashboard side content">
-        <BasePanel labelled-by="queue-section-title" class="dashboard-panel queue-panel">
-          <template #title>
-            <span id="queue-section-title">Queue</span>
-          </template>
-          <template #description>
-            Background work for recordings and processing.
-          </template>
-          <template #actions>
-            <StatusBadge :tone="queueBadgeTone" size="sm" dot>
-              {{ queueStateLabel }}
-            </StatusBadge>
-          </template>
-
-          <div class="queue-progress" aria-label="Average active task progress">
-            <div class="queue-progress-header">
-              <span>Active progress</span>
-              <strong>{{ Math.round(totalProgress) }}%</strong>
-            </div>
-            <div class="queue-progress-bar">
-              <span :style="{ width: `${Math.round(totalProgress)}%` }" />
-            </div>
-          </div>
-
-          <dl class="queue-stats">
-            <div>
-              <dt>Active</dt>
-              <dd>{{ queueStats.active_tasks }}</dd>
-            </div>
-            <div>
-              <dt>Pending</dt>
-              <dd>{{ queueStats.pending_tasks }}</dd>
-            </div>
-            <div>
-              <dt>Failed</dt>
-              <dd>{{ queueStats.failed_tasks }}</dd>
-            </div>
-            <div>
-              <dt>Workers</dt>
-              <dd>{{ workerCount }}</dd>
-            </div>
-          </dl>
-
-          <dl v-if="queueWorkerItems.length" class="queue-worker-state" aria-label="Queue worker configuration">
-            <div v-for="item in queueWorkerItems" :key="item.label">
-              <dt>{{ item.label }}</dt>
-              <dd>{{ item.value }}</dd>
-            </div>
-          </dl>
-
-          <div v-if="isLoadingQueue" class="muted-row">Loading queue status.</div>
-          <div v-if="queueError" class="muted-row">{{ queueError }}</div>
-          <button type="button" class="panel-text-button" @click="refreshQueueFromAPI">
-            Refresh queue status
-          </button>
-        </BasePanel>
-
-        <BasePanel labelled-by="failures-section-title" class="dashboard-panel failures-panel">
-          <template #title>
-            <span id="failures-section-title">Failures and Alerts</span>
-          </template>
-          <template #description>
-            Critical recording and queue events that may need attention.
-          </template>
-
-          <EmptyState
-            v-if="failureItems.length === 0"
-            variant="compact"
-            title="No Failures"
-            description="Queue and realtime events do not report active failures."
-            icon="check-circle"
-            :show-decoration="false"
-          />
-
-          <ul v-else class="activity-list">
-            <li v-for="item in failureItems" :key="item.id" class="activity-item danger-item">
-              <StatusBadge tone="danger" size="sm">{{ item.kind }}</StatusBadge>
-              <div>
-                <strong>{{ item.title }}</strong>
-                <p>{{ item.body }}</p>
-              </div>
-            </li>
-          </ul>
-        </BasePanel>
-
-        <BasePanel labelled-by="activity-section-title" class="dashboard-panel activity-panel">
-          <template #title>
-            <span id="activity-section-title">Realtime Activity</span>
-          </template>
-          <template #description>
-            Latest product events from the central realtime store.
-          </template>
-
-          <EmptyState
-            v-if="recentActivity.length === 0"
-            variant="compact"
-            title="Waiting for Events"
-            description="Realtime stream, recording and notification updates will appear here."
-            icon="activity"
-            :show-decoration="false"
-          />
-
-          <ul v-else class="activity-list">
-            <li v-for="event in recentActivity" :key="event.event_id" class="activity-item">
-              <StatusBadge :tone="activityTone(event.severity)" size="sm">
-                {{ event.severity }}
-              </StatusBadge>
-              <div>
-                <strong>{{ event.title }}</strong>
-                <p>{{ event.body }}</p>
-              </div>
-            </li>
-          </ul>
-        </BasePanel>
-      </aside>
     </div>
   </div>
 </template>
@@ -372,8 +262,7 @@ import { useForceRecording } from '@/composables/useForceRecording'
 import {
   hasRealtimeEventType,
   toCanonicalNotificationEvent,
-  type CanonicalNotificationEvent,
-  type NotificationSeverity
+  type CanonicalNotificationEvent
 } from '@/types/events'
 import LoadingSkeleton from '@/components/LoadingSkeleton.vue'
 import EmptyState from '@/components/EmptyState.vue'
@@ -424,13 +313,13 @@ interface DashboardBriefItem {
   detail: string
   icon: string
   tone: 'live' | 'recording' | 'queue' | 'danger' | 'success' | 'info'
+  route: string
 }
 
 interface DashboardPrimaryAction {
   label: string
   icon: string
-  route?: string
-  targetId?: string
+  route: string
 }
 
 interface FailureItem {
@@ -458,11 +347,6 @@ interface QueueStats {
   active_tasks: number
   workers: number | Record<string, unknown> | unknown[]
   is_running: boolean
-}
-
-interface QueueWorkerItem {
-  label: string
-  value: string
 }
 
 const router = useRouter()
@@ -500,39 +384,6 @@ const recordingStreamers = computed(() => streamers.value.filter((s) => s.is_rec
 const totalStreamers = computed(() => streamers.value.length)
 const isDashboardLoading = computed(() => isLoadingStreamers.value || isLoadingRecordings.value || isLoadingQueue.value)
 
-const workerCount = computed(() => {
-  const workers = queueStats.value.workers
-  if (typeof workers === 'number') return workers
-  if (Array.isArray(workers)) return workers.length
-  if (workers && typeof workers === 'object') {
-    const total = readWorkerNumber(workers, ['total_workers', 'workers', 'worker_count', 'total'])
-    if (total !== null) return total
-    const streamers = readWorkerNumber(workers, ['streamers', 'streamer_count'])
-    if (streamers !== null) return streamers
-  }
-  return 0
-})
-
-const queueWorkerItems = computed<QueueWorkerItem[]>(() => {
-  const workers = queueStats.value.workers
-  if (!workers || typeof workers === 'number') return []
-  if (Array.isArray(workers)) {
-    return [{ label: 'Worker pool', value: `${workers.length} worker${workers.length === 1 ? '' : 's'}` }]
-  }
-
-  const items: QueueWorkerItem[] = []
-  const total = readWorkerNumber(workers, ['total_workers', 'workers', 'worker_count', 'total'])
-  const maxPerStreamer = readWorkerNumber(workers, ['max_per_streamer', 'max_workers_per_streamer'])
-  const streamers = readWorkerNumber(workers, ['streamers', 'streamer_count'])
-  const isolation = readWorkerBoolean(workers, ['isolation_enabled', 'per_streamer_isolation', 'isolated'])
-
-  if (total !== null) items.push({ label: 'Total workers', value: String(total) })
-  if (maxPerStreamer !== null) items.push({ label: 'Max per streamer', value: String(maxPerStreamer) })
-  if (streamers !== null) items.push({ label: 'Streamers', value: String(streamers) })
-  if (isolation !== null) items.push({ label: 'Isolation', value: isolation ? 'Enabled' : 'Disabled' })
-  return items
-})
-
 const recentRecordings = computed(() => {
   return [...videos.value]
     .sort((a, b) => {
@@ -544,12 +395,6 @@ const recentRecordings = computed(() => {
 })
 
 const visibleActiveRecordings = computed(() => activeRecordings.value.slice(0, 5))
-
-const totalProgress = computed(() => {
-  if (activeTasks.value.length === 0) return 0
-  const sum = activeTasks.value.reduce((total, task) => total + (task.progress || 0), 0)
-  return sum / activeTasks.value.length
-})
 
 const recentActivity = computed<CanonicalNotificationEvent[]>(() => {
   return realtime.recentEvents
@@ -617,16 +462,16 @@ const dashboardStatusLine = computed(() => {
 
 const primaryAction = computed<DashboardPrimaryAction>(() => {
   if (failureItems.value.length > 0) {
-    return { label: 'Review alerts', icon: '#icon-alert-triangle', targetId: 'failures-section-title' }
+    return { label: 'Review alerts', icon: '#icon-alert-triangle', route: '/videos' }
   }
   if (liveStreamers.value.length > 0) {
-    return { label: 'Open live list', icon: '#icon-radio', targetId: 'live-section-title' }
+    return { label: 'Open live list', icon: '#icon-radio', route: '/streamers?filter=live' }
   }
   if (activeRecordings.value.length > 0) {
-    return { label: 'Follow recording', icon: '#icon-video', targetId: 'recordings-section-title' }
+    return { label: 'Follow recording', icon: '#icon-video', route: '/streamers?filter=recording' }
   }
   if (queueStats.value.active_tasks + queueStats.value.pending_tasks > 0) {
-    return { label: 'Check queue', icon: '#icon-activity', targetId: 'queue-section-title' }
+    return { label: 'Check queue', icon: '#icon-activity', route: '/videos' }
   }
   return { label: 'Open library', icon: '#icon-film', route: '/videos' }
 })
@@ -637,35 +482,40 @@ const dashboardBriefItems = computed<DashboardBriefItem[]>(() => [
     value: isLoadingStreamers.value ? 'Checking' : `${liveStreamers.value.length} online`,
     detail: `${totalStreamers.value} tracked`,
     icon: '#icon-radio',
-    tone: liveStreamers.value.length > 0 ? 'live' : 'info'
+    tone: liveStreamers.value.length > 0 ? 'live' : 'info',
+    route: '/streamers?filter=live'
   },
   {
     label: 'Recording',
     value: isLoadingRecordings.value ? 'Checking' : `${activeRecordings.value.length} active`,
     detail: `${recordingStreamers.value.length} streamer${recordingStreamers.value.length === 1 ? '' : 's'} marked`,
     icon: '#icon-video',
-    tone: activeRecordings.value.length > 0 ? 'recording' : 'success'
+    tone: activeRecordings.value.length > 0 ? 'recording' : 'success',
+    route: '/streamers?filter=recording'
   },
   {
     label: 'Queue',
     value: isLoadingQueue.value ? 'Checking' : queueStateLabel.value,
     detail: `${queueStats.value.active_tasks} active, ${queueStats.value.pending_tasks} pending`,
     icon: '#icon-activity',
-    tone: queueStats.value.failed_tasks > 0 ? 'danger' : 'queue'
+    tone: queueStats.value.failed_tasks > 0 ? 'danger' : 'queue',
+    route: '/videos'
   },
   {
     label: 'Errors',
     value: `${failureItems.value.length} alert${failureItems.value.length === 1 ? '' : 's'}`,
     detail: failureItems.value.length > 0 ? 'Needs review' : 'No active alerts',
     icon: failureItems.value.length > 0 ? '#icon-alert-triangle' : '#icon-check-circle',
-    tone: failureItems.value.length > 0 ? 'danger' : 'success'
+    tone: failureItems.value.length > 0 ? 'danger' : 'success',
+    route: '/videos'
   },
   {
     label: 'Recent activity',
     value: recentActivity.value.length > 0 ? `${recentActivity.value.length} event${recentActivity.value.length === 1 ? '' : 's'}` : 'Quiet',
     detail: latestActivitySummary.value,
     icon: '#icon-clock',
-    tone: recentActivity.value.length > 0 ? 'info' : 'success'
+    tone: recentActivity.value.length > 0 ? 'info' : 'success',
+    route: '/videos'
   }
 ])
 
@@ -692,13 +542,6 @@ const queueStateLabel = computed(() => {
   if (queueStats.value.pending_tasks > 0) return 'Queued'
   if (queueStats.value.failed_tasks > 0) return 'Needs attention'
   return queueStats.value.is_running ? 'Idle' : 'Paused'
-})
-
-const queueBadgeTone = computed<StatusBadgeTone>(() => {
-  if (queueStats.value.failed_tasks > 0) return 'danger'
-  if (queueStats.value.active_tasks > 0) return 'processing'
-  if (queueStats.value.pending_tasks > 0) return 'warning'
-  return queueStats.value.is_running ? 'success' : 'neutral'
 })
 
 async function fetchStreamers() {
@@ -776,16 +619,7 @@ function playVideo(video: VideoSummary) {
 }
 
 function handleDashboardPrimaryAction() {
-  if (primaryAction.value.route) {
-    router.push(primaryAction.value.route)
-    return
-  }
-
-  if (!primaryAction.value.targetId) return
-  document.getElementById(primaryAction.value.targetId)?.scrollIntoView({
-    behavior: 'smooth',
-    block: 'start'
-  })
+  router.push(primaryAction.value.route)
 }
 
 async function handleForceRecord(streamer: { id: number }) {
@@ -819,34 +653,6 @@ function recordingStreamerLink(recording: ActiveRecording) {
 function recordingLiveLink(recording: ActiveRecording) {
   const target = recording.streamer_name || recording.username || recording.streamer_id
   return target ? `/live/${target}` : '/streamers'
-}
-
-function readWorkerNumber(source: Record<string, unknown>, keys: string[]) {
-  for (const key of keys) {
-    const value = source[key]
-    if (typeof value === 'number') return value
-    if (typeof value === 'string' && value.trim() !== '' && !Number.isNaN(Number(value))) return Number(value)
-  }
-  return null
-}
-
-function readWorkerBoolean(source: Record<string, unknown>, keys: string[]) {
-  for (const key of keys) {
-    const value = source[key]
-    if (typeof value === 'boolean') return value
-    if (typeof value === 'string') {
-      if (value.toLowerCase() === 'true') return true
-      if (value.toLowerCase() === 'false') return false
-    }
-  }
-  return null
-}
-
-function activityTone(severity: NotificationSeverity): StatusBadgeTone {
-  if (severity === 'critical' || severity === 'error') return 'danger'
-  if (severity === 'warning') return 'warning'
-  if (severity === 'success') return 'success'
-  return 'info'
 }
 
 onMounted(() => {
@@ -1155,6 +961,11 @@ onMounted(async () => {
   text-transform: uppercase;
 }
 
+.brief-actions {
+  display: flex;
+  flex: 0 0 auto;
+}
+
 .brief-primary-action {
   display: inline-flex;
   align-items: center;
@@ -1186,13 +997,16 @@ onMounted(async () => {
 
 .brief-item {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: auto minmax(0, 1fr) auto;
   gap: var(--spacing-3);
   min-width: 0;
   padding: var(--spacing-4);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
   background: rgba(var(--background-card-rgb, 20, 22, 29), 0.58);
+  color: inherit;
+  text-decoration: none;
+  transition: border-color v.$duration-200 v.$ease-out, transform v.$duration-200 v.$ease-out, box-shadow v.$duration-200 v.$ease-out;
 
   strong,
   .brief-item-detail {
@@ -1206,6 +1020,36 @@ onMounted(async () => {
     color: var(--text-primary);
     font-size: var(--text-lg);
     font-weight: v.$font-bold;
+  }
+
+  &:hover {
+    border-color: var(--primary-color);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(var(--primary-color-rgb), 0.15);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
+  }
+}
+
+.brief-item-arrow {
+  display: flex;
+  align-items: center;
+  color: var(--text-secondary);
+  opacity: 0;
+
+  svg {
+    width: 16px;
+    height: 16px;
+    stroke: currentColor;
+    fill: none;
+  }
+
+  .brief-item:hover & {
+    opacity: 1;
+    color: var(--primary-color);
   }
 }
 
@@ -1259,14 +1103,12 @@ onMounted(async () => {
 }
 
 .dashboard-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(320px, 0.38fr);
+  display: flex;
+  flex-direction: column;
   gap: var(--spacing-6);
-  align-items: start;
 }
 
-.dashboard-main,
-.dashboard-sidebar {
+.dashboard-main {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-6);
@@ -1387,112 +1229,9 @@ onMounted(async () => {
   fill: none;
 }
 
-.queue-progress {
-  margin-bottom: var(--spacing-4);
-}
 
-.queue-progress-header {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--spacing-3);
-  margin-bottom: var(--spacing-2);
-  color: var(--text-secondary);
-  font-size: var(--text-sm);
-
-  strong {
-    color: var(--text-primary);
-  }
-}
-
-.queue-progress-bar {
-  height: 8px;
-  overflow: hidden;
-  border-radius: var(--radius-full);
-  background: var(--background-darker);
-
-  span {
-    display: block;
-    height: 100%;
-    border-radius: inherit;
-    background: linear-gradient(90deg, var(--primary-color), var(--accent-color));
-    transition: width v.$duration-300 v.$ease-out;
-  }
-}
-
-.queue-stats {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--spacing-3);
-  margin: 0 0 var(--spacing-4);
-
-  div {
-    padding: var(--spacing-3);
-    border-radius: var(--radius-md);
-    background: rgba(var(--background-darker-rgb, 10, 10, 10), 0.26);
-  }
-
-  dt {
-    color: var(--text-secondary);
-    font-size: var(--text-xs);
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-  }
-
-  dd {
-    margin: var(--spacing-1) 0 0;
-    color: var(--text-primary);
-    font-size: var(--text-2xl);
-    font-weight: v.$font-bold;
-  }
-}
-
-.queue-worker-state {
-  display: grid;
-  gap: var(--spacing-2);
-  margin: 0 0 var(--spacing-4);
-
-  div {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--spacing-3);
-    padding: var(--spacing-2) var(--spacing-3);
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-md);
-    background: rgba(var(--background-darker-rgb, 10, 10, 10), 0.18);
-  }
-
-  dt,
-  dd {
-    margin: 0;
-    font-size: var(--text-sm);
-  }
-
-  dt {
-    color: var(--text-secondary);
-  }
-
-  dd {
-    color: var(--text-primary);
-    font-weight: v.$font-semibold;
-  }
-}
-
-.muted-row {
-  margin-bottom: var(--spacing-3);
-  color: var(--text-secondary);
-  font-size: var(--text-sm);
-}
-
-.danger-item {
-  border-color: rgba(var(--danger-color-rgb), 0.24);
-}
 
 @include m.respond-below('xl') {
-  .dashboard-layout {
-    grid-template-columns: 1fr;
-  }
-
   .brief-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
@@ -1557,10 +1296,6 @@ onMounted(async () => {
 
   .hero-copy p {
     font-size: var(--text-base);
-  }
-
-  .queue-stats {
-    grid-template-columns: 1fr;
   }
 }
 

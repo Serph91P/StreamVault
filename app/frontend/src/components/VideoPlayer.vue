@@ -133,6 +133,12 @@
                 </svg>
               </button>
 
+              <!-- Current Chapter Info inline -->
+              <div v-if="currentChapter" class="current-chapter-inline">
+                <span class="chapter-inline-title">{{ currentChapter.title }}</span>
+                <span class="chapter-inline-time">{{ formatTime(currentTime - currentChapter.startTime) }} / {{ formatDuration(currentChapter.duration) }}</span>
+              </div>
+
               <!-- Chapters Button (Toggle List) -->
               <button
                 @click="toggleChapterUI"
@@ -162,7 +168,7 @@
             </template>
 
             <button
-              @click="$emit('toggle-theater')"
+              @click="emit('toggle-theater')"
               class="control-button theater-button"
               :class="{ active: theaterMode }"
               :aria-label="theaterMode ? 'Show details' : 'Theater mode'"
@@ -259,16 +265,6 @@
       </transition>
     </div>
 
-    <!-- Video Controls Extension (below video) -->
-    <div class="video-controls-extension" v-if="currentChapter">
-      <!-- Current Chapter Info -->
-      <div class="current-chapter-info">
-        <div class="current-chapter-title">{{ currentChapter.title }}</div>
-        <div class="current-chapter-progress">
-          {{ formatTime(currentTime - currentChapter.startTime) }} / {{ formatDuration(currentChapter.duration) }}
-        </div>
-      </div>
-    </div>
   </div>
 </template>
 
@@ -1013,47 +1009,32 @@ defineExpose({ seekToChapter })
   box-shadow: var(--shadow-lg);
 }
 
-/* Video Controls Extension - Current Chapter Info Display */
-.video-controls-extension {
-  background: rgba(var(--background-card-rgb), 0.95);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  padding: var(--spacing-3) var(--spacing-4);  /* 12px 16px */
+/* Current Chapter Info inline in controls */
+.current-chapter-inline {
   display: flex;
-  justify-content: flex-end;  /* Right-aligned */
-  align-items: center;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.current-chapter-info {
-  text-align: right;
-  color: var(--text-primary);
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
   min-width: 0;
+  max-width: 200px;
 }
 
-.current-chapter-title {
-  font-weight: var(--font-semibold);  /* 600 */
-  font-size: var(--text-sm);  /* 14px */
-  margin-bottom: var(--spacing-1);  /* 4px */
+.chapter-inline-title {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.9);
+  font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  line-height: var(--leading-tight);
-
-  @include m.respond-below('md') {  // < 768px (mobile)
-    font-size: var(--text-base);  /* 16px on mobile */
-  }
+  width: 100%;
+  line-height: 1.2;
 }
 
-.current-chapter-progress {
-  font-size: var(--text-xs);  /* 12px */
-  color: var(--text-secondary);
+.chapter-inline-time {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.6);
   font-family: var(--font-mono);
-  font-weight: var(--font-medium);  /* 500 */
-
-  @include m.respond-below('md') {  // < 768px (mobile)
-    font-size: var(--text-sm);  /* 14px on mobile */
-  }
+  white-space: nowrap;
 }
 
 /* Chapter List Panel - Overlay positioned inside video */
@@ -1732,43 +1713,13 @@ defineExpose({ seekToChapter })
 
 /* Mobile Responsive - Use SCSS mixins for breakpoints */
 @include m.respond-below('md') {  // < 768px
-  .video-controls-extension {
-    flex-direction: column;
-    gap: var(--spacing-3);  /* 12px */
-    padding: var(--spacing-3);  /* 12px */
+  .current-chapter-inline {
+    display: none;
   }
 
-  .chapter-controls {
-    justify-content: center;
-    width: 100%;
-  }
-
-  .control-btn {
-    flex: 1;
-    justify-content: center;
-    padding: var(--spacing-2-5) var(--spacing-2);  /* 10px 8px */
-    font-size: var(--text-xs);  /* 12px */
-  }
-
-  .current-chapter-info {
-    text-align: center;
-    width: 100%;
-  }
-
-  .current-chapter-title {
-    white-space: normal;
-    overflow: visible;
-    text-overflow: unset;
-  }
-
-  /* Chapter item mobile layout - keep horizontal layout */
   .chapter-item {
-    /* Don't override flex-direction, keep horizontal */
     text-align: left;
-    /* Padding and gap already set in base styles */
   }
-
-  /* Thumbnails already sized in base styles */
 
   .chapter-info {
     width: auto;
