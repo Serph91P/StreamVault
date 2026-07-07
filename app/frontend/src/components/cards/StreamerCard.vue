@@ -925,19 +925,21 @@ onUnmounted(() => {
 
   .streamer-card-content {
     display: grid;
-    grid-template-columns: auto 1fr auto auto;
-    grid-template-rows: auto auto auto auto;
+    grid-template-columns: auto minmax(12rem, 0.7fr) minmax(18rem, 1.3fr) auto;
+    grid-template-rows: auto auto;
     align-items: center;
-    gap: 0;
+    gap: var(--spacing-2) var(--spacing-4);
     width: 100%;
+    min-height: 120px;
+    padding: var(--spacing-3);
   }
 
   .streamer-avatar-container {
-    grid-row: 1 / 5;
+    grid-row: 1 / 3;
     grid-column: 1;
     margin-bottom: 0;
     width: auto;
-    padding: var(--spacing-3);
+    padding: 0;
   }
 
   .streamer-avatar {
@@ -947,11 +949,11 @@ onUnmounted(() => {
 
   .streamer-name-link {
     grid-row: 1;
-    grid-column: 2 / -1;
+    grid-column: 2;
+    align-self: end;
     text-align: left;
     width: auto;
-    padding-top: var(--spacing-2);
-    padding-right: var(--spacing-3);
+    padding: 0;
 
     .streamer-name {
       font-size: var(--text-sm);
@@ -964,25 +966,26 @@ onUnmounted(() => {
 
   .status-row {
     grid-row: 2;
-    grid-column: 2 / -1;
+    grid-column: 2;
+    align-self: start;
     justify-content: flex-start;
     min-height: 24px;
-    padding-right: var(--spacing-3);
   }
 
   .stream-info-container {
-    grid-row: 3;
-    grid-column: 2 / -1;
+    grid-row: 1 / 3;
+    grid-column: 3;
+    justify-content: center;
     text-align: left;
     min-width: 0;
-    padding: 0 var(--spacing-3) 0 0;
+    padding: 0;
 
     .stream-title,
     .last-stream-title,
     .streamer-description,
     .last-stream-category {
-      -webkit-line-clamp: 1;
-      line-clamp: 1;
+      -webkit-line-clamp: 2;
+      line-clamp: 2;
       font-size: var(--text-xs);
       text-align: left;
     }
@@ -994,14 +997,17 @@ onUnmounted(() => {
   }
 
   .streamer-stats {
-    grid-row: 4;
-    grid-column: 2;
+    grid-row: 1 / 3;
+    grid-column: 4;
     display: flex;
-    flex-direction: row;
-    flex-wrap: wrap;
+    flex-direction: column;
+    flex-wrap: nowrap;
     gap: var(--spacing-2) var(--spacing-3);
-    padding: 0 0 var(--spacing-2) 0;
-    align-items: center;
+    margin-top: 0;
+    padding: 0 var(--spacing-12) 0 0;
+    align-items: flex-start;
+    justify-content: center;
+    width: auto;
 
     .stat {
       font-size: var(--text-xs);
@@ -1016,12 +1022,11 @@ onUnmounted(() => {
   }
 
   .streamer-actions {
-    grid-row: 4;
-    grid-column: 4;
-    position: relative;
-    top: auto;
-    right: auto;
-    padding-right: var(--spacing-3);
+    position: absolute;
+    top: 50%;
+    right: var(--spacing-3);
+    transform: translateY(-50%);
+    padding-right: 0;
     align-self: center;
   }
 }

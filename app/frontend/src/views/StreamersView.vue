@@ -129,32 +129,35 @@
       </div>
 
       <!-- Sort -->
-      <div class="sort-control-wrap" aria-label="Sort streamers">
+      <label class="sort-control-wrap">
         <svg class="sort-icon" aria-hidden="true">
           <use href="#icon-list-ordered" />
         </svg>
         <span class="sort-label">Sort</span>
-        <BaseDropdown
+        <select
           v-model="sortBy"
           class="sort-control"
-          :options="sortOptions"
           aria-label="Sort streamers"
-        />
-      </div>
-    </div>
+        >
+          <option v-for="option in sortOptions" :key="option.value" :value="option.value">
+            {{ option.label }}
+          </option>
+        </select>
+      </label>
 
-    <div class="results-info">
-      <span>
-        Showing {{ filteredAndSortedStreamers.length }} of {{ streamers.length }} streamers
-        <template v-if="activeFilter !== 'all'">in {{ activeFilterLabel }}</template>
-        <template v-if="searchQuery"> matching "{{ searchQuery }}"</template>
-      </span>
-      <span v-if="lastUpdateTime">Updated {{ formatLastUpdate(lastUpdateTime) }}</span>
-      <button @click="handleRefresh" class="refresh-btn" aria-label="Refresh streamers" title="Refresh streamers" v-ripple>
-        <svg class="icon" :class="{ spinning: isRefreshing }">
-          <use href="#icon-refresh-cw" />
-        </svg>
-      </button>
+      <div class="results-info">
+        <span>
+          Showing {{ filteredAndSortedStreamers.length }} of {{ streamers.length }} streamers
+          <template v-if="activeFilter !== 'all'">in {{ activeFilterLabel }}</template>
+          <template v-if="searchQuery"> matching "{{ searchQuery }}"</template>
+        </span>
+        <span v-if="lastUpdateTime">Updated {{ formatLastUpdate(lastUpdateTime) }}</span>
+        <button @click="handleRefresh" class="refresh-btn" aria-label="Refresh streamers" title="Refresh streamers" v-ripple>
+          <svg class="icon" :class="{ spinning: isRefreshing }">
+            <use href="#icon-refresh-cw" />
+          </svg>
+        </button>
+      </div>
     </div>
 
     <!-- Loading State -->
@@ -228,7 +231,6 @@ import { useForceRecording } from '@/composables/useForceRecording'  // NEW: Imp
 import LoadingSkeleton from '@/components/LoadingSkeleton.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import BaseButton from '@/components/base/BaseButton.vue'
-import BaseDropdown from '@/components/base/BaseDropdown.vue'
 import PageHeader from '@/components/base/PageHeader.vue'
 import StreamerCard from '@/components/cards/StreamerCard.vue'
 
@@ -959,10 +961,11 @@ onUnmounted(() => {
   align-items: center;
   gap: var(--spacing-2);
   min-height: 44px;
-  padding: 0 var(--spacing-2) 0 var(--spacing-3);
+  padding: 0 var(--spacing-3);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
   background: var(--background-card);
+  cursor: pointer;
 }
 
 .sort-icon {
@@ -981,30 +984,25 @@ onUnmounted(() => {
 
 .sort-control {
   min-width: 132px;
+  min-height: 42px;
   margin: 0;
+  padding: 0 var(--spacing-6) 0 0;
+  appearance: none;
+  background: transparent;
+  border: 0;
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  font-weight: v.$font-medium;
+  cursor: pointer;
+}
 
-  :deep(.form-group) {
-    margin: 0;
-  }
+.sort-control:focus {
+  outline: none;
+}
 
-  :deep(select) {
-    width: auto;
-    min-height: 44px;
-    padding: var(--spacing-2) var(--spacing-8) var(--spacing-2) var(--spacing-2);
-    background: transparent;
-    border: 0;
-    border-radius: var(--radius-md);
-    color: var(--text-primary);
-    font-size: var(--text-sm);
-    font-weight: v.$font-medium;
-    cursor: pointer;
-    transition: all v.$duration-200 v.$ease-out;
-  }
-
-  :deep(select:focus) {
-    outline: 2px solid var(--primary-color);
-    outline-offset: 2px;
-  }
+.sort-control-wrap:focus-within {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px rgba(var(--primary-500-rgb), 0.1);
 }
 
 // Results Info
@@ -1013,11 +1011,11 @@ onUnmounted(() => {
   align-items: center;
   justify-content: space-between;
   gap: var(--spacing-3);
-  margin-bottom: var(--spacing-4);
-  padding: var(--spacing-3) var(--spacing-4);
-  background: var(--background-card);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-lg);
+  flex: 1 1 320px;
+  min-height: 44px;
+  padding: 0 var(--spacing-2) 0 var(--spacing-3);
+  background: transparent;
+  border: 0;
   font-size: var(--text-sm);
   color: var(--text-secondary);
 }
@@ -1075,7 +1073,7 @@ onUnmounted(() => {
   &.view-list {
     display: flex;
     flex-direction: column;
-    gap: var(--spacing-4);
+    gap: var(--spacing-3);
   }
 }
 

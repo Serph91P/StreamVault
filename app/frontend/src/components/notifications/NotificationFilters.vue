@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed, ref } from 'vue'
 import type { NotificationFilter } from '@/stores/notifications'
 
 interface TypeOption {
@@ -16,7 +17,7 @@ interface Props {
   typeOptions: TypeOption[]
 }
 
-defineProps<Props>()
+const props = defineProps<Props>()
 
 const emit = defineEmits<{
   (e: 'update:modelValue', value: NotificationFilter): void
@@ -30,6 +31,20 @@ const severityFilters = [
   { value: 'info', label: 'Info' }
 ]
 
+const showFilterMenu = ref(false)
+
+const activeFilterLabel = computed(() => {
+  if (props.modelValue === 'all') return 'All notifications'
+  if (props.modelValue === 'unread') return 'Unread only'
+
+  const severity = severityFilters.find(filter => filter.value === props.modelValue)
+  if (severity) return severity.label
+
+  return props.sourceOptions.find(option => option.value === props.modelValue)?.label
+    || props.typeOptions.find(option => option.value === props.modelValue)?.label
+    || 'Filtered'
+})
+
 function updateFilter(value: NotificationFilter) {
   emit('update:modelValue', value)
 }
@@ -37,7 +52,7 @@ function updateFilter(value: NotificationFilter) {
 
 <template>
   <div class="notification-filters" aria-label="Notification filters">
-    <div class="filter-row primary-filters">
+    <div class="filter-summary-row">
       <button
         type="button"
         class="filter-chip"
@@ -56,49 +71,64 @@ function updateFilter(value: NotificationFilter) {
         Unread
         <span>{{ unreadCount }}</span>
       </button>
-    </div>
-
-    <div class="filter-row" aria-label="Severity filters">
       <button
-        v-for="filter in severityFilters"
-        :key="filter.value"
         type="button"
-        class="filter-chip compact"
-        :class="[`severity-${filter.value}`, { active: modelValue === filter.value }]"
-        :disabled="!severityCounts[filter.value]"
-        @click="updateFilter(filter.value)"
+        class="filter-menu-toggle"
+        :aria-expanded="showFilterMenu"
+        aria-controls="notification-filter-menu"
+        @click="showFilterMenu = !showFilterMenu"
       >
-        {{ filter.label }}
-        <span>{{ severityCounts[filter.value] || 0 }}</span>
+        <svg class="filter-icon" aria-hidden="true">
+          <use href="#icon-filter" />
+        </svg>
+        Filter
+        <span class="active-filter-label">{{ activeFilterLabel }}</span>
       </button>
     </div>
 
-    <div v-if="sourceOptions.length" class="filter-row source-filters" aria-label="Source filters">
-      <button
-        v-for="option in sourceOptions"
-        :key="option.value"
-        type="button"
-        class="filter-chip compact source-chip"
-        :class="{ active: modelValue === option.value }"
-        @click="updateFilter(option.value)"
-      >
-        {{ option.label }}
-        <span>{{ option.count }}</span>
-      </button>
-    </div>
+    <div v-if="showFilterMenu" id="notification-filter-menu" class="filter-menu">
+      <div class="filter-row" aria-label="Severity filters">
+        <button
+          v-for="filter in severityFilters"
+          :key="filter.value"
+          type="button"
+          class="filter-chip compact"
+          :class="[`severity-${filter.value}`, { active: modelValue === filter.value }]"
+          :disabled="!severityCounts[filter.value]"
+          @click="updateFilter(filter.value)"
+        >
+          {{ filter.label }}
+          <span>{{ severityCounts[filter.value] || 0 }}</span>
+        </button>
+      </div>
 
-    <div v-if="typeOptions.length" class="filter-row type-filters" aria-label="Event type filters">
-      <button
-        v-for="option in typeOptions"
-        :key="option.value"
-        type="button"
-        class="filter-chip type-chip"
-        :class="{ active: modelValue === option.value }"
-        @click="updateFilter(option.value)"
-      >
-        {{ option.label }}
-        <span>{{ option.count }}</span>
-      </button>
+      <div v-if="sourceOptions.length" class="filter-row source-filters" aria-label="Source filters">
+        <button
+          v-for="option in sourceOptions"
+          :key="option.value"
+          type="button"
+          class="filter-chip compact source-chip"
+          :class="{ active: modelValue === option.value }"
+          @click="updateFilter(option.value)"
+        >
+          {{ option.label }}
+          <span>{{ option.count }}</span>
+        </button>
+      </div>
+
+      <div v-if="typeOptions.length" class="filter-row type-filters" aria-label="Event type filters">
+        <button
+          v-for="option in typeOptions"
+          :key="option.value"
+          type="button"
+          class="filter-chip type-chip"
+          :class="{ active: modelValue === option.value }"
+          @click="updateFilter(option.value)"
+        >
+          {{ option.label }}
+          <span>{{ option.count }}</span>
+        </button>
+      </div>
     </div>
   </div>
 </template>
@@ -106,10 +136,28 @@ function updateFilter(value: NotificationFilter) {
 <style scoped lang="scss">
 .notification-filters {
   display: grid;
-  gap: var(--spacing-3);
-  padding: var(--spacing-4);
+  gap: var(--spacing-2);
+  padding: var(--spacing-3) var(--spacing-4);
   border-bottom: 1px solid var(--glass-border);
   background: linear-gradient(180deg, var(--glass-bg-medium), transparent);
+}
+
+.filter-summary-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  min-width: 0;
+}
+
+.filter-menu {
+  display: grid;
+  gap: var(--spacing-2);
+  max-height: 12rem;
+  overflow-y: auto;
+  padding: var(--spacing-2);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  background: rgba(var(--background-darker-rgb), 0.42);
 }
 
 .filter-row {
@@ -161,6 +209,47 @@ function updateFilter(value: NotificationFilter) {
   font-size: var(--text-xs);
 }
 
+.filter-menu-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  min-width: 0;
+  min-height: 2.25rem;
+  margin-left: auto;
+  padding: 0 var(--spacing-3);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-full);
+  background: var(--glass-bg-subtle);
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.filter-menu-toggle:hover,
+.filter-menu-toggle:focus-visible {
+  border-color: var(--primary-color);
+  outline: none;
+}
+
+.filter-icon {
+  width: 1rem;
+  height: 1rem;
+  stroke: currentColor;
+  fill: none;
+}
+
+.active-filter-label {
+  min-width: 0;
+  max-width: 8rem;
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .unread-chip.active {
   border-color: var(--info-color);
   background: rgba(0, 180, 216, 0.14);
@@ -202,6 +291,7 @@ function updateFilter(value: NotificationFilter) {
     padding: var(--spacing-3) var(--spacing-4);
   }
 
+  .filter-summary-row,
   .filter-row {
     flex-wrap: nowrap;
     overflow-x: auto;
@@ -214,13 +304,9 @@ function updateFilter(value: NotificationFilter) {
     -webkit-overflow-scrolling: touch;
   }
 
-  .filter-chip {
+  .filter-chip,
+  .filter-menu-toggle {
     flex: 0 0 auto;
-  }
-
-  .type-filters {
-    max-height: none;
-    padding-right: 0;
   }
 }
 </style>

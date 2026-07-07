@@ -161,6 +161,18 @@
               </button>
             </template>
 
+            <button
+              @click="$emit('toggle-theater')"
+              class="control-button theater-button"
+              :class="{ active: theaterMode }"
+              :aria-label="theaterMode ? 'Show details' : 'Theater mode'"
+              :aria-pressed="theaterMode"
+            >
+              <svg viewBox="0 0 24 24" fill="currentColor" class="control-icon">
+                <path d="M3 5h18v12H3V5zm2 2v8h14V7H5zm4 12h6v2H9v-2z"/>
+              </svg>
+            </button>
+
             <!-- Fullscreen Button -->
             <button
               @click="toggleFullscreen"
@@ -285,10 +297,12 @@ interface Props {
     type: string
   }> // Pre-loaded chapters from API
   streamTitle?: string
+  theaterMode?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  autoChapters: true
+  autoChapters: true,
+  theaterMode: false
 })
 
 const emit = defineEmits<{
@@ -297,6 +311,7 @@ const emit = defineEmits<{
   'time-update': [currentTime: number]
   'video-loading': []
   'video-error': [message: string]
+  'toggle-theater': []
 }>()
 
 const videoElement = ref<HTMLVideoElement>()
@@ -1589,6 +1604,12 @@ defineExpose({ seekToChapter })
 }
 
 .chapters-button.active {
+  background: linear-gradient(135deg, var(--primary-color), var(--primary-color-dark));
+  border-color: var(--primary-color);
+  box-shadow: var(--shadow-md), 0 0 16px rgba(var(--primary-color-rgb), 0.3);
+}
+
+.theater-button.active {
   background: linear-gradient(135deg, var(--primary-color), var(--primary-color-dark));
   border-color: var(--primary-color);
   box-shadow: var(--shadow-md), 0 0 16px rgba(var(--primary-color-rgb), 0.3);
