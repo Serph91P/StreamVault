@@ -1,11 +1,12 @@
 <template>
-  <aside 
-    v-if="isDesktop" 
+  <aside
+    v-if="isDesktop"
     class="sidebar-nav"
+    aria-label="Application navigation"
     :class="{ expanded: sidebarExpanded, collapsed: !sidebarExpanded }"
   >
     <!-- Navigation Items -->
-    <nav class="sidebar-nav-list">
+    <nav class="sidebar-nav-list" aria-label="Primary navigation">
       <router-link
         v-for="tab in navigationTabs"
         :key="tab.route"
@@ -61,9 +62,9 @@
 import { onMounted } from 'vue'
 import { useNavigation } from '@/composables/useNavigation'
 
-const { 
-  navigationTabs, 
-  isDesktop, 
+const {
+  navigationTabs,
+  isDesktop,
   sidebarExpanded,
   isActiveRoute,
   toggleSidebar,
@@ -83,7 +84,7 @@ onMounted(() => {
   top: var(--app-header-height, 64px);
   left: 0;
   bottom: 0;
-  width: 260px;
+  width: 232px;
   z-index: 1000;
   overflow: hidden;
 
@@ -96,23 +97,23 @@ onMounted(() => {
   -webkit-backdrop-filter: blur(var(--glass-blur-lg));
   border-right: 1px solid var(--glass-border);
   box-shadow: var(--glass-shadow-md);
-  
+
   transition: width v.$duration-300 v.$ease-in-out;
-  
+
   @supports not (backdrop-filter: blur(1px)) {
     background: var(--glass-bg-solid);
   }
 
   &.collapsed {
-    width: 84px;
+    width: 72px;
 
     .sidebar-nav-list {
-      padding: v.$spacing-6 v.$spacing-1;
+      padding: v.$spacing-4 v.$spacing-1;
     }
 
     .sidebar-nav-item {
       justify-content: center;
-      padding: v.$spacing-3;
+      padding: v.$spacing-2;
     }
 
     .sidebar-toggle {
@@ -123,7 +124,7 @@ onMounted(() => {
 }
 
 .sidebar-footer {
-  padding: v.$spacing-3;
+  padding: v.$spacing-2;
   border-top: 1px solid var(--glass-border);
   background: var(--glass-bg-subtle);
   flex-shrink: 0;
@@ -131,6 +132,7 @@ onMounted(() => {
 
 .sidebar-toggle {
   width: 100%;
+  min-height: 44px;
   padding: v.$spacing-2 v.$spacing-3;
 
   background: transparent;
@@ -177,8 +179,8 @@ onMounted(() => {
 .sidebar-nav-list {
   display: flex;
   flex-direction: column;
-  gap: v.$spacing-2;
-  padding: v.$spacing-6 v.$spacing-3;
+  gap: v.$spacing-1;
+  padding: v.$spacing-4 v.$spacing-2;
   flex: 1 1 auto;
   overflow-x: hidden;
   overflow-y: auto;
@@ -188,9 +190,10 @@ onMounted(() => {
   position: relative;
   display: flex;
   align-items: center;
-  gap: v.$spacing-3;
+  gap: v.$spacing-2;
   width: 100%;
-  padding: v.$spacing-3;
+  min-height: 44px;
+  padding: v.$spacing-2 v.$spacing-3;
   border-radius: var(--radius-lg);
   color: var(--text-secondary);
   text-decoration: none;
@@ -198,26 +201,26 @@ onMounted(() => {
   cursor: pointer;
   transition: all v.$duration-200 v.$ease-out;
   overflow: hidden;
-  
+
   &:hover:not(.active) {
     background: var(--glass-bg-subtle);
     color: var(--text-primary);
   }
-  
+
   &.active {
-    background: var(--primary-color);
+    background: v.$primary-700;
     color: white;
     box-shadow: var(--glass-shadow-md);
-    
+
     [data-theme="light"] & {
-      background: var(--primary-color-dark);
+      background: v.$primary-700;
     }
-    
+
     .nav-description {
-      color: rgba(255, 255, 255, 0.85);
+      color: rgba(255, 255, 255, 0.92);
     }
   }
-  
+
   &:focus-visible {
     outline: 2px solid var(--primary-color);
     outline-offset: 2px;
@@ -225,8 +228,8 @@ onMounted(() => {
 }
 
 .nav-icon {
-  width: 24px;
-  height: 24px;
+  width: 20px;
+  height: 20px;
   flex-shrink: 0;
   stroke: currentColor;
   fill: none;
@@ -251,8 +254,8 @@ onMounted(() => {
 }
 
 .nav-description {
-  font-size: var(--text-xs);
-  color: var(--text-tertiary);
+  font-size: 11px;
+  color: var(--text-secondary);
   line-height: 1.3;
   white-space: nowrap;
   overflow: hidden;
@@ -293,23 +296,23 @@ onMounted(() => {
   top: 50%;
   transform: translateY(-50%);
   margin-left: v.$spacing-2;
-  
+
   background: var(--glass-bg-solid);
   color: var(--text-primary);
   padding: v.$spacing-2 v.$spacing-3;
   border-radius: var(--radius-md);
   border: 1px solid var(--glass-border);
-  
+
   font-size: v.$text-sm;
   font-weight: v.$font-medium;
   white-space: nowrap;
-  
+
   box-shadow: var(--glass-shadow-lg);
-  
+
   opacity: 0;
   pointer-events: none;
   transition: opacity v.$duration-200 v.$ease-in-out;
-  
+
   &::before {
     content: '';
     position: absolute;
@@ -319,7 +322,7 @@ onMounted(() => {
     border: 6px solid transparent;
     border-right-color: var(--glass-bg-solid);
   }
-  
+
   .sidebar-nav-item:hover & {
     opacity: 1;
   }

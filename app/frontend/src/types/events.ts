@@ -77,7 +77,7 @@ export type RealtimeEvent<TType extends string = RealtimeEventType> =
 export const NOTIFICATION_SEVERITIES = ['info', 'success', 'warning', 'error', 'critical'] as const
 export type NotificationSeverity = typeof NOTIFICATION_SEVERITIES[number]
 
-export const NOTIFICATION_SOURCES = ['websocket', 'push', 'system', 'test'] as const
+export const NOTIFICATION_SOURCES = ['websocket', 'push', 'apprise', 'system', 'test'] as const
 export type NotificationSource = typeof NOTIFICATION_SOURCES[number]
 
 export interface NotificationAction {
@@ -189,6 +189,14 @@ function firstId(...values: unknown[]): string | number | undefined {
       return value
     }
   }
+}
+
+function normalizeNotificationSource(source: unknown): NotificationSource {
+  if (typeof source === 'string' && (NOTIFICATION_SOURCES as readonly string[]).includes(source)) {
+    return source as NotificationSource
+  }
+
+  return 'websocket'
 }
 
 function toIsoString(value: unknown): string {
@@ -345,6 +353,7 @@ export function toCanonicalNotificationEvent(
   if (type === 'notification_event') {
     const eventId = firstString(data.event_id, data.id)
     const dedupeKey = firstString(data.dedupe_key, data.dedupeKey, eventId)
+    const notificationType = firstString(data.type) || type
     const title = firstString(data.title)
     const body = firstString(data.body, data.message)
     if (!eventId || !dedupeKey || !title || !body) {
@@ -354,13 +363,13 @@ export function toCanonicalNotificationEvent(
     return {
       event_id: eventId,
       dedupe_key: dedupeKey,
-      type: firstString(data.type) || type,
-      severity: severityForType(type, data),
+      type: notificationType,
+      severity: severityForType(notificationType, data),
       title,
       body,
       created_at: toIsoString(data.created_at || data.timestamp),
-      source: firstString(data.source) as NotificationSource || 'websocket',
-      target_url: makeTargetUrl(data, type),
+      source: normalizeNotificationSource(data.source),
+      target_url: makeTargetUrl(data, notificationType),
       streamer_id: firstId(data.streamer_id, data.streamerId),
       streamer_name: firstString(data.streamer_name, data.username),
       recording_id: firstId(data.recording_id, data.recordingId),

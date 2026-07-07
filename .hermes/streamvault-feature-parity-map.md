@@ -1,48 +1,79 @@
 # StreamVault feature parity map
 
-Date: 2026-07-05
-Branch: feat/frontend-overhaul-v2
-Head: 8766fe23
+Date: 2026-07-07
+Branch: feat/frontend-product-overhaul-final
+Base: origin/develop
+Reference: PR #702 was foundation only. This follow-up branch contains the product UX implementation and QA evidence.
 
 ## Rule
 
-No productive function may disappear accidentally. Debug, test and experiment surfaces can be removed only when they are proven non-product, moved to Admin Diagnostics, hidden behind a dev flag or documented as intentionally replaced.
+Allowed status values:
 
-| Existing route or component | Function | User goal | New target position | New UX flow | Status | Risk | Test requirement |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| `/` HomeView | Dashboard | Understand system state | Dashboard | status first overview | rebuild further | High | browser route smoke, typecheck, build |
-| `/streamers` StreamersView | Streamer overview | Find and manage streamers | Streamers | search, filters, status cards | rebuild further | High | mobile route smoke, feature parity check |
-| `/streamers/:id` StreamerDetailView | Detail cockpit | Manage one streamer | Streamer detail | tabs and contextual actions | rebuild further | High | deep link and realtime QA |
-| `/videos` VideosView | Media library | Find recordings | Library | responsive grid and filters | rebuild further | Medium | video list QA |
-| `/videos/:id` VideoPlayerView | Stored playback | Watch recording | Video player | player with recovery states | keep and improve | High | HLS and missing file QA |
-| `/live/:streamer` LivePlayerView | Live playback | Watch live stream | Live player | player first plus status | keep and improve | High | HLS live QA |
-| `/subscriptions` SubscriptionsView | Subscriptions | Manage subscriptions | Subscriptions | primary nav page | keep | Medium | route smoke |
-| `/settings` SettingsView | Configuration | Change settings safely | Settings | grouped settings, advanced split | rebuild further | High | settings save tests and QA |
-| `/admin` AdminView/AdminPanel | Diagnostics | Inspect internals | Admin Diagnostics | admin only diagnostics | capsule | Medium | admin route smoke |
-| `/add-streamer*` AddStreamerView | Add/import streamer | Add streamers | Add streamer flow | task route or sheet | keep and improve | Medium | form validation QA |
-| `/auth/setup`, `/welcome`, `/onboarding` | Setup and onboarding | First run setup | Auth/setup shell | no premature push prompt | keep and improve | Medium | auth/setup route QA |
-| `/auth/login` | Login | Authenticate | Auth shell | sign in and recover errors | keep | Medium | auth route QA |
-| `/streamer/:streamerId/stream/:streamId/watch` | Legacy playback | Preserve old links | Compatibility player route | route to player | keep | Medium | legacy link smoke |
-| Notification store and center | In-app notifications | Understand events | Notification Center | filters, read state, target links | keep and improve | High | notification QA |
-| Realtime store and useWebSocket | Live updates | Trust system state | realtime domain layer | central event projection | keep and improve | High | WebSocket reconnect QA |
-| PWAPanel and push-sw | PWA and push | Install and receive alerts | PWA settings and prompt | permission, subscribe, click target | keep, test actions moved to Admin Diagnostics | High | real device QA |
-| WebSocketMonitor | Raw diagnostics | Debug connection | Admin Diagnostics | admin only | admin-only | Low | admin QA |
-| Logger and API debug paths | Developer diagnostics | Troubleshoot | dev or admin only | hidden from normal users | capsule, dev PWA debug is manual only | Medium | source review |
+- implemented and visually verified
+- implemented and functionally verified
+- intentionally admin-only
+- intentionally dev-only
+- intentionally removed with reason
+- blocked with reason
 
-## Parity result for phase 1
+A productive area can only stay blocked if the blocker is explicit and cannot be truthfully verified in the current environment.
 
-The current `develop` branch already contains a substantial previous overhaul, so the next implementation must not delete those changes blindly. The second pass should improve the remaining large surfaces and architecture gaps while preserving the productive routes and backend integrations listed above.
+## Core parity table
 
-## Cleanup review for KAN2-009
+| Core area | Current route or component | Status | Verification or blocker | Kanban task | Evidence |
+| --- | --- | --- | --- | --- | --- |
+| Dashboard | `/`, `HomeView.vue` | implemented and visually verified | Status-first dashboard implemented with live, recording, queue, errors, recent activity and quick actions. | E-DASH-001 | `.hermes/frontend-visual-evidence/*dashboard*`, `npm run build`, `npm run lint` |
+| Streamers | `/streamers`, `StreamersView.vue` | implemented and visually verified | Responsive creator grid, clearer status grammar, search/filter/sort and Add Streamer CTA. | F-STREAMERS-001 | `.hermes/frontend-visual-evidence/*streamers*` |
+| Streamer Detail Overview | `/streamers/:id`, overview tab | implemented and visually verified | Detail page rebuilt as compact control center with safe actions and useful status hierarchy. | G-DETAIL-001 | `.hermes/frontend-visual-evidence/streamer-detail-*overview*` |
+| Streamer Detail Videos | `/streamers/:id`, videos tab | implemented and visually verified | Media-style tab content and low-data states verified on mobile and desktop. | G-DETAIL-001, H-LIBRARY-001 | `.hermes/frontend-visual-evidence/streamer-detail-*videos*` |
+| Streamer Detail Recording Settings | `/streamers/:id`, recording settings tab | implemented and visually verified | Recording settings moved into clearer cards and safer grouped controls. | G-DETAIL-001, K-SETTINGS-001 | `.hermes/frontend-visual-evidence/streamer-detail-*settings*` |
+| Streamer Detail Events | `/streamers/:id`, events tab | implemented and visually verified | Timeline-ready events state and useful empty state verified. | G-DETAIL-001 | `.hermes/frontend-visual-evidence/streamer-detail-*events*` |
+| Videos / Library | `/videos`, `VideosView.vue` | implemented and visually verified | Media library grid/list, filters, video-card states and low-data layout improved. | H-LIBRARY-001 | `.hermes/frontend-visual-evidence/*library*`, `h-library-001-*` |
+| Stored Video Player | `/videos/:id`, `VideoPlayerView.vue` | implemented and visually verified | Player context, loading, error and recovery UI improved. | I-PLAYER-001 | `.hermes/frontend-visual-evidence/*stored-player*` |
+| Live Player | `/live/:streamer`, `LivePlayerView.vue` | implemented and functionally verified | Real HLS gate passed against `summit1g`, with a live playlist returning `#EXTM3U` and segments. | I-PLAYER-001, N-QA-001B | `.hermes/non-mock-authorized-qa-results.json` |
+| Queue / Background Jobs | Shell utilities and queue components | implemented and visually verified | Compact global job entry and clearer queue states integrated into shell and dashboard. | C-DS-001, D-SHELL-001, E-DASH-001 | `.hermes/frontend-visual-evidence/*queue*`, dashboard evidence |
+| Notification Center | Shell notification center, `stores/notifications.ts` | implemented and visually verified | Product notification feed with read state, filters, target normalization and mobile/desktop surfaces. | J-NOTIFICATIONS-001 | `.hermes/frontend-visual-evidence/notification-center-*`, `.hermes/verify-notification-center.cjs` |
+| Settings Overview | `/settings`, `SettingsView.vue` | implemented and visually verified | Settings app IA rebuilt with section navigation, cards, contextual state and mobile layout. | K-SETTINGS-001 | `.hermes/frontend-visual-evidence/*settings*` |
+| Settings Recording | Settings recording section | implemented and visually verified | Recording settings grouped into clearer user-facing cards. | K-SETTINGS-001 | `.hermes/frontend-visual-evidence/*recording*` |
+| Settings Notifications | Settings notification section | implemented and visually verified | Notification settings transformed for responsive desktop and mobile use. | K-SETTINGS-001, J-NOTIFICATIONS-001 | `.hermes/frontend-visual-evidence/*notifications*` |
+| Settings PWA / Push | `PWAPanel.vue`, `PWAInstallPrompt.vue`, push services | blocked with reason | Backend/VAPID and local notification payload are verified, but real browser Push subscription and delivery require a real non-incognito browser or device. Hermes headless/Xvfb cannot create a PushManager subscription. | L-PWA-001, N-QA-001C | `.hermes/browser-push-qa-summary.md`, `.hermes/non-mock-authorized-qa-summary.md` |
+| Settings API Keys | Settings API key area | implemented and visually verified | API keys are presented as security/developer panel with clearer state and copy. | K-SETTINGS-001 | `.hermes/frontend-visual-evidence/*api-keys*` |
+| Settings Proxy | Settings proxy area | implemented and visually verified | Proxy settings live in advanced settings with responsive form and modal checks. | K-SETTINGS-001 | `.hermes/frontend-visual-evidence/*proxy*` |
+| Settings Favorite Games | Settings favorite games area | implemented and visually verified | Settings IA preserves the preference area in the product settings model. | K-SETTINGS-001 | settings visual evidence and source checks |
+| Settings Twitch Connection | Settings Twitch section | implemented and visually verified | Twitch connection state preserved inside the integration/settings model. | K-SETTINGS-001 | settings visual evidence and source checks |
+| Admin Diagnostics | `/admin`, `AdminView.vue`, `AdminPanel.vue` | intentionally admin-only | Debug and diagnostics are separated from normal product flows. | M-ADMIN-001 | `.hermes/admin-diagnostics-qa/*` |
+| Add Streamer Flow | `/add-streamer`, `/add-streamer/manual`, `/add-streamer/import` | implemented and visually verified | Add Streamer route remains reachable and has viewport evidence. | F-STREAMERS-001, N-QA-001 | `.hermes/frontend-visual-evidence/*add-streamer*` |
+| Auth / Setup / Onboarding | `/auth/setup`, `/welcome`, `/onboarding`, `/auth/login` | implemented and functionally verified | Product routes preserved. Full real auth setup is not changed by this branch. | L-PWA-001, K-SETTINGS-001 | route smoke and build checks |
+| Mobile App Shell | `AppShell.vue`, bottom nav, sheets | implemented and visually verified | Safe-area mobile shell, bottom nav and mobile utility surfaces verified at required viewports. | D-SHELL-001, L-PWA-001, N-QA-001 | `.hermes/frontend-visual-evidence/*mobile*`, 390/430/768 matrix |
+| Desktop App Shell | `AppShell.vue`, sidebar, topbar | implemented and visually verified | Denser app chrome and coherent utility cluster verified at desktop widths. | D-SHELL-001, N-QA-001 | `.hermes/frontend-visual-evidence/*desktop*`, 1024/1280/1440 matrix |
+| WebSocket / Realtime UI | `useWebSocket.ts`, realtime store, shell indicators | implemented and functionally verified | Real authenticated WebSocket connected and received `connection.status` plus `channel.update`. | J-NOTIFICATIONS-001, N-QA-001B | `.hermes/non-mock-authorized-qa-results.json` |
+| PWA Install Flow | `PWAInstallPrompt.vue`, `PWAPanel.vue`, VitePWA registration | implemented and visually verified | Guided install flow and service worker source-of-truth verified in frontend. Real install remains browser/device dependent. | L-PWA-001 | `.hermes/mobile-pwa-qa-results.md` |
+| Push Permission Flow | `PWAPanel.vue`, `push-sw.js`, push API services | blocked with reason | Server-side VAPID and UI flow are ready. Real subscription/delivery awaits Max testing on a real browser/device after image build. | L-PWA-001, J-NOTIFICATIONS-001, N-QA-001C | `.hermes/browser-push-qa-summary.md` |
+| WebSocketMonitor | Admin diagnostic component | intentionally admin-only | Raw diagnostics are confined to Admin Diagnostics. | M-ADMIN-001 | admin evidence |
+| Logger and debug helpers | Dev helper functions and debug utilities | intentionally dev-only | Debug helpers remain developer/admin tooling, not normal product UX. | M-ADMIN-001, L-PWA-001 | source review |
 
-- Settings PWA and notification panels keep preference flows, but send delivery tests to Admin Diagnostics instead of showing test buttons in the user settings flow.
-- Admin Diagnostics keeps productive repair and troubleshooting functions, but advanced queue, post-processing, verification, maintenance and video recording diagnostics are collapsed behind labeled disclosure controls.
-- Dev PWA diagnostics no longer auto-run on mobile page load. The helper is available as `window.debugStreamVaultPWA()` only in development builds.
+## Route preservation checklist
 
-## Final QA result for KAN2-010
+The following productive routes remain routable:
 
-- Final route source review confirms every productive route in this map remains present in `app/frontend/src/router/index.ts`.
-- Browser smoke covered Dashboard, Streamers, Library, Subscriptions, Settings, Admin Diagnostics, Add Streamer, stored player and live player in mock mode.
-- Notification Center remains reachable from the shell and keeps dialog close plus keyboard return behavior.
-- PWA and push preference flows remain in Settings, while push and notification test actions remain in Admin Diagnostics.
-- Known validation limits are documented in `.hermes/streamvault-frontend-qa-report.md`: no full viewport matrix, no real backend WebSocket, no real HLS media, no real push device and no Lighthouse or axe tooling in this repo session.
+- `/`
+- `/streamers`
+- `/streamers/:id`
+- `/videos`
+- `/videos/:id`
+- `/live/:streamer`
+- `/subscriptions`
+- `/settings`
+- `/admin`
+- `/add-streamer`
+- `/add-streamer/manual`
+- `/add-streamer/import`
+- `/auth/setup`
+- `/welcome`
+- `/onboarding`
+- `/auth/login`
+- `/streamer/:streamerId/stream/:streamId/watch`
+
+## Current phase result
+
+All product implementation epics A through M are done. N-QA is blocked only on real browser Push subscription and delivery. The branch is suitable for a develop image build so Max can test the remaining browser/device Push gate on real infrastructure. It must not be called a fully complete overhaul until that gate is verified or explicitly accepted as an environment limitation.

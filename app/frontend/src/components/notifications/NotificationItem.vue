@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import StatusBadge, { type StatusBadgeTone } from '@/components/base/StatusBadge.vue'
 import { useCategoryImages } from '@/composables/useCategoryImages'
 import type { StoredNotification } from '@/services/notificationStorage'
 
@@ -25,10 +26,12 @@ const categoryImage = computed(() => {
   return categoryName.value ? getCategoryImage(String(categoryName.value)) : ''
 })
 
-const severityClass = computed(() => getNotificationClass(props.notification))
+const statusTone = computed(() => getNotificationTone(props.notification))
 const hasTarget = computed(() => Boolean(props.notification.target_url))
+const targetLabel = computed(() => props.notification.target_url || '')
 const deliveryLabel = computed(() => {
   if (props.notification.source === 'push') return 'Push delivery'
+  if (props.notification.source === 'apprise') return 'Apprise delivery'
   if (props.notification.source === 'test') return 'Test channel'
   if (props.notification.source === 'system') return 'System event'
   return 'Live WebSocket event'
@@ -57,19 +60,19 @@ function formatTime(timestamp: string): string {
   return time.toLocaleDateString()
 }
 
-function getNotificationClass(notification: StoredNotification): string {
-  if (notification.severity === 'critical' || notification.severity === 'error') return 'error'
+function getNotificationTone(notification: StoredNotification): StatusBadgeTone {
+  if (notification.severity === 'critical' || notification.severity === 'error') return 'danger'
   if (notification.severity === 'warning') return 'warning'
   if (notification.severity === 'success') return 'success'
 
   switch (notification.type) {
     case 'stream.online':
-      return 'online'
+      return 'live'
     case 'stream.offline':
       return 'offline'
     case 'channel.update':
     case 'stream.update':
-      return 'update'
+      return 'info'
     case 'recording.started':
       return 'recording'
     case 'recording.completed':
@@ -77,9 +80,9 @@ function getNotificationClass(notification: StoredNotification): string {
     case 'recording.available':
       return 'success'
     case 'recording.failed':
-      return 'error'
+      return 'danger'
     case 'test':
-      return 'test'
+      return 'info'
     default:
       return 'info'
   }
@@ -123,7 +126,7 @@ function openNotification() {
 <template>
   <article
     class="notification-item"
-    :class="[severityClass, { unread: !notification.read, 'has-target': hasTarget }]"
+    :class="[statusTone, { unread: !notification.read, 'has-target': hasTarget }]"
     :aria-label="`${notification.title}. ${notification.body}`"
     :tabindex="hasTarget ? 0 : undefined"
     @click="openNotification"
@@ -132,7 +135,7 @@ function openNotification() {
   >
     <div class="notification-accent" aria-hidden="true"></div>
 
-    <div class="notification-icon" :class="severityClass" aria-hidden="true">
+    <div class="notification-icon" :class="statusTone" aria-hidden="true">
       <svg class="notif-svg"><use :href="iconFor(notification)" /></svg>
     </div>
 
@@ -148,7 +151,14 @@ function openNotification() {
       <p class="notification-message">{{ notification.body }}</p>
 
       <div class="notification-meta" aria-label="Notification details">
-        <span class="meta-pill severity" :class="severityClass">{{ notification.severity }}</span>
+        <StatusBadge
+          class="notification-severity-badge"
+          :tone="statusTone"
+          size="sm"
+          :aria-label="`Notification severity: ${notification.severity}`"
+        >
+          {{ notification.severity }}
+        </StatusBadge>
         <span class="meta-pill">{{ typeLabel }}</span>
         <span class="meta-pill" :title="notification.dedupe_key || undefined">{{ deliveryLabel }}</span>
         <span v-if="categoryName" class="meta-pill category-tag">
@@ -162,6 +172,10 @@ function openNotification() {
             <i v-else-if="categoryImage" :class="categoryImage.replace('icon:', '')" class="category-icon"></i>
           </span>
           {{ categoryName }}
+        </span>
+        <span v-if="targetLabel" class="meta-pill target-pill" :title="targetLabel">
+          <svg class="target-svg" aria-hidden="true"><use href="#icon-link" /></svg>
+          Target: {{ targetLabel }}
         </span>
       </div>
     </div>
@@ -238,18 +252,22 @@ function openNotification() {
   opacity: 0.8;
 }
 
-.notification-item.error .notification-accent {
+.notification-item.danger .notification-accent,
+.notification-item.live .notification-accent,
+.notification-item.recording .notification-accent {
   background: var(--danger-color);
 }
 
-.notification-item.warning .notification-accent,
-.notification-item.offline .notification-accent {
+.notification-item.warning .notification-accent {
   background: var(--warning-color);
 }
 
-.notification-item.success .notification-accent,
-.notification-item.online .notification-accent {
+.notification-item.success .notification-accent {
   background: var(--success-color);
+}
+
+.notification-item.offline .notification-accent {
+  background: var(--text-secondary);
 }
 
 .notification-icon {
@@ -262,26 +280,26 @@ function openNotification() {
   color: var(--info-color);
 }
 
-.notification-icon.error {
+.notification-icon.danger,
+.notification-icon.live,
+.notification-icon.recording {
   background: rgba(244, 67, 54, 0.14);
   color: var(--danger-color);
 }
 
-.notification-icon.warning,
-.notification-icon.offline {
+.notification-icon.warning {
   background: rgba(255, 152, 0, 0.14);
   color: var(--warning-color);
 }
 
-.notification-icon.success,
-.notification-icon.online {
+.notification-icon.success {
   background: rgba(29, 185, 84, 0.14);
   color: var(--success-color);
 }
 
-.notification-icon.test {
-  background: rgba(145, 71, 255, 0.16);
-  color: var(--purple-color);
+.notification-icon.offline {
+  background: rgba(148, 163, 184, 0.14);
+  color: var(--text-secondary);
 }
 
 .notif-svg {
@@ -364,32 +382,27 @@ time {
   line-height: 1.2;
 }
 
-.meta-pill.severity {
-  color: var(--text-primary);
-  text-transform: capitalize;
-}
-
-.meta-pill.severity.error {
-  border-color: rgba(244, 67, 54, 0.35);
-  color: var(--danger-color);
-}
-
-.meta-pill.severity.warning {
-  border-color: rgba(255, 152, 0, 0.35);
-  color: var(--warning-color);
-}
-
-.meta-pill.severity.success,
-.meta-pill.severity.online {
-  border-color: rgba(29, 185, 84, 0.35);
-  color: var(--success-color);
-}
-
 .dedupe {
   max-width: 14rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.target-pill {
+  max-width: min(100%, 18rem);
+  overflow: hidden;
+  color: var(--text-primary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.target-svg {
+  flex: 0 0 auto;
+  width: 0.85rem;
+  height: 0.85rem;
+  stroke: currentColor;
+  fill: none;
 }
 
 .category-image-small {
@@ -421,7 +434,7 @@ time {
 }
 
 .item-action {
-  min-height: 2rem;
+  min-height: 44px;
   padding: 0 var(--spacing-3);
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-full);
@@ -446,7 +459,7 @@ time {
 }
 
 .item-action.icon-only {
-  width: 2rem;
+  width: 44px;
   padding: 0;
   font-size: var(--text-lg);
   line-height: 1;
@@ -462,6 +475,7 @@ time {
   .notification-actions {
     grid-column: 1 / -1;
     flex-direction: row;
+    flex-wrap: wrap;
     justify-content: flex-end;
     width: 100%;
   }

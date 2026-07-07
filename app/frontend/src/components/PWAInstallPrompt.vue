@@ -11,7 +11,8 @@
         <p>{{ installDescription }}</p>
       </div>
       <div class="install-prompt__actions">
-        <BaseButton variant="secondary" size="sm" @click="installApp">Install</BaseButton>
+        <BaseButton variant="secondary" size="sm" @click="openPwaSettings">Setup guide</BaseButton>
+        <BaseButton variant="primary" size="sm" @click="installApp">Install</BaseButton>
         <BaseButton variant="outline" size="sm" @click="dismissPrompt">Not now</BaseButton>
       </div>
     </div>
@@ -20,11 +21,13 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch, computed } from 'vue'
+import { useRouter } from 'vue-router'
 import { usePWA } from '@/composables/usePWA'
 import { appStorage } from '@/services/storage'
 import BaseButton from '@/components/base/BaseButton.vue'
 
 const { isInstallable, isInstalled, installPWA } = usePWA()
+const router = useRouter()
 const showInstallPrompt = ref(false)
 const hasBeenDismissed = ref(appStorage.pwaInstallDismissed === 'true')
 
@@ -36,7 +39,7 @@ const installText = computed(() => {
 })
 
 const installDescription = computed(() => {
-  return 'Install for faster loading, offline access, and a dedicated app experience.'
+  return 'Install for offline shell access, safe mobile spacing, and a dedicated app experience.'
 })
 
 onMounted(() => {
@@ -76,6 +79,11 @@ const installApp = async () => {
   } catch (error) {
     console.error('Installation failed:', error)
   }
+}
+
+const openPwaSettings = () => {
+  showInstallPrompt.value = false
+  router.push({ path: '/settings', query: { section: 'pwa' } })
 }
 
 const dismissPrompt = () => {
@@ -159,6 +167,7 @@ const dismissPrompt = () => {
 /* Mobile-only layout adjustments */
 @include m.respond-below('md') {
   .install-prompt {
+    bottom: calc(68px + env(safe-area-inset-bottom, 0px) + v.$spacing-3);
     margin: v.$spacing-2;
     border-radius: v.$border-radius-lg;
   }

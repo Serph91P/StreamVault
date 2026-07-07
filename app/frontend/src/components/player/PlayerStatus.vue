@@ -4,6 +4,9 @@
       <div v-if="state === 'loading'" class="status-spinner" />
       <div v-else-if="state === 'buffering'" class="status-pulse"><span /><span /><span /></div>
       <div v-else-if="state === 'live'" class="status-live-dot" />
+      <div v-else-if="state === 'stopped'" class="status-stopped-icon">
+        <svg viewBox="0 0 24 24" fill="currentColor" width="24" height="24"><rect x="6" y="6" width="12" height="12" rx="1"/></svg>
+      </div>
       <svg v-else class="status-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10" /><path d="M12 8v4l3 3" /></svg>
     </div>
     <StatusBadge :tone="statusBadgeTone" size="sm" :dot="badgeDot" :pulse="badgePulse">{{ label }}</StatusBadge>
@@ -16,7 +19,7 @@
 import { computed } from 'vue'
 import StatusBadge, { type StatusBadgeTone } from '@/components/base/StatusBadge.vue'
 
-export type PlayerState = 'loading' | 'buffering' | 'connecting' | 'live' | 'offline' | 'idle'
+export type PlayerState = 'loading' | 'buffering' | 'connecting' | 'live' | 'offline' | 'idle' | 'stopped' | 'error'
 
 interface Props {
   state: PlayerState
@@ -33,7 +36,9 @@ const label = computed(() => ({
   connecting: 'Connecting',
   live: 'Live',
   offline: 'Offline',
-  idle: 'Idle'
+  idle: 'Idle',
+  stopped: 'Stopped',
+  error: 'Error'
 }[props.state]))
 
 const statusBadgeTone = computed<StatusBadgeTone>(() => {
@@ -43,13 +48,15 @@ const statusBadgeTone = computed<StatusBadgeTone>(() => {
     connecting: 'info',
     live: 'live',
     offline: 'offline',
-    idle: 'neutral'
+    idle: 'neutral',
+    stopped: 'offline',
+    error: 'warning'
   }
   return tones[props.state]
 })
 
 const badgeDot = computed(() => props.state === 'live' || props.state === 'buffering' || props.state === 'connecting')
-const badgePulse = computed(() => props.state === 'live' || props.state === 'buffering')
+const badgePulse = computed(() => props.state === 'live' || props.state === 'buffering' || props.state === 'error')
 </script>
 
 <style scoped lang="scss">
@@ -107,6 +114,15 @@ const badgePulse = computed(() => props.state === 'live' || props.state === 'buf
   width: 32px;
   height: 32px;
   color: var(--text-secondary);
+}
+
+.status-stopped-icon {
+  width: 32px;
+  height: 32px;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .player-status-message,

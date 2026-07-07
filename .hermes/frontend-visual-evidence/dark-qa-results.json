@@ -1,0 +1,157 @@
+{
+  "generatedAt": "2026-07-06T11:26:32.338Z",
+  "viewports": [
+    390,
+    430,
+    768,
+    1440
+  ],
+  "routes": [
+    {
+      "name": "dashboard",
+      "route": "/"
+    },
+    {
+      "name": "settings",
+      "route": "/settings"
+    },
+    {
+      "name": "library",
+      "route": "/videos"
+    }
+  ],
+  "results": [
+    {
+      "width": 390,
+      "name": "dashboard",
+      "route": "/",
+      "ok": true,
+      "htmlTheme": "dark-default",
+      "toggleLabel": "Switch to light mode",
+      "horizontalOverflow": false,
+      "bodyTextStart": "StreamVault Jobs 2 REALTIME OFFLINE Dashboard Monitor live streams, active recordings, queue health and the latest media from one operational view. Add Streamer",
+      "screenshot": "dark-0390-dashboard.png"
+    },
+    {
+      "width": 390,
+      "name": "settings",
+      "route": "/settings",
+      "ok": true,
+      "htmlTheme": "dark-default",
+      "toggleLabel": "Switch to light mode",
+      "horizontalOverflow": false,
+      "bodyTextStart": "StreamVault Jobs 2 Twitch Connection Twitch Connection Notifications Recording Proxy Management Favorite Games PWA & Mobile API Keys About Manual Token Setup (R",
+      "screenshot": "dark-0390-settings.png"
+    },
+    {
+      "width": 390,
+      "name": "library",
+      "route": "/videos",
+      "ok": true,
+      "htmlTheme": "dark-default",
+      "toggleLabel": "Switch to light mode",
+      "horizontalOverflow": false,
+      "bodyTextStart": "StreamVault Jobs 2 Videos Browse and manage all recorded streams Select Filters Newest First Oldest First Longest Duration Shortest Duration Largest Size Smalle",
+      "screenshot": "dark-0390-library.png"
+    },
+    {
+      "width": 430,
+      "name": "dashboard",
+      "route": "/",
+      "ok": true,
+      "htmlTheme": "dark-default",
+      "toggleLabel": "Switch to light mode",
+      "horizontalOverflow": false,
+      "bodyTextStart": "StreamVault Jobs 2 REALTIME OFFLINE Dashboard Monitor live streams, active recordings, queue health and the latest media from one operational view. Add Streamer",
+      "screenshot": "dark-0430-dashboard.png"
+    },
+    {
+      "width": 430,
+      "name": "settings",
+      "route": "/settings",
+      "ok": true,
+      "htmlTheme": "dark-default",
+      "toggleLabel": "Switch to light mode",
+      "horizontalOverflow": false,
+      "bodyTextStart": "StreamVault Jobs 2 Twitch Connection Twitch Connection Notifications Recording Proxy Management Favorite Games PWA & Mobile API Keys About Manual Token Setup (R",
+      "screenshot": "dark-0430-settings.png"
+    },
+    {
+      "width": 430,
+      "name": "library",
+      "route": "/videos",
+      "ok": true,
+      "htmlTheme": "dark-default",
+      "toggleLabel": "Switch to light mode",
+      "horizontalOverflow": false,
+      "bodyTextStart": "StreamVault Jobs 2 Videos Browse and manage all recorded streams Select Filters Newest First Oldest First Longest Duration Shortest Duration Largest Size Smalle",
+      "screenshot": "dark-0430-library.png"
+    },
+    {
+      "width": 768,
+      "name": "dashboard",
+      "route": "/",
+      "ok": true,
+      "htmlTheme": "dark-default",
+      "toggleLabel": "Switch to light mode",
+      "horizontalOverflow": false,
+      "bodyTextStart": "StreamVault Jobs 2 Logout REALTIME OFFLINE Dashboard Monitor live streams, active recordings, queue health and the latest media from one operational view. Add S",
+      "screenshot": "dark-0768-dashboard.png"
+    },
+    {
+      "width": 768,
+      "name": "settings",
+      "route": "/settings",
+      "ok": true,
+      "htmlTheme": "dark-default",
+      "toggleLabel": "Switch to light mode",
+      "horizontalOverflow": false,
+      "bodyTextStart": "StreamVault Jobs 2 Logout Twitch Connection Twitch Connection Notifications Recording Proxy Management Favorite Games PWA & Mobile API Keys About Manual Token S",
+      "screenshot": "dark-0768-settings.png"
+    },
+    {
+      "width": 768,
+      "name": "library",
+      "route": "/videos",
+      "ok": true,
+      "htmlTheme": "dark-default",
+      "toggleLabel": "Switch to light mode",
+      "horizontalOverflow": false,
+      "bodyTextStart": "StreamVault Jobs 2 Logout Videos Browse and manage all recorded streams Select Filters Newest First Oldest First Longest Duration Shortest Duration Largest Size",
+      "screenshot": "dark-0768-library.png"
+    },
+    {
+      "width": 1440,
+      "name": "dashboard",
+      "route": "/",
+      "ok": true,
+      "htmlTheme": "dark-default",
+      "toggleLabel": "Switch to light mode",
+      "horizontalOverflow": false,
+      "bodyTextStart": "StreamVault Jobs 2 Logout Dashboard Dashboard overview Streamers Manage creators Library Video library Subscriptions Manage subscriptions Settings App preferenc",
+      "screenshot": "dark-1440-dashboard.png"
+    },
+    {
+      "width": 1440,
+      "name": "settings",
+      "route": "/settings",
+      "ok": true,
+      "htmlTheme": "dark-default",
+      "toggleLabel": "Switch to light mode",
+      "horizontalOverflow": false,
+      "bodyTextStart": "StreamVault Jobs 2 Logout Dashboard Dashboard overview Streamers Manage creators Library Video library Subscriptions Manage subscriptions Settings App preferenc",
+      "screenshot": "dark-1440-settings.png"
+    },
+    {
+      "width": 1440,
+      "name": "library",
+      "route": "/videos",
+      "ok": true,
+      "htmlTheme": "dark-default",
+      "toggleLabel": "Switch to light mode",
+      "horizontalOverflow": false,
+      "bodyTextStart": "StreamVault Jobs 2 Logout Dashboard Dashboard overview Streamers Manage creators Library Video library Subscriptions Manage subscriptions Settings App preferenc",
+      "screenshot": "dark-1440-library.png"
+    }
+  ]
+}

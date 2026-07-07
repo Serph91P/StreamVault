@@ -4,6 +4,7 @@ import { nextTick, onBeforeUnmount, ref, watch } from 'vue'
 interface Props {
   modelValue: boolean
   title?: string
+  ariaLabel?: string
   side?: 'bottom' | 'right' | 'left'
   closeOnBackdrop?: boolean
   closeOnEsc?: boolean
@@ -38,7 +39,38 @@ function onKeydown(event: KeyboardEvent) {
   if (event.key === 'Escape' && props.closeOnEsc) {
     event.stopPropagation()
     close()
+    return
   }
+  if (event.key === 'Tab') {
+    trapTabFocus(event)
+  }
+}
+
+function trapTabFocus(event: KeyboardEvent) {
+  const panel = sheetRef.value
+  if (!panel) return
+  const focusable = getFocusableElements(panel)
+  if (!focusable.length) {
+    event.preventDefault()
+    return
+  }
+  const first = focusable[0]
+  const last = focusable[focusable.length - 1]
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault()
+    last.focus()
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault()
+    first.focus()
+  }
+}
+
+function getFocusableElements(container: HTMLElement): HTMLElement[] {
+  return Array.from(
+    container.querySelectorAll<HTMLElement>(
+      'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    )
+  )
 }
 
 watch(
@@ -77,7 +109,7 @@ onBeforeUnmount(() => {
           :class="`base-sheet-${side}`"
           role="dialog"
           aria-modal="true"
-          :aria-label="title || undefined"
+          :aria-label="ariaLabel || title || undefined"
           tabindex="-1"
         >
           <header v-if="$slots.header || title || $slots.actions" class="base-sheet-header">
@@ -119,7 +151,7 @@ onBeforeUnmount(() => {
 .base-sheet {
   display: flex;
   flex-direction: column;
-  max-height: calc(100dvh - var(--safe-area-inset-top, 0px));
+  max-height: calc(100dvh - env(safe-area-inset-top, 0px));
   background: var(--glass-bg-strong, var(--background-card));
   border: 1px solid var(--glass-border, var(--border-color));
   box-shadow: var(--glass-shadow-lg, 0 16px 48px rgba(0, 0, 0, 0.3));
@@ -131,7 +163,7 @@ onBeforeUnmount(() => {
   width: 100%;
   margin-top: auto;
   border-radius: var(--radius-2xl) var(--radius-2xl) 0 0;
-  padding-bottom: var(--safe-area-inset-bottom, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 .base-sheet-right,
@@ -142,10 +174,12 @@ onBeforeUnmount(() => {
 
 .base-sheet-right {
   margin-left: auto;
+  padding-right: env(safe-area-inset-right, 0px);
 }
 
 .base-sheet-left {
   margin-right: auto;
+  padding-left: env(safe-area-inset-left, 0px);
 }
 
 .base-sheet-header,

@@ -50,34 +50,46 @@
     </div>
 
     <!-- Existing keys -->
-    <div v-if="loading" class="loading">Loading…</div>
-    <div v-else-if="keys.length === 0" class="empty">
-      No API keys yet.
-    </div>
-    <table v-else class="keys-table">
-      <thead>
-        <tr>
-          <th>Name</th>
-          <th>Prefix</th>
-          <th>Created</th>
-          <th>Last used</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-for="k in keys" :key="k.id">
-          <td>{{ k.name }}</td>
-          <td><code>{{ k.prefix }}…</code></td>
-          <td>{{ formatDate(k.created_at) }}</td>
-          <td>{{ k.last_used_at ? formatDate(k.last_used_at) : 'never' }}</td>
-          <td>
-            <button class="btn btn-sm btn-danger" @click="revokeKey(k)">
-              Revoke
-            </button>
-          </td>
-        </tr>
-      </tbody>
-    </table>
+    <section class="danger-zone" aria-labelledby="api-key-danger-title">
+      <div class="danger-zone-header">
+        <h2 id="api-key-danger-title">API key access</h2>
+        <span class="danger-badge">Danger zone</span>
+      </div>
+      <p class="danger-copy">
+        Revoking a key immediately stops existing scripts and dashboards that use it.
+      </p>
+
+      <div v-if="loading" class="loading">Loading…</div>
+      <div v-else-if="keys.length === 0" class="empty">
+        No API keys yet.
+      </div>
+      <div v-else class="keys-table-wrap">
+        <table class="keys-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Prefix</th>
+              <th>Created</th>
+              <th>Last used</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="k in keys" :key="k.id">
+              <td data-label="Name">{{ k.name }}</td>
+              <td data-label="Prefix"><code>{{ k.prefix }}…</code></td>
+              <td data-label="Created">{{ formatDate(k.created_at) }}</td>
+              <td data-label="Last used">{{ k.last_used_at ? formatDate(k.last_used_at) : 'never' }}</td>
+              <td data-label="Action">
+                <button class="btn btn-sm btn-danger" @click="revokeKey(k)">
+                  Revoke
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
 
     <div v-if="error" class="error">{{ error }}</div>
   </div>
@@ -233,6 +245,39 @@ onMounted(load)
   gap: 0.5rem;
   align-items: center;
 }
+.danger-zone {
+  border: 1px solid rgba(255, 80, 80, 0.35);
+  border-radius: 12px;
+  padding: 1rem;
+  background: rgba(255, 80, 80, 0.06);
+}
+.danger-zone-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.35rem;
+}
+.danger-zone h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+.danger-badge {
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 80, 80, 0.45);
+  color: var(--danger-text-color);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+.danger-copy {
+  margin: 0 0 0.75rem;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
 .fresh-key-value {
   flex: 1;
   font-family: monospace;
@@ -245,6 +290,10 @@ onMounted(load)
   width: 100%;
   border-collapse: collapse;
   font-size: 0.9rem;
+}
+.keys-table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 .keys-table th,
 .keys-table td {
@@ -290,5 +339,48 @@ onMounted(load)
 .btn-sm {
   padding: 0.25rem 0.6rem;
   font-size: 0.8rem;
+}
+@media (max-width: 640px) {
+  .create-row,
+  .fresh-key-header,
+  .fresh-key-row,
+  .danger-zone-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .keys-table,
+  .keys-table thead,
+  .keys-table tbody,
+  .keys-table tr,
+  .keys-table th,
+  .keys-table td {
+    display: block;
+  }
+
+  .keys-table thead {
+    display: none;
+  }
+
+  .keys-table tr {
+    padding: 0.75rem 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .keys-table td {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.35rem 0;
+    border-bottom: 0;
+    text-align: right;
+  }
+
+  .keys-table td::before {
+    content: attr(data-label);
+    color: var(--text-secondary);
+    font-weight: 600;
+    text-align: left;
+  }
 }
 </style>

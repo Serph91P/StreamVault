@@ -1,0 +1,175 @@
+{
+  "capturedAt": "2026-07-06T21:05:26.380Z",
+  "url": "http://127.0.0.1:5173/",
+  "results": [
+    {
+      "name": "dashboard-desktop-1440x1000",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "screenshot": "/opt/data/workspace/github_repos/StreamVault-frontend-product-overhaul-final/.hermes/frontend-visual-evidence/dashboard-overhaul/dashboard-desktop-1440x1000.png",
+      "text": "StreamVault\nQueue\n2\nNotifications\nLogout\nDashboard\nDashboard overview\nStreamers\nManage creators\nLibrary\nVideo library\nSubscriptions\nManage subscriptions\nSettings\nApp preferences\nCollapse\nREALTIME OFFLINE\nDashboard\n\nMonitor live streams, active recordings, queue health and the latest media from one operational view.\n\nAdd Streamer\nOpen Library\n\nAT A GLANCE\n\n2 streamers live now\n\nOpen a live stream, confirm recording, or keep watching queue health from this screen.\n\nLive 2 | Recording 1 | Queue Active | Errors 0 | Recent activity quiet\n\nOpen live list\nLIVE\n2 online\n4 tracked\nRECORDING\n1 active\n1 streamer marked\nQUEUE\nActive\n1 active, 1 pending\nERRORS\n0 alerts\nNo active alerts\nRECENT ACTIVITY\nQuiet\nNo recent realtime event yet\nLive Streamers\n\nStreams that are currently online and ready to watch or record.\n\n2 LIVE\nLIVE\nstreamer_alpha\n\nJust Chatting with Chat!\n\nJust Chatting\nRECORDING\nLIVE\nspeedrunner_pro\n\nRanked Climbing Session\n\nCompetitive Gaming\nActive Recordings\n\nRecording sessions reported by the backend and realtime updates.\n\n1 RECORDING\nRECORDING\nstreamer_alpha recording\n\nstreamer_alpha started 11/20/2025, 11:14:43 AM\n\nStreamer\nLive\nLatest Videos\n\nRecently completed recordings, sorted newest first.\n\nView All\n39:00\nMorning Talk Show - Community Discussion\nstreamer_alpha\n•\n450.0 MB\n2:00:00\nRanked Climbing Session - Road to Masters\nspeedrunner_pro\n•\n1.2 GB\n3:00:00\nRetro RPG Marathon - Classic Gaming Session\nretro_gamer\n•\n1.8 GB\n1:10:00\nMorning Chill Stream - Coffee and Chat\nstreamer_alpha\n•\n680.0 MB\n1:30:00\nSpeedrun Practice - Sub 30 Minute Attempts\nspeedrunner_pro\n•\n900.0 MB\n1:45:00\nLate Night Variety Stream - Viewer Games\ncasual_streamer\n•\n1.0 GB\nQueue\n\nBackground work for recordings and processing.\n\nACTIVE\nActive progress\n0%\nACTIVE\n1\nPENDING\n1\nFAILED\n1\nWORKERS\n4\nRefresh queue status\nFailures and Alerts\n\nCritical recording and queue events that may need attention.\n\nNo Failures\n\nQueue and realtime events do not report active failures.\n\nRealtime Activity\n\nLatest product events from the central realtime store.\n\nWaiting for Events\n\nRealtime stream, recording and notification updates will appear here.",
+      "firstViewportText": "StreamVault | Queue2 | Queue | 2 | Notifications | Notifications | Logout | Logout | DashboardDashboard overview | Dashboard | Dashboard overview | StreamersManage creators | Streamers | Manage creators | LibraryVideo library | Library | Video library | SubscriptionsManage subscriptions | Subscriptions | Manage subscriptions | SettingsApp preferences | Settings | App preferences | Collapse | Collapse | Realtime offline | Dashboard | Monitor live streams, active recordings, queue health and the latest media from one operational view. | Add Streamer | Open Library | At a glance | 2 streamers live now | Open a live stream, confirm recording, or keep watching queue health from this screen. | Live 2 | Recording 1 | Queue Active | Errors 0 | Recent activity quiet | Open live list | Live2 online4 tracked | Live | 2 online | 4 tracked | Recording1 active1 streamer marked | Recording | 1 active | 1 streamer marked | QueueActive1 active, 1 pending | Queue | Active | 1 active, 1 pending | Errors0 alertsNo active alerts | Errors | 0 alerts | No active alerts | Recent activityQuietNo recent realtime event yet | Recent activity | Quiet | No recent realtime event yet | Live Streamers | Live Streamers | Streams that are currently online and ready to watch or record. | 2 live | LIVE | streamer_alpha | streamer_alpha | Just Chatting with Chat! | LIVE | speedrunner_pro | speedrunner_pro | Ranked Climbing Session | Queue | Queue | Background work for recordings and processing. | Active | Active progress | 0% | Active | 1 | Pending | 1",
+      "messages": [
+        {
+          "type": "error",
+          "text": "X-Frame-Options may only be set via an HTTP header sent along with a document. It may not be set inside <meta>."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connecting..."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connected."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Using MOCK API for all endpoints"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue warn]: onMounted is called when there is no active component instance to be associated with. Lifecycle injection APIs can only be used during execution of setup(). If you are using async setup(), make sure to register lifecycle hooks before the first await statement."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: WebSocket connections disabled"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T21:05:21.012Z] DEBUG [WebSocketManager] Singleton created with URL: ws://127.0.0.1:5173/ws"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T21:05:21.012Z] DEBUG [WebSocketManager] Singleton instance created"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping WebSocket connection"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T21:05:21.026Z] DEBUG [useBackgroundQueue] Background Queue: Waiting for WebSocket data"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T21:05:21.026Z] DEBUG [useBackgroundQueue] WebSocket not connected yet, using API fallback for initial load"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T21:05:21.026Z] DEBUG [useBackgroundQueue] FORCE REFRESH: Using API as fallback"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T21:05:21.026Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T21:05:21.027Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping auth checks, allowing all routes"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue Router warn]: The `next()` callback in navigation guards is deprecated. Return the value instead of calling `next(value)`."
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T21:05:21.226Z] DEBUG [useBackgroundQueue] FORCE REFRESH: API data loaded as fallback"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: net::ERR_NETWORK_CHANGED"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: net::ERR_NETWORK_CHANGED"
+        }
+      ]
+    },
+    {
+      "name": "dashboard-mobile-390x844",
+      "viewport": {
+        "width": 390,
+        "height": 844,
+        "isMobile": true
+      },
+      "screenshot": "/opt/data/workspace/github_repos/StreamVault-frontend-product-overhaul-final/.hermes/frontend-visual-evidence/dashboard-overhaul/dashboard-mobile-390x844.png",
+      "text": "StreamVault\n2\nREALTIME OFFLINE\nDashboard\n\nMonitor live streams, active recordings, queue health and the latest media from one operational view.\n\nAdd Streamer\nOpen Library\n\nAT A GLANCE\n\n2 streamers live now\n\nOpen a live stream, confirm recording, or keep watching queue health from this screen.\n\nLive 2 | Recording 1 | Queue Active | Errors 0 | Recent activity quiet\n\nOpen live list\nLIVE\n2 online\n4 tracked\nRECORDING\n1 active\n1 streamer marked\nQUEUE\nActive\n1 active, 1 pending\nERRORS\n0 alerts\nNo active alerts\nRECENT ACTIVITY\nQuiet\nNo recent realtime event yet\nLive Streamers\n\nStreams that are currently online and ready to watch or record.\n\n2 LIVE\nLIVE\nstreamer_alpha\n\nJust Chatting with Chat!\n\nJust Chatting\nRECORDING\nLIVE\nspeedrunner_pro\n\nRanked Climbing Session\n\nCompetitive Gaming\nActive Recordings\n\nRecording sessions reported by the backend and realtime updates.\n\n1 RECORDING\nRECORDING\nstreamer_alpha recording\n\nstreamer_alpha started 11/20/2025, 11:14:43 AM\n\nStreamer\nLive\nLatest Videos\n\nRecently completed recordings, sorted newest first.\n\nView All\n39:00\nMorning Talk Show - Community Discussion\nstreamer_alpha\n•\n450.0 MB\n2:00:00\nRanked Climbing Session - Road to Masters\nspeedrunner_pro\n•\n1.2 GB\n3:00:00\nRetro RPG Marathon - Classic Gaming Session\nretro_gamer\n•\n1.8 GB\n1:10:00\nMorning Chill Stream - Coffee and Chat\nstreamer_alpha\n•\n680.0 MB\n1:30:00\nSpeedrun Practice - Sub 30 Minute Attempts\nspeedrunner_pro\n•\n900.0 MB\n1:45:00\nLate Night Variety Stream - Viewer Games\ncasual_streamer\n•\n1.0 GB\nQueue\n\nBackground work for recordings and processing.\n\nACTIVE\nActive progress\n0%\nACTIVE\n1\nPENDING\n1\nFAILED\n1\nWORKERS\n4\nRefresh queue status\nFailures and Alerts\n\nCritical recording and queue events that may need attention.\n\nNo Failures\n\nQueue and realtime events do not report active failures.\n\nRealtime Activity\n\nLatest product events from the central realtime store.\n\nWaiting for Events\n\nRealtime stream, recording and notification updates will appear here.\n\nDashboard\nStreamers\nLibrary\nSubscriptions\nSettings",
+      "firstViewportText": "StreamVault | Queue2 | 2 | Notifications | Logout | Realtime offline | At a glance | 2 streamers live now | Open a live stream, confirm recording, or keep watching queue health from this screen. | Live 2 | Recording 1 | Queue Active | Errors 0 | Recent activity quiet | Open live list | Live2 online4 tracked | Live | 2 online | 4 tracked | Recording1 active1 streamer marked | Recording | 1 active | 1 streamer marked | QueueActive1 active, 1 pending | Queue | Active | 1 active, 1 pending | Errors0 alertsNo active alerts | Errors | 0 alerts | No active alerts | Recent activityQuietNo recent realtime event yet | Recent activity | Quiet | No recent realtime event yet | Dashboard | Dashboard | Streamers | Streamers | Library | Library | Subscriptions | Subscriptions | Settings | Settings",
+      "messages": [
+        {
+          "type": "error",
+          "text": "X-Frame-Options may only be set via an HTTP header sent along with a document. It may not be set inside <meta>."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connecting..."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connected."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Using MOCK API for all endpoints"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue warn]: onMounted is called when there is no active component instance to be associated with. Lifecycle injection APIs can only be used during execution of setup(). If you are using async setup(), make sure to register lifecycle hooks before the first await statement."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: WebSocket connections disabled"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T21:05:23.681Z] DEBUG [WebSocketManager] Singleton created with URL: ws://127.0.0.1:5173/ws"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T21:05:23.681Z] DEBUG [WebSocketManager] Singleton instance created"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping WebSocket connection"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T21:05:23.693Z] DEBUG [useBackgroundQueue] Background Queue: Waiting for WebSocket data"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T21:05:23.693Z] DEBUG [useBackgroundQueue] WebSocket not connected yet, using API fallback for initial load"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T21:05:23.693Z] DEBUG [useBackgroundQueue] FORCE REFRESH: Using API as fallback"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T21:05:23.694Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T21:05:23.694Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping auth checks, allowing all routes"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue Router warn]: The `next()` callback in navigation guards is deprecated. Return the value instead of calling `next(value)`."
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T21:05:23.894Z] DEBUG [useBackgroundQueue] FORCE REFRESH: API data loaded as fallback"
+        }
+      ]
+    }
+  ]
+}

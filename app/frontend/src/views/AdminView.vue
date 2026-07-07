@@ -1,9 +1,9 @@
 <template>
   <div class="page-view admin-view">
     <PageHeader
-      title="Admin Diagnostics"
+      title="Admin"
       icon="settings"
-      subtitle="System testing and diagnostics for StreamVault internals. View service health, queue state, and connection status."
+      subtitle="Monitor system health, services, connections, and background jobs."
     >
       <template #status>
         <span class="diag-status" :class="diagStatusClass">
@@ -21,7 +21,7 @@ import PageHeader from '@/components/base/PageHeader.vue'
 import AdminPanel from '../components/admin/AdminPanel.vue'
 
 const diagStatusClass = 'status-idle'
-const diagStatusLabel = 'Diagnostics available'
+const diagStatusLabel = 'Admin tools'
 </script>
 
 <style scoped lang="scss">
@@ -52,7 +52,7 @@ const diagStatusLabel = 'Diagnostics available'
 }
 
 .status-idle {
-  color: var(--text-secondary);
+  color: var(--text-primary);
   border-color: var(--border-color);
 }
 

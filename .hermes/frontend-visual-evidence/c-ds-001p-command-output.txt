@@ -1,0 +1,143 @@
+$ node --check .hermes/frontend-visual-evidence/run-c-ds-001-primitive-qa.mjs
+
+$ cd app/frontend && VITE_USE_MOCK_DATA=true npm run build-only
+> vite build
+vite v8.1.3 building client environment for production...
+[2Ktransforming...✓ 232 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/manifest.webmanifest                            0.60 kB
+dist/index.html                                      5.05 kB │ gzip:   1.45 kB
+dist/assets/StreamerSettingsFields-BOuGUp7I.css      1.41 kB │ gzip:   0.49 kB
+dist/assets/OnboardingWizardView-iBdECXd_.css        5.08 kB │ gzip:   1.23 kB
+dist/assets/BaseModal-2W7jBEEi.css                   7.96 kB │ gzip:   2.11 kB
+dist/assets/PageHeader-CdcS36us.css                  8.60 kB │ gzip:   2.25 kB
+dist/assets/LoadingSkeleton-BnQP015T.css             9.89 kB │ gzip:   2.40 kB
+dist/assets/StatusCard-6c2j4ACs.css                 11.03 kB │ gzip:   2.69 kB
+dist/assets/GlassCard-DpwVc7wM.css                  11.40 kB │ gzip:   2.79 kB
+dist/assets/LoginView-BBjDoJ54.css                  11.74 kB │ gzip:   2.99 kB
+dist/assets/VideoCard-BjGBjWyX.css                  13.28 kB │ gzip:   3.20 kB
+dist/assets/SubscriptionsView-Bk2AVFDt.css          15.06 kB │ gzip:   3.36 kB
+dist/assets/StreamersView-XRyv7VDw.css              15.20 kB │ gzip:   3.36 kB
+dist/assets/StreamerCard-CUYhDzfr.css               17.52 kB │ gzip:   3.89 kB
+dist/assets/VideosView-qp7YCpmQ.css                 17.59 kB │ gzip:   3.67 kB
+dist/assets/LivePlayerView-BJjzd61p.css             17.78 kB │ gzip:   4.04 kB
+dist/assets/HomeView-ChbfZC3G.css                   23.99 kB │ gzip:   3.83 kB
+dist/assets/AddStreamerView-Cn_j56zN.css            34.46 kB │ gzip:   4.63 kB
+dist/assets/StreamerDetailView-DLKrq8ks.css         35.75 kB │ gzip:   5.46 kB
+dist/assets/VideoPlayerView-CTDLFeGR.css            46.38 kB │ gzip:   7.26 kB
+dist/assets/AdminView-BLkzhAVO.css                  57.52 kB │ gzip:   6.44 kB
+dist/assets/SettingsView-gIS5FZSS.css              126.09 kB │ gzip:  12.37 kB
+dist/assets/index-2j_Ij5Y1.css                     280.79 kB │ gzip:  34.68 kB
+dist/assets/useForceRecording-BM_oI7Gd.js            0.80 kB │ gzip:   0.48 kB
+dist/assets/PageHeader-BtFUPmzU.js                   1.26 kB │ gzip:   0.59 kB
+dist/assets/storage-DGCOtITf.js                      1.70 kB │ gzip:   0.59 kB
+dist/assets/BaseModal-Z-zJ2AOa.js                    2.51 kB │ gzip:   1.20 kB
+dist/assets/LoadingSkeleton-BkkVQj3a.js              2.52 kB │ gzip:   0.80 kB
+dist/assets/StatusCard-JzGvAnVR.js                   2.56 kB │ gzip:   1.15 kB
+dist/assets/LoginView-CHUyKsdh.js                    3.07 kB │ gzip:   1.37 kB
+dist/assets/GlassCard-CSiuhrzX.js                    3.66 kB │ gzip:   1.50 kB
+dist/assets/VideoCard-BBNnwKt-.js                    3.98 kB │ gzip:   1.74 kB
+dist/assets/StreamerSettingsFields-CMTBpwpH.js       4.89 kB │ gzip:   1.76 kB
+dist/assets/router-FCDEXrAx.js                       5.60 kB │ gzip:   2.15 kB
+dist/assets/workbox-window.prod.es5-Bd17z0YL.js      5.65 kB │ gzip:   2.20 kB
+dist/assets/SubscriptionsView-58WKYkAl.js            6.02 kB │ gzip:   2.29 kB
+dist/assets/StreamerCard-a8p2ysxV.js                 7.15 kB │ gzip:   2.54 kB
+dist/assets/StreamersView-BZYaTaV0.js                9.48 kB │ gzip:   3.57 kB
+dist/assets/VideosView-C_yN8pt_.js                  10.18 kB │ gzip:   3.62 kB
+dist/assets/AddStreamerView-8LKUKzdw.js             12.13 kB │ gzip:   4.39 kB
+dist/assets/OnboardingWizardView-CAJmCKU5.js        13.12 kB │ gzip:   4.33 kB
+dist/assets/_plugin-vue_export-helper-C156SXld.js   15.08 kB │ gzip:   6.45 kB
+dist/assets/HomeView-DfARhiDA.js                    18.17 kB │ gzip:   5.63 kB
+dist/assets/StreamerDetailView-C6OdbPCp.js          21.15 kB │ gzip:   6.88 kB
+dist/assets/VideoPlayerView-BvMHCuBu.js             25.30 kB │ gzip:   8.94 kB
+dist/assets/AdminView-DSZMuoIK.js                   46.18 kB │ gzip:  11.51 kB
+dist/assets/vue-vendor-C5pht-_b.js                  86.72 kB │ gzip:  33.64 kB
+dist/assets/SettingsView-Bj7cxLLg.js               102.76 kB │ gzip:  28.29 kB
+dist/assets/index-C7NQOOjf.js                      122.17 kB │ gzip:  36.42 kB
+dist/assets/LivePlayerView-BsqFLrOj.js             521.61 kB │ gzip: 161.51 kB
+✓ built in 1.89s
+PWA v1.3.0
+mode      generateSW
+precache  90 entries (2491.25 KiB)
+files generated
+  dist/sw.js
+  dist/workbox-dcde9eb3.js
+[31m[INVALID_ANNOTATION] [0mA comment "/* #__PURE__ */" in "node_modules/@vueuse/core/dist/index.js" contains an annotation that Rolldown cannot interpret due to the position of the comment.
+      [38;5;246m╭[0m[38;5;246m─[0m[38;5;246m[[0m node_modules/@vueuse/core/dist/index.js:3362:1 [38;5;246m][0m
+      [38;5;246m│[0m
+ [38;5;246m3362 │[0m /* #__PURE__ */
+ [38;5;240m     │[0m ───────┬───────
+ [38;5;240m     │[0m        ╰───────── comment ignored due to position
+ [38;5;240m     │[0m
+ [38;5;240m     │[0m [38;5;115mHelp[0m: For more information on how to use pure annotations correctly, check the documentation: https://rolldown.rs/in-depth/dead-code-elimination#pure
+[38;5;246m──────╯[0m
+[plugin builtin:vite-reporter]
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rolldownOptions.output.codeSplitting to improve chunking: https://rolldown.rs/reference/OutputOptions.codeSplitting
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+[31m[INVALID_ANNOTATION] [0mA comment "/* #__PURE__ */" in "node_modules/@vueuse/core/dist/index.js" contains an annotation that Rolldown cannot interpret due to the position of the comment.
+      [38;5;246m╭[0m[38;5;246m─[0m[38;5;246m[[0m node_modules/@vueuse/core/dist/index.js:5780:23 [38;5;246m][0m
+      [38;5;246m│[0m
+ [38;5;246m5780 │[0m [38;5;249mc[0m[38;5;249mo[0m[38;5;249mn[0m[38;5;249ms[0m[38;5;249mt[0m[38;5;249m [0m[38;5;249md[0m[38;5;249me[0m[38;5;249mf[0m[38;5;249ma[0m[38;5;249mu[0m[38;5;249ml[0m[38;5;249mt[0m[38;5;249mS[0m[38;5;249mt[0m[38;5;249ma[0m[38;5;249mt[0m[38;5;249me[0m[38;5;249m [0m[38;5;249m=[0m[38;5;249m [0m[38;5;249m([0m/* #__PURE__ */[38;5;249m [0m[38;5;249m{[0m
+ [38;5;240m     │[0m                       ───────┬───────
+ [38;5;240m     │[0m                              ╰───────── comment ignored due to position
+ [38;5;240m     │[0m
+ [38;5;240m     │[0m [38;5;115mHelp[0m: For more information on how to use pure annotations correctly, check the documentation: https://rolldown.rs/in-depth/dead-code-elimination#pure
+[38;5;246m──────╯[0m
+
+$ cd app/frontend && npm run preview -- --host 127.0.0.1 --port 4174
+preview process session: proc_6092d5a388ea
+$ curl -I --max-time 5 http://127.0.0.1:4174/
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
+HTTP/1.1 200 OK
+Vary: Origin
+Content-Type: text/html
+Cache-Control: no-cache
+Etag: W/"13c0-SdCVqf0ZKR+gTn0jMTqbHKXYNVM"
+Date: Mon, 06 Jul 2026 15:54:42 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+
+
+$ cd app/frontend && QA_RUN_LABEL="production preview with VITE_USE_MOCK_DATA=true" QA_BASE_URL=http://127.0.0.1:4174 QA_OUT_DIR=../../.hermes/frontend-visual-evidence QA_COMMAND_OUTPUT_ARTIFACT=.hermes/frontend-visual-evidence/c-ds-001p-command-output.txt node ../../.hermes/frontend-visual-evidence/run-c-ds-001-primitive-qa.mjs
+{
+  "blocked": false,
+  "screenshots": 64,
+  "regressions": [],
+  "axeSummary": []
+}
+
+$ cd app/frontend && npm run lint:tokens
+> node scripts/check-design-tokens.cjs
+✅ design-token lint: no violations
+
+$ cd app/frontend && npm run type-check
+> vue-tsc --build
+
+$ grep -rP "[\\x{2013}\\x{2014}]" .hermes/frontend-visual-evidence/run-c-ds-001-primitive-qa.mjs .hermes/frontend-visual-evidence/c-ds-001-primitive-qa-matrix.md .hermes/frontend-visual-evidence/c-ds-001-primitive-qa-results.json .hermes/frontend-visual-evidence/c-ds-001p-command-output.txt || true
+
+$ node --check .hermes/frontend-visual-evidence/run-c-ds-001-primitive-qa.mjs
+$ curl -I --max-time 5 http://127.0.0.1:4174/
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
+HTTP/1.1 200 OK
+Vary: Origin
+Content-Type: text/html
+Cache-Control: no-cache
+Etag: W/"13c0-SdCVqf0ZKR+gTn0jMTqbHKXYNVM"
+Date: Mon, 06 Jul 2026 16:00:33 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+
+$ cd app/frontend && QA_RUN_LABEL="production preview with VITE_USE_MOCK_DATA=true" QA_BASE_URL=http://127.0.0.1:4174 QA_OUT_DIR=../../.hermes/frontend-visual-evidence QA_COMMAND_OUTPUT_ARTIFACT=.hermes/frontend-visual-evidence/c-ds-001p-command-output.txt node ../../.hermes/frontend-visual-evidence/run-c-ds-001-primitive-qa.mjs
+{
+  "blocked": false,
+  "screenshots": 64,
+  "regressions": [],
+  "axeSummary": []
+}

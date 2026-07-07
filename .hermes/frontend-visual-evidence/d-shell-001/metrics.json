@@ -1,0 +1,625 @@
+[
+  {
+    "viewportName": "mobile-390",
+    "url": "http://127.0.0.1:4173/",
+    "documentWidth": 390,
+    "viewportWidth": 390,
+    "noHorizontalOverflow": true,
+    "headerRect": {
+      "x": 0,
+      "y": 0,
+      "width": 390,
+      "height": 56,
+      "top": 0,
+      "right": 390,
+      "bottom": 56,
+      "left": 0
+    },
+    "sidebarRect": null,
+    "bottomNavRect": {
+      "x": 0,
+      "y": 776,
+      "width": 390,
+      "height": 68,
+      "top": 776,
+      "right": 390,
+      "bottom": 844,
+      "left": 0
+    },
+    "mainRect": {
+      "x": 4,
+      "y": 0,
+      "width": 382,
+      "height": 5614,
+      "top": 0,
+      "right": 386,
+      "bottom": 5614,
+      "left": 4
+    },
+    "mainPaddingTop": "56px",
+    "mainPaddingBottom": "68px",
+    "targetCount": 9,
+    "undersizedTargets": [],
+    "sampledTargets": [
+      {
+        "label": "Open background jobs",
+        "className": "queue-status-indicator",
+        "width": 44,
+        "height": 44,
+        "ok": true
+      },
+      {
+        "label": "Notifications",
+        "className": "glass-btn-icon header-utility-btn",
+        "width": 44,
+        "height": 44,
+        "ok": true
+      },
+      {
+        "label": "Switch to dark mode",
+        "className": "icon-btn",
+        "width": 44,
+        "height": 44,
+        "ok": true
+      },
+      {
+        "label": "Logout",
+        "className": "glass-btn-danger header-logout-btn",
+        "width": 44,
+        "height": 44,
+        "ok": true
+      },
+      {
+        "label": "Dashboard",
+        "className": "active nav-tab focus-ring-primary",
+        "width": 68,
+        "height": 52,
+        "ok": true
+      },
+      {
+        "label": "Streamers",
+        "className": "nav-tab focus-ring-primary",
+        "width": 68,
+        "height": 52,
+        "ok": true
+      },
+      {
+        "label": "Library",
+        "className": "nav-tab focus-ring-primary",
+        "width": 68,
+        "height": 52,
+        "ok": true
+      },
+      {
+        "label": "Subscriptions",
+        "className": "nav-tab focus-ring-primary",
+        "width": 68,
+        "height": 52,
+        "ok": true
+      },
+      {
+        "label": "Settings",
+        "className": "nav-tab focus-ring-primary",
+        "width": 68,
+        "height": 52,
+        "ok": true
+      }
+    ],
+    "bottomNavVisible": true,
+    "sidebarVisible": false,
+    "utilityLabels": [
+      "Jobs2",
+      "Alerts",
+      "",
+      "Logout"
+    ]
+  },
+  {
+    "viewportName": "tablet-768",
+    "url": "http://127.0.0.1:4173/",
+    "documentWidth": 768,
+    "viewportWidth": 768,
+    "noHorizontalOverflow": true,
+    "headerRect": {
+      "x": 0,
+      "y": 0,
+      "width": 768,
+      "height": 56,
+      "top": 0,
+      "right": 768,
+      "bottom": 56,
+      "left": 0
+    },
+    "sidebarRect": null,
+    "bottomNavRect": {
+      "x": 0,
+      "y": 956,
+      "width": 768,
+      "height": 68,
+      "top": 956,
+      "right": 768,
+      "bottom": 1024,
+      "left": 0
+    },
+    "mainRect": {
+      "x": 4,
+      "y": 0,
+      "width": 760,
+      "height": 3709,
+      "top": 0,
+      "right": 764,
+      "bottom": 3709,
+      "left": 4
+    },
+    "mainPaddingTop": "56px",
+    "mainPaddingBottom": "68px",
+    "targetCount": 9,
+    "undersizedTargets": [],
+    "sampledTargets": [
+      {
+        "label": "Open background jobs",
+        "className": "queue-status-indicator",
+        "width": 50,
+        "height": 44,
+        "ok": true
+      },
+      {
+        "label": "Notifications",
+        "className": "glass-btn-icon header-utility-btn",
+        "width": 44,
+        "height": 44,
+        "ok": true
+      },
+      {
+        "label": "Switch to dark mode",
+        "className": "icon-btn",
+        "width": 44,
+        "height": 44,
+        "ok": true
+      },
+      {
+        "label": "Logout",
+        "className": "glass-btn-danger header-logout-btn",
+        "width": 44,
+        "height": 44,
+        "ok": true
+      },
+      {
+        "label": "Dashboard",
+        "className": "active nav-tab focus-ring-primary",
+        "width": 138,
+        "height": 52,
+        "ok": true
+      },
+      {
+        "label": "Streamers",
+        "className": "nav-tab focus-ring-primary",
+        "width": 138,
+        "height": 52,
+        "ok": true
+      },
+      {
+        "label": "Library",
+        "className": "nav-tab focus-ring-primary",
+        "width": 138,
+        "height": 52,
+        "ok": true
+      },
+      {
+        "label": "Subscriptions",
+        "className": "nav-tab focus-ring-primary",
+        "width": 138,
+        "height": 52,
+        "ok": true
+      },
+      {
+        "label": "Settings",
+        "className": "nav-tab focus-ring-primary",
+        "width": 138,
+        "height": 52,
+        "ok": true
+      }
+    ],
+    "bottomNavVisible": true,
+    "sidebarVisible": false,
+    "utilityLabels": [
+      "Jobs2",
+      "Alerts",
+      "",
+      "Logout"
+    ]
+  },
+  {
+    "viewportName": "desktop-1024",
+    "url": "http://127.0.0.1:4173/",
+    "documentWidth": 1024,
+    "viewportWidth": 1024,
+    "noHorizontalOverflow": true,
+    "headerRect": {
+      "x": 0,
+      "y": 0,
+      "width": 1024,
+      "height": 56,
+      "top": 0,
+      "right": 1024,
+      "bottom": 56,
+      "left": 0
+    },
+    "sidebarRect": {
+      "x": 0,
+      "y": 56,
+      "width": 232,
+      "height": 712,
+      "top": 56,
+      "right": 232,
+      "bottom": 768,
+      "left": 0
+    },
+    "bottomNavRect": {
+      "x": 0,
+      "y": 0,
+      "width": 0,
+      "height": 0,
+      "top": 0,
+      "right": 0,
+      "bottom": 0,
+      "left": 0
+    },
+    "mainRect": {
+      "x": 248,
+      "y": 0,
+      "width": 772,
+      "height": 3695,
+      "top": 0,
+      "right": 1020,
+      "bottom": 3695,
+      "left": 248
+    },
+    "mainPaddingTop": "56px",
+    "mainPaddingBottom": "32px",
+    "targetCount": 10,
+    "undersizedTargets": [],
+    "sampledTargets": [
+      {
+        "label": "Open background jobs",
+        "className": "queue-status-indicator",
+        "width": 91,
+        "height": 44,
+        "ok": true
+      },
+      {
+        "label": "Notifications",
+        "className": "glass-btn-icon header-utility-btn",
+        "width": 91,
+        "height": 44,
+        "ok": true
+      },
+      {
+        "label": "Switch to dark mode",
+        "className": "icon-btn",
+        "width": 44,
+        "height": 44,
+        "ok": true
+      },
+      {
+        "label": "Logout",
+        "className": "glass-btn-danger header-logout-btn",
+        "width": 44,
+        "height": 44,
+        "ok": true
+      },
+      {
+        "label": "Dashboard",
+        "className": "active router-link-exact-active sidebar-nav-item active",
+        "width": 215,
+        "height": 52,
+        "ok": true
+      },
+      {
+        "label": "Streamers",
+        "className": "sidebar-nav-item",
+        "width": 215,
+        "height": 52,
+        "ok": true
+      },
+      {
+        "label": "Library",
+        "className": "sidebar-nav-item",
+        "width": 215,
+        "height": 52,
+        "ok": true
+      },
+      {
+        "label": "Subscriptions",
+        "className": "sidebar-nav-item",
+        "width": 215,
+        "height": 52,
+        "ok": true
+      },
+      {
+        "label": "Settings",
+        "className": "sidebar-nav-item",
+        "width": 215,
+        "height": 52,
+        "ok": true
+      },
+      {
+        "label": "Collapse sidebar",
+        "className": "sidebar-toggle",
+        "width": 215,
+        "height": 44,
+        "ok": true
+      }
+    ],
+    "bottomNavVisible": false,
+    "sidebarVisible": true,
+    "utilityLabels": [
+      "Jobs2",
+      "Alerts",
+      "",
+      "Logout"
+    ]
+  },
+  {
+    "viewportName": "desktop-1280",
+    "url": "http://127.0.0.1:4173/",
+    "documentWidth": 1280,
+    "viewportWidth": 1280,
+    "noHorizontalOverflow": true,
+    "headerRect": {
+      "x": 0,
+      "y": 0,
+      "width": 1280,
+      "height": 56,
+      "top": 0,
+      "right": 1280,
+      "bottom": 56,
+      "left": 0
+    },
+    "sidebarRect": {
+      "x": 0,
+      "y": 56,
+      "width": 232,
+      "height": 664,
+      "top": 56,
+      "right": 232,
+      "bottom": 720,
+      "left": 0
+    },
+    "bottomNavRect": {
+      "x": 0,
+      "y": 0,
+      "width": 0,
+      "height": 0,
+      "top": 0,
+      "right": 0,
+      "bottom": 0,
+      "left": 0
+    },
+    "mainRect": {
+      "x": 248,
+      "y": 0,
+      "width": 1028,
+      "height": 2303,
+      "top": 0,
+      "right": 1276,
+      "bottom": 2303,
+      "left": 248
+    },
+    "mainPaddingTop": "56px",
+    "mainPaddingBottom": "32px",
+    "targetCount": 10,
+    "undersizedTargets": [],
+    "sampledTargets": [
+      {
+        "label": "Open background jobs",
+        "className": "queue-status-indicator",
+        "width": 91,
+        "height": 44,
+        "ok": true
+      },
+      {
+        "label": "Notifications",
+        "className": "glass-btn-icon header-utility-btn",
+        "width": 91,
+        "height": 44,
+        "ok": true
+      },
+      {
+        "label": "Switch to dark mode",
+        "className": "icon-btn",
+        "width": 44,
+        "height": 44,
+        "ok": true
+      },
+      {
+        "label": "Logout",
+        "className": "glass-btn-danger header-logout-btn",
+        "width": 90,
+        "height": 44,
+        "ok": true
+      },
+      {
+        "label": "Dashboard",
+        "className": "active router-link-exact-active sidebar-nav-item active",
+        "width": 215,
+        "height": 52,
+        "ok": true
+      },
+      {
+        "label": "Streamers",
+        "className": "sidebar-nav-item",
+        "width": 215,
+        "height": 52,
+        "ok": true
+      },
+      {
+        "label": "Library",
+        "className": "sidebar-nav-item",
+        "width": 215,
+        "height": 52,
+        "ok": true
+      },
+      {
+        "label": "Subscriptions",
+        "className": "sidebar-nav-item",
+        "width": 215,
+        "height": 52,
+        "ok": true
+      },
+      {
+        "label": "Settings",
+        "className": "sidebar-nav-item",
+        "width": 215,
+        "height": 52,
+        "ok": true
+      },
+      {
+        "label": "Collapse sidebar",
+        "className": "sidebar-toggle",
+        "width": 215,
+        "height": 44,
+        "ok": true
+      }
+    ],
+    "bottomNavVisible": false,
+    "sidebarVisible": true,
+    "utilityLabels": [
+      "Jobs2",
+      "Alerts",
+      "",
+      "Logout"
+    ]
+  },
+  {
+    "viewportName": "desktop-1440",
+    "url": "http://127.0.0.1:4173/",
+    "documentWidth": 1440,
+    "viewportWidth": 1440,
+    "noHorizontalOverflow": true,
+    "headerRect": {
+      "x": 0,
+      "y": 0,
+      "width": 1440,
+      "height": 56,
+      "top": 0,
+      "right": 1440,
+      "bottom": 56,
+      "left": 0
+    },
+    "sidebarRect": {
+      "x": 0,
+      "y": 56,
+      "width": 232,
+      "height": 844,
+      "top": 56,
+      "right": 232,
+      "bottom": 900,
+      "left": 0
+    },
+    "bottomNavRect": {
+      "x": 0,
+      "y": 0,
+      "width": 0,
+      "height": 0,
+      "top": 0,
+      "right": 0,
+      "bottom": 0,
+      "left": 0
+    },
+    "mainRect": {
+      "x": 248,
+      "y": 0,
+      "width": 1188,
+      "height": 2435,
+      "top": 0,
+      "right": 1436,
+      "bottom": 2435,
+      "left": 248
+    },
+    "mainPaddingTop": "56px",
+    "mainPaddingBottom": "32px",
+    "targetCount": 10,
+    "undersizedTargets": [],
+    "sampledTargets": [
+      {
+        "label": "Open background jobs",
+        "className": "queue-status-indicator",
+        "width": 91,
+        "height": 44,
+        "ok": true
+      },
+      {
+        "label": "Notifications",
+        "className": "glass-btn-icon header-utility-btn",
+        "width": 91,
+        "height": 44,
+        "ok": true
+      },
+      {
+        "label": "Switch to dark mode",
+        "className": "icon-btn",
+        "width": 44,
+        "height": 44,
+        "ok": true
+      },
+      {
+        "label": "Logout",
+        "className": "glass-btn-danger header-logout-btn",
+        "width": 90,
+        "height": 44,
+        "ok": true
+      },
+      {
+        "label": "Dashboard",
+        "className": "active router-link-exact-active sidebar-nav-item active",
+        "width": 215,
+        "height": 52,
+        "ok": true
+      },
+      {
+        "label": "Streamers",
+        "className": "sidebar-nav-item",
+        "width": 215,
+        "height": 52,
+        "ok": true
+      },
+      {
+        "label": "Library",
+        "className": "sidebar-nav-item",
+        "width": 215,
+        "height": 52,
+        "ok": true
+      },
+      {
+        "label": "Subscriptions",
+        "className": "sidebar-nav-item",
+        "width": 215,
+        "height": 52,
+        "ok": true
+      },
+      {
+        "label": "Settings",
+        "className": "sidebar-nav-item",
+        "width": 215,
+        "height": 52,
+        "ok": true
+      },
+      {
+        "label": "Collapse sidebar",
+        "className": "sidebar-toggle",
+        "width": 215,
+        "height": 44,
+        "ok": true
+      }
+    ],
+    "bottomNavVisible": false,
+    "sidebarVisible": true,
+    "utilityLabels": [
+      "Jobs2",
+      "Alerts",
+      "",
+      "Logout"
+    ]
+  }
+]

@@ -1,60 +1,5 @@
 <template>
   <div class="page-view streamer-detail-view">
-    <PageHeader
-      :title="streamer?.name || 'Streamer Detail'"
-      :icon="streamer?.is_live ? 'radio' : 'user'"
-      :subtitle="headerSubtitle"
-    >
-      <template #status>
-        <span v-if="streamer?.is_live" class="live-status-badge">
-          <span class="live-pulse-dot"></span>
-          LIVE
-        </span>
-      </template>
-      <template #actions>
-        <button
-          v-if="streamer?.is_live"
-          @click="handleWatchLive(null)"
-          class="btn-action btn-live"
-          v-ripple
-          aria-label="Watch live stream"
-        >
-          <svg class="icon">
-            <use href="#icon-play" />
-          </svg>
-          Watch Live
-        </button>
-        <button
-          v-if="streamer && !streamer.is_recording"
-          @click="forceStartRecording(Number(streamerId))"
-          class="btn-action btn-primary"
-          :disabled="forceRecordingStreamerId === Number(streamerId)"
-          v-ripple
-          aria-label="Start recording"
-        >
-          <svg v-if="forceRecordingStreamerId !== Number(streamerId)" class="icon">
-            <use href="#icon-video" />
-          </svg>
-          <span v-if="forceRecordingStreamerId === Number(streamerId)">Recording...</span>
-          <span v-else>Record Now</span>
-        </button>
-        <button @click="confirmDeleteAll" class="btn-action btn-danger" v-ripple aria-label="Delete all streams">
-          <svg class="icon">
-            <use href="#icon-trash" />
-          </svg>
-          Delete All
-        </button>
-      </template>
-    </PageHeader>
-
-    <!-- Back Button -->
-    <button @click="goBackToStreamers" class="back-button" aria-label="Back to streamers list" v-ripple>
-      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M19 12H5M12 19l-7-7 7-7" />
-      </svg>
-      Back
-    </button>
-
     <!-- Loading State -->
     <div v-if="isLoading" class="loading-container">
       <LoadingSkeleton type="streamer" />
@@ -64,91 +9,256 @@
     </div>
 
     <!-- Content -->
-    <div v-else-if="streamer">
-      <!-- Profile Banner -->
-      <div class="profile-banner" :style="bannerStyle">
-        <div class="banner-overlay"></div>
-        <div class="profile-content">
-          <!-- Avatar with Live Status -->
-          <div class="profile-avatar" :class="{ 'is-live': streamer.is_live }">
-            <img
-              v-if="streamer.profile_image_url"
-              :src="streamer.profile_image_url"
-              :alt="streamer.name"
-            />
-            <div v-else class="avatar-placeholder">
-              <svg class="icon-user">
-                <use href="#icon-user" />
-              </svg>
-            </div>
-            <div v-if="streamer.is_live" class="live-badge">
-              <span class="live-pulse"></span>
-              <span class="live-text">LIVE</span>
-            </div>
+    <template v-else-if="streamer">
+      <!-- Compact Profile Header -->
+      <section class="streamer-control-header" :class="{ 'is-live': streamer.is_live, 'is-recording': streamer.is_recording }" aria-labelledby="streamer-detail-title">
+        <div class="streamer-control-topline">
+          <button @click="goBackToStreamers" class="back-button" aria-label="Back to streamers list">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M19 12H5M12 19l-7-7 7-7" />
+            </svg>
+            Streamers
+          </button>
+
+          <div class="streamer-status-strip" :aria-label="statusSummary">
+            <StatusBadge :tone="streamerStatusTone" size="sm" dot :pulse="streamer.is_live || streamer.is_recording" :uppercase="false">
+              {{ streamerStatusLabel }}
+            </StatusBadge>
+            <StatusBadge v-if="streamer.category_name" tone="info" size="sm" :uppercase="false">
+              {{ streamer.category_name }}
+            </StatusBadge>
           </div>
-
-          <!-- Profile Info -->
-          <div class="profile-info">
-            <h1 class="streamer-name">{{ streamer.name }}</h1>
-            <p v-if="streamer.display_name" class="streamer-username">
-              @{{ streamer.display_name }}
-            </p>
-            <p v-if="streamer.description" class="streamer-description">
-              {{ streamer.description }}
-            </p>
-          </div>
-
-
         </div>
-      </div>
 
-      <!-- Cockpit Tab Navigation -->
-      <div class="cockpit-tabs" role="tablist">
+        <div class="streamer-control-body">
+          <div class="streamer-identity-area">
+            <div class="compact-avatar" :class="{ 'is-live': streamer.is_live }">
+              <img
+                v-if="streamer.profile_image_url && !avatarLoadFailed"
+                :src="streamer.profile_image_url"
+                :alt="streamerDisplayName"
+                @error="avatarLoadFailed = true"
+              />
+              <div v-else class="avatar-placeholder">
+                <svg class="icon-user">
+                  <use href="#icon-user" />
+                </svg>
+              </div>
+              <div v-if="streamer.is_live" class="status-dot status-live" />
+              <div v-else-if="streamer.is_recording" class="status-dot status-recording" />
+              <div v-else class="status-dot status-offline" />
+            </div>
+
+            <div class="compact-info">
+              <h1 id="streamer-detail-title" class="compact-name">{{ streamerDisplayName }}</h1>
+              <p v-if="streamerHandle" class="compact-username">{{ streamerHandle }}</p>
+              <p class="compact-title" :class="{ muted: !streamer.title }">
+                {{ streamer.title || 'No active stream title' }}
+              </p>
+            </div>
+          </div>
+
+          <dl class="compact-stats" aria-label="Streamer recording summary">
+            <div class="compact-stat">
+              <dt class="compact-stat-label">Streams</dt>
+              <dd class="compact-stat-value">{{ streamCount }}</dd>
+            </div>
+            <div class="compact-stat">
+              <dt class="compact-stat-label">Recorded</dt>
+              <dd class="compact-stat-value">{{ recordedStreamsCount }}</dd>
+            </div>
+            <div class="compact-stat">
+              <dt class="compact-stat-label">Avg</dt>
+              <dd class="compact-stat-value">{{ averageDuration }}</dd>
+            </div>
+          </dl>
+
+          <div class="compact-actions" aria-label="Primary streamer actions">
+            <BaseButton
+              v-if="streamer?.is_live"
+              variant="danger"
+              @click="handleWatchLive(null)"
+              aria-label="Watch live stream"
+            >
+              <svg class="icon">
+                <use href="#icon-play" />
+              </svg>
+              Watch Live
+            </BaseButton>
+            <BaseButton
+              v-else-if="latestRecording"
+              variant="primary"
+              @click="handleWatchRecording(latestRecording)"
+              aria-label="Watch latest recording"
+            >
+              <svg class="icon">
+                <use href="#icon-play" />
+              </svg>
+              Latest Recording
+            </BaseButton>
+            <BaseButton
+              v-if="streamer && !streamer.is_recording"
+              :variant="streamer.is_live ? 'secondary' : 'primary'"
+              :loading="forceRecordingStreamerId === Number(streamerId)"
+              loading-label="Starting recording"
+              @click="forceStartRecording(Number(streamerId))"
+              aria-label="Start recording"
+            >
+              <svg class="icon">
+                <use href="#icon-video" />
+              </svg>
+              Record Now
+            </BaseButton>
+            <BaseButton v-else variant="secondary" disabled aria-label="Recording is active">
+              <svg class="icon">
+                <use href="#icon-video" />
+              </svg>
+              Recording
+            </BaseButton>
+          </div>
+        </div>
+
+        <p class="safe-action-note">
+          Destructive stream cleanup stays in the separated Danger Zone below and requires confirmation.
+        </p>
+      </section>
+
+      <!-- Tab Navigation with horizontal scroll -->
+      <div
+        class="cockpit-tabs"
+        role="tablist"
+        aria-label="Streamer detail sections"
+        @keydown="handleCockpitTabKeydown"
+      >
         <button
           v-for="tab in cockpitTabs"
           :key="tab.id"
           @click="activeCockpitTab = tab.id"
           :class="['cockpit-tab', { active: activeCockpitTab === tab.id }]"
+          :id="`streamer-detail-tab-${tab.id}`"
           :aria-selected="activeCockpitTab === tab.id"
+          :aria-controls="`streamer-detail-panel-${tab.id}`"
+          :tabindex="activeCockpitTab === tab.id ? 0 : -1"
           role="tab"
-          v-ripple
         >
           <svg class="icon">
             <use :href="tab.icon" />
           </svg>
-          {{ tab.label }}
+          <span class="tab-label">{{ tab.label }}</span>
         </button>
       </div>
 
       <!-- Overview Tab -->
-      <div v-if="activeCockpitTab === 'overview'" class="cockpit-panel">
+      <div
+        v-if="activeCockpitTab === 'overview'"
+        id="streamer-detail-panel-overview"
+        class="cockpit-panel"
+        role="tabpanel"
+        aria-labelledby="streamer-detail-tab-overview"
+      >
+        <!-- Status Summary -->
         <div class="stats-section">
+          <StatusCard
+            :value="streamer.is_live ? 'Live' : 'Offline'"
+            label="Status"
+            :icon="streamer.is_live ? 'radio' : 'user'"
+            :type="streamer.is_live ? 'danger' : 'primary'"
+            :subtitle="streamer.is_live ? (streamer.title || 'Currently streaming') : 'No active stream'"
+          />
+          <StatusCard
+            :value="streamer.is_recording ? 'Recording' : 'Idle'"
+            label="Recording"
+            :icon="streamer.is_recording ? 'video' : 'clock'"
+            :type="streamer.is_recording ? 'danger' : 'info'"
+            :subtitle="streamer.is_recording ? 'Capture in progress' : 'Ready to record'"
+          />
           <StatusCard
             :value="streamCount"
             label="Total Streams"
             icon="film"
             type="primary"
+            :format-as-number="true"
           />
           <StatusCard
             :value="recordedStreamsCount"
             label="Recorded"
             icon="check-circle"
             type="success"
+            :format-as-number="true"
           />
           <StatusCard
             :value="averageDuration"
             label="Avg Duration"
             icon="clock"
             type="info"
+            :format-as-number="false"
           />
+        </div>
+
+        <!-- Latest Recording / Last Stream Info -->
+        <div v-if="latestStream" class="overview-section">
+          <div class="section-header">
+            <h2 class="section-title">Latest Stream</h2>
+          </div>
+          <div class="latest-stream-card">
+            <div class="latest-stream-info">
+              <span class="latest-stream-title">{{ latestStream.title || 'Untitled Stream' }}</span>
+              <span v-if="latestStream.category_name" class="latest-stream-category">{{ latestStream.category_name }}</span>
+            </div>
+            <div class="latest-stream-meta">
+              <span class="meta-item">
+                <svg class="meta-icon"><use href="#icon-clock" /></svg>
+                {{ formatDateShort(latestStream.started_at) }}
+              </span>
+              <span class="meta-item">
+                <svg class="meta-icon"><use href="#icon-clock" /></svg>
+                {{ formatDuration(latestStream.started_at, latestStream.ended_at) }}
+              </span>
+            </div>
+          </div>
+        </div>
+        <div v-else class="overview-section">
+          <EmptyState
+            variant="compact"
+            title="No Activity Yet"
+            description="This streamer has no recorded streams. Activity will appear here once streams are recorded."
+            icon="info"
+          />
+        </div>
+
+        <!-- Danger Zone -->
+        <div class="overview-section danger-zone">
+          <div class="section-header">
+            <h2 class="section-title danger-title">Danger Zone</h2>
+          </div>
+          <div class="danger-zone-card">
+            <div class="danger-zone-content">
+              <div class="danger-zone-info">
+                <svg class="danger-icon"><use href="#icon-alert-triangle" /></svg>
+                <div>
+                  <strong>Delete All Streams</strong>
+                  <p class="danger-description">Permanently remove all streams for this streamer. Active recordings will be skipped.</p>
+                </div>
+              </div>
+              <button @click="confirmDeleteAll" class="btn-action btn-danger-outline" aria-label="Delete all streams">
+                <svg class="icon"><use href="#icon-trash" /></svg>
+                Delete All
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
       <!-- Videos Tab -->
-      <div v-if="activeCockpitTab === 'videos'" class="cockpit-panel">
+      <div
+        v-if="activeCockpitTab === 'videos'"
+        id="streamer-detail-panel-videos"
+        class="cockpit-panel"
+        role="tabpanel"
+        aria-labelledby="streamer-detail-tab-videos"
+      >
         <div class="history-header">
           <h2 class="section-title">Stream History</h2>
-
           <div class="view-controls">
             <div class="select-wrapper">
               <svg class="select-icon">
@@ -165,11 +275,7 @@
         </div>
 
         <div v-if="isLoadingStreams" class="streams-container">
-          <LoadingSkeleton
-            v-for="i in 6"
-            :key="i"
-            type="list-item"
-          />
+          <LoadingSkeleton v-for="i in 6" :key="i" type="list-item" />
         </div>
 
         <EmptyState
@@ -183,6 +289,11 @@
         />
 
         <div v-else class="streams-container">
+          <div class="streams-summary">
+            {{ sortedStreams.length }} stream{{ sortedStreams.length !== 1 ? 's' : '' }}
+            <template v-if="recordedStreamsCount > 0"> &middot; {{ recordedStreamsCount }} recorded</template>
+            <template v-else-if="sortedStreams.length > 0"> &middot; No recordings</template>
+          </div>
           <StreamCard
             v-for="stream in sortedStreams"
             :key="stream.id"
@@ -196,9 +307,17 @@
       </div>
 
       <!-- Recording Settings Tab -->
-      <div v-if="activeCockpitTab === 'settings'" class="cockpit-panel">
+      <div
+        v-if="activeCockpitTab === 'settings'"
+        id="streamer-detail-panel-settings"
+        class="cockpit-panel"
+        role="tabpanel"
+        aria-labelledby="streamer-detail-tab-settings"
+      >
         <div class="settings-header">
-          <h2 class="section-title">Recording Settings</h2>
+          <p class="settings-description">
+            Configure recording behavior and notifications for this streamer. Changes take effect on the next stream.
+          </p>
         </div>
         <StreamerSettingsFields v-model="streamerSettings" :disabled="savingSettings" />
         <div class="settings-actions">
@@ -210,14 +329,21 @@
       </div>
 
       <!-- Events Tab -->
-      <div v-if="activeCockpitTab === 'events'" class="cockpit-panel">
+      <div
+        v-if="activeCockpitTab === 'events'"
+        id="streamer-detail-panel-events"
+        class="cockpit-panel"
+        role="tabpanel"
+        aria-labelledby="streamer-detail-tab-events"
+      >
         <div class="events-header">
           <h2 class="section-title">Recent Events</h2>
+          <span v-if="streamerEvents.length > 0" class="events-count">Last {{ streamerEvents.length }}</span>
         </div>
         <div v-if="streamerEvents.length === 0" class="events-empty">
           <EmptyState
-            title="No Events Yet"
-            description="Real-time events for this streamer will appear here."
+            title="Waiting for Events"
+            description="Real-time events for this streamer appear here automatically. Events include stream notifications, recording status changes, and channel updates."
             icon="activity"
           />
         </div>
@@ -229,14 +355,39 @@
           >
             <span class="event-dot" :class="eventDotClass(evt.type)"></span>
             <div class="event-content">
-              <span class="event-type">{{ evt.type }}</span>
-              <span v-if="evt.message" class="event-message">{{ evt.message }}</span>
+              <span class="event-type">{{ eventTypeLabel(evt.type) }}</span>
+              <span class="event-message">{{ eventDisplayMessage(evt) }}</span>
             </div>
             <span class="event-time">{{ formatEventTime(evt.timestamp) }}</span>
           </div>
+          <details class="events-legend">
+            <summary class="legend-toggle">Event type legend</summary>
+            <div class="legend-items">
+              <span class="legend-item">
+                <span class="event-dot dot-success"></span>
+                <span>Online / Started</span>
+              </span>
+              <span class="legend-item">
+                <span class="event-dot dot-info"></span>
+                <span>Offline / Finished</span>
+              </span>
+              <span class="legend-item">
+                <span class="event-dot dot-warning"></span>
+                <span>Update</span>
+              </span>
+              <span class="legend-item">
+                <span class="event-dot dot-danger"></span>
+                <span>Error / Failed</span>
+              </span>
+              <span class="legend-item">
+                <span class="event-dot dot-default"></span>
+                <span>Other</span>
+              </span>
+            </div>
+          </details>
         </div>
       </div>
-    </div>
+    </template>
 
     <!-- Error State -->
     <EmptyState
@@ -269,7 +420,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { streamersApi } from '@/services/api'
 import { useForceRecording } from '@/composables/useForceRecording'
@@ -280,9 +431,9 @@ import LoadingSkeleton from '@/components/LoadingSkeleton.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import StatusCard from '@/components/cards/StatusCard.vue'
 import StreamCard from '@/components/cards/StreamCard.vue'
+import StatusBadge from '@/components/base/StatusBadge.vue'
 import BaseModal from '@/components/base/BaseModal.vue'
 import BaseButton from '@/components/base/BaseButton.vue'
-import PageHeader from '@/components/base/PageHeader.vue'
 import StreamerSettingsFields from '@/components/streamers/StreamerSettingsFields.vue'
 import { buildDefaultState } from '@/schemas/streamerSettings.schema'
 
@@ -304,20 +455,10 @@ const isLoadingStreams = ref(true)
 // Data
 const streamer = ref<any>(null)
 const streams = ref<any[]>([])
+const avatarLoadFailed = ref(false)
 
 // View controls
 const sortBy = ref('newest')
-
-const headerSubtitle = computed(() => {
-  if (!streamer.value) return ''
-  const parts: string[] = []
-  if (streamer.value.is_live) parts.push('Currently live')
-  if (streamer.value.is_recording) parts.push('Recording in progress')
-  if (streamer.value.display_name && streamer.value.display_name !== streamer.value.name) {
-    parts.push(`@${streamer.value.display_name}`)
-  }
-  return parts.join(' \u2022 ') || (streamer.value.description?.slice(0, 80) || '')
-})
 
 // Delete flow
 const showConfirm = ref(false)
@@ -331,11 +472,37 @@ const activeCockpitTab = ref('overview')
 const cockpitTabs = [
   { id: 'overview', label: 'Overview', icon: '#icon-activity' },
   { id: 'videos', label: 'Videos', icon: '#icon-film' },
-  { id: 'settings', label: 'Recording Settings', icon: '#icon-settings' },
+  { id: 'settings', label: 'Settings', icon: '#icon-settings' },
   { id: 'events', label: 'Events', icon: '#icon-clock' },
 ]
 
-// Settings inline - schema-driven (single source of truth: streamerSettings.schema.ts)
+const focusActiveCockpitTab = async () => {
+  await nextTick()
+  document.getElementById(`streamer-detail-tab-${activeCockpitTab.value}`)?.focus()
+}
+
+const handleCockpitTabKeydown = async (event: KeyboardEvent) => {
+  const currentIndex = cockpitTabs.findIndex((tab) => tab.id === activeCockpitTab.value)
+  let nextIndex = currentIndex
+
+  if (event.key === 'ArrowRight') {
+    nextIndex = (currentIndex + 1) % cockpitTabs.length
+  } else if (event.key === 'ArrowLeft') {
+    nextIndex = (currentIndex - 1 + cockpitTabs.length) % cockpitTabs.length
+  } else if (event.key === 'Home') {
+    nextIndex = 0
+  } else if (event.key === 'End') {
+    nextIndex = cockpitTabs.length - 1
+  } else {
+    return
+  }
+
+  event.preventDefault()
+  activeCockpitTab.value = cockpitTabs[nextIndex].id
+  await focusActiveCockpitTab()
+}
+
+// Settings inline - schema-driven
 const savingSettings = ref(false)
 const streamerSettings = ref<Record<string, unknown>>(buildDefaultState())
 
@@ -383,7 +550,7 @@ const saveSettings = async () => {
   }
 }
 
-// Events tab - filter recentEvents for this streamer
+// Events tab
 const streamerEvents = computed(() => {
   const events = realtime.recentEvents
   if (!events || !Array.isArray(events)) return []
@@ -425,6 +592,39 @@ const eventDotClass = (type: string): string => {
   return 'dot-default'
 }
 
+const eventTypeLabel = (type: string): string => {
+  const labels: Record<string, string> = {
+    'stream.online': 'Went Live',
+    'stream.offline': 'Went Offline',
+    'stream.update': 'Stream Updated',
+    'channel.update': 'Channel Updated',
+    'recording.started': 'Recording Started',
+    'recording.completed': 'Recording Completed',
+    'recording.finished': 'Recording Finished',
+    'recording.stopped': 'Recording Stopped',
+    'recording.failed': 'Recording Failed',
+    'recording.available': 'Recording Available',
+    'recording.status_update': 'Status Update',
+    'active_recordings_update': 'Active Recordings Updated',
+  }
+  return labels[type] || type
+}
+
+const eventDisplayMessage = (evt: any): string => {
+  if (evt.message) return evt.message
+  const type = evt.type || ''
+  if (type.includes('online')) return 'Stream is now live'
+  if (type.includes('offline')) return 'Stream has ended'
+  if (type.includes('update')) return 'Title or category was updated'
+  if (type.includes('started')) return 'Recording has started'
+  if (type.includes('completed') || type.includes('finished')) return 'Recording completed'
+  if (type.includes('stopped')) return 'Recording stopped'
+  if (type.includes('failed')) return 'Recording failed'
+  if (type.includes('available')) return 'Recording is available'
+  if (type.includes('status_update')) return 'Recording status changed'
+  return 'No additional details'
+}
+
 // Load settings when the settings tab is activated
 watch(activeCockpitTab, (tab) => {
   if (tab === 'settings') {
@@ -432,16 +632,45 @@ watch(activeCockpitTab, (tab) => {
   }
 })
 
-// Banner gradient style
-const bannerStyle = computed(() => {
-  if (!streamer.value) return {}
+// Latest stream
+const latestStream = computed(() => {
+  if (streams.value.length === 0) return null
+  return [...streams.value].sort((a, b) => {
+    const dateA = new Date(a.started_at || 0).getTime()
+    const dateB = new Date(b.started_at || 0).getTime()
+    return dateB - dateA
+  })[0]
+})
 
-  // Create gradient from primary/accent colors
-  return {
-    backgroundImage: streamer.value.is_live
-      ? 'linear-gradient(135deg, var(--danger-500) 0%, var(--danger-600) 100%)'
-      : 'linear-gradient(135deg, var(--primary-color) 0%, var(--accent-color) 100%)'
-  }
+const latestRecording = computed(() => {
+  return [...streams.value]
+    .filter((stream) => stream.recording_path)
+    .sort((a, b) => {
+      const dateA = new Date(a.started_at || 0).getTime()
+      const dateB = new Date(b.started_at || 0).getTime()
+      return dateB - dateA
+    })[0] || null
+})
+
+const streamerDisplayName = computed(() => {
+  return streamer.value?.display_name || streamer.value?.name || streamer.value?.username || 'Streamer'
+})
+
+const streamerHandle = computed(() => {
+  if (!streamer.value?.username) return ''
+  return `@${streamer.value.username}`
+})
+
+const streamerStatusLabel = computed(() => {
+  if (streamer.value?.is_recording) return 'Recording'
+  if (streamer.value?.is_live) return 'Live'
+  return 'Offline'
+})
+
+const streamerStatusTone = computed(() => {
+  if (streamer.value?.is_recording) return 'recording'
+  if (streamer.value?.is_live) return 'live'
+  return 'offline'
 })
 
 // Stats computed
@@ -449,6 +678,14 @@ const streamCount = computed(() => streams.value.length)
 
 const recordedStreamsCount = computed(() => {
   return streams.value.filter(s => s.recording_path).length
+})
+
+const statusSummary = computed(() => {
+  const parts = [streamerStatusLabel.value]
+  if (streamer.value?.category_name) parts.push(streamer.value.category_name)
+  if (streamCount.value > 0) parts.push(`${streamCount.value} streams`)
+  if (recordedStreamsCount.value > 0) parts.push(`${recordedStreamsCount.value} recorded`)
+  return parts.join(', ')
 })
 
 const averageDuration = computed(() => {
@@ -503,22 +740,35 @@ const sortedStreams = computed(() => {
   }
 })
 
+// Format helpers
+const formatDateShort = (dateStr?: string): string => {
+  if (!dateStr) return '-'
+  const date = new Date(dateStr)
+  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
+const formatDuration = (start?: string, end?: string): string => {
+  if (!start) return '-'
+  const startDate = new Date(start)
+  const endDate = end ? new Date(end) : new Date()
+  const diffMs = endDate.getTime() - startDate.getTime()
+  const diffMins = Math.floor(diffMs / 60000)
+  const hours = Math.floor(diffMins / 60)
+  const mins = diffMins % 60
+  if (hours > 0) return `${hours}h ${mins}m`
+  return `${mins}m`
+}
+
 // Fetch streamer data
 async function fetchStreamer() {
   isLoading.value = true
   try {
-    console.log('[DEBUG] Fetching streamer with ID:', streamerId.value, 'Type:', typeof streamerId.value)
     const response = await streamersApi.get(Number(streamerId.value))
-    console.log('[DEBUG] Fetched streamer successfully:', response)
     streamer.value = response
-  } catch (error: any) {
-    console.error('[ERROR] Failed to fetch streamer:', error)
-    console.error('[ERROR] Error details:', {
-      message: error.message,
-      status: error.response?.status,
-      data: error.response?.data
-    })
+    avatarLoadFailed.value = false
+  } catch {
     streamer.value = null
+    avatarLoadFailed.value = false
   } finally {
     isLoading.value = false
   }
@@ -528,23 +778,9 @@ async function fetchStreamer() {
 async function fetchStreams() {
   isLoadingStreams.value = true
   try {
-    console.log('[StreamerDetailView] Fetching streams for streamer:', streamerId.value)
     const response = await streamersApi.getStreams(Number(streamerId.value))
-    console.log('[StreamerDetailView] Streams response:', response)
-    
     streams.value = response?.streams || []
-    console.log('[StreamerDetailView] Loaded streams count:', streams.value.length)
-    
-    if (streams.value.length > 0) {
-      console.log('[StreamerDetailView] Sample stream:', streams.value[0])
-    }
-  } catch (error: any) {
-    console.error('[StreamerDetailView] Failed to fetch streams:', error)
-    console.error('[StreamerDetailView] Error details:', {
-      message: error.message,
-      status: error.response?.status,
-      data: error.response?.data
-    })
+  } catch {
     streams.value = []
   } finally {
     isLoadingStreams.value = false
@@ -573,7 +809,6 @@ async function deleteAll() {
 
 function handleWatchLive(_stream: any) {
   if (!streamer.value) return
-  // Route to internal live player instead of external Twitch
   router.push(`/live/${streamer.value.username}`)
 }
 
@@ -582,34 +817,45 @@ function handleForceRecord(_stream: any) {
 }
 
 async function handleWatchRecording(stream: any) {
-  if (!stream.recording_path) {
-    console.warn('[StreamerDetailView] No recording path for stream:', stream.id)
-    return
-  }
-  
+  if (!stream.recording_path) return
+
   try {
-    // Check if recording exists via API
     const response = await fetch(`/api/stream/${stream.id}/has-recording`, {
       credentials: 'include'
     })
     const data = await response.json()
-    
+
     if (data.has_recording) {
-      // Navigate to video player (we'll use stream ID as video ID for now)
-      // TODO: Backend should return recording.id from the endpoint
       router.push(`/videos/${stream.id}`)
-    } else {
-      console.warn('[StreamerDetailView] Recording not found on disk for stream:', stream.id)
     }
-  } catch (error) {
-    console.error('[StreamerDetailView] Failed to check recording:', error)
+  } catch {
+    // silently fail
   }
 }
 
-function handleDeleteStream(stream: any) {
-  // TODO: Implement stream deletion
-  console.log('[StreamerDetailView] Delete stream:', stream.id)
+function handleDeleteStream(_stream: any) {
+  // Deletion handled by StreamCard's own actions
 }
+
+// Real-time store
+const realtime = useRealtimeStore()
+
+const matchesCurrentStreamer = (data: any): boolean => {
+  if (!data || !streamer.value) return false
+  const idMatch =
+    (data.streamer_id !== undefined && String(data.streamer_id) === streamerId.value) ||
+    (data.id !== undefined && String(data.id) === streamerId.value)
+  if (idMatch) return true
+  const username = (data.username || data.streamer_name || '').toLowerCase()
+  if (!username) return false
+  return (
+    streamer.value.username?.toLowerCase() === username ||
+    streamer.value.name?.toLowerCase() === username
+  )
+}
+
+// Real-time event handlers
+const realtimeCleanups: (() => void)[] = []
 
 // Initialize
 onMounted(async () => {
@@ -679,26 +925,6 @@ onMounted(async () => {
   )
 })
 
-// Real-time store for live updates
-const realtime = useRealtimeStore()
-
-const matchesCurrentStreamer = (data: any): boolean => {
-  if (!data || !streamer.value) return false
-  const idMatch =
-    (data.streamer_id !== undefined && String(data.streamer_id) === streamerId.value) ||
-    (data.id !== undefined && String(data.id) === streamerId.value)
-  if (idMatch) return true
-  const username = (data.username || data.streamer_name || '').toLowerCase()
-  if (!username) return false
-  return (
-    streamer.value.username?.toLowerCase() === username ||
-    streamer.value.name?.toLowerCase() === username
-  )
-}
-
-// Real-time event handlers
-const realtimeCleanups: (() => void)[] = []
-
 onUnmounted(() => {
   realtimeCleanups.forEach((fn) => fn())
 })
@@ -707,12 +933,237 @@ onUnmounted(() => {
 <style scoped lang="scss">
 @use '@/styles/variables' as v;
 @use '@/styles/mixins' as m;
+
 .streamer-detail-view {
-  // .page-view provides padding/sizing via global styles
-  // Page-specific overrides only
+  // Page-specific overrides
 }
 
-// PageHeader action button styles
+// Compact Profile Header
+.streamer-control-header {
+  display: grid;
+  gap: var(--spacing-4);
+  padding: var(--spacing-4);
+  margin-bottom: var(--spacing-6);
+  background: var(--background-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-xl);
+
+  &.is-live {
+    border-color: rgba(var(--danger-500-rgb), 0.45);
+    box-shadow: 0 16px 44px rgba(var(--danger-500-rgb), 0.12);
+  }
+
+  &.is-recording {
+    border-color: rgba(var(--danger-500-rgb), 0.5);
+  }
+}
+
+.streamer-control-topline,
+.streamer-control-body {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-4);
+}
+
+.streamer-control-topline {
+  padding-bottom: var(--spacing-3);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.back-button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  min-height: 40px;
+  padding: var(--spacing-2) var(--spacing-3);
+  color: var(--text-secondary);
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  font-weight: v.$font-medium;
+  cursor: pointer;
+  transition: all v.$duration-200 v.$ease-out;
+
+  .icon {
+    width: 18px;
+    height: 18px;
+    stroke: currentColor;
+    fill: none;
+  }
+
+  &:hover,
+  &:focus-visible {
+    color: var(--text-primary);
+    border-color: var(--primary-color);
+    outline: none;
+  }
+}
+
+.streamer-status-strip {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--spacing-2);
+}
+
+.streamer-identity-area {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-4);
+  min-width: min(360px, 100%);
+}
+
+.compact-avatar {
+  position: relative;
+  width: 64px;
+  height: 64px;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  border: 3px solid var(--border-color);
+  background: var(--background-darker);
+  flex-shrink: 0;
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .avatar-placeholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--background-darker);
+
+    .icon-user {
+      width: 32px;
+      height: 32px;
+      stroke: var(--text-secondary);
+      fill: none;
+    }
+  }
+
+  &.is-live {
+    border-color: var(--danger-color);
+  }
+
+  .status-dot {
+    position: absolute;
+    bottom: -2px;
+    right: -2px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    border: 3px solid var(--background-card);
+
+    &.status-live {
+      background: var(--danger-color);
+    }
+
+    &.status-recording {
+      background: var(--warning-color);
+    }
+
+    &.status-offline {
+      background: var(--text-tertiary);
+    }
+  }
+}
+
+.compact-info {
+  flex: 1;
+  min-width: 180px;
+}
+
+.compact-name {
+  font-size: var(--text-xl);
+  font-weight: v.$font-bold;
+  color: var(--text-primary);
+  margin: 0;
+  line-height: 1.15;
+}
+
+.compact-username {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  margin: var(--spacing-1) 0 0 0;
+}
+
+.compact-title {
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+  margin: var(--spacing-1) 0 0 0;
+  font-weight: v.$font-medium;
+
+  &.muted {
+    color: var(--text-tertiary);
+    font-weight: v.$font-normal;
+  }
+}
+
+.compact-stats {
+  display: flex;
+  gap: var(--spacing-2);
+  flex-shrink: 0;
+  margin: 0;
+}
+
+.compact-stat {
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: center;
+  gap: 2px;
+  min-width: 84px;
+  padding: var(--spacing-2) var(--spacing-3);
+  background: var(--background-darker);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+}
+
+.compact-stat-value {
+  font-size: var(--text-lg);
+  font-weight: v.$font-bold;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.compact-stat-label {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin: 0;
+}
+
+.compact-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-2);
+  flex-shrink: 0;
+
+  :deep(.btn) {
+    min-height: 44px;
+  }
+
+  .icon {
+    width: 18px;
+    height: 18px;
+    stroke: currentColor;
+    fill: none;
+  }
+}
+
+.safe-action-note {
+  margin: calc(var(--spacing-1) * -1) 0 0;
+  color: var(--text-tertiary);
+  font-size: var(--text-xs);
+  line-height: 1.4;
+}
+
+// Action buttons (used in header and danger zone)
 .btn-action {
   display: inline-flex;
   align-items: center;
@@ -725,6 +1176,7 @@ onUnmounted(() => {
   cursor: pointer;
   transition: all v.$duration-200 v.$ease-out;
   min-height: 44px;
+  text-decoration: none;
 
   .icon {
     width: 18px;
@@ -748,15 +1200,6 @@ onUnmounted(() => {
     }
   }
 
-  &.btn-danger {
-    background: var(--danger-color);
-    color: white;
-
-    &:hover:not(:disabled) {
-      background: var(--danger-600);
-    }
-  }
-
   &.btn-live {
     background: var(--danger-color);
     color: white;
@@ -766,312 +1209,225 @@ onUnmounted(() => {
     }
   }
 
-  @include m.respond-below('sm') {
-    flex: 1;
-    justify-content: center;
-    min-height: 44px;
+  &.btn-danger-outline {
+    background: transparent;
+    color: var(--danger-text-color);
+    border: 1px solid rgba(var(--danger-500-rgb), 0.4);
+
+    &:hover:not(:disabled) {
+      background: rgba(var(--danger-500-rgb), 0.1);
+      border-color: var(--danger-color);
+    }
   }
 }
 
-.live-status-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--spacing-2);
-  padding: var(--spacing-1) var(--spacing-3);
-  background: var(--danger-color);
-  color: white;
-  font-size: var(--text-xs);
-  font-weight: v.$font-bold;
-  border-radius: var(--radius-pill);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.live-pulse-dot {
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  background: white;
-  border-radius: 50%;
-  animation: pulse 1.5s ease-in-out infinite;
-}
-
-// Back Button
-.back-button {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--spacing-2);
-  padding: var(--spacing-2) var(--spacing-4);
+// Cockpit Tabs - horizontal scroll
+.cockpit-tabs {
+  display: flex;
+  gap: var(--spacing-1);
   margin-bottom: var(--spacing-6);
   background: var(--background-card);
-  color: var(--text-primary);
-  text-decoration: none;
   border-radius: var(--radius-lg);
+  padding: var(--spacing-1);
   border: 1px solid var(--border-color);
-  font-weight: v.$font-medium;
-  transition: all v.$duration-200 v.$ease-out;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: var(--primary-color) transparent;
+  scroll-padding-inline: var(--spacing-2);
 
-  .icon {
-    width: 20px;
-    height: 20px;
-    stroke: currentColor;
-    fill: none;
+  &::-webkit-scrollbar {
+    height: 6px;
   }
 
-  &:hover {
-    background: var(--primary-color);
-    border-color: var(--primary-color);
-    color: white;
-    transform: translateX(-4px);
-  }
-}
-
-// Profile Banner
-.profile-banner {
-  position: relative;
-  border-radius: var(--radius-2xl);
-  overflow: hidden;
-  margin-bottom: var(--spacing-8);
-  min-height: 300px;
-  animation: fade-in v.$duration-500 v.$ease-out;
-}
-
-.banner-overlay {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    to bottom,
-    rgba(0, 0, 0, 0.3) 0%,
-    rgba(0, 0, 0, 0.7) 100%
-  );
-}
-
-.profile-content {
-  position: relative;
-  z-index: 2;
-  padding: var(--spacing-8);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  gap: var(--spacing-6);
-}
-
-.profile-avatar {
-  position: relative;
-  width: 128px;
-  height: 128px;
-  border-radius: var(--radius-2xl);
-  overflow: hidden;
-  border: 4px solid var(--glass-border);
-  background: var(--background-darker);
-  animation: bounce-in v.$duration-500 v.$ease-bounce;
-
-  img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
+  &::-webkit-scrollbar-track {
+    background: transparent;
   }
 
-  .avatar-placeholder {
-    width: 100%;
-    height: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: var(--background-darker);
-
-    .icon-user {
-      width: 64px;
-      height: 64px;
-      stroke: var(--text-secondary);
-      fill: none;
-    }
-  }
-
-  &.is-live {
-    border-color: var(--danger-color);
-    box-shadow: 0 0 0 4px rgba(var(--danger-500-rgb), 0.3);
-    animation: pulse-live 2s ease-in-out infinite;
+  &::-webkit-scrollbar-thumb {
+    background: rgba(var(--primary-500-rgb), 0.55);
+    border-radius: var(--radius-full);
   }
 }
 
-.live-badge {
-  position: absolute;
-  bottom: -8px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-2);
-  padding: var(--spacing-1) var(--spacing-3);
-  background: var(--danger-color);
-  color: white;
-  font-size: var(--text-xs);
-  font-weight: v.$font-bold;
-  border-radius: var(--radius-full);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.live-pulse {
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  background: white;
-  border-radius: 50%;
-  animation: pulse 1.5s ease-in-out infinite;
-}
-
-@keyframes pulse-live {
-  0%, 100% {
-    box-shadow: 0 0 0 4px rgba(var(--danger-500-rgb), 0.3);
-  }
-  50% {
-    box-shadow: 0 0 0 8px rgba(var(--danger-500-rgb), 0.1);
-  }
-}
-
-@keyframes pulse {
-  0%, 100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.5;
-  }
-}
-
-.profile-info {
-  flex: 1;
-  max-width: 600px;
-}
-
-.streamer-name {
-  font-size: var(--text-4xl);
-  font-weight: v.$font-bold;
-  color: white;
-  margin: 0 0 var(--spacing-2) 0;
-  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
-}
-
-.streamer-username {
-  font-size: var(--text-lg);
-  color: rgba(255, 255, 255, 0.8);
-  margin: 0 0 var(--spacing-3) 0;
-}
-
-.streamer-description {
-  font-size: var(--text-base);
-  color: rgba(255, 255, 255, 0.9);
-  line-height: v.$leading-relaxed;
-  margin: 0;
-}
-
-.profile-actions {
-  display: flex;
-  gap: var(--spacing-3);
-  flex-wrap: wrap;
-  justify-content: center;
-}
-
-.btn-action {
+.cockpit-tab {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: var(--spacing-2);
-  padding: var(--spacing-3) var(--spacing-5);
-  border-radius: var(--radius-lg);
-  font-size: var(--text-base);
-  font-weight: v.$font-semibold;
+  padding: var(--spacing-2) var(--spacing-4);
+  background: transparent;
   border: none;
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  font-weight: v.$font-medium;
   cursor: pointer;
   transition: all v.$duration-200 v.$ease-out;
+  white-space: nowrap;
+  flex: 0 0 auto;
+  min-height: 44px;
+  min-width: max-content;
+  scroll-snap-align: start;
 
   .icon {
-    width: 20px;
-    height: 20px;
+    width: 16px;
+    height: 16px;
     stroke: currentColor;
     fill: none;
+    flex-shrink: 0;
   }
 
-  &:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-
-  &.btn-primary {
-    background: var(--primary-color);
+  &.active {
+    background: var(--primary-color-dark);
     color: white;
-    box-shadow: var(--glass-shadow-sm);
-
-    &:hover:not(:disabled) {
-      background: var(--primary-600);
-      transform: translateY(-2px);
-      box-shadow: var(--glass-shadow-md);
-    }
+    box-shadow: 0 8px 22px rgba(var(--primary-500-rgb), 0.25);
   }
 
-  &.btn-danger {
-    background: var(--danger-color);
-    color: white;
-    box-shadow: var(--glass-shadow-sm);
-
-    &:hover:not(:disabled) {
-      background: var(--danger-600);
-      transform: translateY(-2px);
-      box-shadow: var(--glass-shadow-md);
-    }
+  &:hover:not(.active) {
+    background: rgba(var(--primary-500-rgb), 0.1);
+    color: var(--primary-color);
   }
 
-  &.btn-live {
-    background: var(--danger-color);
-    color: white;
-    box-shadow: var(--glass-shadow-sm);
-
-    &:hover:not(:disabled) {
-      background: var(--danger-600);
-      transform: translateY(-2px);
-      box-shadow: var(--glass-shadow-md);
-    }
+  &:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
   }
+}
 
-  &.btn-secondary {
-    background: var(--glass-bg-medium);
-    color: var(--text-primary);
-    border: 1px solid var(--glass-border);
-    box-shadow: var(--glass-shadow-sm);
-
-    &:hover:not(:disabled) {
-      background: var(--glass-bg-strong);
-      border-color: var(--primary-color);
-      transform: translateY(-2px);
-      box-shadow: var(--glass-shadow-md);
-    }
-  }
+// Cockpit Panel
+.cockpit-panel {
+  animation: fade-in v.$duration-500 v.$ease-out backwards;
 }
 
 // Stats Section
 .stats-section {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: var(--spacing-5);
-  margin-bottom: var(--spacing-8);
-  animation: fade-in v.$duration-500 v.$ease-out 200ms backwards;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--spacing-4);
+  margin-bottom: var(--spacing-6);
 }
 
+// Section header
+.section-header {
+  margin-bottom: var(--spacing-4);
+}
+
+.section-title {
+  font-size: var(--text-lg);
+  font-weight: v.$font-bold;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.danger-title {
+  color: var(--danger-color);
+}
+
+// Overview section
+.overview-section {
+  margin-bottom: var(--spacing-8);
+}
+
+// Latest Stream Card
+.latest-stream-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-4);
+  padding: var(--spacing-4);
+  background: var(--background-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+}
+
+.latest-stream-info {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+}
+
+.latest-stream-title {
+  font-size: var(--text-sm);
+  font-weight: v.$font-semibold;
+  color: var(--text-primary);
+}
+
+.latest-stream-category {
+  font-size: var(--text-xs);
+  color: var(--text-primary);
+}
+
+.latest-stream-meta {
+  display: flex;
+  gap: var(--spacing-3);
+  flex-shrink: 0;
+}
+
+.meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+
+  .meta-icon {
+    width: 14px;
+    height: 14px;
+    stroke: currentColor;
+    fill: none;
+  }
+}
+
+// Danger Zone
+.danger-zone-card {
+  background: rgba(var(--danger-500-rgb), 0.05);
+  border: 1px solid rgba(var(--danger-500-rgb), 0.2);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-4);
+}
+
+.danger-zone-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-4);
+}
+
+.danger-zone-info {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-3);
+
+  strong {
+    color: var(--text-primary);
+    font-size: var(--text-sm);
+  }
+}
+
+.danger-icon {
+  width: 20px;
+  height: 20px;
+  stroke: var(--danger-color);
+  fill: none;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.danger-description {
+  margin: var(--spacing-1) 0 0 0;
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+
+// History Header
 .history-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: var(--spacing-6);
+  margin-bottom: var(--spacing-4);
   gap: var(--spacing-4);
   flex-wrap: wrap;
-}
-
-.section-title {
-  font-size: var(--text-2xl);
-  font-weight: v.$font-bold;
-  color: var(--text-primary);
-  margin: 0;
 }
 
 .view-controls {
@@ -1095,14 +1451,14 @@ onUnmounted(() => {
   height: 16px;
   stroke: var(--text-secondary);
   fill: none;
-  pointer-events: none;  /* Let clicks pass through to select */
+  pointer-events: none;
   z-index: 1;
   flex-shrink: 0;
 }
 
 .sort-select {
   padding: var(--spacing-2) var(--spacing-4);
-  padding-left: 38px;  /* Icon (16px) + gap (10px) + left offset (12px) */
+  padding-left: 38px;
   background: var(--background-card);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
@@ -1111,13 +1467,8 @@ onUnmounted(() => {
   font-weight: v.$font-medium;
   cursor: pointer;
   transition: all v.$duration-200 v.$ease-out;
-  min-width: 160px;  /* Prevent layout shift */
-  
-  @include m.respond-below('sm') {
-    padding-left: 36px;  /* Slightly less on mobile */
-    min-width: 140px;
-    font-size: var(--text-xs);
-  }
+  min-width: 160px;
+  min-height: 44px;
 
   &:hover {
     border-color: var(--primary-color);
@@ -1140,66 +1491,22 @@ onUnmounted(() => {
   gap: var(--spacing-3);
 }
 
-// Cockpit Tabs
-.cockpit-tabs {
-  display: flex;
-  gap: var(--spacing-1);
-  margin-bottom: var(--spacing-6);
-  background: var(--background-card);
-  border-radius: var(--radius-lg);
-  padding: var(--spacing-1);
-  border: 1px solid var(--border-color);
-  overflow-x: auto;
-}
-
-.cockpit-tab {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--spacing-2);
-  padding: var(--spacing-2) var(--spacing-4);
-  background: transparent;
-  border: none;
-  border-radius: var(--radius-md);
-  color: var(--text-secondary);
-  font-size: var(--text-sm);
-  font-weight: v.$font-medium;
-  cursor: pointer;
-  transition: all v.$duration-200 v.$ease-out;
-  white-space: nowrap;
-
-  .icon {
-    width: 16px;
-    height: 16px;
-    stroke: currentColor;
-    fill: none;
-  }
-
-  &.active {
-    background: var(--primary-color);
-    color: white;
-  }
-
-  &:hover:not(.active) {
-    background: rgba(var(--primary-500-rgb), 0.1);
-    color: var(--primary-color);
-  }
-}
-
-// Cockpit Panel
-.cockpit-panel {
-  animation: fade-in v.$duration-500 v.$ease-out backwards;
-}
-
-// Stats Section (inside Overview tab)
-.stats-section {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: var(--spacing-5);
+.streams-summary {
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+  padding-bottom: var(--spacing-1);
 }
 
 // Settings Tab
 .settings-header {
-  margin-bottom: var(--spacing-6);
+  margin-bottom: var(--spacing-4);
+}
+
+.settings-description {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  margin: 0;
+  line-height: 1.5;
 }
 
 .settings-actions {
@@ -1212,7 +1519,15 @@ onUnmounted(() => {
 
 // Events Tab
 .events-header {
-  margin-bottom: var(--spacing-6);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--spacing-4);
+}
+
+.events-count {
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
 }
 
 .events-list {
@@ -1242,25 +1557,11 @@ onUnmounted(() => {
   border-radius: 50%;
   flex-shrink: 0;
 
-  &.dot-success {
-    background: var(--success-color);
-  }
-
-  &.dot-info {
-    background: var(--info-color);
-  }
-
-  &.dot-danger {
-    background: var(--danger-color);
-  }
-
-  &.dot-warning {
-    background: var(--warning-color);
-  }
-
-  &.dot-default {
-    background: var(--text-tertiary);
-  }
+  &.dot-success { background: var(--success-color); }
+  &.dot-info { background: var(--info-color); }
+  &.dot-danger { background: var(--danger-color); }
+  &.dot-warning { background: var(--warning-color); }
+  &.dot-default { background: var(--text-tertiary); }
 }
 
 .event-content {
@@ -1299,123 +1600,38 @@ onUnmounted(() => {
   padding: var(--spacing-8);
 }
 
-@include m.respond-below('lg') {  // < 1024px
-  .profile-content {
-    padding: var(--spacing-6);
-  }
-
-  .streamer-name {
-    font-size: var(--text-3xl);
-  }
-
-  .stats-section {
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  }
+.events-legend {
+  margin-top: var(--spacing-4);
+  background: var(--background-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-3);
 }
 
-@include m.respond-below('sm') {  // < 640px
-  .profile-content {
-    padding: var(--spacing-4);
-  }
-
-  .profile-avatar {
-    width: 96px;
-    height: 96px;
-
-    .icon-user {
-      width: 48px;
-      height: 48px;
-    }
-  }
-
-  .streamer-name {
-    font-size: var(--text-2xl);
-  }
-
-  .profile-actions {
-    width: 100%;
-
-    .btn-action {
-      flex: 1;
-      justify-content: center;
-      min-height: 44px;  // Touch-friendly
-    }
-  }
-
-  .history-header {
-    flex-direction: column;
-    align-items: stretch;
-    gap: var(--spacing-3);
-  }
-
-  .view-controls {
-    justify-content: space-between;
-    gap: var(--spacing-2);
-  }
-  
-  .view-toggle {
-    flex: none;  // Fixed width
-    
-    .toggle-btn {
-      min-width: 44px;  // Touch-friendly
-      min-height: 44px;
-      padding: var(--spacing-2);
-      
-      .icon {
-        width: 22px;
-        height: 22px;
-      }
-    }
-  }
-  
-  .sort-select {
-    flex: 1;  // Fill remaining space
-    min-height: 44px;  // Touch-friendly
-    font-size: 16px;  // Prevent iOS zoom
-    padding: var(--spacing-3);
-    padding-left: 38px;  // Preserve icon space
-  }
-
-  .videos-container.view-grid {
-    grid-template-columns: 1fr;
-  }
-  
-  .stats-section {
-    grid-template-columns: 1fr;  // Stack stats on mobile
-    gap: var(--spacing-3);
-  }
+.legend-toggle {
+  cursor: pointer;
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  font-weight: v.$font-medium;
 }
 
-// Mobile icon-only buttons (< 375px - very small phones)
-@include m.respond-below('xs') {  // < 375px
-  .btn-icon-mobile {
-    .button-text {
-      display: none; // Hide text on mobile
-    }
+.legend-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-3);
+  margin-top: var(--spacing-2);
+}
 
-    // Keep icon visible and centered
-    .icon {
-      margin: 0;
-    }
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
 
-    // Smaller padding since no text
-    padding: var(--spacing-3);
-    min-width: 44px;
-    justify-content: center;
-  }
-
-  .profile-actions {
-    gap: var(--spacing-2);
-  }
-  
-  .modal-actions {
-    flex-direction: column;  // Stack buttons vertically
-    
-    button {
-      width: 100%;
-      min-height: 44px;  // Touch-friendly
-      justify-content: center;
-    }
+  .event-dot {
+    width: 8px;
+    height: 8px;
   }
 }
 
@@ -1431,31 +1647,114 @@ onUnmounted(() => {
   }
 }
 
-@keyframes bounce-in {
-  0% {
-    opacity: 0;
-    transform: scale(0.3);
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+// Responsive
+@include m.respond-below('lg') {
+  .compact-avatar {
+    width: 56px;
+    height: 56px;
   }
-  50% {
-    transform: scale(1.05);
+
+  .compact-name {
+    font-size: var(--text-lg);
   }
-  70% {
-    transform: scale(0.9);
-  }
-  100% {
-    opacity: 1;
-    transform: scale(1);
+
+  .stats-section {
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   }
 }
 
-@keyframes slide-in-up {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
+@include m.respond-below('md') {
+  .streamer-control-body {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--spacing-3);
   }
-  to {
-    opacity: 1;
-    transform: translateY(0);
+
+  .streamer-control-topline {
+    align-items: flex-start;
+  }
+
+  .streamer-identity-area {
+    min-width: 0;
+  }
+
+  .compact-avatar {
+    width: 48px;
+    height: 48px;
+  }
+
+  .compact-info {
+    min-width: 0;
+  }
+
+  .compact-stats {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .compact-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .latest-stream-card {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .danger-zone-content {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .danger-zone-info {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+
+  .history-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--spacing-3);
+  }
+
+  .sort-select {
+    width: 100%;
+  }
+
+  .stats-section {
+    grid-template-columns: 1fr;
+    gap: var(--spacing-3);
+  }
+}
+
+@include m.respond-below('sm') {
+  .streamer-control-header {
+    padding: var(--spacing-3);
+  }
+
+  .streamer-control-topline {
+    flex-direction: column;
+    gap: var(--spacing-3);
+  }
+
+  .streamer-status-strip {
+    justify-content: flex-start;
+  }
+
+  .compact-stat {
+    min-width: 0;
+    padding-inline: var(--spacing-2);
+  }
+
+  .streams-summary {
+    text-align: center;
   }
 }
 </style>

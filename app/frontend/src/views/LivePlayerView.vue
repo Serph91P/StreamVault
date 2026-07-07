@@ -6,14 +6,24 @@
       <p class="state-text" role="status" aria-live="polite">Starting live stream...</p>
     </div>
 
-    <!-- Error State -->
-    <div v-else-if="error || !sessionId" class="content-state">
+    <!-- Stopped State -->
+    <div v-else-if="isStopped" class="content-state">
       <EmptyState
-        icon="alert-circle"
+        icon="square"
+        title="Stream Stopped"
+        description="The live stream has been stopped."
+        action-label="Back to Streamers"
+        action-icon="arrow-left"
+        @action="goBack"
+      />
+    </div>
+
+    <!-- Error State -->
+    <div v-else-if="error && !sessionId" class="content-state">
+      <PlayerError
         title="Stream Error"
-        :description="error || 'Unknown error occurred'"
+        :message="error || 'Unknown error occurred'"
         action-label="Retry"
-        action-icon="refresh-cw"
         @action="retryStart"
       />
     </div>
@@ -37,14 +47,11 @@
               <span class="live-indicator"></span>
               <span>LIVE</span>
             </div>
-            <div class="player-state-indicator" role="status" aria-live="polite">
-              <span class="player-state-dot" :class="{ 'dot-live': isPlaying && !isBuffering, 'dot-buffering': isBuffering }"></span>
-              <span class="player-state-text">{{ isBuffering ? 'Buffering' : isPlaying ? 'Playing' : 'Connecting' }}</span>
-            </div>
+            <PlayerStatus :state="currentPlayerState" />
           </div>
 
           <!-- Video Container -->
-          <div class="video-container" ref="videoContainer">
+          <div class="video-container" :class="{ 'show-controls': showControls }" ref="videoContainer" @click="onVideoContainerClick" @touchstart="onTouchStart">
             <video
               ref="videoElement"
               class="video-element"
@@ -57,9 +64,11 @@
             ></video>
 
             <!-- Buffering Overlay -->
-            <div v-if="isBuffering" class="buffering-overlay">
-              <div class="spinner"></div>
-              <p>Buffering...</p>
+            <div v-if="isBuffering && !error" class="buffering-overlay">
+              <PlayerStatus state="buffering" :message="'Buffering live stream...'" />
+            </div>
+            <div v-if="isRetrying && !error" class="buffering-overlay">
+              <PlayerStatus state="connecting" :message="'Reconnecting...'" :retry-count="retryCount" />
             </div>
 
             <!-- Controls Overlay -->
@@ -86,7 +95,7 @@
                 <div class="stream-meta">
                   <span class="meta-quality">{{ selectedQualityLabel }}</span>
                   <span class="meta-separator">|</span>
-                  <span class="meta-status">{{ isBuffering ? 'Buffering' : 'Playing' }}</span>
+                  <span class="meta-status">{{ streamStatusText }}</span>
                 </div>
 
                 <button @click="toggleFullscreen" class="control-button fullscreen-button" :aria-label="isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'">
@@ -105,12 +114,12 @@
         <!-- Info Sidebar -->
         <aside class="info-sidebar">
           <GlassCard variant="subtle" class="info-card">
-            <h3 class="info-title">
+            <h2 class="info-title">
               <svg class="info-icon">
                 <use href="#icon-info" />
               </svg>
               Stream Info
-            </h3>
+            </h2>
             <div class="info-list">
               <div class="info-row">
                 <span class="info-label">Streamer</span>
@@ -142,12 +151,12 @@
           </GlassCard>
 
           <GlassCard variant="subtle" class="info-card">
-            <h3 class="info-title">
+            <h2 class="info-title">
               <svg class="info-icon">
                 <use href="#icon-settings" />
               </svg>
               Actions
-            </h3>
+            </h2>
             <div class="action-buttons">
               <label class="codec-selector">
                 <span class="codec-selector-label">Live codec</span>
@@ -184,6 +193,8 @@ import { useRoute, useRouter } from 'vue-router'
 import LoadingSkeleton from '@/components/LoadingSkeleton.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import GlassCard from '@/components/cards/GlassCard.vue'
+import PlayerStatus from '@/components/player/PlayerStatus.vue'
+import PlayerError from '@/components/player/PlayerError.vue'
 import { liveApi } from '@/services/api'
 import { appStorage } from '@/services/storage'
 
@@ -219,11 +230,15 @@ const error = ref<string | null>(null)
 const sessionId = ref<string | null>(null)
 const streamInfo = ref<any>(null)
 const isStopping = ref(false)
+const isStopped = ref(false)
 const isStarting = ref(false)
 const isBuffering = ref(false)
 const isPlaying = ref(false)
+const isRetrying = ref(false)
 const isMuted = ref(true)
 const isFullscreen = ref(false)
+const showControls = ref(true)
+const controlsTimeout = ref<number | null>(null)
 const hlsInstance = ref<any>(null)
 const qualityLevels = ref<Array<{ name: string; index: number }>>([])
 const selectedQuality = ref<string | number>('-1')
@@ -257,6 +272,8 @@ const selectedQualityLabel = computed(() => {
 })
 
 const streamStatusText = computed(() => {
+  if (isStopped.value) return 'Stopped'
+  if (isRetrying.value) return 'Reconnecting'
   if (isBuffering.value) return 'Buffering'
   if (isPlaying.value) return 'Live'
   return 'Connecting'
@@ -279,6 +296,42 @@ const codecHint = computed(() => {
     ? 'HEVC appears supported here; Auto will allow 1440p/HEVC.'
     : 'HEVC is not supported by this playback pipeline; Auto uses H264.'
 })
+
+const currentPlayerState = computed(() => {
+  if (isLoading.value) return 'loading'
+  if (error.value && !sessionId.value) return 'error'
+  if (isStopped.value) return 'stopped'
+  if (isRetrying.value) return 'connecting'
+  if (isBuffering.value) return 'buffering'
+  if (isPlaying.value) return 'live'
+  if (sessionId.value) return 'connecting'
+  return 'idle'
+})
+
+const hlsErrorToMessage = (data: any): string => {
+  if (!data || !data.type) return 'Stream playback failed'
+  const type = data.type
+  const details = data.details || ''
+  if (type === 'networkError') {
+    if (details.includes('manifestLoadError') || details.includes('levelLoadError')) {
+      return 'Unable to load the live stream. The streamer may be offline or the stream may have ended.'
+    }
+    if (details.includes('timeout')) {
+      return 'Connection to the live stream timed out. Check your network and try again.'
+    }
+    return 'Network error during stream playback. Please check your connection.'
+  }
+  if (type === 'mediaError') {
+    return 'An audio or video playback error occurred. Trying to recover...'
+  }
+  if (type === 'muxError') {
+    return 'The stream data could not be processed. This may be a codec compatibility issue.'
+  }
+  if (type === 'otherError') {
+    return 'An unexpected stream error occurred. Please try reconnecting.'
+  }
+  return 'Stream playback failed. Please try again.'
+}
 
 // Load hls.js (bundled locally, no CDN dependency)
 import Hls from 'hls.js'
@@ -340,6 +393,8 @@ const startStream = async () => {
     isStarting.value = true
     isLoading.value = true
     error.value = null
+    isStopped.value = false
+    isRetrying.value = false
     retryCount.value = 0
     sessionId.value = null
 
@@ -444,15 +499,19 @@ const initPlayer = async (sid: string, useNativeHls: boolean = preferNativeHls.v
           switch (data.type) {
             case Hls.ErrorTypes.NETWORK_ERROR:
               console.warn('HLS network error, attempting recovery...')
+              isRetrying.value = true
+              retryCount.value++
               hls.startLoad()
               break
             case Hls.ErrorTypes.MEDIA_ERROR:
               console.warn('HLS media error, attempting recovery...')
+              isRetrying.value = true
+              retryCount.value++
               hls.recoverMediaError()
               break
             default:
               console.error('Fatal HLS error:', data)
-              error.value = 'Stream playback failed. Please try again.'
+              error.value = hlsErrorToMessage(data)
               sessionId.value = null
               destroyPlayer()
               break
@@ -478,6 +537,7 @@ const initPlayer = async (sid: string, useNativeHls: boolean = preferNativeHls.v
   } catch (err: any) {
     console.error('Error initializing player:', err)
     error.value = err instanceof Error ? err.message : 'Failed to initialize player'
+    isRetrying.value = false
     sessionId.value = null
     streamInfo.value = null
     destroyPlayer()
@@ -504,11 +564,14 @@ const stopStream = async () => {
 
   try {
     isStopping.value = true
+    showControls.value = true
     destroyPlayer()
     await liveApi.stopLiveStream(sessionId.value)
     sessionId.value = null
     streamInfo.value = null
-    router.push('/streamers')
+    isStopped.value = true
+    isPlaying.value = false
+    isBuffering.value = false
   } catch (err: any) {
     console.error('Error stopping stream:', err)
     error.value = err instanceof Error ? err.message : 'Failed to stop stream'
@@ -555,9 +618,11 @@ const restartWithCodecMode = async () => {
 const scheduleRetry = () => {
   if (retryCount.value >= 10) {
     error.value = 'Stream could not be started after multiple attempts. The streamer may be offline.'
+    isRetrying.value = false
     return
   }
   retryCount.value++
+  isRetrying.value = true
   retryTimer.value = window.setTimeout(() => {
     if (!isPlaying.value && sessionId.value) {
       console.log(`Auto-retry attempt ${retryCount.value}...`)
@@ -574,13 +639,41 @@ const onBuffering = () => {
 const onPlaying = () => {
   isBuffering.value = false
   isPlaying.value = true
+  isRetrying.value = false
+  showControls.value = true
+  resetControlsTimeout()
 }
 
 const onVideoError = () => {
   console.error('Video element error')
   isBuffering.value = false
   isPlaying.value = false
+  isRetrying.value = true
   scheduleRetry()
+}
+
+const resetControlsTimeout = () => {
+  if (controlsTimeout.value) {
+    clearTimeout(controlsTimeout.value)
+  }
+  if (isPlaying.value) {
+    const delay = window.innerWidth < 768 ? 5000 : 3000
+    controlsTimeout.value = window.setTimeout(() => {
+      showControls.value = false
+    }, delay)
+  }
+}
+
+const onVideoContainerClick = () => {
+  if (!showControls.value) {
+    showControls.value = true
+    resetControlsTimeout()
+  }
+}
+
+const onTouchStart = () => {
+  showControls.value = true
+  resetControlsTimeout()
 }
 
 // Controls
@@ -632,6 +725,9 @@ onUnmounted(() => {
   document.removeEventListener('fullscreenchange', onFullscreenChange)
   if (retryTimer.value) {
     clearTimeout(retryTimer.value)
+  }
+  if (controlsTimeout.value) {
+    clearTimeout(controlsTimeout.value)
   }
   destroyPlayer()
   // Also stop the stream on the backend if still active
@@ -970,11 +1066,17 @@ onUnmounted(() => {
   background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 100%);
   z-index: 10;
   opacity: 0;
-  transition: var(--transition-base);
+  transition: opacity var(--duration-300) var(--ease-out);
 
   .video-container:hover &,
-  .video-container:focus-within & {
+  .video-container:focus-within &,
+  .video-container.show-controls & {
     opacity: 1;
+  }
+
+  @include m.respond-below('md') {
+    opacity: 1;
+    padding-bottom: calc(var(--spacing-3) + env(safe-area-inset-bottom, 0px));
   }
 }
 
@@ -1133,7 +1235,7 @@ onUnmounted(() => {
   color: var(--text-primary);
 
   &.highlight {
-    color: var(--primary-color);
+    color: var(--text-primary);
     font-weight: v.$font-bold;
   }
 }

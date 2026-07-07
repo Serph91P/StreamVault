@@ -28,32 +28,41 @@
       </div>
     </section>
 
-    <section class="summary-section" aria-label="Operational status">
-      <div v-if="isLoadingStreamers || isLoadingRecordings" class="stats-grid">
-        <LoadingSkeleton
-          v-for="i in 5"
-          :key="`summary-skeleton-${i}`"
-          type="status"
-        />
+    <section class="dashboard-brief" aria-labelledby="dashboard-brief-title">
+      <div class="brief-header">
+        <div>
+          <p class="section-eyebrow">At a glance</p>
+          <h2 id="dashboard-brief-title">{{ dashboardStateHeadline }}</h2>
+          <p>{{ dashboardStateDescription }}</p>
+          <p class="brief-status-line">{{ dashboardStatusLine }}</p>
+        </div>
+        <button type="button" class="brief-primary-action" @click="handleDashboardPrimaryAction">
+          <svg aria-hidden="true"><use :href="primaryAction.icon" /></svg>
+          {{ primaryAction.label }}
+        </button>
       </div>
 
-      <div v-else class="stats-grid">
-        <StatusCard
-          v-for="metric in dashboardMetrics"
-          :key="metric.label"
-          :value="metric.value"
-          :label="metric.label"
-          :subtitle="metric.subtitle"
-          :icon="metric.icon"
-          :type="metric.type"
-          :show-progress="metric.showProgress"
-          :progress="metric.progress"
-        />
+      <div class="brief-grid" aria-label="Dashboard status snapshot">
+        <article
+          v-for="item in dashboardBriefItems"
+          :key="item.label"
+          class="brief-item"
+          :class="`brief-item-${item.tone}`"
+        >
+          <span class="brief-item-icon" aria-hidden="true">
+            <svg><use :href="item.icon" /></svg>
+          </span>
+          <span>
+            <span class="brief-item-label">{{ item.label }}</span>
+            <strong>{{ item.value }}</strong>
+            <span class="brief-item-detail">{{ item.detail }}</span>
+          </span>
+        </article>
       </div>
     </section>
 
     <div class="dashboard-layout">
-      <main class="dashboard-main" aria-label="Dashboard primary content">
+      <div class="dashboard-main" aria-label="Dashboard primary content">
         <BasePanel labelled-by="live-section-title" tone="strong" class="dashboard-panel live-panel">
           <template #title>
             <span id="live-section-title" class="panel-title-inline">
@@ -70,11 +79,15 @@
             </StatusBadge>
           </template>
 
-          <div v-if="streamersError" class="inline-error" role="alert">
-            <svg aria-hidden="true"><use href="#icon-alert-circle" /></svg>
-            <span>{{ streamersError }}</span>
-            <button type="button" @click="fetchStreamers">Retry</button>
-          </div>
+          <EmptyState
+            v-if="streamersError"
+            variant="inline"
+            tone="danger"
+            title="Could not load live streamers"
+            :description="streamersError"
+            retry-label="Retry"
+            @retry="fetchStreamers"
+          />
 
           <div v-if="isLoadingStreamers" class="grid-scroll-hybrid dashboard-card-grid">
             <LoadingSkeleton
@@ -130,11 +143,15 @@
             </StatusBadge>
           </template>
 
-          <div v-if="recordingsError" class="inline-error" role="alert">
-            <svg aria-hidden="true"><use href="#icon-alert-circle" /></svg>
-            <span>{{ recordingsError }}</span>
-            <button type="button" @click="fetchActiveRecordings">Retry</button>
-          </div>
+          <EmptyState
+            v-if="recordingsError"
+            variant="inline"
+            tone="danger"
+            title="Could not load active recordings"
+            :description="recordingsError"
+            retry-label="Retry"
+            @retry="fetchActiveRecordings"
+          />
 
           <div v-if="isLoadingRecordings" class="recording-list">
             <LoadingSkeleton
@@ -188,11 +205,15 @@
             </router-link>
           </template>
 
-          <div v-if="videosError" class="inline-error" role="alert">
-            <svg aria-hidden="true"><use href="#icon-alert-circle" /></svg>
-            <span>{{ videosError }}</span>
-            <button type="button" @click="fetchVideos">Retry</button>
-          </div>
+          <EmptyState
+            v-if="videosError"
+            variant="inline"
+            tone="danger"
+            title="Could not load latest videos"
+            :description="videosError"
+            retry-label="Retry"
+            @retry="fetchVideos"
+          />
 
           <div v-if="isLoadingVideos" class="grid-recordings dashboard-video-grid">
             <LoadingSkeleton
@@ -217,11 +238,11 @@
               v-for="video in recentRecordings"
               :key="video.id"
               :video="video"
-              @click="playVideo(video)"
+              @play="playVideo(video)"
             />
           </div>
         </BasePanel>
-      </main>
+      </div>
 
       <aside class="dashboard-sidebar" aria-label="Dashboard side content">
         <BasePanel labelled-by="queue-section-title" class="dashboard-panel queue-panel">
@@ -266,10 +287,10 @@
             </div>
           </dl>
 
-          <div v-if="isLoadingQueue" class="muted-row">Loading queue fallback data.</div>
+          <div v-if="isLoadingQueue" class="muted-row">Loading queue status.</div>
           <div v-if="queueError" class="muted-row">{{ queueError }}</div>
           <button type="button" class="panel-text-button" @click="refreshQueueFromAPI">
-            Refresh queue fallback
+            Refresh queue status
           </button>
         </BasePanel>
 
@@ -351,7 +372,6 @@ import LoadingSkeleton from '@/components/LoadingSkeleton.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import StreamerCard from '@/components/cards/StreamerCard.vue'
 import VideoCard from '@/components/cards/VideoCard.vue'
-import StatusCard, { type StatusType } from '@/components/cards/StatusCard.vue'
 import BasePanel from '@/components/base/BasePanel.vue'
 import StatusBadge, { type StatusBadgeTone } from '@/components/base/StatusBadge.vue'
 
@@ -391,14 +411,19 @@ interface ActiveRecording {
   [key: string]: unknown
 }
 
-interface DashboardMetric {
+interface DashboardBriefItem {
   label: string
-  value: number | string
-  subtitle: string
+  value: string
+  detail: string
   icon: string
-  type: StatusType
-  showProgress?: boolean
-  progress?: number
+  tone: 'live' | 'recording' | 'queue' | 'danger' | 'success' | 'info'
+}
+
+interface DashboardPrimaryAction {
+  label: string
+  icon: string
+  route?: string
+  targetId?: string
 }
 
 interface FailureItem {
@@ -461,6 +486,7 @@ const queueStats = ref<QueueStats>({
 const liveStreamers = computed(() => streamers.value.filter((s) => s.is_live))
 const recordingStreamers = computed(() => streamers.value.filter((s) => s.is_recording))
 const totalStreamers = computed(() => streamers.value.length)
+const isDashboardLoading = computed(() => isLoadingStreamers.value || isLoadingRecordings.value || isLoadingQueue.value)
 
 const recentRecordings = computed(() => {
   return [...videos.value]
@@ -514,6 +540,90 @@ const failureItems = computed<FailureItem[]>(() => {
   return [...queueFailures, ...eventFailures].slice(0, 5)
 })
 
+const latestActivitySummary = computed(() => {
+  const event = recentActivity.value[0]
+  if (!event) return 'No recent realtime event yet'
+  return event.title || event.body || 'Realtime event received'
+})
+
+const dashboardStateHeadline = computed(() => {
+  if (failureItems.value.length > 0) return 'Attention needed now'
+  if (isDashboardLoading.value && totalStreamers.value === 0 && activeRecordings.value.length === 0) return 'Checking dashboard status'
+  if (liveStreamers.value.length > 0) return `${liveStreamers.value.length} streamer${liveStreamers.value.length === 1 ? '' : 's'} live now`
+  if (activeRecordings.value.length > 0) return `${activeRecordings.value.length} recording${activeRecordings.value.length === 1 ? '' : 's'} active`
+  if (queueStats.value.active_tasks + queueStats.value.pending_tasks > 0) return 'Queue work is in progress'
+  return 'All core systems are quiet'
+})
+
+const dashboardStateDescription = computed(() => {
+  if (failureItems.value.length > 0) return `${failureItems.value.length} alert${failureItems.value.length === 1 ? '' : 's'} need review before the queue looks healthy.`
+  if (isDashboardLoading.value && totalStreamers.value === 0 && activeRecordings.value.length === 0) return 'Refreshing live, recording, queue and activity signals for the first read.'
+  if (liveStreamers.value.length > 0) return 'Open a live stream, confirm recording, or keep watching queue health from this screen.'
+  if (activeRecordings.value.length > 0) return 'Recording is underway. Follow the live session or watch the queue for processing.'
+  if (queueStats.value.active_tasks + queueStats.value.pending_tasks > 0) return 'Background jobs are visible here so processing state stays easy to scan.'
+  return 'No active failures, recordings or queue work are currently reported.'
+})
+
+const dashboardStatusLine = computed(() => {
+  if (isDashboardLoading.value && totalStreamers.value === 0 && activeRecordings.value.length === 0) return 'Loading live, recording, queue, errors and recent activity'
+  const activity = recentActivity.value.length > 0 ? `${recentActivity.value.length} event${recentActivity.value.length === 1 ? '' : 's'}` : 'quiet'
+  return `Live ${liveStreamers.value.length} | Recording ${activeRecordings.value.length} | Queue ${queueStateLabel.value} | Errors ${failureItems.value.length} | Recent activity ${activity}`
+})
+
+const primaryAction = computed<DashboardPrimaryAction>(() => {
+  if (failureItems.value.length > 0) {
+    return { label: 'Review alerts', icon: '#icon-alert-triangle', targetId: 'failures-section-title' }
+  }
+  if (liveStreamers.value.length > 0) {
+    return { label: 'Open live list', icon: '#icon-radio', targetId: 'live-section-title' }
+  }
+  if (activeRecordings.value.length > 0) {
+    return { label: 'Follow recording', icon: '#icon-video', targetId: 'recordings-section-title' }
+  }
+  if (queueStats.value.active_tasks + queueStats.value.pending_tasks > 0) {
+    return { label: 'Check queue', icon: '#icon-activity', targetId: 'queue-section-title' }
+  }
+  return { label: 'Open library', icon: '#icon-film', route: '/videos' }
+})
+
+const dashboardBriefItems = computed<DashboardBriefItem[]>(() => [
+  {
+    label: 'Live',
+    value: isLoadingStreamers.value ? 'Checking' : `${liveStreamers.value.length} online`,
+    detail: `${totalStreamers.value} tracked`,
+    icon: '#icon-radio',
+    tone: liveStreamers.value.length > 0 ? 'live' : 'info'
+  },
+  {
+    label: 'Recording',
+    value: isLoadingRecordings.value ? 'Checking' : `${activeRecordings.value.length} active`,
+    detail: `${recordingStreamers.value.length} streamer${recordingStreamers.value.length === 1 ? '' : 's'} marked`,
+    icon: '#icon-video',
+    tone: activeRecordings.value.length > 0 ? 'recording' : 'success'
+  },
+  {
+    label: 'Queue',
+    value: isLoadingQueue.value ? 'Checking' : queueStateLabel.value,
+    detail: `${queueStats.value.active_tasks} active, ${queueStats.value.pending_tasks} pending`,
+    icon: '#icon-activity',
+    tone: queueStats.value.failed_tasks > 0 ? 'danger' : 'queue'
+  },
+  {
+    label: 'Errors',
+    value: `${failureItems.value.length} alert${failureItems.value.length === 1 ? '' : 's'}`,
+    detail: failureItems.value.length > 0 ? 'Needs review' : 'No active alerts',
+    icon: failureItems.value.length > 0 ? '#icon-alert-triangle' : '#icon-check-circle',
+    tone: failureItems.value.length > 0 ? 'danger' : 'success'
+  },
+  {
+    label: 'Recent activity',
+    value: recentActivity.value.length > 0 ? `${recentActivity.value.length} event${recentActivity.value.length === 1 ? '' : 's'}` : 'Quiet',
+    detail: latestActivitySummary.value,
+    icon: '#icon-clock',
+    tone: recentActivity.value.length > 0 ? 'info' : 'success'
+  }
+])
+
 const connectionLabel = computed(() => {
   switch (realtime.connectionStatus) {
     case 'connected':
@@ -545,46 +655,6 @@ const queueBadgeTone = computed<StatusBadgeTone>(() => {
   if (queueStats.value.pending_tasks > 0) return 'warning'
   return queueStats.value.is_running ? 'success' : 'neutral'
 })
-
-const dashboardMetrics = computed<DashboardMetric[]>(() => [
-  {
-    label: 'Live Now',
-    value: liveStreamers.value.length,
-    subtitle: `${totalStreamers.value} tracked streamers`,
-    icon: 'radio',
-    type: liveStreamers.value.length > 0 ? 'danger' : 'info'
-  },
-  {
-    label: 'Recording',
-    value: activeRecordings.value.length,
-    subtitle: `${recordingStreamers.value.length} streamers marked recording`,
-    icon: 'video',
-    type: activeRecordings.value.length > 0 ? 'warning' : 'success'
-  },
-  {
-    label: 'Queue',
-    value: queueStats.value.active_tasks + queueStats.value.pending_tasks,
-    subtitle: queueStateLabel.value,
-    icon: 'activity',
-    type: queueStats.value.failed_tasks > 0 ? 'danger' : 'primary',
-    showProgress: activeTasks.value.length > 0,
-    progress: Math.round(totalProgress.value)
-  },
-  {
-    label: 'Failures',
-    value: failureItems.value.length,
-    subtitle: failureItems.value.length > 0 ? 'Needs review' : 'No active alerts',
-    icon: failureItems.value.length > 0 ? 'alert-triangle' : 'check-circle',
-    type: failureItems.value.length > 0 ? 'danger' : 'success'
-  },
-  {
-    label: 'Latest Videos',
-    value: recentRecordings.value.length,
-    subtitle: 'Ready in library',
-    icon: 'film',
-    type: 'info'
-  }
-])
 
 async function fetchStreamers() {
   isLoadingStreamers.value = true
@@ -646,7 +716,7 @@ async function refreshQueueFromAPI() {
     recentTasks.value = Array.isArray(recent) ? recent : []
   } catch (error) {
     console.error('Failed to refresh queue:', error)
-    queueError.value = 'Queue fallback is unavailable.'
+    queueError.value = 'Queue status is unavailable.'
   } finally {
     isLoadingQueue.value = false
   }
@@ -658,6 +728,19 @@ function navigateToAddStreamer() {
 
 function playVideo(video: VideoSummary) {
   router.push(`/videos/${video.id}`)
+}
+
+function handleDashboardPrimaryAction() {
+  if (primaryAction.value.route) {
+    router.push(primaryAction.value.route)
+    return
+  }
+
+  if (!primaryAction.value.targetId) return
+  document.getElementById(primaryAction.value.targetId)?.scrollIntoView({
+    behavior: 'smooth',
+    block: 'start'
+  })
 }
 
 async function handleForceRecord(streamer: { id: number }) {
@@ -860,7 +943,8 @@ onMounted(async () => {
   await Promise.all([
     fetchStreamers(),
     fetchVideos(),
-    fetchActiveRecordings()
+    fetchActiveRecordings(),
+    refreshQueueFromAPI()
   ])
 })
 </script>
@@ -951,15 +1035,161 @@ onMounted(async () => {
   color: var(--primary-color);
 }
 
-.summary-section,
-.dashboard-panel {
-  min-width: 0;
+.dashboard-brief {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-5);
+  padding: var(--spacing-5);
+  border: 1px solid var(--glass-border, var(--border-color));
+  border-radius: var(--radius-xl);
+  background:
+    linear-gradient(135deg, rgba(var(--primary-color-rgb), 0.14), transparent 46%),
+    rgba(var(--background-darker-rgb, 10, 10, 10), 0.34);
+  box-shadow: var(--glass-shadow-sm, 0 8px 24px rgba(0, 0, 0, 0.18));
 }
 
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+.brief-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
   gap: var(--spacing-4);
+
+  h2 {
+    margin: var(--spacing-1) 0 var(--spacing-2);
+    color: var(--text-primary);
+    font-size: clamp(1.35rem, 3vw, 2rem);
+    line-height: 1.1;
+    font-weight: v.$font-bold;
+  }
+
+  p {
+    margin: 0;
+    color: var(--text-secondary);
+    line-height: v.$leading-relaxed;
+  }
+}
+
+.brief-status-line {
+  margin-top: var(--spacing-3) !important;
+  padding: var(--spacing-3);
+  border: 1px solid rgba(var(--primary-color-rgb), 0.24);
+  border-radius: var(--radius-lg);
+  background: rgba(var(--primary-color-rgb), 0.1);
+  color: var(--text-primary) !important;
+  font-size: var(--text-sm);
+  font-weight: v.$font-semibold;
+}
+
+.section-eyebrow,
+.brief-item-label {
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  font-weight: v.$font-semibold;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.brief-primary-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-2);
+  min-height: 44px;
+  flex: 0 0 auto;
+  padding: var(--spacing-3) var(--spacing-4);
+  border: 1px solid rgba(var(--primary-color-rgb), 0.42);
+  border-radius: var(--radius-full);
+  background: rgba(var(--primary-color-rgb), 0.18);
+  color: var(--primary-color);
+  font-weight: v.$font-semibold;
+  cursor: pointer;
+
+  svg {
+    width: 18px;
+    height: 18px;
+    stroke: currentColor;
+    fill: none;
+  }
+}
+
+.brief-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: var(--spacing-3);
+}
+
+.brief-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--spacing-3);
+  min-width: 0;
+  padding: var(--spacing-4);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  background: rgba(var(--background-card-rgb, 20, 22, 29), 0.58);
+
+  strong,
+  .brief-item-detail {
+    display: block;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  strong {
+    margin: var(--spacing-1) 0;
+    color: var(--text-primary);
+    font-size: var(--text-lg);
+    font-weight: v.$font-bold;
+  }
+}
+
+.brief-item-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-md);
+  background: rgba(var(--primary-color-rgb), 0.16);
+  color: var(--primary-color);
+
+  svg {
+    width: 20px;
+    height: 20px;
+    stroke: currentColor;
+    fill: none;
+  }
+}
+
+.brief-item-detail {
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
+.brief-item-live .brief-item-icon,
+.brief-item-danger .brief-item-icon {
+  background: rgba(var(--danger-color-rgb), 0.18);
+  color: var(--danger-color);
+}
+
+.brief-item-recording .brief-item-icon {
+  background: rgba(var(--warning-color-rgb), 0.18);
+  color: var(--warning-color);
+}
+
+.brief-item-queue .brief-item-icon,
+.brief-item-info .brief-item-icon {
+  background: rgba(var(--primary-color-rgb), 0.16);
+  color: var(--primary-color);
+}
+
+.brief-item-success .brief-item-icon {
+  background: rgba(var(--success-color-rgb), 0.18);
+  color: var(--success-color);
+}
+
+.dashboard-panel {
+  min-width: 0;
 }
 
 .dashboard-layout {
@@ -1062,7 +1292,7 @@ onMounted(async () => {
     padding: 0 var(--spacing-3);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-full);
-    color: var(--primary-color);
+    color: var(--text-primary);
     text-decoration: none;
     font-size: var(--text-sm);
     font-weight: v.$font-semibold;
@@ -1070,15 +1300,14 @@ onMounted(async () => {
 }
 
 .view-all-link,
-.panel-text-button,
-.inline-error button {
+.panel-text-button {
   display: inline-flex;
   align-items: center;
   gap: var(--spacing-2);
   min-height: 36px;
   border: 0;
   background: transparent;
-  color: var(--primary-color);
+  color: var(--text-primary);
   text-decoration: none;
   font-size: var(--text-sm);
   font-weight: v.$font-semibold;
@@ -1090,26 +1319,6 @@ onMounted(async () => {
   height: 16px;
   stroke: currentColor;
   fill: none;
-}
-
-.inline-error {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--spacing-3);
-  margin-bottom: var(--spacing-4);
-  padding: var(--spacing-3) var(--spacing-4);
-  border: 1px solid rgba(var(--danger-color-rgb), 0.28);
-  border-radius: var(--radius-lg);
-  background: rgba(var(--danger-color-rgb), 0.12);
-  color: var(--danger-color);
-
-  svg {
-    width: 18px;
-    height: 18px;
-    stroke: currentColor;
-    fill: none;
-  }
 }
 
 .queue-progress {
@@ -1185,6 +1394,10 @@ onMounted(async () => {
   .dashboard-layout {
     grid-template-columns: 1fr;
   }
+
+  .brief-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 
 @include m.respond-below('md') {
@@ -1201,6 +1414,31 @@ onMounted(async () => {
 
   .hero-action {
     flex: 1 1 180px;
+  }
+
+  .dashboard-brief {
+    order: -1;
+    padding: var(--spacing-4);
+  }
+
+  .brief-header {
+    flex-direction: column;
+  }
+
+  .brief-primary-action {
+    width: 100%;
+  }
+
+  .brief-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .brief-item {
+    padding: var(--spacing-3);
+  }
+
+  .brief-item:last-child {
+    grid-column: 1 / -1;
   }
 
   .recording-card,
@@ -1223,7 +1461,6 @@ onMounted(async () => {
     font-size: var(--text-base);
   }
 
-  .stats-grid,
   .queue-stats {
     grid-template-columns: 1fr;
   }

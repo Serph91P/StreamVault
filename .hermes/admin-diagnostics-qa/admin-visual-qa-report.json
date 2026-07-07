@@ -1,0 +1,384 @@
+{
+  "baseUrl": "http://127.0.0.1:5173",
+  "generatedAt": "2026-07-07T02:24:37.318Z",
+  "pass": true,
+  "failures": [],
+  "results": [
+    {
+      "name": "desktop",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "screenshots": {
+        "initial": "/opt/data/workspace/github_repos/StreamVault-frontend-product-overhaul-final/.hermes/admin-diagnostics-qa/admin-desktop-initial.png",
+        "notificationDiagnosticsOpen": "/opt/data/workspace/github_repos/StreamVault-frontend-product-overhaul-final/.hermes/admin-diagnostics-qa/admin-desktop-notification-diagnostics-open.png"
+      },
+      "disclosureCount": 6,
+      "rawVisibilityBefore": {
+        "Test Apprise Notification": false,
+        "Test Web Push Notification": false,
+        "Test WebSocket Notification": false,
+        "Run All Tests": false,
+        "Show Available Tests": false,
+        "Fix Recording Paths": false,
+        "Cleanup Orphaned DB": false,
+        "Cleanup Process Orphaned": false,
+        "Cleanup Zombie Recordings": false
+      },
+      "rawVisibilityAfter": {
+        "Test Apprise Notification": true,
+        "Test Web Push Notification": true,
+        "Test WebSocket Notification": true
+      },
+      "metrics": {
+        "initial": {
+          "url": "/admin",
+          "viewportWidth": 1440,
+          "viewportHeight": 1000,
+          "scrollWidth": 1440,
+          "clientWidth": 1440,
+          "hasHorizontalOverflow": false,
+          "primaryButtons": [
+            "Quick Health Check"
+          ],
+          "visibleSummaries": [
+            "Notification DiagnosticsTest notification channels: Apprise, Web Push and WebSocket",
+            "Background Queue ToolsRepair stuck jobs and inspect queue cleanup actions",
+            "Post-Processing ToolsRetry failed recordings and clean segment files",
+            "Admin Verification SuiteRun diagnostic checks only when troubleshooting",
+            "MaintenanceReview logs and cleanup temporary files",
+            "Video and Recording DiagnosticsInspect storage state and repair recording paths"
+          ],
+          "containsAdminHeader": true,
+          "containsSystemHealth": true,
+          "containsBackgroundJobs": true
+        },
+        "afterNotificationDisclosureOpen": {
+          "primaryButtons": [
+            "Quick Health Check",
+            "Test Apprise Notification",
+            "Test Web Push Notification",
+            "Test WebSocket Notification"
+          ],
+          "hasHorizontalOverflow": false
+        }
+      },
+      "consoleMessages": [
+        {
+          "type": "debug",
+          "text": "[vite] connecting..."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connected."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Using MOCK API for all endpoints"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: WebSocket connections disabled"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-07T02:24:34.525Z] DEBUG [WebSocketManager] Singleton created with URL: ws://127.0.0.1:5173/ws"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-07T02:24:34.525Z] DEBUG [WebSocketManager] Singleton instance created"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping WebSocket connection"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-07T02:24:34.531Z] DEBUG [WebSocketManager] Singleton instance reused"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-07T02:24:34.540Z] DEBUG [WebSocketManager] Singleton instance reused"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-07T02:24:34.541Z] DEBUG [useBackgroundQueue] Background Queue: Waiting for WebSocket data"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-07T02:24:34.542Z] DEBUG [useBackgroundQueue] WebSocket not connected yet, using API fallback for initial load"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-07T02:24:34.542Z] DEBUG [useBackgroundQueue] FORCE REFRESH: Using API as fallback"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-07T02:24:34.542Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "📱 Component i85jnjljm subscribing to WebSocket"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping WebSocket connection"
+        },
+        {
+          "type": "log",
+          "text": "📱 Component amvqxhk9f subscribing to WebSocket"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping WebSocket connection"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-07T02:24:34.543Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping auth checks, allowing all routes"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue Router warn]: The `next()` callback in navigation guards is deprecated. Return the value instead of calling `next(value)`."
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-07T02:24:34.590Z] DEBUG [useBackgroundQueue] Background Queue: Waiting for WebSocket data"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-07T02:24:34.590Z] DEBUG [useBackgroundQueue] WebSocket not connected yet, using API fallback for initial load"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-07T02:24:34.590Z] DEBUG [useBackgroundQueue] FORCE REFRESH: Using API as fallback"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-07T02:24:34.591Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 (Not Found)"
+        },
+        {
+          "type": "error",
+          "text": "Health check failed: SyntaxError: Failed to execute 'json' on 'Response': Unexpected end of JSON input\n    at runQuickHealthCheck (http://127.0.0.1:5173/src/components/admin/AdminPanel.vue:173:41)"
+        },
+        {
+          "type": "error",
+          "text": "Error fetching background queue status: SyntaxError: Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load stats: SyntaxError: Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load system info: SyntaxError: Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-07T02:24:34.742Z] DEBUG [useBackgroundQueue] FORCE REFRESH: API data loaded as fallback"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-07T02:24:34.791Z] DEBUG [useBackgroundQueue] FORCE REFRESH: API data loaded as fallback"
+        }
+      ],
+      "pageErrors": []
+    },
+    {
+      "name": "mobile",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "screenshots": {
+        "initial": "/opt/data/workspace/github_repos/StreamVault-frontend-product-overhaul-final/.hermes/admin-diagnostics-qa/admin-mobile-initial.png",
+        "notificationDiagnosticsOpen": "/opt/data/workspace/github_repos/StreamVault-frontend-product-overhaul-final/.hermes/admin-diagnostics-qa/admin-mobile-notification-diagnostics-open.png"
+      },
+      "disclosureCount": 6,
+      "rawVisibilityBefore": {
+        "Test Apprise Notification": false,
+        "Test Web Push Notification": false,
+        "Test WebSocket Notification": false,
+        "Run All Tests": false,
+        "Show Available Tests": false,
+        "Fix Recording Paths": false,
+        "Cleanup Orphaned DB": false,
+        "Cleanup Process Orphaned": false,
+        "Cleanup Zombie Recordings": false
+      },
+      "rawVisibilityAfter": {
+        "Test Apprise Notification": true,
+        "Test Web Push Notification": true,
+        "Test WebSocket Notification": true
+      },
+      "metrics": {
+        "initial": {
+          "url": "/admin",
+          "viewportWidth": 390,
+          "viewportHeight": 844,
+          "scrollWidth": 390,
+          "clientWidth": 390,
+          "hasHorizontalOverflow": false,
+          "primaryButtons": [
+            "Quick Health Check"
+          ],
+          "visibleSummaries": [
+            "Notification DiagnosticsTest notification channels: Apprise, Web Push and WebSocket",
+            "Background Queue ToolsRepair stuck jobs and inspect queue cleanup actions",
+            "Post-Processing ToolsRetry failed recordings and clean segment files",
+            "Admin Verification SuiteRun diagnostic checks only when troubleshooting",
+            "MaintenanceReview logs and cleanup temporary files",
+            "Video and Recording DiagnosticsInspect storage state and repair recording paths"
+          ],
+          "containsAdminHeader": true,
+          "containsSystemHealth": true,
+          "containsBackgroundJobs": true
+        },
+        "afterNotificationDisclosureOpen": {
+          "primaryButtons": [
+            "Quick Health Check",
+            "Test Apprise Notification",
+            "Test Web Push Notification",
+            "Test WebSocket Notification"
+          ],
+          "hasHorizontalOverflow": false
+        }
+      },
+      "consoleMessages": [
+        {
+          "type": "debug",
+          "text": "[vite] connecting..."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connected."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Using MOCK API for all endpoints"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: WebSocket connections disabled"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-07T02:24:36.134Z] DEBUG [WebSocketManager] Singleton created with URL: ws://127.0.0.1:5173/ws"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-07T02:24:36.134Z] DEBUG [WebSocketManager] Singleton instance created"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping WebSocket connection"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-07T02:24:36.139Z] DEBUG [WebSocketManager] Singleton instance reused"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-07T02:24:36.147Z] DEBUG [WebSocketManager] Singleton instance reused"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-07T02:24:36.148Z] DEBUG [useBackgroundQueue] Background Queue: Waiting for WebSocket data"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-07T02:24:36.149Z] DEBUG [useBackgroundQueue] WebSocket not connected yet, using API fallback for initial load"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-07T02:24:36.149Z] DEBUG [useBackgroundQueue] FORCE REFRESH: Using API as fallback"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-07T02:24:36.149Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "📱 Component 4g1dcvdfu subscribing to WebSocket"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping WebSocket connection"
+        },
+        {
+          "type": "log",
+          "text": "📱 Component f6un4tt39 subscribing to WebSocket"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping WebSocket connection"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-07T02:24:36.150Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping auth checks, allowing all routes"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue Router warn]: The `next()` callback in navigation guards is deprecated. Return the value instead of calling `next(value)`."
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-07T02:24:36.198Z] DEBUG [useBackgroundQueue] Background Queue: Waiting for WebSocket data"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-07T02:24:36.198Z] DEBUG [useBackgroundQueue] WebSocket not connected yet, using API fallback for initial load"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-07T02:24:36.198Z] DEBUG [useBackgroundQueue] FORCE REFRESH: Using API as fallback"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-07T02:24:36.198Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 (Not Found)"
+        },
+        {
+          "type": "error",
+          "text": "Health check failed: SyntaxError: Failed to execute 'json' on 'Response': Unexpected end of JSON input\n    at runQuickHealthCheck (http://127.0.0.1:5173/src/components/admin/AdminPanel.vue:173:41)"
+        },
+        {
+          "type": "error",
+          "text": "Error fetching background queue status: SyntaxError: Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load stats: SyntaxError: Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load system info: SyntaxError: Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-07T02:24:36.349Z] DEBUG [useBackgroundQueue] FORCE REFRESH: API data loaded as fallback"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-07T02:24:36.398Z] DEBUG [useBackgroundQueue] FORCE REFRESH: API data loaded as fallback"
+        }
+      ],
+      "pageErrors": []
+    }
+  ]
+}

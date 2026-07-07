@@ -1,0 +1,44 @@
+{
+  "initial": {
+    "totalText": 2,
+    "items": 4,
+    "today": 1,
+    "yesterday": 1,
+    "olderGroup": "Saturday",
+    "websocket": 3,
+    "pushDelivery": 1,
+    "appriseDelivery": 1,
+    "systemEvent": 1,
+    "targetStreamer": 1,
+    "targetVideo": 1,
+    "targetSettings": 1
+  },
+  "unreadItems": 3,
+  "pushItems": 1,
+  "realtimeResult": {
+    "total": 5,
+    "unread": 4,
+    "aliceCount": 1,
+    "appriseCount": 1
+  },
+  "targetUrl": "http://127.0.0.1:5173/streamers/101",
+  "mobile": {
+    "dialog": 1,
+    "items": 4,
+    "filters": 1,
+    "panelBox": {
+      "x": 0,
+      "y": 0,
+      "width": 390,
+      "height": 844
+    }
+  },
+  "consoleMessages": [
+    "warning: [Vue Router warn]: The `next()` callback in navigation guards is deprecated. Return the value instead of calling `next(value)`.",
+    "warning: [Vue Router warn]: The `next()` callback in navigation guards is deprecated. Return the value instead of calling `next(value)`."
+  ],
+  "screenshots": [
+    "/opt/data/workspace/github_repos/StreamVault-frontend-product-overhaul-final/.hermes/frontend-visual-evidence/notification-center/desktop-notification-center.png",
+    "/opt/data/workspace/github_repos/StreamVault-frontend-product-overhaul-final/.hermes/frontend-visual-evidence/notification-center/mobile-notification-center.png"
+  ]
+}

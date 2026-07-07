@@ -105,12 +105,16 @@ const classes = computed(() => [
   background: rgba(var(--primary-color-rgb), 0.15);
   color: var(--primary-color);
   border-color: rgba(var(--primary-color-rgb), 0.3);
+
+  [data-theme="light"] & {
+    color: var(--primary-color-dark);
+  }
 }
 
 .status-badge-success,
 .status-badge-completed {
   background: rgba(var(--success-500-rgb), 0.15);
-  color: var(--success-color);
+  color: var(--success-text-color);
   border-color: rgba(var(--success-500-rgb), 0.3);
 }
 
@@ -118,7 +122,7 @@ const classes = computed(() => [
 .status-badge-live,
 .status-badge-recording {
   background: rgba(var(--danger-color-rgb), 0.15);
-  color: var(--danger-color);
+  color: var(--danger-text-color);
   border-color: rgba(var(--danger-color-rgb), 0.3);
 }
 
@@ -129,13 +133,13 @@ const classes = computed(() => [
 .status-badge-warning,
 .status-badge-processing {
   background: rgba(var(--warning-color-rgb), 0.15);
-  color: var(--warning-color);
+  color: var(--text-primary);
   border-color: rgba(var(--warning-color-rgb), 0.3);
 }
 
 .status-badge-info {
   background: rgba(var(--info-500-rgb), 0.15);
-  color: var(--info-color);
+  color: var(--info-text-color);
   border-color: rgba(var(--info-500-rgb), 0.3);
 }
 

@@ -58,7 +58,8 @@ function isVisible(field: FieldSchema): boolean {
       :key="group.id"
       class="settings-section"
     >
-      <h4>{{ group.title }}</h4>
+      <div class="settings-card">
+        <h4>{{ group.title }}</h4>
 
       <div :class="['fields-grid', `grid-${group.id}`]">
         <template v-for="field in group.fields" :key="field.key">
@@ -112,21 +113,25 @@ function isVisible(field: FieldSchema): boolean {
           </div>
         </template>
       </div>
+      </div>
     </section>
   </div>
 </template>
 
 <style scoped lang="scss">
 .settings-section {
-  margin-bottom: 1.5rem;
-  padding-bottom: 1rem;
-  border-bottom: 1px solid var(--border-color);
+  margin-bottom: var(--spacing-4);
 
   &:last-child {
-    border-bottom: none;
     margin-bottom: 0;
-    padding-bottom: 0;
   }
+}
+
+.settings-card {
+  background: var(--background-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-5);
 
   h4 {
     margin-top: 0;

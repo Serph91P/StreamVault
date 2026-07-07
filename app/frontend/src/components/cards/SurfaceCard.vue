@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed, useId, useSlots } from 'vue'
 import GlassCard from '@/components/cards/GlassCard.vue'
 import type { GlassVariant, PaddingSize } from '@/components/cards/GlassCard.vue'
 
@@ -9,21 +10,36 @@ interface Props {
   elevated?: boolean
   hoverable?: boolean
   clickable?: boolean
+  disabled?: boolean
+  loading?: boolean
   labelledBy?: string
+  describedBy?: string
 }
 
-withDefaults(defineProps<Props>(), {
+const props = withDefaults(defineProps<Props>(), {
   tag: 'section',
   variant: 'medium',
   padding: true,
   elevated: false,
   hoverable: false,
   clickable: false,
+  disabled: false,
+  loading: false,
 })
 
 const emit = defineEmits<{
-  click: [event: MouseEvent]
+  click: [event: MouseEvent | KeyboardEvent]
 }>()
+
+const slots = useSlots()
+const generatedTitleId = useId()
+const titleId = computed(() => props.labelledBy || (slots.title ? generatedTitleId : undefined))
+
+function onClick(event: MouseEvent | KeyboardEvent) {
+  if (!props.disabled && !props.loading) {
+    emit('click', event)
+  }
+}
 </script>
 
 <template>
@@ -34,14 +50,17 @@ const emit = defineEmits<{
     :elevated="elevated"
     :hoverable="hoverable"
     :clickable="clickable"
+    :disabled="disabled"
+    :loading="loading"
     class="surface-card"
-    :aria-labelledby="labelledBy"
-    @click="emit('click', $event)"
+    :labelled-by="titleId"
+    :described-by="describedBy"
+    @click="onClick"
   >
     <header v-if="$slots.header || $slots.title || $slots.actions" class="surface-card-header">
       <div class="surface-card-heading">
         <slot name="header">
-          <h2 v-if="$slots.title" :id="labelledBy" class="surface-card-title">
+          <h2 v-if="$slots.title" :id="titleId" class="surface-card-title">
             <slot name="title" />
           </h2>
           <p v-if="$slots.description" class="surface-card-description">

@@ -1,8 +1,8 @@
 <template>
   <div class="video-player-container">
     <!-- Video Element -->
-    <div class="video-wrapper" ref="videoWrapper" @mouseenter="onVideoHover" @mouseleave="onVideoLeave" @mousemove="onVideoMove">
-      <video 
+    <div class="video-wrapper" ref="videoWrapper" @mouseenter="onVideoHover" @mouseleave="onVideoLeave" @mousemove="onVideoMove" @touchstart="onVideoTouch">
+      <video
         ref="videoElement"
         :src="decodedVideoSrc"
         @loadedmetadata="onVideoLoaded"
@@ -13,24 +13,28 @@
         @play="onPlay"
         @pause="onPause"
         @click="togglePlayPause"
+        @keydown.space.prevent="togglePlayPause"
         preload="metadata"
         class="video-element"
+        tabindex="0"
+        role="application"
+        aria-label="Video player"
       >
         <!-- WebVTT chapters track -->
-        <track 
+        <track
           v-if="chaptersUrl"
-          kind="chapters" 
-          :src="chaptersUrl" 
-          srclang="en" 
+          kind="chapters"
+          :src="chaptersUrl"
+          srclang="en"
           label="Chapters"
           default
         />
         Your browser does not support the video tag.
       </video>
-      
+
       <!-- Custom Video Controls Overlay -->
-      <div 
-        v-show="showControls || !isPlaying" 
+      <div
+        v-show="showControls || !isPlaying"
         class="video-controls-overlay"
         @click.stop
         @touchstart="onControlsTouch"
@@ -53,11 +57,11 @@
           <div class="progress-bar-track">
             <!-- Chapter markers background -->
             <div class="chapter-markers" v-if="parsedChapters.length > 0">
-              <div 
-                v-for="(chapter, index) in parsedChapters" 
+              <div
+                v-for="(chapter, index) in parsedChapters"
                 :key="index"
                 class="chapter-marker"
-                :style="{ 
+                :style="{
                   left: `${(chapter.startTime / videoDuration) * 100}%`,
                   width: `${(chapter.duration / videoDuration) * 100}%`,
                   backgroundColor: getChapterColor(chapter.title)
@@ -70,13 +74,13 @@
             <div class="progress-bar-thumb" :style="{ left: progressPercentage + '%' }"></div>
           </div>
         </div>
-        
+
         <!-- Control Buttons -->
         <div class="controls-bottom">
           <div class="controls-left">
             <!-- Play/Pause Button (Primary) -->
-            <button 
-              @click="togglePlayPause" 
+            <button
+              @click="togglePlayPause"
               class="control-button play-pause-button"
               :aria-label="isPlaying ? 'Pause' : 'Play'"
             >
@@ -87,10 +91,10 @@
                 <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z"/>
               </svg>
             </button>
-            
+
             <!-- Volume Control -->
-            <button 
-              @click="toggleMute" 
+            <button
+              @click="toggleMute"
               class="control-button volume-button"
               :aria-label="isMuted ? 'Unmute' : 'Mute'"
             >
@@ -104,7 +108,7 @@
                 <path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/>
               </svg>
             </button>
-            
+
             <!-- Time Display -->
             <div class="time-display">
               <span>{{ formatTime(currentTime) }}</span>
@@ -112,13 +116,13 @@
               <span>{{ formatTime(videoDuration) }}</span>
             </div>
           </div>
-          
+
           <div class="controls-right">
             <!-- Chapter Navigation (when chapters exist) -->
             <template v-if="parsedChapters.length > 0">
               <!-- Previous Chapter Button -->
-              <button 
-                @click="previousChapter" 
+              <button
+                @click="previousChapter"
                 :disabled="currentChapterIndex <= 0"
                 class="control-button chapter-nav-button"
                 :aria-label="'Previous Chapter'"
@@ -128,10 +132,10 @@
                   <path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/>
                 </svg>
               </button>
-              
+
               <!-- Chapters Button (Toggle List) -->
-              <button 
-                @click="toggleChapterUI" 
+              <button
+                @click="toggleChapterUI"
                 class="control-button chapters-button"
                 :class="{ 'active': showChapterUI }"
                 :aria-label="'Chapters'"
@@ -142,10 +146,10 @@
                 </svg>
                 <span class="chapter-count">{{ parsedChapters.length }}</span>
               </button>
-              
+
               <!-- Next Chapter Button -->
-              <button 
-                @click="nextChapter" 
+              <button
+                @click="nextChapter"
                 :disabled="currentChapterIndex >= parsedChapters.length - 1"
                 class="control-button chapter-nav-button"
                 :aria-label="'Next Chapter'"
@@ -156,10 +160,10 @@
                 </svg>
               </button>
             </template>
-            
+
             <!-- Fullscreen Button -->
-            <button 
-              @click="toggleFullscreen" 
+            <button
+              @click="toggleFullscreen"
               class="control-button fullscreen-button"
               :aria-label="isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'"
             >
@@ -173,7 +177,7 @@
           </div>
         </div>
       </div>
-      
+
       <!-- Loading State -->
       <div v-if="isLoading && !error" class="loading-overlay">
         <PlayerStatus state="loading" message="Preparing video for playback..." />
@@ -188,18 +192,18 @@
           @action="retryLoad"
         />
       </div>
-      
+
       <!-- Chapter List Panel (Overlay inside video) -->
       <transition name="slide-panel">
-        <div 
-          v-if="showChapterUI && parsedChapters.length > 0" 
+        <div
+          v-if="showChapterUI && parsedChapters.length > 0"
           class="chapter-list-panel"
           ref="chapterListPanel"
           @scroll="handleChapterListScroll"
         >
         <div class="chapter-list-header">
-          <h3>📋 Chapters</h3>
-          <button @click="toggleChapterUI" class="close-btn" aria-label="Close chapters">×</button>
+          <h3>Chapters</h3>
+          <button @click="toggleChapterUI" class="close-btn" aria-label="Close chapters">x</button>
         </div>
         <div class="chapter-list" ref="chapterList">
           <button
@@ -227,7 +231,7 @@
               ></i>
             </div>
             <div class="chapter-placeholder" v-else>
-              🎬
+              <svg viewBox="0 0 24 24" fill="currentColor" width="24" height="24"><path d="M8 5v14l11-7z"/></svg>
             </div>
 
             <div class="chapter-info">
@@ -291,6 +295,8 @@ const emit = defineEmits<{
   'chapter-change': [chapter: Chapter, index: number]
   'video-ready': [duration: number]
   'time-update': [currentTime: number]
+  'video-loading': []
+  'video-error': [message: string]
 }>()
 
 const videoElement = ref<HTMLVideoElement>()
@@ -339,7 +345,7 @@ const currentChapter = computed(() => {
 // Video URL decoding
 const decodedVideoSrc = computed(() => {
   if (!props.videoSrc) return ''
-  
+
   try {
     return decodeURIComponent(props.videoSrc)
   } catch (error) {
@@ -351,7 +357,7 @@ const decodedVideoSrc = computed(() => {
 // Custom Controls Functions
 const togglePlayPause = () => {
   if (!videoElement.value) return
-  
+
   if (isPlaying.value) {
     videoElement.value.pause()
   } else {
@@ -361,10 +367,10 @@ const togglePlayPause = () => {
 
 const toggleMute = () => {
   if (!videoElement.value) return
-  
+
   videoElement.value.muted = !videoElement.value.muted
   isMuted.value = videoElement.value.muted
-  
+
   if (!isMuted.value && volume.value === 0) {
     videoElement.value.volume = 0.5
     volume.value = 0.5
@@ -395,7 +401,7 @@ const seekByKeyboard = (deltaSeconds: number) => {
 
 const toggleFullscreen = async () => {
   if (!videoWrapper.value) return
-  
+
   try {
     if (!document.fullscreenElement) {
       await videoWrapper.value.requestFullscreen()
@@ -435,14 +441,19 @@ const onVideoMove = () => {
   resetControlsTimeout()
 }
 
+const onVideoTouch = () => {
+  showControls.value = true
+  resetControlsTimeout()
+}
+
 const resetControlsTimeout = () => {
   if (controlsTimeout.value) {
     clearTimeout(controlsTimeout.value)
   }
-  
+
   // Hide controls after 5 seconds on mobile, 3 seconds on desktop
   const hideDelay = window.innerWidth < 768 ? 5000 : 3000
-  
+
   if (isPlaying.value) {
     controlsTimeout.value = window.setTimeout(() => {
       showControls.value = false
@@ -458,7 +469,7 @@ const onPlay = () => {
 const onPause = () => {
   isPlaying.value = false
   showControls.value = true
-  
+
   if (controlsTimeout.value) {
     clearTimeout(controlsTimeout.value)
   }
@@ -471,7 +482,7 @@ const onVideoLoaded = () => {
     volume.value = videoElement.value.volume
     isMuted.value = videoElement.value.muted
     emit('video-ready', videoDuration.value)
-    
+
     // Recalculate chapter durations now that we have video duration
     if (parsedChapters.value.length > 0) {
       parsedChapters.value = calculateChapterDurations([...parsedChapters.value])
@@ -489,6 +500,7 @@ const onTimeUpdate = () => {
 const onLoadStart = () => {
   isLoading.value = true
   error.value = ''
+  emit('video-loading')
 }
 
 const onCanPlay = () => {
@@ -498,6 +510,7 @@ const onCanPlay = () => {
 const onVideoError = () => {
   isLoading.value = false
   error.value = 'Failed to load video. Please check the video file and try again.'
+  emit('video-error', error.value)
 }
 
 const retryLoad = () => {
@@ -553,7 +566,7 @@ const loadChapters = async () => {
             const nextStartTime = arr[index + 1].start_time || (ch.start_time + 60)
             duration = nextStartTime - ch.start_time
           }
-          
+
           return {
             title: ch.category_name || ch.title || 'Stream Segment',
             startTime: ch.start_time || 0,
@@ -561,10 +574,10 @@ const loadChapters = async () => {
             gameIcon: getCategoryImage(ch.category_name)
           }
         })
-        
+
         // Deduplicate by startTime and title
-        parsedChapters.value = converted.filter((chapter: any, index: number, self: any[]) => 
-          index === self.findIndex((c: any) => 
+        parsedChapters.value = converted.filter((chapter: any, index: number, self: any[]) =>
+          index === self.findIndex((c: any) =>
             c.startTime === chapter.startTime && c.title === chapter.title
           )
         )
@@ -599,14 +612,14 @@ const convertApiChaptersToInternal = (apiChapters: Array<{start_time: string, ti
     duration: 60, // Temporary, will be calculated below
     gameIcon: undefined
   }))
-  
+
   // Deduplicate by startTime and title
-  const unique = converted.filter((chapter, index, self) => 
-    index === self.findIndex(c => 
+  const unique = converted.filter((chapter, index, self) =>
+    index === self.findIndex(c =>
       c.startTime === chapter.startTime && c.title === chapter.title
     )
   )
-  
+
   // Calculate actual duration between chapters
   return calculateChapterDurations(unique)
 }
@@ -614,7 +627,7 @@ const convertApiChaptersToInternal = (apiChapters: Array<{start_time: string, ti
 // Calculate chapter durations based on video metadata
 const calculateChapterDurations = (chapterList: Chapter[]): Chapter[] => {
   const videoDur = videoElement.value?.duration || videoDuration.value
-  
+
   return chapterList.map((chapter, index) => {
     if (index < chapterList.length - 1) {
       // Duration = next chapter start time - current chapter start time
@@ -635,12 +648,12 @@ const calculateChapterDurations = (chapterList: Chapter[]): Chapter[] => {
 // Parse time string to seconds
 const parseTimeStringToSeconds = (timeString: string): number => {
   if (!timeString) return 0
-  
+
   // Handle ISO datetime format
   if (timeString.includes('T')) {
     return 0
   }
-  
+
   // Handle HH:MM:SS.mmm or MM:SS format
   const parts = timeString.split(':')
   if (parts.length === 2) {
@@ -650,29 +663,29 @@ const parseTimeStringToSeconds = (timeString: string): number => {
     const [hours, minutes, seconds] = parts
     return parseInt(hours) * 3600 + parseInt(minutes) * 60 + parseFloat(seconds)
   }
-  
+
   return 0
 }
 
 const parseWebVTTChapters = (vttText: string) => {
   const lines = vttText.split('\n')
   const localChapters: Chapter[] = []
-  
+
   let i = 0
   while (i < lines.length) {
     const line = lines[i].trim()
-    
+
     // Look for timestamp line
     const timeMatch = line.match(/(\d{2}:\d{2}:\d{2}\.\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2}\.\d{3})/)
     if (timeMatch) {
       const startTime = parseVTTTime(timeMatch[1])
       const endTime = parseVTTTime(timeMatch[2])
       const duration = endTime - startTime
-      
+
       // Next line should be the title
       i++
       const title = lines[i]?.trim() || 'Chapter'
-      
+
       localChapters.push({
         title,
         startTime,
@@ -681,7 +694,7 @@ const parseWebVTTChapters = (vttText: string) => {
     }
     i++
   }
-  
+
   if (localChapters.length > 0) {
     parsedChapters.value = localChapters
   }
@@ -697,7 +710,7 @@ const formatTime = (seconds: number): string => {
   const hrs = Math.floor(seconds / 3600)
   const mins = Math.floor((seconds % 3600) / 60)
   const secs = Math.floor(seconds % 60)
-  
+
   if (hrs > 0) {
     return `${hrs}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
   }
@@ -707,7 +720,7 @@ const formatTime = (seconds: number): string => {
 const formatDuration = (seconds: number): string => {
   const mins = Math.floor(seconds / 60)
   const secs = Math.floor(seconds % 60)
-  
+
   if (mins > 60) {
     const hrs = Math.floor(mins / 60)
     const remainingMins = mins % 60
@@ -722,7 +735,7 @@ const getChapterColor = (title: string): string => {
   for (let i = 0; i < title.length; i++) {
     hash = title.charCodeAt(i) + ((hash << 5) - hash)
   }
-  
+
   const hue = Math.abs(hash % 360)
   return `hsl(${hue}, 70%, 60%)`
 }
@@ -731,18 +744,18 @@ const getChapterColor = (title: string): string => {
 const handleChapterListScroll = (event: Event) => {
   const element = event.target as HTMLElement
   if (!element) return
-  
+
   const scrollTop = element.scrollTop
   const scrollHeight = element.scrollHeight
   const clientHeight = element.clientHeight
-  
+
   // Add/remove classes for scroll indicators
   if (scrollTop > 10) {
     element.classList.add('scrolled-top')
   } else {
     element.classList.remove('scrolled-top')
   }
-  
+
   if (scrollTop < scrollHeight - clientHeight - 10) {
     element.classList.add('scrolled-bottom')
   } else {
@@ -753,16 +766,16 @@ const handleChapterListScroll = (event: Event) => {
 // Auto-scroll to keep active chapter centered
 const scrollToActiveChapter = (index: number) => {
   if (!chapterListPanel.value || !chapterItemRefs.value[index]) return
-  
+
   const panel = chapterListPanel.value
   const item = chapterItemRefs.value[index] as HTMLElement
-  
+
   // Calculate position to center the active item
   const itemTop = item.offsetTop
   const itemHeight = item.offsetHeight
   const panelHeight = panel.clientHeight
   const scrollPosition = itemTop - (panelHeight / 2) + (itemHeight / 2)
-  
+
   // Smooth scroll to position
   panel.scrollTo({
     top: scrollPosition,
@@ -774,7 +787,7 @@ const scrollToActiveChapter = (index: number) => {
 watch(currentChapterIndex, (newIndex, oldIndex) => {
   if (newIndex !== oldIndex && parsedChapters.value[newIndex]) {
     emit('chapter-change', parsedChapters.value[newIndex], newIndex)
-    
+
     // Auto-scroll to active chapter if chapter UI is visible
     if (showChapterUI.value) {
       setTimeout(() => {
@@ -787,7 +800,7 @@ watch(currentChapterIndex, (newIndex, oldIndex) => {
 // Keyboard shortcuts
 const onKeyDown = (event: KeyboardEvent) => {
   if (!videoElement.value) return
-  
+
   switch (event.key) {
     case 'ArrowLeft':
       if (event.ctrlKey || event.metaKey) {
@@ -814,7 +827,7 @@ const onKeyDown = (event: KeyboardEvent) => {
 onMounted(() => {
   loadChapters()
   document.addEventListener('keydown', onKeyDown)
-  
+
   // Add fullscreen change listener
   document.addEventListener('fullscreenchange', onFullscreenChange)
 })
@@ -825,12 +838,12 @@ const onFullscreenChange = () => {
 
 onUnmounted(() => {
   document.removeEventListener('keydown', onKeyDown)
-  
+
   // Clean up controls timeout
   if (controlsTimeout.value) {
     clearTimeout(controlsTimeout.value)
   }
-  
+
   // Clean up fullscreen listener
   document.removeEventListener('fullscreenchange', onFullscreenChange)
 })
@@ -857,7 +870,7 @@ defineExpose({ seekToChapter })
   width: 100%;
   max-width: 100%;
   overflow: hidden;
-  
+
   // Mobile: Allow controls to overflow
   @include m.respond-below('md') {  // < 768px
     overflow: visible;  // CRITICAL: Allow chapter menu and controls to overflow
@@ -869,14 +882,14 @@ defineExpose({ seekToChapter })
   width: 100%;
   background: var(--background-darker);
   overflow: hidden;
-  
+
   // Desktop: Responsive width with 16:9 aspect ratio
   @include m.respond-to('md') {  // >= 768px
     max-width: min(70vw, 1280px);
     margin: 0 auto;
     aspect-ratio: 16/9;
   }
-  
+
   // Mobile Portrait: Full viewport width, no constraints
   @include m.respond-below('md') {  // < 768px
     width: 100%;
@@ -892,12 +905,12 @@ defineExpose({ seekToChapter })
   display: block;
   background: var(--background-darker);
   object-fit: contain;
-  
+
   // Desktop: Limit height
   @include m.respond-to('md') {  // >= 768px
     max-height: 70vh;
   }
-  
+
   // Mobile Portrait: Full width with 16:9 ratio
   @include m.respond-below('md') {  // < 768px
     max-height: none;
@@ -912,7 +925,7 @@ defineExpose({ seekToChapter })
     aspect-ratio: auto;
     margin: 0;
   }
-  
+
   .video-element {
     height: 100%;
     width: 100%;
@@ -954,7 +967,7 @@ defineExpose({ seekToChapter })
 
 .error-icon {
   font-size: var(--text-5xl);  /* 48px */
-  
+
   @include m.respond-below('md') {
     display: none;
   }
@@ -1013,7 +1026,7 @@ defineExpose({ seekToChapter })
   overflow: hidden;
   text-overflow: ellipsis;
   line-height: var(--leading-tight);
-  
+
   @include m.respond-below('md') {  // < 768px (mobile)
     font-size: var(--text-base);  /* 16px on mobile */
   }
@@ -1024,7 +1037,7 @@ defineExpose({ seekToChapter })
   color: var(--text-secondary);
   font-family: var(--font-mono);
   font-weight: var(--font-medium);  /* 500 */
-  
+
   @include m.respond-below('md') {  // < 768px (mobile)
     font-size: var(--text-sm);  /* 14px on mobile */
   }
@@ -1048,7 +1061,7 @@ defineExpose({ seekToChapter })
   max-width: calc(100% - 32px);  /* Responsive on mobile */
   z-index: 20;  /* Above controls overlay */
   /* Animation now handled by Vue transition (see .slide-panel-* classes) */
-  
+
   @include m.respond-below('md') {  // < 768px (mobile)
     width: calc(100% - 32px);  /* Full width on mobile with padding */
     bottom: 100px;  /* More space above controls */
@@ -1057,7 +1070,7 @@ defineExpose({ seekToChapter })
     max-height: 50vh;  /* Responsive height - prevent cut-off */
     max-width: none;  /* Override desktop constraint */
   }
-  
+
   @include m.respond-below('sm') {  // < 480px (small mobile)
     bottom: 80px;
     left: var(--spacing-2);
@@ -1155,7 +1168,7 @@ defineExpose({ seekToChapter })
   font-weight: var(--font-semibold);  /* 600 */
   color: var(--text-primary);
   line-height: var(--leading-tight);
-  
+
   @include m.respond-below('sm') {
     font-size: var(--text-base);
   }
@@ -1195,7 +1208,7 @@ defineExpose({ seekToChapter })
 .chapter-item {
   // Use reusable list-item-interactive mixin from design system
   @include m.list-item-interactive;
-  
+
   & {  // ✅ Wrap declaration to avoid mixed-decls warning
     width: 100%;
     appearance: none;
@@ -1211,7 +1224,7 @@ defineExpose({ seekToChapter })
   // Use reusable list-item-active mixin with play icon indicator
   @include m.list-item-active(3px, 4px);
   @include m.list-item-active-indicator('▶', 20px, 25px);
-  
+
   & {  // ✅ Wrap declaration to avoid mixed-decls warning
     color: white;
   }
@@ -1227,7 +1240,7 @@ defineExpose({ seekToChapter })
 .chapter-placeholder {
   // Use reusable list-item-thumbnail mixin from design system
   @include m.list-item-thumbnail(80px, 96px);
-  
+
   @include m.respond-below('sm') {
     width: 50px;
     min-width: 50px;
@@ -1239,7 +1252,7 @@ defineExpose({ seekToChapter })
 .chapter-placeholder {
   font-size: var(--text-2xl);  /* 24px */
   color: var(--text-secondary);
-  
+
   @include m.respond-below('sm') {
     font-size: var(--text-lg);
   }
@@ -1249,7 +1262,7 @@ defineExpose({ seekToChapter })
   flex: 1;
   min-width: 0;
   padding-right: 40px;  /* Space for play icon on active items */
-  
+
   @include m.respond-below('sm') {
     padding-right: 24px;
   }
@@ -1266,13 +1279,13 @@ defineExpose({ seekToChapter })
   line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  
+
   @include m.respond-below('md') {  // < 768px
     font-size: 14px;  /* Mobile: Slightly smaller */
     font-weight: var(--font-semibold);
     -webkit-line-clamp: 2;  /* Allow 2 lines on mobile */
   }
-  
+
   @include m.respond-below('sm') {  // < 480px
     font-size: 13px;
     margin-bottom: var(--spacing-0-5);
@@ -1285,7 +1298,7 @@ defineExpose({ seekToChapter })
   font-family: var(--font-mono);
   font-weight: var(--font-medium);  /* 500 */
   margin-bottom: var(--spacing-0-5);  /* 2px */
-  
+
   @include m.respond-below('md') {  // < 768px
     font-size: 16px;  /* Mobile: Larger timestamps */
     font-weight: var(--font-semibold);  /* Bolder for contrast */
@@ -1295,7 +1308,7 @@ defineExpose({ seekToChapter })
 .chapter-duration {
   font-size: var(--text-xs);  /* 12px */
   color: var(--text-secondary);
-  
+
   @include m.respond-below('md') {  // < 768px
     font-size: 14px;  /* Mobile: Larger subtitle text */
   }
@@ -1366,7 +1379,7 @@ defineExpose({ seekToChapter })
   border-radius: var(--radius-full);
   overflow: visible;
   transition: height var(--duration-200) var(--ease-out);
-  
+
   @include m.respond-below('md') {  // < 768px (mobile)
     height: 12px;  /* Thicker on mobile */
   }
@@ -1402,14 +1415,14 @@ defineExpose({ seekToChapter })
   cursor: pointer;
   transition: all var(--duration-200) var(--ease-out);
   border-right: 2px solid rgba(0, 0, 0, 0.4);
-  
+
   &:hover {
     opacity: 0.8;
     transform: scaleY(1.3);
     z-index: 2;
     box-shadow: 0 0 8px currentColor;
   }
-  
+
   &:active {
     opacity: 1;
     transform: scaleY(1.5);
@@ -1439,7 +1452,7 @@ defineExpose({ seekToChapter })
   opacity: 0;
   transition: all var(--duration-200) var(--ease-out);
   z-index: 4; /* Above fill and markers */
-  
+
   @include m.respond-below('md') {  // < 768px (mobile)
     width: 24px;  /* Larger thumb for touch */
     height: 24px;
@@ -1459,7 +1472,7 @@ defineExpose({ seekToChapter })
   justify-content: space-between;
   align-items: center;
   gap: var(--spacing-3);  /* 12px */
-  
+
   @include m.respond-below('md') {  // < 768px (mobile)
     gap: var(--spacing-2);  /* Reduce gap on mobile to prevent overflow */
   }
@@ -1470,7 +1483,7 @@ defineExpose({ seekToChapter })
   display: flex;
   align-items: center;
   gap: var(--spacing-2);  /* 8px */
-  
+
   @include m.respond-below('md') {  // < 768px (mobile)
     gap: var(--spacing-2);  /* Keep consistent spacing */
   }
@@ -1490,11 +1503,11 @@ defineExpose({ seekToChapter })
   justify-content: center;
   padding: 0;
   transition: all var(--duration-200) var(--ease-out);
-  
+
   /* Desktop: 40px (standard size) */
   width: 40px;
   height: 40px;
-  
+
   @include m.respond-below('md') {  // < 768px (mobile)
     /* Mobile: 48px (touch-friendly) */
     width: 48px;
@@ -1523,11 +1536,11 @@ defineExpose({ seekToChapter })
   background: linear-gradient(135deg, var(--primary-color), var(--primary-color-dark));
   border-color: var(--primary-color);
   box-shadow: var(--shadow-md);
-  
+
   /* Desktop: 48px (primary control) */
   width: 48px;
   height: 48px;
-  
+
   @include m.respond-below('md') {  // < 768px (mobile)
     /* Mobile: 56px (extra large for primary action) */
     width: 56px;
@@ -1544,7 +1557,7 @@ defineExpose({ seekToChapter })
 .chapter-nav-button {
   /* Same size as standard controls */
   opacity: 0.9;
-  
+
   // Hide prev/next on portrait mobile - chapters list below video is used instead
   @media (max-width: 767px) and (orientation: portrait) {
     display: none;
@@ -1569,7 +1582,7 @@ defineExpose({ seekToChapter })
   padding: 0 var(--spacing-2);  /* Horizontal padding for count */
   width: auto;  /* Auto width to fit content */
   min-width: 48px;  /* Minimum touch target */
-  
+
   @include m.respond-below('md') {  // < 768px (mobile)
     min-width: 56px;
   }
@@ -1585,7 +1598,7 @@ defineExpose({ seekToChapter })
   font-size: var(--text-xs);  /* 12px */
   font-weight: var(--font-bold);  /* 700 */
   margin-left: 2px;
-  
+
   @include m.respond-below('md') {  // < 768px (mobile)
     font-size: var(--text-sm);  /* 14px on mobile */
   }
@@ -1595,7 +1608,7 @@ defineExpose({ seekToChapter })
 .control-icon {
   width: 24px;
   height: 24px;
-  
+
   @include m.respond-below('md') {  // < 768px (mobile)
     width: 28px;  /* Larger icons on mobile */
     height: 28px;
@@ -1605,7 +1618,7 @@ defineExpose({ seekToChapter })
 .play-pause-button .control-icon {
   width: 28px;
   height: 28px;
-  
+
   @include m.respond-below('md') {  // < 768px (mobile)
     width: 32px;  /* Even larger for primary button */
     height: 32px;
@@ -1622,7 +1635,7 @@ defineExpose({ seekToChapter })
   font-family: var(--font-mono);
   font-weight: var(--font-medium);  /* 500 */
   white-space: nowrap;
-  
+
   @include m.respond-below('sm') {  // < 640px (small mobile)
     font-size: var(--text-xs);  /* 12px - Smaller on very small screens */
   }
@@ -1638,32 +1651,32 @@ defineExpose({ seekToChapter })
     padding: var(--spacing-2);  /* Reduce all padding to prevent overflow */
     padding-bottom: env(safe-area-inset-bottom, var(--spacing-2));  /* Account for safe area */
   }
-  
+
   .progress-container {
     /* Extended vertical tap area for easier scrubbing */
     padding: var(--spacing-2) 0;  /* Reduce vertical padding */
     margin-bottom: var(--spacing-2);  /* Reduce spacing */
   }
-  
+
   /* Ensure controls don't overflow */
   .controls-bottom {
     flex-wrap: nowrap;  /* Prevent wrapping */
     overflow-x: visible;  /* Allow horizontal visibility */
     min-width: 0;  /* Allow flex items to shrink */
   }
-  
+
   .controls-left,
   .controls-right {
     min-width: 0;  /* Allow flex items to shrink */
     flex-shrink: 1;  /* Allow shrinking when needed */
   }
-  
+
   /* Time display can shrink if needed */
   .time-display {
     flex-shrink: 2;  /* Can shrink more than buttons */
     min-width: 0;
   }
-  
+
   /* Hide chapter toggle button on very small screens to save space */
   @media (max-width: 400px) {
     .chapters-button {
@@ -1677,17 +1690,17 @@ defineExpose({ seekToChapter })
   .controls-bottom {
     gap: var(--spacing-2);  /* 8px - Tighter spacing */
   }
-  
+
   .controls-left,
   .controls-right {
     gap: var(--spacing-2);  /* 8px */
   }
-  
+
   .control-button {
     width: 44px;  /* Minimum touch target */
     height: 44px;
   }
-  
+
   .play-pause-button {
     width: 52px;  /* Slightly smaller but still prominent */
     height: 52px;

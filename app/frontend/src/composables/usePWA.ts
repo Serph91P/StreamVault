@@ -12,6 +12,7 @@ interface NotificationPermission {
 }
 
 export type PushState = 'unsubscribed' | 'subscribed' | 'checking' | 'subscribing' | 'error'
+export type PWAInstallResult = 'accepted' | 'dismissed' | 'installed' | 'unavailable' | 'error'
 
 export function usePWA() {
   const isInstallable = ref(false)
@@ -23,6 +24,7 @@ export function usePWA() {
   const notificationPermission = ref<NotificationPermission['state']>('default')
   const pushState = ref<PushState>('unsubscribed')
   const pushError = ref<string | null>(null)
+  const installError = ref<string | null>(null)
   const existingSubscription = ref<PushSubscription | null>(null)
 
   const subscriptionUsesApplicationServerKey = (
@@ -66,24 +68,43 @@ export function usePWA() {
     }
   }
 
-  const installPWA = async () => {
-    if (installPrompt.value) {
-      try {
-        await installPrompt.value.prompt()
-        const choiceResult = await installPrompt.value.userChoice
+  const installPWA = async (): Promise<PWAInstallResult> => {
+    installError.value = null
 
-        if (choiceResult.outcome === 'accepted') {
-          isInstallable.value = false
-          installPrompt.value = null
-        }
-      } catch (error) {
-        console.error('PWA installation failed:', error)
+    if (isInstalled.value) {
+      return 'installed'
+    }
+
+    if (!installPrompt.value) {
+      installError.value = 'The browser install prompt is not available right now. Follow the setup guide for manual install steps.'
+      return 'unavailable'
+    }
+
+    try {
+      await installPrompt.value.prompt()
+      const choiceResult = await installPrompt.value.userChoice
+
+      isInstallable.value = false
+      installPrompt.value = null
+
+      if (choiceResult.outcome === 'accepted') {
+        return 'accepted'
       }
+
+      installError.value = 'Install was dismissed. You can return here and try again when the browser offers the install prompt.'
+      return 'dismissed'
+    } catch (error) {
+      console.error('PWA installation failed:', error)
+      installError.value = 'Installation failed. Follow the setup guide or try again from your browser menu.'
+      isInstallable.value = false
+      installPrompt.value = null
+      return 'error'
     }
   }
 
   const requestNotificationPermission = async (): Promise<NotificationPermission['state']> => {
     if (!('Notification' in window)) {
+      notificationPermission.value = 'denied'
       return 'denied'
     }
 
@@ -474,6 +495,7 @@ export function usePWA() {
     registration,
     pushState,
     pushError,
+    installError,
     existingSubscription,
 
     installPWA,
