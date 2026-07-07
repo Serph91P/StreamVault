@@ -74,6 +74,10 @@
         </div>
 
         <!-- OFFLINE: Show last stream info if available -->
+        <p v-else-if="streamer.description" class="streamer-description" :title="streamer.description">
+          {{ truncatedDescription }}
+        </p>
+
         <div v-else-if="streamer.last_stream_title" class="offline-last-stream">
           <p class="last-stream-title" :title="streamer.last_stream_title">
             {{ streamer.last_stream_title }}
@@ -83,10 +87,6 @@
           </p>
         </div>
 
-        <!-- OFFLINE: Fallback to description if no last stream info -->
-        <p v-else-if="streamer.description" class="streamer-description">
-          {{ truncatedDescription }}
-        </p>
         <p v-else class="streamer-description no-description">
           No description available
         </p>
@@ -136,6 +136,8 @@
           class="btn-action btn-more"
           :class="{ active: showActions }"
           :aria-label="`Actions for ${streamer.display_name || streamer.username}`"
+          aria-haspopup="menu"
+          :aria-expanded="showActions"
           title="More actions"
         >
           <svg class="icon">
@@ -294,7 +296,7 @@ const dropdownStyle = computed(() => {
   return {
     position: 'fixed' as const,
     top: `${rect.bottom + 8}px`,  // 8px below button
-    left: `${rect.left - 140}px`,  // Align to right edge (180px width - 40px button)
+    right: `${Math.max(8, window.innerWidth - rect.right)}px`,
     zIndex: 10000
   }
 })
@@ -428,6 +430,8 @@ onUnmounted(() => {
 @use '@/styles/variables' as v;
 @use '@/styles/mixins' as m;
 .streamer-card {
+  overflow: visible;
+
   // Card-specific overrides
   :deep(.glass-card-content) {
     padding: var(--spacing-4);

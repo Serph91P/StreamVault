@@ -68,10 +68,11 @@
         <!-- Empty State -->
         <EmptyState
           v-if="proxies.length === 0"
-          icon="icon-server"
+          icon="server"
           title="No Proxies Configured"
           description="Add proxy servers to improve connection reliability and enable failover"
-          action-text="Add First Proxy"
+          action-label="Add First Proxy"
+          action-icon="plus"
           @action="showAddDialog = true"
         />
 

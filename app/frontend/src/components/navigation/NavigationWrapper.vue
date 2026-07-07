@@ -74,8 +74,8 @@ onMounted(() => {
 
   // Desktop with collapsed sidebar
   &.with-sidebar-collapsed {
-    margin-left: 84px; // 72px sidebar + 12px breathing room
-    width: calc(100% - 84px);
+    margin-left: 72px;
+    width: calc(100% - 72px);
   }
 
   // Mobile with bottom navigation

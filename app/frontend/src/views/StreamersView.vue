@@ -5,12 +5,6 @@
       icon="users"
       :subtitle="isLoading ? 'Manage your tracked streamers' : `Manage your tracked streamers \u2022 ${liveStreamers.length} live now`"
     >
-      <template #status>
-        <span v-if="autoRefresh" class="auto-refresh-indicator">
-          <span class="pulse-dot"></span>
-          Auto-refresh
-        </span>
-      </template>
       <template #actions>
         <div class="header-actions">
           <BaseButton
@@ -21,7 +15,7 @@
             <svg class="icon" aria-hidden="true">
               <use href="#icon-refresh-cw" />
             </svg>
-            Auto {{ autoRefresh ? 'ON' : 'OFF' }}
+            Auto refresh {{ autoRefresh ? 'On' : 'Off' }}
           </BaseButton>
           <router-link to="/add-streamer" class="btn btn-primary btn-sm add-streamer-link" v-ripple>
             <svg class="icon" aria-hidden="true">
@@ -135,12 +129,18 @@
       </div>
 
       <!-- Sort -->
-      <BaseDropdown
-        v-model="sortBy"
-        class="sort-control"
-        :options="sortOptions"
-        aria-label="Sort streamers"
-      />
+      <div class="sort-control-wrap" aria-label="Sort streamers">
+        <svg class="sort-icon" aria-hidden="true">
+          <use href="#icon-list-ordered" />
+        </svg>
+        <span class="sort-label">Sort</span>
+        <BaseDropdown
+          v-model="sortBy"
+          class="sort-control"
+          :options="sortOptions"
+          aria-label="Sort streamers"
+        />
+      </div>
     </div>
 
     <div class="results-info">
@@ -636,9 +636,15 @@ onUnmounted(() => {
   grid-template-columns: repeat(4, minmax(72px, 1fr));
   gap: var(--spacing-2);
   margin: 0;
+  align-items: stretch;
 }
 
 .brief-stat {
+  display: flex;
+  min-height: 92px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   min-width: 72px;
   padding: var(--spacing-3);
   border: 1px solid var(--border-color);
@@ -650,6 +656,7 @@ onUnmounted(() => {
     color: var(--text-secondary);
     font-size: var(--text-xs);
     font-weight: v.$font-semibold;
+    line-height: 1.2;
   }
 
   dd {
@@ -709,8 +716,14 @@ onUnmounted(() => {
   }
 }
 
+.header-actions :deep(.btn),
 .add-streamer-link {
   min-height: 44px;
+  min-width: 148px;
+  justify-content: center;
+}
+
+.add-streamer-link {
   text-decoration: none;
 }
 
@@ -941,8 +954,33 @@ onUnmounted(() => {
   }
 }
 
+.sort-control-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  min-height: 44px;
+  padding: 0 var(--spacing-2) 0 var(--spacing-3);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  background: var(--background-card);
+}
+
+.sort-icon {
+  width: 18px;
+  height: 18px;
+  color: var(--text-secondary);
+  stroke: currentColor;
+  fill: none;
+}
+
+.sort-label {
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  font-weight: v.$font-semibold;
+}
+
 .sort-control {
-  min-width: 180px;
+  min-width: 132px;
   margin: 0;
 
   :deep(.form-group) {
@@ -950,20 +988,17 @@ onUnmounted(() => {
   }
 
   :deep(select) {
+    width: auto;
     min-height: 44px;
-    padding: var(--spacing-3) var(--spacing-4);
-    background: var(--background-card);
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-lg);
+    padding: var(--spacing-2) var(--spacing-8) var(--spacing-2) var(--spacing-2);
+    background: transparent;
+    border: 0;
+    border-radius: var(--radius-md);
     color: var(--text-primary);
     font-size: var(--text-sm);
     font-weight: v.$font-medium;
     cursor: pointer;
     transition: all v.$duration-200 v.$ease-out;
-  }
-
-  :deep(select:hover) {
-    border-color: var(--primary-color);
   }
 
   :deep(select:focus) {

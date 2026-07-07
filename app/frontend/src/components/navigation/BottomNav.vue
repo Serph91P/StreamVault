@@ -270,7 +270,9 @@ const handleTabClick = (route: string) => {
 .nav-badge {
   position: absolute;
   top: 3px;
-  right: 10px;
+  right: calc(50% - 24px);
+  display: inline-grid;
+  place-items: center;
   background: var(--danger-color);
   color: white;
   min-width: 18px;
@@ -279,7 +281,7 @@ const handleTabClick = (route: string) => {
   border-radius: v.$border-radius-full;
   font-size: 10px;
   font-weight: v.$font-bold;
-  line-height: 18px;
+  line-height: 1;
   text-align: center;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }

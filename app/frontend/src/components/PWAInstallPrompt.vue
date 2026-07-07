@@ -105,11 +105,14 @@ const dismissPrompt = () => {
   bottom: calc(v.$spacing-6 + env(safe-area-inset-bottom, 0px));
   left: v.$spacing-6;
   right: v.$spacing-6;
-  background: var(--background-card);
+  border: 1px solid var(--glass-border-hover);
+  background: linear-gradient(135deg, var(--glass-bg-strong), var(--background-card));
   border-radius: v.$border-radius-lg;
-  box-shadow: v.$shadow-lg;
+  box-shadow: var(--glass-shadow-lg), 0 18px 44px rgba(0, 0, 0, 0.42);
   z-index: 1000;
   animation: slideUp v.$duration-300 v.$vue-ease-out;
+  backdrop-filter: blur(var(--glass-blur-lg));
+  -webkit-backdrop-filter: blur(var(--glass-blur-lg));
 
   @include m.respond-to('md') {
     bottom: v.$spacing-6;
@@ -126,6 +129,13 @@ const dismissPrompt = () => {
 }
 
 .install-prompt__icon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid rgba(145, 71, 255, 0.42);
+  border-radius: var(--radius-full);
+  background: rgba(145, 71, 255, 0.16);
   color: var(--accent-color);
   flex-shrink: 0;
 }
@@ -168,6 +178,8 @@ const dismissPrompt = () => {
 @include m.respond-below('md') {
   .install-prompt {
     bottom: calc(68px + env(safe-area-inset-bottom, 0px) + v.$spacing-3);
+    left: max(v.$spacing-3, env(safe-area-inset-left, 0px));
+    right: max(v.$spacing-3, env(safe-area-inset-right, 0px));
     margin: v.$spacing-2;
     border-radius: v.$border-radius-lg;
   }

@@ -283,7 +283,14 @@
             </div>
             <div>
               <dt>Workers</dt>
-              <dd>{{ queueStats.workers }}</dd>
+              <dd>{{ workerCount }}</dd>
+            </div>
+          </dl>
+
+          <dl v-if="queueWorkerItems.length" class="queue-worker-state" aria-label="Queue worker configuration">
+            <div v-for="item in queueWorkerItems" :key="item.label">
+              <dt>{{ item.label }}</dt>
+              <dd>{{ item.value }}</dd>
             </div>
           </dl>
 
@@ -449,8 +456,13 @@ interface QueueStats {
   retried_tasks: number
   pending_tasks: number
   active_tasks: number
-  workers: number
+  workers: number | Record<string, unknown> | unknown[]
   is_running: boolean
+}
+
+interface QueueWorkerItem {
+  label: string
+  value: string
 }
 
 const router = useRouter()
@@ -487,6 +499,39 @@ const liveStreamers = computed(() => streamers.value.filter((s) => s.is_live))
 const recordingStreamers = computed(() => streamers.value.filter((s) => s.is_recording))
 const totalStreamers = computed(() => streamers.value.length)
 const isDashboardLoading = computed(() => isLoadingStreamers.value || isLoadingRecordings.value || isLoadingQueue.value)
+
+const workerCount = computed(() => {
+  const workers = queueStats.value.workers
+  if (typeof workers === 'number') return workers
+  if (Array.isArray(workers)) return workers.length
+  if (workers && typeof workers === 'object') {
+    const total = readWorkerNumber(workers, ['total_workers', 'workers', 'worker_count', 'total'])
+    if (total !== null) return total
+    const streamers = readWorkerNumber(workers, ['streamers', 'streamer_count'])
+    if (streamers !== null) return streamers
+  }
+  return 0
+})
+
+const queueWorkerItems = computed<QueueWorkerItem[]>(() => {
+  const workers = queueStats.value.workers
+  if (!workers || typeof workers === 'number') return []
+  if (Array.isArray(workers)) {
+    return [{ label: 'Worker pool', value: `${workers.length} worker${workers.length === 1 ? '' : 's'}` }]
+  }
+
+  const items: QueueWorkerItem[] = []
+  const total = readWorkerNumber(workers, ['total_workers', 'workers', 'worker_count', 'total'])
+  const maxPerStreamer = readWorkerNumber(workers, ['max_per_streamer', 'max_workers_per_streamer'])
+  const streamers = readWorkerNumber(workers, ['streamers', 'streamer_count'])
+  const isolation = readWorkerBoolean(workers, ['isolation_enabled', 'per_streamer_isolation', 'isolated'])
+
+  if (total !== null) items.push({ label: 'Total workers', value: String(total) })
+  if (maxPerStreamer !== null) items.push({ label: 'Max per streamer', value: String(maxPerStreamer) })
+  if (streamers !== null) items.push({ label: 'Streamers', value: String(streamers) })
+  if (isolation !== null) items.push({ label: 'Isolation', value: isolation ? 'Enabled' : 'Disabled' })
+  return items
+})
 
 const recentRecordings = computed(() => {
   return [...videos.value]
@@ -774,6 +819,27 @@ function recordingStreamerLink(recording: ActiveRecording) {
 function recordingLiveLink(recording: ActiveRecording) {
   const target = recording.streamer_name || recording.username || recording.streamer_id
   return target ? `/live/${target}` : '/streamers'
+}
+
+function readWorkerNumber(source: Record<string, unknown>, keys: string[]) {
+  for (const key of keys) {
+    const value = source[key]
+    if (typeof value === 'number') return value
+    if (typeof value === 'string' && value.trim() !== '' && !Number.isNaN(Number(value))) return Number(value)
+  }
+  return null
+}
+
+function readWorkerBoolean(source: Record<string, unknown>, keys: string[]) {
+  for (const key of keys) {
+    const value = source[key]
+    if (typeof value === 'boolean') return value
+    if (typeof value === 'string') {
+      if (value.toLowerCase() === 'true') return true
+      if (value.toLowerCase() === 'false') return false
+    }
+  }
+  return null
 }
 
 function activityTone(severity: NotificationSeverity): StatusBadgeTone {
@@ -1377,6 +1443,38 @@ onMounted(async () => {
     color: var(--text-primary);
     font-size: var(--text-2xl);
     font-weight: v.$font-bold;
+  }
+}
+
+.queue-worker-state {
+  display: grid;
+  gap: var(--spacing-2);
+  margin: 0 0 var(--spacing-4);
+
+  div {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--spacing-3);
+    padding: var(--spacing-2) var(--spacing-3);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background: rgba(var(--background-darker-rgb, 10, 10, 10), 0.18);
+  }
+
+  dt,
+  dd {
+    margin: 0;
+    font-size: var(--text-sm);
+  }
+
+  dt {
+    color: var(--text-secondary);
+  }
+
+  dd {
+    color: var(--text-primary);
+    font-weight: v.$font-semibold;
   }
 }
 

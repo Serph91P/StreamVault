@@ -870,9 +870,13 @@ onMounted(() => {
   border-radius: var(--radius-lg);
   padding: var(--spacing-1);
   border: 1px solid var(--border-color);
+  min-height: 44px;
 }
 
 .toggle-btn {
+  width: 40px;
+  min-width: 40px;
+  min-height: 36px;
   padding: var(--spacing-2);
   background: transparent;
   border: none;
@@ -943,7 +947,11 @@ onMounted(() => {
 }
 
 .sort-select {
-  padding: var(--spacing-3) var(--spacing-4);
+  width: auto;
+  min-width: 156px;
+  min-height: 44px;
+  flex: 0 0 auto;
+  padding: var(--spacing-3) var(--spacing-8) var(--spacing-3) var(--spacing-4);
   background: var(--background-card);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
@@ -1079,12 +1087,14 @@ onMounted(() => {
   align-items: center;
   justify-content: space-between;
   gap: var(--spacing-3);
-  margin-bottom: var(--spacing-4);
-  padding: var(--spacing-3) var(--spacing-4);
-  background: var(--background-card);
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 0 var(--spacing-4) auto;
+  padding: var(--spacing-2) var(--spacing-3);
+  background: rgba(var(--background-card-rgb, 20, 22, 29), 0.72);
   border: 1px solid var(--border-color);
-  border-radius: var(--radius-lg);
-  font-size: var(--text-sm);
+  border-radius: var(--radius-full);
+  font-size: var(--text-xs);
   color: var(--text-secondary);
 
   .selected-count {
@@ -1256,8 +1266,8 @@ onMounted(() => {
   }
 
   .controls-bar {
-    flex-direction: column;
-    align-items: stretch;
+    flex-wrap: wrap;
+    align-items: center;
   }
 
   .search-box {

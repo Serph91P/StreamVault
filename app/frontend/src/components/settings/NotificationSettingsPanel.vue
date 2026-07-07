@@ -554,6 +554,34 @@ const toggleAllStreamers = (enabled: boolean) => {
   .table-wrapper {
     margin-top: v.$spacing-4;  // Space from table controls
   }
+
+  .data-table th,
+  .data-table td {
+    vertical-align: middle;
+  }
+
+  .actions-cell {
+    width: 116px;
+  }
+}
+
+.btn-group {
+  display: inline-flex;
+  align-items: center;
+  min-width: 96px;
+  padding: 2px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-full);
+  background: var(--background-darker);
+
+  .btn {
+    min-height: 30px;
+    min-width: 44px;
+    padding: 0 var(--spacing-2);
+    border-radius: var(--radius-full);
+    font-size: var(--text-xs);
+    line-height: 1;
+  }
 }
 
 // ============================================================================

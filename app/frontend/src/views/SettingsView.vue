@@ -694,11 +694,12 @@ onMounted(() => {
 }
 
 .nav-item {
+  position: relative;
   display: flex;
   align-items: center;
   gap: var(--spacing-3);
-  padding: var(--spacing-3);
-  min-height: 44px;
+  padding: var(--spacing-2) var(--spacing-3);
+  min-height: 58px;
   background: transparent;
   border: none;
   border-radius: var(--radius-lg);
@@ -763,6 +764,10 @@ onMounted(() => {
 }
 
 .nav-indicator {
+  position: absolute;
+  right: var(--spacing-2);
+  top: 50%;
+  transform: translateY(-50%);
   width: 16px;
   height: 16px;
   stroke: currentColor;

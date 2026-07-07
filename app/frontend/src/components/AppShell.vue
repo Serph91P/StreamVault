@@ -430,6 +430,14 @@ onUnmounted(() => {
   gap: var(--spacing-2);
   padding: var(--spacing-2) !important;
 
+  .badge {
+    display: inline-grid;
+    place-items: center;
+    top: 1px;
+    right: 1px;
+    line-height: 1;
+  }
+
   .utility-label {
     display: none;
     font-size: v.$text-sm;
