@@ -19,7 +19,7 @@
 import { computed } from 'vue'
 import StatusBadge, { type StatusBadgeTone } from '@/components/base/StatusBadge.vue'
 
-export type PlayerState = 'loading' | 'buffering' | 'connecting' | 'live' | 'offline' | 'idle' | 'stopped' | 'error'
+export type PlayerState = 'loading' | 'buffering' | 'connecting' | 'live' | 'recorded' | 'offline' | 'idle' | 'stopped' | 'error'
 
 interface Props {
   state: PlayerState
@@ -35,6 +35,7 @@ const label = computed(() => ({
   buffering: 'Buffering',
   connecting: 'Connecting',
   live: 'Live',
+  recorded: 'Recorded',
   offline: 'Offline',
   idle: 'Idle',
   stopped: 'Stopped',
@@ -47,6 +48,7 @@ const statusBadgeTone = computed<StatusBadgeTone>(() => {
     buffering: 'warning',
     connecting: 'info',
     live: 'live',
+    recorded: 'neutral',
     offline: 'offline',
     idle: 'neutral',
     stopped: 'offline',

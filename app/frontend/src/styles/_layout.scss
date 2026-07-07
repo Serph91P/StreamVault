@@ -506,30 +506,31 @@
   }
 }
 
-// Streamer card grid - uses auto-fill for responsive columns
+// Streamer card grid - uses auto-fit for responsive columns
 // Match grid-scroll-hybrid sizing for consistent appearance
 .grid-streamers {
   display: grid;
   gap: v.$spacing-4;
   width: 100%;
+  justify-content: center;
   
   // Base: match scroll-hybrid desktop sizing
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   
   // Tablet+
   @media (min-width: map.get(v.$breakpoints, 'sm')) {
-    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   }
   
   // Desktop: same as grid-scroll-hybrid
   @media (min-width: map.get(v.$breakpoints, 'md')) {
-    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
     gap: v.$spacing-5;
   }
   
   // Large desktop: same as grid-scroll-hybrid
   @media (min-width: map.get(v.$breakpoints, 'xl')) {
-    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
     gap: v.$spacing-6;
   }
 }
