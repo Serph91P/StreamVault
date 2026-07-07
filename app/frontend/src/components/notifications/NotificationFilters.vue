@@ -206,11 +206,12 @@ function updateFilter(value: NotificationFilter) {
     flex-wrap: nowrap;
     overflow-x: auto;
     overflow-y: hidden;
+    margin-inline: calc(-1 * var(--spacing-2));
+    padding-inline: var(--spacing-2);
     padding-bottom: var(--spacing-1);
-    scroll-padding-inline: var(--spacing-4);
+    scroll-padding-inline: var(--spacing-2);
     scrollbar-width: thin;
     -webkit-overflow-scrolling: touch;
-    mask-image: linear-gradient(90deg, transparent 0, rgb(0 0 0) var(--spacing-3), rgb(0 0 0) calc(100% - var(--spacing-3)), transparent 100%);
   }
 
   .filter-chip {

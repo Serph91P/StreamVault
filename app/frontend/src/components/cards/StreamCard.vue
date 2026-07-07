@@ -149,6 +149,9 @@
           @click.stop="toggleActions"
           class="btn-action btn-more"
           :class="{ active: showActions }"
+          :aria-label="`Stream actions for ${stream.title || 'untitled stream'}`"
+          aria-haspopup="menu"
+          :aria-expanded="showActions"
         >
           <svg class="icon">
             <use href="#icon-more-vertical" />
@@ -270,7 +273,7 @@ const dropdownStyle = computed(() => {
   return {
     position: 'fixed' as const,
     top: `${rect.bottom + 8}px`,
-    left: `${rect.left - 140}px`,
+    right: `${Math.max(8, window.innerWidth - rect.right)}px`,
     zIndex: 10000
   }
 })
@@ -416,7 +419,8 @@ onUnmounted(() => {
 /* Compact View */
 .stream-compact {
   padding: var(--spacing-4);
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
   align-items: center;
   gap: var(--spacing-3);
   cursor: pointer;
@@ -439,15 +443,18 @@ onUnmounted(() => {
 }
 
 .category-badge {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: var(--spacing-1);
+  max-width: 220px;
   padding: var(--spacing-1) var(--spacing-2);
   background: rgba(var(--primary-500-rgb), 0.1);
   border-radius: var(--radius-sm);
   font-size: var(--text-sm);
   color: var(--primary-color);
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 
   .icon {
     width: 14px;

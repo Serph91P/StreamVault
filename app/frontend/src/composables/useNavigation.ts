@@ -20,6 +20,11 @@ export interface NavigationTab {
   requiresAuth?: boolean
 }
 
+// Shared navigation state. Multiple components call useNavigation(), so this
+// must live at module scope rather than creating one ref per component.
+const sidebarExpanded = ref(true)
+const liveBadgeCount = ref<number | null>(null)
+
 // Navigation configuration
 export const navigationTabs: NavigationTab[] = [
   { route: '/', label: 'Dashboard', icon: 'home', description: 'Dashboard overview', badge: null },
@@ -57,12 +62,6 @@ export function useNavigation() {
     if (lgUpQuery.value) return true
     return window.matchMedia('(min-width: 1024px)').matches
   })
-
-  // Sidebar state (desktop only)
-  const sidebarExpanded = ref(true)
-
-  // Badge counts
-  const liveBadgeCount = ref<number | null>(null)
 
   // Check if route is active
   const isActiveRoute = (tabRoute: string): boolean => {

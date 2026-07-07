@@ -29,7 +29,7 @@
     </div>
 
     <!-- Video Player - Main Content -->
-    <div v-else class="player-layout">
+    <div v-else class="player-layout" :class="{ 'theater-mode': theaterMode }">
       <!-- Main Content: Video + Sidebar -->
       <div class="player-main">
         <!-- Video Player with Header -->
@@ -44,6 +44,18 @@
             </button>
 
             <h1 class="video-title">{{ streamTitle }}</h1>
+
+            <button
+              type="button"
+              class="theater-toggle"
+              :aria-pressed="theaterMode"
+              @click="theaterMode = !theaterMode"
+            >
+              <svg class="icon" aria-hidden="true">
+                <use :href="theaterMode ? '#icon-grid' : '#icon-film'" />
+              </svg>
+              {{ theaterMode ? 'Show details' : 'Theater' }}
+            </button>
 
             <div v-if="streamerName" class="streamer-badge" :aria-label="`Streamed by ${streamerName}`">
               <svg class="icon-streamer" aria-hidden="true">
@@ -240,6 +252,7 @@ const isLoading = ref(true)
 const error = ref<string | null>(null)
 const playerReady = ref(false)
 const playerError = ref<string | null>(null)
+const theaterMode = ref(false)
 
 const currentPlayerState = computed(() => {
   if (isLoading.value) return 'loading'
@@ -602,6 +615,20 @@ onMounted(() => {
   overflow: hidden;
 }
 
+.player-layout.theater-mode {
+  .player-main {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .info-sidebar {
+    display: none;
+  }
+
+  .player-card :deep(video) {
+    max-height: calc(100dvh - var(--app-header-height, 56px) - 132px);
+  }
+}
+
 // ============================================================================
 // MAIN CONTENT: Video + Sidebar side by side
 // ============================================================================
@@ -639,6 +666,11 @@ onMounted(() => {
     display: flex;
     flex-direction: column;
   }
+}
+
+.player-card :deep(video) {
+  max-height: calc(100dvh - var(--app-header-height, 56px) - 168px);
+  object-fit: contain;
 }
 
 .player-header {
@@ -686,6 +718,36 @@ onMounted(() => {
     min-height: 44px;  // Touch-friendly
     padding: var(--spacing-2) var(--spacing-4);
     font-size: var(--text-sm);
+  }
+}
+
+.theater-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-2);
+  min-height: 40px;
+  padding: var(--spacing-2) var(--spacing-3);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  background: var(--background-darker);
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  font-weight: v.$font-medium;
+  cursor: pointer;
+  white-space: nowrap;
+
+  .icon {
+    width: 16px;
+    height: 16px;
+    stroke: currentColor;
+    fill: none;
+  }
+
+  &[aria-pressed="true"] {
+    border-color: var(--primary-color);
+    background: rgba(var(--primary-500-rgb), 0.16);
+    color: var(--primary-color);
   }
 }
 

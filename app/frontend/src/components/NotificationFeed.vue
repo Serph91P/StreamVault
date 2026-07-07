@@ -358,7 +358,7 @@ onMounted(() => {
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
-  padding: var(--spacing-1) 0 var(--spacing-4);
+  padding: var(--spacing-1) var(--spacing-1) var(--spacing-4);
 }
 
 .notification-group + .notification-group {
@@ -391,7 +391,7 @@ onMounted(() => {
 }
 
 .notification-list {
-  padding-bottom: var(--spacing-2);
+  padding: 0 var(--spacing-1) var(--spacing-2);
 }
 
 .notification-groups::-webkit-scrollbar {
@@ -429,6 +429,7 @@ onMounted(() => {
 @include m.respond-below('md') {
   .notification-feed {
     max-height: calc(100dvh - var(--safe-area-inset-top, 0px));
+    overflow: visible;
   }
 
   .feed-header {
@@ -449,6 +450,11 @@ onMounted(() => {
     min-height: 44px;
     padding: 0 var(--spacing-2);
     font-size: var(--text-xs);
+  }
+
+  .notification-groups,
+  .notification-list {
+    padding-inline: var(--spacing-2);
   }
 }
 </style>

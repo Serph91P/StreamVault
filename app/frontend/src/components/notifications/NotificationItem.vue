@@ -468,7 +468,7 @@ time {
 @media (max-width: 767px) {
   .notification-item {
     grid-template-columns: auto minmax(0, 1fr);
-    margin: var(--spacing-3);
+    margin: var(--spacing-3) 0;
     padding: var(--spacing-4);
   }
 
