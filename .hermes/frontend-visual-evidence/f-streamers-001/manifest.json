@@ -1,0 +1,336 @@
+{
+  "capturedAt": "2026-07-06T21:30:53.900Z",
+  "outDir": "/opt/data/workspace/github_repos/StreamVault-frontend-product-overhaul-final/.hermes/frontend-visual-evidence/f-streamers-001",
+  "results": [
+    {
+      "name": "desktop-1440",
+      "viewport": {
+        "name": "desktop-1440",
+        "width": 1440,
+        "height": 900
+      },
+      "url": "http://127.0.0.1:5173/streamers",
+      "viewportWidth": 1440,
+      "documentWidth": 1440,
+      "noHorizontalOverflow": true,
+      "screenshot": "/opt/data/workspace/github_repos/StreamVault-frontend-product-overhaul-final/.hermes/frontend-visual-evidence/f-streamers-001/desktop-1440-streamers.png",
+      "hasBrief": true,
+      "hasSearch": true,
+      "hasAddStreamer": true,
+      "hasStatusGrammar": true,
+      "cardCount": 4,
+      "cards": [
+        {
+          "width": 261,
+          "height": 302
+        },
+        {
+          "width": 261,
+          "height": 302
+        },
+        {
+          "width": 261,
+          "height": 277
+        },
+        {
+          "width": 261,
+          "height": 302
+        }
+      ],
+      "controlCount": 15,
+      "undersizedControls": [],
+      "firstViewportText": "StreamVault\nQueue\n2\nNotifications\nLogout\nDashboard\nDashboard overview\nStreamers\nManage creators\nLibrary\nVideo library\nSubscriptions\nManage subscriptions\nSettings\nApp preferences\nCollapse\nStreamers\n\nManage your tracked streamers • 2 live now\n\nAuto-refresh\nAuto ON\nAdd Streamer\n\nCREATOR GRID\n\nFind live, recording, and quiet channels at a glance\n\nSearch by channel, scan recording status, then jump to details or actions without opening each card.\n\nLive\n2\nRecording\n1\nOffline\n2\nTotal\n4\nAll\n4\nLive\n2\nRecording\n1\nOffline\n2\nName A-Z\nName Z-A\nLive First\nRecently Added\nMost Videos\nShowing 4 of 4 streamers\nUpdated 0s ago\nLIVE\nSpeedrunner Pro\n\nRanked Climbing Session\n\n5.7k viewers\nCompetitive Gaming\n156 VODs\nLIVE\nStreamer Alpha\n\nJust Chatting with Chat!\n\n1.2k viewers\nJust Chatting\n42 VODs\nRECORDING\nOFFLINE\nCasual Streamer\n\nNo description available\n\n23 VODs\nLast stream 233d ago\nOFFLINE\nRetro Gamer\n\nClassic RPG Marathon\n\nRetro\n\nRetro\n89 VODs\nLast stream 228d ago",
+      "messages": [
+        {
+          "type": "error",
+          "text": "X-Frame-Options may only be set via an HTTP header sent along with a document. It may not be set inside <meta>."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connecting..."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connected."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Using MOCK API for all endpoints"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue warn]: onMounted is called when there is no active component instance to be associated with. Lifecycle injection APIs can only be used during execution of setup(). If you are using async setup(), make sure to register lifecycle hooks before the first await statement."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: WebSocket connections disabled"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T21:30:46.897Z] DEBUG [WebSocketManager] Singleton created with URL: ws://127.0.0.1:5173/ws"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T21:30:46.897Z] DEBUG [WebSocketManager] Singleton instance created"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping WebSocket connection"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T21:30:46.910Z] DEBUG [useBackgroundQueue] Background Queue: Waiting for WebSocket data"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T21:30:46.910Z] DEBUG [useBackgroundQueue] WebSocket not connected yet, using API fallback for initial load"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T21:30:46.910Z] DEBUG [useBackgroundQueue] FORCE REFRESH: Using API as fallback"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T21:30:46.911Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T21:30:46.911Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping auth checks, allowing all routes"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue Router warn]: The `next()` callback in navigation guards is deprecated. Return the value instead of calling `next(value)`."
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T21:30:47.111Z] DEBUG [useBackgroundQueue] FORCE REFRESH: API data loaded as fallback"
+        }
+      ]
+    },
+    {
+      "name": "tablet-768",
+      "viewport": {
+        "name": "tablet-768",
+        "width": 768,
+        "height": 1024
+      },
+      "url": "http://127.0.0.1:5173/streamers",
+      "viewportWidth": 768,
+      "documentWidth": 768,
+      "noHorizontalOverflow": true,
+      "screenshot": "/opt/data/workspace/github_repos/StreamVault-frontend-product-overhaul-final/.hermes/frontend-visual-evidence/f-streamers-001/tablet-768-streamers.png",
+      "hasBrief": true,
+      "hasSearch": true,
+      "hasAddStreamer": true,
+      "hasStatusGrammar": true,
+      "cardCount": 4,
+      "cards": [
+        {
+          "width": 346,
+          "height": 285
+        },
+        {
+          "width": 346,
+          "height": 287
+        },
+        {
+          "width": 346,
+          "height": 243
+        },
+        {
+          "width": 346,
+          "height": 302
+        }
+      ],
+      "controlCount": 15,
+      "undersizedControls": [],
+      "firstViewportText": "StreamVault\n2\nStreamers\n\nManage your tracked streamers • 2 live now\n\nAuto-refresh\nAuto ON\nAdd Streamer\n\nCREATOR GRID\n\nFind live, recording, and quiet channels at a glance\n\nSearch by channel, scan recording status, then jump to details or actions without opening each card.\n\nLive\n2\nRecording\n1\nOffline\n2\nTotal\n4\nAll\n4\nLive\n2\nRecording\n1\nOffline\n2\nName A-Z\nName Z-A\nLive First\nRecently Added\nMost Videos\nShowing 4 of 4 streamers\nUpdated 0s ago\nLIVE\nSpeedrunner Pro\n\nRanked Climbing Session\n\n5.7k viewers\nCompetitive Gaming\n156 VODs\nLIVE\nStreamer Alpha\n\nJust Chatting with Chat!\n\n1.2k viewers\nJust Chatting\n42 VODs\nRECORDING\nOFFLINE\nCasual Streamer\n\nNo description available\n\n23 VODs\nLast stream 233d ago\nOFFLINE\nRetro Gamer\n\nClassic RPG Marathon\n\nRetro\n\nRetro\n89 VODs\nLast stream 228d ago\nDashboard\nStreamers\nLibrary\nSubscriptions\nSettings",
+      "messages": [
+        {
+          "type": "error",
+          "text": "X-Frame-Options may only be set via an HTTP header sent along with a document. It may not be set inside <meta>."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connecting..."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connected."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Using MOCK API for all endpoints"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue warn]: onMounted is called when there is no active component instance to be associated with. Lifecycle injection APIs can only be used during execution of setup(). If you are using async setup(), make sure to register lifecycle hooks before the first await statement."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: WebSocket connections disabled"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T21:30:49.325Z] DEBUG [WebSocketManager] Singleton created with URL: ws://127.0.0.1:5173/ws"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T21:30:49.325Z] DEBUG [WebSocketManager] Singleton instance created"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping WebSocket connection"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T21:30:49.337Z] DEBUG [useBackgroundQueue] Background Queue: Waiting for WebSocket data"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T21:30:49.337Z] DEBUG [useBackgroundQueue] WebSocket not connected yet, using API fallback for initial load"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T21:30:49.337Z] DEBUG [useBackgroundQueue] FORCE REFRESH: Using API as fallback"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T21:30:49.337Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T21:30:49.338Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping auth checks, allowing all routes"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue Router warn]: The `next()` callback in navigation guards is deprecated. Return the value instead of calling `next(value)`."
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T21:30:49.542Z] DEBUG [useBackgroundQueue] FORCE REFRESH: API data loaded as fallback"
+        }
+      ]
+    },
+    {
+      "name": "mobile-390",
+      "viewport": {
+        "name": "mobile-390",
+        "width": 390,
+        "height": 844,
+        "isMobile": true
+      },
+      "url": "http://127.0.0.1:5173/streamers",
+      "viewportWidth": 390,
+      "documentWidth": 390,
+      "noHorizontalOverflow": true,
+      "screenshot": "/opt/data/workspace/github_repos/StreamVault-frontend-product-overhaul-final/.hermes/frontend-visual-evidence/f-streamers-001/mobile-390-streamers.png",
+      "hasBrief": true,
+      "hasSearch": true,
+      "hasAddStreamer": true,
+      "hasStatusGrammar": true,
+      "cardCount": 4,
+      "cards": [
+        {
+          "width": 350,
+          "height": 293
+        },
+        {
+          "width": 350,
+          "height": 295
+        },
+        {
+          "width": 350,
+          "height": 262
+        },
+        {
+          "width": 350,
+          "height": 302
+        }
+      ],
+      "controlCount": 15,
+      "undersizedControls": [],
+      "firstViewportText": "StreamVault\n2\nStreamers\n\nManage your tracked streamers • 2 live now\n\nAuto-refresh\nAuto ON\nAdd Streamer\n\nCREATOR GRID\n\nFind live, recording, and quiet channels at a glance\n\nSearch by channel, scan recording status, then jump to details or actions without opening each card.\n\nLive\n2\nRecording\n1\nOffline\n2\nTotal\n4\nAll\n4\nLive\n2\nRecording\n1\nOffline\n2\nName A-Z\nName Z-A\nLive First\nRecently Added\nMost Videos\nShowing 4 of 4 streamers\nUpdated 0s ago\nLIVE\nSpeedrunner Pro\n\nRanked Climbing Session\n\n5.7k viewers\nCompetitive Gaming\n156 VODs\nLIVE\nStreamer Alpha\n\nJust Chatting with Chat!\n\n1.2k viewers\nJust Chatting\n42 VODs\nRECORDING\nOFFLINE\nCasual Streamer\n\nNo description available\n\n23 VODs\nLast stream 233d ago\nOFFLINE\nRetro Gamer\n\nClassic RPG Marathon\n\nRetro\n\nRetro\n89 VODs\nLast stream 228d ago\nDashboard\nStreamers\nLibrary\nSubscriptions\nSettings",
+      "messages": [
+        {
+          "type": "error",
+          "text": "X-Frame-Options may only be set via an HTTP header sent along with a document. It may not be set inside <meta>."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connecting..."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connected."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Using MOCK API for all endpoints"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue warn]: onMounted is called when there is no active component instance to be associated with. Lifecycle injection APIs can only be used during execution of setup(). If you are using async setup(), make sure to register lifecycle hooks before the first await statement."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: WebSocket connections disabled"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T21:30:51.719Z] DEBUG [WebSocketManager] Singleton created with URL: ws://127.0.0.1:5173/ws"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T21:30:51.719Z] DEBUG [WebSocketManager] Singleton instance created"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping WebSocket connection"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T21:30:51.731Z] DEBUG [useBackgroundQueue] Background Queue: Waiting for WebSocket data"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T21:30:51.731Z] DEBUG [useBackgroundQueue] WebSocket not connected yet, using API fallback for initial load"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T21:30:51.731Z] DEBUG [useBackgroundQueue] FORCE REFRESH: Using API as fallback"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T21:30:51.732Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T21:30:51.733Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping auth checks, allowing all routes"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue Router warn]: The `next()` callback in navigation guards is deprecated. Return the value instead of calling `next(value)`."
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T21:30:51.932Z] DEBUG [useBackgroundQueue] FORCE REFRESH: API data loaded as fallback"
+        }
+      ]
+    }
+  ],
+  "blocked": false,
+  "blockers": []
+}

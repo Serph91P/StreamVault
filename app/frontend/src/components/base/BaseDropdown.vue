@@ -9,6 +9,7 @@ interface Option {
 
 interface Props {
   modelValue: string | number | null | undefined
+  id?: string
   /** Options as { label, value, disabled? }. If omitted, use the default slot for <option>. */
   options?: Option[]
   label?: string
@@ -16,6 +17,7 @@ interface Props {
   placeholder?: string
   state?: 'default' | 'error' | 'success'
   error?: string
+  success?: string
   hint?: string
   required?: boolean
   disabled?: boolean
@@ -33,9 +35,11 @@ const emit = defineEmits<{
 defineOptions({ inheritAttrs: false })
 const attrs = useAttrs()
 
-const id = useId()
-const errorId = computed(() => `${id}-error`)
-const hintId = computed(() => `${id}-hint`)
+const generatedId = useId()
+const selectId = computed(() => props.id || generatedId)
+const errorId = computed(() => `${selectId.value}-error`)
+const successId = computed(() => `${selectId.value}-success`)
+const hintId = computed(() => `${selectId.value}-hint`)
 
 const effectiveState = computed<'default' | 'error' | 'success'>(() =>
   props.error ? 'error' : props.state,
@@ -47,9 +51,13 @@ const selectClasses = computed(() => [
 ])
 
 const describedBy = computed(() => {
-  if (props.error) return errorId.value
-  if (props.hint) return hintId.value
-  return undefined
+  const ids: string[] = []
+  const externalDescribedBy = attrs['aria-describedby']
+  if (typeof externalDescribedBy === 'string') ids.push(externalDescribedBy)
+  if (props.error) ids.push(errorId.value)
+  else if (props.success) ids.push(successId.value)
+  else if (props.hint) ids.push(hintId.value)
+  return ids.length ? ids.join(' ') : undefined
 })
 
 function onChange(ev: Event) {
@@ -61,10 +69,10 @@ function onChange(ev: Event) {
 
 <template>
   <div class="form-group">
-    <label v-if="label" :for="id" :class="{ required }">{{ label }}</label>
+    <label v-if="label" :for="selectId" :class="{ required }">{{ label }}</label>
     <select
-      :id="id"
       v-bind="attrs"
+      :id="selectId"
       :value="modelValue ?? ''"
       :class="selectClasses"
       :required="required"
@@ -87,6 +95,7 @@ function onChange(ev: Event) {
       <slot v-else />
     </select>
     <small v-if="error" :id="errorId" class="form-error">{{ error }}</small>
+    <small v-else-if="success" :id="successId" class="form-success">{{ success }}</small>
     <small v-else-if="hint" :id="hintId" class="form-hint">{{ hint }}</small>
   </div>
 </template>
@@ -98,6 +107,12 @@ function onChange(ev: Event) {
   display: block;
   margin-top: v.$spacing-2;
   color: var(--danger-color);
+  font-size: v.$text-sm;
+}
+.form-success {
+  display: block;
+  margin-top: v.$spacing-2;
+  color: var(--success-color);
   font-size: v.$text-sm;
 }
 .form-hint {

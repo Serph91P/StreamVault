@@ -1,0 +1,977 @@
+{
+  "generatedAt": "2026-07-07T03:53:16.707Z",
+  "baseURL": "http://127.0.0.1:4173",
+  "viewports": [
+    390,
+    430,
+    768,
+    1024,
+    1280,
+    1440
+  ],
+  "routes": [
+    {
+      "name": "dashboard",
+      "route": "/"
+    },
+    {
+      "name": "streamers",
+      "route": "/streamers"
+    },
+    {
+      "name": "streamer-detail",
+      "route": "/streamers/1"
+    },
+    {
+      "name": "library",
+      "route": "/videos"
+    },
+    {
+      "name": "stored-player",
+      "route": "/videos/1"
+    },
+    {
+      "name": "live-player",
+      "route": "/live/streamer_alpha"
+    },
+    {
+      "name": "subscriptions",
+      "route": "/subscriptions"
+    },
+    {
+      "name": "settings",
+      "route": "/settings"
+    },
+    {
+      "name": "admin",
+      "route": "/admin"
+    },
+    {
+      "name": "add-streamer",
+      "route": "/add-streamer"
+    }
+  ],
+  "screenshots": [
+    "0390-dashboard.png",
+    "0390-streamers.png",
+    "0390-streamer-detail.png",
+    "0390-library.png",
+    "0390-stored-player.png",
+    "0390-live-player.png",
+    "0390-subscriptions.png",
+    "0390-settings.png",
+    "0390-admin.png",
+    "0390-add-streamer.png",
+    "0430-dashboard.png",
+    "0430-streamers.png",
+    "0430-streamer-detail.png",
+    "0430-library.png",
+    "0430-stored-player.png",
+    "0430-live-player.png",
+    "0430-subscriptions.png",
+    "0430-settings.png",
+    "0430-admin.png",
+    "0430-add-streamer.png",
+    "0768-dashboard.png",
+    "0768-streamers.png",
+    "0768-streamer-detail.png",
+    "0768-library.png",
+    "0768-stored-player.png",
+    "0768-live-player.png",
+    "0768-subscriptions.png",
+    "0768-settings.png",
+    "0768-admin.png",
+    "0768-add-streamer.png",
+    "1024-dashboard.png",
+    "1024-streamers.png",
+    "1024-streamer-detail.png",
+    "1024-library.png",
+    "1024-stored-player.png",
+    "1024-live-player.png",
+    "1024-subscriptions.png",
+    "1024-settings.png",
+    "1024-admin.png",
+    "1024-add-streamer.png",
+    "1280-dashboard.png",
+    "1280-streamers.png",
+    "1280-streamer-detail.png",
+    "1280-library.png",
+    "1280-stored-player.png",
+    "1280-live-player.png",
+    "1280-subscriptions.png",
+    "1280-settings.png",
+    "1280-admin.png",
+    "1280-add-streamer.png",
+    "1440-dashboard.png",
+    "1440-streamers.png",
+    "1440-streamer-detail.png",
+    "1440-library.png",
+    "1440-stored-player.png",
+    "1440-live-player.png",
+    "1440-subscriptions.png",
+    "1440-settings.png",
+    "1440-admin.png",
+    "1440-add-streamer.png"
+  ],
+  "routeResults": [
+    {
+      "name": "dashboard",
+      "route": "/",
+      "width": 390,
+      "ok": true,
+      "screenshot": "0390-dashboard.png",
+      "horizontalOverflow": false,
+      "bodyTextStart": "StreamVault 2 REALTIME OFFLINE Dashboard Monitor live streams, active recordings, queue health and the latest media from one operational view. Add Streamer Open Library AT A GLANCE"
+    },
+    {
+      "name": "streamers",
+      "route": "/streamers",
+      "width": 390,
+      "ok": true,
+      "screenshot": "0390-streamers.png",
+      "horizontalOverflow": false,
+      "bodyTextStart": "StreamVault 2 Streamers Manage your tracked streamers • 2 live now Auto-refresh Auto ON Add Streamer CREATOR GRID Scan every creator by current action Search, filter, and sort with"
+    },
+    {
+      "name": "streamer-detail",
+      "route": "/streamers/1",
+      "width": 390,
+      "ok": true,
+      "screenshot": "0390-streamer-detail.png",
+      "horizontalOverflow": false,
+      "bodyTextStart": "StreamVault 2 Streamers Recording Just Chatting Streamer Alpha @streamer_alpha Just Chatting with Chat! STREAMS 4 RECORDED 4 AVG 1h 19m Watch Live Recording Destructive stream clea"
+    },
+    {
+      "name": "library",
+      "route": "/videos",
+      "width": 390,
+      "ok": true,
+      "screenshot": "0390-library.png",
+      "horizontalOverflow": false,
+      "bodyTextStart": "StreamVault 2 Videos Browse and manage all recorded streams Select VIDEO LIBRARY Browse all recorded streams Search, filter, and sort your video collection. Use grid view for brows"
+    },
+    {
+      "name": "stored-player",
+      "route": "/videos/1",
+      "width": 390,
+      "ok": true,
+      "screenshot": "0390-stored-player.png",
+      "horizontalOverflow": false,
+      "bodyTextStart": "StreamVault 2 Back Stream 1 ERROR 0:00 / 0:00 Playback Error Critical playback error Failed to load video. Please check the video file and try again. Retry Stream Details Duration "
+    },
+    {
+      "name": "live-player",
+      "route": "/live/streamer_alpha",
+      "width": 390,
+      "ok": true,
+      "screenshot": "0390-live-player.png",
+      "horizontalOverflow": false,
+      "bodyTextStart": "StreamVault 2 Back streamer_alpha LIVE CONNECTING Auto | CONNECTING Stream Info Streamer streamer_alpha Session mock-live-17... Quality Auto Codec Mode Auto (HEVC enabled) Codecs h"
+    },
+    {
+      "name": "subscriptions",
+      "route": "/subscriptions",
+      "width": 390,
+      "ok": true,
+      "screenshot": "0390-subscriptions.png",
+      "horizontalOverflow": false,
+      "bodyTextStart": "StreamVault 2 Subscription Management Manage your Twitch EventSub subscriptions for tracked streamers Refresh Resubscribe All Delete All No Subscriptions Found There are no active "
+    },
+    {
+      "name": "settings",
+      "route": "/settings",
+      "width": 390,
+      "ok": true,
+      "screenshot": "0390-settings.png",
+      "horizontalOverflow": false,
+      "bodyTextStart": "StreamVault 2 Overview Overview Twitch Connection Notifications Recording Favorite Games PWA & Mobile API Keys Proxy Management About Twitch Connection OAuth tokens & connection st"
+    },
+    {
+      "name": "admin",
+      "route": "/admin",
+      "width": 390,
+      "ok": true,
+      "screenshot": "0390-admin.png",
+      "horizontalOverflow": false,
+      "bodyTextStart": "StreamVault 2 Admin Monitor system health, services, connections, and background jobs. Admin tools System Health Quick Health Check System Information Refresh Info WebSocket Connec"
+    },
+    {
+      "name": "add-streamer",
+      "route": "/add-streamer",
+      "width": 390,
+      "ok": true,
+      "screenshot": "0390-add-streamer.png",
+      "horizontalOverflow": false,
+      "bodyTextStart": "StreamVault 2 Back Add New Streamer Track your favorite Twitch streamers and get notified when they go live Add by Username Enter a Twitch username to add a streamer manually. Impo"
+    },
+    {
+      "name": "dashboard",
+      "route": "/",
+      "width": 430,
+      "ok": true,
+      "screenshot": "0430-dashboard.png",
+      "horizontalOverflow": false,
+      "bodyTextStart": "StreamVault 2 REALTIME OFFLINE Dashboard Monitor live streams, active recordings, queue health and the latest media from one operational view. Add Streamer Open Library AT A GLANCE"
+    },
+    {
+      "name": "streamers",
+      "route": "/streamers",
+      "width": 430,
+      "ok": true,
+      "screenshot": "0430-streamers.png",
+      "horizontalOverflow": false,
+      "bodyTextStart": "StreamVault 2 Streamers Manage your tracked streamers • 2 live now Auto-refresh Auto ON Add Streamer CREATOR GRID Scan every creator by current action Search, filter, and sort with"
+    },
+    {
+      "name": "streamer-detail",
+      "route": "/streamers/1",
+      "width": 430,
+      "ok": true,
+      "screenshot": "0430-streamer-detail.png",
+      "horizontalOverflow": false,
+      "bodyTextStart": "StreamVault 2 Streamers Recording Just Chatting Streamer Alpha @streamer_alpha Just Chatting with Chat! STREAMS 4 RECORDED 4 AVG 1h 19m Watch Live Recording Destructive stream clea"
+    },
+    {
+      "name": "library",
+      "route": "/videos",
+      "width": 430,
+      "ok": true,
+      "screenshot": "0430-library.png",
+      "horizontalOverflow": false,
+      "bodyTextStart": "StreamVault 2 Videos Browse and manage all recorded streams Select VIDEO LIBRARY Browse all recorded streams Search, filter, and sort your video collection. Use grid view for brows"
+    },
+    {
+      "name": "stored-player",
+      "route": "/videos/1",
+      "width": 430,
+      "ok": true,
+      "screenshot": "0430-stored-player.png",
+      "horizontalOverflow": false,
+      "bodyTextStart": "StreamVault 2 Back Stream 1 ERROR 0:00 / 0:00 Playback Error Critical playback error Failed to load video. Please check the video file and try again. Retry Stream Details Duration "
+    },
+    {
+      "name": "live-player",
+      "route": "/live/streamer_alpha",
+      "width": 430,
+      "ok": true,
+      "screenshot": "0430-live-player.png",
+      "horizontalOverflow": false,
+      "bodyTextStart": "StreamVault 2 Back streamer_alpha LIVE CONNECTING Auto | CONNECTING Stream Info Streamer streamer_alpha Session mock-live-17... Quality Auto Codec Mode Auto (HEVC enabled) Codecs h"
+    },
+    {
+      "name": "subscriptions",
+      "route": "/subscriptions",
+      "width": 430,
+      "ok": true,
+      "screenshot": "0430-subscriptions.png",
+      "horizontalOverflow": false,
+      "bodyTextStart": "StreamVault 2 Subscription Management Manage your Twitch EventSub subscriptions for tracked streamers Refresh Resubscribe All Delete All No Subscriptions Found There are no active "
+    },
+    {
+      "name": "settings",
+      "route": "/settings",
+      "width": 430,
+      "ok": true,
+      "screenshot": "0430-settings.png",
+      "horizontalOverflow": false,
+      "bodyTextStart": "StreamVault 2 Overview Overview Twitch Connection Notifications Recording Favorite Games PWA & Mobile API Keys Proxy Management About Twitch Connection OAuth tokens & connection st"
+    },
+    {
+      "name": "admin",
+      "route": "/admin",
+      "width": 430,
+      "ok": true,
+      "screenshot": "0430-admin.png",
+      "horizontalOverflow": false,
+      "bodyTextStart": "StreamVault 2 Admin Monitor system health, services, connections, and background jobs. Admin tools System Health Quick Health Check System Information Refresh Info WebSocket Connec"
+    },
+    {
+      "name": "add-streamer",
+      "route": "/add-streamer",
+      "width": 430,
+      "ok": true,
+      "screenshot": "0430-add-streamer.png",
+      "horizontalOverflow": false,
+      "bodyTextStart": "StreamVault 2 Back Add New Streamer Track your favorite Twitch streamers and get notified when they go live Add by Username Enter a Twitch username to add a streamer manually. Impo"
+    },
+    {
+      "name": "dashboard",
+      "route": "/",
+      "width": 768,
+      "ok": true,
+      "screenshot": "0768-dashboard.png",
+      "horizontalOverflow": false,
+      "bodyTextStart": "StreamVault 2 REALTIME OFFLINE Dashboard Monitor live streams, active recordings, queue health and the latest media from one operational view. Add Streamer Open Library AT A GLANCE"
+    },
+    {
+      "name": "streamers",
+      "route": "/streamers",
+      "width": 768,
+      "ok": true,
+      "screenshot": "0768-streamers.png",
+      "horizontalOverflow": false,
+      "bodyTextStart": "StreamVault 2 Streamers Manage your tracked streamers • 2 live now Auto-refresh Auto ON Add Streamer CREATOR GRID Scan every creator by current action Search, filter, and sort with"
+    },
+    {
+      "name": "streamer-detail",
+      "route": "/streamers/1",
+      "width": 768,
+      "ok": true,
+      "screenshot": "0768-streamer-detail.png",
+      "horizontalOverflow": false,
+      "bodyTextStart": "StreamVault 2 Streamers Recording Just Chatting Streamer Alpha @streamer_alpha Just Chatting with Chat! STREAMS 4 RECORDED 4 AVG 1h 19m Watch Live Recording Destructive stream clea"
+    },
+    {
+      "name": "library",
+      "route": "/videos",
+      "width": 768,
+      "ok": true,
+      "screenshot": "0768-library.png",
+      "horizontalOverflow": false,
+      "bodyTextStart": "StreamVault 2 Videos Browse and manage all recorded streams Select VIDEO LIBRARY Browse all recorded streams Search, filter, and sort your video collection. Use grid view for brows"
+    },
+    {
+      "name": "stored-player",
+      "route": "/videos/1",
+      "width": 768,
+      "ok": true,
+      "screenshot": "0768-stored-player.png",
+      "horizontalOverflow": false,
+      "bodyTextStart": "StreamVault 2 Back Stream 1 ERROR 0:00 / 0:00 Playback Error Critical playback error Failed to load video. Please check the video file and try again. Retry Stream Details Duration "
+    },
+    {
+      "name": "live-player",
+      "route": "/live/streamer_alpha",
+      "width": 768,
+      "ok": true,
+      "screenshot": "0768-live-player.png",
+      "horizontalOverflow": false,
+      "bodyTextStart": "StreamVault 2 Back streamer_alpha LIVE CONNECTING Auto | CONNECTING Stream Info Streamer streamer_alpha Session mock-live-17... Quality Auto Codec Mode Auto (HEVC enabled) Codecs h"
+    },
+    {
+      "name": "subscriptions",
+      "route": "/subscriptions",
+      "width": 768,
+      "ok": true,
+      "screenshot": "0768-subscriptions.png",
+      "horizontalOverflow": false,
+      "bodyTextStart": "StreamVault 2 Subscription Management Manage your Twitch EventSub subscriptions for tracked streamers Refresh Resubscribe All Delete All No Subscriptions Found There are no active "
+    },
+    {
+      "name": "settings",
+      "route": "/settings",
+      "width": 768,
+      "ok": true,
+      "screenshot": "0768-settings.png",
+      "horizontalOverflow": false,
+      "bodyTextStart": "StreamVault 2 Overview Overview Twitch Connection Notifications Recording Favorite Games PWA & Mobile API Keys Proxy Management About Twitch Connection OAuth tokens & connection st"
+    },
+    {
+      "name": "admin",
+      "route": "/admin",
+      "width": 768,
+      "ok": true,
+      "screenshot": "0768-admin.png",
+      "horizontalOverflow": false,
+      "bodyTextStart": "StreamVault 2 Admin Monitor system health, services, connections, and background jobs. Admin tools System Health Quick Health Check System Information Refresh Info WebSocket Connec"
+    },
+    {
+      "name": "add-streamer",
+      "route": "/add-streamer",
+      "width": 768,
+      "ok": true,
+      "screenshot": "0768-add-streamer.png",
+      "horizontalOverflow": false,
+      "bodyTextStart": "StreamVault 2 Back Add New Streamer Track your favorite Twitch streamers and get notified when they go live Add by Username Enter a Twitch username to add a streamer manually. Impo"
+    },
+    {
+      "name": "dashboard",
+      "route": "/",
+      "width": 1024,
+      "ok": true,
+      "screenshot": "1024-dashboard.png",
+      "horizontalOverflow": false,
+      "bodyTextStart": "StreamVault Queue 2 Notifications Dashboard Dashboard overview Streamers Manage creators Library Video library Subscriptions Manage subscriptions Settings App preferences Collapse "
+    },
+    {
+      "name": "streamers",
+      "route": "/streamers",
+      "width": 1024,
+      "ok": true,
+      "screenshot": "1024-streamers.png",
+      "horizontalOverflow": false,
+      "bodyTextStart": "StreamVault Queue 2 Notifications Dashboard Dashboard overview Streamers Manage creators Library Video library Subscriptions Manage subscriptions Settings App preferences Collapse "
+    },
+    {
+      "name": "streamer-detail",
+      "route": "/streamers/1",
+      "width": 1024,
+      "ok": true,
+      "screenshot": "1024-streamer-detail.png",
+      "horizontalOverflow": false,
+      "bodyTextStart": "StreamVault Queue 2 Notifications Dashboard Dashboard overview Streamers Manage creators Library Video library Subscriptions Manage subscriptions Settings App preferences Collapse "
+    },
+    {
+      "name": "library",
+      "route": "/videos",
+      "width": 1024,
+      "ok": true,
+      "screenshot": "1024-library.png",
+      "horizontalOverflow": false,
+      "bodyTextStart": "StreamVault Queue 2 Notifications Dashboard Dashboard overview Streamers Manage creators Library Video library Subscriptions Manage subscriptions Settings App preferences Collapse "
+    },
+    {
+      "name": "stored-player",
+      "route": "/videos/1",
+      "width": 1024,
+      "ok": true,
+      "screenshot": "1024-stored-player.png",
+      "horizontalOverflow": false,
+      "bodyTextStart": "StreamVault Queue 2 Notifications Dashboard Dashboard overview Streamers Manage creators Library Video library Subscriptions Manage subscriptions Settings App preferences Collapse "
+    },
+    {
+      "name": "live-player",
+      "route": "/live/streamer_alpha",
+      "width": 1024,
+      "ok": true,
+      "screenshot": "1024-live-player.png",
+      "horizontalOverflow": false,
+      "bodyTextStart": "StreamVault Queue 2 Notifications Dashboard Dashboard overview Streamers Manage creators Library Video library Subscriptions Manage subscriptions Settings App preferences Collapse "
+    },
+    {
+      "name": "subscriptions",
+      "route": "/subscriptions",
+      "width": 1024,
+      "ok": true,
+      "screenshot": "1024-subscriptions.png",
+      "horizontalOverflow": false,
+      "bodyTextStart": "StreamVault Queue 2 Notifications Dashboard Dashboard overview Streamers Manage creators Library Video library Subscriptions Manage subscriptions Settings App preferences Collapse "
+    },
+    {
+      "name": "settings",
+      "route": "/settings",
+      "width": 1024,
+      "ok": true,
+      "screenshot": "1024-settings.png",
+      "horizontalOverflow": false,
+      "bodyTextStart": "StreamVault Queue 2 Notifications Dashboard Dashboard overview Streamers Manage creators Library Video library Subscriptions Manage subscriptions Settings App preferences Collapse "
+    },
+    {
+      "name": "admin",
+      "route": "/admin",
+      "width": 1024,
+      "ok": true,
+      "screenshot": "1024-admin.png",
+      "horizontalOverflow": false,
+      "bodyTextStart": "StreamVault Queue 2 Notifications Dashboard Dashboard overview Streamers Manage creators Library Video library Subscriptions Manage subscriptions Settings App preferences Collapse "
+    },
+    {
+      "name": "add-streamer",
+      "route": "/add-streamer",
+      "width": 1024,
+      "ok": true,
+      "screenshot": "1024-add-streamer.png",
+      "horizontalOverflow": false,
+      "bodyTextStart": "StreamVault Queue 2 Notifications Dashboard Dashboard overview Streamers Manage creators Library Video library Subscriptions Manage subscriptions Settings App preferences Collapse "
+    },
+    {
+      "name": "dashboard",
+      "route": "/",
+      "width": 1280,
+      "ok": true,
+      "screenshot": "1280-dashboard.png",
+      "horizontalOverflow": false,
+      "bodyTextStart": "StreamVault Queue 2 Notifications Logout Dashboard Dashboard overview Streamers Manage creators Library Video library Subscriptions Manage subscriptions Settings App preferences Co"
+    },
+    {
+      "name": "streamers",
+      "route": "/streamers",
+      "width": 1280,
+      "ok": true,
+      "screenshot": "1280-streamers.png",
+      "horizontalOverflow": false,
+      "bodyTextStart": "StreamVault Queue 2 Notifications Logout Dashboard Dashboard overview Streamers Manage creators Library Video library Subscriptions Manage subscriptions Settings App preferences Co"
+    },
+    {
+      "name": "streamer-detail",
+      "route": "/streamers/1",
+      "width": 1280,
+      "ok": true,
+      "screenshot": "1280-streamer-detail.png",
+      "horizontalOverflow": false,
+      "bodyTextStart": "StreamVault Queue 2 Notifications Logout Dashboard Dashboard overview Streamers Manage creators Library Video library Subscriptions Manage subscriptions Settings App preferences Co"
+    },
+    {
+      "name": "library",
+      "route": "/videos",
+      "width": 1280,
+      "ok": true,
+      "screenshot": "1280-library.png",
+      "horizontalOverflow": false,
+      "bodyTextStart": "StreamVault Queue 2 Notifications Logout Dashboard Dashboard overview Streamers Manage creators Library Video library Subscriptions Manage subscriptions Settings App preferences Co"
+    },
+    {
+      "name": "stored-player",
+      "route": "/videos/1",
+      "width": 1280,
+      "ok": true,
+      "screenshot": "1280-stored-player.png",
+      "horizontalOverflow": false,
+      "bodyTextStart": "StreamVault Queue 2 Notifications Logout Dashboard Dashboard overview Streamers Manage creators Library Video library Subscriptions Manage subscriptions Settings App preferences Co"
+    },
+    {
+      "name": "live-player",
+      "route": "/live/streamer_alpha",
+      "width": 1280,
+      "ok": true,
+      "screenshot": "1280-live-player.png",
+      "horizontalOverflow": false,
+      "bodyTextStart": "StreamVault Queue 2 Notifications Logout Dashboard Dashboard overview Streamers Manage creators Library Video library Subscriptions Manage subscriptions Settings App preferences Co"
+    },
+    {
+      "name": "subscriptions",
+      "route": "/subscriptions",
+      "width": 1280,
+      "ok": true,
+      "screenshot": "1280-subscriptions.png",
+      "horizontalOverflow": false,
+      "bodyTextStart": "StreamVault Queue 2 Notifications Logout Dashboard Dashboard overview Streamers Manage creators Library Video library Subscriptions Manage subscriptions Settings App preferences Co"
+    },
+    {
+      "name": "settings",
+      "route": "/settings",
+      "width": 1280,
+      "ok": true,
+      "screenshot": "1280-settings.png",
+      "horizontalOverflow": false,
+      "bodyTextStart": "StreamVault Queue 2 Notifications Logout Dashboard Dashboard overview Streamers Manage creators Library Video library Subscriptions Manage subscriptions Settings App preferences Co"
+    },
+    {
+      "name": "admin",
+      "route": "/admin",
+      "width": 1280,
+      "ok": true,
+      "screenshot": "1280-admin.png",
+      "horizontalOverflow": false,
+      "bodyTextStart": "StreamVault Queue 2 Notifications Logout Dashboard Dashboard overview Streamers Manage creators Library Video library Subscriptions Manage subscriptions Settings App preferences Co"
+    },
+    {
+      "name": "add-streamer",
+      "route": "/add-streamer",
+      "width": 1280,
+      "ok": true,
+      "screenshot": "1280-add-streamer.png",
+      "horizontalOverflow": false,
+      "bodyTextStart": "StreamVault Queue 2 Notifications Logout Dashboard Dashboard overview Streamers Manage creators Library Video library Subscriptions Manage subscriptions Settings App preferences Co"
+    },
+    {
+      "name": "dashboard",
+      "route": "/",
+      "width": 1440,
+      "ok": true,
+      "screenshot": "1440-dashboard.png",
+      "horizontalOverflow": false,
+      "bodyTextStart": "StreamVault Queue 2 Notifications Logout Dashboard Dashboard overview Streamers Manage creators Library Video library Subscriptions Manage subscriptions Settings App preferences Co"
+    },
+    {
+      "name": "streamers",
+      "route": "/streamers",
+      "width": 1440,
+      "ok": true,
+      "screenshot": "1440-streamers.png",
+      "horizontalOverflow": false,
+      "bodyTextStart": "StreamVault Queue 2 Notifications Logout Dashboard Dashboard overview Streamers Manage creators Library Video library Subscriptions Manage subscriptions Settings App preferences Co"
+    },
+    {
+      "name": "streamer-detail",
+      "route": "/streamers/1",
+      "width": 1440,
+      "ok": true,
+      "screenshot": "1440-streamer-detail.png",
+      "horizontalOverflow": false,
+      "bodyTextStart": "StreamVault Queue 2 Notifications Logout Dashboard Dashboard overview Streamers Manage creators Library Video library Subscriptions Manage subscriptions Settings App preferences Co"
+    },
+    {
+      "name": "library",
+      "route": "/videos",
+      "width": 1440,
+      "ok": true,
+      "screenshot": "1440-library.png",
+      "horizontalOverflow": false,
+      "bodyTextStart": "StreamVault Queue 2 Notifications Logout Dashboard Dashboard overview Streamers Manage creators Library Video library Subscriptions Manage subscriptions Settings App preferences Co"
+    },
+    {
+      "name": "stored-player",
+      "route": "/videos/1",
+      "width": 1440,
+      "ok": true,
+      "screenshot": "1440-stored-player.png",
+      "horizontalOverflow": false,
+      "bodyTextStart": "StreamVault Queue 2 Notifications Logout Dashboard Dashboard overview Streamers Manage creators Library Video library Subscriptions Manage subscriptions Settings App preferences Co"
+    },
+    {
+      "name": "live-player",
+      "route": "/live/streamer_alpha",
+      "width": 1440,
+      "ok": true,
+      "screenshot": "1440-live-player.png",
+      "horizontalOverflow": false,
+      "bodyTextStart": "StreamVault Queue 2 Notifications Logout Dashboard Dashboard overview Streamers Manage creators Library Video library Subscriptions Manage subscriptions Settings App preferences Co"
+    },
+    {
+      "name": "subscriptions",
+      "route": "/subscriptions",
+      "width": 1440,
+      "ok": true,
+      "screenshot": "1440-subscriptions.png",
+      "horizontalOverflow": false,
+      "bodyTextStart": "StreamVault Queue 2 Notifications Logout Dashboard Dashboard overview Streamers Manage creators Library Video library Subscriptions Manage subscriptions Settings App preferences Co"
+    },
+    {
+      "name": "settings",
+      "route": "/settings",
+      "width": 1440,
+      "ok": true,
+      "screenshot": "1440-settings.png",
+      "horizontalOverflow": false,
+      "bodyTextStart": "StreamVault Queue 2 Notifications Logout Dashboard Dashboard overview Streamers Manage creators Library Video library Subscriptions Manage subscriptions Settings App preferences Co"
+    },
+    {
+      "name": "admin",
+      "route": "/admin",
+      "width": 1440,
+      "ok": true,
+      "screenshot": "1440-admin.png",
+      "horizontalOverflow": false,
+      "bodyTextStart": "StreamVault Queue 2 Notifications Logout Dashboard Dashboard overview Streamers Manage creators Library Video library Subscriptions Manage subscriptions Settings App preferences Co"
+    },
+    {
+      "name": "add-streamer",
+      "route": "/add-streamer",
+      "width": 1440,
+      "ok": true,
+      "screenshot": "1440-add-streamer.png",
+      "horizontalOverflow": false,
+      "bodyTextStart": "StreamVault Queue 2 Notifications Logout Dashboard Dashboard overview Streamers Manage creators Library Video library Subscriptions Manage subscriptions Settings App preferences Co"
+    }
+  ],
+  "axeResults": [
+    {
+      "name": "dashboard",
+      "route": "/",
+      "width": 390,
+      "violations": [],
+      "incomplete": 4
+    },
+    {
+      "name": "streamers",
+      "route": "/streamers",
+      "width": 390,
+      "violations": [],
+      "incomplete": 3
+    },
+    {
+      "name": "streamer-detail",
+      "route": "/streamers/1",
+      "width": 390,
+      "violations": [],
+      "incomplete": 2
+    },
+    {
+      "name": "library",
+      "route": "/videos",
+      "width": 390,
+      "violations": [],
+      "incomplete": 3
+    },
+    {
+      "name": "stored-player",
+      "route": "/videos/1",
+      "width": 390,
+      "violations": [],
+      "incomplete": 4
+    },
+    {
+      "name": "live-player",
+      "route": "/live/streamer_alpha",
+      "width": 390,
+      "violations": [],
+      "incomplete": 4
+    },
+    {
+      "name": "subscriptions",
+      "route": "/subscriptions",
+      "width": 390,
+      "violations": [],
+      "incomplete": 2
+    },
+    {
+      "name": "settings",
+      "route": "/settings",
+      "width": 390,
+      "violations": [],
+      "incomplete": 3
+    },
+    {
+      "name": "admin",
+      "route": "/admin",
+      "width": 390,
+      "violations": [],
+      "incomplete": 3
+    },
+    {
+      "name": "add-streamer",
+      "route": "/add-streamer",
+      "width": 390,
+      "violations": [],
+      "incomplete": 2
+    },
+    {
+      "name": "dashboard",
+      "route": "/",
+      "width": 1280,
+      "violations": [],
+      "incomplete": 4
+    },
+    {
+      "name": "streamers",
+      "route": "/streamers",
+      "width": 1280,
+      "violations": [],
+      "incomplete": 3
+    },
+    {
+      "name": "streamer-detail",
+      "route": "/streamers/1",
+      "width": 1280,
+      "violations": [],
+      "incomplete": 2
+    },
+    {
+      "name": "library",
+      "route": "/videos",
+      "width": 1280,
+      "violations": [],
+      "incomplete": 3
+    },
+    {
+      "name": "stored-player",
+      "route": "/videos/1",
+      "width": 1280,
+      "violations": [],
+      "incomplete": 4
+    },
+    {
+      "name": "live-player",
+      "route": "/live/streamer_alpha",
+      "width": 1280,
+      "violations": [],
+      "incomplete": 4
+    },
+    {
+      "name": "subscriptions",
+      "route": "/subscriptions",
+      "width": 1280,
+      "violations": [],
+      "incomplete": 2
+    },
+    {
+      "name": "settings",
+      "route": "/settings",
+      "width": 1280,
+      "violations": [],
+      "incomplete": 3
+    },
+    {
+      "name": "admin",
+      "route": "/admin",
+      "width": 1280,
+      "violations": [],
+      "incomplete": 3
+    },
+    {
+      "name": "add-streamer",
+      "route": "/add-streamer",
+      "width": 1280,
+      "violations": [],
+      "incomplete": 2
+    }
+  ],
+  "keyboard": {
+    "route": "/",
+    "notificationDialog": true,
+    "focusMoved": true,
+    "escapeCloses": true,
+    "tabSequence": [
+      {
+        "tag": "BUTTON",
+        "text": "Close notifications"
+      },
+      {
+        "tag": "BUTTON",
+        "text": "Close notifications"
+      },
+      {
+        "tag": "BUTTON",
+        "text": "Close notifications"
+      },
+      {
+        "tag": "BUTTON",
+        "text": "Close notifications"
+      },
+      {
+        "tag": "BUTTON",
+        "text": "Close notifications"
+      },
+      {
+        "tag": "BUTTON",
+        "text": "Close notifications"
+      },
+      {
+        "tag": "BUTTON",
+        "text": "Close notifications"
+      },
+      {
+        "tag": "BUTTON",
+        "text": "Close notifications"
+      }
+    ]
+  },
+  "reducedMotion": {
+    "route": "/",
+    "matched": true,
+    "screenshot": "0390-dashboard-reduced-motion.png"
+  },
+  "vitals": [
+    {
+      "name": "dashboard",
+      "route": "/",
+      "fcp": 52,
+      "firstPaint": 36,
+      "lcp": 232,
+      "cls": 0,
+      "inpApprox": 3,
+      "domContentLoaded": 37,
+      "loadEventEnd": 49,
+      "transferSize": 1743,
+      "vitalsError": null
+    },
+    {
+      "name": "streamers",
+      "route": "/streamers",
+      "fcp": 36,
+      "firstPaint": 36,
+      "lcp": 296,
+      "cls": 0,
+      "inpApprox": 2,
+      "domContentLoaded": 20,
+      "loadEventEnd": 29,
+      "transferSize": 0,
+      "vitalsError": null
+    },
+    {
+      "name": "streamer-detail",
+      "route": "/streamers/1",
+      "fcp": 36,
+      "firstPaint": 36,
+      "lcp": 272,
+      "cls": 0,
+      "inpApprox": 1,
+      "domContentLoaded": 26,
+      "loadEventEnd": 32,
+      "transferSize": 0,
+      "vitalsError": null
+    },
+    {
+      "name": "library",
+      "route": "/videos",
+      "fcp": 36,
+      "firstPaint": 36,
+      "lcp": 264,
+      "cls": 0,
+      "inpApprox": 3,
+      "domContentLoaded": 20,
+      "loadEventEnd": 24,
+      "transferSize": 0,
+      "vitalsError": null
+    },
+    {
+      "name": "stored-player",
+      "route": "/videos/1",
+      "fcp": 28,
+      "firstPaint": 28,
+      "lcp": 772,
+      "cls": 0,
+      "inpApprox": 2,
+      "domContentLoaded": 20,
+      "loadEventEnd": 26,
+      "transferSize": 0,
+      "vitalsError": null
+    },
+    {
+      "name": "live-player",
+      "route": "/live/streamer_alpha",
+      "fcp": 52,
+      "firstPaint": 52,
+      "lcp": 292,
+      "cls": 0.0001,
+      "inpApprox": 1,
+      "domContentLoaded": 23,
+      "loadEventEnd": 29,
+      "transferSize": 0,
+      "vitalsError": null
+    },
+    {
+      "name": "subscriptions",
+      "route": "/subscriptions",
+      "fcp": 44,
+      "firstPaint": 44,
+      "lcp": 384,
+      "cls": 0,
+      "inpApprox": 2,
+      "domContentLoaded": 20,
+      "loadEventEnd": 25,
+      "transferSize": 0,
+      "vitalsError": null
+    },
+    {
+      "name": "settings",
+      "route": "/settings",
+      "fcp": 52,
+      "firstPaint": 52,
+      "lcp": 608,
+      "cls": 0,
+      "inpApprox": 1,
+      "domContentLoaded": 42,
+      "loadEventEnd": 47,
+      "transferSize": 0,
+      "vitalsError": null
+    },
+    {
+      "name": "admin",
+      "route": "/admin",
+      "fcp": 64,
+      "firstPaint": 64,
+      "lcp": 344,
+      "cls": 0,
+      "inpApprox": 1,
+      "domContentLoaded": 51,
+      "loadEventEnd": 61,
+      "transferSize": 0,
+      "vitalsError": null
+    },
+    {
+      "name": "add-streamer",
+      "route": "/add-streamer",
+      "fcp": 32,
+      "firstPaint": 32,
+      "lcp": 352,
+      "cls": 0,
+      "inpApprox": 2,
+      "domContentLoaded": 18,
+      "loadEventEnd": 22,
+      "transferSize": 0,
+      "vitalsError": null
+    }
+  ]
+}

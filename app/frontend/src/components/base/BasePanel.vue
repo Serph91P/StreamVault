@@ -1,16 +1,26 @@
 <script setup lang="ts">
+import { computed, useId, useSlots } from 'vue'
+
 interface Props {
   tag?: string
   tone?: 'plain' | 'glass' | 'strong'
   padded?: boolean
+  padding?: 'sm' | 'md' | 'lg'
   labelledBy?: string
+  describedBy?: string
 }
 
-withDefaults(defineProps<Props>(), {
+const props = withDefaults(defineProps<Props>(), {
   tag: 'section',
   tone: 'glass',
   padded: true,
+  padding: 'md',
 })
+
+const slots = useSlots()
+const generatedTitleId = useId()
+const titleId = computed(() => props.labelledBy || (slots.title ? generatedTitleId : undefined))
+const paddingClass = computed(() => (props.padded ? `base-panel-padding-${props.padding}` : 'base-panel-padding-none'))
 </script>
 
 <template>
@@ -19,14 +29,15 @@ withDefaults(defineProps<Props>(), {
     class="base-panel"
     :class="[
       `base-panel-${tone}`,
-      padded && 'base-panel-padded',
+      paddingClass,
     ]"
-    :aria-labelledby="labelledBy"
+    :aria-labelledby="titleId"
+    :aria-describedby="describedBy"
   >
     <header v-if="$slots.header || $slots.title || $slots.actions" class="base-panel-header">
       <div class="base-panel-heading">
         <slot name="header">
-          <h2 v-if="$slots.title" :id="labelledBy" class="base-panel-title">
+          <h2 v-if="$slots.title" :id="titleId" class="base-panel-title">
             <slot name="title" />
           </h2>
           <p v-if="$slots.description" class="base-panel-description">
@@ -66,13 +77,25 @@ withDefaults(defineProps<Props>(), {
 }
 
 .base-panel-strong {
-  background: var(--glass-bg-medium, var(--background-card));
+  background: var(--glass-bg, var(--background-card));
   border-color: var(--glass-border, var(--border-color));
   box-shadow: var(--glass-shadow-sm, 0 4px 16px rgba(0, 0, 0, 0.18));
 }
 
-.base-panel-padded {
+.base-panel-padding-none {
+  padding: 0;
+}
+
+.base-panel-padding-sm {
+  padding: var(--spacing-4);
+}
+
+.base-panel-padding-md {
   padding: var(--spacing-5);
+}
+
+.base-panel-padding-lg {
+  padding: var(--spacing-6);
 }
 
 .base-panel-header,
@@ -120,7 +143,9 @@ withDefaults(defineProps<Props>(), {
 }
 
 @media (max-width: 767px) {
-  .base-panel-padded {
+  .base-panel-padding-sm,
+  .base-panel-padding-md,
+  .base-panel-padding-lg {
     padding: var(--spacing-4);
   }
 

@@ -48,9 +48,9 @@ summary,
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  
+
   // Smooth theme transition for all color properties
-  transition: 
+  transition:
     background-color 300ms var(--vue-ease-out),
     color 300ms var(--vue-ease-out),
     border-color 300ms var(--vue-ease-out);
@@ -63,7 +63,7 @@ summary,
 
 // Apply smooth transitions to all elements during theme change
 * {
-  transition: 
+  transition:
     background-color 300ms var(--vue-ease-out),
     color 300ms var(--vue-ease-out),
     border-color 300ms var(--vue-ease-out);
@@ -73,7 +73,7 @@ summary,
 html, body {
   overflow-x: hidden;
   width: 100%;
-  height: 100%;
+  min-height: 100%;
   -webkit-overflow-scrolling: touch;
   // Prevent iOS Safari rubber-band horizontal sliding when user swipes
   // diagonally over fixed elements (e.g. bottom-nav).
@@ -117,7 +117,7 @@ body {
   min-width: 0 !important;
 }
 
-// Bessere Fokus-Stile 
+// Bessere Fokus-Stile
 :focus {
   @include m.focus-outline;
 }
@@ -127,7 +127,7 @@ h1, h2, h3, h4, h5, h6 {
   line-height: 1.2;
   font-weight: 600;
   margin-bottom: 0.5em;
-  
+
   &:first-child {
     margin-top: 0;
   }
@@ -153,35 +153,35 @@ textarea {
   padding: v.$spacing-sm v.$spacing-md;
   transition: border-color v.$transition-fast, box-shadow v.$transition-fast;
   width: 100%;
-  
+
   // iOS zoom prevention on mobile (font-size must be >= 16px)
   // See: https://webkit.org/blog/3810/stop-emails-from-zooming-on-mobile-safari/
   @include m.respond-below('md') {  // < 768px (mobile/tablet)
     font-size: 16px !important;  // CRITICAL: Prevents iOS zoom on focus
   }
-  
+
   // Desktop: Use design system font size
   @include m.respond-to('md') {  // >= 768px (desktop)
     font-size: map.get(v.$font-scale, 'base');
   }
-  
+
   // Interaction states
   &:hover {
     border-color: var(--primary-color);
   }
-  
+
   &:focus {
     outline: none;
     border-color: var(--primary-color);
     box-shadow: 0 0 0 3px rgba(var(--primary-color-rgb), 0.1);
   }
-  
+
   &:disabled {
-    opacity: 0.6;
+    opacity: 1;
     cursor: not-allowed;
     background: var(--background-darker);
   }
-  
+
   &::placeholder {
     color: var(--text-secondary);
     opacity: 0.7;
@@ -201,7 +201,7 @@ button:not(.unstyled),
   align-items: center;
   justify-content: center;
   gap: v.$spacing-2;
-  
+
   // Icon sizing inside buttons
   svg, .icon {
     width: 18px;
@@ -213,29 +213,29 @@ button:not(.unstyled),
     stroke-linecap: round;
     stroke-linejoin: round;
   }
-  
+
   // Touch targets on mobile (Apple HIG: 44x44px minimum)
   @include m.respond-below('md') {  // < 768px
     min-height: 44px;
     padding: v.$spacing-sm v.$spacing-md;
   }
-  
+
   // Desktop
   @include m.respond-to('md') {  // >= 768px
     min-height: 36px;
     padding: calc(v.$spacing-sm - 2px) v.$spacing-md;
   }
-  
+
   &:disabled {
-    opacity: 0.5;
+    opacity: 1;
     cursor: not-allowed;
   }
-  
+
   &:not(:disabled):hover {
     transform: translateY(-1px);
     box-shadow: v.$shadow-md;
   }
-  
+
   &:not(:disabled):active {
     transform: translateY(0);
   }
@@ -247,9 +247,9 @@ button:not(.unstyled),
 
 // Primary button (teal)
 .btn-primary {
-  background: var(--primary-color);
+  background: v.$primary-800;
   color: white;
-  border: 1px solid var(--primary-color);
+  border: 1px solid v.$primary-800;
 
   &:not(:disabled):hover {
     background: var(--primary-color-dark);
@@ -260,13 +260,13 @@ button:not(.unstyled),
     outline: 2px solid var(--primary-color);
     outline-offset: 2px;
   }
-  
+
   // Light mode: Ensure readable text
   [data-theme="light"] & {
     color: white;  // Always white text on teal button
-    background: v.$primary-600;  // Slightly darker for better contrast
-    border-color: v.$primary-600;
-    
+    background: v.$primary-800;
+    border-color: v.$primary-800;
+
     &:not(:disabled):hover {
       background: v.$primary-700;
       border-color: v.$primary-700;
@@ -284,13 +284,13 @@ button:not(.unstyled),
     background: var(--background-card);
     border-color: var(--primary-color);
   }
-  
+
   // Light mode: Better contrast
   [data-theme="light"] & {
     background: v.$slate-200;
     color: v.$slate-900;
     border-color: v.$slate-300;
-    
+
     &:not(:disabled):hover {
       background: v.$slate-300;
       border-color: v.$primary-500;
@@ -313,9 +313,9 @@ button:not(.unstyled),
 
 // Danger button (red)
 .btn-danger {
-  background: var(--danger-color);
+  background: v.$danger-700;
   color: white;
-  border: 1px solid var(--danger-color);
+  border: 1px solid v.$danger-700;
 
   &:not(:disabled):hover {
     background: v.$danger-600;
@@ -326,13 +326,13 @@ button:not(.unstyled),
     outline: 2px solid var(--danger-color);
     outline-offset: 2px;
   }
-  
+
   // Light mode: Ensure white text on red
   [data-theme="light"] & {
-    color: white;  // Always white text on red button
-    background: v.$danger-600;
-    border-color: v.$danger-600;
-    
+    color: white;  // Always white text on red
+    background: v.$danger-700;
+    border-color: v.$danger-700;
+
     &:not(:disabled):hover {
       background: v.$danger-700;
       border-color: v.$danger-700;
@@ -350,13 +350,13 @@ button:not(.unstyled),
     background: v.$success-600;
     border-color: v.$success-600;
   }
-  
+
   // Light mode: Ensure white text on green
   [data-theme="light"] & {
     color: white;
     background: v.$success-600;
     border-color: v.$success-600;
-    
+
     &:not(:disabled):hover {
       background: v.$success-700;
       border-color: v.$success-700;
@@ -446,23 +446,23 @@ button:not(.unstyled),
   justify-content: center;
   padding: v.$spacing-sm;
   min-width: 40px;
-  
+
   @include m.respond-below('md') {
     min-width: 44px;  // Touch target
     min-height: 44px;
   }
-  
+
   // SVG icon styling inside buttons - handles both fill and stroke icons
   svg {
     width: 20px;
     height: 20px;
     flex-shrink: 0;
-    
+
     // For fill-based icons
     &.icon-fill {
       fill: currentColor;
     }
-    
+
     // For stroke-based icons (Lucide/Feather style)
     &.icon-stroke,
     &:not(.icon-fill) {
@@ -480,7 +480,7 @@ button:not(.unstyled),
   padding: v.$spacing-xs v.$spacing-sm;
   font-size: v.$text-sm;
   min-height: 32px;
-  
+
   @include m.respond-below('md') {
     min-height: 40px;  // Still touch-friendly
   }
@@ -490,7 +490,7 @@ button:not(.unstyled),
   padding: v.$spacing-md v.$spacing-lg;
   font-size: v.$text-lg;
   min-height: 48px;
-  
+
   @include m.respond-below('md') {
     min-height: 52px;
   }
@@ -502,14 +502,14 @@ button:not(.unstyled),
   align-items: center;
   justify-content: center;
   gap: v.$spacing-2;  // 8px between icon and text
-  
+
   // SVG icons inside buttons
   svg {
     width: 20px;
     height: 20px;
     flex-shrink: 0;
   }
-  
+
   // Stroke-based icons (Lucide/Feather style)
   .icon-stroke {
     fill: none;
@@ -518,7 +518,7 @@ button:not(.unstyled),
     stroke-linecap: round;
     stroke-linejoin: round;
   }
-  
+
   // Fill-based icons
   .icon-fill {
     fill: currentColor;
@@ -528,12 +528,12 @@ button:not(.unstyled),
 // Full-width button (for mobile forms)
 .btn-block {
   width: 100%;
-  
+
   // When combined with btn-with-icon, use flex instead of block
   &.btn-with-icon {
     display: flex;
   }
-  
+
   &:not(.btn-with-icon) {
     display: block;
   }
@@ -544,7 +544,7 @@ a {
   color: var(--primary-color);  /* Use CSS variable for theme switching */
   text-decoration: none;
   transition: color v.$transition-fast;
-  
+
   &:hover {
     color: var(--primary-600);  /* Use CSS variable for theme switching */
   }
@@ -573,20 +573,20 @@ img {
   width: 100%;
   padding-inline: v.$spacing-sm;
   margin-inline: auto;
-  
+
   @include m.respond-to('sm') {
     padding-inline: v.$spacing-md;
   }
-  
+
   @include m.respond-to('md') {
     max-width: map.get(v.$container-sizes, 'md');
     padding-inline: v.$spacing-lg;
   }
-  
+
   @include m.respond-to('lg') {
     max-width: map.get(v.$container-sizes, 'lg');
   }
-  
+
   @include m.respond-to('xl') {
     max-width: map.get(v.$container-sizes, 'xl');
   }
@@ -605,7 +605,7 @@ img {
 ::-webkit-scrollbar-thumb {
   background: var(--border-color);  /* Use CSS variable for theme switching */
   border-radius: 4px;
-  
+
   &:hover {
     background: var(--border-color);  /* Use CSS variable */
     opacity: 0.8;
@@ -635,7 +635,7 @@ img {
     padding-left: max(0.25rem, env(safe-area-inset-left));
     padding-right: max(0.25rem, env(safe-area-inset-right));
   }
-  
+
   .mobile-nav-bottom {
     padding-bottom: max(v.$spacing-xs, env(safe-area-inset-bottom));
   }

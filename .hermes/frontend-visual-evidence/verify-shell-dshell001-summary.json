@@ -1,0 +1,732 @@
+{
+  "screenshots": {
+    "desktop_expanded": "/opt/data/workspace/github_repos/StreamVault-frontend-product-overhaul-final/.hermes/frontend-visual-evidence/desktop-shell-expanded-1440x900.png",
+    "desktop_collapsed": "/opt/data/workspace/github_repos/StreamVault-frontend-product-overhaul-final/.hermes/frontend-visual-evidence/desktop-shell-collapsed-1440x900.png",
+    "desktop_queue": "/opt/data/workspace/github_repos/StreamVault-frontend-product-overhaul-final/.hermes/frontend-visual-evidence/desktop-background-queue-panel-1440x900.png",
+    "desktop_notifications": "/opt/data/workspace/github_repos/StreamVault-frontend-product-overhaul-final/.hermes/frontend-visual-evidence/desktop-notification-panel-1440x900.png",
+    "mobile_shell": "/opt/data/workspace/github_repos/StreamVault-frontend-product-overhaul-final/.hermes/frontend-visual-evidence/mobile-shell-390x844.png",
+    "mobile_notifications": "/opt/data/workspace/github_repos/StreamVault-frontend-product-overhaul-final/.hermes/frontend-visual-evidence/mobile-notification-panel-390x844.png",
+    "mobile_queue": "/opt/data/workspace/github_repos/StreamVault-frontend-product-overhaul-final/.hermes/frontend-visual-evidence/mobile-background-queue-panel-390x844.png"
+  },
+  "desktop": {
+    "initial_targets": [
+      {
+        "label": "Open background queue, 2 active jobs",
+        "width": 108,
+        "height": 44,
+        "x": 1019,
+        "y": 6,
+        "tag": "button",
+        "classes": "queue-status-indicator"
+      },
+      {
+        "label": "Open notifications",
+        "width": 138,
+        "height": 44,
+        "x": 1129,
+        "y": 6,
+        "tag": "button",
+        "classes": "glass-btn-icon header-utility-btn"
+      },
+      {
+        "label": "Switch to dark mode",
+        "width": 44,
+        "height": 44,
+        "x": 1281,
+        "y": 6,
+        "tag": "button",
+        "classes": "icon-btn"
+      },
+      {
+        "label": "Logout",
+        "width": 90,
+        "height": 44,
+        "x": 1327,
+        "y": 6,
+        "tag": "button",
+        "classes": "glass-btn-danger header-logout-btn"
+      },
+      {
+        "label": "Dashboard",
+        "width": 215,
+        "height": 52,
+        "x": 8,
+        "y": 310,
+        "tag": "a",
+        "classes": "active router-link-exact-active sidebar-nav-item active"
+      },
+      {
+        "label": "Streamers",
+        "width": 215,
+        "height": 52,
+        "x": 8,
+        "y": 366,
+        "tag": "a",
+        "classes": "sidebar-nav-item"
+      },
+      {
+        "label": "Library",
+        "width": 215,
+        "height": 52,
+        "x": 8,
+        "y": 422,
+        "tag": "a",
+        "classes": "sidebar-nav-item"
+      },
+      {
+        "label": "Subscriptions",
+        "width": 215,
+        "height": 52,
+        "x": 8,
+        "y": 477,
+        "tag": "a",
+        "classes": "sidebar-nav-item"
+      },
+      {
+        "label": "Settings",
+        "width": 215,
+        "height": 52,
+        "x": 8,
+        "y": 533,
+        "tag": "a",
+        "classes": "sidebar-nav-item"
+      },
+      {
+        "label": "Collapse sidebar",
+        "width": 215,
+        "height": 44,
+        "x": 8,
+        "y": 848,
+        "tag": "button",
+        "classes": "sidebar-toggle"
+      }
+    ],
+    "nav_labels": [
+      "Dashboard",
+      "Streamers",
+      "Library",
+      "Subscriptions",
+      "Settings"
+    ],
+    "collapsed_targets": [
+      {
+        "label": "Open background queue, 2 active jobs",
+        "width": 108,
+        "height": 44,
+        "x": 1019,
+        "y": 6,
+        "tag": "button",
+        "classes": "queue-status-indicator"
+      },
+      {
+        "label": "Open notifications",
+        "width": 138,
+        "height": 44,
+        "x": 1129,
+        "y": 6,
+        "tag": "button",
+        "classes": "glass-btn-icon header-utility-btn"
+      },
+      {
+        "label": "Switch to dark mode",
+        "width": 44,
+        "height": 44,
+        "x": 1281,
+        "y": 6,
+        "tag": "button",
+        "classes": "icon-btn"
+      },
+      {
+        "label": "Logout",
+        "width": 90,
+        "height": 44,
+        "x": 1327,
+        "y": 6,
+        "tag": "button",
+        "classes": "glass-btn-danger header-logout-btn"
+      },
+      {
+        "label": "Dashboard",
+        "width": 63,
+        "height": 44,
+        "x": 4,
+        "y": 330,
+        "tag": "a",
+        "classes": "sidebar-nav-item"
+      },
+      {
+        "label": "Streamers",
+        "width": 63,
+        "height": 44,
+        "x": 4,
+        "y": 378,
+        "tag": "a",
+        "classes": "sidebar-nav-item"
+      },
+      {
+        "label": "Library",
+        "width": 63,
+        "height": 44,
+        "x": 4,
+        "y": 426,
+        "tag": "a",
+        "classes": "sidebar-nav-item"
+      },
+      {
+        "label": "Subscriptions",
+        "width": 63,
+        "height": 44,
+        "x": 4,
+        "y": 474,
+        "tag": "a",
+        "classes": "sidebar-nav-item"
+      },
+      {
+        "label": "Settings",
+        "width": 63,
+        "height": 44,
+        "x": 4,
+        "y": 522,
+        "tag": "a",
+        "classes": "active router-link-exact-active sidebar-nav-item active"
+      },
+      {
+        "label": "Expand sidebar",
+        "width": 55,
+        "height": 44,
+        "x": 8,
+        "y": 848,
+        "tag": "button",
+        "classes": "sidebar-toggle"
+      }
+    ],
+    "queue_targets": [
+      {
+        "label": "Open background queue, 2 active jobs",
+        "width": 108,
+        "height": 44,
+        "x": 1019,
+        "y": 6,
+        "tag": "button",
+        "classes": "queue-status-indicator"
+      },
+      {
+        "label": "Open notifications",
+        "width": 138,
+        "height": 44,
+        "x": 1129,
+        "y": 6,
+        "tag": "button",
+        "classes": "glass-btn-icon header-utility-btn"
+      },
+      {
+        "label": "Switch to dark mode",
+        "width": 44,
+        "height": 44,
+        "x": 1281,
+        "y": 6,
+        "tag": "button",
+        "classes": "icon-btn"
+      },
+      {
+        "label": "Logout",
+        "width": 90,
+        "height": 44,
+        "x": 1327,
+        "y": 6,
+        "tag": "button",
+        "classes": "glass-btn-danger header-logout-btn"
+      },
+      {
+        "label": "Close background queue",
+        "width": 50,
+        "height": 44,
+        "x": 1349,
+        "y": 93,
+        "tag": "button",
+        "classes": "glass-btn-icon"
+      }
+    ],
+    "notification_targets": [
+      {
+        "label": "Open background queue, 2 active jobs",
+        "width": 108,
+        "height": 44,
+        "x": 1019,
+        "y": 6,
+        "tag": "button",
+        "classes": "queue-status-indicator"
+      },
+      {
+        "label": "Open notifications",
+        "width": 138,
+        "height": 44,
+        "x": 1129,
+        "y": 6,
+        "tag": "button",
+        "classes": "glass-btn-icon header-utility-btn"
+      },
+      {
+        "label": "Switch to dark mode",
+        "width": 44,
+        "height": 44,
+        "x": 1281,
+        "y": 6,
+        "tag": "button",
+        "classes": "icon-btn"
+      },
+      {
+        "label": "Logout",
+        "width": 90,
+        "height": 44,
+        "x": 1327,
+        "y": 6,
+        "tag": "button",
+        "classes": "glass-btn-danger header-logout-btn"
+      },
+      {
+        "label": "Close notifications",
+        "width": 50,
+        "height": 44,
+        "x": 1349,
+        "y": 99,
+        "tag": "button",
+        "classes": "glass-btn-icon"
+      }
+    ],
+    "min_touch_target_px": 44,
+    "touch_target_offenders": []
+  },
+  "mobile": {
+    "initial_targets": [
+      {
+        "label": "Open background queue, 2 active jobs",
+        "width": 44,
+        "height": 44,
+        "x": 194,
+        "y": 6,
+        "tag": "button",
+        "classes": "queue-status-indicator"
+      },
+      {
+        "label": "Open notifications",
+        "width": 44,
+        "height": 44,
+        "x": 240,
+        "y": 6,
+        "tag": "button",
+        "classes": "glass-btn-icon header-utility-btn"
+      },
+      {
+        "label": "Switch to dark mode",
+        "width": 44,
+        "height": 44,
+        "x": 290,
+        "y": 6,
+        "tag": "button",
+        "classes": "icon-btn"
+      },
+      {
+        "label": "Logout",
+        "width": 44,
+        "height": 44,
+        "x": 336,
+        "y": 6,
+        "tag": "button",
+        "classes": "glass-btn-danger header-logout-btn"
+      },
+      {
+        "label": "Dashboard",
+        "width": 68,
+        "height": 52,
+        "x": 8,
+        "y": 785,
+        "tag": "button",
+        "classes": "active nav-tab focus-ring-primary"
+      },
+      {
+        "label": "Streamers",
+        "width": 68,
+        "height": 52,
+        "x": 84,
+        "y": 785,
+        "tag": "button",
+        "classes": "nav-tab focus-ring-primary"
+      },
+      {
+        "label": "Library",
+        "width": 68,
+        "height": 52,
+        "x": 161,
+        "y": 785,
+        "tag": "button",
+        "classes": "nav-tab focus-ring-primary"
+      },
+      {
+        "label": "Subscriptions",
+        "width": 68,
+        "height": 52,
+        "x": 237,
+        "y": 785,
+        "tag": "button",
+        "classes": "nav-tab focus-ring-primary"
+      },
+      {
+        "label": "Settings",
+        "width": 68,
+        "height": 52,
+        "x": 314,
+        "y": 785,
+        "tag": "button",
+        "classes": "nav-tab focus-ring-primary"
+      }
+    ],
+    "nav_labels": [
+      "Dashboard",
+      "Streamers",
+      "Library",
+      "Subscriptions",
+      "Settings"
+    ],
+    "notification_targets": [
+      {
+        "label": "Open background queue, 2 active jobs",
+        "width": 44,
+        "height": 44,
+        "x": 194,
+        "y": 6,
+        "tag": "button",
+        "classes": "queue-status-indicator"
+      },
+      {
+        "label": "Open notifications",
+        "width": 44,
+        "height": 44,
+        "x": 240,
+        "y": 6,
+        "tag": "button",
+        "classes": "glass-btn-icon header-utility-btn"
+      },
+      {
+        "label": "Switch to dark mode",
+        "width": 44,
+        "height": 44,
+        "x": 290,
+        "y": 6,
+        "tag": "button",
+        "classes": "icon-btn"
+      },
+      {
+        "label": "Logout",
+        "width": 44,
+        "height": 44,
+        "x": 336,
+        "y": 6,
+        "tag": "button",
+        "classes": "glass-btn-danger header-logout-btn"
+      },
+      {
+        "label": "Dashboard",
+        "width": 68,
+        "height": 52,
+        "x": 8,
+        "y": 785,
+        "tag": "button",
+        "classes": "nav-tab focus-ring-primary"
+      },
+      {
+        "label": "Streamers",
+        "width": 68,
+        "height": 52,
+        "x": 84,
+        "y": 785,
+        "tag": "button",
+        "classes": "nav-tab focus-ring-primary"
+      },
+      {
+        "label": "Library",
+        "width": 68,
+        "height": 52,
+        "x": 161,
+        "y": 785,
+        "tag": "button",
+        "classes": "nav-tab focus-ring-primary"
+      },
+      {
+        "label": "Subscriptions",
+        "width": 68,
+        "height": 52,
+        "x": 237,
+        "y": 785,
+        "tag": "button",
+        "classes": "nav-tab focus-ring-primary"
+      },
+      {
+        "label": "Settings",
+        "width": 68,
+        "height": 52,
+        "x": 314,
+        "y": 784,
+        "tag": "button",
+        "classes": "active nav-tab focus-ring-primary"
+      },
+      {
+        "label": "Close notifications",
+        "width": 50,
+        "height": 44,
+        "x": 315,
+        "y": 27,
+        "tag": "button",
+        "classes": "glass-btn-icon"
+      }
+    ],
+    "queue_targets": [
+      {
+        "label": "Open background queue, 2 active jobs",
+        "width": 44,
+        "height": 44,
+        "x": 194,
+        "y": 6,
+        "tag": "button",
+        "classes": "queue-status-indicator"
+      },
+      {
+        "label": "Open notifications",
+        "width": 44,
+        "height": 44,
+        "x": 240,
+        "y": 6,
+        "tag": "button",
+        "classes": "glass-btn-icon header-utility-btn"
+      },
+      {
+        "label": "Switch to dark mode",
+        "width": 44,
+        "height": 44,
+        "x": 290,
+        "y": 6,
+        "tag": "button",
+        "classes": "icon-btn"
+      },
+      {
+        "label": "Logout",
+        "width": 44,
+        "height": 44,
+        "x": 336,
+        "y": 6,
+        "tag": "button",
+        "classes": "glass-btn-danger header-logout-btn"
+      },
+      {
+        "label": "Dashboard",
+        "width": 68,
+        "height": 52,
+        "x": 8,
+        "y": 785,
+        "tag": "button",
+        "classes": "nav-tab focus-ring-primary"
+      },
+      {
+        "label": "Streamers",
+        "width": 68,
+        "height": 52,
+        "x": 84,
+        "y": 785,
+        "tag": "button",
+        "classes": "nav-tab focus-ring-primary"
+      },
+      {
+        "label": "Library",
+        "width": 68,
+        "height": 52,
+        "x": 161,
+        "y": 785,
+        "tag": "button",
+        "classes": "nav-tab focus-ring-primary"
+      },
+      {
+        "label": "Subscriptions",
+        "width": 68,
+        "height": 52,
+        "x": 237,
+        "y": 785,
+        "tag": "button",
+        "classes": "nav-tab focus-ring-primary"
+      },
+      {
+        "label": "Settings",
+        "width": 68,
+        "height": 52,
+        "x": 314,
+        "y": 785,
+        "tag": "button",
+        "classes": "active nav-tab focus-ring-primary"
+      },
+      {
+        "label": "Close background queue",
+        "width": 50,
+        "height": 44,
+        "x": 315,
+        "y": 21,
+        "tag": "button",
+        "classes": "glass-btn-icon"
+      }
+    ],
+    "min_touch_target_px": 44,
+    "touch_target_offenders": []
+  },
+  "console": {
+    "desktop_errors": [
+      {
+        "type": "error",
+        "text": "X-Frame-Options may only be set via an HTTP header sent along with a document. It may not be set inside <meta>."
+      },
+      {
+        "type": "error",
+        "text": "Failed to load subscriptions: SyntaxError: Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON"
+      },
+      {
+        "type": "error",
+        "text": "Failed to fetch settings: SyntaxError: Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON"
+      },
+      {
+        "type": "error",
+        "text": "Failed to fetch streamer settings: SyntaxError: Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON"
+      },
+      {
+        "type": "error",
+        "text": "Error fetching streamer recording settings: SyntaxError: Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON"
+      },
+      {
+        "type": "error",
+        "text": "Error fetching active recordings: SyntaxError: Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON"
+      },
+      {
+        "type": "error",
+        "text": "Failed to fetch connection status: SyntaxError: Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON"
+      },
+      {
+        "type": "error",
+        "text": "Failed to fetch callback URL: SyntaxError: Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON"
+      },
+      {
+        "type": "error",
+        "text": "X-Frame-Options may only be set via an HTTP header sent along with a document. It may not be set inside <meta>."
+      },
+      {
+        "type": "error",
+        "text": "Failed to fetch settings: SyntaxError: Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON"
+      },
+      {
+        "type": "error",
+        "text": "Failed to fetch streamer settings: SyntaxError: Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON"
+      },
+      {
+        "type": "error",
+        "text": "Error fetching streamer recording settings: SyntaxError: Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON"
+      },
+      {
+        "type": "error",
+        "text": "Error fetching active recordings: SyntaxError: Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON"
+      },
+      {
+        "type": "error",
+        "text": "Failed to fetch connection status: SyntaxError: Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON"
+      },
+      {
+        "type": "error",
+        "text": "Failed to fetch callback URL: SyntaxError: Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON"
+      }
+    ],
+    "mobile_errors": [
+      {
+        "type": "error",
+        "text": "X-Frame-Options may only be set via an HTTP header sent along with a document. It may not be set inside <meta>."
+      },
+      {
+        "type": "error",
+        "text": "Failed to load subscriptions: SyntaxError: Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON"
+      },
+      {
+        "type": "error",
+        "text": "Failed to fetch settings: SyntaxError: Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON"
+      },
+      {
+        "type": "error",
+        "text": "Failed to fetch streamer settings: SyntaxError: Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON"
+      },
+      {
+        "type": "error",
+        "text": "Error fetching streamer recording settings: SyntaxError: Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON"
+      },
+      {
+        "type": "error",
+        "text": "Error fetching active recordings: SyntaxError: Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON"
+      },
+      {
+        "type": "error",
+        "text": "Failed to fetch connection status: SyntaxError: Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON"
+      },
+      {
+        "type": "error",
+        "text": "Failed to fetch callback URL: SyntaxError: Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON"
+      }
+    ]
+  },
+  "routes": {
+    "desktop_sidebar": [
+      {
+        "label": "Dashboard",
+        "url": "http://127.0.0.1:4173/",
+        "status": "ok"
+      },
+      {
+        "label": "Streamers",
+        "url": "http://127.0.0.1:4173/streamers",
+        "status": "ok"
+      },
+      {
+        "label": "Library",
+        "url": "http://127.0.0.1:4173/videos",
+        "status": "ok"
+      },
+      {
+        "label": "Subscriptions",
+        "url": "http://127.0.0.1:4173/subscriptions",
+        "status": "ok"
+      },
+      {
+        "label": "Settings",
+        "url": "http://127.0.0.1:4173/settings",
+        "status": "ok"
+      }
+    ],
+    "mobile_bottom_nav": [
+      {
+        "label": "Dashboard",
+        "url": "http://127.0.0.1:4173/",
+        "status": "ok"
+      },
+      {
+        "label": "Streamers",
+        "url": "http://127.0.0.1:4173/streamers",
+        "status": "ok"
+      },
+      {
+        "label": "Library",
+        "url": "http://127.0.0.1:4173/videos",
+        "status": "ok"
+      },
+      {
+        "label": "Subscriptions",
+        "url": "http://127.0.0.1:4173/subscriptions",
+        "status": "ok"
+      },
+      {
+        "label": "Settings",
+        "url": "http://127.0.0.1:4173/settings",
+        "status": "ok"
+      }
+    ]
+  }
+}

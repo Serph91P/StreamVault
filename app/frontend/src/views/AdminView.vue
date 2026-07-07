@@ -52,7 +52,7 @@ const diagStatusLabel = 'Admin tools'
 }
 
 .status-idle {
-  color: var(--text-secondary);
+  color: var(--text-primary);
   border-color: var(--border-color);
 }
 

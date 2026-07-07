@@ -1,0 +1,222 @@
+[
+  {
+    "viewportName": "mobile-390",
+    "url": "http://127.0.0.1:4173/",
+    "viewportWidth": 390,
+    "documentWidth": 390,
+    "noHorizontalOverflow": true,
+    "briefVisible": true,
+    "summaryVisible": true,
+    "livePanelPresent": true,
+    "recordingPanelPresent": true,
+    "queuePanelPresent": true,
+    "failuresPanelPresent": true,
+    "activityPanelPresent": true,
+    "briefLabels": [
+      "Live",
+      "Recording",
+      "Queue",
+      "Errors",
+      "Recent activity"
+    ],
+    "headline": "2 streamers live now",
+    "heroRect": {
+      "x": 8,
+      "y": 72,
+      "width": 374,
+      "height": 337,
+      "top": 72,
+      "right": 382,
+      "bottom": 409,
+      "left": 8
+    },
+    "briefRect": {
+      "x": 8,
+      "y": 425,
+      "width": 374,
+      "height": 687,
+      "top": 425,
+      "right": 382,
+      "bottom": 1112,
+      "left": 8
+    },
+    "summaryRect": {
+      "x": 8,
+      "y": 1128,
+      "width": 374,
+      "height": 669,
+      "top": 1128,
+      "right": 382,
+      "bottom": 1797,
+      "left": 8
+    },
+    "targetCount": 6,
+    "undersizedTargets": [],
+    "firstViewportHasCoreTerms": true
+  },
+  {
+    "viewportName": "tablet-768",
+    "url": "http://127.0.0.1:4173/",
+    "viewportWidth": 768,
+    "documentWidth": 768,
+    "noHorizontalOverflow": true,
+    "briefVisible": true,
+    "summaryVisible": true,
+    "livePanelPresent": true,
+    "recordingPanelPresent": true,
+    "queuePanelPresent": true,
+    "failuresPanelPresent": true,
+    "activityPanelPresent": true,
+    "briefLabels": [
+      "Live",
+      "Recording",
+      "Queue",
+      "Errors",
+      "Recent activity"
+    ],
+    "headline": "2 streamers live now",
+    "heroRect": {
+      "x": 8,
+      "y": 80,
+      "width": 752,
+      "height": 238,
+      "top": 80,
+      "right": 760,
+      "bottom": 318,
+      "left": 8
+    },
+    "briefRect": {
+      "x": 8,
+      "y": 342,
+      "width": 752,
+      "height": 504,
+      "top": 342,
+      "right": 760,
+      "bottom": 846,
+      "left": 8
+    },
+    "summaryRect": {
+      "x": 8,
+      "y": 870,
+      "width": 752,
+      "height": 292,
+      "top": 870,
+      "right": 760,
+      "bottom": 1162,
+      "left": 8
+    },
+    "targetCount": 6,
+    "undersizedTargets": [],
+    "firstViewportHasCoreTerms": true
+  },
+  {
+    "viewportName": "desktop-1024",
+    "url": "http://127.0.0.1:4173/",
+    "viewportWidth": 1024,
+    "documentWidth": 1024,
+    "noHorizontalOverflow": true,
+    "briefVisible": true,
+    "summaryVisible": true,
+    "livePanelPresent": true,
+    "recordingPanelPresent": true,
+    "queuePanelPresent": true,
+    "failuresPanelPresent": true,
+    "activityPanelPresent": true,
+    "briefLabels": [
+      "Live",
+      "Recording",
+      "Queue",
+      "Errors",
+      "Recent activity"
+    ],
+    "headline": "2 streamers live now",
+    "heroRect": {
+      "x": 252,
+      "y": 80,
+      "width": 764,
+      "height": 251,
+      "top": 80,
+      "right": 1016,
+      "bottom": 331,
+      "left": 252
+    },
+    "briefRect": {
+      "x": 252,
+      "y": 355,
+      "width": 764,
+      "height": 512,
+      "top": 355,
+      "right": 1016,
+      "bottom": 867,
+      "left": 252
+    },
+    "summaryRect": {
+      "x": 252,
+      "y": 891,
+      "width": 764,
+      "height": 292,
+      "top": 891,
+      "right": 1016,
+      "bottom": 1184,
+      "left": 252
+    },
+    "targetCount": 6,
+    "undersizedTargets": [],
+    "firstViewportHasCoreTerms": true
+  },
+  {
+    "viewportName": "desktop-1440",
+    "url": "http://127.0.0.1:4173/",
+    "viewportWidth": 1440,
+    "documentWidth": 1440,
+    "noHorizontalOverflow": true,
+    "briefVisible": true,
+    "summaryVisible": true,
+    "livePanelPresent": true,
+    "recordingPanelPresent": true,
+    "queuePanelPresent": true,
+    "failuresPanelPresent": true,
+    "activityPanelPresent": true,
+    "briefLabels": [
+      "Live",
+      "Recording",
+      "Queue",
+      "Errors",
+      "Recent activity"
+    ],
+    "headline": "2 streamers live now",
+    "heroRect": {
+      "x": 252,
+      "y": 80,
+      "width": 1180,
+      "height": 235,
+      "top": 80,
+      "right": 1432,
+      "bottom": 315,
+      "left": 252
+    },
+    "briefRect": {
+      "x": 252,
+      "y": 339,
+      "width": 1180,
+      "height": 334,
+      "top": 339,
+      "right": 1432,
+      "bottom": 673,
+      "left": 252
+    },
+    "summaryRect": {
+      "x": 252,
+      "y": 697,
+      "width": 1180,
+      "height": 172,
+      "top": 697,
+      "right": 1432,
+      "bottom": 868,
+      "left": 252
+    },
+    "targetCount": 6,
+    "undersizedTargets": [],
+    "firstViewportHasCoreTerms": true
+  }
+]

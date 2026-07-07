@@ -4,8 +4,8 @@
     <GlassCard variant="medium" :padding="true" class="admin-section">
       <div class="section-header">
         <h2>System Health</h2>
-        <button 
-          @click="runQuickHealthCheck" 
+        <button
+          @click="runQuickHealthCheck"
           :disabled="healthCheckLoading"
           class="btn btn-primary"
         >
@@ -20,7 +20,7 @@
           <span class="status-text">{{ healthStatus.overall_status.toUpperCase() }}</span>
           <span class="timestamp">{{ formatTime(healthStatus.timestamp) }}</span>
         </div>
-        
+
         <div class="health-legend">
           <div class="legend-item">
             <SvgIcon name="check-circle" class="text-green" /> Healthy
@@ -32,10 +32,10 @@
             <SvgIcon name="x-circle" class="text-red" /> Error
           </div>
         </div>
-        
+
         <div class="health-checks">
-          <div 
-            v-for="(check, name) in healthStatus.checks" 
+          <div
+            v-for="(check, name) in healthStatus.checks"
             :key="name"
             class="health-check status-border"
             :class="[check.status, getHealthBorderClass(check.status)]"
@@ -276,21 +276,21 @@
 
         <div class="detailed-results">
           <div class="results-filters">
-            <button 
+            <button
               @click="resultFilter = 'all'"
               :class="{active: resultFilter === 'all'}"
               class="filter-btn"
             >
               All ({{ testResults.results.length }})
             </button>
-            <button 
+            <button
               @click="resultFilter = 'failed'"
               :class="{active: resultFilter === 'failed'}"
               class="filter-btn"
             >
               Failed ({{ testResults.results.filter((r: any) => !r.success).length }})
             </button>
-            <button 
+            <button
               @click="resultFilter = 'passed'"
               :class="{active: resultFilter === 'passed'}"
               class="filter-btn"
@@ -300,8 +300,8 @@
           </div>
 
           <div class="test-results-list">
-            <div 
-              v-for="result in filteredResults" 
+            <div
+              v-for="result in filteredResults"
               :key="result.test_name"
               class="test-result-item status-border"
               :class="[
@@ -359,7 +359,7 @@
           <SvgIcon name="trash" />
           {{ cleanupLoading ? 'Cleaning...' : 'Cleanup Temp Files' }}
         </button>
-        
+
         <button @click="viewLogs" class="btn btn-info">
           <SvgIcon name="file-text" />
           View Recent Logs
@@ -398,27 +398,27 @@
           <SvgIcon name="database" />
           {{ videosDebugLoading ? 'Loading...' : 'Check Videos Database' }}
         </button>
-        
+
         <button @click="loadRecordingsDirectory" :disabled="recordingsDirectoryLoading" class="btn btn-secondary">
           <SvgIcon name="folder" />
           {{ recordingsDirectoryLoading ? 'Loading...' : 'Scan Recordings Directory' }}
         </button>
-        
+
         <button @click="fixRecordingAvailability" :disabled="fixingRecordings" class="btn btn-warning">
           <SvgIcon name="wrench" />
           {{ fixingRecordings ? 'Fixing...' : 'Fix Recording Paths' }}
         </button>
-        
+
         <button @click="cleanupOrphanedRecordings" :disabled="cleaningOrphaned" class="btn btn-danger">
           <SvgIcon name="trash" />
           {{ cleaningOrphaned ? 'Cleaning...' : 'Cleanup Orphaned DB' }}
         </button>
-        
+
         <button @click="cleanupProcessOrphanedRecordings" :disabled="cleaningProcessOrphaned" class="btn btn-danger">
           <SvgIcon name="trash" />
           {{ cleaningProcessOrphaned ? 'Cleaning...' : 'Cleanup Process Orphaned' }}
         </button>
-        
+
         <button @click="cleanupZombieRecordings" :disabled="cleaningZombies" class="btn btn-warning">
           <SvgIcon name="alert-circle" />
           {{ cleaningZombies ? 'Cleaning...' : 'Cleanup Zombie Recordings' }}
@@ -428,7 +428,7 @@
     </details>
 
     <!-- Logs Modal -->
-    <BaseModal v-model="showLogsModal" size="xl">
+    <BaseModal v-model="showLogsModal" title="Recent Logs" size="xl">
       <template #header>
         <h3>Recent Logs</h3>
         <div class="log-controls">
@@ -704,7 +704,7 @@ const showRecordingsDirectoryModal = ref(false)
 // Computed
 const filteredResults = computed(() => {
   if (!testResults.value) return []
-  
+
   const results = testResults.value.results
   switch (resultFilter.value) {
     case 'passed':
@@ -824,11 +824,11 @@ const loadVideosDebug = async () => {
     const response = await fetch('/api/admin/debug/videos-database', {
       credentials: 'include'
     })
-    
+
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`)
     }
-    
+
     const result = await response.json()
     videosDebugData.value = result.data
     showVideosDebugModal.value = true
@@ -846,11 +846,11 @@ const loadRecordingsDirectory = async () => {
     const response = await fetch('/api/admin/debug/recordings-directory', {
       credentials: 'include'
     })
-    
+
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`)
     }
-    
+
     const result = await response.json()
     recordingsDirectoryData.value = result.data
     showRecordingsDirectoryModal.value = true
@@ -867,7 +867,7 @@ const fixRecordingAvailability = async () => {
   if (!confirm('This will scan all streams and fix recording_path fields based on actual files. Continue?')) {
     return
   }
-  
+
   fixingRecordings.value = true
   try {
     // First do a dry run
@@ -875,34 +875,34 @@ const fixRecordingAvailability = async () => {
       method: 'POST',
       credentials: 'include'
     })
-    
+
     if (!dryRunResponse.ok) {
       throw new Error(`HTTP ${dryRunResponse.status}: ${dryRunResponse.statusText}`)
     }
-    
+
     const dryRunResult = await dryRunResponse.json()
     const message = `Dry run completed:\n- Checked: ${dryRunResult.data.checked} streams\n- Would fix: ${dryRunResult.data.fixed} streams\n- Errors: ${dryRunResult.data.errors}\n\nProceed with actual fix?`
-    
+
     if (!confirm(message)) {
       return
     }
-    
+
     // Do the actual fix
     const fixResponse = await fetch('/api/admin/recordings/fix-availability?dry_run=false', {
       method: 'POST',
       credentials: 'include'
     })
-    
+
     if (!fixResponse.ok) {
       throw new Error(`HTTP ${fixResponse.status}: ${fixResponse.statusText}`)
     }
-    
+
     const fixResult = await fixResponse.json()
     alert(`Recording paths fixed!\n- Checked: ${fixResult.data.checked} streams\n- Fixed: ${fixResult.data.fixed} streams\n- Errors: ${fixResult.data.errors}`)
-    
+
     // Refresh the videos debug data
     await loadVideosDebug()
-    
+
   } catch (error) {
     console.error('Failed to fix recording availability:', error)
     alert('Failed to fix recording availability: ' + String(error))
@@ -915,7 +915,7 @@ const cleanupOrphanedRecordings = async () => {
   if (!confirm('This will cleanup database recordings that have been "recording" for more than 48 hours. Continue?')) {
     return
   }
-  
+
   cleaningOrphaned.value = true
   try {
     // First do a dry run
@@ -923,31 +923,31 @@ const cleanupOrphanedRecordings = async () => {
       method: 'POST',
       credentials: 'include'
     })
-    
+
     if (!dryRunResponse.ok) {
       throw new Error(`HTTP ${dryRunResponse.status}: ${dryRunResponse.statusText}`)
     }
-    
+
     const dryRunResult = await dryRunResponse.json()
     const message = `Dry run completed:\n- Found orphaned recordings: ${dryRunResult.data.checked}\n- Would cleanup: ${dryRunResult.data.cleaned}\n\nProceed with cleanup?`
-    
+
     if (!confirm(message)) {
       return
     }
-    
+
     // Do the actual cleanup
     const cleanupResponse = await fetch('/api/admin/recordings/cleanup-orphaned-db?dry_run=false&max_age_hours=48', {
       method: 'POST',
       credentials: 'include'
     })
-    
+
     if (!cleanupResponse.ok) {
       throw new Error(`HTTP ${cleanupResponse.status}: ${cleanupResponse.statusText}`)
     }
-    
+
     const cleanupResult = await cleanupResponse.json()
     alert(`Orphaned recordings cleaned up!\n- Checked: ${cleanupResult.data.checked} recordings\n- Cleaned: ${cleanupResult.data.cleaned} recordings`)
-    
+
   } catch (error) {
     console.error('Failed to cleanup orphaned recordings:', error)
     alert('Failed to cleanup orphaned recordings: ' + String(error))
@@ -960,7 +960,7 @@ const cleanupProcessOrphanedRecordings = async () => {
   if (!confirm('This will cleanup database recordings marked as "recording" but without active processes. Continue?')) {
     return
   }
-  
+
   cleaningProcessOrphaned.value = true
   try {
     // First do a dry run
@@ -968,31 +968,31 @@ const cleanupProcessOrphanedRecordings = async () => {
       method: 'POST',
       credentials: 'include'
     })
-    
+
     if (!dryRunResponse.ok) {
       throw new Error(`HTTP ${dryRunResponse.status}: ${dryRunResponse.statusText}`)
     }
-    
+
     const dryRunResult = await dryRunResponse.json()
     const message = `Dry run completed:\n- Found recordings: ${dryRunResult.data.checked}\n- Would cleanup: ${dryRunResult.data.cleaned}\n\nProceed with cleanup?`
-    
+
     if (!confirm(message)) {
       return
     }
-    
+
     // Do the actual cleanup
     const cleanupResponse = await fetch('/api/admin/recordings/cleanup-process-orphaned?dry_run=false', {
       method: 'POST',
       credentials: 'include'
     })
-    
+
     if (!cleanupResponse.ok) {
       throw new Error(`HTTP ${cleanupResponse.status}: ${cleanupResponse.statusText}`)
     }
-    
+
     const cleanupResult = await cleanupResponse.json()
     alert(`Process orphaned recordings cleaned up!\n- Checked: ${cleanupResult.data.checked} recordings\n- Cleaned: ${cleanupResult.data.cleaned} recordings`)
-    
+
   } catch (error) {
     console.error('Failed to cleanup process orphaned recordings:', error)
     alert('Failed to cleanup process orphaned recordings: ' + String(error))
@@ -1009,7 +1009,7 @@ const cleanupZombieRecordings = async () => {
   if (!confirm('This will clean up recordings stuck in "recording" status with no active process.\n\nContinue?')) {
     return
   }
-  
+
   cleaningZombies.value = true
   try {
     const response = await fetch('/api/admin/recordings/cleanup-zombies', {
@@ -1017,14 +1017,14 @@ const cleanupZombieRecordings = async () => {
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' }
     })
-    
+
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`)
     }
-    
+
     const result = await response.json()
     alert(`Zombie recording cleanup complete!\n\nCleaned: ${result.cleaned_count} recordings`)
-    
+
   } catch (error) {
     console.error('Failed to cleanup zombie recordings:', error)
     alert('Failed to cleanup zombie recordings: ' + String(error))
@@ -1174,16 +1174,16 @@ onMounted(() => {
   border-radius: var(--radius-md);
 }
 
-.health-status.healthy { 
-  background: rgba(39, 174, 96, 0.15); 
+.health-status.healthy {
+  background: rgba(39, 174, 96, 0.15);
   border: 2px solid var(--success-color);
 }
-.health-status.warning { 
-  background: rgba(243, 156, 18, 0.15); 
+.health-status.warning {
+  background: rgba(243, 156, 18, 0.15);
   border: 2px solid var(--warning-color);
 }
-.health-status.unhealthy { 
-  background: rgba(231, 76, 60, 0.15); 
+.health-status.unhealthy {
+  background: rgba(231, 76, 60, 0.15);
   border: 2px solid var(--danger-color);
 }
 
@@ -1204,7 +1204,7 @@ onMounted(() => {
 .timestamp {
   font-weight: var(--font-normal);
   font-size: var(--text-xs);  /* 12px */
-  opacity: 0.8;
+  color: var(--text-primary);
   margin-left: var(--spacing-4);  /* 16px */
 }
 
@@ -1249,17 +1249,22 @@ onMounted(() => {
   font-size: var(--text-sm);  /* 14px */
 }
 
-.health-check.healthy { 
-  background: rgba(39, 174, 96, 0.1); 
+.health-check.healthy {
+  background: rgba(39, 174, 96, 0.1);
   border-left: 3px solid var(--success-color);
 }
-.health-check.warning { 
-  background: rgba(243, 156, 18, 0.1); 
+.health-check.warning {
+  background: rgba(243, 156, 18, 0.1);
   border-left: 3px solid var(--warning-color);
 }
-.health-check.error { 
-  background: rgba(231, 76, 60, 0.1); 
+.health-check.error {
+  background: rgba(231, 76, 60, 0.1);
   border-left: 3px solid var(--danger-color);
+  color: var(--text-primary);
+}
+
+.error {
+  color: var(--text-primary);
 }
 
 /* System Info */
@@ -1417,19 +1422,19 @@ onMounted(() => {
   box-shadow: var(--shadow-sm);
 }
 
-.stat.passed { 
-  background: rgba(39, 174, 96, 0.2); 
+.stat.passed {
+  background: rgba(39, 174, 96, 0.2);
   border: 2px solid var(--success-color);
 }
-.stat.failed { 
+.stat.failed {
   background: rgba(231, 76, 60, 0.2);
   border: 2px solid var(--danger-color);
 }
-.stat.total { 
+.stat.total {
   background: rgba(52, 73, 94, 0.2);
   border: 2px solid var(--text-secondary);
 }
-.stat.success-rate { 
+.stat.success-rate {
   background: rgba(52, 152, 219, 0.2);
   border: 2px solid var(--info-color);
 }
@@ -1519,10 +1524,10 @@ onMounted(() => {
   box-shadow: var(--shadow-md);
 }
 
-.test-result-item.passed { 
+.test-result-item.passed {
   border-left: 4px solid var(--success-color);
 }
-.test-result-item.failed { 
+.test-result-item.failed {
   border-left: 4px solid var(--danger-color);
 }
 
@@ -1714,13 +1719,13 @@ onMounted(() => {
     width: 100%;
     min-height: 44px;  /* Touch-friendly */
   }
-  
+
   .section-header {
     flex-direction: column;
     align-items: flex-start;
     gap: var(--spacing-3);
   }
-  
+
   .section-header .btn {
     width: 100%;
     justify-content: center;
@@ -1731,11 +1736,11 @@ onMounted(() => {
   .admin-panel {
     padding: var(--spacing-2);
   }
-  
+
   .page-header h1 {
     font-size: var(--text-2xl);
   }
-  
+
   .subtitle {
     font-size: var(--text-sm);
   }
@@ -1744,32 +1749,32 @@ onMounted(() => {
     grid-template-columns: 1fr;  /* Single column on small mobile */
     gap: var(--spacing-2);
   }
-  
+
   .system-info-grid {
     grid-template-columns: 1fr;  /* Single column */
     gap: var(--spacing-3);
   }
-  
+
   .health-checks {
     display: flex;
     flex-direction: column;
     gap: var(--spacing-2);
   }
-  
+
   .health-check {
     padding: var(--spacing-3);
   }
-  
+
   .btn {
     min-height: 44px;  /* Touch-friendly */
     padding: var(--spacing-3) var(--spacing-4);
     font-size: var(--text-sm);
   }
-  
+
   .test-item {
     padding: var(--spacing-3);
   }
-  
+
   .results-table {
     font-size: var(--text-xs);
   }

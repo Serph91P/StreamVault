@@ -3,17 +3,15 @@
     <!-- Loading State -->
     <div v-if="isLoading" class="content-state">
       <LoadingSkeleton type="video" />
-      <p class="state-text" role="status" aria-live="polite">Loading video player...</p>
+      <PlayerStatus state="loading" message="Loading video player..." />
     </div>
 
     <!-- Error State -->
     <div v-else-if="error" class="content-state">
-      <EmptyState
-        icon="alert-circle"
+      <PlayerError
         title="Failed to Load Video"
-        :description="error"
+        :message="error"
         action-label="Retry"
-        action-icon="refresh-cw"
         @action="retryLoad"
       />
     </div>
@@ -44,19 +42,16 @@
               </svg>
               Back
             </button>
-            
+
             <h1 class="video-title">{{ streamTitle }}</h1>
-            
+
             <div v-if="streamerName" class="streamer-badge" :aria-label="`Streamed by ${streamerName}`">
               <svg class="icon-streamer" aria-hidden="true">
                 <use href="#icon-user" />
               </svg>
               <span>{{ streamerName }}</span>
             </div>
-            <div class="player-state-indicator" role="status" aria-live="polite">
-              <span class="player-state-dot"></span>
-              <span class="player-state-text">{{ playerStateLabel }}</span>
-            </div>
+            <PlayerStatus :state="currentPlayerState" />
           </div>
 
           <!-- Video Player - directly in card, no wrapper -->
@@ -68,6 +63,8 @@
             :stream-id="parseInt(streamId)"
             @chapter-change="onChapterChange"
             @video-ready="onVideoReady"
+            @video-loading="onVideoLoading"
+            @video-error="onVideoError"
             @time-update="onTimeUpdate"
           />
         </GlassCard>
@@ -156,7 +153,7 @@
                 {{ isDeleting ? 'Deleting...' : 'Delete' }}
               </button>
             </div>
-            
+
             <!-- Share URL Display (shown after generating) -->
             <div v-if="shareUrl" class="share-url-container">
               <p class="share-label">Share URL (expires in 24h):</p>
@@ -176,7 +173,7 @@
         </aside>
       </div>
     </div>
-    
+
     <!-- Delete Confirmation Modal -->
     <BaseModal v-model="showDeleteModal" title="Delete Recording" size="md">
       <p class="modal-text">Are you sure you want to delete this recording? This action cannot be undone.</p>
@@ -200,6 +197,8 @@ import EmptyState from '@/components/EmptyState.vue'
 import GlassCard from '@/components/cards/GlassCard.vue'
 import BaseModal from '@/components/base/BaseModal.vue'
 import BaseButton from '@/components/base/BaseButton.vue'
+import PlayerStatus from '@/components/player/PlayerStatus.vue'
+import PlayerError from '@/components/player/PlayerError.vue'
 import { videoApi } from '@/services/api'
 
 interface ChapterData {
@@ -240,13 +239,14 @@ const chapterData = ref<ChapterData | null>(null)
 const isLoading = ref(true)
 const error = ref<string | null>(null)
 const playerReady = ref(false)
+const playerError = ref<string | null>(null)
 
-const playerStateLabel = computed(() => {
-  if (isLoading.value) return 'Loading'
-  if (error.value) return 'Error'
-  if (!chapterData.value?.video_url) return 'No video'
-  if (playerReady.value) return 'Playing'
-  return 'Loading player'
+const currentPlayerState = computed(() => {
+  if (isLoading.value) return 'loading'
+  if (error.value) return 'error'
+  if (playerError.value) return 'error'
+  if (!chapterData.value?.video_url) return 'idle'
+  return playerReady.value ? 'live' : 'loading'
 })
 
 // Action button states
@@ -263,11 +263,13 @@ const loadChapterData = async () => {
   try {
     isLoading.value = true
     error.value = null
+    playerReady.value = false
+    playerError.value = null
 
     // Load video chapters using the new API
     let chapters: any[] = []
     let videoUrl = `/api/videos/${streamId.value}/stream`
-    
+
     try {
       chapters = await videoApi.getChapters(parseInt(streamId.value))
     } catch {
@@ -325,9 +327,20 @@ const onChapterChange = (_chapter: any, index: number) => {
 
 const onVideoReady = (duration: number) => {
   playerReady.value = true
+  playerError.value = null
   if (chapterData.value) {
     chapterData.value.duration = duration
   }
+}
+
+const onVideoLoading = () => {
+  playerReady.value = false
+  playerError.value = null
+}
+
+const onVideoError = (message: string) => {
+  playerReady.value = false
+  playerError.value = message
 }
 
 const onTimeUpdate = (_currentTime: number) => {
@@ -340,7 +353,7 @@ const formatDuration = (seconds: number): string => {
   const hours = Math.floor(seconds / 3600)
   const minutes = Math.floor((seconds % 3600) / 60)
   const secs = Math.floor(seconds % 60)
-  
+
   if (hours > 0) {
     return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
   }
@@ -385,10 +398,10 @@ const parseTimeToSeconds = (timeString: string): number => {
  */
 const downloadVideo = async () => {
   if (isDownloading.value) return
-  
+
   try {
     isDownloading.value = true
-    
+
     // Create a temporary link to trigger download
     const downloadUrl = `/api/videos/${streamId.value}/stream`
     const link = document.createElement('a')
@@ -398,7 +411,7 @@ const downloadVideo = async () => {
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
-    
+
   } catch (err) {
     console.error('Download failed:', err)
     error.value = 'Failed to start download'
@@ -415,12 +428,12 @@ const downloadVideo = async () => {
  */
 const shareVideo = async () => {
   if (isSharing.value) return
-  
+
   try {
     isSharing.value = true
     shareUrl.value = null
     copied.value = false
-    
+
     const response = await fetch(`/api/videos/${streamId.value}/share-token`, {
       method: 'POST',
       credentials: 'include',
@@ -428,19 +441,19 @@ const shareVideo = async () => {
         'Content-Type': 'application/json'
       }
     })
-    
+
     if (!response.ok) {
       throw new Error(`Failed to generate share token: ${response.status}`)
     }
-    
+
     const data = await response.json()
-    
+
     if (data.success && data.share_url) {
       shareUrl.value = data.share_url
     } else {
       throw new Error(data.error || 'Failed to generate share URL')
     }
-    
+
   } catch (err) {
     console.error('Share failed:', err)
     error.value = err instanceof Error ? err.message : 'Failed to generate share URL'
@@ -454,11 +467,11 @@ const shareVideo = async () => {
  */
 const copyShareUrl = async () => {
   if (!shareUrl.value) return
-  
+
   try {
     await navigator.clipboard.writeText(shareUrl.value)
     copied.value = true
-    
+
     // Reset copied state after 2 seconds
     setTimeout(() => {
       copied.value = false
@@ -489,10 +502,10 @@ const confirmDelete = () => {
  */
 const deleteVideo = async () => {
   if (isDeleting.value) return
-  
+
   try {
     isDeleting.value = true
-    
+
     const response = await fetch(`/api/streams/${streamId.value}`, {
       method: 'DELETE',
       credentials: 'include',
@@ -500,18 +513,18 @@ const deleteVideo = async () => {
         'Content-Type': 'application/json'
       }
     })
-    
+
     if (!response.ok) {
       const data = await response.json().catch(() => ({}))
       throw new Error(data.detail || `Failed to delete: ${response.status}`)
     }
-    
+
     // Success - close modal and navigate back
     showDeleteModal.value = false
-    
+
     // Navigate back to videos list or streamer page
     router.push({ name: 'Videos' })
-    
+
   } catch (err) {
     console.error('Delete failed:', err)
     error.value = err instanceof Error ? err.message : 'Failed to delete video'
@@ -537,7 +550,7 @@ onMounted(() => {
   // Prevent horizontal overflow on mobile
   overflow-x: hidden;
   max-width: 100%;
-  
+
   // Override page-view padding for more immersive video experience on mobile
   @include m.respond-below('sm') {
     padding: var(--spacing-2) var(--spacing-2);
@@ -600,15 +613,15 @@ onMounted(() => {
   align-items: start;
   max-width: 100%;
   overflow: hidden;
-  
+
   @include m.respond-below('xl') {
     grid-template-columns: 1fr 280px;
   }
-  
+
   @include m.respond-below('lg') {
     grid-template-columns: 1fr;
   }
-  
+
   @include m.respond-below('sm') {
     gap: var(--spacing-2);
   }
@@ -620,7 +633,7 @@ onMounted(() => {
 
 .player-card {
   overflow: hidden;
-  
+
   :deep(.glass-card-content) {
     padding: 0;
     display: flex;
@@ -633,7 +646,7 @@ onMounted(() => {
   align-items: center;
   gap: var(--spacing-3);
   padding: var(--spacing-3) var(--spacing-4);
-  
+
   @include m.respond-below('md') {
     flex-wrap: wrap;
     padding: var(--spacing-3);
@@ -668,7 +681,7 @@ onMounted(() => {
     border-color: var(--primary-color);
     color: white;
   }
-  
+
   @include m.respond-below('md') {
     min-height: 44px;  // Touch-friendly
     padding: var(--spacing-2) var(--spacing-4);
@@ -685,7 +698,7 @@ onMounted(() => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  
+
   @include m.respond-below('lg') {
     white-space: normal;
     overflow: visible;
@@ -694,7 +707,7 @@ onMounted(() => {
     line-clamp: 2;
     -webkit-box-orient: vertical;
   }
-  
+
   @include m.respond-below('md') {
     font-size: var(--text-base);
     order: 3;
@@ -715,7 +728,7 @@ onMounted(() => {
   font-weight: v.$font-medium;
   color: var(--primary-color);
   flex-shrink: 0;
-  
+
   .icon-streamer {
     width: 14px;
     height: 14px;
@@ -724,29 +737,7 @@ onMounted(() => {
   }
 }
 
-.player-state-indicator {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--spacing-1);
-  padding: var(--spacing-1) var(--spacing-3);
-  border-radius: var(--radius-pill);
-  font-size: var(--text-xs);
-  font-weight: v.$font-semibold;
-  color: var(--text-secondary);
-  border: 1px solid var(--border-color);
-  flex-shrink: 0;
-}
 
-.player-state-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--text-tertiary);
-}
-
-.player-state-indicator:has(.player-state-text:empty) {
-  display: none;
-}
 
 // ============================================================================
 // INFO SIDEBAR
@@ -758,21 +749,21 @@ onMounted(() => {
   gap: var(--spacing-3);
   min-width: 0;  // Allow flex item to shrink below content size
   max-width: 100%;
-  
+
   @include m.respond-below('lg') {
     flex-direction: row;
     flex-wrap: wrap;
-    
+
     .info-card {
       flex: 1;
       min-width: 280px;
     }
   }
-  
+
   @include m.respond-below('sm') {
     flex-direction: column;
     gap: var(--spacing-2);
-    
+
     .info-card {
       min-width: 0;
       width: 100%;
@@ -786,7 +777,7 @@ onMounted(() => {
   min-width: 0;  // Allow shrinking below content size
   max-width: 100%;
   overflow: hidden;
-  
+
   // Ensure GlassCard content doesn't overflow
   :deep(.glass-card-content) {
     max-width: 100%;
@@ -802,7 +793,7 @@ onMounted(() => {
   font-size: var(--text-base);
   font-weight: v.$font-semibold;
   color: var(--text-primary);
-  
+
   .info-icon {
     width: 18px;
     height: 18px;
@@ -823,7 +814,7 @@ onMounted(() => {
   align-items: center;
   padding: var(--spacing-2) 0;
   border-bottom: 1px solid var(--border-color);
-  
+
   &:last-child {
     border-bottom: none;
   }
@@ -838,9 +829,9 @@ onMounted(() => {
   font-size: var(--text-sm);
   font-weight: v.$font-medium;
   color: var(--text-primary);
-  
+
   &.highlight {
-    color: var(--primary-color);
+    color: var(--text-primary);
     font-weight: v.$font-bold;
   }
 }
@@ -853,13 +844,13 @@ onMounted(() => {
   max-height: none;
   display: flex;
   flex-direction: column;
-  
+
   :deep(.glass-card-content) {
     display: flex;
     flex-direction: column;
     overflow: hidden;
   }
-  
+
   @include m.respond-to('lg') {
     max-height: 350px;
   }
@@ -874,15 +865,15 @@ onMounted(() => {
   flex: 1;
   min-width: 0;
   max-width: 100%;
-  
+
   &::-webkit-scrollbar {
     width: 4px;
   }
-  
+
   &::-webkit-scrollbar-track {
     background: transparent;
   }
-  
+
   &::-webkit-scrollbar-thumb {
     background: var(--primary-color);
     border-radius: var(--radius-full);
@@ -900,11 +891,11 @@ onMounted(() => {
   transition: all v.$duration-150 v.$ease-out;
   min-width: 0;
   max-width: 100%;
-  
+
   &:hover {
     background: rgba(var(--primary-500-rgb), 0.15);
   }
-  
+
   &.active {
     background: rgba(var(--primary-500-rgb), 0.2);
   }
@@ -929,7 +920,7 @@ onMounted(() => {
   min-width: 0;
   flex: 1;
   word-break: break-word;
-  
+
   // On desktop sidebar, truncate with ellipsis
   @include m.respond-to('lg') {
     font-size: var(--text-xs);
@@ -948,7 +939,7 @@ onMounted(() => {
   flex-direction: column;
   gap: var(--spacing-3);
   max-width: 100%;
-  
+
   @include m.respond-below('sm') {
     gap: var(--spacing-2);
   }
@@ -971,7 +962,7 @@ onMounted(() => {
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
-  
+
   .action-icon {
     width: 16px;
     height: 16px;
@@ -979,18 +970,18 @@ onMounted(() => {
     fill: none;
     flex-shrink: 0;
   }
-  
+
   &:hover:not(:disabled) {
     background: var(--primary-color);
     border-color: var(--primary-color);
     color: white;
   }
-  
+
   &.danger:hover:not(:disabled) {
     background: var(--danger-color);
     border-color: var(--danger-color);
   }
-  
+
   &:disabled {
     opacity: 0.6;
     cursor: not-allowed;
@@ -1019,7 +1010,7 @@ onMounted(() => {
   display: flex;
   gap: var(--spacing-2);
   max-width: 100%;
-  
+
   @include m.respond-below('sm') {
     flex-direction: column;
   }
@@ -1037,7 +1028,7 @@ onMounted(() => {
   font-family: monospace;
   max-width: 100%;
   box-sizing: border-box;
-  
+
   &:focus {
     outline: none;
     border-color: var(--primary-color);
@@ -1058,14 +1049,14 @@ onMounted(() => {
   cursor: pointer;
   transition: var(--transition-base);
   white-space: nowrap;
-  
+
   .copy-icon {
     width: 14px;
     height: 14px;
     stroke: currentColor;
     fill: none;
   }
-  
+
   &:hover {
     background: var(--primary-color);
     color: white;
@@ -1132,26 +1123,26 @@ onMounted(() => {
   font-weight: v.$font-medium;
   cursor: pointer;
   transition: var(--transition-base);
-  
+
   &.cancel {
     background: transparent;
     border: 1px solid var(--border-color);
     color: var(--text-secondary);
-    
+
     &:hover {
       background: var(--surface-hover);
     }
   }
-  
+
   &.confirm {
     background: var(--danger-color);
     border: 1px solid var(--danger-color);
     color: white;
-    
+
     &:hover:not(:disabled) {
       filter: brightness(1.1);
     }
-    
+
     &:disabled {
       opacity: 0.6;
       cursor: not-allowed;
@@ -1167,14 +1158,14 @@ onMounted(() => {
   .player-main {
     gap: var(--spacing-3);
   }
-  
+
   .share-url-box {
     flex-direction: column;
   }
-  
+
   .modal-actions {
     flex-direction: column-reverse;
-    
+
     .modal-btn {
       width: 100%;
       text-align: center;
@@ -1191,68 +1182,68 @@ onMounted(() => {
     padding: var(--spacing-2);
     gap: var(--spacing-2);
   }
-  
+
   .video-title {
     font-size: var(--text-sm);
   }
-  
+
   .info-title {
     font-size: var(--text-sm);
     margin-bottom: var(--spacing-2);
-    
+
     .info-icon {
       width: 16px;
       height: 16px;
     }
   }
-  
+
   .info-row {
     padding: var(--spacing-1-5) 0;
   }
-  
+
   .info-label,
   .info-value {
     font-size: var(--text-xs);
   }
-  
+
   .chapter-item {
     padding: var(--spacing-2);
     gap: var(--spacing-2);
   }
-  
+
   .action-btn {
     padding: var(--spacing-2);
     font-size: var(--text-xs);
-    
+
     .action-icon {
       width: 14px;
       height: 14px;
     }
   }
-  
+
   .share-url-input {
     font-size: var(--text-xs);
     padding: var(--spacing-1-5) var(--spacing-2);
   }
-  
+
   .copy-btn {
     padding: var(--spacing-1-5) var(--spacing-2);
     font-size: var(--text-xs);
   }
-  
+
   .delete-modal {
     margin: var(--spacing-2);
     padding: var(--spacing-4);
   }
-  
+
   .modal-title {
     font-size: var(--text-base);
   }
-  
+
   .modal-text {
     font-size: var(--text-sm);
   }
-  
+
   .modal-warning {
     font-size: var(--text-xs);
   }
@@ -1267,12 +1258,12 @@ onMounted(() => {
   .info-sidebar {
     display: none;
   }
-  
+
   .player-container {
     height: 100vh;
     aspect-ratio: auto;
   }
-  
+
   .modal-overlay {
     display: none;
   }

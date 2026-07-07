@@ -12,28 +12,57 @@
         </span>
       </template>
       <template #actions>
-        <button
-          @click="toggleAutoRefresh"
-          class="btn-action"
-          :class="autoRefresh ? 'btn-primary' : 'btn-secondary'"
-          v-ripple
-        >
-          <svg class="icon">
-            <use href="#icon-refresh-cw" />
-          </svg>
-          Auto {{ autoRefresh ? 'ON' : 'OFF' }}
-        </button>
-        <router-link to="/add-streamer" class="btn-action btn-primary" v-ripple>
-          <svg class="icon">
-            <use href="#icon-plus" />
-          </svg>
-          Add Streamer
-        </router-link>
+        <div class="header-actions">
+          <BaseButton
+            :variant="autoRefresh ? 'primary' : 'secondary'"
+            size="sm"
+            @click="toggleAutoRefresh"
+          >
+            <svg class="icon" aria-hidden="true">
+              <use href="#icon-refresh-cw" />
+            </svg>
+            Auto {{ autoRefresh ? 'ON' : 'OFF' }}
+          </BaseButton>
+          <router-link to="/add-streamer" class="btn btn-primary btn-sm add-streamer-link" v-ripple>
+            <svg class="icon" aria-hidden="true">
+              <use href="#icon-plus" />
+            </svg>
+            Add Streamer
+          </router-link>
+        </div>
       </template>
     </PageHeader>
 
+    <section class="streamers-brief" aria-labelledby="streamers-brief-title">
+      <div>
+        <p class="eyebrow">Creator grid</p>
+        <h2 id="streamers-brief-title">Scan every creator by current action</h2>
+        <p class="brief-copy">
+          Search, filter, and sort without leaving the grid. Live and recording states stay visible on every card.
+        </p>
+      </div>
+      <dl class="brief-stats" aria-label="Streamer status summary">
+        <div class="brief-stat live">
+          <dt>Live</dt>
+          <dd>{{ liveStreamers.length }}</dd>
+        </div>
+        <div class="brief-stat recording">
+          <dt>Recording</dt>
+          <dd>{{ recordingStreamers.length }}</dd>
+        </div>
+        <div class="brief-stat offline">
+          <dt>Offline</dt>
+          <dd>{{ offlineStreamersCount }}</dd>
+        </div>
+        <div class="brief-stat total">
+          <dt>Total</dt>
+          <dd>{{ streamers.length }}</dd>
+        </div>
+      </dl>
+    </section>
+
     <!-- Controls Bar -->
-    <div class="controls-bar">
+    <div class="controls-bar" aria-label="Search, filter, and sort streamers">
       <!-- Search -->
       <div class="search-box">
         <svg class="icon">
@@ -42,13 +71,16 @@
         <input
           v-model="searchQuery"
           type="text"
-          placeholder="Search streamers..."
+          placeholder="Search channel name or display name"
           class="search-input"
+          aria-label="Search streamers"
         />
         <button
           v-if="searchQuery"
           @click="searchQuery = ''"
           class="clear-btn"
+          aria-label="Clear streamer search"
+          title="Clear streamer search"
         >
           <svg class="icon">
             <use href="#icon-x" />
@@ -57,12 +89,13 @@
       </div>
 
       <!-- Filter Tabs -->
-      <div class="filter-tabs">
+      <div class="filter-tabs" aria-label="Filter streamers by status">
         <button
           v-for="tab in filterTabs"
           :key="tab.value"
           @click="activeFilter = tab.value"
           :class="{ active: activeFilter === tab.value }"
+          :aria-pressed="activeFilter === tab.value"
           class="filter-tab"
           v-ripple
         >
@@ -74,11 +107,13 @@
       </div>
 
       <!-- View Toggle -->
-      <div class="view-toggle">
+      <div class="view-toggle" aria-label="Choose streamer layout">
         <button
           @click="viewMode = 'grid'"
           :class="{ active: viewMode === 'grid' }"
           class="toggle-btn"
+          aria-label="Show streamers as grid"
+          title="Show streamers as grid"
           v-ripple
         >
           <svg class="icon">
@@ -89,6 +124,8 @@
           @click="viewMode = 'list'"
           :class="{ active: viewMode === 'list' }"
           class="toggle-btn"
+          aria-label="Show streamers as list"
+          title="Show streamers as list"
           v-ripple
         >
           <svg class="icon">
@@ -98,19 +135,22 @@
       </div>
 
       <!-- Sort -->
-      <select v-model="sortBy" class="sort-select">
-        <option value="name">Name A-Z</option>
-        <option value="name-desc">Name Z-A</option>
-        <option value="live-first">Live First</option>
-        <option value="recently-added">Recently Added</option>
-        <option value="most-videos">Most Videos</option>
-      </select>
+      <BaseDropdown
+        v-model="sortBy"
+        class="sort-control"
+        :options="sortOptions"
+        aria-label="Sort streamers"
+      />
     </div>
 
-    <!-- Last Update Info -->
-    <div v-if="lastUpdateTime" class="update-info">
-      Last updated: {{ formatLastUpdate(lastUpdateTime) }}
-      <button @click="handleRefresh" class="refresh-btn" v-ripple>
+    <div class="results-info">
+      <span>
+        Showing {{ filteredAndSortedStreamers.length }} of {{ streamers.length }} streamers
+        <template v-if="activeFilter !== 'all'">in {{ activeFilterLabel }}</template>
+        <template v-if="searchQuery"> matching "{{ searchQuery }}"</template>
+      </span>
+      <span v-if="lastUpdateTime">Updated {{ formatLastUpdate(lastUpdateTime) }}</span>
+      <button @click="handleRefresh" class="refresh-btn" aria-label="Refresh streamers" title="Refresh streamers" v-ripple>
         <svg class="icon" :class="{ spinning: isRefreshing }">
           <use href="#icon-refresh-cw" />
         </svg>
@@ -127,6 +167,18 @@
     </div>
 
     <!-- Empty State -->
+    <EmptyState
+      v-else-if="fetchError"
+      title="Streamers could not load"
+      :description="fetchError"
+      icon="alert-circle"
+      tone="danger"
+      tone-label="Recoverable streamers loading error"
+      retry-label="Try Again"
+      retry-icon="refresh-cw"
+      @retry="handleRefresh"
+    />
+
     <EmptyState
       v-else-if="filteredAndSortedStreamers.length === 0 && !searchQuery"
       title="No Streamers Yet"
@@ -158,7 +210,6 @@
         <StreamerCard
           :streamer="streamer"
           :view-mode="viewMode"
-          @click="navigateToDetail(streamer)"
           @watch="handleWatch"
           @force-record="handleForceRecord"
           @delete="handleDelete"
@@ -170,17 +221,16 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { useRouter } from 'vue-router'
 import { streamersApi } from '@/services/api'
 import { useRealtimeStore } from '@/stores/realtime'
 import { hasRealtimeEventType } from '@/types/events'
 import { useForceRecording } from '@/composables/useForceRecording'  // NEW: Import composable
 import LoadingSkeleton from '@/components/LoadingSkeleton.vue'
 import EmptyState from '@/components/EmptyState.vue'
+import BaseButton from '@/components/base/BaseButton.vue'
+import BaseDropdown from '@/components/base/BaseDropdown.vue'
 import PageHeader from '@/components/base/PageHeader.vue'
 import StreamerCard from '@/components/cards/StreamerCard.vue'
-
-const router = useRouter()
 
 // Real-time store for live updates
 const realtime = useRealtimeStore()
@@ -198,10 +248,19 @@ const sortBy = ref('live-first')
 const activeFilter = ref('all')
 const autoRefresh = ref(true)
 const lastUpdateTime = ref<Date | null>(null)
+const fetchError = ref('')
 
 // Auto-refresh interval
 let refreshInterval: number | null = null
 const REFRESH_INTERVAL = 30000 // 30 seconds
+
+const sortOptions = [
+  { label: 'Live first', value: 'live-first' },
+  { label: 'Name A-Z', value: 'name' },
+  { label: 'Name Z-A', value: 'name-desc' },
+  { label: 'Recently added', value: 'recently-added' },
+  { label: 'Most videos', value: 'most-videos' },
+]
 
 // Filter tabs with counts
 const filterTabs = computed(() => [
@@ -227,6 +286,10 @@ const filterTabs = computed(() => [
   }
 ])
 
+const activeFilterLabel = computed(() => {
+  return filterTabs.value.find(tab => tab.value === activeFilter.value)?.label.toLowerCase() || 'all'
+})
+
 // Live streamers
 const liveStreamers = computed(() => {
   return streamers.value.filter(s => s.is_live)
@@ -237,6 +300,10 @@ const recordingStreamers = computed(() => {
   return streamers.value.filter(s => s.is_recording)
 })
 
+const offlineStreamersCount = computed(() => {
+  return streamers.value.filter(s => !s.is_live).length
+})
+
 // Filtered and sorted streamers
 const filteredAndSortedStreamers = computed(() => {
   let filtered = [...streamers.value]
@@ -245,7 +312,7 @@ const filteredAndSortedStreamers = computed(() => {
   if (searchQuery.value) {
     const query = searchQuery.value.toLowerCase()
     filtered = filtered.filter(s =>
-      s.name?.toLowerCase().includes(query) ||
+      s.username?.toLowerCase().includes(query) ||
       s.display_name?.toLowerCase().includes(query)
     )
   }
@@ -302,9 +369,11 @@ async function fetchStreamers() {
     // Backend returns {streamers: [...]} format
     streamers.value = response.streamers || []
     lastUpdateTime.value = new Date()
+    fetchError.value = ''
   } catch (error) {
     console.error('Failed to fetch streamers:', error)
     streamers.value = []
+    fetchError.value = 'Check your backend connection, then retry the streamers list.'
   }
 }
 
@@ -364,15 +433,6 @@ function formatLastUpdate(date: Date): string {
   return `${diffHour}h ago`
 }
 
-// Navigate to detail
-function navigateToDetail(streamer: any) {
-  router.push({
-    name: 'streamer-detail',
-    params: { id: streamer.id },
-    query: { name: streamer.name }
-  })
-}
-
 // Handle force record action
 async function handleForceRecord(streamer: any) {
   await forceStartRecording(streamer.id, async () => {
@@ -390,7 +450,7 @@ function handleWatch(streamer: any) {
 // Handle delete streamer action
 async function handleDelete(streamer: any) {
   const displayName = streamer.display_name || streamer.username || 'this streamer'
-  
+
   // First confirmation: Delete streamer?
   if (!confirm(`Delete streamer "${displayName}"?\n\nThis will remove the streamer from your database and unsubscribe from EventSub notifications.`)) {
     return
@@ -407,14 +467,14 @@ async function handleDelete(streamer: any) {
   try {
     // Call API with delete_recordings parameter
     await streamersApi.delete(streamer.id, deleteRecordings)
-    
+
     // Show success message with details
     if (deleteRecordings) {
       alert(`✅ Streamer "${displayName}" deleted successfully!\nAll recording files were removed.`)
     } else {
       alert(`✅ Streamer "${displayName}" deleted successfully!\nRecording files were kept on disk.`)
     }
-    
+
     // Remove from UI
     streamers.value = streamers.value.filter(s => s.id !== streamer.id)
   } catch (error) {
@@ -534,13 +594,93 @@ onUnmounted(() => {
   // Page-specific overrides only
 }
 
+.streamers-brief {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--spacing-5);
+  align-items: stretch;
+  margin-bottom: var(--spacing-5);
+  padding: var(--spacing-5);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-xl);
+  background: linear-gradient(135deg, rgba(var(--primary-500-rgb), 0.14), rgba(var(--info-500-rgb), 0.08)), var(--background-card);
+  box-shadow: var(--shadow-sm);
+}
+
+.eyebrow {
+  margin: 0 0 var(--spacing-2);
+  color: var(--primary-color);
+  font-size: var(--text-xs);
+  font-weight: v.$font-bold;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.streamers-brief h2 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: clamp(var(--text-xl), 2.4vw, var(--text-3xl));
+  line-height: v.$leading-tight;
+}
+
+.brief-copy {
+  max-width: 680px;
+  margin: var(--spacing-2) 0 0;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  line-height: v.$leading-relaxed;
+}
+
+.brief-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(72px, 1fr));
+  gap: var(--spacing-2);
+  margin: 0;
+}
+
+.brief-stat {
+  min-width: 72px;
+  padding: var(--spacing-3);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  background: var(--background-card);
+  text-align: center;
+
+  dt {
+    color: var(--text-secondary);
+    font-size: var(--text-xs);
+    font-weight: v.$font-semibold;
+  }
+
+  dd {
+    margin: var(--spacing-1) 0 0;
+    color: var(--text-primary);
+    font-size: var(--text-2xl);
+    font-weight: v.$font-bold;
+    line-height: 1;
+  }
+
+  &.live dd,
+  &.recording dd {
+    color: var(--danger-text-color);
+  }
+
+  &.offline dd {
+    color: var(--text-secondary);
+  }
+
+  &.total dd {
+    color: var(--primary-color);
+  }
+}
+
 .auto-refresh-indicator {
   display: inline-flex;
   align-items: center;
   gap: var(--spacing-2);
   padding: var(--spacing-1) var(--spacing-2);
   background: rgba(var(--success-500-rgb), 0.1);
-  color: var(--success-color);
+  color: var(--success-text-color);
   border-radius: var(--radius-md);
   font-size: var(--text-xs);
   font-weight: v.$font-medium;
@@ -550,9 +690,28 @@ onUnmounted(() => {
   display: inline-block;
   width: 6px;
   height: 6px;
-  background: var(--success-color);
+  background: var(--success-text-color);
   border-radius: 50%;
   animation: pulse 2s ease-in-out infinite;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  flex-wrap: wrap;
+
+  .icon {
+    width: 18px;
+    height: 18px;
+    stroke: currentColor;
+    fill: none;
+  }
+}
+
+.add-streamer-link {
+  min-height: 44px;
+  text-decoration: none;
 }
 
 @keyframes pulse {
@@ -571,6 +730,7 @@ onUnmounted(() => {
   align-items: center;
   gap: var(--spacing-2);
   padding: var(--spacing-3) var(--spacing-4);
+  min-height: 44px;
   border-radius: var(--radius-lg);
   font-size: var(--text-sm);
   font-weight: v.$font-semibold;
@@ -587,11 +747,11 @@ onUnmounted(() => {
   }
 
   &.btn-primary {
-    background: var(--primary-color);
+    background: v.$primary-700;
     color: white;
 
     &:hover {
-      background: var(--primary-600);  /* Darker green when ON */
+      background: v.$primary-800;  /* Darker green when ON */
       box-shadow: var(--shadow-md);
     }
   }
@@ -701,6 +861,7 @@ onUnmounted(() => {
   display: inline-flex;
   align-items: center;
   gap: var(--spacing-2);
+  min-height: 44px;
   padding: var(--spacing-2) var(--spacing-3);
   background: transparent;
   border: none;
@@ -712,7 +873,7 @@ onUnmounted(() => {
   transition: all v.$duration-200 v.$ease-out;
 
   &.active {
-    background: var(--primary-color);
+    background: v.$primary-700;
     color: white;
 
     .tab-badge {
@@ -751,6 +912,8 @@ onUnmounted(() => {
 }
 
 .toggle-btn {
+  min-width: 44px;
+  min-height: 44px;
   padding: var(--spacing-2);
   background: transparent;
   border: none;
@@ -766,7 +929,7 @@ onUnmounted(() => {
   }
 
   &.active {
-    background: var(--primary-color);
+    background: v.$primary-700;
 
     .icon {
       stroke: white;
@@ -778,38 +941,49 @@ onUnmounted(() => {
   }
 }
 
-.sort-select {
-  padding: var(--spacing-3) var(--spacing-4);
-  background: var(--background-card);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-lg);
-  color: var(--text-primary);
-  font-size: var(--text-sm);
-  font-weight: v.$font-medium;
-  cursor: pointer;
-  transition: all v.$duration-200 v.$ease-out;
+.sort-control {
+  min-width: 180px;
+  margin: 0;
 
-  &:hover {
+  :deep(.form-group) {
+    margin: 0;
+  }
+
+  :deep(select) {
+    min-height: 44px;
+    padding: var(--spacing-3) var(--spacing-4);
+    background: var(--background-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    color: var(--text-primary);
+    font-size: var(--text-sm);
+    font-weight: v.$font-medium;
+    cursor: pointer;
+    transition: all v.$duration-200 v.$ease-out;
+  }
+
+  :deep(select:hover) {
     border-color: var(--primary-color);
   }
 
-  &:focus {
+  :deep(select:focus) {
     outline: 2px solid var(--primary-color);
     outline-offset: 2px;
   }
 }
 
-// Update Info
-.update-info {
+// Results Info
+.results-info {
   display: flex;
   align-items: center;
-  gap: var(--spacing-2);
+  justify-content: space-between;
+  gap: var(--spacing-3);
   margin-bottom: var(--spacing-4);
-  padding: var(--spacing-2) var(--spacing-3);
+  padding: var(--spacing-3) var(--spacing-4);
   background: var(--background-card);
   border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-  font-size: var(--text-xs);
+  border-radius: var(--radius-lg);
+  font-size: var(--text-sm);
   color: var(--text-secondary);
 }
 
@@ -817,8 +991,8 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  width: 44px;
+  height: 44px;
   padding: 0;
   background: transparent;
   border: none;
@@ -886,6 +1060,14 @@ onUnmounted(() => {
 }
 
 @include m.respond-below('lg') {  // < 1024px
+  .streamers-brief {
+    grid-template-columns: 1fr;
+  }
+
+  .brief-stats {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
   .controls-bar {
     flex-wrap: wrap;
   }
@@ -905,6 +1087,46 @@ onUnmounted(() => {
 @include m.respond-below('sm') {  // < 640px
   .streamers-view {
     padding: var(--spacing-4) var(--spacing-3);
+
+    :deep(.page-header-content),
+    :deep(.page-header-end),
+    .header-actions {
+      width: 100%;
+    }
+
+    :deep(.page-header-content) {
+      flex-direction: column;
+      gap: var(--spacing-3);
+    }
+
+    .header-actions {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+
+      :deep(.btn),
+      .add-streamer-link {
+        justify-content: center;
+        min-width: 0;
+      }
+    }
+  }
+
+  .streamers-brief {
+    padding: var(--spacing-4);
+    margin-bottom: var(--spacing-4);
+  }
+
+  .brief-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .brief-stat {
+    min-width: 0;
+  }
+
+  .results-info {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .btn-action {
@@ -912,7 +1134,7 @@ onUnmounted(() => {
     justify-content: center;
     min-height: 44px;  // Touch-friendly
   }
-  
+
   .controls-bar {
     gap: var(--spacing-2);
   }
@@ -923,11 +1145,11 @@ onUnmounted(() => {
       font-size: 16px;  // Prevent iOS zoom
       padding: var(--spacing-3) var(--spacing-10);
     }
-    
+
     .clear-btn {
       width: 32px;  // Larger touch target
       height: 32px;
-      
+
       .icon {
         width: 18px;
         height: 18px;
@@ -946,7 +1168,7 @@ onUnmounted(() => {
       min-height: 44px;  // WCAG 2.5.5 / Apple HIG touch-target
       padding: var(--spacing-2) var(--spacing-2);
       font-size: var(--text-xs);
-      
+
       .tab-badge {
         font-size: 10px;
         min-width: 18px;
@@ -954,28 +1176,32 @@ onUnmounted(() => {
       }
     }
   }
-  
+
   .view-toggle {
     flex: none;  // Fixed width
-    
+
     .toggle-btn {
       min-width: 44px;  // Touch-friendly
       min-height: 44px;
       padding: var(--spacing-2);
-      
+
       .icon {
         width: 22px;
         height: 22px;
       }
     }
   }
-  
-  .sort-select {
-    flex: 1;  // Fill remaining space
-    min-height: 44px;  // Touch-friendly
-    font-size: 16px;  // Prevent iOS zoom
-    padding: var(--spacing-3);
-    padding-left: var(--spacing-4);  // Preserve native select padding
+
+  .sort-control {
+    flex: 1;
+    min-width: 0;
+
+    :deep(select) {
+      min-height: 44px;
+      font-size: 16px;
+      padding: var(--spacing-3);
+      padding-left: var(--spacing-4);
+    }
   }
 
 }

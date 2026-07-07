@@ -5,24 +5,7 @@
       icon="settings"
       :mobile-title="activeSectionData?.label || 'Settings'"
       :mobile-icon="activeSectionData?.icon || 'settings'"
-    >
-      <template #actions>
-        <template v-if="hasUnsavedChanges">
-          <button @click="resetChanges" class="btn-action btn-secondary" v-ripple>
-            <svg class="icon">
-              <use href="#icon-x" />
-            </svg>
-            Discard
-          </button>
-          <button @click="saveAllChanges" class="btn-action btn-primary" v-ripple>
-            <svg class="icon">
-              <use href="#icon-check" />
-            </svg>
-            Save Changes
-          </button>
-        </template>
-      </template>
-    </PageHeader>
+    />
 
     <!-- Loading State -->
     <div v-if="isLoading" class="loading-container">
@@ -39,9 +22,9 @@
           <svg class="select-icon">
             <use href="#icon-menu" />
           </svg>
-          <select v-model="activeSection" class="section-select">
+          <select v-model="activeSection" class="section-select" aria-label="Choose settings section">
             <option
-              v-for="section in sections"
+              v-for="section in allSectionItems"
               :key="section.id"
               :value="section.id"
             >
@@ -52,90 +35,177 @@
       </div>
 
       <!-- Sidebar Navigation (desktop only) -->
-      <aside class="settings-sidebar">
-        <nav class="settings-nav">
-          <button
-            v-for="section in sections"
-            :key="section.id"
-            @click="activeSection = section.id"
-            :class="{ active: activeSection === section.id }"
-            class="nav-item"
-            v-ripple
-          >
-            <svg class="nav-icon">
-              <use :href="`#icon-${section.icon}`" />
-            </svg>
-            <div class="nav-content">
-              <span class="nav-label">{{ section.label }}</span>
-              <span class="nav-description">{{ section.description }}</span>
-            </div>
-            <svg v-if="activeSection === section.id" class="nav-indicator">
-              <use href="#icon-chevron-right" />
-            </svg>
-          </button>
+      <aside class="settings-sidebar" aria-label="Settings sections">
+        <nav class="settings-nav" aria-label="Settings sections">
+          <template v-for="group in sectionGroups" :key="group.label || 'overview-group'">
+            <div v-if="group.label" class="nav-group-header">{{ group.label }}</div>
+            <button
+              v-for="section in group.sections"
+              :key="section.id"
+              @click="activeSection = section.id"
+              :class="{ active: activeSection === section.id }"
+              class="nav-item"
+              v-ripple
+            >
+              <svg class="nav-icon">
+                <use :href="`#icon-${section.icon}`" />
+              </svg>
+              <div class="nav-content">
+                <span class="nav-label">{{ section.label }}</span>
+                <span class="nav-description">{{ section.description }}</span>
+              </div>
+              <span v-if="section.badge" class="nav-badge" :class="`badge-${section.badge.toLowerCase()}`">{{ section.badge }}</span>
+              <svg v-if="activeSection === section.id" class="nav-indicator">
+                <use href="#icon-chevron-right" />
+              </svg>
+            </button>
+          </template>
         </nav>
       </aside>
 
       <!-- Settings Content -->
-      <main class="settings-content">
-        <!-- Twitch Connection Settings -->
-        <div v-if="activeSection === 'twitch'" class="settings-section">
+      <div class="settings-content">
+        <!-- Overview Section -->
+        <div v-if="activeSection === 'overview'" class="settings-section">
           <div class="section-header">
             <h2 class="section-title">
               <svg class="section-icon">
-                <use href="#icon-link" />
+                <use href="#icon-grid" />
               </svg>
-              Twitch Connection
+              Settings Overview
             </h2>
             <p class="section-description">
-              Connect your Twitch account for enhanced recording quality and features
+              Quick status summary for all settings areas
             </p>
           </div>
 
-          <GlassCard variant="strong" padding="lg">
+          <div class="overview-grid">
+            <button @click="activeSection = 'twitch'" class="overview-card">
+              <div class="overview-card-icon">
+                <svg><use href="#icon-link" /></svg>
+              </div>
+              <div class="overview-card-body">
+                <span class="overview-card-label">Twitch Connection</span>
+                <span class="overview-card-desc">OAuth tokens & connection status</span>
+              </div>
+              <span class="overview-badge badge-basic">Basic</span>
+              <svg class="overview-arrow"><use href="#icon-chevron-right" /></svg>
+            </button>
+
+            <button @click="activeSection = 'notifications'" class="overview-card">
+              <div class="overview-card-icon">
+                <svg><use href="#icon-bell" /></svg>
+              </div>
+              <div class="overview-card-body">
+                <span class="overview-card-label">Notifications</span>
+                <span class="overview-card-desc">{{ notificationSettings?.notifications_enabled ? 'Enabled' : 'Disabled' }} &bull; {{ notificationStreamerSettings.length }} streamers</span>
+              </div>
+              <span class="overview-badge badge-basic">Basic</span>
+              <svg class="overview-arrow"><use href="#icon-chevron-right" /></svg>
+            </button>
+
+            <button @click="activeSection = 'recording'" class="overview-card">
+              <div class="overview-card-icon">
+                <svg><use href="#icon-video" /></svg>
+              </div>
+              <div class="overview-card-body">
+                <span class="overview-card-label">Recording</span>
+                <span class="overview-card-desc">{{ recordingSettings?.enabled ? 'Enabled' : 'Disabled' }} &bull; {{ activeRecordings.length }} active</span>
+              </div>
+              <span class="overview-badge badge-advanced">Advanced</span>
+              <svg class="overview-arrow"><use href="#icon-chevron-right" /></svg>
+            </button>
+
+            <button @click="activeSection = 'favorites'" class="overview-card">
+              <div class="overview-card-icon">
+                <svg><use href="#icon-star" /></svg>
+              </div>
+              <div class="overview-card-body">
+                <span class="overview-card-label">Favorite Games</span>
+                <span class="overview-card-desc">Priority game categories</span>
+              </div>
+              <span class="overview-badge badge-basic">Basic</span>
+              <svg class="overview-arrow"><use href="#icon-chevron-right" /></svg>
+            </button>
+
+            <button @click="activeSection = 'pwa'" class="overview-card">
+              <div class="overview-card-icon">
+                <svg><use href="#icon-smartphone" /></svg>
+              </div>
+              <div class="overview-card-body">
+                <span class="overview-card-label">PWA & Mobile</span>
+                <span class="overview-card-desc">App install & push notifications</span>
+              </div>
+              <span class="overview-badge badge-advanced">Advanced</span>
+              <svg class="overview-arrow"><use href="#icon-chevron-right" /></svg>
+            </button>
+
+            <button @click="activeSection = 'api-keys'" class="overview-card">
+              <div class="overview-card-icon">
+                <svg><use href="#icon-key" /></svg>
+              </div>
+              <div class="overview-card-body">
+                <span class="overview-card-label">API Keys</span>
+                <span class="overview-card-desc">External access tokens</span>
+              </div>
+              <span class="overview-badge badge-safety">Safety</span>
+              <svg class="overview-arrow"><use href="#icon-chevron-right" /></svg>
+            </button>
+
+            <button @click="activeSection = 'proxy'" class="overview-card">
+              <div class="overview-card-icon">
+                <svg><use href="#icon-server" /></svg>
+              </div>
+              <div class="overview-card-body">
+                <span class="overview-card-label">Proxy Management</span>
+                <span class="overview-card-desc">Multi-proxy system & failover</span>
+              </div>
+              <span class="overview-badge badge-safety">Safety</span>
+              <svg class="overview-arrow"><use href="#icon-chevron-right" /></svg>
+            </button>
+
+            <button @click="activeSection = 'about'" class="overview-card">
+              <div class="overview-card-icon">
+                <svg><use href="#icon-info" /></svg>
+              </div>
+              <div class="overview-card-body">
+                <span class="overview-card-label">About</span>
+                <span class="overview-card-desc">{{ displayVersion }}</span>
+              </div>
+              <span class="overview-badge badge-account">Account</span>
+              <svg class="overview-arrow"><use href="#icon-chevron-right" /></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Twitch Connection Settings -->
+        <div v-if="activeSection === 'twitch'" class="settings-section">
+          <BasePanel tone="glass" padding="lg">
+            <template #title>Twitch Connection</template>
+            <template #description>Connect your Twitch account for enhanced recording quality and features</template>
             <TwitchConnectionPanel />
-          </GlassCard>
+          </BasePanel>
         </div>
 
         <!-- Notifications Settings -->
         <div v-if="activeSection === 'notifications'" class="settings-section">
-          <div class="section-header">
-            <h2 class="section-title">
-              <svg class="section-icon">
-                <use href="#icon-bell" />
-              </svg>
-              Notifications
-            </h2>
-            <p class="section-description">
-              Configure notification preferences for stream events
-            </p>
-          </div>
-
-          <GlassCard variant="strong" padding="lg">
+          <BasePanel tone="glass" padding="lg">
+            <template #title>Notifications</template>
+            <template #description>Configure notification preferences for stream events</template>
             <NotificationSettingsPanel
               :settings="notificationSettings || defaultNotificationSettings"
               :streamer-settings="notificationStreamerSettings"
               @update-settings="handleUpdateNotificationSettings"
               @update-streamer-settings="handleUpdateStreamerNotificationSettings"
             />
-          </GlassCard>
+          </BasePanel>
         </div>
 
         <!-- Recording Settings -->
         <div v-if="activeSection === 'recording'" class="settings-section">
-          <div class="section-header">
-            <h2 class="section-title">
-              <svg class="section-icon">
-                <use href="#icon-video" />
-              </svg>
-              Recording
-            </h2>
-            <p class="section-description">
-              Manage recording quality, storage, and behavior
-            </p>
-          </div>
-
-          <GlassCard variant="strong" padding="lg">
+          <BasePanel tone="glass" padding="lg">
+            <template #title>Recording</template>
+            <template #description>Manage recording quality, storage, and behavior</template>
             <RecordingSettingsPanel
               :settings="recordingSettings"
               :streamer-settings="recordingStreamerSettings"
@@ -144,194 +214,143 @@
               @update-streamer="handleUpdateStreamerRecordingSettings"
               @stop-recording="handleStopRecording"
             />
-          </GlassCard>
+          </BasePanel>
         </div>
 
         <!-- Proxy Management -->
         <div v-if="activeSection === 'proxy'" class="settings-section">
-          <div class="section-header">
-            <h2 class="section-title">
-              <svg class="section-icon">
-                <use href="#icon-server" />
-              </svg>
-              Proxy Management
-            </h2>
-            <p class="section-description">
-              Configure multiple proxy servers with automatic health monitoring and failover
-            </p>
-          </div>
-
-          <GlassCard variant="strong" padding="lg">
+          <BasePanel tone="glass" padding="lg">
+            <template #title>Proxy Management</template>
+            <template #description>Configure multiple proxy servers with automatic health monitoring and failover</template>
             <ProxySettingsPanel />
-          </GlassCard>
+          </BasePanel>
         </div>
 
         <!-- Favorites Settings -->
         <div v-if="activeSection === 'favorites'" class="settings-section">
-          <div class="section-header">
-            <h2 class="section-title">
-              <svg class="section-icon">
-                <use href="#icon-star" />
-              </svg>
-              Favorite Games
-            </h2>
-            <p class="section-description">
-              Set favorite game categories for priority notifications
-            </p>
-          </div>
-
-          <GlassCard variant="strong" padding="lg">
+          <BasePanel tone="glass" padding="lg">
+            <template #title>Favorite Games</template>
+            <template #description>Set favorite game categories for priority notifications</template>
             <FavoritesSettingsPanel />
-          </GlassCard>
+          </BasePanel>
         </div>
 
         <!-- PWA Settings -->
         <div v-if="activeSection === 'pwa'" class="settings-section">
-          <div class="section-header">
-            <h2 class="section-title">
-              <svg class="section-icon">
-                <use href="#icon-smartphone" />
-              </svg>
-              PWA & Mobile
-            </h2>
-            <p class="section-description">
-              Progressive Web App and mobile-specific settings
-            </p>
-          </div>
-
-          <GlassCard variant="strong" padding="lg">
+          <BasePanel tone="glass" padding="lg">
+            <template #title>PWA & Mobile</template>
+            <template #description>Progressive Web App and mobile-specific settings</template>
             <PWAPanel />
-          </GlassCard>
+          </BasePanel>
         </div>
 
         <!-- API Keys -->
         <div v-if="activeSection === 'api-keys'" class="settings-section">
-          <div class="section-header">
-            <h2 class="section-title">
-              <svg class="section-icon">
-                <use href="#icon-key" />
-              </svg>
-              API Keys
-            </h2>
-            <p class="section-description">
-              Manage long-lived tokens for external clients (monitoring, scripts, dashboards).
-            </p>
-          </div>
-
-          <GlassCard variant="strong" padding="lg">
+          <BasePanel tone="glass" padding="lg">
+            <template #title>API Keys</template>
+            <template #description>Manage long-lived tokens for external clients (monitoring, scripts, dashboards)</template>
             <ApiKeysPanel />
-          </GlassCard>
+          </BasePanel>
         </div>
 
         <!-- About Settings -->
         <div v-if="activeSection === 'about'" class="settings-section">
-          <div class="section-header">
-            <h2 class="section-title">
-              <svg class="section-icon">
-                <use href="#icon-info" />
-              </svg>
-              About
-            </h2>
-            <p class="section-description">
-              Application information and version details
-            </p>
-          </div>
+          <BasePanel tone="glass" padding="lg">
+            <template #title>About</template>
+            <template #description>Application information and version details</template>
+            <div class="about-content">
+              <div class="about-logo">
+                <svg class="logo-icon">
+                  <use href="#icon-video" />
+                </svg>
+              </div>
+              <h3 class="about-title">StreamVault</h3>
 
-          <GlassCard variant="strong">
-            <div class="card-content">
-              <div class="about-content">
-                <div class="about-logo">
-                  <svg class="logo-icon">
-                    <use href="#icon-video" />
-                  </svg>
-                </div>
-                <h3 class="about-title">StreamVault</h3>
-                
-                <!-- Version Info -->
-                <div v-if="versionInfo" class="version-info">
-                  <p class="about-version">
-                    {{ displayVersion }}
-                    <span v-if="versionInfo.branch && versionInfo.branch !== 'unknown'" class="version-branch">{{ versionInfo.branch }}</span>
-                  </p>
-                  <p v-if="versionInfo.commit_sha && versionInfo.commit_sha !== 'unknown'" class="build-date">
-                    Commit: <code>{{ versionInfo.commit_sha.substring(0, 7) }}</code>
-                  </p>
-                  <p v-if="versionInfo.build_date" class="build-date">
-                    Built: {{ formatBuildDate(versionInfo.build_date) }}
-                  </p>
-
-                  <!-- Update Check -->
-                  <div v-if="versionInfo.update_available" class="update-notice">
-                    <span class="update-icon">🎉</span>
-                    <span class="update-text">
-                      Update available:
-                      <strong>{{ displayVersion }}</strong>
-                      &rarr;
-                      <strong>{{ versionInfo.latest_version }}</strong>
-                      <span v-if="versionInfo.release_channel" class="channel-badge">
-                        {{ versionInfo.release_channel }}
-                      </span>
-                    </span>
-                    <a v-if="versionInfo.latest_version_url"
-                       :href="versionInfo.latest_version_url"
-                       target="_blank"
-                       class="btn btn-sm btn-primary">
-                      View Release
-                    </a>
-                  </div>
-                  <div v-else-if="versionInfo.update_check_error" class="update-notice update-error">
-                    <span class="update-icon">⚠️</span>
-                    <span class="update-text">
-                      Update check failed: {{ versionInfo.update_check_error }}
-                    </span>
-                  </div>
-                  <div v-else class="up-to-date">
-                    <span>{{ upToDateText }}</span>
-                    <a v-if="versionInfo.latest_version_url"
-                       :href="versionInfo.latest_version_url"
-                       target="_blank"
-                       class="release-link">
-                      View release
-                    </a>
-                  </div>
-                </div>
-                <p v-else class="about-version">Loading version...</p>
-                
-                <p class="about-description">
-                  Automated stream recording and management system for Twitch content creators.
+              <!-- Version Info -->
+              <div v-if="versionInfo" class="version-info">
+                <p class="about-version">
+                  {{ displayVersion }}
+                  <span v-if="versionInfo.branch && versionInfo.branch !== 'unknown'" class="version-branch">{{ versionInfo.branch }}</span>
                 </p>
-                <div class="about-links">
-                  <a href="https://github.com/Serph91P/StreamVault" target="_blank" class="about-link">
-                    <svg class="icon">
-                      <use href="#icon-home" />
-                    </svg>
-                    GitHub
+                <p v-if="versionInfo.commit_sha && versionInfo.commit_sha !== 'unknown'" class="build-date">
+                  Commit: <code>{{ versionInfo.commit_sha.substring(0, 7) }}</code>
+                </p>
+                <p v-if="versionInfo.build_date" class="build-date">
+                  Built: {{ formatBuildDate(versionInfo.build_date) }}
+                </p>
+
+                <!-- Update Check -->
+                <div v-if="versionInfo.update_available" class="update-notice">
+                  <span class="update-icon">🎉</span>
+                  <span class="update-text">
+                    Update available:
+                    <strong>{{ displayVersion }}</strong>
+                    &rarr;
+                    <strong>{{ versionInfo.latest_version }}</strong>
+                    <span v-if="versionInfo.release_channel" class="channel-badge">
+                      {{ versionInfo.release_channel }}
+                    </span>
+                  </span>
+                  <a v-if="versionInfo.latest_version_url"
+                     :href="versionInfo.latest_version_url"
+                     target="_blank"
+                     class="btn btn-sm btn-primary">
+                    View Release
                   </a>
-                  <a href="https://github.com/Serph91P/StreamVault/releases" target="_blank" class="about-link">
-                    <svg class="icon">
-                      <use href="#icon-download" />
-                    </svg>
-                    Releases
+                </div>
+                <div v-else-if="versionInfo.update_check_error" class="update-notice update-error">
+                  <span class="update-icon">⚠️</span>
+                  <span class="update-text">
+                    Update check failed: {{ versionInfo.update_check_error }}
+                  </span>
+                </div>
+                <div v-else class="up-to-date">
+                  <span>{{ upToDateText }}</span>
+                  <a v-if="versionInfo.latest_version_url"
+                     :href="versionInfo.latest_version_url"
+                     target="_blank"
+                     class="release-link">
+                    View release
                   </a>
                 </div>
               </div>
+              <p v-else class="about-version">Loading version...</p>
+
+              <p class="about-description">
+                Automated stream recording and management system for Twitch content creators.
+              </p>
+              <div class="about-links">
+                <a href="https://github.com/Serph91P/StreamVault" target="_blank" class="about-link">
+                  <svg class="icon">
+                    <use href="#icon-home" />
+                  </svg>
+                  GitHub
+                </a>
+                <a href="https://github.com/Serph91P/StreamVault/releases" target="_blank" class="about-link">
+                  <svg class="icon">
+                    <use href="#icon-download" />
+                  </svg>
+                  Releases
+                </a>
+              </div>
             </div>
-          </GlassCard>
+          </BasePanel>
         </div>
-      </main>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { useNotificationSettings } from '@/composables/useNotificationSettings'
 import { useRecordingSettings } from '@/composables/useRecordingSettings'
 import { useTheme } from '@/composables/useTheme'
 import { useToast } from '@/composables/useToast'
 import { systemApi } from '@/services/api'
 import LoadingSkeleton from '@/components/LoadingSkeleton.vue'
-import GlassCard from '@/components/cards/GlassCard.vue'
+import BasePanel from '@/components/base/BasePanel.vue'
 import NotificationSettingsPanel from '@/components/settings/NotificationSettingsPanel.vue'
 import RecordingSettingsPanel from '@/components/settings/RecordingSettingsPanel.vue'
 import ProxySettingsPanel from '@/components/settings/ProxySettingsPanel.vue'
@@ -343,63 +362,64 @@ import PageHeader from '@/components/base/PageHeader.vue'
 import type { NotificationSettings, StreamerNotificationSettings } from '@/types/settings'
 import type { RecordingSettings } from '@/types/recording'
 
-// Settings sections
-const sections = [
+// Section metadata for nav badges
+type SectionBadge = 'Basic' | 'Advanced' | 'Account' | 'Safety' | 'Danger'
+
+interface Section {
+  id: string
+  label: string
+  description: string
+  icon: string
+  badge?: SectionBadge
+}
+
+interface SectionGroup {
+  label?: string
+  sections: Section[]
+}
+
+const allSectionItems: Section[] = [
+  { id: 'overview', label: 'Overview', description: 'Settings at a glance', icon: 'grid' },
+  { id: 'twitch', label: 'Twitch Connection', description: 'OAuth & quality settings', icon: 'link', badge: 'Basic' },
+  { id: 'notifications', label: 'Notifications', description: 'Stream alerts & updates', icon: 'bell', badge: 'Basic' },
+  { id: 'recording', label: 'Recording', description: 'Quality & storage', icon: 'video', badge: 'Advanced' },
+  { id: 'favorites', label: 'Favorite Games', description: 'Priority categories', icon: 'star', badge: 'Basic' },
+  { id: 'pwa', label: 'PWA & Mobile', description: 'Mobile app settings', icon: 'smartphone', badge: 'Advanced' },
+  { id: 'api-keys', label: 'API Keys', description: 'External access tokens', icon: 'key', badge: 'Safety' },
+  { id: 'proxy', label: 'Proxy Management', description: 'Multi-proxy system', icon: 'server', badge: 'Safety' },
+  { id: 'about', label: 'About', description: 'App information', icon: 'info', badge: 'Account' }
+]
+
+const sectionGroups: SectionGroup[] = [
   {
-    id: 'twitch',
-    label: 'Twitch Connection',
-    description: 'OAuth & quality settings',
-    icon: 'link'
+    sections: [allSectionItems[0]]
   },
   {
-    id: 'notifications',
-    label: 'Notifications',
-    description: 'Stream alerts & updates',
-    icon: 'bell'
+    label: 'Basics',
+    sections: allSectionItems.filter(s => s.id === 'twitch' || s.id === 'notifications' || s.id === 'favorites')
   },
   {
-    id: 'recording',
-    label: 'Recording',
-    description: 'Quality & storage',
-    icon: 'video'
+    label: 'Advanced',
+    sections: allSectionItems.filter(s => s.id === 'recording' || s.id === 'pwa')
   },
   {
-    id: 'proxy',
-    label: 'Proxy Management',
-    description: 'Multi-proxy system',
-    icon: 'server'
-  },
-  {
-    id: 'favorites',
-    label: 'Favorite Games',
-    description: 'Priority categories',
-    icon: 'star'
-  },
-  {
-    id: 'pwa',
-    label: 'PWA & Mobile',
-    description: 'Mobile app settings',
-    icon: 'smartphone'
-  },
-  {
-    id: 'api-keys',
-    label: 'API Keys',
-    description: 'External access tokens',
-    icon: 'key'
-  },
-  {
-    id: 'about',
-    label: 'About',
-    description: 'App information',
-    icon: 'info'
+    label: 'Access & Safety',
+    sections: allSectionItems.filter(s => s.id === 'api-keys' || s.id === 'proxy' || s.id === 'about')
   }
 ]
 
 // State
-const activeSection = ref('twitch')  // Start with Twitch connection (most important)
-const activeSectionData = computed(() => sections.find(s => s.id === activeSection.value))
+const route = useRoute()
+const routeSection = typeof route.query.section === 'string' ? route.query.section : 'overview'
+const activeSection = ref(allSectionItems.some(section => section.id === routeSection) ? routeSection : 'overview')
+const activeSectionData = computed(() => allSectionItems.find(s => s.id === activeSection.value))
 const isLoading = ref(true)
-const hasUnsavedChanges = ref(false)
+
+watch(() => route.query.section, (section) => {
+  if (typeof section === 'string' && allSectionItems.some(item => item.id === section)) {
+    activeSection.value = section
+  }
+})
 
 // Version information
 const versionInfo = ref<any>(null)
@@ -481,7 +501,7 @@ async function loadAllSettings() {
     } catch (error) {
       console.error('Failed to load recording settings:', error)
     }
-    
+
     // Load version information
     await loadVersionInfo()
   } catch (error) {
@@ -504,9 +524,9 @@ async function loadVersionInfo() {
 function formatBuildDate(isoDate: string): string {
   try {
     const date = new Date(isoDate)
-    return date.toLocaleDateString('en-US', { 
-      year: 'numeric', 
-      month: 'short', 
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
       day: 'numeric',
       hour: '2-digit',
       minute: '2-digit'
@@ -580,16 +600,6 @@ async function handleStopRecording(recordingId: number) {
     console.error('Failed to stop recording:', error)
     toast.error('Failed to stop recording')
   }
-}
-
-function saveAllChanges() {
-  hasUnsavedChanges.value = false
-  // Save logic handled by individual panels
-}
-
-function resetChanges() {
-  hasUnsavedChanges.value = false
-  loadAllSettings()
 }
 
 // Initialize
@@ -703,7 +713,7 @@ onMounted(() => {
   }
 
   &.active {
-    background: var(--primary-color);
+    background: v.$primary-700;
     color: white;
 
     .nav-icon {
@@ -711,7 +721,7 @@ onMounted(() => {
     }
 
     .nav-description {
-      color: rgba(255, 255, 255, 0.8);
+      color: rgba(255, 255, 255, 0.92);
     }
 
     .nav-indicator {
@@ -748,7 +758,7 @@ onMounted(() => {
 .nav-description {
   display: block;
   font-size: var(--text-xs);
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   line-height: 1.3;
 }
 
@@ -803,7 +813,7 @@ onMounted(() => {
   border-radius: var(--radius-xl);
   overflow: hidden;
   margin-bottom: var(--spacing-5);
-  
+
   // Reduce margins on mobile
   @include m.respond-below('sm') {
     margin-bottom: var(--spacing-3);
@@ -813,7 +823,7 @@ onMounted(() => {
 
 .card-content {
   padding: var(--spacing-6);
-  
+
   // Mobile: Reduce padding for better content visibility
   @include m.respond-below('sm') {
     padding: var(--spacing-3);
@@ -1016,11 +1026,11 @@ onMounted(() => {
   border: 1px solid var(--success-color);
   border-radius: var(--radius-md);
   margin: var(--spacing-3) 0;
-  
+
   .update-icon {
     font-size: var(--text-2xl);
   }
-  
+
   .update-text {
     font-size: var(--text-sm);
     color: var(--text-primary);
@@ -1160,16 +1170,16 @@ onMounted(() => {
     appearance: none;
     cursor: pointer;
     min-height: 48px;
-    
+
     &:focus {
       outline: 2px solid var(--primary-color);
       outline-offset: -2px;
     }
   }
-  
+
   .mobile-section-selector .select-wrapper {
     position: relative;
-    
+
     .select-icon {
       position: absolute;
       left: var(--spacing-3);
@@ -1200,6 +1210,11 @@ onMounted(() => {
 
   .nav-indicator {
     display: none;
+  }
+
+  // Ensure content is not hidden behind fixed BottomNav (64px + safe area)
+  .settings-content {
+    padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px) + v.$spacing-6);
   }
 }
 
@@ -1242,6 +1257,184 @@ onMounted(() => {
     justify-content: center;
     padding: var(--spacing-4) var(--spacing-5);
     min-height: 48px;  // Larger touch target
+  }
+}
+
+// Nav group headers
+.nav-group-header {
+  font-size: var(--text-xs);
+  font-weight: v.$font-semibold;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: var(--spacing-3) var(--spacing-3) var(--spacing-1);
+  margin-top: var(--spacing-2);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.nav-group-header:first-of-type {
+  margin-top: 0;
+}
+
+// Nav badges
+.nav-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: var(--radius-pill);
+  font-size: 0.625rem;
+  font-weight: v.$font-semibold;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+  margin-right: var(--spacing-2);
+
+  &.badge-basic {
+    background: rgba(var(--primary-500-rgb), 0.15);
+    color: var(--text-primary);
+  }
+
+  &.badge-advanced {
+    background: rgba(var(--accent-500-rgb), 0.15);
+    color: var(--accent-color);
+  }
+
+  &.badge-safety {
+    background: rgba(var(--warning-500-rgb), 0.15);
+    color: var(--text-primary);
+  }
+
+  &.badge-account {
+    background: rgba(var(--info-500-rgb), 0.15);
+    color: var(--text-primary);
+  }
+
+  &.badge-danger {
+    background: rgba(var(--danger-500-rgb), 0.15);
+    color: var(--danger-color);
+  }
+}
+
+// Overview grid
+.overview-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--spacing-3);
+}
+
+.overview-card {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  padding: var(--spacing-4);
+  background: var(--background-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  transition: all v.$duration-200 v.$ease-out;
+  text-align: left;
+  color: inherit;
+  font: inherit;
+  min-height: 56px;
+
+  &:hover {
+    border-color: var(--primary-color);
+    background: rgba(var(--primary-500-rgb), 0.04);
+    transform: translateY(-1px);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
+  }
+}
+
+.overview-card-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-md);
+  background: rgba(var(--primary-500-rgb), 0.1);
+  flex-shrink: 0;
+
+  svg {
+    width: 20px;
+    height: 20px;
+    stroke: var(--primary-color);
+    fill: none;
+  }
+}
+
+.overview-card-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.overview-card-label {
+  font-size: var(--text-sm);
+  font-weight: v.$font-semibold;
+  color: var(--text-primary);
+  line-height: 1.3;
+}
+
+.overview-card-desc {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.overview-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: var(--radius-pill);
+  font-size: 0.625rem;
+  font-weight: v.$font-semibold;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+  margin-left: auto;
+
+  &.badge-basic {
+    background: rgba(var(--primary-500-rgb), 0.12);
+    color: var(--text-primary);
+  }
+
+  &.badge-advanced {
+    background: rgba(var(--accent-500-rgb), 0.12);
+    color: var(--accent-color);
+  }
+
+  &.badge-safety {
+    background: rgba(var(--warning-500-rgb), 0.12);
+    color: var(--warning-color-dark);
+  }
+
+  &.badge-account {
+    background: rgba(var(--info-500-rgb), 0.12);
+    color: var(--info-color);
+  }
+}
+
+.overview-arrow {
+  width: 16px;
+  height: 16px;
+  stroke: var(--text-tertiary);
+  fill: none;
+  flex-shrink: 0;
+}
+
+@include m.respond-below('md') {
+  .overview-grid {
+    grid-template-columns: 1fr;
   }
 }
 </style>

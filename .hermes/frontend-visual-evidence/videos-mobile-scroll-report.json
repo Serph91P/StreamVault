@@ -1,0 +1,39 @@
+{
+  "screenshots": [
+    "/opt/data/workspace/github_repos/StreamVault-frontend-product-overhaul-final/.hermes/frontend-visual-evidence/videos-mobile-390x844-viewport-top.png",
+    "/opt/data/workspace/github_repos/StreamVault-frontend-product-overhaul-final/.hermes/frontend-visual-evidence/videos-mobile-390x844-viewport-cards.png",
+    "/opt/data/workspace/github_repos/StreamVault-frontend-product-overhaul-final/.hermes/frontend-visual-evidence/videos-mobile-390x844-viewport-bottom.png"
+  ],
+  "metricsBefore": {
+    "windowScrollY": 0,
+    "docScrollHeight": 5413,
+    "bodyScrollHeight": 5413,
+    "mainScrollTop": 0,
+    "mainScrollHeight": 5365,
+    "mainClientHeight": 5365
+  },
+  "metricsAfter": {
+    "windowScrollY": 4569,
+    "docScrollHeight": 5413,
+    "bodyScrollHeight": 5413,
+    "bottomNav": {
+      "top": 776,
+      "bottom": 844,
+      "height": 68
+    },
+    "visibleCards": [
+      {
+        "top": 1,
+        "bottom": 348,
+        "height": 347,
+        "text": "Preview unavailable\nStory Games\n2:50:00\nStory Mode Playthrough - Epic Adventure\n"
+      },
+      {
+        "top": 364,
+        "bottom": 712,
+        "height": 347,
+        "text": "Preview unavailable\nJust Chatting\n1:00:00\nQ&A Stream - Answering Your Questions\n"
+      }
+    ]
+  }
+}

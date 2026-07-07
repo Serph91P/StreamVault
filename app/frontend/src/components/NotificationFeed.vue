@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import NotificationFilters from '@/components/notifications/NotificationFilters.vue'
 import NotificationItem from '@/components/notifications/NotificationItem.vue'
@@ -21,37 +21,18 @@ const isLoading = ref(false)
 const errorMessage = ref('')
 
 const notifications = computed(() => notificationStore.filteredNotifications)
-const allNotifications = computed(() => notificationStore.sortedNotifications)
 const totalCount = computed(() => notificationStore.totalCount)
 const unreadCount = computed(() => notificationStore.unreadCount)
+const groupedNotifications = computed(() => notificationStore.groupedNotifications)
 
 const activeFilter = computed<NotificationFilter>({
   get: () => notificationStore.filter,
   set: (value) => notificationStore.setFilter(value)
 })
 
-const severityCounts = computed<Record<string, number>>(() => {
-  return allNotifications.value.reduce<Record<string, number>>((counts, notification) => {
-    counts[notification.severity] = (counts[notification.severity] || 0) + 1
-    return counts
-  }, {})
-})
-
-const typeOptions = computed(() => {
-  const counts = allNotifications.value.reduce<Record<string, number>>((result, notification) => {
-    result[notification.type] = (result[notification.type] || 0) + 1
-    return result
-  }, {})
-
-  return Object.entries(counts)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 8)
-    .map(([value, count]) => ({
-      value,
-      count,
-      label: value.replaceAll('.', ' ')
-    }))
-})
+const severityCounts = computed(() => notificationStore.severityCounts)
+const sourceOptions = computed(() => notificationStore.sourceOptions)
+const typeOptions = computed(() => notificationStore.typeOptions)
 
 const subtitle = computed(() => {
   if (unreadCount.value > 0) {
@@ -111,9 +92,28 @@ async function clearAllNotifications(event?: Event): Promise<void> {
   emit('close-panel')
 }
 
+async function refreshNotifications(): Promise<void> {
+  isLoading.value = true
+  errorMessage.value = ''
+
+  try {
+    notificationStore.load()
+    await notificationStore.syncBackendState()
+  } catch (error) {
+    errorMessage.value = 'Notifications could not be refreshed. Existing local items are still available.'
+    console.error('NotificationFeed: Failed to refresh notifications:', error)
+  } finally {
+    isLoading.value = false
+  }
+}
+
 function closeFeed(): void {
   emit('close')
 }
+
+onMounted(() => {
+  refreshNotifications()
+})
 </script>
 
 <template>
@@ -168,6 +168,7 @@ function closeFeed(): void {
       :total-count="totalCount"
       :unread-count="unreadCount"
       :severity-counts="severityCounts"
+      :source-options="sourceOptions"
       :type-options="typeOptions"
     />
 
@@ -182,6 +183,8 @@ function closeFeed(): void {
       state="error"
       title="Notification Center needs attention"
       :message="errorMessage"
+      action-label="Retry"
+      @action="refreshNotifications"
     />
     <NotificationState
       v-else-if="totalCount === 0"
@@ -196,16 +199,32 @@ function closeFeed(): void {
       message="Try another filter or switch back to all notifications."
     />
 
-    <TransitionGroup v-else name="notification" tag="div" class="notification-list">
-      <NotificationItem
-        v-for="notification in notifications"
-        :key="notification.id"
-        :notification="notification"
-        @open="openNotificationTarget"
-        @remove="removeNotification"
-        @toggle-read="toggleRead"
-      />
-    </TransitionGroup>
+    <div v-else class="notification-groups">
+      <section
+        v-for="group in groupedNotifications"
+        :key="group.key"
+        class="notification-group"
+        :aria-labelledby="`notification-group-${group.key}`"
+      >
+        <header class="notification-group-header">
+          <h3 :id="`notification-group-${group.key}`">{{ group.title }}</h3>
+          <span>
+            {{ group.notifications.length }} item{{ group.notifications.length !== 1 ? 's' : '' }}
+            <template v-if="group.unreadCount > 0">, {{ group.unreadCount }} unread</template>
+          </span>
+        </header>
+        <TransitionGroup name="notification" tag="div" class="notification-list">
+          <NotificationItem
+            v-for="notification in group.notifications"
+            :key="notification.id"
+            :notification="notification"
+            @open="openNotificationTarget"
+            @remove="removeNotification"
+            @toggle-read="toggleRead"
+          />
+        </TransitionGroup>
+      </section>
+    </div>
   </section>
 </template>
 
@@ -213,11 +232,17 @@ function closeFeed(): void {
 @use '@/styles/mixins' as m;
 
 .notification-feed {
+  position: static;
+  inset: auto;
+  z-index: auto;
   display: flex;
   flex-direction: column;
+  gap: 0;
   width: 100%;
+  max-width: none;
   min-height: 0;
   overflow: hidden;
+  pointer-events: auto;
 }
 
 .feed-header {
@@ -301,7 +326,7 @@ function closeFeed(): void {
 }
 
 .header-action {
-  min-height: 2.25rem;
+  min-height: 44px;
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-full);
   background: var(--glass-bg-subtle);
@@ -325,26 +350,59 @@ function closeFeed(): void {
 .icon-action {
   display: grid;
   place-items: center;
-  width: 2.25rem;
+  width: 44px;
   padding: 0;
 }
 
-.notification-list {
+.notification-groups {
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
   padding: var(--spacing-1) 0 var(--spacing-4);
 }
 
-.notification-list::-webkit-scrollbar {
+.notification-group + .notification-group {
+  margin-top: var(--spacing-2);
+}
+
+.notification-group-header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-3);
+  padding: var(--spacing-3) var(--spacing-5) var(--spacing-2);
+  background: linear-gradient(180deg, var(--glass-bg-strong), rgba(15, 23, 42, 0.72));
+  color: var(--text-secondary);
+}
+
+.notification-group-header h3 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  font-weight: 800;
+}
+
+.notification-group-header span {
+  flex: 0 0 auto;
+  font-size: var(--text-xs);
+}
+
+.notification-list {
+  padding-bottom: var(--spacing-2);
+}
+
+.notification-groups::-webkit-scrollbar {
   width: 6px;
 }
 
-.notification-list::-webkit-scrollbar-track {
+.notification-groups::-webkit-scrollbar-track {
   background: transparent;
 }
 
-.notification-list::-webkit-scrollbar-thumb {
+.notification-groups::-webkit-scrollbar-thumb {
   border-radius: var(--radius-full);
   background-color: rgba(255, 255, 255, 0.14);
 }
@@ -388,7 +446,7 @@ function closeFeed(): void {
   }
 
   .clear-action {
-    min-height: 2rem;
+    min-height: 44px;
     padding: 0 var(--spacing-2);
     font-size: var(--text-xs);
   }

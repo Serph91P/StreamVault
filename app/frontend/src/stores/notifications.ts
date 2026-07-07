@@ -7,29 +7,87 @@ import {
   clearNotificationsStorage,
   type StoredNotification
 } from '@/services/notificationStorage'
-import type { CanonicalNotificationEvent } from '@/types/events'
+import { NOTIFICATION_SEVERITIES, type CanonicalNotificationEvent } from '@/types/events'
 
 export type NotificationFilter = 'all' | 'unread' | 'info' | 'success' | 'warning' | 'error' | 'critical' | string
+
+export interface NotificationTypeOption {
+  value: string
+  label: string
+  count: number
+}
+
+export interface NotificationSourceOption {
+  value: string
+  label: string
+  count: number
+}
+
+export interface NotificationGroup {
+  key: string
+  title: string
+  notifications: StoredNotification[]
+  unreadCount: number
+}
+
+const MAX_NOTIFICATIONS = 100
+
+export function notificationIdentity(notification: Pick<StoredNotification, 'event_id' | 'dedupe_key' | 'type' | 'timestamp'>): string {
+  const eventId = notification.event_id?.trim()
+  if (eventId) return `event:${eventId}`
+
+  const dedupeKey = notification.dedupe_key?.trim()
+  if (dedupeKey) return `dedupe:${dedupeKey}`
+
+  return `fallback:${notification.type}:${notification.timestamp}`
+}
+
+function hasSameNotificationIdentity(
+  left: Pick<StoredNotification, 'event_id' | 'dedupe_key' | 'type' | 'timestamp'>,
+  right: Pick<StoredNotification, 'event_id' | 'dedupe_key' | 'type' | 'timestamp'>
+): boolean {
+  const leftEventId = left.event_id?.trim()
+  const rightEventId = right.event_id?.trim()
+  if (leftEventId && rightEventId && leftEventId === rightEventId) return true
+
+  const leftDedupeKey = left.dedupe_key?.trim()
+  const rightDedupeKey = right.dedupe_key?.trim()
+  if (leftDedupeKey && rightDedupeKey && leftDedupeKey === rightDedupeKey) return true
+
+  return `${left.type}:${left.timestamp}` === `${right.type}:${right.timestamp}`
+}
+
+function compareNewestFirst(a: Pick<StoredNotification, 'timestamp'>, b: Pick<StoredNotification, 'timestamp'>): number {
+  return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+}
+
+function sortedLimited(items: StoredNotification[]): StoredNotification[] {
+  return [...items].sort(compareNewestFirst).slice(0, MAX_NOTIFICATIONS)
+}
+
+function notificationGroupTitle(timestamp: string): string {
+  const eventDate = new Date(timestamp)
+  if (Number.isNaN(eventDate.getTime())) {
+    return 'Earlier'
+  }
+
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const eventDay = new Date(eventDate)
+  eventDay.setHours(0, 0, 0, 0)
+  const daysAgo = Math.floor((today.getTime() - eventDay.getTime()) / 86400000)
+
+  if (daysAgo <= 0) return 'Today'
+  if (daysAgo === 1) return 'Yesterday'
+  if (daysAgo < 7) return eventDate.toLocaleDateString(undefined, { weekday: 'long' })
+  return 'Earlier'
+}
 
 export const useNotificationStore = defineStore('notifications', () => {
   const notifications = ref<StoredNotification[]>([])
   const filter = ref<NotificationFilter>('all')
 
-  function notificationIdentity(notification: Pick<StoredNotification, 'event_id' | 'dedupe_key' | 'type' | 'timestamp'>): string {
-    const eventId = notification.event_id?.trim()
-    if (eventId) return `event:${eventId}`
-
-    const dedupeKey = notification.dedupe_key?.trim()
-    if (dedupeKey) return `dedupe:${dedupeKey}`
-
-    return `fallback:${notification.type}:${notification.timestamp}`
-  }
-
-  const sortedNotifications = computed(() => {
-    return [...notifications.value].sort((a, b) => {
-      return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-    })
-  })
+  const sortedNotifications = computed(() => sortedLimited(notifications.value))
 
   const unreadCount = computed(() => {
     return notifications.value.filter((n) => !n.read).length
@@ -43,16 +101,91 @@ export const useNotificationStore = defineStore('notifications', () => {
       return sortedNotifications.value.filter((n) => !n.read)
     }
     return sortedNotifications.value.filter(
-      (n) => n.type === filter.value || n.severity === filter.value
+      (n) => n.type === filter.value || n.severity === filter.value || n.source === filter.value
     )
   })
+
+  const severityCounts = computed<Record<string, number>>(() => {
+    return sortedNotifications.value.reduce<Record<string, number>>((counts, notification) => {
+      counts[notification.severity] = (counts[notification.severity] || 0) + 1
+      return counts
+    }, Object.fromEntries(NOTIFICATION_SEVERITIES.map((severity) => [severity, 0])) as Record<string, number>)
+  })
+
+  const typeOptions = computed<NotificationTypeOption[]>(() => {
+    const counts = sortedNotifications.value.reduce<Record<string, number>>((result, notification) => {
+      result[notification.type] = (result[notification.type] || 0) + 1
+      return result
+    }, {})
+
+    return Object.entries(counts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 8)
+      .map(([value, count]) => ({
+        value,
+        count,
+        label: value.replaceAll('.', ' ')
+      }))
+  })
+
+  const sourceOptions = computed<NotificationSourceOption[]>(() => {
+    const labels: Record<string, string> = {
+      websocket: 'WebSocket',
+      push: 'Push',
+      apprise: 'Apprise',
+      system: 'System',
+      test: 'Test'
+    }
+
+    const counts = sortedNotifications.value.reduce<Record<string, number>>((result, notification) => {
+      result[notification.source] = (result[notification.source] || 0) + 1
+      return result
+    }, {})
+
+    return Object.entries(counts)
+      .sort((a, b) => b[1] - a[1])
+      .map(([value, count]) => ({
+        value,
+        count,
+        label: labels[value] || value
+      }))
+  })
+
+  const groupedNotifications = computed<NotificationGroup[]>(() => {
+    const groups = new Map<string, NotificationGroup>()
+
+    filteredNotifications.value.forEach((notification) => {
+      const groupTitle = notificationGroupTitle(notification.timestamp)
+      const groupKey = groupTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-')
+      const group = groups.get(groupKey) || {
+        key: groupKey,
+        title: groupTitle,
+        notifications: [],
+        unreadCount: 0
+      }
+
+      group.notifications.push(notification)
+      if (!notification.read) {
+        group.unreadCount += 1
+      }
+      groups.set(groupKey, group)
+    })
+
+    return Array.from(groups.values())
+  })
+
+  function persist(): void {
+    notifications.value = sortedLimited(notifications.value)
+    writeNotifications(notifications.value)
+  }
 
   function setFilter(nextFilter: NotificationFilter): void {
     filter.value = nextFilter
   }
 
   function load(): void {
-    notifications.value = readNotifications()
+    notifications.value = sortedLimited(readNotifications())
+    writeNotifications(notifications.value)
   }
 
   async function syncBackendState(): Promise<void> {
@@ -68,7 +201,26 @@ export const useNotificationStore = defineStore('notifications', () => {
           return new Date(n.timestamp).getTime() > cleared
         })
         if (notifications.value.length !== before) {
-          writeNotifications(notifications.value)
+          persist()
+        }
+      }
+
+      const readTs =
+        (backendState as Record<string, unknown>).last_read_timestamp ||
+        (backendState as Record<string, unknown>).last_read
+      if (readTs) {
+        const readAt = new Date(readTs as string).getTime()
+        let changed = false
+        notifications.value.forEach((n) => {
+          const notificationTime = new Date(n.timestamp).getTime()
+          if (!n.read && Number.isFinite(notificationTime) && notificationTime <= readAt) {
+            n.read = true
+            n.read_at = n.read_at || readTs as string
+            changed = true
+          }
+        })
+        if (changed) {
+          persist()
         }
       }
     } catch (error) {
@@ -99,8 +251,7 @@ export const useNotificationStore = defineStore('notifications', () => {
       read: false
     }
 
-    const newIdentity = notificationIdentity(newNotification)
-    const existingIndex = notifications.value.findIndex((n) => notificationIdentity(n) === newIdentity)
+    const existingIndex = notifications.value.findIndex((n) => hasSameNotificationIdentity(n, newNotification))
 
     if (existingIndex >= 0) {
       newNotification.read = notifications.value[existingIndex].read
@@ -110,11 +261,7 @@ export const useNotificationStore = defineStore('notifications', () => {
       notifications.value.unshift(newNotification)
     }
 
-    if (notifications.value.length > 100) {
-      notifications.value = notifications.value.slice(0, 100)
-    }
-
-    writeNotifications(notifications.value)
+    persist()
   }
 
   function markAllRead(): void {
@@ -123,7 +270,7 @@ export const useNotificationStore = defineStore('notifications', () => {
       n.read = true
       n.read_at = n.read_at || now
     })
-    writeNotifications(notifications.value)
+    persist()
 
     notificationApi.markRead(now).catch((error) => {
       console.error('Failed to mark notifications as read on backend:', error)
@@ -135,7 +282,11 @@ export const useNotificationStore = defineStore('notifications', () => {
     if (n && !n.read) {
       n.read = true
       n.read_at = new Date().toISOString()
-      writeNotifications(notifications.value)
+      persist()
+
+      notificationApi.markRead(n.read_at).catch((error) => {
+        console.error('Failed to mark notification as read on backend:', error)
+      })
     }
   }
 
@@ -144,13 +295,13 @@ export const useNotificationStore = defineStore('notifications', () => {
     if (n) {
       n.read = false
       n.read_at = undefined
-      writeNotifications(notifications.value)
+      persist()
     }
   }
 
   function remove(id: string): void {
     notifications.value = notifications.value.filter((n) => n.id !== id)
-    writeNotifications(notifications.value)
+    persist()
   }
 
   async function clearAll(): Promise<void> {
@@ -171,6 +322,10 @@ export const useNotificationStore = defineStore('notifications', () => {
     unreadCount,
     totalCount,
     filteredNotifications,
+    severityCounts,
+    typeOptions,
+    sourceOptions,
+    groupedNotifications,
     load,
     syncBackendState,
     addFromEvent,

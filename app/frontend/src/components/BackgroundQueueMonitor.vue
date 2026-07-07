@@ -4,18 +4,21 @@
     <button
       type="button"
       class="queue-status-indicator"
-      aria-label="Open background jobs"
+      :aria-label="`Open background queue, ${combinedActiveTasks.length} active ${combinedActiveTasks.length === 1 ? 'job' : 'jobs'}`"
+      aria-haspopup="dialog"
+      :aria-expanded="showPanel"
+      aria-controls="background-queue-panel"
       @click.stop="togglePanel"
     >
-      <svg class="plus-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M12 5v14M5 12h14" />
+      <svg class="queue-icon" aria-hidden="true">
+        <use href="#icon-list-ordered" />
       </svg>
-      
+
       <div class="queue-info">
-        <span class="queue-label">Jobs</span>
+        <span class="queue-label">Queue</span>
         <span class="queue-count">{{ combinedActiveTasks.length }}</span>
       </div>
-      
+
       <!-- Progress Bar -->
       <div v-if="hasActiveTasks" class="progress-bar">
         <div class="progress-fill" :style="{ width: `${totalProgress}%` }"></div>
@@ -31,14 +34,24 @@
 
     <!-- Expandable Panel -->
     <Transition name="slide-down">
-      <div v-if="showPanel" class="glass-popup-panel queue-panel" @click.stop>
+      <div
+        v-if="showPanel"
+        id="background-queue-panel"
+        class="glass-popup-panel queue-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="background-queue-title"
+        tabindex="-1"
+        @click.stop
+        @keydown.esc="closePanel"
+      >
       <div class="glass-popup-header">
-        <h3>Background Jobs</h3>
-        <button @click="togglePanel" class="glass-btn-icon" aria-label="Close">
+        <h3 id="background-queue-title">Background Queue</h3>
+        <button @click="closePanel" class="glass-btn-icon" aria-label="Close background queue">
           <svg><use href="#icon-x" /></svg>
         </button>
       </div>
-      
+
       <div class="glass-popup-content panel-content">
         <!-- Queue Statistics -->
         <div class="stats-section">
@@ -69,7 +82,7 @@
                 <span class="task-type">{{ formatTaskType(task.task_type, task) }}</span>
                 <span class="task-streamer">{{ getStreamerName(task) }}</span>
               </div>
-              
+
               <div class="task-progress">
                 <div v-if="task.task_type === 'recording'" class="recording-indicator">
                   <div class="pulse-indicator"></div>
@@ -83,7 +96,7 @@
                   <div class="progress-fill progress-fill-indeterminate"></div>
                 </div>
               </div>
-              
+
               <div class="task-status">
                 <span class="status-badge" :class="getStatusClass(task.status)">
                   {{ task.status }}
@@ -103,14 +116,14 @@
                 <span class="task-type">{{ formatTaskType(task.task_type, task) }}</span>
                 <span class="task-streamer">{{ getStreamerName(task) }}</span>
               </div>
-              
+
               <div class="task-status">
                 <span class="status-badge" :class="getStatusClass(task.status)">
                   {{ task.status }}
                 </span>
                 <span class="task-time">{{ formatTime(task.completed_at || task.started_at) }}</span>
               </div>
-              
+
               <div v-if="task.error_message" class="task-error">
                 {{ task.error_message }}
               </div>
@@ -226,7 +239,7 @@ const isConnected = computed(() => connectionStatus === 'connected')
 
 const totalProgress = computed(() => {
   if (!hasActiveTasks.value) return 0
-  
+
   const valid = combinedActiveTasks.value.filter(t => typeof t.progress === 'number')
   if (valid.length === 0) return 0
   const total = valid.reduce((sum, task) => sum + (task.progress || 0), 0)
@@ -241,12 +254,17 @@ const _statusIconClass = computed(() => {
   return 'status-idle'
 })
 
+const closePanel = () => {
+  showPanel.value = false
+  document.body.style.overflow = ''
+}
+
 const togglePanel = () => {
   showPanel.value = !showPanel.value
-  
+
   // Lock/unlock body scroll when panel is open on mobile
   document.body.style.overflow = showPanel.value ? 'hidden' : ''
-  
+
   // Refresh data when panel is opened
   if (showPanel.value) {
     forceRefreshFromAPI() // Force refresh via API fallback
@@ -279,19 +297,19 @@ const formatTaskType = (taskType: string, task?: any) => {
     'image_migration': 'Image Migration',
     'orphaned_recovery_check': 'Orphaned Recovery Check'
   }
-  
+
   // If task type is empty/undefined, try to get it from task structure
   if (!taskType && task) {
     taskType = task.task_type || task.type || 'unknown'
   }
-  
+
   return types[taskType] || (taskType ? taskType.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) : 'Unknown Task')
 }
 
 const getStreamerName = (task: any) => {
   // Try multiple possible field names for streamer name
-  return task.payload?.streamer_name || 
-         task.streamer_name || 
+  return task.payload?.streamer_name ||
+         task.streamer_name ||
          task.payload?.username ||
          task.username ||
          'Unknown'
@@ -318,15 +336,15 @@ const getStatusBorderClass = (status: string) => {
 
 const formatTime = (timestamp?: string) => {
   if (!timestamp) return ''
-  
+
   const date = new Date(timestamp)
   const now = new Date()
   const diff = now.getTime() - date.getTime()
-  
+
   if (diff < 60000) return 'just now'
   if (diff < 3600000) return `${Math.round(diff / 60000)}m ago`
   if (diff < 86400000) return `${Math.round(diff / 3600000)}h ago`
-  
+
   return date.toLocaleDateString()
 }
 
@@ -346,59 +364,58 @@ defineExpose({ togglePanel, taskCount: combinedActiveTasks })
   display: flex;
   align-items: center;
   gap: var(--spacing-2);
-  padding: var(--spacing-2) var(--spacing-3);
-  background: var(--glass-bg-subtle);
+  padding: var(--spacing-2);
+  background: transparent;
   border-radius: var(--radius-full);
   cursor: pointer;
   transition: all var(--duration-200) var(--ease-out);
   backdrop-filter: blur(var(--glass-blur-sm));
   -webkit-backdrop-filter: blur(var(--glass-blur-sm));
-  border: 1px solid var(--glass-border);
+  border: 1px solid transparent;
   min-height: 44px;
-  min-width: auto;
-  color: var(--text-primary);
+  min-width: 44px;
+  color: var(--text-secondary);
   font: inherit;
 }
 
 .queue-status-indicator:hover {
-  background: rgba(var(--primary-500-rgb), 0.1);
-  border-color: rgba(var(--primary-500-rgb), 0.3);
-  
-  [data-theme="light"] & {
-    background: rgba(var(--primary-500-rgb), 0.15);
-    border-color: rgba(var(--primary-500-rgb), 0.5);
-  }
+  background: var(--glass-bg-subtle);
+  border-color: var(--glass-border);
+  color: var(--text-primary);
 }
 
-/* Plus Icon (replaces old status-icon) */
-.plus-icon {
+/* Queue icon */
+.queue-icon {
   width: 16px;
   height: 16px;
-  color: var(--text-primary);  /* Same white as bell/moon icons */
+  color: currentColor;
+  fill: none;
+  stroke: currentColor;
   flex-shrink: 0;
-  align-self: center;  /* Vertically center with text */
+  align-self: center;
 }
 
 .queue-info {
   display: flex;
   flex-direction: row;
-  align-items: center;  /* CRITICAL: Vertical alignment */
-  gap: var(--spacing-2);  /* 8px - same as outer gap for consistency */
+  align-items: center;
+  gap: var(--spacing-1);
   flex: 1;
 }
 
 .queue-label {
-  font-size: var(--text-sm);  /* 14px - same as count */
-  color: var(--text-primary);  /* Same white as count */
-  font-weight: var(--font-medium);  /* 500 */
-  line-height: 1;  /* CRITICAL: Match icon height for perfect alignment */
+  display: none;
+  font-size: var(--text-sm);
+  color: currentColor;
+  font-weight: var(--font-medium);
+  line-height: 1;
 }
 
 .queue-count {
-  font-size: var(--text-sm);  /* 14px - same size as label */
-  font-weight: var(--font-bold);  /* 700 */
-  color: var(--text-primary);  /* White like bell/moon */
-  line-height: 1;  /* CRITICAL: Match icon height for perfect alignment */
+  font-size: var(--text-xs);
+  font-weight: var(--font-bold);
+  color: currentColor;
+  line-height: 1;
 }
 
 .progress-bar {
@@ -408,6 +425,17 @@ defineExpose({ togglePanel, taskCount: combinedActiveTasks })
   border-radius: var(--border-radius-sm, 4px);
   overflow: hidden;
   flex-shrink: 0;
+  display: none;
+}
+
+@include m.respond-to('lg') {
+  .queue-status-indicator {
+    padding: var(--spacing-2) var(--spacing-3);
+  }
+
+  .queue-label {
+    display: inline;
+  }
 }
 
 .progress-fill {
@@ -419,6 +447,11 @@ defineExpose({ togglePanel, taskCount: combinedActiveTasks })
 
 // Queue panel - uses shared .glass-popup-panel, only component-specific overrides here
 .queue-panel {
+  .glass-popup-header .glass-btn-icon {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
   // Desktop width override (shared class defaults to 420px)
   @include m.respond-to('lg') {
     width: min(450px, 90vw);
@@ -436,7 +469,7 @@ defineExpose({ togglePanel, taskCount: combinedActiveTasks })
   margin-bottom: 24px;
   padding-bottom: 24px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  
+
   [data-theme="light"] & {
     border-bottom-color: var(--border-color);
   }
@@ -451,7 +484,7 @@ defineExpose({ togglePanel, taskCount: combinedActiveTasks })
   border-radius: var(--border-radius, 8px);
   border: 1px solid rgba(255, 255, 255, 0.1);
   transition: var(--transition-base);
-  
+
   [data-theme="light"] & {
     background: var(--background-darker);
     border-color: var(--border-color);
@@ -461,7 +494,7 @@ defineExpose({ togglePanel, taskCount: combinedActiveTasks })
 .stat-item:hover {
   background: rgba(255, 255, 255, 0.1);
   transform: translateY(-1px);
-  
+
   [data-theme="light"] & {
     background: var(--background-card);
   }
@@ -490,7 +523,7 @@ defineExpose({ togglePanel, taskCount: combinedActiveTasks })
   margin-bottom: 24px;
   padding-bottom: 24px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  
+
   [data-theme="light"] & {
     border-bottom-color: var(--border-color);
   }
@@ -713,40 +746,40 @@ defineExpose({ togglePanel, taskCount: combinedActiveTasks })
 
 @include m.respond-below('md') {  // < 768px
   .queue-status-indicator {
-    padding: 6px 10px;
-    gap: 6px;
+    padding: 6px;
+    gap: 4px;
     min-height: 44px;
-    min-width: 60px;
+    min-width: 44px;
   }
-  
+
   .queue-label {
     font-size: 10px;
   }
-  
+
   .queue-count {
     font-size: 12px;
   }
-  
+
   .progress-bar {
     width: 25px;
     height: 3px;
   }
-  
-  .status-icon {
+
+  .queue-icon {
     width: 14px;
     height: 14px;
   }
-  
+
   .stats-section {
     grid-template-columns: 1fr;
   }
-  
+
   .task-header {
     flex-direction: column;
     align-items: flex-start;
     gap: 8px;
   }
-  
+
   .task-streamer {
     align-self: flex-end;
   }

@@ -3,10 +3,10 @@
     variant="subtle"
     hoverable
     class="stream-card"
-    :class="{ 
-      'is-expanded': isExpanded, 
+    :class="{
+      'is-expanded': isExpanded,
       'actions-open': showActions,
-      'is-recording': isRecording 
+      'is-recording': isRecording
     }"
   >
     <div class="stream-card-content">
@@ -26,13 +26,25 @@
         </div>
 
         <!-- Recording Status Badge (Pulsing if recording) -->
-        <div v-if="isRecording" class="recording-badge">
-          <span class="recording-indicator"></span>
-          <span class="recording-text">RECORDING</span>
-        </div>
+        <StatusBadge
+          v-if="isRecording"
+          class="stream-recording-badge"
+          tone="recording"
+          size="sm"
+          dot
+          pulse
+          aria-label="Stream status: recording"
+        >
+          RECORDING
+        </StatusBadge>
 
         <!-- Expand Icon -->
-        <button class="expand-btn" :class="{ rotated: isExpanded }" @click.stop="toggleExpand">
+        <button
+          class="expand-btn"
+          :class="{ rotated: isExpanded }"
+          :aria-label="isExpanded ? 'Collapse stream details' : 'Expand stream details'"
+          @click.stop="toggleExpand"
+        >
           <svg class="icon">
             <use href="#icon-chevron-down" />
           </svg>
@@ -184,6 +196,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
+import StatusBadge from '@/components/base/StatusBadge.vue'
 import GlassCard from './GlassCard.vue'
 
 interface StreamEvent {
@@ -236,7 +249,7 @@ const hasRecording = computed(() => !!props.stream.recording_path)
 const categoryEvents = computed(() => {
   if (!props.stream.events) return []
   // Backend sends 'channel.update' for category changes
-  return props.stream.events.filter(e => 
+  return props.stream.events.filter(e =>
     e.event_type === 'channel.update' || e.event_type === 'category_change'
   )
 })
@@ -272,15 +285,15 @@ function toggleActions() {
 
 function formatDuration(start?: string, end?: string) {
   if (!start) return '-'
-  
+
   const startDate = new Date(start)
   const endDate = end ? new Date(end) : new Date()
-  
+
   const diffMs = endDate.getTime() - startDate.getTime()
   const diffMins = Math.floor(diffMs / 60000)
   const hours = Math.floor(diffMins / 60)
   const mins = diffMins % 60
-  
+
   if (hours > 0) {
     return `${hours}h ${mins}m`
   }
@@ -289,7 +302,7 @@ function formatDuration(start?: string, end?: string) {
 
 function formatDate(dateStr?: string) {
   if (!dateStr) return '-'
-  
+
   const date = new Date(dateStr)
   return date.toLocaleString('de-DE', {
     day: '2-digit',
@@ -302,10 +315,10 @@ function formatDate(dateStr?: string) {
 
 function formatEventDuration(event: StreamEvent, index: number) {
   if (!event.timestamp) return ''
-  
+
   const eventDate = new Date(event.timestamp)
   const nextEvent = categoryEvents.value[index + 1]
-  
+
   let endDate: Date
   if (nextEvent && nextEvent.timestamp) {
     endDate = new Date(nextEvent.timestamp)
@@ -314,12 +327,12 @@ function formatEventDuration(event: StreamEvent, index: number) {
   } else {
     endDate = new Date()
   }
-  
+
   const diffMs = endDate.getTime() - eventDate.getTime()
   const diffMins = Math.floor(diffMs / 60000)
   const hours = Math.floor(diffMins / 60)
   const mins = diffMins % 60
-  
+
   if (hours > 0) {
     return `${hours}h ${mins}m`
   }
@@ -442,29 +455,6 @@ onUnmounted(() => {
     stroke: currentColor;
     fill: none;
   }
-}
-
-.recording-badge {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-1);
-  padding: var(--spacing-1) var(--spacing-2);
-  background: var(--danger-color);
-  border-radius: var(--radius-sm);
-  font-size: var(--text-xs);
-  font-weight: v.$font-bold;
-  color: white;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  animation: pulse-recording 2s ease-in-out infinite;
-}
-
-.recording-indicator {
-  width: 6px;
-  height: 6px;
-  background: white;
-  border-radius: 50%;
-  animation: pulse-live 2s ease-in-out infinite;
 }
 
 .expand-btn {
@@ -737,7 +727,7 @@ onUnmounted(() => {
   overflow: hidden;
   z-index: 10000;
   animation: dropdown-appear 0.15s ease-out;
-  
+
   // Mobile: Make dropdown full-width and position at bottom
   @include m.respond-below('sm') {
     position: fixed;
@@ -834,7 +824,7 @@ onUnmounted(() => {
     border-radius: var(--radius-md);
     margin: calc(-1 * var(--spacing-2));
     padding: var(--spacing-2);
-    
+
     /* Add subtle indicator that card is expandable */
     &::after {
       content: 'Tap to expand';
@@ -846,13 +836,13 @@ onUnmounted(() => {
       margin-top: var(--spacing-2);
       opacity: 0.6;
     }
-    
+
     /* Visual feedback on touch - shows user it's tappable */
     &:active {
       background: rgba(var(--primary-500-rgb), 0.15);
     }
   }
-  
+
   /* Hide hint when expanded */
   .stream-card.is-expanded .stream-compact::after {
     display: none;

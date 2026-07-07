@@ -1,0 +1,4074 @@
+{
+  "capturedAt": "2026-07-06T22:22:50.742Z",
+  "outDir": "/opt/data/workspace/github_repos/StreamVault-frontend-product-overhaul-final/.hermes/frontend-visual-evidence/g-detail-001",
+  "results": [
+    {
+      "name": "desktop-1440-tab-overview",
+      "viewport": {
+        "name": "desktop-1440",
+        "width": 1440,
+        "height": 900
+      },
+      "tabId": "overview",
+      "tabControls": [
+        {
+          "text": "Overview",
+          "width": 122,
+          "height": 44,
+          "ok": true
+        },
+        {
+          "text": "Videos",
+          "width": 103,
+          "height": 44,
+          "ok": true
+        },
+        {
+          "text": "Settings",
+          "width": 113,
+          "height": 44,
+          "ok": true
+        },
+        {
+          "text": "Events",
+          "width": 103,
+          "height": 44,
+          "ok": true
+        }
+      ],
+      "actionButtons": [
+        {
+          "text": "Back",
+          "width": 94,
+          "height": 44,
+          "ok": true
+        },
+        {
+          "text": "Watch Live",
+          "width": 145,
+          "height": 44,
+          "ok": true
+        },
+        {
+          "text": "Delete All",
+          "width": 137,
+          "height": 44,
+          "ok": true
+        }
+      ],
+      "url": "http://127.0.0.1:5173/streamers/1",
+      "viewportWidth": 1440,
+      "documentWidth": 1440,
+      "noHorizontalOverflow": true,
+      "screenshot": "/opt/data/workspace/github_repos/StreamVault-frontend-product-overhaul-final/.hermes/frontend-visual-evidence/g-detail-001/desktop-1440-tab-overview-streamer-1.png",
+      "hasCompactHeader": true,
+      "hasAvatar": true,
+      "hasTabs": true,
+      "hasTabContent": true,
+      "firstViewportText": "StreamVault\nQueue\n2\nNotifications\nLogout\nDashboard\nDashboard overview\nStreamers\nManage creators\nLibrary\nVideo library\nSubscriptions\nManage subscriptions\nSettings\nApp preferences\nCollapse\nBack\nLIVE\n\n@Streamer Alpha\n\nJust Chatting with Chat!\n\nJust Chatting\n\n4\nSTREAMS\n4\nRECORDED\n1h 19m\nAVG DURATION\nWatch Live\nOverview\nVideos\nSettings\nEvents\nLive\nStatus\nJust Chatting with Chat!\nRecording\nRecording\nCapture in progress\n4\nTotal Streams\n4\nRecorded\n1h 19m\nAvg Duration\nLatest Stream\nMorning Talk Show - Community Discussion\nJust Chatting\nNov 20, 2025\n39m\nDanger Zone\nDelete All Streams\n\nPermanently remove all streams for this streamer. Active recordings will be skipped.\n\nDelete All",
+      "messages": [
+        {
+          "type": "error",
+          "text": "X-Frame-Options may only be set via an HTTP header sent along with a document. It may not be set inside <meta>."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connecting..."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connected."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Using MOCK API for all endpoints"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue warn]: onMounted is called when there is no active component instance to be associated with. Lifecycle injection APIs can only be used during execution of setup(). If you are using async setup(), make sure to register lifecycle hooks before the first await statement."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: WebSocket connections disabled"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:18.269Z] DEBUG [WebSocketManager] Singleton created with URL: ws://127.0.0.1:5173/ws"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:18.270Z] DEBUG [WebSocketManager] Singleton instance created"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping WebSocket connection"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:18.283Z] DEBUG [useBackgroundQueue] Background Queue: Waiting for WebSocket data"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:18.283Z] DEBUG [useBackgroundQueue] WebSocket not connected yet, using API fallback for initial load"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:18.283Z] DEBUG [useBackgroundQueue] FORCE REFRESH: Using API as fallback"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:18.283Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:18.284Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping auth checks, allowing all routes"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue Router warn]: The `next()` callback in navigation guards is deprecated. Return the value instead of calling `next(value)`."
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:18.483Z] DEBUG [useBackgroundQueue] FORCE REFRESH: API data loaded as fallback"
+        },
+        {
+          "type": "error",
+          "text": "X-Frame-Options may only be set via an HTTP header sent along with a document. It may not be set inside <meta>."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connecting..."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connected."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Using MOCK API for all endpoints"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue warn]: onMounted is called when there is no active component instance to be associated with. Lifecycle injection APIs can only be used during execution of setup(). If you are using async setup(), make sure to register lifecycle hooks before the first await statement."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: WebSocket connections disabled"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:21.310Z] DEBUG [WebSocketManager] Singleton created with URL: ws://127.0.0.1:5173/ws"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:21.310Z] DEBUG [WebSocketManager] Singleton instance created"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping WebSocket connection"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:21.315Z] DEBUG [useBackgroundQueue] Background Queue: Waiting for WebSocket data"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:21.315Z] DEBUG [useBackgroundQueue] WebSocket not connected yet, using API fallback for initial load"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:21.315Z] DEBUG [useBackgroundQueue] FORCE REFRESH: Using API as fallback"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:21.315Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:21.316Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping auth checks, allowing all routes"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue Router warn]: The `next()` callback in navigation guards is deprecated. Return the value instead of calling `next(value)`."
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:21.515Z] DEBUG [useBackgroundQueue] FORCE REFRESH: API data loaded as fallback"
+        },
+        {
+          "type": "error",
+          "text": "X-Frame-Options may only be set via an HTTP header sent along with a document. It may not be set inside <meta>."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connecting..."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connected."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Using MOCK API for all endpoints"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue warn]: onMounted is called when there is no active component instance to be associated with. Lifecycle injection APIs can only be used during execution of setup(). If you are using async setup(), make sure to register lifecycle hooks before the first await statement."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: WebSocket connections disabled"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:23.773Z] DEBUG [WebSocketManager] Singleton created with URL: ws://127.0.0.1:5173/ws"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:23.773Z] DEBUG [WebSocketManager] Singleton instance created"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping WebSocket connection"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:23.778Z] DEBUG [useBackgroundQueue] Background Queue: Waiting for WebSocket data"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:23.778Z] DEBUG [useBackgroundQueue] WebSocket not connected yet, using API fallback for initial load"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:23.778Z] DEBUG [useBackgroundQueue] FORCE REFRESH: Using API as fallback"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:23.778Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:23.779Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping auth checks, allowing all routes"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue Router warn]: The `next()` callback in navigation guards is deprecated. Return the value instead of calling `next(value)`."
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:23.982Z] DEBUG [useBackgroundQueue] FORCE REFRESH: API data loaded as fallback"
+        },
+        {
+          "type": "error",
+          "text": "X-Frame-Options may only be set via an HTTP header sent along with a document. It may not be set inside <meta>."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connecting..."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connected."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Using MOCK API for all endpoints"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue warn]: onMounted is called when there is no active component instance to be associated with. Lifecycle injection APIs can only be used during execution of setup(). If you are using async setup(), make sure to register lifecycle hooks before the first await statement."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: WebSocket connections disabled"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:26.449Z] DEBUG [WebSocketManager] Singleton created with URL: ws://127.0.0.1:5173/ws"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:26.449Z] DEBUG [WebSocketManager] Singleton instance created"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping WebSocket connection"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:26.454Z] DEBUG [useBackgroundQueue] Background Queue: Waiting for WebSocket data"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:26.454Z] DEBUG [useBackgroundQueue] WebSocket not connected yet, using API fallback for initial load"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:26.454Z] DEBUG [useBackgroundQueue] FORCE REFRESH: Using API as fallback"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:26.455Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:26.455Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping auth checks, allowing all routes"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue Router warn]: The `next()` callback in navigation guards is deprecated. Return the value instead of calling `next(value)`."
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:26.655Z] DEBUG [useBackgroundQueue] FORCE REFRESH: API data loaded as fallback"
+        }
+      ]
+    },
+    {
+      "name": "desktop-1440-tab-videos",
+      "viewport": {
+        "name": "desktop-1440",
+        "width": 1440,
+        "height": 900
+      },
+      "tabId": "videos",
+      "tabControls": [
+        {
+          "text": "Overview",
+          "width": 122,
+          "height": 44,
+          "ok": true
+        },
+        {
+          "text": "Videos",
+          "width": 103,
+          "height": 44,
+          "ok": true
+        },
+        {
+          "text": "Settings",
+          "width": 113,
+          "height": 44,
+          "ok": true
+        },
+        {
+          "text": "Events",
+          "width": 103,
+          "height": 44,
+          "ok": true
+        }
+      ],
+      "actionButtons": [
+        {
+          "text": "Back",
+          "width": 94,
+          "height": 44,
+          "ok": true
+        },
+        {
+          "text": "Watch Live",
+          "width": 145,
+          "height": 44,
+          "ok": true
+        },
+        {
+          "text": "",
+          "width": 32,
+          "height": 36,
+          "ok": false
+        },
+        {
+          "text": "",
+          "width": 32,
+          "height": 36,
+          "ok": false
+        },
+        {
+          "text": "",
+          "width": 32,
+          "height": 36,
+          "ok": false
+        },
+        {
+          "text": "",
+          "width": 32,
+          "height": 36,
+          "ok": false
+        }
+      ],
+      "url": "http://127.0.0.1:5173/streamers/1",
+      "viewportWidth": 1440,
+      "documentWidth": 1440,
+      "noHorizontalOverflow": true,
+      "screenshot": "/opt/data/workspace/github_repos/StreamVault-frontend-product-overhaul-final/.hermes/frontend-visual-evidence/g-detail-001/desktop-1440-tab-videos-streamer-1.png",
+      "hasCompactHeader": true,
+      "hasAvatar": true,
+      "hasTabs": true,
+      "hasTabContent": true,
+      "firstViewportText": "StreamVault\nQueue\n2\nNotifications\nLogout\nDashboard\nDashboard overview\nStreamers\nManage creators\nLibrary\nVideo library\nSubscriptions\nManage subscriptions\nSettings\nApp preferences\nCollapse\nBack\nLIVE\n\n@Streamer Alpha\n\nJust Chatting with Chat!\n\nJust Chatting\n\n4\nSTREAMS\n4\nRECORDED\n1h 19m\nAVG DURATION\nWatch Live\nOverview\nVideos\nSettings\nEvents\nStream History\nNewest First\nOldest First\nLongest Duration\nShortest Duration\nShowing 4 streams\nMorning Talk Show - Community Discussion\nJust Chatting\nMorning Chill Stream - Coffee and Chat\nJust Chatting\nWeekend Collab Stream - Special Guest\nJust Chatting\nQ&A Stream - Answering Your Questions\nJust Chatting",
+      "messages": [
+        {
+          "type": "error",
+          "text": "X-Frame-Options may only be set via an HTTP header sent along with a document. It may not be set inside <meta>."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connecting..."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connected."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Using MOCK API for all endpoints"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue warn]: onMounted is called when there is no active component instance to be associated with. Lifecycle injection APIs can only be used during execution of setup(). If you are using async setup(), make sure to register lifecycle hooks before the first await statement."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: WebSocket connections disabled"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:18.269Z] DEBUG [WebSocketManager] Singleton created with URL: ws://127.0.0.1:5173/ws"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:18.270Z] DEBUG [WebSocketManager] Singleton instance created"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping WebSocket connection"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:18.283Z] DEBUG [useBackgroundQueue] Background Queue: Waiting for WebSocket data"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:18.283Z] DEBUG [useBackgroundQueue] WebSocket not connected yet, using API fallback for initial load"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:18.283Z] DEBUG [useBackgroundQueue] FORCE REFRESH: Using API as fallback"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:18.283Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:18.284Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping auth checks, allowing all routes"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue Router warn]: The `next()` callback in navigation guards is deprecated. Return the value instead of calling `next(value)`."
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:18.483Z] DEBUG [useBackgroundQueue] FORCE REFRESH: API data loaded as fallback"
+        },
+        {
+          "type": "error",
+          "text": "X-Frame-Options may only be set via an HTTP header sent along with a document. It may not be set inside <meta>."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connecting..."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connected."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Using MOCK API for all endpoints"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue warn]: onMounted is called when there is no active component instance to be associated with. Lifecycle injection APIs can only be used during execution of setup(). If you are using async setup(), make sure to register lifecycle hooks before the first await statement."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: WebSocket connections disabled"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:21.310Z] DEBUG [WebSocketManager] Singleton created with URL: ws://127.0.0.1:5173/ws"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:21.310Z] DEBUG [WebSocketManager] Singleton instance created"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping WebSocket connection"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:21.315Z] DEBUG [useBackgroundQueue] Background Queue: Waiting for WebSocket data"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:21.315Z] DEBUG [useBackgroundQueue] WebSocket not connected yet, using API fallback for initial load"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:21.315Z] DEBUG [useBackgroundQueue] FORCE REFRESH: Using API as fallback"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:21.315Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:21.316Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping auth checks, allowing all routes"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue Router warn]: The `next()` callback in navigation guards is deprecated. Return the value instead of calling `next(value)`."
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:21.515Z] DEBUG [useBackgroundQueue] FORCE REFRESH: API data loaded as fallback"
+        },
+        {
+          "type": "error",
+          "text": "X-Frame-Options may only be set via an HTTP header sent along with a document. It may not be set inside <meta>."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connecting..."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connected."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Using MOCK API for all endpoints"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue warn]: onMounted is called when there is no active component instance to be associated with. Lifecycle injection APIs can only be used during execution of setup(). If you are using async setup(), make sure to register lifecycle hooks before the first await statement."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: WebSocket connections disabled"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:23.773Z] DEBUG [WebSocketManager] Singleton created with URL: ws://127.0.0.1:5173/ws"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:23.773Z] DEBUG [WebSocketManager] Singleton instance created"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping WebSocket connection"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:23.778Z] DEBUG [useBackgroundQueue] Background Queue: Waiting for WebSocket data"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:23.778Z] DEBUG [useBackgroundQueue] WebSocket not connected yet, using API fallback for initial load"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:23.778Z] DEBUG [useBackgroundQueue] FORCE REFRESH: Using API as fallback"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:23.778Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:23.779Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping auth checks, allowing all routes"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue Router warn]: The `next()` callback in navigation guards is deprecated. Return the value instead of calling `next(value)`."
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:23.982Z] DEBUG [useBackgroundQueue] FORCE REFRESH: API data loaded as fallback"
+        },
+        {
+          "type": "error",
+          "text": "X-Frame-Options may only be set via an HTTP header sent along with a document. It may not be set inside <meta>."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connecting..."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connected."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Using MOCK API for all endpoints"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue warn]: onMounted is called when there is no active component instance to be associated with. Lifecycle injection APIs can only be used during execution of setup(). If you are using async setup(), make sure to register lifecycle hooks before the first await statement."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: WebSocket connections disabled"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:26.449Z] DEBUG [WebSocketManager] Singleton created with URL: ws://127.0.0.1:5173/ws"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:26.449Z] DEBUG [WebSocketManager] Singleton instance created"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping WebSocket connection"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:26.454Z] DEBUG [useBackgroundQueue] Background Queue: Waiting for WebSocket data"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:26.454Z] DEBUG [useBackgroundQueue] WebSocket not connected yet, using API fallback for initial load"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:26.454Z] DEBUG [useBackgroundQueue] FORCE REFRESH: Using API as fallback"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:26.455Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:26.455Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping auth checks, allowing all routes"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue Router warn]: The `next()` callback in navigation guards is deprecated. Return the value instead of calling `next(value)`."
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:26.655Z] DEBUG [useBackgroundQueue] FORCE REFRESH: API data loaded as fallback"
+        }
+      ]
+    },
+    {
+      "name": "desktop-1440-tab-settings",
+      "viewport": {
+        "name": "desktop-1440",
+        "width": 1440,
+        "height": 900
+      },
+      "tabId": "settings",
+      "tabControls": [
+        {
+          "text": "Overview",
+          "width": 122,
+          "height": 44,
+          "ok": true
+        },
+        {
+          "text": "Videos",
+          "width": 103,
+          "height": 44,
+          "ok": true
+        },
+        {
+          "text": "Settings",
+          "width": 113,
+          "height": 44,
+          "ok": true
+        },
+        {
+          "text": "Events",
+          "width": 103,
+          "height": 44,
+          "ok": true
+        }
+      ],
+      "actionButtons": [
+        {
+          "text": "Back",
+          "width": 94,
+          "height": 44,
+          "ok": true
+        },
+        {
+          "text": "Watch Live",
+          "width": 145,
+          "height": 44,
+          "ok": true
+        }
+      ],
+      "url": "http://127.0.0.1:5173/streamers/1",
+      "viewportWidth": 1440,
+      "documentWidth": 1440,
+      "noHorizontalOverflow": true,
+      "screenshot": "/opt/data/workspace/github_repos/StreamVault-frontend-product-overhaul-final/.hermes/frontend-visual-evidence/g-detail-001/desktop-1440-tab-settings-streamer-1.png",
+      "hasCompactHeader": true,
+      "hasAvatar": true,
+      "hasTabs": true,
+      "hasTabContent": true,
+      "firstViewportText": "StreamVault\nQueue\n2\nNotifications\nLogout\nDashboard\nDashboard overview\nStreamers\nManage creators\nLibrary\nVideo library\nSubscriptions\nManage subscriptions\nSettings\nApp preferences\nCollapse\nBack\nLIVE\n\n@Streamer Alpha\n\nJust Chatting with Chat!\n\nJust Chatting\n\n4\nSTREAMS\n4\nRECORDED\n1h 19m\nAVG DURATION\nWatch Live\nOverview\nVideos\nSettings\nEvents\n\nConfigure recording behavior and notifications for this streamer. Changes take effect on the next stream.\n\nStream Quality\nQuality:\nBest\n1080p60\n1080p\n720p60\n720p\n480p\n360p\n160p\nAudio Only\nNotification Settings\nOnline\nNotify when stream starts\nOffline\nNotify when stream ends\nUpdates\nNotify on title/category changes\nFavorites\nNotify when streaming favorite games\nRecording Settings\nEnable Recording\nAutomatically record streams\nRecording Quality:\nUse global default\nBest\n1080p60\n1080p\n720p60\n720p\n480p\n360p\n160p\nCustom Filename Template:\nLeave empty to use global template\nCodec Preferences:\nUse global default\nH.264 only\nH.265 (HEVC) only\nAV1 only\nH.264 + H.265 (recommended)\nAll codecs\nOverride preferred video codecs for this streamer\nUse global cleanup policy\nWhen enabled, this streamer follows the global recording cleanup rules\nCancel\nSave Settings",
+      "messages": [
+        {
+          "type": "error",
+          "text": "X-Frame-Options may only be set via an HTTP header sent along with a document. It may not be set inside <meta>."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connecting..."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connected."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Using MOCK API for all endpoints"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue warn]: onMounted is called when there is no active component instance to be associated with. Lifecycle injection APIs can only be used during execution of setup(). If you are using async setup(), make sure to register lifecycle hooks before the first await statement."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: WebSocket connections disabled"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:18.269Z] DEBUG [WebSocketManager] Singleton created with URL: ws://127.0.0.1:5173/ws"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:18.270Z] DEBUG [WebSocketManager] Singleton instance created"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping WebSocket connection"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:18.283Z] DEBUG [useBackgroundQueue] Background Queue: Waiting for WebSocket data"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:18.283Z] DEBUG [useBackgroundQueue] WebSocket not connected yet, using API fallback for initial load"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:18.283Z] DEBUG [useBackgroundQueue] FORCE REFRESH: Using API as fallback"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:18.283Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:18.284Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping auth checks, allowing all routes"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue Router warn]: The `next()` callback in navigation guards is deprecated. Return the value instead of calling `next(value)`."
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:18.483Z] DEBUG [useBackgroundQueue] FORCE REFRESH: API data loaded as fallback"
+        },
+        {
+          "type": "error",
+          "text": "X-Frame-Options may only be set via an HTTP header sent along with a document. It may not be set inside <meta>."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connecting..."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connected."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Using MOCK API for all endpoints"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue warn]: onMounted is called when there is no active component instance to be associated with. Lifecycle injection APIs can only be used during execution of setup(). If you are using async setup(), make sure to register lifecycle hooks before the first await statement."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: WebSocket connections disabled"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:21.310Z] DEBUG [WebSocketManager] Singleton created with URL: ws://127.0.0.1:5173/ws"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:21.310Z] DEBUG [WebSocketManager] Singleton instance created"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping WebSocket connection"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:21.315Z] DEBUG [useBackgroundQueue] Background Queue: Waiting for WebSocket data"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:21.315Z] DEBUG [useBackgroundQueue] WebSocket not connected yet, using API fallback for initial load"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:21.315Z] DEBUG [useBackgroundQueue] FORCE REFRESH: Using API as fallback"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:21.315Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:21.316Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping auth checks, allowing all routes"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue Router warn]: The `next()` callback in navigation guards is deprecated. Return the value instead of calling `next(value)`."
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:21.515Z] DEBUG [useBackgroundQueue] FORCE REFRESH: API data loaded as fallback"
+        },
+        {
+          "type": "error",
+          "text": "X-Frame-Options may only be set via an HTTP header sent along with a document. It may not be set inside <meta>."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connecting..."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connected."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Using MOCK API for all endpoints"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue warn]: onMounted is called when there is no active component instance to be associated with. Lifecycle injection APIs can only be used during execution of setup(). If you are using async setup(), make sure to register lifecycle hooks before the first await statement."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: WebSocket connections disabled"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:23.773Z] DEBUG [WebSocketManager] Singleton created with URL: ws://127.0.0.1:5173/ws"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:23.773Z] DEBUG [WebSocketManager] Singleton instance created"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping WebSocket connection"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:23.778Z] DEBUG [useBackgroundQueue] Background Queue: Waiting for WebSocket data"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:23.778Z] DEBUG [useBackgroundQueue] WebSocket not connected yet, using API fallback for initial load"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:23.778Z] DEBUG [useBackgroundQueue] FORCE REFRESH: Using API as fallback"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:23.778Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:23.779Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping auth checks, allowing all routes"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue Router warn]: The `next()` callback in navigation guards is deprecated. Return the value instead of calling `next(value)`."
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:23.982Z] DEBUG [useBackgroundQueue] FORCE REFRESH: API data loaded as fallback"
+        },
+        {
+          "type": "error",
+          "text": "X-Frame-Options may only be set via an HTTP header sent along with a document. It may not be set inside <meta>."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connecting..."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connected."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Using MOCK API for all endpoints"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue warn]: onMounted is called when there is no active component instance to be associated with. Lifecycle injection APIs can only be used during execution of setup(). If you are using async setup(), make sure to register lifecycle hooks before the first await statement."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: WebSocket connections disabled"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:26.449Z] DEBUG [WebSocketManager] Singleton created with URL: ws://127.0.0.1:5173/ws"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:26.449Z] DEBUG [WebSocketManager] Singleton instance created"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping WebSocket connection"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:26.454Z] DEBUG [useBackgroundQueue] Background Queue: Waiting for WebSocket data"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:26.454Z] DEBUG [useBackgroundQueue] WebSocket not connected yet, using API fallback for initial load"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:26.454Z] DEBUG [useBackgroundQueue] FORCE REFRESH: Using API as fallback"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:26.455Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:26.455Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping auth checks, allowing all routes"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue Router warn]: The `next()` callback in navigation guards is deprecated. Return the value instead of calling `next(value)`."
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:26.655Z] DEBUG [useBackgroundQueue] FORCE REFRESH: API data loaded as fallback"
+        }
+      ]
+    },
+    {
+      "name": "desktop-1440-tab-events",
+      "viewport": {
+        "name": "desktop-1440",
+        "width": 1440,
+        "height": 900
+      },
+      "tabId": "events",
+      "tabControls": [
+        {
+          "text": "Overview",
+          "width": 122,
+          "height": 44,
+          "ok": true
+        },
+        {
+          "text": "Videos",
+          "width": 103,
+          "height": 44,
+          "ok": true
+        },
+        {
+          "text": "Settings",
+          "width": 113,
+          "height": 44,
+          "ok": true
+        },
+        {
+          "text": "Events",
+          "width": 103,
+          "height": 44,
+          "ok": true
+        }
+      ],
+      "actionButtons": [
+        {
+          "text": "Back",
+          "width": 94,
+          "height": 44,
+          "ok": true
+        },
+        {
+          "text": "Watch Live",
+          "width": 145,
+          "height": 44,
+          "ok": true
+        }
+      ],
+      "url": "http://127.0.0.1:5173/streamers/1",
+      "viewportWidth": 1440,
+      "documentWidth": 1440,
+      "noHorizontalOverflow": true,
+      "screenshot": "/opt/data/workspace/github_repos/StreamVault-frontend-product-overhaul-final/.hermes/frontend-visual-evidence/g-detail-001/desktop-1440-tab-events-streamer-1.png",
+      "hasCompactHeader": true,
+      "hasAvatar": true,
+      "hasTabs": true,
+      "hasTabContent": true,
+      "firstViewportText": "StreamVault\nQueue\n2\nNotifications\nLogout\nDashboard\nDashboard overview\nStreamers\nManage creators\nLibrary\nVideo library\nSubscriptions\nManage subscriptions\nSettings\nApp preferences\nCollapse\nBack\nLIVE\n\n@Streamer Alpha\n\nJust Chatting with Chat!\n\nJust Chatting\n\n4\nSTREAMS\n4\nRECORDED\n1h 19m\nAVG DURATION\nWatch Live\nOverview\nVideos\nSettings\nEvents\nRecent Events\nNo Events Yet\n\nReal-time events for this streamer will appear here.",
+      "messages": [
+        {
+          "type": "error",
+          "text": "X-Frame-Options may only be set via an HTTP header sent along with a document. It may not be set inside <meta>."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connecting..."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connected."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Using MOCK API for all endpoints"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue warn]: onMounted is called when there is no active component instance to be associated with. Lifecycle injection APIs can only be used during execution of setup(). If you are using async setup(), make sure to register lifecycle hooks before the first await statement."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: WebSocket connections disabled"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:18.269Z] DEBUG [WebSocketManager] Singleton created with URL: ws://127.0.0.1:5173/ws"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:18.270Z] DEBUG [WebSocketManager] Singleton instance created"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping WebSocket connection"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:18.283Z] DEBUG [useBackgroundQueue] Background Queue: Waiting for WebSocket data"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:18.283Z] DEBUG [useBackgroundQueue] WebSocket not connected yet, using API fallback for initial load"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:18.283Z] DEBUG [useBackgroundQueue] FORCE REFRESH: Using API as fallback"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:18.283Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:18.284Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping auth checks, allowing all routes"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue Router warn]: The `next()` callback in navigation guards is deprecated. Return the value instead of calling `next(value)`."
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:18.483Z] DEBUG [useBackgroundQueue] FORCE REFRESH: API data loaded as fallback"
+        },
+        {
+          "type": "error",
+          "text": "X-Frame-Options may only be set via an HTTP header sent along with a document. It may not be set inside <meta>."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connecting..."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connected."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Using MOCK API for all endpoints"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue warn]: onMounted is called when there is no active component instance to be associated with. Lifecycle injection APIs can only be used during execution of setup(). If you are using async setup(), make sure to register lifecycle hooks before the first await statement."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: WebSocket connections disabled"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:21.310Z] DEBUG [WebSocketManager] Singleton created with URL: ws://127.0.0.1:5173/ws"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:21.310Z] DEBUG [WebSocketManager] Singleton instance created"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping WebSocket connection"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:21.315Z] DEBUG [useBackgroundQueue] Background Queue: Waiting for WebSocket data"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:21.315Z] DEBUG [useBackgroundQueue] WebSocket not connected yet, using API fallback for initial load"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:21.315Z] DEBUG [useBackgroundQueue] FORCE REFRESH: Using API as fallback"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:21.315Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:21.316Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping auth checks, allowing all routes"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue Router warn]: The `next()` callback in navigation guards is deprecated. Return the value instead of calling `next(value)`."
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:21.515Z] DEBUG [useBackgroundQueue] FORCE REFRESH: API data loaded as fallback"
+        },
+        {
+          "type": "error",
+          "text": "X-Frame-Options may only be set via an HTTP header sent along with a document. It may not be set inside <meta>."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connecting..."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connected."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Using MOCK API for all endpoints"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue warn]: onMounted is called when there is no active component instance to be associated with. Lifecycle injection APIs can only be used during execution of setup(). If you are using async setup(), make sure to register lifecycle hooks before the first await statement."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: WebSocket connections disabled"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:23.773Z] DEBUG [WebSocketManager] Singleton created with URL: ws://127.0.0.1:5173/ws"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:23.773Z] DEBUG [WebSocketManager] Singleton instance created"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping WebSocket connection"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:23.778Z] DEBUG [useBackgroundQueue] Background Queue: Waiting for WebSocket data"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:23.778Z] DEBUG [useBackgroundQueue] WebSocket not connected yet, using API fallback for initial load"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:23.778Z] DEBUG [useBackgroundQueue] FORCE REFRESH: Using API as fallback"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:23.778Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:23.779Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping auth checks, allowing all routes"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue Router warn]: The `next()` callback in navigation guards is deprecated. Return the value instead of calling `next(value)`."
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:23.982Z] DEBUG [useBackgroundQueue] FORCE REFRESH: API data loaded as fallback"
+        },
+        {
+          "type": "error",
+          "text": "X-Frame-Options may only be set via an HTTP header sent along with a document. It may not be set inside <meta>."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connecting..."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connected."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Using MOCK API for all endpoints"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue warn]: onMounted is called when there is no active component instance to be associated with. Lifecycle injection APIs can only be used during execution of setup(). If you are using async setup(), make sure to register lifecycle hooks before the first await statement."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: WebSocket connections disabled"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:26.449Z] DEBUG [WebSocketManager] Singleton created with URL: ws://127.0.0.1:5173/ws"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:26.449Z] DEBUG [WebSocketManager] Singleton instance created"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping WebSocket connection"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:26.454Z] DEBUG [useBackgroundQueue] Background Queue: Waiting for WebSocket data"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:26.454Z] DEBUG [useBackgroundQueue] WebSocket not connected yet, using API fallback for initial load"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:26.454Z] DEBUG [useBackgroundQueue] FORCE REFRESH: Using API as fallback"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:26.455Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:26.455Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping auth checks, allowing all routes"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue Router warn]: The `next()` callback in navigation guards is deprecated. Return the value instead of calling `next(value)`."
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:26.655Z] DEBUG [useBackgroundQueue] FORCE REFRESH: API data loaded as fallback"
+        }
+      ]
+    },
+    {
+      "name": "tablet-768-tab-overview",
+      "viewport": {
+        "name": "tablet-768",
+        "width": 768,
+        "height": 1024
+      },
+      "tabId": "overview",
+      "tabControls": [
+        {
+          "text": "Overview",
+          "width": 122,
+          "height": 44,
+          "ok": true
+        },
+        {
+          "text": "Videos",
+          "width": 103,
+          "height": 44,
+          "ok": true
+        },
+        {
+          "text": "Settings",
+          "width": 113,
+          "height": 44,
+          "ok": true
+        },
+        {
+          "text": "Events",
+          "width": 103,
+          "height": 44,
+          "ok": true
+        }
+      ],
+      "actionButtons": [
+        {
+          "text": "Back",
+          "width": 94,
+          "height": 44,
+          "ok": true
+        },
+        {
+          "text": "Watch Live",
+          "width": 145,
+          "height": 44,
+          "ok": true
+        },
+        {
+          "text": "Delete All",
+          "width": 137,
+          "height": 44,
+          "ok": true
+        }
+      ],
+      "url": "http://127.0.0.1:5173/streamers/1",
+      "viewportWidth": 768,
+      "documentWidth": 768,
+      "noHorizontalOverflow": true,
+      "screenshot": "/opt/data/workspace/github_repos/StreamVault-frontend-product-overhaul-final/.hermes/frontend-visual-evidence/g-detail-001/tablet-768-tab-overview-streamer-1.png",
+      "hasCompactHeader": true,
+      "hasAvatar": true,
+      "hasTabs": true,
+      "hasTabContent": true,
+      "firstViewportText": "StreamVault\n2\nBack\nLIVE\n\n@Streamer Alpha\n\nJust Chatting with Chat!\n\nJust Chatting\n\n4\nSTREAMS\n4\nRECORDED\n1h 19m\nAVG DURATION\nWatch Live\nOverview\nVideos\nSettings\nEvents\nLive\nStatus\nJust Chatting with Chat!\nRecording\nRecording\nCapture in progress\n4\nTotal Streams\n4\nRecorded\n1h 19m\nAvg Duration\nLatest Stream\nMorning Talk Show - Community Discussion\nJust Chatting\nNov 20, 2025\n39m\nDanger Zone\nDelete All Streams\n\nPermanently remove all streams for this streamer. Active recordings will be skipped.\n\nDelete All\nDashboard\nStreamers\nLibrary\nSubscriptions\nSettings",
+      "messages": [
+        {
+          "type": "error",
+          "text": "X-Frame-Options may only be set via an HTTP header sent along with a document. It may not be set inside <meta>."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connecting..."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connected."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Using MOCK API for all endpoints"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue warn]: onMounted is called when there is no active component instance to be associated with. Lifecycle injection APIs can only be used during execution of setup(). If you are using async setup(), make sure to register lifecycle hooks before the first await statement."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: WebSocket connections disabled"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:29.284Z] DEBUG [WebSocketManager] Singleton created with URL: ws://127.0.0.1:5173/ws"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:29.284Z] DEBUG [WebSocketManager] Singleton instance created"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping WebSocket connection"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:29.296Z] DEBUG [useBackgroundQueue] Background Queue: Waiting for WebSocket data"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:29.296Z] DEBUG [useBackgroundQueue] WebSocket not connected yet, using API fallback for initial load"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:29.297Z] DEBUG [useBackgroundQueue] FORCE REFRESH: Using API as fallback"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:29.297Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:29.298Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping auth checks, allowing all routes"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue Router warn]: The `next()` callback in navigation guards is deprecated. Return the value instead of calling `next(value)`."
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:29.501Z] DEBUG [useBackgroundQueue] FORCE REFRESH: API data loaded as fallback"
+        },
+        {
+          "type": "error",
+          "text": "X-Frame-Options may only be set via an HTTP header sent along with a document. It may not be set inside <meta>."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connecting..."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connected."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Using MOCK API for all endpoints"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue warn]: onMounted is called when there is no active component instance to be associated with. Lifecycle injection APIs can only be used during execution of setup(). If you are using async setup(), make sure to register lifecycle hooks before the first await statement."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: WebSocket connections disabled"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:32.042Z] DEBUG [WebSocketManager] Singleton created with URL: ws://127.0.0.1:5173/ws"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:32.042Z] DEBUG [WebSocketManager] Singleton instance created"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping WebSocket connection"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:32.047Z] DEBUG [useBackgroundQueue] Background Queue: Waiting for WebSocket data"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:32.047Z] DEBUG [useBackgroundQueue] WebSocket not connected yet, using API fallback for initial load"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:32.047Z] DEBUG [useBackgroundQueue] FORCE REFRESH: Using API as fallback"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:32.047Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:32.047Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping auth checks, allowing all routes"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue Router warn]: The `next()` callback in navigation guards is deprecated. Return the value instead of calling `next(value)`."
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:32.252Z] DEBUG [useBackgroundQueue] FORCE REFRESH: API data loaded as fallback"
+        },
+        {
+          "type": "error",
+          "text": "X-Frame-Options may only be set via an HTTP header sent along with a document. It may not be set inside <meta>."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connecting..."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connected."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Using MOCK API for all endpoints"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue warn]: onMounted is called when there is no active component instance to be associated with. Lifecycle injection APIs can only be used during execution of setup(). If you are using async setup(), make sure to register lifecycle hooks before the first await statement."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: WebSocket connections disabled"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:34.792Z] DEBUG [WebSocketManager] Singleton created with URL: ws://127.0.0.1:5173/ws"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:34.792Z] DEBUG [WebSocketManager] Singleton instance created"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping WebSocket connection"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:34.797Z] DEBUG [useBackgroundQueue] Background Queue: Waiting for WebSocket data"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:34.797Z] DEBUG [useBackgroundQueue] WebSocket not connected yet, using API fallback for initial load"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:34.797Z] DEBUG [useBackgroundQueue] FORCE REFRESH: Using API as fallback"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:34.797Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:34.798Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping auth checks, allowing all routes"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue Router warn]: The `next()` callback in navigation guards is deprecated. Return the value instead of calling `next(value)`."
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:34.999Z] DEBUG [useBackgroundQueue] FORCE REFRESH: API data loaded as fallback"
+        },
+        {
+          "type": "error",
+          "text": "X-Frame-Options may only be set via an HTTP header sent along with a document. It may not be set inside <meta>."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connecting..."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connected."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Using MOCK API for all endpoints"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue warn]: onMounted is called when there is no active component instance to be associated with. Lifecycle injection APIs can only be used during execution of setup(). If you are using async setup(), make sure to register lifecycle hooks before the first await statement."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: WebSocket connections disabled"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:37.541Z] DEBUG [WebSocketManager] Singleton created with URL: ws://127.0.0.1:5173/ws"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:37.541Z] DEBUG [WebSocketManager] Singleton instance created"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping WebSocket connection"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:37.546Z] DEBUG [useBackgroundQueue] Background Queue: Waiting for WebSocket data"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:37.546Z] DEBUG [useBackgroundQueue] WebSocket not connected yet, using API fallback for initial load"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:37.546Z] DEBUG [useBackgroundQueue] FORCE REFRESH: Using API as fallback"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:37.546Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:37.546Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping auth checks, allowing all routes"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue Router warn]: The `next()` callback in navigation guards is deprecated. Return the value instead of calling `next(value)`."
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:37.753Z] DEBUG [useBackgroundQueue] FORCE REFRESH: API data loaded as fallback"
+        }
+      ]
+    },
+    {
+      "name": "tablet-768-tab-videos",
+      "viewport": {
+        "name": "tablet-768",
+        "width": 768,
+        "height": 1024
+      },
+      "tabId": "videos",
+      "tabControls": [
+        {
+          "text": "Overview",
+          "width": 122,
+          "height": 44,
+          "ok": true
+        },
+        {
+          "text": "Videos",
+          "width": 103,
+          "height": 44,
+          "ok": true
+        },
+        {
+          "text": "Settings",
+          "width": 113,
+          "height": 44,
+          "ok": true
+        },
+        {
+          "text": "Events",
+          "width": 103,
+          "height": 44,
+          "ok": true
+        }
+      ],
+      "actionButtons": [
+        {
+          "text": "Back",
+          "width": 94,
+          "height": 44,
+          "ok": true
+        },
+        {
+          "text": "Watch Live",
+          "width": 145,
+          "height": 44,
+          "ok": true
+        },
+        {
+          "text": "",
+          "width": 32,
+          "height": 36,
+          "ok": false
+        },
+        {
+          "text": "",
+          "width": 32,
+          "height": 36,
+          "ok": false
+        },
+        {
+          "text": "",
+          "width": 32,
+          "height": 36,
+          "ok": false
+        },
+        {
+          "text": "",
+          "width": 32,
+          "height": 36,
+          "ok": false
+        }
+      ],
+      "url": "http://127.0.0.1:5173/streamers/1",
+      "viewportWidth": 768,
+      "documentWidth": 768,
+      "noHorizontalOverflow": true,
+      "screenshot": "/opt/data/workspace/github_repos/StreamVault-frontend-product-overhaul-final/.hermes/frontend-visual-evidence/g-detail-001/tablet-768-tab-videos-streamer-1.png",
+      "hasCompactHeader": true,
+      "hasAvatar": true,
+      "hasTabs": true,
+      "hasTabContent": true,
+      "firstViewportText": "StreamVault\n2\nBack\nLIVE\n\n@Streamer Alpha\n\nJust Chatting with Chat!\n\nJust Chatting\n\n4\nSTREAMS\n4\nRECORDED\n1h 19m\nAVG DURATION\nWatch Live\nOverview\nVideos\nSettings\nEvents\nStream History\nNewest First\nOldest First\nLongest Duration\nShortest Duration\nShowing 4 streams\nMorning Talk Show - Community Discussion\nJust Chatting\nMorning Chill Stream - Coffee and Chat\nJust Chatting\nWeekend Collab Stream - Special Guest\nJust Chatting\nQ&A Stream - Answering Your Questions\nJust Chatting\nDashboard\nStreamers\nLibrary\nSubscriptions\nSettings",
+      "messages": [
+        {
+          "type": "error",
+          "text": "X-Frame-Options may only be set via an HTTP header sent along with a document. It may not be set inside <meta>."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connecting..."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connected."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Using MOCK API for all endpoints"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue warn]: onMounted is called when there is no active component instance to be associated with. Lifecycle injection APIs can only be used during execution of setup(). If you are using async setup(), make sure to register lifecycle hooks before the first await statement."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: WebSocket connections disabled"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:29.284Z] DEBUG [WebSocketManager] Singleton created with URL: ws://127.0.0.1:5173/ws"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:29.284Z] DEBUG [WebSocketManager] Singleton instance created"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping WebSocket connection"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:29.296Z] DEBUG [useBackgroundQueue] Background Queue: Waiting for WebSocket data"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:29.296Z] DEBUG [useBackgroundQueue] WebSocket not connected yet, using API fallback for initial load"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:29.297Z] DEBUG [useBackgroundQueue] FORCE REFRESH: Using API as fallback"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:29.297Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:29.298Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping auth checks, allowing all routes"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue Router warn]: The `next()` callback in navigation guards is deprecated. Return the value instead of calling `next(value)`."
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:29.501Z] DEBUG [useBackgroundQueue] FORCE REFRESH: API data loaded as fallback"
+        },
+        {
+          "type": "error",
+          "text": "X-Frame-Options may only be set via an HTTP header sent along with a document. It may not be set inside <meta>."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connecting..."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connected."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Using MOCK API for all endpoints"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue warn]: onMounted is called when there is no active component instance to be associated with. Lifecycle injection APIs can only be used during execution of setup(). If you are using async setup(), make sure to register lifecycle hooks before the first await statement."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: WebSocket connections disabled"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:32.042Z] DEBUG [WebSocketManager] Singleton created with URL: ws://127.0.0.1:5173/ws"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:32.042Z] DEBUG [WebSocketManager] Singleton instance created"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping WebSocket connection"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:32.047Z] DEBUG [useBackgroundQueue] Background Queue: Waiting for WebSocket data"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:32.047Z] DEBUG [useBackgroundQueue] WebSocket not connected yet, using API fallback for initial load"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:32.047Z] DEBUG [useBackgroundQueue] FORCE REFRESH: Using API as fallback"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:32.047Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:32.047Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping auth checks, allowing all routes"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue Router warn]: The `next()` callback in navigation guards is deprecated. Return the value instead of calling `next(value)`."
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:32.252Z] DEBUG [useBackgroundQueue] FORCE REFRESH: API data loaded as fallback"
+        },
+        {
+          "type": "error",
+          "text": "X-Frame-Options may only be set via an HTTP header sent along with a document. It may not be set inside <meta>."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connecting..."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connected."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Using MOCK API for all endpoints"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue warn]: onMounted is called when there is no active component instance to be associated with. Lifecycle injection APIs can only be used during execution of setup(). If you are using async setup(), make sure to register lifecycle hooks before the first await statement."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: WebSocket connections disabled"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:34.792Z] DEBUG [WebSocketManager] Singleton created with URL: ws://127.0.0.1:5173/ws"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:34.792Z] DEBUG [WebSocketManager] Singleton instance created"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping WebSocket connection"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:34.797Z] DEBUG [useBackgroundQueue] Background Queue: Waiting for WebSocket data"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:34.797Z] DEBUG [useBackgroundQueue] WebSocket not connected yet, using API fallback for initial load"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:34.797Z] DEBUG [useBackgroundQueue] FORCE REFRESH: Using API as fallback"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:34.797Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:34.798Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping auth checks, allowing all routes"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue Router warn]: The `next()` callback in navigation guards is deprecated. Return the value instead of calling `next(value)`."
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:34.999Z] DEBUG [useBackgroundQueue] FORCE REFRESH: API data loaded as fallback"
+        },
+        {
+          "type": "error",
+          "text": "X-Frame-Options may only be set via an HTTP header sent along with a document. It may not be set inside <meta>."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connecting..."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connected."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Using MOCK API for all endpoints"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue warn]: onMounted is called when there is no active component instance to be associated with. Lifecycle injection APIs can only be used during execution of setup(). If you are using async setup(), make sure to register lifecycle hooks before the first await statement."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: WebSocket connections disabled"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:37.541Z] DEBUG [WebSocketManager] Singleton created with URL: ws://127.0.0.1:5173/ws"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:37.541Z] DEBUG [WebSocketManager] Singleton instance created"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping WebSocket connection"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:37.546Z] DEBUG [useBackgroundQueue] Background Queue: Waiting for WebSocket data"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:37.546Z] DEBUG [useBackgroundQueue] WebSocket not connected yet, using API fallback for initial load"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:37.546Z] DEBUG [useBackgroundQueue] FORCE REFRESH: Using API as fallback"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:37.546Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:37.546Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping auth checks, allowing all routes"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue Router warn]: The `next()` callback in navigation guards is deprecated. Return the value instead of calling `next(value)`."
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:37.753Z] DEBUG [useBackgroundQueue] FORCE REFRESH: API data loaded as fallback"
+        }
+      ]
+    },
+    {
+      "name": "tablet-768-tab-settings",
+      "viewport": {
+        "name": "tablet-768",
+        "width": 768,
+        "height": 1024
+      },
+      "tabId": "settings",
+      "tabControls": [
+        {
+          "text": "Overview",
+          "width": 122,
+          "height": 44,
+          "ok": true
+        },
+        {
+          "text": "Videos",
+          "width": 103,
+          "height": 44,
+          "ok": true
+        },
+        {
+          "text": "Settings",
+          "width": 113,
+          "height": 44,
+          "ok": true
+        },
+        {
+          "text": "Events",
+          "width": 103,
+          "height": 44,
+          "ok": true
+        }
+      ],
+      "actionButtons": [
+        {
+          "text": "Back",
+          "width": 94,
+          "height": 44,
+          "ok": true
+        },
+        {
+          "text": "Watch Live",
+          "width": 145,
+          "height": 44,
+          "ok": true
+        }
+      ],
+      "url": "http://127.0.0.1:5173/streamers/1",
+      "viewportWidth": 768,
+      "documentWidth": 768,
+      "noHorizontalOverflow": true,
+      "screenshot": "/opt/data/workspace/github_repos/StreamVault-frontend-product-overhaul-final/.hermes/frontend-visual-evidence/g-detail-001/tablet-768-tab-settings-streamer-1.png",
+      "hasCompactHeader": true,
+      "hasAvatar": true,
+      "hasTabs": true,
+      "hasTabContent": true,
+      "firstViewportText": "StreamVault\n2\nBack\nLIVE\n\n@Streamer Alpha\n\nJust Chatting with Chat!\n\nJust Chatting\n\n4\nSTREAMS\n4\nRECORDED\n1h 19m\nAVG DURATION\nWatch Live\nOverview\nVideos\nSettings\nEvents\n\nConfigure recording behavior and notifications for this streamer. Changes take effect on the next stream.\n\nStream Quality\nQuality:\nBest\n1080p60\n1080p\n720p60\n720p\n480p\n360p\n160p\nAudio Only\nNotification Settings\nOnline\nNotify when stream starts\nOffline\nNotify when stream ends\nUpdates\nNotify on title/category changes\nFavorites\nNotify when streaming favorite games\nRecording Settings\nEnable Recording\nAutomatically record streams\nRecording Quality:\nUse global default\nBest\n1080p60\n1080p\n720p60\n720p\n480p\n360p\n160p\nCustom Filename Template:\nLeave empty to use global template\nCodec Preferences:\nUse global default\nH.264 only\nH.265 (HEVC) only\nAV1 only\nH.264 + H.265 (recommended)\nAll codecs\nOverride preferred video codecs for this streamer\nUse global cleanup policy\nWhen enabled, this streamer follows the global recording cleanup rules\nCancel\nSave Settings\nDashboard\nStreamers\nLibrary\nSubscriptions\nSettings",
+      "messages": [
+        {
+          "type": "error",
+          "text": "X-Frame-Options may only be set via an HTTP header sent along with a document. It may not be set inside <meta>."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connecting..."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connected."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Using MOCK API for all endpoints"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue warn]: onMounted is called when there is no active component instance to be associated with. Lifecycle injection APIs can only be used during execution of setup(). If you are using async setup(), make sure to register lifecycle hooks before the first await statement."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: WebSocket connections disabled"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:29.284Z] DEBUG [WebSocketManager] Singleton created with URL: ws://127.0.0.1:5173/ws"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:29.284Z] DEBUG [WebSocketManager] Singleton instance created"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping WebSocket connection"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:29.296Z] DEBUG [useBackgroundQueue] Background Queue: Waiting for WebSocket data"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:29.296Z] DEBUG [useBackgroundQueue] WebSocket not connected yet, using API fallback for initial load"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:29.297Z] DEBUG [useBackgroundQueue] FORCE REFRESH: Using API as fallback"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:29.297Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:29.298Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping auth checks, allowing all routes"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue Router warn]: The `next()` callback in navigation guards is deprecated. Return the value instead of calling `next(value)`."
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:29.501Z] DEBUG [useBackgroundQueue] FORCE REFRESH: API data loaded as fallback"
+        },
+        {
+          "type": "error",
+          "text": "X-Frame-Options may only be set via an HTTP header sent along with a document. It may not be set inside <meta>."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connecting..."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connected."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Using MOCK API for all endpoints"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue warn]: onMounted is called when there is no active component instance to be associated with. Lifecycle injection APIs can only be used during execution of setup(). If you are using async setup(), make sure to register lifecycle hooks before the first await statement."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: WebSocket connections disabled"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:32.042Z] DEBUG [WebSocketManager] Singleton created with URL: ws://127.0.0.1:5173/ws"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:32.042Z] DEBUG [WebSocketManager] Singleton instance created"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping WebSocket connection"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:32.047Z] DEBUG [useBackgroundQueue] Background Queue: Waiting for WebSocket data"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:32.047Z] DEBUG [useBackgroundQueue] WebSocket not connected yet, using API fallback for initial load"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:32.047Z] DEBUG [useBackgroundQueue] FORCE REFRESH: Using API as fallback"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:32.047Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:32.047Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping auth checks, allowing all routes"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue Router warn]: The `next()` callback in navigation guards is deprecated. Return the value instead of calling `next(value)`."
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:32.252Z] DEBUG [useBackgroundQueue] FORCE REFRESH: API data loaded as fallback"
+        },
+        {
+          "type": "error",
+          "text": "X-Frame-Options may only be set via an HTTP header sent along with a document. It may not be set inside <meta>."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connecting..."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connected."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Using MOCK API for all endpoints"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue warn]: onMounted is called when there is no active component instance to be associated with. Lifecycle injection APIs can only be used during execution of setup(). If you are using async setup(), make sure to register lifecycle hooks before the first await statement."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: WebSocket connections disabled"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:34.792Z] DEBUG [WebSocketManager] Singleton created with URL: ws://127.0.0.1:5173/ws"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:34.792Z] DEBUG [WebSocketManager] Singleton instance created"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping WebSocket connection"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:34.797Z] DEBUG [useBackgroundQueue] Background Queue: Waiting for WebSocket data"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:34.797Z] DEBUG [useBackgroundQueue] WebSocket not connected yet, using API fallback for initial load"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:34.797Z] DEBUG [useBackgroundQueue] FORCE REFRESH: Using API as fallback"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:34.797Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:34.798Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping auth checks, allowing all routes"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue Router warn]: The `next()` callback in navigation guards is deprecated. Return the value instead of calling `next(value)`."
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:34.999Z] DEBUG [useBackgroundQueue] FORCE REFRESH: API data loaded as fallback"
+        },
+        {
+          "type": "error",
+          "text": "X-Frame-Options may only be set via an HTTP header sent along with a document. It may not be set inside <meta>."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connecting..."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connected."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Using MOCK API for all endpoints"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue warn]: onMounted is called when there is no active component instance to be associated with. Lifecycle injection APIs can only be used during execution of setup(). If you are using async setup(), make sure to register lifecycle hooks before the first await statement."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: WebSocket connections disabled"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:37.541Z] DEBUG [WebSocketManager] Singleton created with URL: ws://127.0.0.1:5173/ws"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:37.541Z] DEBUG [WebSocketManager] Singleton instance created"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping WebSocket connection"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:37.546Z] DEBUG [useBackgroundQueue] Background Queue: Waiting for WebSocket data"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:37.546Z] DEBUG [useBackgroundQueue] WebSocket not connected yet, using API fallback for initial load"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:37.546Z] DEBUG [useBackgroundQueue] FORCE REFRESH: Using API as fallback"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:37.546Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:37.546Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping auth checks, allowing all routes"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue Router warn]: The `next()` callback in navigation guards is deprecated. Return the value instead of calling `next(value)`."
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:37.753Z] DEBUG [useBackgroundQueue] FORCE REFRESH: API data loaded as fallback"
+        }
+      ]
+    },
+    {
+      "name": "tablet-768-tab-events",
+      "viewport": {
+        "name": "tablet-768",
+        "width": 768,
+        "height": 1024
+      },
+      "tabId": "events",
+      "tabControls": [
+        {
+          "text": "Overview",
+          "width": 122,
+          "height": 44,
+          "ok": true
+        },
+        {
+          "text": "Videos",
+          "width": 103,
+          "height": 44,
+          "ok": true
+        },
+        {
+          "text": "Settings",
+          "width": 113,
+          "height": 44,
+          "ok": true
+        },
+        {
+          "text": "Events",
+          "width": 103,
+          "height": 44,
+          "ok": true
+        }
+      ],
+      "actionButtons": [
+        {
+          "text": "Back",
+          "width": 94,
+          "height": 44,
+          "ok": true
+        },
+        {
+          "text": "Watch Live",
+          "width": 145,
+          "height": 44,
+          "ok": true
+        }
+      ],
+      "url": "http://127.0.0.1:5173/streamers/1",
+      "viewportWidth": 768,
+      "documentWidth": 768,
+      "noHorizontalOverflow": true,
+      "screenshot": "/opt/data/workspace/github_repos/StreamVault-frontend-product-overhaul-final/.hermes/frontend-visual-evidence/g-detail-001/tablet-768-tab-events-streamer-1.png",
+      "hasCompactHeader": true,
+      "hasAvatar": true,
+      "hasTabs": true,
+      "hasTabContent": true,
+      "firstViewportText": "StreamVault\n2\nBack\nLIVE\n\n@Streamer Alpha\n\nJust Chatting with Chat!\n\nJust Chatting\n\n4\nSTREAMS\n4\nRECORDED\n1h 19m\nAVG DURATION\nWatch Live\nOverview\nVideos\nSettings\nEvents\nRecent Events\nNo Events Yet\n\nReal-time events for this streamer will appear here.\n\nDashboard\nStreamers\nLibrary\nSubscriptions\nSettings",
+      "messages": [
+        {
+          "type": "error",
+          "text": "X-Frame-Options may only be set via an HTTP header sent along with a document. It may not be set inside <meta>."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connecting..."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connected."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Using MOCK API for all endpoints"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue warn]: onMounted is called when there is no active component instance to be associated with. Lifecycle injection APIs can only be used during execution of setup(). If you are using async setup(), make sure to register lifecycle hooks before the first await statement."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: WebSocket connections disabled"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:29.284Z] DEBUG [WebSocketManager] Singleton created with URL: ws://127.0.0.1:5173/ws"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:29.284Z] DEBUG [WebSocketManager] Singleton instance created"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping WebSocket connection"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:29.296Z] DEBUG [useBackgroundQueue] Background Queue: Waiting for WebSocket data"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:29.296Z] DEBUG [useBackgroundQueue] WebSocket not connected yet, using API fallback for initial load"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:29.297Z] DEBUG [useBackgroundQueue] FORCE REFRESH: Using API as fallback"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:29.297Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:29.298Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping auth checks, allowing all routes"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue Router warn]: The `next()` callback in navigation guards is deprecated. Return the value instead of calling `next(value)`."
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:29.501Z] DEBUG [useBackgroundQueue] FORCE REFRESH: API data loaded as fallback"
+        },
+        {
+          "type": "error",
+          "text": "X-Frame-Options may only be set via an HTTP header sent along with a document. It may not be set inside <meta>."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connecting..."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connected."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Using MOCK API for all endpoints"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue warn]: onMounted is called when there is no active component instance to be associated with. Lifecycle injection APIs can only be used during execution of setup(). If you are using async setup(), make sure to register lifecycle hooks before the first await statement."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: WebSocket connections disabled"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:32.042Z] DEBUG [WebSocketManager] Singleton created with URL: ws://127.0.0.1:5173/ws"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:32.042Z] DEBUG [WebSocketManager] Singleton instance created"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping WebSocket connection"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:32.047Z] DEBUG [useBackgroundQueue] Background Queue: Waiting for WebSocket data"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:32.047Z] DEBUG [useBackgroundQueue] WebSocket not connected yet, using API fallback for initial load"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:32.047Z] DEBUG [useBackgroundQueue] FORCE REFRESH: Using API as fallback"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:32.047Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:32.047Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping auth checks, allowing all routes"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue Router warn]: The `next()` callback in navigation guards is deprecated. Return the value instead of calling `next(value)`."
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:32.252Z] DEBUG [useBackgroundQueue] FORCE REFRESH: API data loaded as fallback"
+        },
+        {
+          "type": "error",
+          "text": "X-Frame-Options may only be set via an HTTP header sent along with a document. It may not be set inside <meta>."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connecting..."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connected."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Using MOCK API for all endpoints"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue warn]: onMounted is called when there is no active component instance to be associated with. Lifecycle injection APIs can only be used during execution of setup(). If you are using async setup(), make sure to register lifecycle hooks before the first await statement."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: WebSocket connections disabled"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:34.792Z] DEBUG [WebSocketManager] Singleton created with URL: ws://127.0.0.1:5173/ws"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:34.792Z] DEBUG [WebSocketManager] Singleton instance created"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping WebSocket connection"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:34.797Z] DEBUG [useBackgroundQueue] Background Queue: Waiting for WebSocket data"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:34.797Z] DEBUG [useBackgroundQueue] WebSocket not connected yet, using API fallback for initial load"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:34.797Z] DEBUG [useBackgroundQueue] FORCE REFRESH: Using API as fallback"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:34.797Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:34.798Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping auth checks, allowing all routes"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue Router warn]: The `next()` callback in navigation guards is deprecated. Return the value instead of calling `next(value)`."
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:34.999Z] DEBUG [useBackgroundQueue] FORCE REFRESH: API data loaded as fallback"
+        },
+        {
+          "type": "error",
+          "text": "X-Frame-Options may only be set via an HTTP header sent along with a document. It may not be set inside <meta>."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connecting..."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connected."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Using MOCK API for all endpoints"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue warn]: onMounted is called when there is no active component instance to be associated with. Lifecycle injection APIs can only be used during execution of setup(). If you are using async setup(), make sure to register lifecycle hooks before the first await statement."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: WebSocket connections disabled"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:37.541Z] DEBUG [WebSocketManager] Singleton created with URL: ws://127.0.0.1:5173/ws"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:37.541Z] DEBUG [WebSocketManager] Singleton instance created"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping WebSocket connection"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:37.546Z] DEBUG [useBackgroundQueue] Background Queue: Waiting for WebSocket data"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:37.546Z] DEBUG [useBackgroundQueue] WebSocket not connected yet, using API fallback for initial load"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:37.546Z] DEBUG [useBackgroundQueue] FORCE REFRESH: Using API as fallback"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:37.546Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:37.546Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping auth checks, allowing all routes"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue Router warn]: The `next()` callback in navigation guards is deprecated. Return the value instead of calling `next(value)`."
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:37.753Z] DEBUG [useBackgroundQueue] FORCE REFRESH: API data loaded as fallback"
+        }
+      ]
+    },
+    {
+      "name": "mobile-390-tab-overview",
+      "viewport": {
+        "name": "mobile-390",
+        "width": 390,
+        "height": 844,
+        "isMobile": true
+      },
+      "tabId": "overview",
+      "tabControls": [
+        {
+          "text": "Overview",
+          "width": 96,
+          "height": 44,
+          "ok": true
+        },
+        {
+          "text": "Videos",
+          "width": 82,
+          "height": 44,
+          "ok": true
+        },
+        {
+          "text": "Settings",
+          "width": 90,
+          "height": 44,
+          "ok": true
+        },
+        {
+          "text": "Events",
+          "width": 83,
+          "height": 44,
+          "ok": true
+        }
+      ],
+      "actionButtons": [
+        {
+          "text": "Back",
+          "width": 94,
+          "height": 44,
+          "ok": true
+        },
+        {
+          "text": "Watch Live",
+          "width": 145,
+          "height": 44,
+          "ok": true
+        },
+        {
+          "text": "Delete All",
+          "width": 340,
+          "height": 44,
+          "ok": true
+        }
+      ],
+      "url": "http://127.0.0.1:5173/streamers/1",
+      "viewportWidth": 390,
+      "documentWidth": 390,
+      "noHorizontalOverflow": true,
+      "screenshot": "/opt/data/workspace/github_repos/StreamVault-frontend-product-overhaul-final/.hermes/frontend-visual-evidence/g-detail-001/mobile-390-tab-overview-streamer-1.png",
+      "hasCompactHeader": true,
+      "hasAvatar": true,
+      "hasTabs": true,
+      "hasTabContent": true,
+      "firstViewportText": "StreamVault\n2\nBack\nLIVE\n\n@Streamer Alpha\n\nJust Chatting with Chat!\n\nJust Chatting\n\n4\nSTREAMS\n4\nRECORDED\n1h 19m\nAVG DURATION\nWatch Live\nOverview\nVideos\nSettings\nEvents\nLive\nStatus\nJust Chatting with Chat!\nRecording\nRecording\nCapture in progress\n4\nTotal Streams\n4\nRecorded\n1h 19m\nAvg Duration\nLatest Stream\nMorning Talk Show - Community Discussion\nJust Chatting\nNov 20, 2025\n39m\nDanger Zone\nDelete All Streams\n\nPermanently remove all streams for this streamer. Active recordings will be skipped.\n\nDelete All\nDashboard\nStreamers\nLibrary\nSubscriptions\nSettings",
+      "messages": [
+        {
+          "type": "error",
+          "text": "X-Frame-Options may only be set via an HTTP header sent along with a document. It may not be set inside <meta>."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connecting..."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connected."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Using MOCK API for all endpoints"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue warn]: onMounted is called when there is no active component instance to be associated with. Lifecycle injection APIs can only be used during execution of setup(). If you are using async setup(), make sure to register lifecycle hooks before the first await statement."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: WebSocket connections disabled"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:40.107Z] DEBUG [WebSocketManager] Singleton created with URL: ws://127.0.0.1:5173/ws"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:40.107Z] DEBUG [WebSocketManager] Singleton instance created"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping WebSocket connection"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:40.119Z] DEBUG [useBackgroundQueue] Background Queue: Waiting for WebSocket data"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:40.119Z] DEBUG [useBackgroundQueue] WebSocket not connected yet, using API fallback for initial load"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:40.119Z] DEBUG [useBackgroundQueue] FORCE REFRESH: Using API as fallback"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:40.120Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:40.120Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping auth checks, allowing all routes"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue Router warn]: The `next()` callback in navigation guards is deprecated. Return the value instead of calling `next(value)`."
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:40.320Z] DEBUG [useBackgroundQueue] FORCE REFRESH: API data loaded as fallback"
+        },
+        {
+          "type": "error",
+          "text": "X-Frame-Options may only be set via an HTTP header sent along with a document. It may not be set inside <meta>."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connecting..."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connected."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Using MOCK API for all endpoints"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue warn]: onMounted is called when there is no active component instance to be associated with. Lifecycle injection APIs can only be used during execution of setup(). If you are using async setup(), make sure to register lifecycle hooks before the first await statement."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: WebSocket connections disabled"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:42.815Z] DEBUG [WebSocketManager] Singleton created with URL: ws://127.0.0.1:5173/ws"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:42.815Z] DEBUG [WebSocketManager] Singleton instance created"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping WebSocket connection"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:42.821Z] DEBUG [useBackgroundQueue] Background Queue: Waiting for WebSocket data"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:42.821Z] DEBUG [useBackgroundQueue] WebSocket not connected yet, using API fallback for initial load"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:42.821Z] DEBUG [useBackgroundQueue] FORCE REFRESH: Using API as fallback"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:42.821Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:42.821Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping auth checks, allowing all routes"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue Router warn]: The `next()` callback in navigation guards is deprecated. Return the value instead of calling `next(value)`."
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:43.021Z] DEBUG [useBackgroundQueue] FORCE REFRESH: API data loaded as fallback"
+        },
+        {
+          "type": "error",
+          "text": "X-Frame-Options may only be set via an HTTP header sent along with a document. It may not be set inside <meta>."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connecting..."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connected."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Using MOCK API for all endpoints"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue warn]: onMounted is called when there is no active component instance to be associated with. Lifecycle injection APIs can only be used during execution of setup(). If you are using async setup(), make sure to register lifecycle hooks before the first await statement."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: WebSocket connections disabled"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:45.560Z] DEBUG [WebSocketManager] Singleton created with URL: ws://127.0.0.1:5173/ws"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:45.560Z] DEBUG [WebSocketManager] Singleton instance created"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping WebSocket connection"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:45.565Z] DEBUG [useBackgroundQueue] Background Queue: Waiting for WebSocket data"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:45.565Z] DEBUG [useBackgroundQueue] WebSocket not connected yet, using API fallback for initial load"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:45.565Z] DEBUG [useBackgroundQueue] FORCE REFRESH: Using API as fallback"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:45.565Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:45.566Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping auth checks, allowing all routes"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue Router warn]: The `next()` callback in navigation guards is deprecated. Return the value instead of calling `next(value)`."
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:45.766Z] DEBUG [useBackgroundQueue] FORCE REFRESH: API data loaded as fallback"
+        },
+        {
+          "type": "error",
+          "text": "X-Frame-Options may only be set via an HTTP header sent along with a document. It may not be set inside <meta>."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connecting..."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connected."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Using MOCK API for all endpoints"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue warn]: onMounted is called when there is no active component instance to be associated with. Lifecycle injection APIs can only be used during execution of setup(). If you are using async setup(), make sure to register lifecycle hooks before the first await statement."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: WebSocket connections disabled"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:48.326Z] DEBUG [WebSocketManager] Singleton created with URL: ws://127.0.0.1:5173/ws"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:48.326Z] DEBUG [WebSocketManager] Singleton instance created"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping WebSocket connection"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:48.331Z] DEBUG [useBackgroundQueue] Background Queue: Waiting for WebSocket data"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:48.331Z] DEBUG [useBackgroundQueue] WebSocket not connected yet, using API fallback for initial load"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:48.331Z] DEBUG [useBackgroundQueue] FORCE REFRESH: Using API as fallback"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:48.331Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:48.331Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping auth checks, allowing all routes"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue Router warn]: The `next()` callback in navigation guards is deprecated. Return the value instead of calling `next(value)`."
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:48.533Z] DEBUG [useBackgroundQueue] FORCE REFRESH: API data loaded as fallback"
+        }
+      ]
+    },
+    {
+      "name": "mobile-390-tab-videos",
+      "viewport": {
+        "name": "mobile-390",
+        "width": 390,
+        "height": 844,
+        "isMobile": true
+      },
+      "tabId": "videos",
+      "tabControls": [
+        {
+          "text": "Overview",
+          "width": 96,
+          "height": 44,
+          "ok": true
+        },
+        {
+          "text": "Videos",
+          "width": 82,
+          "height": 44,
+          "ok": true
+        },
+        {
+          "text": "Settings",
+          "width": 90,
+          "height": 44,
+          "ok": true
+        },
+        {
+          "text": "Events",
+          "width": 83,
+          "height": 44,
+          "ok": true
+        }
+      ],
+      "actionButtons": [
+        {
+          "text": "Back",
+          "width": 94,
+          "height": 44,
+          "ok": true
+        },
+        {
+          "text": "Watch Live",
+          "width": 145,
+          "height": 44,
+          "ok": true
+        }
+      ],
+      "url": "http://127.0.0.1:5173/streamers/1",
+      "viewportWidth": 390,
+      "documentWidth": 390,
+      "noHorizontalOverflow": true,
+      "screenshot": "/opt/data/workspace/github_repos/StreamVault-frontend-product-overhaul-final/.hermes/frontend-visual-evidence/g-detail-001/mobile-390-tab-videos-streamer-1.png",
+      "hasCompactHeader": true,
+      "hasAvatar": true,
+      "hasTabs": true,
+      "hasTabContent": true,
+      "firstViewportText": "StreamVault\n2\nBack\nLIVE\n\n@Streamer Alpha\n\nJust Chatting with Chat!\n\nJust Chatting\n\n4\nSTREAMS\n4\nRECORDED\n1h 19m\nAVG DURATION\nWatch Live\nOverview\nVideos\nSettings\nEvents\nStream History\nNewest First\nOldest First\nLongest Duration\nShortest Duration\nShowing 4 streams\nMorning Talk Show - Community Discussion\nJust Chatting\nMorning Chill Stream - Coffee and Chat\nJust Chatting\nWeekend Collab Stream - Special Guest\nJust Chatting\nQ&A Stream - Answering Your Questions\nJust Chatting\nDashboard\nStreamers\nLibrary\nSubscriptions\nSettings",
+      "messages": [
+        {
+          "type": "error",
+          "text": "X-Frame-Options may only be set via an HTTP header sent along with a document. It may not be set inside <meta>."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connecting..."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connected."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Using MOCK API for all endpoints"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue warn]: onMounted is called when there is no active component instance to be associated with. Lifecycle injection APIs can only be used during execution of setup(). If you are using async setup(), make sure to register lifecycle hooks before the first await statement."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: WebSocket connections disabled"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:40.107Z] DEBUG [WebSocketManager] Singleton created with URL: ws://127.0.0.1:5173/ws"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:40.107Z] DEBUG [WebSocketManager] Singleton instance created"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping WebSocket connection"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:40.119Z] DEBUG [useBackgroundQueue] Background Queue: Waiting for WebSocket data"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:40.119Z] DEBUG [useBackgroundQueue] WebSocket not connected yet, using API fallback for initial load"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:40.119Z] DEBUG [useBackgroundQueue] FORCE REFRESH: Using API as fallback"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:40.120Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:40.120Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping auth checks, allowing all routes"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue Router warn]: The `next()` callback in navigation guards is deprecated. Return the value instead of calling `next(value)`."
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:40.320Z] DEBUG [useBackgroundQueue] FORCE REFRESH: API data loaded as fallback"
+        },
+        {
+          "type": "error",
+          "text": "X-Frame-Options may only be set via an HTTP header sent along with a document. It may not be set inside <meta>."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connecting..."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connected."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Using MOCK API for all endpoints"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue warn]: onMounted is called when there is no active component instance to be associated with. Lifecycle injection APIs can only be used during execution of setup(). If you are using async setup(), make sure to register lifecycle hooks before the first await statement."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: WebSocket connections disabled"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:42.815Z] DEBUG [WebSocketManager] Singleton created with URL: ws://127.0.0.1:5173/ws"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:42.815Z] DEBUG [WebSocketManager] Singleton instance created"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping WebSocket connection"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:42.821Z] DEBUG [useBackgroundQueue] Background Queue: Waiting for WebSocket data"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:42.821Z] DEBUG [useBackgroundQueue] WebSocket not connected yet, using API fallback for initial load"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:42.821Z] DEBUG [useBackgroundQueue] FORCE REFRESH: Using API as fallback"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:42.821Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:42.821Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping auth checks, allowing all routes"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue Router warn]: The `next()` callback in navigation guards is deprecated. Return the value instead of calling `next(value)`."
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:43.021Z] DEBUG [useBackgroundQueue] FORCE REFRESH: API data loaded as fallback"
+        },
+        {
+          "type": "error",
+          "text": "X-Frame-Options may only be set via an HTTP header sent along with a document. It may not be set inside <meta>."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connecting..."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connected."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Using MOCK API for all endpoints"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue warn]: onMounted is called when there is no active component instance to be associated with. Lifecycle injection APIs can only be used during execution of setup(). If you are using async setup(), make sure to register lifecycle hooks before the first await statement."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: WebSocket connections disabled"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:45.560Z] DEBUG [WebSocketManager] Singleton created with URL: ws://127.0.0.1:5173/ws"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:45.560Z] DEBUG [WebSocketManager] Singleton instance created"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping WebSocket connection"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:45.565Z] DEBUG [useBackgroundQueue] Background Queue: Waiting for WebSocket data"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:45.565Z] DEBUG [useBackgroundQueue] WebSocket not connected yet, using API fallback for initial load"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:45.565Z] DEBUG [useBackgroundQueue] FORCE REFRESH: Using API as fallback"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:45.565Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:45.566Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping auth checks, allowing all routes"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue Router warn]: The `next()` callback in navigation guards is deprecated. Return the value instead of calling `next(value)`."
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:45.766Z] DEBUG [useBackgroundQueue] FORCE REFRESH: API data loaded as fallback"
+        },
+        {
+          "type": "error",
+          "text": "X-Frame-Options may only be set via an HTTP header sent along with a document. It may not be set inside <meta>."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connecting..."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connected."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Using MOCK API for all endpoints"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue warn]: onMounted is called when there is no active component instance to be associated with. Lifecycle injection APIs can only be used during execution of setup(). If you are using async setup(), make sure to register lifecycle hooks before the first await statement."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: WebSocket connections disabled"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:48.326Z] DEBUG [WebSocketManager] Singleton created with URL: ws://127.0.0.1:5173/ws"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:48.326Z] DEBUG [WebSocketManager] Singleton instance created"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping WebSocket connection"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:48.331Z] DEBUG [useBackgroundQueue] Background Queue: Waiting for WebSocket data"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:48.331Z] DEBUG [useBackgroundQueue] WebSocket not connected yet, using API fallback for initial load"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:48.331Z] DEBUG [useBackgroundQueue] FORCE REFRESH: Using API as fallback"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:48.331Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:48.331Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping auth checks, allowing all routes"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue Router warn]: The `next()` callback in navigation guards is deprecated. Return the value instead of calling `next(value)`."
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:48.533Z] DEBUG [useBackgroundQueue] FORCE REFRESH: API data loaded as fallback"
+        }
+      ]
+    },
+    {
+      "name": "mobile-390-tab-settings",
+      "viewport": {
+        "name": "mobile-390",
+        "width": 390,
+        "height": 844,
+        "isMobile": true
+      },
+      "tabId": "settings",
+      "tabControls": [
+        {
+          "text": "Overview",
+          "width": 96,
+          "height": 44,
+          "ok": true
+        },
+        {
+          "text": "Videos",
+          "width": 82,
+          "height": 44,
+          "ok": true
+        },
+        {
+          "text": "Settings",
+          "width": 90,
+          "height": 44,
+          "ok": true
+        },
+        {
+          "text": "Events",
+          "width": 83,
+          "height": 44,
+          "ok": true
+        }
+      ],
+      "actionButtons": [
+        {
+          "text": "Back",
+          "width": 94,
+          "height": 44,
+          "ok": true
+        },
+        {
+          "text": "Watch Live",
+          "width": 145,
+          "height": 44,
+          "ok": true
+        }
+      ],
+      "url": "http://127.0.0.1:5173/streamers/1",
+      "viewportWidth": 390,
+      "documentWidth": 390,
+      "noHorizontalOverflow": true,
+      "screenshot": "/opt/data/workspace/github_repos/StreamVault-frontend-product-overhaul-final/.hermes/frontend-visual-evidence/g-detail-001/mobile-390-tab-settings-streamer-1.png",
+      "hasCompactHeader": true,
+      "hasAvatar": true,
+      "hasTabs": true,
+      "hasTabContent": true,
+      "firstViewportText": "StreamVault\n2\nBack\nLIVE\n\n@Streamer Alpha\n\nJust Chatting with Chat!\n\nJust Chatting\n\n4\nSTREAMS\n4\nRECORDED\n1h 19m\nAVG DURATION\nWatch Live\nOverview\nVideos\nSettings\nEvents\n\nConfigure recording behavior and notifications for this streamer. Changes take effect on the next stream.\n\nStream Quality\nQuality:\nBest\n1080p60\n1080p\n720p60\n720p\n480p\n360p\n160p\nAudio Only\nNotification Settings\nOnline\nNotify when stream starts\nOffline\nNotify when stream ends\nUpdates\nNotify on title/category changes\nFavorites\nNotify when streaming favorite games\nRecording Settings\nEnable Recording\nAutomatically record streams\nRecording Quality:\nUse global default\nBest\n1080p60\n1080p\n720p60\n720p\n480p\n360p\n160p\nCustom Filename Template:\nLeave empty to use global template\nCodec Preferences:\nUse global default\nH.264 only\nH.265 (HEVC) only\nAV1 only\nH.264 + H.265 (recommended)\nAll codecs\nOverride preferred video codecs for this streamer\nUse global cleanup policy\nWhen enabled, this streamer follows the global recording cleanup rules\nCancel\nSave Settings\nDashboard\nStreamers\nLibrary\nSubscriptions\nSettings",
+      "messages": [
+        {
+          "type": "error",
+          "text": "X-Frame-Options may only be set via an HTTP header sent along with a document. It may not be set inside <meta>."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connecting..."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connected."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Using MOCK API for all endpoints"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue warn]: onMounted is called when there is no active component instance to be associated with. Lifecycle injection APIs can only be used during execution of setup(). If you are using async setup(), make sure to register lifecycle hooks before the first await statement."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: WebSocket connections disabled"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:40.107Z] DEBUG [WebSocketManager] Singleton created with URL: ws://127.0.0.1:5173/ws"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:40.107Z] DEBUG [WebSocketManager] Singleton instance created"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping WebSocket connection"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:40.119Z] DEBUG [useBackgroundQueue] Background Queue: Waiting for WebSocket data"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:40.119Z] DEBUG [useBackgroundQueue] WebSocket not connected yet, using API fallback for initial load"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:40.119Z] DEBUG [useBackgroundQueue] FORCE REFRESH: Using API as fallback"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:40.120Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:40.120Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping auth checks, allowing all routes"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue Router warn]: The `next()` callback in navigation guards is deprecated. Return the value instead of calling `next(value)`."
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:40.320Z] DEBUG [useBackgroundQueue] FORCE REFRESH: API data loaded as fallback"
+        },
+        {
+          "type": "error",
+          "text": "X-Frame-Options may only be set via an HTTP header sent along with a document. It may not be set inside <meta>."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connecting..."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connected."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Using MOCK API for all endpoints"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue warn]: onMounted is called when there is no active component instance to be associated with. Lifecycle injection APIs can only be used during execution of setup(). If you are using async setup(), make sure to register lifecycle hooks before the first await statement."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: WebSocket connections disabled"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:42.815Z] DEBUG [WebSocketManager] Singleton created with URL: ws://127.0.0.1:5173/ws"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:42.815Z] DEBUG [WebSocketManager] Singleton instance created"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping WebSocket connection"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:42.821Z] DEBUG [useBackgroundQueue] Background Queue: Waiting for WebSocket data"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:42.821Z] DEBUG [useBackgroundQueue] WebSocket not connected yet, using API fallback for initial load"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:42.821Z] DEBUG [useBackgroundQueue] FORCE REFRESH: Using API as fallback"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:42.821Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:42.821Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping auth checks, allowing all routes"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue Router warn]: The `next()` callback in navigation guards is deprecated. Return the value instead of calling `next(value)`."
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:43.021Z] DEBUG [useBackgroundQueue] FORCE REFRESH: API data loaded as fallback"
+        },
+        {
+          "type": "error",
+          "text": "X-Frame-Options may only be set via an HTTP header sent along with a document. It may not be set inside <meta>."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connecting..."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connected."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Using MOCK API for all endpoints"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue warn]: onMounted is called when there is no active component instance to be associated with. Lifecycle injection APIs can only be used during execution of setup(). If you are using async setup(), make sure to register lifecycle hooks before the first await statement."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: WebSocket connections disabled"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:45.560Z] DEBUG [WebSocketManager] Singleton created with URL: ws://127.0.0.1:5173/ws"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:45.560Z] DEBUG [WebSocketManager] Singleton instance created"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping WebSocket connection"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:45.565Z] DEBUG [useBackgroundQueue] Background Queue: Waiting for WebSocket data"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:45.565Z] DEBUG [useBackgroundQueue] WebSocket not connected yet, using API fallback for initial load"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:45.565Z] DEBUG [useBackgroundQueue] FORCE REFRESH: Using API as fallback"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:45.565Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:45.566Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping auth checks, allowing all routes"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue Router warn]: The `next()` callback in navigation guards is deprecated. Return the value instead of calling `next(value)`."
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:45.766Z] DEBUG [useBackgroundQueue] FORCE REFRESH: API data loaded as fallback"
+        },
+        {
+          "type": "error",
+          "text": "X-Frame-Options may only be set via an HTTP header sent along with a document. It may not be set inside <meta>."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connecting..."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connected."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Using MOCK API for all endpoints"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue warn]: onMounted is called when there is no active component instance to be associated with. Lifecycle injection APIs can only be used during execution of setup(). If you are using async setup(), make sure to register lifecycle hooks before the first await statement."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: WebSocket connections disabled"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:48.326Z] DEBUG [WebSocketManager] Singleton created with URL: ws://127.0.0.1:5173/ws"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:48.326Z] DEBUG [WebSocketManager] Singleton instance created"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping WebSocket connection"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:48.331Z] DEBUG [useBackgroundQueue] Background Queue: Waiting for WebSocket data"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:48.331Z] DEBUG [useBackgroundQueue] WebSocket not connected yet, using API fallback for initial load"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:48.331Z] DEBUG [useBackgroundQueue] FORCE REFRESH: Using API as fallback"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:48.331Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:48.331Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping auth checks, allowing all routes"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue Router warn]: The `next()` callback in navigation guards is deprecated. Return the value instead of calling `next(value)`."
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:48.533Z] DEBUG [useBackgroundQueue] FORCE REFRESH: API data loaded as fallback"
+        }
+      ]
+    },
+    {
+      "name": "mobile-390-tab-events",
+      "viewport": {
+        "name": "mobile-390",
+        "width": 390,
+        "height": 844,
+        "isMobile": true
+      },
+      "tabId": "events",
+      "tabControls": [
+        {
+          "text": "Overview",
+          "width": 96,
+          "height": 44,
+          "ok": true
+        },
+        {
+          "text": "Videos",
+          "width": 82,
+          "height": 44,
+          "ok": true
+        },
+        {
+          "text": "Settings",
+          "width": 90,
+          "height": 44,
+          "ok": true
+        },
+        {
+          "text": "Events",
+          "width": 83,
+          "height": 44,
+          "ok": true
+        }
+      ],
+      "actionButtons": [
+        {
+          "text": "Back",
+          "width": 94,
+          "height": 44,
+          "ok": true
+        },
+        {
+          "text": "Watch Live",
+          "width": 145,
+          "height": 44,
+          "ok": true
+        }
+      ],
+      "url": "http://127.0.0.1:5173/streamers/1",
+      "viewportWidth": 390,
+      "documentWidth": 390,
+      "noHorizontalOverflow": true,
+      "screenshot": "/opt/data/workspace/github_repos/StreamVault-frontend-product-overhaul-final/.hermes/frontend-visual-evidence/g-detail-001/mobile-390-tab-events-streamer-1.png",
+      "hasCompactHeader": true,
+      "hasAvatar": true,
+      "hasTabs": true,
+      "hasTabContent": true,
+      "firstViewportText": "StreamVault\n2\nBack\nLIVE\n\n@Streamer Alpha\n\nJust Chatting with Chat!\n\nJust Chatting\n\n4\nSTREAMS\n4\nRECORDED\n1h 19m\nAVG DURATION\nWatch Live\nOverview\nVideos\nSettings\nEvents\nRecent Events\nNo Events Yet\n\nReal-time events for this streamer will appear here.\n\nDashboard\nStreamers\nLibrary\nSubscriptions\nSettings",
+      "messages": [
+        {
+          "type": "error",
+          "text": "X-Frame-Options may only be set via an HTTP header sent along with a document. It may not be set inside <meta>."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connecting..."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connected."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Using MOCK API for all endpoints"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue warn]: onMounted is called when there is no active component instance to be associated with. Lifecycle injection APIs can only be used during execution of setup(). If you are using async setup(), make sure to register lifecycle hooks before the first await statement."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: WebSocket connections disabled"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:40.107Z] DEBUG [WebSocketManager] Singleton created with URL: ws://127.0.0.1:5173/ws"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:40.107Z] DEBUG [WebSocketManager] Singleton instance created"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping WebSocket connection"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:40.119Z] DEBUG [useBackgroundQueue] Background Queue: Waiting for WebSocket data"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:40.119Z] DEBUG [useBackgroundQueue] WebSocket not connected yet, using API fallback for initial load"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:40.119Z] DEBUG [useBackgroundQueue] FORCE REFRESH: Using API as fallback"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:40.120Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:40.120Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping auth checks, allowing all routes"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue Router warn]: The `next()` callback in navigation guards is deprecated. Return the value instead of calling `next(value)`."
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:40.320Z] DEBUG [useBackgroundQueue] FORCE REFRESH: API data loaded as fallback"
+        },
+        {
+          "type": "error",
+          "text": "X-Frame-Options may only be set via an HTTP header sent along with a document. It may not be set inside <meta>."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connecting..."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connected."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Using MOCK API for all endpoints"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue warn]: onMounted is called when there is no active component instance to be associated with. Lifecycle injection APIs can only be used during execution of setup(). If you are using async setup(), make sure to register lifecycle hooks before the first await statement."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: WebSocket connections disabled"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:42.815Z] DEBUG [WebSocketManager] Singleton created with URL: ws://127.0.0.1:5173/ws"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:42.815Z] DEBUG [WebSocketManager] Singleton instance created"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping WebSocket connection"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:42.821Z] DEBUG [useBackgroundQueue] Background Queue: Waiting for WebSocket data"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:42.821Z] DEBUG [useBackgroundQueue] WebSocket not connected yet, using API fallback for initial load"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:42.821Z] DEBUG [useBackgroundQueue] FORCE REFRESH: Using API as fallback"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:42.821Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:42.821Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping auth checks, allowing all routes"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue Router warn]: The `next()` callback in navigation guards is deprecated. Return the value instead of calling `next(value)`."
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:43.021Z] DEBUG [useBackgroundQueue] FORCE REFRESH: API data loaded as fallback"
+        },
+        {
+          "type": "error",
+          "text": "X-Frame-Options may only be set via an HTTP header sent along with a document. It may not be set inside <meta>."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connecting..."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connected."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Using MOCK API for all endpoints"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue warn]: onMounted is called when there is no active component instance to be associated with. Lifecycle injection APIs can only be used during execution of setup(). If you are using async setup(), make sure to register lifecycle hooks before the first await statement."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: WebSocket connections disabled"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:45.560Z] DEBUG [WebSocketManager] Singleton created with URL: ws://127.0.0.1:5173/ws"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:45.560Z] DEBUG [WebSocketManager] Singleton instance created"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping WebSocket connection"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:45.565Z] DEBUG [useBackgroundQueue] Background Queue: Waiting for WebSocket data"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:45.565Z] DEBUG [useBackgroundQueue] WebSocket not connected yet, using API fallback for initial load"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:45.565Z] DEBUG [useBackgroundQueue] FORCE REFRESH: Using API as fallback"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:45.565Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:45.566Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping auth checks, allowing all routes"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue Router warn]: The `next()` callback in navigation guards is deprecated. Return the value instead of calling `next(value)`."
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:45.766Z] DEBUG [useBackgroundQueue] FORCE REFRESH: API data loaded as fallback"
+        },
+        {
+          "type": "error",
+          "text": "X-Frame-Options may only be set via an HTTP header sent along with a document. It may not be set inside <meta>."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connecting..."
+        },
+        {
+          "type": "debug",
+          "text": "[vite] connected."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Using MOCK API for all endpoints"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue warn]: onMounted is called when there is no active component instance to be associated with. Lifecycle injection APIs can only be used during execution of setup(). If you are using async setup(), make sure to register lifecycle hooks before the first await statement."
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: WebSocket connections disabled"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:48.326Z] DEBUG [WebSocketManager] Singleton created with URL: ws://127.0.0.1:5173/ws"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:48.326Z] DEBUG [WebSocketManager] Singleton instance created"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping WebSocket connection"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:48.331Z] DEBUG [useBackgroundQueue] Background Queue: Waiting for WebSocket data"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:48.331Z] DEBUG [useBackgroundQueue] WebSocket not connected yet, using API fallback for initial load"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:48.331Z] DEBUG [useBackgroundQueue] FORCE REFRESH: Using API as fallback"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:48.331Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:48.331Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+        },
+        {
+          "type": "log",
+          "text": "🎭 Mock mode: Skipping auth checks, allowing all routes"
+        },
+        {
+          "type": "warning",
+          "text": "[Vue Router warn]: The `next()` callback in navigation guards is deprecated. Return the value instead of calling `next(value)`."
+        },
+        {
+          "type": "log",
+          "text": "[2026-07-06T22:22:48.533Z] DEBUG [useBackgroundQueue] FORCE REFRESH: API data loaded as fallback"
+        }
+      ]
+    }
+  ],
+  "blocked": false,
+  "blockers": []
+}

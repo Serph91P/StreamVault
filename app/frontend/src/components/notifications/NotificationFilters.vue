@@ -12,6 +12,7 @@ interface Props {
   totalCount: number
   unreadCount: number
   severityCounts: Record<string, number>
+  sourceOptions: TypeOption[]
   typeOptions: TypeOption[]
 }
 
@@ -69,6 +70,20 @@ function updateFilter(value: NotificationFilter) {
       >
         {{ filter.label }}
         <span>{{ severityCounts[filter.value] || 0 }}</span>
+      </button>
+    </div>
+
+    <div v-if="sourceOptions.length" class="filter-row source-filters" aria-label="Source filters">
+      <button
+        v-for="option in sourceOptions"
+        :key="option.value"
+        type="button"
+        class="filter-chip compact source-chip"
+        :class="{ active: modelValue === option.value }"
+        @click="updateFilter(option.value)"
+      >
+        {{ option.label }}
+        <span>{{ option.count }}</span>
       </button>
     </div>
 
@@ -167,6 +182,11 @@ function updateFilter(value: NotificationFilter) {
   background: rgba(29, 185, 84, 0.14);
 }
 
+.source-chip.active {
+  border-color: var(--info-color);
+  background: rgba(0, 180, 216, 0.12);
+}
+
 .type-filters {
   max-height: 5.5rem;
   overflow: auto;
@@ -185,11 +205,21 @@ function updateFilter(value: NotificationFilter) {
   .filter-row {
     flex-wrap: nowrap;
     overflow-x: auto;
+    overflow-y: hidden;
     padding-bottom: var(--spacing-1);
+    scroll-padding-inline: var(--spacing-4);
+    scrollbar-width: thin;
+    -webkit-overflow-scrolling: touch;
+    mask-image: linear-gradient(90deg, transparent 0, rgb(0 0 0) var(--spacing-3), rgb(0 0 0) calc(100% - var(--spacing-3)), transparent 100%);
   }
 
   .filter-chip {
     flex: 0 0 auto;
+  }
+
+  .type-filters {
+    max-height: none;
+    padding-right: 0;
   }
 }
 </style>

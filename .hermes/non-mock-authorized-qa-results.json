@@ -1,0 +1,108 @@
+{
+  "authorization": "Max approved creating temporary QA session and test prerequisites in the running backend",
+  "base_url": "http://127.0.0.1:7001",
+  "container": "streamvault-develop",
+  "gates": {
+    "hls_playback": {
+      "playlist_head": "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:2\n#EXT-X-MEDIA-SEQUENCE:3\n#EXTINF:2.000000,\nsegment_003.ts?token=lLdElfm0aThvAc9OHHxF5hennRJfoZwhwa6ChxsGNB4\n#EXTINF:2.000000,\nsegment_004.ts?token=lLdElfm0aThvAc9OHHxF5hennRJfoZwhwa6ChxsGNB4\n#EXTINF:2.000000,\nsegment_005.ts?token=lLdElfm0aThvAc9OHHxF5hennRJfoZwhwa6ChxsGNB4\n#EXTINF:2.000000,\nsegment_006.ts?token=lLdElfm0aThvAc9OHHxF5hennRJfoZwhwa6ChxsGNB4\n#EXTINF:2.000000,\nsegment_007.ts?token=lLdElfm0aThvAc9OHHxF5hennRJfoZwhwa6ChxsGNB4\n#EXTINF:2.00",
+      "playlist_status": 200,
+      "playlist_url": "/api/live/stream/9d28affa/playlist.m3u8?token=lLdElfm0aThvAc9OHHxF5hennRJfoZwhwa6ChxsGNB4",
+      "session_id": "9d28affa",
+      "status": "passed"
+    },
+    "push_server_flow": {
+      "debug_body": "{\"success\":true,\"debug\":{\"configuration_status\":{\"vapid_configured\":true,\"global_notifications_enabled\":true,\"has_active_subscriptions\":false,\"has_streamer_settings\":true},\"issues\":[\"No active push subscriptions\"]}}",
+      "debug_status": 200,
+      "status": "passed",
+      "test_local_body": "{\"success\":true,\"message\":\"Local test notification data prepared - use this data to trigger a notification via Service Worker\",\"notification\":{\"title\":\"\ud83e\uddea StreamVault Test (Local)\",\"body\":\"If you see this, local PWA notifications are working perfectly! This is a fallback test.\",\"icon\":\"/android-icon-192x192.png\",\"badge\":\"/android-icon-96x96.png\",\"type\":\"test_local\",\"requireInteraction\":true,\"timestamp\":1783397932766,\"tag\":\"test-local-notification\",\"data\":{\"url\":\"/\",\"type\":\"test_local\"}}}",
+      "test_local_status": 200,
+      "vapid_body": "{\"publicKey\":\"BDrbwBlEeCPaj5yFEGYRuoEAalOkRiQXR0ziFKEMqmVPFx4Jsorn5AwP-6kzGtC2ZYbzg-TXjOeGK8edsJWfD4o\",\"configured\":true}",
+      "vapid_status": 200
+    },
+    "websocket": {
+      "messages": [
+        {
+          "data": {
+            "connection_id": 133748703535312,
+            "is_reverse_proxied": false,
+            "message": "StreamVault WebSocket connected - 1 total connections",
+            "real_ip": "192.168.96.1",
+            "status": "connected",
+            "timestamp": "2026-07-07T04:18:50.663646"
+          },
+          "type": "connection.status"
+        },
+        {
+          "data": {
+            "category_name": "\ud83d\udd27 StreamVault Testing",
+            "is_live": true,
+            "language": "en",
+            "message": "Twitch channel update - Test #930672",
+            "profile_image_url": "https://static-cdn.jtvnw.net/user-default-pictures-uv/de130ab0-def7-11e9-b668-784f43822e80-profile_image-70x70.png",
+            "streamer_id": "test_747a2dc1-3221-4540-b485-bc1061e29420",
+            "streamer_name": "\ud83e\uddea Test Notification",
+            "test_id": "747a2dc1-3221-4540-b485-bc1061e29420",
+            "timestamp": "1783397930672",
+            "title": "Channel Update Test #0672",
+            "twitch_id": "test_user_1783397930672",
+            "url": "https://twitch.tv/teststreamer",
+            "username": "\ud83e\uddea Test Notification"
+          },
+          "event_id": 15,
+          "timestamp": "2026-07-07T04:18:50.673463+00:00",
+          "type": "channel.update"
+        }
+      ],
+      "status": "passed"
+    }
+  },
+  "seed": {
+    "streamer_id": 6,
+    "user_id": 1,
+    "username": "Eloquent9017",
+    "vapid_config_rows": {
+      "vapid_claims_sub": true,
+      "vapid_private_key": true,
+      "vapid_public_key": true
+    }
+  },
+  "steps": [
+    {
+      "body": "{\"authenticated\":false}",
+      "method": "GET",
+      "path": "/auth/check",
+      "status": 200
+    },
+    {
+      "body": "{\"streams\":[]}",
+      "method": "GET",
+      "path": "/api/live/active",
+      "status": 200
+    },
+    {
+      "body": "{\"success\":true,\"debug\":{\"configuration_status\":{\"vapid_configured\":true,\"global_notifications_enabled\":true,\"has_active_subscriptions\":false,\"has_streamer_settings\":true},\"issues\":[\"No active push subscriptions\"]}}",
+      "method": "GET",
+      "path": "/api/push/debug",
+      "status": 200
+    },
+    {
+      "body": "{\"publicKey\":\"BDrbwBlEeCPaj5yFEGYRuoEAalOkRiQXR0ziFKEMqmVPFx4Jsorn5AwP-6kzGtC2ZYbzg-TXjOeGK8edsJWfD4o\",\"configured\":true}",
+      "method": "GET",
+      "path": "/api/push/vapid-public-key",
+      "status": 200
+    },
+    {
+      "body": "{\"status\":\"success\",\"message\":\"Test WebSocket notification sent successfully (ID: 61e29420)\",\"notification_id\":\"747a2dc1-3221-4540-b485-bc1061e29420\"}",
+      "method": "POST",
+      "path": "/api/settings/test-websocket-notification",
+      "status": 200
+    },
+    {
+      "body": "{\"success\":true,\"session_id\":\"9d28affa\",\"streamer_name\":\"summit1g\",\"quality\":\"best\",\"supported_codecs\":\"h264\",\"playlist_url\":\"/api/live/stream/9d28affa/playlist.m3u8?token=lLdElfm0aThvAc9OHHxF5hennRJfoZwhwa6ChxsGNB4\",\"message\":\"Stream started successfully\"}",
+      "method": "POST",
+      "path": "/api/live/start/summit1g",
+      "status": 200
+    }
+  ],
+  "timestamp": "2026-07-07T04:18:49.583292+00:00"
+}

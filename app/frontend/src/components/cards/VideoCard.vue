@@ -2,88 +2,130 @@
   <GlassCard
     variant="subtle"
     hoverable
-    clickable
     :padding="false"
-    @click="handleClick"
     class="video-card"
     :class="{ 'list-mode': viewMode === 'list' }"
   >
-    <!-- Thumbnail -->
-    <div class="video-thumbnail">
-      <img
-        v-if="video.thumbnail_url && !thumbnailError"
-        :src="video.thumbnail_url"
-        :alt="video.title"
-        loading="lazy"
-        @error="handleThumbnailError"
+    <div class="video-card-action">
+      <router-link
+        v-if="isInteractiveLink"
+        class="video-card-link"
+        :to="videoRoute"
+        :aria-label="watchLabel"
       />
-      <div v-else class="thumbnail-placeholder">
-        <svg class="icon-video">
-          <use href="#icon-video" />
-        </svg>
+      <button
+        v-else-if="disableNavigation"
+        type="button"
+        class="video-card-link"
+        :aria-label="selectLabel"
+        @click="handleSelect"
+      />
+      <span
+        v-else
+        class="video-card-link video-card-link-disabled"
+        role="img"
+        :aria-label="unavailableLabel"
+      />
+      <!-- Thumbnail -->
+      <div class="video-thumbnail">
+        <img
+          v-if="hasThumbnail"
+          :src="video.thumbnail_url"
+          :alt="thumbnailAlt"
+          loading="lazy"
+          @error="handleThumbnailError"
+        />
+        <div v-else class="thumbnail-placeholder">
+          <div class="placeholder-body">
+            <svg class="icon-video">
+              <use href="#icon-video" />
+            </svg>
+            <span class="placeholder-label">{{ thumbnailFallbackLabel }}</span>
+            <span class="placeholder-cue">{{ thumbnailFallbackCue }}</span>
+          </div>
+        </div>
+
+        <!-- Duration Badge -->
+        <div v-if="formattedDuration" class="duration-badge">
+          {{ formattedDuration }}
+        </div>
+
+        <!-- Status Badge -->
+        <StatusBadge
+          v-if="statusBadge"
+          class="video-status-badge"
+          :tone="statusBadge.tone"
+          size="sm"
+          :dot="statusBadge.dot"
+          :pulse="statusBadge.pulse"
+          :aria-label="`Video status: ${statusBadge.text}`"
+        >
+          {{ statusBadge.text }}
+        </StatusBadge>
+
+        <!-- Hover Overlay (grid mode only) -->
+        <div v-if="viewMode !== 'list'" class="hover-overlay" :class="{ 'is-disabled': !canPlay }">
+          <button class="play-button" :disabled="!canPlay" @click.stop="handlePlay" :aria-label="playButtonLabel">
+            <svg class="icon-play">
+              <use href="#icon-video" />
+            </svg>
+            <span v-if="!canPlay" class="play-button-label">Unavailable</span>
+          </button>
+        </div>
       </div>
 
-      <!-- Duration Badge -->
-      <div v-if="video.duration" class="duration-badge">
-        {{ formattedDuration }}
-      </div>
+      <!-- Video Info -->
+      <div class="video-info">
+        <h2 class="video-title">{{ displayTitle }}</h2>
 
-      <!-- Status Badge -->
-      <div v-if="statusBadge" class="status-badge" :class="`status-${statusBadge.type}`">
-        {{ statusBadge.text }}
-      </div>
+        <div class="video-meta">
+          <span class="streamer-name">{{ streamerLabel }}</span>
+          <span class="separator">•</span>
+          <span class="upload-date">{{ formattedDate }}</span>
+        </div>
 
-      <!-- Hover Overlay (grid mode only) -->
-      <div v-if="viewMode !== 'list'" class="hover-overlay">
-        <button class="play-button" @click.stop="handlePlay" aria-label="Play video">
-          <svg class="icon-play">
-            <use href="#icon-video" />
-          </svg>
-        </button>
-      </div>
-    </div>
+        <div v-if="video.category_name" class="video-category">{{ video.category_name }}</div>
+        <p v-if="mediaStateMessage" class="video-state-message">{{ mediaStateMessage }}</p>
 
-    <!-- Video Info -->
-    <div class="video-info">
-      <h3 class="video-title">{{ video.title }}</h3>
-
-      <div class="video-meta">
-        <span class="streamer-name">{{ video.streamer_name || 'Unknown' }}</span>
-        <span class="separator">•</span>
-        <span class="upload-date">{{ formattedDate }}</span>
-      </div>
-
-      <div v-if="video.view_count || video.file_size" class="video-stats">
-        <span v-if="video.view_count" class="stat">
-          <svg class="stat-icon">
-            <use href="#icon-users" />
-          </svg>
-          {{ formatNumber(video.view_count) }}
-        </span>
-        <span v-if="video.file_size" class="stat">
-          {{ formatFileSize(video.file_size) }}
-        </span>
+        <div v-if="displayViewCount || displayFileSize" class="video-stats">
+          <span v-if="displayViewCount" class="stat">
+            <svg class="stat-icon">
+              <use href="#icon-users" />
+            </svg>
+            {{ formatNumber(displayViewCount) }}
+          </span>
+          <span v-if="displayFileSize" class="stat">
+            {{ displayFileSize }}
+          </span>
+        </div>
       </div>
     </div>
   </GlassCard>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, ref, watch } from 'vue'
+import StatusBadge, { type StatusBadgeTone } from '@/components/base/StatusBadge.vue'
 import GlassCard from './GlassCard.vue'
+
+type VideoStatus = 'recording' | 'processing' | 'ready' | 'failed'
 
 interface Video {
   id: number
-  title: string
+  title?: string | null
   thumbnail_url?: string
   duration?: number
   file_size?: number
   view_count?: number
+  viewer_count?: number
   created_at?: string
+  recorded_at?: string
+  stream_date?: string
   streamer_name?: string
   streamer_id?: number  // Required for navigation to video player
-  status?: 'recording' | 'processing' | 'ready' | 'failed'
+  category_name?: string
+  file_path?: string
+  status?: VideoStatus | string
   is_recording?: boolean
 }
 
@@ -102,8 +144,6 @@ const emit = defineEmits<{
   select: [video: Video]
 }>()
 
-const router = useRouter()
-
 // Thumbnail error handling
 const thumbnailError = ref(false)
 
@@ -111,8 +151,45 @@ const handleThumbnailError = () => {
   thumbnailError.value = true
 }
 
+watch(() => props.video.thumbnail_url, () => {
+  thumbnailError.value = false
+})
+
+const hasValidId = computed(() => Number.isFinite(props.video.id))
+const hasStreamerId = computed(() => Number.isFinite(props.video.streamer_id))
+const normalizedStatus = computed(() => {
+  if (props.video.is_recording) return 'recording'
+  return typeof props.video.status === 'string' ? props.video.status.toLowerCase() : ''
+})
+const isFailed = computed(() => normalizedStatus.value === 'failed')
+const canPlay = computed(() => hasValidId.value && hasStreamerId.value && !isFailed.value)
+const isInteractiveLink = computed(() => !props.disableNavigation && canPlay.value)
+const displayTitle = computed(() => {
+  const title = props.video.title?.trim()
+  return title || `Untitled video ${hasValidId.value ? props.video.id : ''}`.trim()
+})
+const streamerLabel = computed(() => props.video.streamer_name?.trim() || 'Unknown streamer')
+const watchLabel = computed(() => `Watch ${displayTitle.value}`)
+const selectLabel = computed(() => `Select ${displayTitle.value}`)
+const unavailableLabel = computed(() => `${displayTitle.value} is unavailable to play`)
+const playButtonLabel = computed(() => canPlay.value ? `Play ${displayTitle.value}` : unavailableLabel.value)
+const thumbnailAlt = computed(() => `${displayTitle.value} preview`)
+const hasThumbnail = computed(() => Boolean(props.video.thumbnail_url && !thumbnailError.value))
+const thumbnailFallbackLabel = computed(() => {
+  if (isFailed.value) return 'Media unavailable'
+  if (thumbnailError.value) return 'Preview failed to load'
+  return 'Preview unavailable'
+})
+const thumbnailFallbackCue = computed(() => props.video.category_name?.trim() || streamerLabel.value)
+const mediaStateMessage = computed(() => {
+  if (isFailed.value) return 'Recording failed or media is unavailable.'
+  if (!hasStreamerId.value || !hasValidId.value) return 'Playback details are missing.'
+  if (!props.video.recorded_at && !props.video.created_at && !props.video.stream_date) return 'Recording date unavailable.'
+  return ''
+})
+
 const formattedDuration = computed(() => {
-  if (!props.video.duration) return ''
+  if (!props.video.duration || props.video.duration <= 0) return ''
 
   const hours = Math.floor(props.video.duration / 3600)
   const minutes = Math.floor((props.video.duration % 3600) / 60)
@@ -124,10 +201,22 @@ const formattedDuration = computed(() => {
   return `${minutes}:${seconds.toString().padStart(2, '0')}`
 })
 
-const formattedDate = computed(() => {
-  if (!props.video.created_at) return ''
+const displayViewCount = computed(() => {
+  const count = props.video.view_count ?? props.video.viewer_count ?? 0
+  return count > 0 ? count : 0
+})
 
-  const date = new Date(props.video.created_at)
+const displayFileSize = computed(() => {
+  if (!props.video.file_size || props.video.file_size <= 0) return ''
+  return formatFileSize(props.video.file_size)
+})
+
+const formattedDate = computed(() => {
+  const dateStr = props.video.recorded_at || props.video.created_at || props.video.stream_date
+  if (!dateStr) return 'Date unavailable'
+
+  const date = new Date(dateStr)
+  if (Number.isNaN(date.getTime())) return 'Date unavailable'
   const now = new Date()
   const diffMs = now.getTime() - date.getTime()
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
@@ -143,17 +232,22 @@ const formattedDate = computed(() => {
 const statusBadge = computed(() => {
   // Treat backend `is_recording=true` (Strategy 3 in /api/videos) as a live
   // recording, even if the persisted `status` is missing or still 'ready'.
-  const effectiveStatus = props.video.is_recording ? 'recording' : props.video.status
+  const effectiveStatus = normalizedStatus.value
   if (!effectiveStatus) return null
 
-  const badges = {
-    recording: { text: 'RECORDING', type: 'recording' },
-    processing: { text: 'PROCESSING', type: 'processing' },
-    failed: { text: 'FAILED', type: 'failed' },
-    ready: null
+  const badges: Record<Exclude<VideoStatus, 'ready'>, {
+    text: string
+    tone: StatusBadgeTone
+    dot: boolean
+    pulse: boolean
+  }> = {
+    recording: { text: 'RECORDING', tone: 'recording', dot: true, pulse: true },
+    processing: { text: 'PROCESSING', tone: 'processing', dot: true, pulse: false },
+    failed: { text: 'FAILED', tone: 'danger', dot: false, pulse: false }
   }
 
-  return badges[effectiveStatus] || null
+  if (effectiveStatus === 'ready') return null
+  return badges[effectiveStatus as Exclude<VideoStatus, 'ready'>] || null
 })
 
 const formatNumber = (num: number) => {
@@ -168,28 +262,25 @@ const formatFileSize = (bytes: number) => {
   return `${(bytes / 1024).toFixed(0)} KB`
 }
 
-const handleClick = () => {
-  if (props.disableNavigation) {
-    emit('select', props.video)
-    return
+const videoRoute = computed(() => ({
+  name: 'VideoPlayer',
+  params: {
+    streamerId: props.video.streamer_id,
+    streamId: props.video.id
+  },
+  query: {
+    title: displayTitle.value,
+    streamerName: props.video.streamer_name
   }
+}))
 
-  // Navigate to video player with correct route parameters
-  // Route expects: /streamer/:streamerId/stream/:streamId/watch
-  router.push({
-    name: 'VideoPlayer',
-    params: {
-      streamerId: props.video.streamer_id,
-      streamId: props.video.id  // video.id is actually the stream_id
-    },
-    query: {
-      title: props.video.title || `Stream ${props.video.id}`,
-      streamerName: props.video.streamer_name
-    }
-  })
+const handleSelect = () => {
+  emit('select', props.video)
 }
 
 const handlePlay = () => {
+  if (!canPlay.value) return
+
   if (props.disableNavigation) {
     emit('select', props.video)
     return
@@ -214,6 +305,36 @@ const handlePlay = () => {
       color: var(--primary-color);
     }
   }
+}
+
+.video-card-action {
+  position: relative;
+  cursor: pointer;
+}
+
+.video-card-link {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: block;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-xl);
+  background: transparent;
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+
+  &:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 3px;
+    box-shadow: var(--shadow-primary);
+  }
+}
+
+.video-card-link-disabled {
+  cursor: default;
+  pointer-events: none;
 }
 
 .video-thumbnail {
@@ -244,12 +365,40 @@ const handlePlay = () => {
   justify-content: center;
   background: var(--background-darker);
 
+  .placeholder-body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--spacing-1);
+    padding: var(--spacing-2);
+    text-align: center;
+    max-width: 100%;
+  }
+
   .icon-video {
     width: 48px;
     height: 48px;
     stroke: var(--text-secondary);
     fill: none;
-    opacity: 0.5;
+    opacity: 0.4;
+  }
+
+  .placeholder-label {
+    font-size: var(--text-xs);
+    color: var(--text-tertiary);
+    font-weight: v.$font-medium;
+    white-space: nowrap;
+  }
+
+  .placeholder-cue {
+    font-size: 11px;
+    color: var(--text-tertiary);
+    opacity: 0.7;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 100%;
+    padding: 0 var(--spacing-1);
   }
 }
 
@@ -269,33 +418,10 @@ const handlePlay = () => {
   font-family: v.$font-mono;
 }
 
-.status-badge {
+.video-status-badge {
   position: absolute;
   top: 8px;
   left: 8px;
-
-  padding: 4px 8px;
-  border-radius: var(--radius-sm);
-
-  font-size: var(--text-xs);
-  font-weight: v.$font-bold;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-
-  &.status-recording {
-    background: var(--primary-color);
-    color: white;
-  }
-
-  &.status-processing {
-    background: var(--warning-color);
-    color: white;
-  }
-
-  &.status-failed {
-    background: var(--danger-color);
-    color: white;
-  }
 }
 
 .hover-overlay {
@@ -314,9 +440,15 @@ const handlePlay = () => {
 
   opacity: 0;
   transition: opacity v.$duration-200 v.$ease-out;
+
+  &.is-disabled {
+    background: rgba(0, 0, 0, 0.48);
+  }
 }
 
 .play-button {
+  position: relative;
+  z-index: 2;
   width: 64px;
   height: 64px;
   padding: 0;
@@ -349,6 +481,31 @@ const handlePlay = () => {
   &:active {
     transform: scale(0.95);
   }
+
+  &:disabled {
+    width: auto;
+    min-width: 96px;
+    padding: 0 var(--spacing-3);
+    border-radius: var(--radius-full);
+    background: var(--background-card);
+    color: var(--text-secondary);
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+
+    .icon-play {
+      width: 20px;
+      height: 20px;
+      margin-left: 0;
+      stroke: currentColor;
+    }
+  }
+}
+
+.play-button-label {
+  margin-left: var(--spacing-2);
+  font-size: var(--text-xs);
+  font-weight: v.$font-semibold;
 }
 
 .video-info {
@@ -380,14 +537,35 @@ const handlePlay = () => {
   font-size: var(--text-sm);
   color: var(--text-secondary);
   margin-bottom: var(--spacing-2);
+  min-width: 0;
 }
 
 .streamer-name {
   font-weight: v.$font-medium;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .separator {
   opacity: 0.5;
+}
+
+.video-category {
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+  margin-bottom: var(--spacing-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.video-state-message {
+  margin: 0 0 var(--spacing-2) 0;
+  color: var(--text-tertiary);
+  font-size: var(--text-xs);
+  line-height: v.$leading-snug;
 }
 
 .video-stats {
@@ -445,11 +623,9 @@ const handlePlay = () => {
     font-size: var(--text-xs);
   }
 
-  .status-badge {
+  .video-status-badge {
     top: 10px;
     left: 10px;
-    padding: 6px 10px;
-    font-size: var(--text-xs);
   }
 }
 
@@ -511,6 +687,11 @@ const handlePlay = () => {
   }
 
   .thumbnail-placeholder {
+    .placeholder-body {
+      gap: 2px;
+      padding: var(--spacing-1);
+    }
+
     .icon-video {
       width: 32px;
       height: 32px;
@@ -524,11 +705,9 @@ const handlePlay = () => {
     padding: 2px 4px;
   }
 
-  .status-badge {
+  .video-status-badge {
     top: 4px;
     left: 4px;
-    font-size: 10px;
-    padding: 2px 6px;
   }
 
   .video-info {
@@ -551,6 +730,10 @@ const handlePlay = () => {
   .video-meta {
     font-size: var(--text-xs);
     margin: 0;
+  }
+
+  .video-category {
+    display: none;
   }
 
   .video-stats {

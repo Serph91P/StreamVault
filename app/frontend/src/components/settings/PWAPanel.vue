@@ -3,6 +3,40 @@
     <div class="pwa-section settings-section">
       <h4>Progressive Web App</h4>
 
+      <div class="pwa-flow-card">
+        <div class="pwa-flow-card__step">1</div>
+        <div>
+          <h5>Install the mobile app shell</h5>
+          <p>
+            Add StreamVault to your home screen for full-height mobile browsing, app switching, and cached shell access.
+          </p>
+        </div>
+      </div>
+
+      <div class="pwa-guide-card">
+        <div>
+          <strong>{{ installGuideTitle }}</strong>
+          <p>{{ installGuideDescription }}</p>
+        </div>
+        <button
+          v-if="!isInstalled"
+          class="btn btn-secondary"
+          type="button"
+          @click="showInstallGuide = !showInstallGuide"
+        >
+          {{ showInstallGuide ? 'Hide setup guide' : 'Show setup guide' }}
+        </button>
+      </div>
+
+      <div v-if="showInstallGuide && !isInstalled" class="pwa-primer-details">
+        <ul>
+          <li v-for="step in installInstructions.steps" :key="step">{{ step }}</li>
+        </ul>
+        <p v-if="!pwaCriteria.allCriteriaMet" class="pwa-guide-note">
+          Some install prerequisites are unavailable in this browser session. Use HTTPS or localhost and keep the service worker enabled.
+        </p>
+      </div>
+
       <div class="setting-item settings-item">
         <div class="setting-info settings-item__info">
           <label>Installation Status</label>
@@ -18,9 +52,19 @@
             v-if="isInstallable && !isInstalled"
             @click="installApp"
             class="btn btn-primary install-btn"
+            :disabled="isInstallingApp"
           >
-            Install App
+            {{ isInstallingApp ? 'Opening...' : 'Install App' }}
           </button>
+        </div>
+      </div>
+
+      <div v-if="installError" class="setting-item settings-item">
+        <div class="setting-info settings-item__info">
+          <label>Install Help</label>
+          <p class="setting-description pwa-error-message">
+            {{ installError }}
+          </p>
         </div>
       </div>
 
@@ -41,6 +85,16 @@
 
     <div class="pwa-section settings-section">
       <h4>Push Notifications</h4>
+
+      <div class="pwa-flow-card pwa-flow-card--permission">
+        <div class="pwa-flow-card__step">2</div>
+        <div>
+          <h5>Choose notification behavior first</h5>
+          <p>
+            StreamVault only asks the browser permission after you review what alerts are for. No surprise permission prompt is shown on page load.
+          </p>
+        </div>
+      </div>
 
       <div class="setting-item settings-item">
         <div class="setting-info settings-item__info">
@@ -94,6 +148,30 @@
           </div>
         </div>
 
+        <div v-if="notificationPermission === 'default'" class="pwa-primer-card">
+          <div>
+            <strong>Before allowing notifications</strong>
+            <p>
+              You will receive browser push alerts for streamer activity and recording status. You can disable them here later.
+            </p>
+          </div>
+          <button
+            class="btn btn-secondary"
+            type="button"
+            @click="showPushPrimer = !showPushPrimer"
+          >
+            {{ showPushPrimer ? 'Hide details' : 'Review details' }}
+          </button>
+        </div>
+
+        <div v-if="showPushPrimer && notificationPermission === 'default'" class="pwa-primer-details">
+          <ul>
+            <li>Browser permission is requested only after you press Allow notifications below.</li>
+            <li>If you deny it, StreamVault shows recovery instructions instead of asking again.</li>
+            <li>Push subscriptions are synced with the server only after permission is granted.</li>
+          </ul>
+        </div>
+
         <div class="setting-item settings-item">
           <div class="setting-info settings-item__info">
             <label>Push Subscription</label>
@@ -115,14 +193,14 @@
             </span>
             <button
               v-if="pushState === 'unsubscribed' && notificationPermission !== 'denied'"
-              @click="enableNotifications"
+              @click="handleNotificationPrimaryAction"
               class="btn btn-primary"
               :disabled="isEnablingNotifications"
             >
               <svg class="icon" aria-hidden="true">
                 <use xlink:href="#icon-bell"></use>
               </svg>
-              {{ isEnablingNotifications ? 'Enabling...' : 'Enable Notifications' }}
+              {{ enableNotificationsLabel }}
             </button>
             <button
               v-if="pushState === 'subscribed'"
@@ -137,7 +215,7 @@
             </button>
             <button
               v-if="pushState === 'error' && notificationPermission !== 'denied'"
-              @click="enableNotifications"
+              @click="handleNotificationPrimaryAction"
               class="btn btn-primary"
               :disabled="isEnablingNotifications"
             >
@@ -163,6 +241,10 @@
             </p>
           </div>
         </div>
+      </div>
+
+      <div v-else class="pwa-primer-details">
+        Push notifications need service worker and Push API support. You can still use StreamVault, but browser push alerts are unavailable in this browser.
       </div>
     </div>
 
@@ -212,16 +294,39 @@ const {
   notificationPermission,
   pushState,
   pushError,
+  installError,
   installPWA,
   subscribeToPush,
   unsubscribeFromPush,
-  requestNotificationPermission
+  requestNotificationPermission,
+  checkPWAInstallCriteria,
+  getInstallInstructions
 } = usePWA()
 
 const isEnablingNotifications = ref(false)
 const isDisablingNotifications = ref(false)
+const isInstallingApp = ref(false)
+const showInstallGuide = ref(false)
+const showPushPrimer = ref(false)
 const statusMessage = ref('')
 const statusType = ref('')
+
+const installInstructions = computed(() => getInstallInstructions())
+const pwaCriteria = computed(() => checkPWAInstallCriteria())
+
+const installGuideTitle = computed(() => {
+  if (isInstalled.value) return 'StreamVault is already installed'
+  if (isInstallable.value) return 'Ready to install'
+  if (!pwaCriteria.value.allCriteriaMet) return 'Install prerequisites need attention'
+  return 'Manual install steps are available'
+})
+
+const installGuideDescription = computed(() => {
+  if (isInstalled.value) return 'Launch StreamVault from your home screen, app drawer, Start menu, or Applications folder.'
+  if (isInstallable.value) return 'Review the value, then use Install App to open the browser install confirmation.'
+  if (!pwaCriteria.value.allCriteriaMet) return 'This browser session is missing one or more install prerequisites, so the native prompt may not appear.'
+  return 'If your browser does not show an install prompt, follow the platform steps below.'
+})
 
 const permissionText = computed(() => {
   switch (notificationPermission.value) {
@@ -243,17 +348,48 @@ const pushStateText = computed(() => {
   }
 })
 
+const enableNotificationsLabel = computed(() => {
+  if (isEnablingNotifications.value) return 'Enabling...'
+  if (notificationPermission.value === 'default' && !showPushPrimer.value) return 'Review first'
+  if (notificationPermission.value === 'default') return 'Allow notifications'
+  return 'Enable Notifications'
+})
+
 const installApp = async () => {
   try {
-    await installPWA()
-    showStatus('App installation initiated', 'success')
+    isInstallingApp.value = true
+    const result = await installPWA()
+
+    if (result === 'accepted') {
+      showStatus('App installation accepted', 'success')
+      showInstallGuide.value = false
+    } else if (result === 'dismissed') {
+      showStatus('Install prompt dismissed. The setup guide stays available.', 'info')
+      showInstallGuide.value = true
+    } else if (result === 'installed') {
+      showStatus('StreamVault is already installed', 'success')
+    } else if (result === 'unavailable') {
+      showStatus('Native install prompt is unavailable. Use the setup guide.', 'info')
+      showInstallGuide.value = true
+    } else {
+      showStatus('App installation failed', 'error')
+      showInstallGuide.value = true
+    }
   } catch (error) {
     console.error('App installation failed:', error)
     showStatus('App installation failed', 'error')
+  } finally {
+    isInstallingApp.value = false
   }
 }
 
-const enableNotifications = async () => {
+const handleNotificationPrimaryAction = async () => {
+  if (notificationPermission.value === 'default' && !showPushPrimer.value) {
+    showPushPrimer.value = true
+    showStatus('Review notification details before allowing browser permission', 'info')
+    return
+  }
+
   try {
     isEnablingNotifications.value = true
 
@@ -458,6 +594,92 @@ const showStatus = (message: string, type: 'success' | 'error' | 'info') => {
   }
 }
 
+.pwa-flow-card,
+.pwa-guide-card,
+.pwa-primer-card,
+.pwa-primer-details {
+  margin: v.$spacing-3 0;
+  padding: v.$spacing-4;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  background: var(--glass-bg-subtle);
+}
+
+.pwa-flow-card {
+  display: flex;
+  gap: v.$spacing-3;
+  align-items: flex-start;
+
+  h5 {
+    margin: 0 0 v.$spacing-1;
+    color: var(--text-primary);
+    font-size: v.$text-base;
+  }
+
+  p {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: v.$text-sm;
+    line-height: 1.5;
+  }
+}
+
+.pwa-flow-card__step {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  border-radius: var(--radius-full);
+  background: var(--primary-color);
+  color: white;
+  font-weight: v.$font-bold;
+}
+
+.pwa-guide-card,
+.pwa-primer-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: v.$spacing-3;
+
+  strong {
+    display: block;
+    margin-bottom: v.$spacing-1;
+    color: var(--text-primary);
+  }
+
+  p {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: v.$text-sm;
+    line-height: 1.5;
+  }
+
+  .btn {
+    min-height: 44px;
+    flex-shrink: 0;
+  }
+}
+
+.pwa-primer-details {
+  ul {
+    margin: 0;
+    padding-left: v.$spacing-5;
+    color: var(--text-secondary);
+    font-size: v.$text-sm;
+    line-height: 1.6;
+  }
+}
+
+.pwa-guide-note {
+  margin: v.$spacing-3 0 0;
+  color: var(--warning-color);
+  font-size: v.$text-sm;
+  line-height: 1.5;
+}
+
 .pwa-permission-denied {
   margin-top: v.$spacing-2;
 }
@@ -467,6 +689,13 @@ const showStatus = (message: string, type: 'success' | 'error' | 'info') => {
 }
 
 @include m.respond-below('md') {
+  .pwa-flow-card,
+  .pwa-guide-card,
+  .pwa-primer-card {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
   .form-actions {
     flex-direction: column;
 

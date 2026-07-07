@@ -1,0 +1,35 @@
+{
+  "task_id": "t_81f11d9f",
+  "route": "/streamers",
+  "mode": "VITE_USE_MOCK_DATA=true vite dev server on 127.0.0.1:5173",
+  "screenshots": [
+    "desktop-1440-streamers-loaded.png",
+    "mobile-390-streamers-loaded.png",
+    "mobile-390-streamers-scrolled.png",
+    "mobile-390-streamers-bottom.png"
+  ],
+  "supporting_evidence": [
+    "mobile-390-touch-target-metrics.json"
+  ],
+  "interactive_checks": [
+    "Search query retro reduced the result summary to Showing 1 of 4 streamers and only Retro Gamer remained visible.",
+    "Live filter reduced the result summary to Showing 2 of 4 streamers in live and showed the two live cards.",
+    "Sort option Name A-Z selected successfully and all-card order became Casual Streamer, Retro Gamer, Speedrunner Pro, Streamer Alpha.",
+    "List mode toggle selected successfully without console errors.",
+    "Add Streamer header action navigated to /add-streamer and showed the Add New Streamer entry screen."
+  ],
+  "mobile_touch_targets": {
+    "auto_on": "171x45",
+    "add_streamer": "171x44",
+    "search": "350x50",
+    "filter_tabs": "82x44 each",
+    "view_toggle_buttons": "44x44 each",
+    "card_action_button": "44x44"
+  },
+  "visual_findings": [
+    "Desktop 1440 screenshot shows header actions, status summary, search, filters, layout toggle, sort, result summary, refresh and four scanable cards with clear live, recording and offline wording.",
+    "Mobile 390 screenshots show the header, Auto ON and Add Streamer actions, status summary, search, filter tabs, layout toggle, sort, results bar and cards stacking cleanly above the fixed bottom navigation.",
+    "No broken avatars, clipping, horizontal overflow, overlapping controls or JavaScript console errors were observed."
+  ],
+  "fix_applied": "Raised Add Streamer header link min-height from 40px to 44px so the mobile primary entry target meets the same touch target floor as the adjacent controls."
+}

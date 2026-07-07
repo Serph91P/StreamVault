@@ -7,11 +7,11 @@
         <span v-else>Refresh</span>
       </button>
     </div>
-    
+
     <div v-if="error" class="error">
       Error loading connection data: {{ error }}
     </div>
-    
+
     <div v-else-if="connectionData" class="connection-stats">
       <div class="stats-grid">
         <div class="stat-card">
@@ -23,7 +23,7 @@
           <div class="stat-label">Unique Clients</div>
         </div>
       </div>
-      
+
       <div class="clients-section">
         <h4>Clients by IP</h4>
         <div v-for="client in connectionData.clients" :key="client.ip" class="client-card">
@@ -75,7 +75,7 @@ const error = ref<string | null>(null)
 async function refresh() {
   loading.value = true
   error.value = null
-  
+
   try {
     const response = await fetch('/admin/websocket-connections', {
       credentials: 'include' // CRITICAL: Required to send session cookie
@@ -116,8 +116,8 @@ onMounted(() => {
 
 .refresh-btn {
   padding: var(--spacing-2) var(--spacing-4);
-  background: var(--success-color);
-  color: var(--text-on-primary);
+  background: var(--success-color-dark);
+  color: white;
   border: none;
   border-radius: var(--radius-sm);
   cursor: pointer;
@@ -138,7 +138,7 @@ onMounted(() => {
   background: rgba(239, 68, 68, 0.1);
   border: 1px solid var(--danger-color);
   border-radius: var(--radius-sm);
-  color: var(--danger-color);
+  color: var(--text-primary);
   margin-bottom: var(--spacing-6);
 }
 

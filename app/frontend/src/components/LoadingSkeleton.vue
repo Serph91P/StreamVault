@@ -1,5 +1,13 @@
 <template>
-  <div class="skeleton-wrapper" :class="`skeleton-${type}`">
+  <div
+    class="skeleton-wrapper"
+    :class="`skeleton-${type}`"
+    role="status"
+    aria-live="polite"
+    aria-busy="true"
+    :aria-label="label"
+  >
+    <span class="sr-only">{{ label }}</span>
     <!-- Card Skeleton -->
     <div v-if="type === 'card'" class="skeleton-card">
       <div class="skeleton skeleton-image" />
@@ -68,11 +76,14 @@ interface Props {
   type?: SkeletonType
   /** Number of text lines (for type="text") */
   lines?: number
+  /** Accessible loading label for assistive technology */
+  label?: string
 }
 
 withDefaults(defineProps<Props>(), {
   type: 'card',
-  lines: 3
+  lines: 3,
+  label: 'Loading content'
 })
 </script>
 
