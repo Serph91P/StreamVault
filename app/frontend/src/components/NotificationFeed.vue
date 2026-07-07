@@ -358,7 +358,8 @@ onMounted(() => {
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
-  padding: var(--spacing-1) var(--spacing-1) var(--spacing-4);
+  max-height: calc(76vh - 150px);
+  padding: var(--spacing-1) var(--spacing-1) var(--spacing-3);
 }
 
 .notification-group + .notification-group {
@@ -430,6 +431,10 @@ onMounted(() => {
   .notification-feed {
     max-height: calc(100dvh - var(--safe-area-inset-top, 0px));
     overflow: visible;
+  }
+
+  .notification-groups {
+    max-height: none;
   }
 
   .feed-header {

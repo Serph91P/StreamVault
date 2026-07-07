@@ -900,8 +900,6 @@ defineExpose({ seekToChapter })
 
   // Desktop: Responsive width with 16:9 aspect ratio
   @include m.respond-to('md') {  // >= 768px
-    max-width: min(70vw, 1280px);
-    margin: 0 auto;
     aspect-ratio: 16/9;
   }
 
@@ -916,14 +914,14 @@ defineExpose({ seekToChapter })
 
 .video-element {
   width: 100%;
-  height: auto;
+  height: 100%;
   display: block;
   background: var(--background-darker);
   object-fit: contain;
 
-  // Desktop: Limit height
+  // Desktop: Fill the player shell without leaving an empty lower band
   @include m.respond-to('md') {  // >= 768px
-    max-height: 70vh;
+    max-height: none;
   }
 
   // Mobile Portrait: Full width with 16:9 ratio

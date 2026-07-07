@@ -1000,7 +1000,7 @@ onUnmounted(() => {
   object-fit: contain;
 
   @include m.respond-to('md') {
-    max-height: 70vh;
+    max-height: none;
   }
 
   @include m.respond-below('md') {

@@ -47,30 +47,13 @@ const activeFilterLabel = computed(() => {
 
 function updateFilter(value: NotificationFilter) {
   emit('update:modelValue', value)
+  showFilterMenu.value = false
 }
 </script>
 
 <template>
   <div class="notification-filters" aria-label="Notification filters">
     <div class="filter-summary-row">
-      <button
-        type="button"
-        class="filter-chip"
-        :class="{ active: modelValue === 'all' }"
-        @click="updateFilter('all')"
-      >
-        All
-        <span>{{ totalCount }}</span>
-      </button>
-      <button
-        type="button"
-        class="filter-chip unread-chip"
-        :class="{ active: modelValue === 'unread' }"
-        @click="updateFilter('unread')"
-      >
-        Unread
-        <span>{{ unreadCount }}</span>
-      </button>
       <button
         type="button"
         class="filter-menu-toggle"
@@ -87,6 +70,27 @@ function updateFilter(value: NotificationFilter) {
     </div>
 
     <div v-if="showFilterMenu" id="notification-filter-menu" class="filter-menu">
+      <div class="filter-row primary-filters" aria-label="Primary filters">
+        <button
+          type="button"
+          class="filter-chip compact"
+          :class="{ active: modelValue === 'all' }"
+          @click="updateFilter('all')"
+        >
+          All
+          <span>{{ totalCount }}</span>
+        </button>
+        <button
+          type="button"
+          class="filter-chip compact unread-chip"
+          :class="{ active: modelValue === 'unread' }"
+          @click="updateFilter('unread')"
+        >
+          Unread
+          <span>{{ unreadCount }}</span>
+        </button>
+      </div>
+
       <div class="filter-row" aria-label="Severity filters">
         <button
           v-for="filter in severityFilters"
@@ -137,7 +141,7 @@ function updateFilter(value: NotificationFilter) {
 .notification-filters {
   display: grid;
   gap: var(--spacing-2);
-  padding: var(--spacing-3) var(--spacing-4);
+  padding: var(--spacing-2) var(--spacing-4);
   border-bottom: 1px solid var(--glass-border);
   background: linear-gradient(180deg, var(--glass-bg-medium), transparent);
 }
@@ -152,7 +156,7 @@ function updateFilter(value: NotificationFilter) {
 .filter-menu {
   display: grid;
   gap: var(--spacing-2);
-  max-height: 12rem;
+  max-height: 11rem;
   overflow-y: auto;
   padding: var(--spacing-2);
   border: 1px solid var(--glass-border);
@@ -215,7 +219,8 @@ function updateFilter(value: NotificationFilter) {
   gap: var(--spacing-2);
   min-width: 0;
   min-height: 2.25rem;
-  margin-left: auto;
+  width: 100%;
+  justify-content: space-between;
   padding: 0 var(--spacing-3);
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-full);
@@ -241,7 +246,7 @@ function updateFilter(value: NotificationFilter) {
 
 .active-filter-label {
   min-width: 0;
-  max-width: 8rem;
+  max-width: 13rem;
   overflow: hidden;
   color: var(--text-secondary);
   font-size: var(--text-xs);

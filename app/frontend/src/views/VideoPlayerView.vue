@@ -234,7 +234,7 @@ const streamId = computed(() => {
   // Fallback to 'streamId' parameter (from legacy route)
   return route.params.streamId as string
 })
-const streamTitle = computed(() => chapterData.value?.stream_title || (route.query.title as string) || `Stream ${streamId.value}`)
+const streamTitle = computed(() => chapterData.value?.stream_title || (route.query.title as string) || `Stream #${streamId.value}`)
 const streamerName = computed(() => route.query.streamerName as string)
 
 const chapterData = ref<ChapterData | null>(null)

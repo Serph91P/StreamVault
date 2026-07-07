@@ -635,23 +635,23 @@ onUnmounted(() => {
   font-size: var(--text-base);  /* INCREASED: Better readability */
   font-weight: v.$font-medium;
   color: var(--text-primary);
-  line-height: 1.5;  /* FIX: bumped from 1.4 to give descenders (g, j, p, y) room */
+  line-height: 1.45;  /* FIX: bumped from 1.4 to give descenders (g, j, p, y) room */
   margin: 0;
   width: 100%;
 
-  /* CRITICAL: Max 3 lines for live title (more important than description) */
+  /* CRITICAL: Max 4 lines for live title (more important than description) */
   /* FIX: -webkit-line-clamp + overflow:hidden clips descenders on the last line.
      Use padding-bottom + matching max-height so descenders are not cut off, and
      keep ellipsis behaviour. */
   overflow: hidden;
   text-overflow: ellipsis;
   display: -webkit-box;
-  -webkit-line-clamp: 3;  /* 3 lines for live streams */
-  line-clamp: 3;
+  -webkit-line-clamp: 4;  /* 4 lines for live streams */
+  line-clamp: 4;
   -webkit-box-orient: vertical;
   word-break: break-word;
   padding-bottom: 0.2em;  /* descender safe-area */
-  max-height: calc(1.5em * 3 + 0.2em);  /* 3 lines * line-height + descender pad */
+  max-height: calc(1.45em * 4 + 0.2em);  /* 4 lines * line-height + descender pad */
 
   &.no-title {
     font-style: italic;
@@ -926,11 +926,11 @@ onUnmounted(() => {
   .streamer-card-content {
     display: grid;
     grid-template-columns: auto minmax(12rem, 0.7fr) minmax(18rem, 1.3fr) auto;
-    grid-template-rows: auto auto;
+    grid-template-rows: 1fr 1fr;
     align-items: center;
     gap: var(--spacing-2) var(--spacing-4);
     width: 100%;
-    min-height: 120px;
+    min-height: 104px;
     padding: var(--spacing-3);
   }
 
@@ -970,6 +970,7 @@ onUnmounted(() => {
     align-self: start;
     justify-content: flex-start;
     min-height: 24px;
+    align-content: flex-start;
   }
 
   .stream-info-container {

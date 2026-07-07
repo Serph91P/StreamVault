@@ -966,6 +966,7 @@ onUnmounted(() => {
   border-radius: var(--radius-lg);
   background: var(--background-card);
   cursor: pointer;
+  overflow: hidden;
 }
 
 .sort-icon {
@@ -984,12 +985,14 @@ onUnmounted(() => {
 
 .sort-control {
   min-width: 132px;
-  min-height: 42px;
+  min-height: 40px;
   margin: 0;
   padding: 0 var(--spacing-6) 0 0;
   appearance: none;
   background: transparent;
+  background-color: transparent;
   border: 0;
+  box-shadow: none;
   color: var(--text-primary);
   font-size: var(--text-sm);
   font-weight: v.$font-medium;
@@ -1011,13 +1014,18 @@ onUnmounted(() => {
   align-items: center;
   justify-content: space-between;
   gap: var(--spacing-3);
-  flex: 1 1 320px;
+  flex: 0 1 auto;
+  margin-left: auto;
   min-height: 44px;
   padding: 0 var(--spacing-2) 0 var(--spacing-3);
   background: transparent;
   border: 0;
   font-size: var(--text-sm);
   color: var(--text-secondary);
+}
+
+.results-info span {
+  white-space: nowrap;
 }
 
 .refresh-btn {

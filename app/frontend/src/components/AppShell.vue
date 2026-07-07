@@ -495,8 +495,12 @@ onUnmounted(() => {
 }
 
 .notification-panel {
+  width: min(440px, calc(100vw - var(--spacing-4)));
+  max-height: min(76vh, 680px);
+
   .notification-panel-header {
     gap: var(--spacing-3);
+    padding: var(--spacing-4) var(--spacing-5);
   }
 
   .notification-title-stack {
@@ -520,14 +524,14 @@ onUnmounted(() => {
     gap: var(--spacing-2);
 
     .glass-btn-icon {
-      min-width: 44px;
-      min-height: 44px;
+      min-width: 40px;
+      min-height: 40px;
     }
   }
 
   .mark-read-btn,
   .clear-all-btn {
-    min-height: 44px;
+    min-height: 40px;
     background: transparent;
     border: 1px solid var(--glass-border-hover);
     color: var(--text-secondary);

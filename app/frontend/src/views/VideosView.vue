@@ -962,6 +962,7 @@ onMounted(() => {
   border-radius: var(--radius-lg);
   background: var(--background-card);
   cursor: pointer;
+  overflow: hidden;
 }
 
 .sort-icon {
@@ -980,12 +981,14 @@ onMounted(() => {
 
 .sort-select {
   min-width: 156px;
-  min-height: 42px;
+  min-height: 40px;
   margin: 0;
   padding: 0 var(--spacing-6) 0 0;
   appearance: none;
   background: transparent;
+  background-color: transparent;
   border: 0;
+  box-shadow: none;
   color: var(--text-primary);
   font-size: var(--text-sm);
   font-weight: v.$font-medium;
