@@ -651,13 +651,13 @@ onUnmounted(() => {
   }
 
   .player-card :deep(.video-wrapper) {
-    width: min(100%, calc((100dvh - var(--app-header-height, 56px) - 144px) * 16 / 9));
-    max-height: calc(100dvh - var(--app-header-height, 56px) - 144px);
+    width: min(100%, calc((100dvh - var(--app-header-height, 56px) - 112px) * 16 / 9));
+    max-height: calc(100dvh - var(--app-header-height, 56px) - 112px);
     margin: 0 auto;
   }
 
   .player-card :deep(video) {
-    max-height: calc(100dvh - var(--app-header-height, 56px) - 144px);
+    max-height: calc(100dvh - var(--app-header-height, 56px) - 112px);
   }
 }
 
@@ -701,8 +701,19 @@ onUnmounted(() => {
 }
 
 .player-card :deep(video) {
-  max-height: calc(100dvh - var(--app-header-height, 56px) - 100px);
+  max-height: min(62dvh, calc(100dvh - var(--app-header-height, 56px) - 192px));
   object-fit: contain;
+}
+
+.player-card :deep(.video-wrapper) {
+  width: min(100%, calc(min(62dvh, calc(100dvh - var(--app-header-height, 56px) - 192px)) * 16 / 9));
+  max-height: min(62dvh, calc(100dvh - var(--app-header-height, 56px) - 192px));
+  margin: 0 auto;
+}
+
+.player-card :deep(.video-player-container) {
+  display: flex;
+  justify-content: center;
 }
 
 .player-header {

@@ -793,8 +793,8 @@ onUnmounted(() => {
     }
 
     .video-container {
-      width: min(100%, calc((100dvh - var(--app-header-height, 56px) - 144px) * 16 / 9));
-      max-height: calc(100dvh - var(--app-header-height, 56px) - 144px);
+      width: min(100%, calc((100dvh - var(--app-header-height, 56px) - 112px) * 16 / 9));
+      max-height: calc(100dvh - var(--app-header-height, 56px) - 112px);
       margin: 0 auto;
     }
 
@@ -1015,8 +1015,9 @@ onUnmounted(() => {
   border-top: 1px solid var(--border-color);
 
   @include m.respond-to('md') {
-    max-width: none;
-    margin: 0;
+    width: min(100%, calc(min(62dvh, calc(100dvh - var(--app-header-height, 56px) - 192px)) * 16 / 9));
+    max-height: min(62dvh, calc(100dvh - var(--app-header-height, 56px) - 192px));
+    margin: 0 auto;
     aspect-ratio: 16/9;
   }
 
