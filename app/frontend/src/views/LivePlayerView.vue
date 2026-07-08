@@ -1,5 +1,5 @@
 <template>
-  <div class="page-view live-player-view fade-in" :class="{ 'theater-mode': theaterMode }">
+  <div class="page-view live-player-view fade-in" :class="{ 'theater-mode': effectiveTheaterMode }">
     <!-- Loading State -->
     <div v-if="isLoading" class="content-state">
       <LoadingSkeleton type="video" />
@@ -50,15 +50,16 @@
               </span>
             </div>
             <button
+              v-if="!isNarrowViewport"
               type="button"
               class="header-theater-toggle"
-              :aria-pressed="theaterMode"
+              :aria-pressed="effectiveTheaterMode"
               @click="theaterMode = !theaterMode"
             >
               <svg viewBox="0 0 24 24" fill="currentColor" class="header-theater-icon" aria-hidden="true">
                 <path d="M3 5h18v12H3V5zm2 2v8h14V7H5zm4 12h6v2H9v-2z"/>
               </svg>
-              {{ theaterMode ? 'Exit theater' : 'Theater' }}
+              {{ effectiveTheaterMode ? 'Exit theater' : 'Theater' }}
             </button>
           </div>
 
@@ -110,7 +111,13 @@
                   <span class="meta-status">{{ streamStatusText }}</span>
                 </div>
 
-                <button @click="theaterMode = !theaterMode" class="control-button theater-button" :class="{ active: theaterMode }" :aria-label="theaterMode ? 'Show details' : 'Theater mode'">
+                <button
+                  v-if="!isNarrowViewport"
+                  @click="theaterMode = !theaterMode"
+                  class="control-button theater-button"
+                  :class="{ active: effectiveTheaterMode }"
+                  :aria-label="effectiveTheaterMode ? 'Show details' : 'Theater mode'"
+                >
                   <svg viewBox="0 0 24 24" fill="currentColor" class="control-icon">
                     <path d="M3 5h18v12H3V5zm2 2v8h14V7H5zm4 12h6v2H9v-2z"/>
                   </svg>
@@ -255,6 +262,7 @@ const isRetrying = ref(false)
 const isMuted = ref(true)
 const isFullscreen = ref(false)
 const theaterMode = ref(false)
+const isNarrowViewport = ref(false)
 const showControls = ref(true)
 const controlsTimeout = ref<number | null>(null)
 const hlsInstance = ref<any>(null)
@@ -296,6 +304,12 @@ const streamStatusText = computed(() => {
   if (isPlaying.value) return 'Live'
   return 'Connecting'
 })
+
+const effectiveTheaterMode = computed(() => theaterMode.value && !isNarrowViewport.value)
+
+const updateViewportMode = () => {
+  isNarrowViewport.value = window.matchMedia('(max-width: 767px)').matches
+}
 
 const codecModeLabel = computed(() => {
   if (codecMode.value === 'h264') return 'H264 compatibility'
@@ -724,11 +738,14 @@ const onFullscreenChange = () => {
 }
 
 onMounted(() => {
+  updateViewportMode()
+  window.addEventListener('resize', updateViewportMode)
   document.addEventListener('fullscreenchange', onFullscreenChange)
   startStream()
 })
 
 onUnmounted(() => {
+  window.removeEventListener('resize', updateViewportMode)
   document.removeEventListener('fullscreenchange', onFullscreenChange)
   if (retryTimer.value) {
     clearTimeout(retryTimer.value)
@@ -754,6 +771,7 @@ onUnmounted(() => {
 
   @include m.respond-below('sm') {
     padding: var(--spacing-2) var(--spacing-2);
+    padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px));
   }
 
   &.theater-mode {
@@ -788,6 +806,14 @@ onUnmounted(() => {
       aspect-ratio: auto;
       max-height: calc(100dvh - var(--app-header-height, 56px) - 80px);
       min-height: min(70dvh, calc(100dvh - var(--app-header-height, 56px) - 80px));
+    }
+
+    @include m.respond-below('md') {
+      .video-container {
+        aspect-ratio: 16/9;
+        max-height: none;
+        min-height: 0;
+      }
     }
   }
 }
