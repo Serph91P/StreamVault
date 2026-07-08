@@ -96,25 +96,29 @@
                   <span class="meta-status">{{ streamStatusText }}</span>
                 </div>
 
-                <button
-                  v-if="!isNarrowViewport"
-                  @click="toggleTheaterMode"
-                  class="control-button theater-button"
-                  :class="{ active: effectiveTheaterMode }"
-                  :aria-label="effectiveTheaterMode ? 'Show details' : 'Theater mode'"
-                >
-                  <svg viewBox="0 0 24 24" fill="currentColor" class="control-icon">
-                    <path d="M3 5h18v12H3V5zm2 2v8h14V7H5zm4 12h6v2H9v-2z"/>
-                  </svg>
-                </button>
-                <button @click="toggleFullscreen" class="control-button fullscreen-button" :aria-label="isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'">
-                  <svg v-if="!isFullscreen" viewBox="0 0 24 24" fill="currentColor" class="control-icon">
-                    <path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/>
-                  </svg>
-                  <svg v-else viewBox="0 0 24 24" fill="currentColor" class="control-icon">
-                    <path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z"/>
-                  </svg>
-                </button>
+                <div class="controls-spacer" aria-hidden="true"></div>
+
+                <div class="controls-right">
+                  <button
+                    v-if="!isNarrowViewport"
+                    @click="toggleTheaterMode"
+                    class="control-button theater-button"
+                    :class="{ active: effectiveTheaterMode }"
+                    :aria-label="effectiveTheaterMode ? 'Show details' : 'Theater mode'"
+                  >
+                    <svg viewBox="0 0 24 24" fill="currentColor" class="control-icon">
+                      <path d="M3 5h18v12H3V5zm2 2v8h14V7H5zm4 12h6v2H9v-2z"/>
+                    </svg>
+                  </button>
+                  <button @click="toggleFullscreen" class="control-button fullscreen-button" :aria-label="isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'">
+                    <svg v-if="!isFullscreen" viewBox="0 0 24 24" fill="currentColor" class="control-icon">
+                      <path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/>
+                    </svg>
+                    <svg v-else viewBox="0 0 24 24" fill="currentColor" class="control-icon">
+                      <path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z"/>
+                    </svg>
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -181,6 +185,9 @@
                 </select>
               </label>
               <p class="codec-hint">{{ codecHint }}</p>
+              <p v-if="codecWarning" class="codec-warning" role="status">
+                {{ codecWarning }}
+              </p>
 
               <button class="action-btn danger" @click="stopStream" :disabled="isStopping" v-ripple>
                 <svg class="action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -263,6 +270,7 @@ const codecMode = ref<LiveCodecMode>(
 const activeSupportedCodecs = ref('h264')
 const preferNativeHls = ref(false)
 const hevcSupported = ref(false)
+const codecWarning = ref<string | null>(null)
 
 // Refs
 const videoElement = ref<HTMLVideoElement | null>(null)
@@ -312,7 +320,9 @@ const codecHint = computed(() => {
     return 'Most compatible; caps live playback to H264-compatible qualities.'
   }
   if (codecMode.value === 'hevc') {
-    return 'Tries Twitch HEVC/1440p. If video is black, switch back to H264.'
+    return hevcSupported.value
+      ? 'Uses native HLS for Twitch HEVC/1440p live playback.'
+      : 'HEVC live playback is not available in this browser pipeline.'
   }
   return hevcSupported.value
     ? 'HEVC appears supported here; Auto will allow 1440p/HEVC.'
@@ -360,9 +370,8 @@ const canUseNativeHls = (): boolean => {
   return Boolean(video.canPlayType('application/vnd.apple.mpegurl'))
 }
 
-const canUseHevcWithMse = (): boolean => {
-  if (typeof MediaSource === 'undefined') return false
-
+const canUseNativeHevcHls = (): boolean => {
+  const video = document.createElement('video')
   const hevcCodecStrings = [
     'video/mp4; codecs="hvc1.1.6.L120.90, mp4a.40.2"',
     'video/mp4; codecs="hev1.1.6.L120.90, mp4a.40.2"',
@@ -370,29 +379,33 @@ const canUseHevcWithMse = (): boolean => {
     'video/mp4; codecs="hev1.1.6.L123.B0, mp4a.40.2"'
   ]
 
-  return hevcCodecStrings.some(codec => MediaSource.isTypeSupported(codec))
+  return canUseNativeHls() && hevcCodecStrings.some(codec => Boolean(video.canPlayType(codec)))
 }
 
 const resolveLiveCodecSelection = (): LiveCodecSelection => {
-  const nativeHls = canUseNativeHls()
-  const mseHevc = canUseHevcWithMse()
-  const supportsHevc = nativeHls || mseHevc
+  const supportsHevc = canUseNativeHevcHls()
   const mode = ['auto', 'h264', 'hevc'].includes(codecMode.value)
     ? codecMode.value
     : 'auto'
 
   hevcSupported.value = supportsHevc
+  codecWarning.value = null
 
   if (mode === 'h264') {
     return { supportedCodecs: 'h264', useNativeHls: false, hevcSupported: supportsHevc }
   }
 
   if (mode === 'hevc') {
-    return { supportedCodecs: 'h264,h265', useNativeHls: nativeHls, hevcSupported: supportsHevc }
+    if (supportsHevc) {
+      return { supportedCodecs: 'h264,h265', useNativeHls: true, hevcSupported: supportsHevc }
+    }
+
+    codecWarning.value = 'HEVC live playback needs native HLS support. This browser uses H264 live playback to avoid audio-only video.'
+    return { supportedCodecs: 'h264', useNativeHls: false, hevcSupported: supportsHevc }
   }
 
   return supportsHevc
-    ? { supportedCodecs: 'h264,h265', useNativeHls: nativeHls, hevcSupported: supportsHevc }
+    ? { supportedCodecs: 'h264,h265', useNativeHls: true, hevcSupported: supportsHevc }
     : { supportedCodecs: 'h264', useNativeHls: false, hevcSupported: supportsHevc }
 }
 
@@ -515,9 +528,12 @@ const initPlayer = async (sid: string, useNativeHls: boolean = preferNativeHls.v
               hls.startLoad()
               break
             case Hls.ErrorTypes.MEDIA_ERROR:
-              console.warn('HLS media error, attempting recovery...')
+              console.warn('HLS media error, attempting recovery...', data)
               isRetrying.value = true
               retryCount.value++
+              if (activeSupportedCodecs.value.includes('h265')) {
+                codecWarning.value = 'The live stream reported a media decode error. If video is black, switch to H264 compatibility.'
+              }
               hls.recoverMediaError()
               break
             default:
@@ -1141,6 +1157,18 @@ onUnmounted(() => {
   gap: var(--spacing-3);
 }
 
+.controls-spacer {
+  flex: 1 1 auto;
+  min-width: var(--spacing-2);
+}
+
+.controls-right {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  flex: 0 0 auto;
+}
+
 .control-button {
   min-width: 44px;
   min-height: 44px;
@@ -1174,10 +1202,6 @@ onUnmounted(() => {
   background: var(--primary-color);
 }
 
-.fullscreen-button {
-  margin-left: auto;
-}
-
 .stream-meta {
   display: flex;
   align-items: center;
@@ -1200,6 +1224,13 @@ onUnmounted(() => {
 .meta-status {
   text-transform: uppercase;
   letter-spacing: 0.05em;
+}
+
+.codec-warning {
+  margin: var(--spacing-2) 0 0;
+  color: var(--warning-color);
+  font-size: var(--text-xs);
+  line-height: 1.4;
 }
 
 .text-live {
