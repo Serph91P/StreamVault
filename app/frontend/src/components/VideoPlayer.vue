@@ -1594,6 +1594,12 @@ defineExpose({ seekToChapter })
   box-shadow: var(--shadow-md), 0 0 16px rgba(var(--primary-color-rgb), 0.3);
 }
 
+.theater-button {
+  @include m.respond-below('md') {
+    display: none;
+  }
+}
+
 .chapters-button .chapter-count {
   font-size: var(--text-xs);  /* 12px */
   font-weight: var(--font-bold);  /* 700 */

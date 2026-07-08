@@ -29,7 +29,7 @@
     </div>
 
     <!-- Video Player - Main Content -->
-    <div v-else class="player-layout" :class="{ 'theater-mode': theaterMode }">
+    <div v-else class="player-layout" :class="{ 'theater-mode': effectiveTheaterMode }">
       <!-- Main Content: Video + Sidebar -->
       <div class="player-main">
         <!-- Video Player with Header -->
@@ -51,18 +51,7 @@
               </svg>
               <span>{{ streamerName }}</span>
             </div>
-            <PlayerStatus :state="currentPlayerState" />
-            <button
-              type="button"
-              class="theater-toggle"
-              :aria-pressed="theaterMode"
-              @click="theaterMode = !theaterMode"
-            >
-              <svg class="icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                <path d="M3 5h18v12H3V5zm2 2v8h14V7H5zm4 12h6v2H9v-2z"/>
-              </svg>
-              {{ theaterMode ? 'Exit theater' : 'Theater' }}
-            </button>
+            <span class="recorded-status">Recorded</span>
           </div>
 
           <!-- Video Player - directly in card, no wrapper -->
@@ -72,13 +61,13 @@
             :chapters="chapterData.chapters"
             :stream-title="chapterData.stream_title"
             :stream-id="parseInt(streamId)"
-            :theater-mode="theaterMode"
+            :theater-mode="effectiveTheaterMode"
             @chapter-change="onChapterChange"
             @video-ready="onVideoReady"
             @video-loading="onVideoLoading"
             @video-error="onVideoError"
             @time-update="onTimeUpdate"
-            @toggle-theater="theaterMode = !theaterMode"
+            @toggle-theater="toggleTheaterMode"
           />
         </GlassCard>
 
@@ -202,7 +191,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import VideoPlayer from '@/components/VideoPlayer.vue'
 import LoadingSkeleton from '@/components/LoadingSkeleton.vue'
@@ -254,14 +243,18 @@ const error = ref<string | null>(null)
 const playerReady = ref(false)
 const playerError = ref<string | null>(null)
 const theaterMode = ref(false)
+const isNarrowViewport = ref(false)
 
-const currentPlayerState = computed(() => {
-  if (isLoading.value) return 'loading'
-  if (error.value) return 'error'
-  if (playerError.value) return 'error'
-  if (!chapterData.value?.video_url) return 'idle'
-  return playerReady.value ? 'recorded' : 'loading'
-})
+const effectiveTheaterMode = computed(() => theaterMode.value && !isNarrowViewport.value)
+
+const updateViewportMode = () => {
+  isNarrowViewport.value = window.matchMedia('(max-width: 767px)').matches
+}
+
+const toggleTheaterMode = () => {
+  if (isNarrowViewport.value) return
+  theaterMode.value = !theaterMode.value
+}
 
 // Action button states
 const isDownloading = ref(false)
@@ -555,7 +548,13 @@ const deleteVideo = async () => {
 }
 
 onMounted(() => {
+  updateViewportMode()
+  window.addEventListener('resize', updateViewportMode)
   loadChapterData()
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', updateViewportMode)
 })
 </script>
 
@@ -651,8 +650,14 @@ onMounted(() => {
     display: none;
   }
 
+  .player-card :deep(.video-wrapper) {
+    width: min(100%, calc((100dvh - var(--app-header-height, 56px) - 144px) * 16 / 9));
+    max-height: calc(100dvh - var(--app-header-height, 56px) - 144px);
+    margin: 0 auto;
+  }
+
   .player-card :deep(video) {
-    max-height: calc(100dvh - var(--app-header-height, 56px) - 80px);
+    max-height: calc(100dvh - var(--app-header-height, 56px) - 144px);
   }
 }
 
@@ -744,34 +749,19 @@ onMounted(() => {
   }
 }
 
-.theater-toggle {
+.recorded-status {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: var(--spacing-2);
-  min-height: 40px;
-  padding: var(--spacing-2) var(--spacing-3);
+  min-height: 28px;
+  padding: var(--spacing-1) var(--spacing-2);
   border: 1px solid var(--border-color);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-pill);
   background: var(--background-darker);
-  color: var(--text-primary);
-  font-size: var(--text-sm);
-  font-weight: v.$font-medium;
-  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  font-weight: v.$font-semibold;
   white-space: nowrap;
-
-  .icon {
-    width: 16px;
-    height: 16px;
-    stroke: currentColor;
-    fill: none;
-  }
-
-  &[aria-pressed="true"] {
-    border-color: var(--primary-color);
-    background: rgba(var(--primary-500-rgb), 0.16);
-    color: var(--primary-color);
-  }
 }
 
 .video-title {
