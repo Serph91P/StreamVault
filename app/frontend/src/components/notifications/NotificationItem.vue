@@ -28,15 +28,34 @@ const categoryImage = computed(() => {
 
 const statusTone = computed(() => getNotificationTone(props.notification))
 const hasTarget = computed(() => Boolean(props.notification.target_url))
-const targetLabel = computed(() => props.notification.target_url || '')
-const deliveryLabel = computed(() => {
-  if (props.notification.source === 'push') return 'Push delivery'
-  if (props.notification.source === 'apprise') return 'Apprise delivery'
-  if (props.notification.source === 'test') return 'Test channel'
-  if (props.notification.source === 'system') return 'System event'
-  return 'Live WebSocket event'
+const displayTitle = computed(() => {
+  if (isStreamUpdateNotification(props.notification)) {
+    return firstNotificationString(
+      props.notification.streamer_name,
+      props.notification.streamer_username,
+      props.notification.data?.streamer_name,
+      props.notification.data?.username
+    ) || props.notification.title
+  }
+
+  return props.notification.title
+})
+const showSeverityBadge = computed(() => {
+  return !(isStreamUpdateNotification(props.notification) && props.notification.severity === 'info')
 })
 const typeLabel = computed(() => props.notification.type.replaceAll('.', ' '))
+
+function firstNotificationString(...values: unknown[]): string | undefined {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim()) {
+      return value
+    }
+  }
+}
+
+function isStreamUpdateNotification(notification: StoredNotification): boolean {
+  return notification.type === 'channel.update' || notification.type === 'stream.update'
+}
 
 function formatTime(timestamp: string): string {
   const now = new Date()
@@ -127,7 +146,7 @@ function openNotification() {
   <article
     class="notification-item"
     :class="[statusTone, { unread: !notification.read, 'has-target': hasTarget }]"
-    :aria-label="`${notification.title}. ${notification.body}`"
+    :aria-label="`${displayTitle}. ${notification.body}`"
     :tabindex="hasTarget ? 0 : undefined"
     @click="openNotification"
     @keydown.enter="openNotification"
@@ -143,7 +162,7 @@ function openNotification() {
       <div class="notification-title-row">
         <div class="title-stack">
           <span v-if="!notification.read" class="unread-dot" aria-label="Unread notification"></span>
-          <h3>{{ notification.title }}</h3>
+          <h3>{{ displayTitle }}</h3>
         </div>
         <time :datetime="notification.timestamp">{{ formatTime(notification.timestamp) }}</time>
       </div>
@@ -152,6 +171,7 @@ function openNotification() {
 
       <div class="notification-meta" aria-label="Notification details">
         <StatusBadge
+          v-if="showSeverityBadge"
           class="notification-severity-badge"
           :tone="statusTone"
           size="sm"
@@ -160,7 +180,6 @@ function openNotification() {
           {{ notification.severity }}
         </StatusBadge>
         <span class="meta-pill">{{ typeLabel }}</span>
-        <span class="meta-pill" :title="notification.dedupe_key || undefined">{{ deliveryLabel }}</span>
         <span v-if="categoryName" class="meta-pill category-tag">
           <span class="category-image-small" aria-hidden="true">
             <img
@@ -173,10 +192,6 @@ function openNotification() {
           </span>
           {{ categoryName }}
         </span>
-        <span v-if="targetLabel" class="meta-pill target-pill" :title="targetLabel">
-          <svg class="target-svg" aria-hidden="true"><use href="#icon-link" /></svg>
-          Target: {{ targetLabel }}
-        </span>
       </div>
     </div>
 
@@ -185,7 +200,7 @@ function openNotification() {
         v-if="hasTarget"
         type="button"
         class="item-action primary"
-        :aria-label="`Open notification target for ${notification.title}`"
+        :aria-label="`Open notification target for ${displayTitle}`"
         @click.stop="emit('open', notification)"
       >
         Open
@@ -193,7 +208,7 @@ function openNotification() {
       <button
         type="button"
         class="item-action"
-        :aria-label="notification.read ? `Mark ${notification.title} unread` : `Mark ${notification.title} read`"
+        :aria-label="notification.read ? `Mark ${displayTitle} unread` : `Mark ${displayTitle} read`"
         @click.stop="emit('toggle-read', notification)"
       >
         {{ notification.read ? 'Unread' : 'Read' }}
@@ -201,7 +216,7 @@ function openNotification() {
       <button
         type="button"
         class="item-action icon-only"
-        :aria-label="`Dismiss ${notification.title}`"
+        :aria-label="`Dismiss ${displayTitle}`"
         @click.stop="emit('remove', notification.id)"
       >
         ×
@@ -387,22 +402,6 @@ time {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.target-pill {
-  max-width: min(100%, 18rem);
-  overflow: hidden;
-  color: var(--text-primary);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.target-svg {
-  flex: 0 0 auto;
-  width: 0.85rem;
-  height: 0.85rem;
-  stroke: currentColor;
-  fill: none;
 }
 
 .category-image-small {

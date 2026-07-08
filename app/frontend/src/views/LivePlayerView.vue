@@ -43,24 +43,9 @@
 
             <h1 class="stream-title">{{ streamerName }}</h1>
 
-            <div v-if="streamInfo" class="live-status-strip" :aria-label="`Live stream status: ${streamStatusText}`">
-              <span class="live-status-pill">
-                <span class="live-indicator"></span>
-                {{ streamStatusText }}
-              </span>
+            <div v-if="streamInfo" class="live-status-strip" aria-label="Live stream status: Live">
+              <span class="live-status-pill">Live</span>
             </div>
-            <button
-              v-if="!isNarrowViewport"
-              type="button"
-              class="header-theater-toggle"
-              :aria-pressed="effectiveTheaterMode"
-              @click="theaterMode = !theaterMode"
-            >
-              <svg viewBox="0 0 24 24" fill="currentColor" class="header-theater-icon" aria-hidden="true">
-                <path d="M3 5h18v12H3V5zm2 2v8h14V7H5zm4 12h6v2H9v-2z"/>
-              </svg>
-              {{ effectiveTheaterMode ? 'Exit theater' : 'Theater' }}
-            </button>
           </div>
 
           <!-- Video Container -->
@@ -113,7 +98,7 @@
 
                 <button
                   v-if="!isNarrowViewport"
-                  @click="theaterMode = !theaterMode"
+                  @click="toggleTheaterMode"
                   class="control-button theater-button"
                   :class="{ active: effectiveTheaterMode }"
                   :aria-label="effectiveTheaterMode ? 'Show details' : 'Theater mode'"
@@ -309,6 +294,11 @@ const effectiveTheaterMode = computed(() => theaterMode.value && !isNarrowViewpo
 
 const updateViewportMode = () => {
   isNarrowViewport.value = window.matchMedia('(max-width: 767px)').matches
+}
+
+const toggleTheaterMode = () => {
+  if (isNarrowViewport.value) return
+  theaterMode.value = !theaterMode.value
 }
 
 const codecModeLabel = computed(() => {
@@ -803,9 +793,9 @@ onUnmounted(() => {
     }
 
     .video-container {
-      aspect-ratio: auto;
-      max-height: calc(100dvh - var(--app-header-height, 56px) - 80px);
-      min-height: min(70dvh, calc(100dvh - var(--app-header-height, 56px) - 80px));
+      width: min(100%, calc((100dvh - var(--app-header-height, 56px) - 144px) * 16 / 9));
+      max-height: calc(100dvh - var(--app-header-height, 56px) - 144px);
+      margin: 0 auto;
     }
 
     @include m.respond-below('md') {
@@ -975,53 +965,12 @@ onUnmounted(() => {
   flex-shrink: 0;
 }
 
-.header-theater-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--spacing-1-5);
-  min-height: 36px;
-  padding: var(--spacing-1) var(--spacing-3);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-lg);
-  background: var(--background-darker);
-  color: var(--text-primary);
-  font-size: var(--text-xs);
-  font-weight: v.$font-semibold;
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.header-theater-toggle[aria-pressed="true"] {
-  border-color: var(--primary-color);
-  background: rgba(var(--primary-500-rgb), 0.16);
-  color: var(--primary-color);
-}
-
-.header-theater-icon {
-  width: 16px;
-  height: 16px;
-}
-
 .live-status-pill {
   display: inline-flex;
   align-items: center;
   gap: var(--spacing-1);
   color: var(--danger-text-color);
-  font-weight: v.$font-bold;
-  text-transform: uppercase;
-}
-
-.live-indicator {
-  width: 8px;
-  height: 8px;
-  background: white;
-  border-radius: 50%;
-  animation: pulse-live 2s ease-in-out infinite;
-}
-
-@keyframes pulse-live {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.5; transform: scale(1.2); }
+  font-weight: v.$font-semibold;
 }
 
 .player-state-indicator {
