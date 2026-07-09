@@ -159,30 +159,34 @@ class EventHandlerRegistry:
                 await asyncio.sleep(ASYNC_DELAYS.HANDLER_REGISTRY_RETRY)
         return False
 
-    def _is_duplicate_event(self, data: dict) -> bool:
+    def is_duplicate_message(
+        self,
+        message_id: Optional[str],
+        event_type: Optional[str],
+        broadcaster_id: Optional[str],
+    ) -> bool:
+        """Deduplicate EventSub deliveries by Twitch message id.
+
+        Twitch retries notifications that are not acknowledged with a 2xx in
+        time; every retry reuses the same Twitch-Eventsub-Message-Id header.
+        Must be called from the webhook endpoint BEFORE dispatching to a
+        handler (handlers only receive the flat event payload, which does not
+        contain the message id).
+        """
         try:
-            message_id = data.get("id")
             if not message_id:
                 return False
 
-            event_data = data.get("event", {})
-            broadcaster_id = event_data.get("broadcaster_user_id")
-            event_type = data.get("subscription", {}).get("type")
-
-            if not broadcaster_id or not event_type:
-                return False
-
-            event_key = f"{broadcaster_id}:{event_type}"
-            event_fingerprint = f"{message_id}:{event_key}"
+            event_fingerprint = f"{message_id}:{event_type}:{broadcaster_id}"
 
             # TTLCache automatically handles expiration - no manual cleanup needed!
             if event_fingerprint in self._processed_events:
                 logger.info(
-                    f"Ignoring duplicate event: {event_type} for broadcaster {broadcaster_id}"
+                    f"Ignoring duplicate EventSub delivery: {event_type} for "
+                    f"broadcaster {broadcaster_id} (message_id={message_id})"
                 )
                 return True
 
-            # Store with any value (TTL handles expiration automatically)
             self._processed_events[event_fingerprint] = datetime.now()
             return False
 
@@ -194,12 +198,6 @@ class EventHandlerRegistry:
         logger.info(
             f"🎬 STREAM_ONLINE_EVENT: broadcaster_user_id={data.get('broadcaster_user_id')}, broadcaster_user_name={data.get('broadcaster_user_name')}, started_at={data.get('started_at')}"
         )
-
-        if self._is_duplicate_event(data):
-            logger.info(
-                f"🎬 DUPLICATE_STREAM_ONLINE_EVENT: Skipping duplicate event for {data.get('broadcaster_user_name')}"
-            )
-            return
 
         try:
             user_info = await self.get_user_info(data["broadcaster_user_id"])
@@ -326,13 +324,6 @@ class EventHandlerRegistry:
             f"🎬 STREAM_OFFLINE_EVENT: broadcaster_user_id={data.get('broadcaster_user_id')}, broadcaster_user_name={data.get('broadcaster_user_name')}"
         )
 
-        # Event-Deduplizierung
-        if self._is_duplicate_event(data):
-            logger.info(
-                f"🎬 DUPLICATE_STREAM_OFFLINE_EVENT: Skipping duplicate event for {data.get('broadcaster_user_name')}"
-            )
-            return
-
         try:
             logger.info(f"Stream offline event received: {data}")
             with SessionLocal() as db:
@@ -445,10 +436,6 @@ class EventHandlerRegistry:
             logger.error(f"Error handling stream offline event: {e}", exc_info=True)
 
     async def handle_stream_update(self, data: dict):
-        # Event-Deduplizierung
-        if self._is_duplicate_event(data):
-            return
-
         try:
             logger.debug(f"Processing stream update event: {data}")
             with SessionLocal() as db:
