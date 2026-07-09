@@ -232,11 +232,46 @@ class EventHandlerRegistry:
                     if user_info and user_info.get("description"):
                         streamer.description = user_info["description"]
 
+                    # Deduplicate: Twitch redelivers stream.online when we do
+                    # not ACK in time. A second Stream row would leave duplicate
+                    # un-ended streams and mis-route channel.update chapter
+                    # events to the wrong recording.
+                    existing_stream = (
+                        db.query(Stream)
+                        .filter(Stream.twitch_stream_id == data["id"])
+                        .first()
+                    )
+                    if existing_stream:
+                        logger.info(
+                            f"🎬 STREAM_ALREADY_KNOWN: twitch_stream_id={data['id']} "
+                            f"already mapped to stream_id={existing_stream.id}; "
+                            "skipping duplicate stream.online event"
+                        )
+                        return
+
+                    started_at = datetime.fromisoformat(
+                        data["started_at"].replace("Z", "+00:00")
+                    )
+
+                    # Close any stale still-open streams for this streamer so
+                    # channel.update events can never attach to an old session.
+                    stale_streams = (
+                        db.query(Stream)
+                        .filter(Stream.streamer_id == streamer.id)
+                        .filter(Stream.ended_at.is_(None))
+                        .all()
+                    )
+                    for stale_stream in stale_streams:
+                        logger.warning(
+                            f"🧹 CLOSING_STALE_STREAM: stream_id={stale_stream.id} "
+                            f"(twitch_stream_id={stale_stream.twitch_stream_id}) was "
+                            "still open when a new stream started"
+                        )
+                        stale_stream.ended_at = started_at
+
                     stream = Stream(
                         streamer_id=streamer.id,
-                        started_at=datetime.fromisoformat(
-                            data["started_at"].replace("Z", "+00:00")
-                        ),
+                        started_at=started_at,
                         twitch_stream_id=data["id"],
                         title=streamer.title,
                         category_name=streamer.category_name,
@@ -256,9 +291,7 @@ class EventHandlerRegistry:
                         title=streamer.title,
                         category_name=streamer.category_name,
                         language=streamer.language,
-                        timestamp=datetime.fromisoformat(
-                            data["started_at"].replace("Z", "+00:00")
-                        ),
+                        timestamp=started_at,
                     )
                     db.add(initial_event)
 
@@ -269,10 +302,7 @@ class EventHandlerRegistry:
                             title=streamer.title,
                             category_name=streamer.category_name,
                             language=streamer.language,
-                            timestamp=datetime.fromisoformat(
-                                data["started_at"].replace("Z", "+00:00")
-                            )
-                            - timedelta(seconds=1),
+                            timestamp=started_at - timedelta(seconds=1),
                         )
                         db.add(pre_stream_event)
                         logger.debug(

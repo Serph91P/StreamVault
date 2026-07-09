@@ -96,3 +96,48 @@ class TestIsDuplicateMessage:
     def test_forget_message_tolerates_unknown_fingerprint(self):
         registry = _make_registry()
         registry.forget_message("never-seen", "stream.online", "111")
+
+
+class TestHandleStreamOnline:
+    def _online_payload(self, twitch_stream_id="9001", broadcaster_id="111"):
+        return {
+            "id": twitch_stream_id,
+            "broadcaster_user_id": broadcaster_id,
+            "broadcaster_user_name": "streamer_a",
+            "broadcaster_user_login": "streamer_a",
+            "started_at": "2026-07-09T12:00:00Z",
+        }
+
+    def test_duplicate_online_does_not_create_second_stream(self, db):
+        streamer = _make_streamer(db)
+        registry = _make_registry()
+
+        asyncio.run(registry.handle_stream_online(self._online_payload()))
+        asyncio.run(registry.handle_stream_online(self._online_payload()))
+
+        streams = db.query(Stream).filter(Stream.streamer_id == streamer.id).all()
+        assert len(streams) == 1
+
+    def test_new_online_closes_stale_open_streams(self, db):
+        streamer = _make_streamer(db)
+        stale = Stream(
+            streamer_id=streamer.id,
+            started_at=datetime(2026, 7, 8, 12, 0, tzinfo=timezone.utc),
+            twitch_stream_id="8000",
+        )
+        db.add(stale)
+        db.commit()
+        stale_id = stale.id
+
+        registry = _make_registry()
+        asyncio.run(registry.handle_stream_online(self._online_payload()))
+
+        db.expire_all()
+        stale_row = db.query(Stream).filter(Stream.id == stale_id).first()
+        assert stale_row.ended_at is not None
+
+        new_stream = (
+            db.query(Stream).filter(Stream.twitch_stream_id == "9001").first()
+        )
+        assert new_stream is not None
+        assert new_stream.ended_at is None
