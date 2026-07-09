@@ -10,6 +10,16 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+# Pre-existing circular import (app.services <-> app.events): importing
+# app.events.handler_registry as the very first app import in a fresh process
+# raises ImportError partway through and leaves sys.modules half-initialized
+# (mock.patch then surfaces this as AttributeError). Importing app.services
+# first follows the working initialization order — the same order production
+# uses — after which handler_registry imports cleanly. Warm it up here so this
+# file also passes when run in isolation.
+import app.services  # noqa: F401
+import app.events.handler_registry  # noqa: F401
+
 from app.database import Base, SessionLocal, engine
 from app.models import Recording, Stream, Streamer, StreamEvent
 
