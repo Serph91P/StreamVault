@@ -227,17 +227,13 @@ class EventHandlerRegistry:
                 )
 
                 if streamer:
-                    if user_info and user_info.get("profile_image_url"):
-                        streamer.profile_image_url = user_info["profile_image_url"]
-                    if user_info and user_info.get("description"):
-                        streamer.description = user_info["description"]
-
                     # Deduplicate: Twitch redelivers stream.online when we do
                     # not ACK in time. A second Stream row would leave duplicate
                     # un-ended streams and mis-route channel.update chapter
                     # events to the wrong recording.
                     existing_stream = (
                         db.query(Stream)
+                        .filter(Stream.streamer_id == streamer.id)
                         .filter(Stream.twitch_stream_id == data["id"])
                         .first()
                     )
@@ -247,7 +243,30 @@ class EventHandlerRegistry:
                             f"already mapped to stream_id={existing_stream.id}; "
                             "skipping duplicate stream.online event"
                         )
+                        # A retry after a failed first attempt must still be able
+                        # to start the recording (dedup must not swallow it).
+                        if self.config_manager.is_recording_enabled(streamer.id):
+                            active_recording = (
+                                db.query(Recording)
+                                .filter(
+                                    Recording.stream_id == existing_stream.id,
+                                    Recording.status == "recording",
+                                )
+                                .first()
+                            )
+                            if not active_recording:
+                                logger.info(
+                                    f"🎬 RESUMING_RECORDING_FOR_KNOWN_STREAM: stream_id={existing_stream.id}"
+                                )
+                                await self.recording_service.start_recording(
+                                    existing_stream.id, streamer.id, force_mode=False
+                                )
                         return
+
+                    if user_info and user_info.get("profile_image_url"):
+                        streamer.profile_image_url = user_info["profile_image_url"]
+                    if user_info and user_info.get("description"):
+                        streamer.description = user_info["description"]
 
                     started_at = datetime.fromisoformat(
                         data["started_at"].replace("Z", "+00:00")

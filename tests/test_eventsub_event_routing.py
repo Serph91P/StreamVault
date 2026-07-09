@@ -135,9 +135,72 @@ class TestHandleStreamOnline:
         db.expire_all()
         stale_row = db.query(Stream).filter(Stream.id == stale_id).first()
         assert stale_row.ended_at is not None
+        # Stale streams are closed at the NEW stream's start time. SQLite
+        # strips tzinfo on the round-trip, so compare against the naive
+        # equivalent of 2026-07-09T12:00:00Z.
+        assert stale_row.ended_at == datetime(2026, 7, 9, 12, 0)
 
         new_stream = (
             db.query(Stream).filter(Stream.twitch_stream_id == "9001").first()
         )
         assert new_stream is not None
         assert new_stream.ended_at is None
+
+    def test_other_streamers_open_stream_is_not_closed(self, db):
+        streamer_a = _make_streamer(db)
+        streamer_b = _make_streamer(db, twitch_id="222", username="streamer_b")
+        other_open = Stream(
+            streamer_id=streamer_b.id,
+            started_at=datetime(2026, 7, 9, 9, 0, tzinfo=timezone.utc),
+            twitch_stream_id="7777",
+        )
+        db.add(other_open)
+        db.commit()
+
+        registry = _make_registry()
+        asyncio.run(registry.handle_stream_online(self._online_payload()))
+
+        db.expire_all()
+        assert (
+            db.query(Stream).filter(Stream.id == other_open.id).first().ended_at
+            is None
+        )
+
+    def test_duplicate_online_resumes_missing_recording(self, db):
+        streamer = _make_streamer(db)
+        registry = _make_registry()
+        asyncio.run(registry.handle_stream_online(self._online_payload()))
+
+        existing = db.query(Stream).filter(Stream.twitch_stream_id == "9001").first()
+
+        registry.config_manager.is_recording_enabled.return_value = True
+        registry.recording_service.start_recording.reset_mock()
+        asyncio.run(registry.handle_stream_online(self._online_payload()))
+
+        registry.recording_service.start_recording.assert_awaited_once_with(
+            existing.id, streamer.id, force_mode=False
+        )
+        assert (
+            db.query(Stream).filter(Stream.streamer_id == streamer.id).count() == 1
+        )
+
+    def test_duplicate_online_with_active_recording_does_not_restart(self, db):
+        streamer = _make_streamer(db)
+        registry = _make_registry()
+        asyncio.run(registry.handle_stream_online(self._online_payload()))
+
+        existing = db.query(Stream).filter(Stream.twitch_stream_id == "9001").first()
+        db.add(
+            Recording(
+                stream_id=existing.id,
+                status="recording",
+                start_time=datetime(2026, 7, 9, 12, 0, tzinfo=timezone.utc),
+            )
+        )
+        db.commit()
+
+        registry.config_manager.is_recording_enabled.return_value = True
+        registry.recording_service.start_recording.reset_mock()
+        asyncio.run(registry.handle_stream_online(self._online_payload()))
+
+        registry.recording_service.start_recording.assert_not_awaited()
