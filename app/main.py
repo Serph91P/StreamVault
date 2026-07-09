@@ -988,6 +988,13 @@ async def eventsub_callback(request: Request):
                 event_type = body_json.get("subscription", {}).get("type")
                 event_data = body_json.get("event")
 
+                if event_registry.is_duplicate_message(
+                    message_id,
+                    event_type,
+                    (event_data or {}).get("broadcaster_user_id"),
+                ):
+                    return Response(status_code=204)
+
                 logger.debug(f"Processing EventSub notification: {event_type}")
                 logger.debug(f"Event data: {event_data}")
 
@@ -1001,11 +1008,21 @@ async def eventsub_callback(request: Request):
                         return Response(status_code=204)
                     except asyncio.TimeoutError:
                         logger.error(f"Handler for {event_type} timed out.")
+                        event_registry.forget_message(
+                            message_id,
+                            event_type,
+                            (event_data or {}).get("broadcaster_user_id"),
+                        )
                         return Response(status_code=500)
                     except Exception as e:
                         logger.error(
                             f"Error in event handler for {event_type}: {e}",
                             exc_info=True,
+                        )
+                        event_registry.forget_message(
+                            message_id,
+                            event_type,
+                            (event_data or {}).get("broadcaster_user_id"),
                         )
                         return Response(status_code=500)
                 else:

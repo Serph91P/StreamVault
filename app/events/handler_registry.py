@@ -7,6 +7,7 @@ from cachetools import TTLCache
 
 from app.database import SessionLocal
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import Session
 from app.services.communication.websocket_manager import ConnectionManager
 from app.services.notification_service import NotificationService
 from app.services.recording.recording_service import RecordingService
@@ -49,7 +50,6 @@ class EventHandlerRegistry:
             maxsize=CACHE_CONFIG.DEFAULT_CACHE_SIZE,
             ttl=CACHE_CONFIG.EVENT_DEDUPLICATION_TTL,
         )
-        self._event_cache_timeout = CACHE_CONFIG.EVENT_DEDUPLICATION_TTL
 
     async def get_access_token(self) -> str:
         if not self._access_token:
@@ -159,30 +159,34 @@ class EventHandlerRegistry:
                 await asyncio.sleep(ASYNC_DELAYS.HANDLER_REGISTRY_RETRY)
         return False
 
-    def _is_duplicate_event(self, data: dict) -> bool:
+    def is_duplicate_message(
+        self,
+        message_id: Optional[str],
+        event_type: Optional[str],
+        broadcaster_id: Optional[str],
+    ) -> bool:
+        """Deduplicate EventSub deliveries by Twitch message id.
+
+        Twitch retries notifications that are not acknowledged with a 2xx in
+        time; every retry reuses the same Twitch-Eventsub-Message-Id header.
+        Must be called from the webhook endpoint BEFORE dispatching to a
+        handler (handlers only receive the flat event payload, which does not
+        contain the message id).
+        """
         try:
-            message_id = data.get("id")
             if not message_id:
                 return False
 
-            event_data = data.get("event", {})
-            broadcaster_id = event_data.get("broadcaster_user_id")
-            event_type = data.get("subscription", {}).get("type")
-
-            if not broadcaster_id or not event_type:
-                return False
-
-            event_key = f"{broadcaster_id}:{event_type}"
-            event_fingerprint = f"{message_id}:{event_key}"
+            event_fingerprint = f"{message_id}:{event_type}:{broadcaster_id}"
 
             # TTLCache automatically handles expiration - no manual cleanup needed!
             if event_fingerprint in self._processed_events:
                 logger.info(
-                    f"Ignoring duplicate event: {event_type} for broadcaster {broadcaster_id}"
+                    f"Ignoring duplicate EventSub delivery: {event_type} for "
+                    f"broadcaster {broadcaster_id} (message_id={message_id})"
                 )
                 return True
 
-            # Store with any value (TTL handles expiration automatically)
             self._processed_events[event_fingerprint] = datetime.now()
             return False
 
@@ -190,16 +194,28 @@ class EventHandlerRegistry:
             logger.error(f"Error checking for duplicate event: {e}", exc_info=True)
             return False
 
+    def forget_message(
+        self,
+        message_id: Optional[str],
+        event_type: Optional[str],
+        broadcaster_id: Optional[str],
+    ) -> None:
+        """Remove a delivery fingerprint so a Twitch retry can be reprocessed.
+
+        Called when handling failed (timeout/exception) and we return a non-2xx
+        status: the retry must not be swallowed by the dedup cache.
+        """
+        try:
+            self._processed_events.pop(
+                f"{message_id}:{event_type}:{broadcaster_id}", None
+            )
+        except Exception as e:
+            logger.error(f"Error forgetting event fingerprint: {e}", exc_info=True)
+
     async def handle_stream_online(self, data: dict):
         logger.info(
             f"🎬 STREAM_ONLINE_EVENT: broadcaster_user_id={data.get('broadcaster_user_id')}, broadcaster_user_name={data.get('broadcaster_user_name')}, started_at={data.get('started_at')}"
         )
-
-        if self._is_duplicate_event(data):
-            logger.info(
-                f"🎬 DUPLICATE_STREAM_ONLINE_EVENT: Skipping duplicate event for {data.get('broadcaster_user_name')}"
-            )
-            return
 
         try:
             user_info = await self.get_user_info(data["broadcaster_user_id"])
@@ -212,16 +228,74 @@ class EventHandlerRegistry:
                 )
 
                 if streamer:
+                    # Deduplicate: Twitch redelivers stream.online when we do
+                    # not ACK in time. A second Stream row would leave duplicate
+                    # un-ended streams and mis-route channel.update chapter
+                    # events to the wrong recording.
+                    existing_stream = (
+                        db.query(Stream)
+                        .filter(Stream.streamer_id == streamer.id)
+                        .filter(Stream.twitch_stream_id == data["id"])
+                        .first()
+                    )
+                    if existing_stream:
+                        logger.info(
+                            f"🎬 STREAM_ALREADY_KNOWN: twitch_stream_id={data['id']} "
+                            f"already mapped to stream_id={existing_stream.id}; "
+                            "skipping duplicate stream.online event"
+                        )
+                        # A retry after a failed first attempt must still be able
+                        # to start the recording (dedup must not swallow it) —
+                        # but never for a stream that has already ended.
+                        if (
+                            existing_stream.ended_at is None
+                            and self.config_manager.is_recording_enabled(streamer.id)
+                        ):
+                            active_recording = (
+                                db.query(Recording)
+                                .filter(
+                                    Recording.stream_id == existing_stream.id,
+                                    Recording.status == "recording",
+                                )
+                                .first()
+                            )
+                            if not active_recording:
+                                logger.info(
+                                    f"🎬 RESUMING_RECORDING_FOR_KNOWN_STREAM: stream_id={existing_stream.id}"
+                                )
+                                await self.recording_service.start_recording(
+                                    existing_stream.id, streamer.id, force_mode=False
+                                )
+                        return
+
                     if user_info and user_info.get("profile_image_url"):
                         streamer.profile_image_url = user_info["profile_image_url"]
                     if user_info and user_info.get("description"):
                         streamer.description = user_info["description"]
 
+                    started_at = datetime.fromisoformat(
+                        data["started_at"].replace("Z", "+00:00")
+                    )
+
+                    # Close any stale still-open streams for this streamer so
+                    # channel.update events can never attach to an old session.
+                    stale_streams = (
+                        db.query(Stream)
+                        .filter(Stream.streamer_id == streamer.id)
+                        .filter(Stream.ended_at.is_(None))
+                        .all()
+                    )
+                    for stale_stream in stale_streams:
+                        logger.warning(
+                            f"🧹 CLOSING_STALE_STREAM: stream_id={stale_stream.id} "
+                            f"(twitch_stream_id={stale_stream.twitch_stream_id}) was "
+                            "still open when a new stream started"
+                        )
+                        stale_stream.ended_at = started_at
+
                     stream = Stream(
                         streamer_id=streamer.id,
-                        started_at=datetime.fromisoformat(
-                            data["started_at"].replace("Z", "+00:00")
-                        ),
+                        started_at=started_at,
                         twitch_stream_id=data["id"],
                         title=streamer.title,
                         category_name=streamer.category_name,
@@ -241,9 +315,7 @@ class EventHandlerRegistry:
                         title=streamer.title,
                         category_name=streamer.category_name,
                         language=streamer.language,
-                        timestamp=datetime.fromisoformat(
-                            data["started_at"].replace("Z", "+00:00")
-                        ),
+                        timestamp=started_at,
                     )
                     db.add(initial_event)
 
@@ -254,10 +326,7 @@ class EventHandlerRegistry:
                             title=streamer.title,
                             category_name=streamer.category_name,
                             language=streamer.language,
-                            timestamp=datetime.fromisoformat(
-                                data["started_at"].replace("Z", "+00:00")
-                            )
-                            - timedelta(seconds=1),
+                            timestamp=started_at - timedelta(seconds=1),
                         )
                         db.add(pre_stream_event)
                         logger.debug(
@@ -326,13 +395,6 @@ class EventHandlerRegistry:
             f"🎬 STREAM_OFFLINE_EVENT: broadcaster_user_id={data.get('broadcaster_user_id')}, broadcaster_user_name={data.get('broadcaster_user_name')}"
         )
 
-        # Event-Deduplizierung
-        if self._is_duplicate_event(data):
-            logger.info(
-                f"🎬 DUPLICATE_STREAM_OFFLINE_EVENT: Skipping duplicate event for {data.get('broadcaster_user_name')}"
-            )
-            return
-
         try:
             logger.info(f"Stream offline event received: {data}")
             with SessionLocal() as db:
@@ -346,16 +408,24 @@ class EventHandlerRegistry:
                     streamer.is_live = False
                     streamer.last_updated = datetime.now(timezone.utc)
 
-                    stream = (
+                    open_streams = (
                         db.query(Stream)
                         .filter(Stream.streamer_id == streamer.id)
                         .filter(Stream.ended_at.is_(None))
                         .order_by(Stream.started_at.desc())
-                        .first()
+                        .all()
                     )
-                    if stream:
-                        stream.ended_at = datetime.now(timezone.utc)
+                    stream = open_streams[0] if open_streams else None
+                    ended_at = datetime.now(timezone.utc)
 
+                    # Close ALL open streams — leftover un-ended rows would
+                    # attract future channel.update chapter events.
+                    # Recordings attached to older streams are intentionally not
+                    # stopped here; the recovery machinery (zombie cleanup) owns them.
+                    for open_stream in open_streams:
+                        open_stream.ended_at = ended_at
+
+                    if stream:
                         # Update last stream info on streamer for offline display
                         streamer.last_stream_title = stream.title
                         streamer.last_stream_category_name = stream.category_name
@@ -444,11 +514,39 @@ class EventHandlerRegistry:
         except Exception as e:
             logger.error(f"Error handling stream offline event: {e}", exc_info=True)
 
-    async def handle_stream_update(self, data: dict):
-        # Event-Deduplizierung
-        if self._is_duplicate_event(data):
-            return
+    def _resolve_event_target_stream(
+        self, db: Session, streamer_id: int
+    ) -> Optional[Stream]:
+        """Resolve which stream a channel.update event belongs to.
 
+        Prefer the stream that is actively being recorded — its StreamEvents
+        become the chapter markers of the finished MP4. Fall back to the most
+        recent still-open stream when no recording is active.
+        """
+        stream = (
+            db.query(Stream)
+            .join(Recording, Recording.stream_id == Stream.id)
+            .filter(Stream.streamer_id == streamer_id)
+            .filter(Recording.status == "recording")
+            # A stream being actively recorded must still be open; stuck
+            # status="recording" rows on ended streams (zombie recordings)
+            # must not steal chapter events.
+            .filter(Stream.ended_at.is_(None))
+            .order_by(Stream.started_at.desc())
+            .first()
+        )
+        if stream:
+            return stream
+
+        return (
+            db.query(Stream)
+            .filter(Stream.streamer_id == streamer_id)
+            .filter(Stream.ended_at.is_(None))
+            .order_by(Stream.started_at.desc())
+            .first()
+        )
+
+    async def handle_stream_update(self, data: dict):
         try:
             logger.debug(f"Processing stream update event: {data}")
             with SessionLocal() as db:
@@ -458,51 +556,46 @@ class EventHandlerRegistry:
                     .first()
                 )
 
-                if streamer:
-                    logger.debug(
-                        f"Found streamer: {streamer.username} (ID: {streamer.id})"
+                if not streamer:
+                    logger.warning(
+                        f"channel.update for unknown broadcaster {data.get('broadcaster_user_id')}; ignoring"
                     )
-                    # Resolve category name: prefer payload, else use category_id lookup
-                    incoming_category_name = data.get("category_name")
-                    category_id = data.get("category_id")
-                    effective_category_name = incoming_category_name
-                    if not effective_category_name and category_id:
-                        try:
-                            from app.services.streamer_service import StreamerService
+                    return
 
-                            streamer_service = StreamerService(
-                                db=db,
-                                websocket_manager=self.manager,
-                                event_registry=self,
-                            )
-                            game_data = await streamer_service.get_game_data(
-                                category_id
-                            )
-                            if game_data and game_data.get("name"):
-                                effective_category_name = game_data.get("name")
-                                logger.debug(
-                                    f"Resolved category name via category_id {category_id}: {effective_category_name}"
-                                )
-                        except Exception as e:
+                logger.debug(f"Found streamer: {streamer.username} (ID: {streamer.id})")
+                # Resolve category name: prefer payload, else use category_id lookup
+                incoming_category_name = data.get("category_name")
+                category_id = data.get("category_id")
+                effective_category_name = incoming_category_name
+                if not effective_category_name and category_id:
+                    try:
+                        from app.services.streamer_service import StreamerService
+
+                        streamer_service = StreamerService(
+                            db=db,
+                            websocket_manager=self.manager,
+                            event_registry=self,
+                        )
+                        game_data = await streamer_service.get_game_data(category_id)
+                        if game_data and game_data.get("name"):
+                            effective_category_name = game_data.get("name")
                             logger.debug(
-                                f"Failed to resolve category name for id {category_id}: {e}"
+                                f"Resolved category name via category_id {category_id}: {effective_category_name}"
                             )
+                    except Exception as e:
+                        logger.debug(
+                            f"Failed to resolve category name for id {category_id}: {e}"
+                        )
 
-                    streamer.title = data.get("title")
-                    streamer.category_name = effective_category_name
-                    streamer.language = data.get("language")
-                    streamer.last_updated = datetime.now(timezone.utc)
+                streamer.title = data.get("title")
+                streamer.category_name = effective_category_name
+                streamer.language = data.get("language")
+                streamer.last_updated = datetime.now(timezone.utc)
 
-                    db.commit()
-                    logger.debug(f"Updated streamer info in database: {streamer.title}")
+                db.commit()
+                logger.debug(f"Updated streamer info in database: {streamer.title}")
 
-                    stream = (
-                        db.query(Stream)
-                        .filter(Stream.streamer_id == streamer.id)
-                        .filter(Stream.ended_at.is_(None))
-                        .order_by(Stream.started_at.desc())
-                        .first()
-                    )
+                stream = self._resolve_event_target_stream(db, streamer.id)
 
                 if stream:
                     # Also update the active stream with the latest title/category/language
