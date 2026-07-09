@@ -404,16 +404,22 @@ class EventHandlerRegistry:
                     streamer.is_live = False
                     streamer.last_updated = datetime.now(timezone.utc)
 
-                    stream = (
+                    open_streams = (
                         db.query(Stream)
                         .filter(Stream.streamer_id == streamer.id)
                         .filter(Stream.ended_at.is_(None))
                         .order_by(Stream.started_at.desc())
-                        .first()
+                        .all()
                     )
-                    if stream:
-                        stream.ended_at = datetime.now(timezone.utc)
+                    stream = open_streams[0] if open_streams else None
+                    ended_at = datetime.now(timezone.utc)
 
+                    # Close ALL open streams — leftover un-ended rows would
+                    # attract future channel.update chapter events.
+                    for open_stream in open_streams:
+                        open_stream.ended_at = ended_at
+
+                    if stream:
                         # Update last stream info on streamer for offline display
                         streamer.last_stream_title = stream.title
                         streamer.last_stream_category_name = stream.category_name

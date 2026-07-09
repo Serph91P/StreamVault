@@ -315,3 +315,40 @@ class TestHandleStreamUpdate:
         ).all()
         assert len(events) == 1
         assert events[0].stream_id == live.id
+
+
+class TestHandleStreamOffline:
+    def test_offline_closes_all_open_streams(self, db):
+        streamer = _make_streamer(db)
+        s1 = Stream(
+            streamer_id=streamer.id,
+            started_at=datetime(2026, 7, 9, 10, 0, tzinfo=timezone.utc),
+            twitch_stream_id="8000",
+        )
+        s2 = Stream(
+            streamer_id=streamer.id,
+            started_at=datetime(2026, 7, 9, 11, 0, tzinfo=timezone.utc),
+            twitch_stream_id="9001",
+        )
+        db.add_all([s1, s2])
+        db.commit()
+
+        registry = _make_registry()
+        asyncio.run(
+            registry.handle_stream_offline(
+                {
+                    "broadcaster_user_id": "111",
+                    "broadcaster_user_name": "streamer_a",
+                    "broadcaster_user_login": "streamer_a",
+                }
+            )
+        )
+
+        db.expire_all()
+        open_streams = (
+            db.query(Stream)
+            .filter(Stream.streamer_id == streamer.id)
+            .filter(Stream.ended_at.is_(None))
+            .all()
+        )
+        assert open_streams == []
