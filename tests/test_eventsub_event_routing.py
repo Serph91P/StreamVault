@@ -332,6 +332,8 @@ class TestHandleStreamOffline:
         )
         db.add_all([s1, s2])
         db.commit()
+        s1_id = s1.id
+        s2_id = s2.id
 
         registry = _make_registry()
         asyncio.run(
@@ -352,3 +354,51 @@ class TestHandleStreamOffline:
             .all()
         )
         assert open_streams == []
+
+        # All streams must be closed with the SAME timestamp
+        s1_row = db.query(Stream).filter(Stream.id == s1_id).first()
+        s2_row = db.query(Stream).filter(Stream.id == s2_id).first()
+        assert s1_row.ended_at == s2_row.ended_at
+
+    def test_offline_stops_recording_of_newest_stream(self, db):
+        streamer = _make_streamer(db)
+        old_stream = Stream(
+            streamer_id=streamer.id,
+            started_at=datetime(2026, 7, 9, 10, 0, tzinfo=timezone.utc),
+            twitch_stream_id="8000",
+        )
+        new_stream = Stream(
+            streamer_id=streamer.id,
+            started_at=datetime(2026, 7, 9, 11, 0, tzinfo=timezone.utc),
+            twitch_stream_id="9001",
+        )
+        db.add_all([old_stream, new_stream])
+        db.commit()
+        old_rec = Recording(
+            stream_id=old_stream.id,
+            status="recording",
+            start_time=datetime(2026, 7, 9, 10, 0, tzinfo=timezone.utc),
+        )
+        new_rec = Recording(
+            stream_id=new_stream.id,
+            status="recording",
+            start_time=datetime(2026, 7, 9, 11, 0, tzinfo=timezone.utc),
+        )
+        db.add_all([old_rec, new_rec])
+        db.commit()
+        new_rec_id = new_rec.id
+
+        registry = _make_registry()
+        asyncio.run(
+            registry.handle_stream_offline(
+                {
+                    "broadcaster_user_id": "111",
+                    "broadcaster_user_name": "streamer_a",
+                    "broadcaster_user_login": "streamer_a",
+                }
+            )
+        )
+
+        registry.recording_service.stop_recording.assert_awaited_once_with(
+            new_rec_id, reason="automatic"
+        )
