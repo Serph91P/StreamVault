@@ -1,5 +1,5 @@
 <template>
-  <div class="page-view video-player-view fade-in">
+  <div class="page-view video-player-view fade-in" :class="{ 'theater-mode': effectiveTheaterMode }">
     <!-- Loading State -->
     <div v-if="isLoading" class="content-state">
       <LoadingSkeleton type="video" />
@@ -622,9 +622,17 @@ onUnmounted(() => {
   overflow: hidden;
 }
 
+// Theater mode: full-bleed black stage that fills exactly the viewport
+// below the app header (Twitch/YouTube style) - no page padding, no card
+// chrome, no dead space around the module.
+.video-player-view.theater-mode {
+  padding: 0;
+}
+
 .player-layout.theater-mode {
   .player-main {
     grid-template-columns: minmax(0, 1fr);
+    gap: 0;
   }
 
   .info-sidebar {
@@ -650,14 +658,18 @@ onUnmounted(() => {
     display: none;
   }
 
-  .player-card :deep(.video-wrapper) {
-    width: min(100%, calc((100dvh - var(--app-header-height, 56px) - 112px) * 16 / 9));
-    max-height: calc(100dvh - var(--app-header-height, 56px) - 112px);
-    margin: 0 auto;
-  }
+  .player-card {
+    // Compact header (52px real height) + stage fill the viewport below the
+    // app header exactly
+    --player-max-h: calc(100dvh - var(--app-header-height, 56px) - 52px);
+    border: 0;
+    border-radius: 0;
+    background: #000;
 
-  .player-card :deep(video) {
-    max-height: calc(100dvh - var(--app-header-height, 56px) - 112px);
+    :deep(.video-player-container),
+    :deep(.video-wrapper) {
+      background: #000;
+    }
   }
 }
 
@@ -692,28 +704,34 @@ onUnmounted(() => {
 
 .player-card {
   overflow: hidden;
+  // Height budget for the 16:9 stage (consumed by VideoPlayer's
+  // .video-wrapper): viewport minus app header, player header and page chrome
+  --player-max-h: calc(100dvh - var(--app-header-height, 56px) - 176px);
 
   :deep(.glass-card-content) {
     padding: 0;
     display: flex;
     flex-direction: column;
   }
+
+  // Letterbox bars around the size-capped video read as part of the stage
+  :deep(.video-player-container) {
+    display: flex;
+    justify-content: center;
+    background: var(--background-darker);
+  }
 }
 
-.player-card :deep(video) {
-  max-height: min(62dvh, calc(100dvh - var(--app-header-height, 56px) - 192px));
-  object-fit: contain;
-}
-
-.player-card :deep(.video-wrapper) {
-  width: min(100%, calc(min(62dvh, calc(100dvh - var(--app-header-height, 56px) - 192px)) * 16 / 9));
-  max-height: min(62dvh, calc(100dvh - var(--app-header-height, 56px) - 192px));
-  margin: 0 auto;
-}
-
-.player-card :deep(.video-player-container) {
-  display: flex;
-  justify-content: center;
+// Mobile: player goes edge-to-edge like YouTube instead of floating in a
+// card. The 50%-50vw trick escapes every ancestor padding regardless of
+// nesting depth (the root clips overflow-x, so no scrollbar can appear).
+@include m.respond-below('md') {
+  .player-card {
+    width: 100vw;
+    margin-inline: calc(50% - 50vw);
+    border-inline: 0;
+    border-radius: 0;
+  }
 }
 
 .player-header {
@@ -787,7 +805,10 @@ onUnmounted(() => {
 
   @include m.respond-below('lg') {
     white-space: normal;
-    overflow: visible;
+    // line-clamp needs overflow hidden; `visible` let the clamped box paint
+    // outside the header padding (title started left of the card edge)
+    overflow: hidden;
+    min-width: 0;
     display: -webkit-box;
     -webkit-line-clamp: 1;
     line-clamp: 1;
@@ -1169,7 +1190,6 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   z-index: 1000;
-  backdrop-filter: blur(4px);
 }
 
 .delete-modal {

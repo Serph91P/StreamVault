@@ -175,28 +175,21 @@ function handleKeyboardClick(event: KeyboardEvent) {
   padding: 0;
   border-radius: var(--radius-xl);
 
-  // Default: medium glass
+  // Glass look via translucency + border highlight, WITHOUT backdrop-filter:
+  // grids render dozens of these cards at once and per-card blur is the main
+  // scroll-performance cost. Real blur is reserved for floating layers
+  // (header, nav, popups, modals) where content actually passes underneath.
   background: var(--glass-bg);
-  backdrop-filter: blur(var(--glass-blur-md));
-  -webkit-backdrop-filter: blur(var(--glass-blur-md));
   border: 1px solid var(--glass-border);
-  box-shadow: var(--glass-shadow-sm);
-
-  @supports not (backdrop-filter: blur(1px)) {
-    background: var(--glass-bg-solid);
-  }
+  box-shadow: var(--glass-shadow-sm), var(--glass-glow);
 
   &.glass-card-subtle {
     background: var(--glass-bg-subtle);
-    backdrop-filter: blur(var(--glass-blur-sm));
-    -webkit-backdrop-filter: blur(var(--glass-blur-sm));
   }
 
   &.glass-card-strong {
     background: var(--glass-bg-strong);
-    backdrop-filter: blur(var(--glass-blur-lg));
-    -webkit-backdrop-filter: blur(var(--glass-blur-lg));
-    box-shadow: var(--glass-shadow-md);
+    box-shadow: var(--glass-shadow-md), var(--glass-glow);
   }
 
   &.glass-card-elevated {

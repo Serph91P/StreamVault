@@ -14,7 +14,8 @@ withDefaults(defineProps<Props>(), {})
   <header class="page-header">
     <div class="page-header-content">
       <div class="page-header-title-group">
-        <svg v-if="icon" class="page-header-icon" aria-hidden="true">
+        <!-- Hidden on mobile when the mobile title brings its own icon -->
+        <svg v-if="icon" class="page-header-icon" :class="{ 'm-hide': !!mobileIcon }" aria-hidden="true">
           <use :href="`#icon-${icon}`" />
         </svg>
         <div>
@@ -64,6 +65,12 @@ withDefaults(defineProps<Props>(), {})
   flex-shrink: 0;
   margin-top: 0.25rem;
   color: var(--primary-color);
+
+  &.m-hide {
+    @include m.respond-below('md') {
+      display: none;
+    }
+  }
 }
 
 .page-header-title-text {

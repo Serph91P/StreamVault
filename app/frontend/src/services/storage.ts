@@ -10,7 +10,8 @@ const KEYS = {
   notifications: 'streamvault_notifications',
   legacyReadTimestamp: 'lastReadTimestamp',
   oauthReturnUrl: 'oauth_return_url',
-  pwaInstallDismissed: 'pwa-install-dismissed'
+  pwaInstallDismissed: 'pwa-install-dismissed',
+  viewModePrefix: 'streamvault-view-mode'
 } as const
 
 function resolveStorage(area: StorageArea): Storage | null {
@@ -76,6 +77,15 @@ export const appStorage = {
   },
   setSidebarExpanded(expanded: boolean) {
     setItem(KEYS.sidebarExpanded, String(expanded))
+  },
+
+  /** Persisted grid/list preference per page (e.g. 'streamers', 'videos') */
+  getViewMode(page: string): 'grid' | 'list' | null {
+    const value = getItem(`${KEYS.viewModePrefix}-${page}`)
+    return value === 'grid' || value === 'list' ? value : null
+  },
+  setViewMode(page: string, mode: 'grid' | 'list') {
+    setItem(`${KEYS.viewModePrefix}-${page}`, mode)
   },
 
   get liveCodecMode() {

@@ -7,27 +7,10 @@
     <div v-else-if="error" class="error-message">
       Error loading settings: {{ error }}
     </div>
-      <!-- Tab Navigation -->
-      <div class="tab-navigation">
-        <button
-          v-for="tab in tabs"
-          :key="tab.id"
-          @click="activeTab = tab.id"
-          :class="['tab-button', { active: activeTab === tab.id }]"
-        >
-          <svg v-if="tab.id === 'recording'" class="tab-icon">
-            <use href="#icon-video" />
-          </svg>
-          <svg v-else-if="tab.id === 'storage'" class="tab-icon">
-            <use href="#icon-server" />
-          </svg>
-          {{ tab.label }}
-        </button>
-      </div>
-
-      <!-- Tab Content -->
-      <div class="tab-content">        <!-- Recording Tab -->
-        <div v-if="activeTab === 'recording'" class="tab-panel">
+      <!-- Recording and Storage are separate settings sections now; this
+           component renders one half, selected via the `section` prop -->
+      <div class="tab-content">
+        <div v-if="section === 'recording'" class="tab-panel">
           <!-- Basic Recording Settings Section -->
           <div class="panel-block">
             <div class="section-header">
@@ -145,8 +128,8 @@
           </div>
         </div>
 
-        <!-- Storage Tab -->
-        <div v-if="activeTab === 'storage'" class="tab-panel">
+        <!-- Storage section -->
+        <div v-if="section === 'storage'" class="tab-panel">
           <div class="panel-block">
             <div class="section-header">
               <svg class="section-icon">
@@ -167,14 +150,14 @@
         </div>
       </div>
 
-      <!-- Save Button (outside of tabs) -->
-      <div class="form-actions">
+      <!-- Save Button (recording settings only; cleanup policies save themselves) -->
+      <div v-if="section === 'recording'" class="form-actions">
         <button @click="saveSettings" class="btn btn-primary" :disabled="isSaving">
           {{ isSaving ? 'Saving...' : 'Save Settings' }}        </button>
       </div>
 
     <!-- Active Recordings -->
-    <div v-if="activeRecordings.length > 0" class="active-recordings panel-block">
+    <div v-if="section === 'recording' && activeRecordings.length > 0" class="active-recordings panel-block">
       <h3>Active Recordings</h3>
       <div class="recordings-grid">
         <div v-for="recording in activeRecordings" :key="recording.streamer_id" class="recording-card">
@@ -195,7 +178,7 @@
       </div>
     </div>
     <!-- Streamer Settings -->
-    <div class="streamer-settings panel-block">
+    <div v-if="section === 'recording'" class="streamer-settings panel-block">
       <h3>Streamer Recording Settings</h3>
 
       <div v-if="!streamerSettings || streamerSettings.length === 0" class="no-streamers-message">
@@ -344,24 +327,23 @@ import type { RecordingSettings, StreamerRecordingSettings } from '@/types/recor
 import CleanupPolicyEditor from '@/components/CleanupPolicyEditor.vue';
 import BaseModal from '@/components/base/BaseModal.vue';
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   settings: RecordingSettings | null;
   streamerSettings: StreamerRecordingSettings[];
   activeRecordings: any[];
-}>();
+  /** Which settings page this instance renders: recording quality/behavior
+   *  or the storage/cleanup half. Each is its own sidebar section now -
+   *  the old in-panel tab bar is gone. */
+  section?: 'recording' | 'storage';
+}>(), {
+  section: 'recording'
+});
 
 const emits = defineEmits<{
   update: [settings: RecordingSettings];
   updateStreamer: [streamerId: number, settings: Partial<StreamerRecordingSettings>];
   stopRecording: [streamerId: number];
 }>();
-
-// Tab management
-const activeTab = ref('recording');
-const tabs = [
-  { id: 'recording', label: 'Recording' },
-  { id: 'storage', label: 'Storage' }
-];
 
 const { isLoading, error } = useRecordingSettings();
 const toast = useToast();
@@ -585,10 +567,18 @@ const handleStreamerPolicySaved = (_policy: any) => {
   gap: var(--spacing-7, 28px);
 }
 
+// Match the shared .settings-group look so recording blocks read as the
+// same "these belong together" containers as every other settings page
 .panel-block {
-  padding: var(--spacing-6, 24px);
-  border-radius: var(--radius-xl, 32px);
-  background: transparent;
+  padding: var(--spacing-5);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  background: rgba(var(--background-darker-rgb, 10, 10, 10), 0.35);
+  margin-bottom: var(--spacing-5);
+
+  &:last-child {
+    margin-bottom: 0;
+  }
 }
 
 /* Section Headers with Icons */
@@ -620,56 +610,7 @@ const handleStreamerPolicySaved = (_policy: any) => {
   line-height: 1.6;
 }
 
-/* Tab Navigation Styles */
-.tab-navigation {
-  display: flex;
-  border-bottom: 2px solid var(--border-color);
-  margin-bottom: var(--spacing-8, 32px);
-  gap: var(--spacing-2, 8px);
-}
-
-.tab-button {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-2, 8px);
-  background: transparent;
-  border: none;
-  padding: var(--spacing-4) var(--spacing-6);
-  cursor: pointer;
-  color: var(--text-secondary);
-  font-weight: 600;
-  font-size: var(--text-base, 16px);
-  border-radius: var(--radius-lg, 12px) var(--radius-lg, 12px) 0 0;
-  transition: var(--transition-base);
-  border-bottom: 3px solid transparent;
-  position: relative;
-
-  .tab-icon {
-    width: 20px;
-    height: 20px;
-    flex-shrink: 0;
-  }
-}
-
-.tab-button:hover:not(.active) {
-  background-color: rgba(var(--primary-color-rgb), 0.05);
-  color: var(--text-primary);
-}
-
-.tab-button.active {
-  background-color: rgba(var(--primary-color-rgb), 0.1);
-  color: var(--primary-color);
-  border-bottom-color: var(--primary-color);
-
-  .tab-icon {
-    color: var(--primary-color);
-  }
-}
-
-.tab-content {
-  min-height: 300px;
-}
-
+/* (Tab bar removed - Recording and Storage are separate settings sections) */
 .tab-panel {
   animation: fadeIn 0.3s ease-in-out;
 }
@@ -1014,37 +955,6 @@ const handleStreamerPolicySaved = (_policy: any) => {
 // ============================================================================
 
 @include m.respond-below('md') {
-  .tab-navigation {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: thin;
-    gap: v.$spacing-1;
-    margin-bottom: v.$spacing-4;
-    padding-bottom: v.$spacing-2;
-
-    &::-webkit-scrollbar {
-      height: 4px;
-    }
-
-    &::-webkit-scrollbar-thumb {
-      background: var(--border-color);
-      border-radius: 2px;
-    }
-  }
-
-  .tab-button {
-    min-width: 140px;  // Increased to show full text
-    flex-shrink: 0;
-    padding: v.$spacing-3 v.$spacing-4;
-    font-size: v.$text-sm;
-    white-space: nowrap;  // Prevent text wrapping
-
-    .tab-icon {
-      width: 18px;
-      height: 18px;
-    }
-  }
-
   .form-actions {
     flex-direction: column;
     gap: v.$spacing-3;

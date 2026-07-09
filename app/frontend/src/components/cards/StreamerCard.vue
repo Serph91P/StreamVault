@@ -11,8 +11,11 @@
         :to="streamerRoute"
         :aria-label="`View details for ${streamer.display_name || streamer.username}`"
         @click="handleCardLinkClick"
+        @contextmenu="handleContextMenu"
         @touchstart.passive="handleTouchStart"
         @touchmove.passive="handleTouchMove"
+        @touchend.passive="handleTouchEnd"
+        @touchcancel.passive="handleTouchEnd"
       />
       <!-- Avatar/Thumbnail - CENTERED -->
       <div class="streamer-avatar-container">
@@ -276,8 +279,22 @@ const displayCategory = computed(() => {
   return null
 })
 
-// Calculate dropdown position relative to trigger button
+// Calculate dropdown position: at the finger for long-press, otherwise
+// relative to the trigger button
 const dropdownStyle = computed(() => {
+  if (longPressPoint.value) {
+    const menuWidth = 220
+    const menuHeight = 280
+    const left = Math.min(Math.max(8, longPressPoint.value.x - menuWidth / 2), window.innerWidth - menuWidth - 8)
+    const top = Math.min(longPressPoint.value.y + 12, window.innerHeight - menuHeight - 8)
+    return {
+      position: 'fixed' as const,
+      top: `${Math.max(8, top)}px`,
+      left: `${left}px`,
+      zIndex: 10000
+    }
+  }
+
   if (!moreButtonRef.value) {
     // Fallback positioning if button ref not available
     return {
@@ -336,12 +353,24 @@ watch(
   },
 )
 
+// Once the menu closes, the next open (via the ⋮ button) anchors to the
+// button again instead of the stale finger position
+watch(showActions, (open) => {
+  if (!open) longPressPoint.value = null
+})
+
 const _truncateText = (text: string, maxLength: number) => {
   if (!text || text.length <= maxLength) return text
   return text.substring(0, maxLength) + '...'
 }
 
 const handleCardLinkClick = (event: MouseEvent) => {
+  // A finished long-press must not also navigate to the detail page
+  if (suppressNextClick.value) {
+    suppressNextClick.value = false
+    event.preventDefault()
+    return
+  }
   if (isTouchScrolling.value) {
     isTouchScrolling.value = false
     event.preventDefault()
@@ -354,10 +383,47 @@ const touchStartY = ref(0)
 const touchStartX = ref(0)
 const SCROLL_THRESHOLD = 10 // pixels of movement before considering it a scroll
 
+// Long-press opens the actions menu at the finger position - the ⋮ button is
+// a small target on mobile, holding the card is the natural gesture there.
+const LONG_PRESS_MS = 500
+const longPressTimer = ref<number | null>(null)
+const longPressPoint = ref<{ x: number; y: number } | null>(null)
+const suppressNextClick = ref(false)
+
+const cancelLongPress = () => {
+  if (longPressTimer.value !== null) {
+    clearTimeout(longPressTimer.value)
+    longPressTimer.value = null
+  }
+}
+
+// Lifting the finger after a long-press emits a synthetic click at that
+// position - which would instantly hit the menu item that just appeared
+// under it. Swallow exactly that one click in the capture phase.
+const armClickSuppression = () => {
+  const swallow = (e: MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    document.removeEventListener('click', swallow, true)
+  }
+  document.addEventListener('click', swallow, true)
+  setTimeout(() => document.removeEventListener('click', swallow, true), 700)
+}
+
 const handleTouchStart = (e: TouchEvent) => {
   touchStartY.value = e.touches[0].clientY
   touchStartX.value = e.touches[0].clientX
   isTouchScrolling.value = false
+
+  cancelLongPress()
+  longPressTimer.value = window.setTimeout(() => {
+    longPressTimer.value = null
+    longPressPoint.value = { x: touchStartX.value, y: touchStartY.value }
+    suppressNextClick.value = true
+    armClickSuppression()
+    showActions.value = true
+    if ('vibrate' in navigator) navigator.vibrate(15)
+  }, LONG_PRESS_MS)
 }
 
 const handleTouchMove = (e: TouchEvent) => {
@@ -365,6 +431,19 @@ const handleTouchMove = (e: TouchEvent) => {
   const deltaX = Math.abs(e.touches[0].clientX - touchStartX.value)
   if (deltaY > SCROLL_THRESHOLD || deltaX > SCROLL_THRESHOLD) {
     isTouchScrolling.value = true
+    cancelLongPress()
+  }
+}
+
+const handleTouchEnd = () => {
+  cancelLongPress()
+}
+
+// While the long-press menu is open (or just fired), swallow the native
+// context menu some browsers raise for the same gesture
+const handleContextMenu = (event: MouseEvent) => {
+  if (showActions.value || suppressNextClick.value) {
+    event.preventDefault()
   }
 }
 
@@ -432,6 +511,13 @@ onUnmounted(() => {
 .streamer-card {
   overflow: visible;
 
+  // Grid mode: fill the (row-stretched) wrapper so cards in a row are equal
+  // height; clamped title/description absorb varying text lengths.
+  &:not(.list-mode) {
+    display: flex;
+    flex-direction: column;
+  }
+
   // Card-specific overrides
   :deep(.glass-card-content) {
     padding: var(--spacing-4);
@@ -439,12 +525,20 @@ onUnmounted(() => {
     overflow: visible;
     display: flex;
     flex-direction: column;
+    flex: 1;
   }
 
-  // RECORDING indicator: Pulsing border animation on the card itself
-  &.is-recording {
-    animation: pulse-recording 2s ease-in-out infinite;
+  // RECORDING indicator: pulsing ring on a pseudo-element animating only
+  // opacity/transform (compositor-friendly). The previous box-shadow keyframe
+  // animation forced a repaint every frame on every recording card.
+  &.is-recording::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border: 2px solid rgba(239, 68, 68, 0.7);
     border-radius: var(--radius-xl);
+    pointer-events: none;
+    animation: pulse-recording 2s ease-in-out infinite;
   }
 
   // When actions dropdown is open, increase z-index to appear above other cards
@@ -472,6 +566,11 @@ onUnmounted(() => {
   border-radius: var(--radius-xl);
   color: inherit;
   text-decoration: none;
+  // Long-press opens our actions menu - suppress the native link preview /
+  // text-selection callout the OS would show for the same gesture
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
 
   &:focus-visible {
     outline: 2px solid var(--primary-color);
@@ -813,9 +912,8 @@ onUnmounted(() => {
 .actions-dropdown {
   position: fixed;
 
+  // Solid background - a backdrop-filter on top of it had no visible effect.
   background: var(--glass-bg-solid);
-  backdrop-filter: blur(var(--glass-blur-md));
-  -webkit-backdrop-filter: blur(var(--glass-blur-md));
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-md);
   box-shadow: var(--glass-shadow-lg);
@@ -923,7 +1021,9 @@ onUnmounted(() => {
     gap: var(--spacing-1) var(--spacing-4);
     width: 100%;
     min-height: 80px;
-    padding: var(--spacing-3) var(--spacing-10) var(--spacing-3) var(--spacing-3);
+    // Right padding must clear the absolutely-positioned ⋮ button:
+    // 8px offset + 44px button + 12px breathing room
+    padding: var(--spacing-3) 64px var(--spacing-3) var(--spacing-3);
   }
 
   .streamer-avatar-container {
@@ -1025,6 +1125,62 @@ onUnmounted(() => {
   }
 }
 
+// Mobile: the 4-column desktop row squeezes name and title into unreadable
+// slivers - stack instead: avatar + name/badges, then title, then a meta row.
+@include m.respond-below('md') {
+  .streamer-card.list-mode {
+    .streamer-card-content {
+      grid-template-columns: auto minmax(0, 1fr);
+      grid-template-rows: auto;
+      gap: var(--spacing-1) var(--spacing-3);
+      padding: var(--spacing-3);
+      // Room for the ⋮ button in the top-right corner (8px offset + 44px
+      // button + breathing room), so long names never slide under it
+      padding-right: 60px;
+    }
+
+    .streamer-avatar-container {
+      grid-row: 1 / 3;
+      grid-column: 1;
+    }
+
+    .streamer-name-link {
+      grid-row: 1;
+      grid-column: 2;
+    }
+
+    .status-row {
+      grid-row: 2;
+      grid-column: 2;
+    }
+
+    .stream-info-container {
+      grid-row: 3;
+      grid-column: 1 / -1;
+      max-width: none;
+      padding-top: var(--spacing-1);
+    }
+
+    .streamer-stats {
+      grid-row: 4;
+      grid-column: 1 / -1;
+      flex-direction: row;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: flex-start;
+      gap: var(--spacing-1) var(--spacing-3);
+    }
+
+    // Corner position instead of vertically centered - centered, the button
+    // sat on top of the meta text
+    .streamer-actions {
+      top: var(--spacing-2);
+      right: var(--spacing-2);
+      transform: none;
+    }
+  }
+}
+
 @include m.respond-below('sm') {
   .streamer-card.list-mode {
     .streamer-avatar {
@@ -1048,16 +1204,16 @@ onUnmounted(() => {
 
 @keyframes pulse-recording {
   0% {
-    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
-    border-radius: var(--radius-xl);  /* Rounded during animation */
+    opacity: 0.9;
+    transform: scale(1);
   }
   50% {
-    box-shadow: 0 0 0 8px rgba(239, 68, 68, 0);
-    border-radius: var(--radius-xl);
+    opacity: 0;
+    transform: scale(1.025);
   }
   100% {
-    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
-    border-radius: var(--radius-xl);
+    opacity: 0;
+    transform: scale(1);
   }
 }
 </style>

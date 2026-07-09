@@ -139,26 +139,16 @@
 }
 
 // Main content area with smoother transitions
+// NavigationWrapper owns .main-content sizing (header offset, bottom-nav
+// clearance) and .page-view owns the content padding. The old padding/margin
+// stack here doubled both gutters and made every page taller than the
+// viewport (pages scrolled into ~100px of nothing).
 .main-content {
   flex: 1;
-  padding: v.$spacing-sm;  // Reduced from md (16px to 12px) for mobile
-  padding-top: v.$spacing-md;  // Reduced from lg (24px to 16px)
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
   animation: fadeIn 0.4s v.$vue-ease-out;
-  margin-bottom: calc(v.$spacing-xxl + env(safe-area-inset-bottom, 0px)); // Add space for mobile navigation
-
-  @media (min-width: map.get(v.$breakpoints, 'md')) {
-    padding: v.$spacing-lg;
-    padding-top: v.$spacing-xl;
-    margin-bottom: v.$spacing-lg;
-  }
-
-  @media (min-width: map.get(v.$breakpoints, 'lg')) {
-    padding: v.$spacing-xl;
-    // No max-width - allow full width
-  }
 }
 
 @keyframes fadeIn {
@@ -573,7 +563,10 @@
     display: flex;
     gap: v.$spacing-4;
     overflow-x: auto;
-    overflow-y: visible;
+    // Not `visible`: alongside overflow-x auto that computes to `auto` and a
+    // few overflowing pixels (card glow/shadow) spawn a vertical scrollbar
+    // inside the carousel. The padding below reserves the glow room instead.
+    overflow-y: hidden;
     padding: v.$spacing-2 v.$spacing-4 v.$spacing-6;
     margin: 0 calc(v.$spacing-4 * -1);
     scroll-behavior: smooth;
@@ -669,7 +662,10 @@
   width: 100%;
   max-width: 100%;
   min-width: 0; // Prevent overflow in flex/grid contexts
-  min-height: 100vh;
+  // Fill the parent (.main-content already spans the viewport below the
+  // header). A 100vh minimum here ignored the header height and forced
+  // every page ~56px+ taller than the screen - phantom scroll everywhere.
+  min-height: 100%;
   box-sizing: border-box;
   
   // Mobile-first padding
@@ -698,6 +694,16 @@
   // Ultra wide
   @media (min-width: 1920px) {
     padding: v.$spacing-8 v.$spacing-10;
+  }
+
+  // Cap content width on very large displays so text lines and card grids
+  // stay scannable instead of stretching edge to edge. Player views opt out
+  // via .theater-mode to keep full-bleed playback.
+  @media (min-width: 1800px) {
+    &:not(.theater-mode) {
+      max-width: 1720px;
+      margin-inline: auto;
+    }
   }
 }
 

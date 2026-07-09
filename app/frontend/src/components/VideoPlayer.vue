@@ -894,9 +894,14 @@ defineExpose({ seekToChapter })
   background: var(--background-darker);
   overflow: hidden;
 
-  // Desktop: Responsive width with 16:9 aspect ratio
+  // Desktop: 16:9, but never taller than the height budget the embedding
+  // view provides via --player-max-h (YouTube-style sizing: the page should
+  // not scroll just to reveal the bottom of the player).
   @include m.respond-to('md') {  // >= 768px
     aspect-ratio: 16/9;
+    max-height: var(--player-max-h, none);
+    width: min(100%, calc(var(--player-max-h, 9999px) * 16 / 9));
+    margin-inline: auto;
   }
 
   // Mobile Portrait: Full viewport width, no constraints
@@ -951,7 +956,6 @@ defineExpose({ seekToChapter })
   right: 0;
   bottom: 0;
   background: rgba(0, 0, 0, 0.9);
-  backdrop-filter: blur(4px);
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -1041,8 +1045,6 @@ defineExpose({ seekToChapter })
 .chapter-list-panel {
   /* Glassmorphism panel design */
   background: rgba(var(--background-card-rgb), 0.97);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
   border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: var(--radius-lg);  /* 12px */
   box-shadow: var(--shadow-2xl), 0 0 40px rgba(0, 0, 0, 0.5);
@@ -1150,8 +1152,6 @@ defineExpose({ seekToChapter })
   top: 0;
   /* Glassmorphism sticky header */
   background: rgba(var(--background-card-rgb), 0.95);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
   z-index: 10;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
@@ -1352,8 +1352,6 @@ defineExpose({ seekToChapter })
   left: 0;
   right: 0;
   background: linear-gradient(to top, rgba(0, 0, 0, 0.9) 0%, rgba(0, 0, 0, 0.7) 60%, transparent 100%);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
   padding: var(--spacing-4);  /* 16px */
   transition: opacity var(--duration-300) var(--ease-out);
   z-index: 10;
@@ -1486,8 +1484,6 @@ defineExpose({ seekToChapter })
 /* Control Buttons - Base Styles */
 .control-button {
   background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: var(--radius-full);
   color: white;

@@ -48,12 +48,6 @@ summary,
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-
-  // Smooth theme transition for all color properties
-  transition:
-    background-color 300ms var(--vue-ease-out),
-    color 300ms var(--vue-ease-out),
-    border-color 300ms var(--vue-ease-out);
 }
 
 // Light mode color scheme
@@ -61,12 +55,15 @@ summary,
   color-scheme: light;
 }
 
-// Apply smooth transitions to all elements during theme change
-* {
+// Theme switching: only the body crossfades. A previous `* { transition }`
+// rule animated three color properties on EVERY element simultaneously,
+// which made the light/dark toggle stutter (thousands of paints + all
+// backdrop-filter surfaces recomputing for 300ms) and slowed hover states
+// app-wide. Individual components own their interaction transitions.
+body {
   transition:
-    background-color 300ms var(--vue-ease-out),
-    color 300ms var(--vue-ease-out),
-    border-color 300ms var(--vue-ease-out);
+    background-color 250ms var(--vue-ease-out),
+    color 250ms var(--vue-ease-out);
 }
 
 /* Core fixes mit besserer Mobiloptimierung */
@@ -101,21 +98,9 @@ body {
   overflow-x: hidden; // Prevent horizontal scroll
 }
 
-// Ensure all view containers fill available width
-.page-view,
-.content-view,
-.home-view,
-.videos-view,
-.streamers-view,
-.settings-view,
-.add-streamer-view,
-.streamer-detail-view,
-.subscriptions-view,
-.admin-view {
-  width: 100% !important;
-  max-width: 100% !important;
-  min-width: 0 !important;
-}
+// View containers get width/max-width/min-width from .page-view in _layout.scss.
+// (A previous !important blanket rule here prevented any view-level width
+// management, e.g. the ultra-wide content cap.)
 
 // Bessere Fokus-Stile
 :focus {

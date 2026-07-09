@@ -1,32 +1,5 @@
 <template>
   <div class="page-view home-view">
-    <section class="dashboard-hero" aria-labelledby="dashboard-title">
-      <div class="hero-copy">
-        <StatusBadge
-          :tone="connectionBadgeTone"
-          size="sm"
-          dot
-          :pulse="realtime.connectionStatus === 'connected'"
-        >
-          {{ connectionLabel }}
-        </StatusBadge>
-        <h1 id="dashboard-title">Dashboard</h1>
-        <p>
-          Monitor live streams, active recordings, queue health and the latest media from one operational view.
-        </p>
-      </div>
-
-      <div class="hero-actions">
-        <router-link to="/add-streamer" class="hero-action hero-action-primary">
-          <svg aria-hidden="true"><use href="#icon-users" /></svg>
-          Add Streamer
-        </router-link>
-        <router-link to="/videos" class="hero-action">
-          <svg aria-hidden="true"><use href="#icon-film" /></svg>
-          Open Library
-        </router-link>
-      </div>
-    </section>
 
     <section class="dashboard-brief" aria-labelledby="dashboard-brief-title">
       <div class="brief-header">
@@ -34,22 +7,19 @@
           <p class="section-eyebrow">At a glance</p>
           <h2 id="dashboard-brief-title">{{ dashboardStateHeadline }}</h2>
           <p>{{ dashboardStateDescription }}</p>
-          <p class="brief-status-line">{{ dashboardStatusLine }}</p>
-        </div>
-        <div class="brief-actions">
-          <button type="button" class="brief-primary-action" @click="handleDashboardPrimaryAction">
-            <svg aria-hidden="true"><use :href="primaryAction.icon" /></svg>
-            {{ primaryAction.label }}
-          </button>
         </div>
       </div>
       <div class="brief-grid" aria-label="Dashboard status snapshot">
-        <router-link
+        <!-- Tiles with a matching destination (live/recording filters) are
+             links; pure status tiles (queue, errors, activity) are not -
+             they used to all point at the library, which led nowhere useful. -->
+        <component
+          :is="item.route ? 'router-link' : 'div'"
           v-for="item in dashboardBriefItems"
           :key="item.label"
-          :to="item.route"
+          :to="item.route || undefined"
           class="brief-item"
-          :class="`brief-item-${item.tone}`"
+          :class="[`brief-item-${item.tone}`, { 'brief-item-static': !item.route }]"
         >
           <span class="brief-item-icon" aria-hidden="true">
             <svg><use :href="item.icon" /></svg>
@@ -59,10 +29,10 @@
             <strong>{{ item.value }}</strong>
             <span class="brief-item-detail">{{ item.detail }}</span>
           </span>
-          <span class="brief-item-arrow" aria-hidden="true">
+          <span v-if="item.route" class="brief-item-arrow" aria-hidden="true">
             <svg><use href="#icon-chevron-right" /></svg>
           </span>
-        </router-link>
+        </component>
       </div>
     </section>
 
@@ -135,64 +105,9 @@
           </div>
         </BasePanel>
 
-        <BasePanel labelled-by="recordings-section-title" class="dashboard-panel">
-          <template #title>
-            <span id="recordings-section-title">Active Recordings</span>
-          </template>
-          <template #description>
-            Recording sessions reported by the backend and realtime updates.
-          </template>
-          <template #actions>
-            <StatusBadge tone="recording" size="sm" dot :pulse="activeRecordings.length > 0">
-              {{ activeRecordings.length }} recording
-            </StatusBadge>
-          </template>
-
-          <EmptyState
-            v-if="recordingsError"
-            variant="inline"
-            tone="danger"
-            title="Could not load active recordings"
-            :description="recordingsError"
-            retry-label="Retry"
-            @retry="fetchActiveRecordings"
-          />
-
-          <div v-if="isLoadingRecordings" class="recording-list">
-            <LoadingSkeleton
-              v-for="i in 3"
-              :key="`recording-skeleton-${i}`"
-              type="status"
-            />
-          </div>
-
-          <EmptyState
-            v-else-if="activeRecordings.length === 0"
-            variant="compact"
-            title="No Active Recordings"
-            description="Active recordings will appear here as soon as a tracked stream starts recording."
-            icon="video"
-            :show-decoration="false"
-          />
-
-          <div v-else class="recording-list">
-            <article
-              v-for="recording in visibleActiveRecordings"
-              :key="recordingKey(recording)"
-              class="recording-card"
-            >
-              <div class="recording-card-main">
-                <StatusBadge tone="recording" size="sm" dot pulse>Recording</StatusBadge>
-                <h3>{{ recordingTitle(recording) }}</h3>
-                <p>{{ recordingSubtitle(recording) }}</p>
-              </div>
-              <div class="recording-card-actions">
-                <router-link :to="recordingStreamerLink(recording)">Streamer</router-link>
-                <router-link :to="recordingLiveLink(recording)">Live</router-link>
-              </div>
-            </article>
-          </div>
-        </BasePanel>
+        <!-- No separate "Active Recordings" panel: a recording session is
+             visible as the Recording badge on its live card above, in the
+             "Recording" glance tile, and in the header queue monitor. -->
 
         <BasePanel labelled-by="recent-section-title" class="dashboard-panel">
           <template #title>
@@ -269,7 +184,7 @@ import EmptyState from '@/components/EmptyState.vue'
 import StreamerCard from '@/components/cards/StreamerCard.vue'
 import VideoCard from '@/components/cards/VideoCard.vue'
 import BasePanel from '@/components/base/BasePanel.vue'
-import StatusBadge, { type StatusBadgeTone } from '@/components/base/StatusBadge.vue'
+import StatusBadge from '@/components/base/StatusBadge.vue'
 
 interface StreamerSummary {
   id: number
@@ -313,13 +228,8 @@ interface DashboardBriefItem {
   detail: string
   icon: string
   tone: 'live' | 'recording' | 'queue' | 'danger' | 'success' | 'info'
-  route: string
-}
-
-interface DashboardPrimaryAction {
-  label: string
-  icon: string
-  route: string
+  /** Omitted for pure status tiles that have no meaningful destination */
+  route?: string
 }
 
 interface FailureItem {
@@ -360,7 +270,6 @@ const isLoadingRecordings = ref(true)
 const isLoadingQueue = ref(false)
 const streamersError = ref('')
 const videosError = ref('')
-const recordingsError = ref('')
 const queueError = ref('')
 
 const streamers = ref<StreamerSummary[]>([])
@@ -393,8 +302,6 @@ const recentRecordings = computed(() => {
     })
     .slice(0, 6)
 })
-
-const visibleActiveRecordings = computed(() => activeRecordings.value.slice(0, 5))
 
 const recentActivity = computed<CanonicalNotificationEvent[]>(() => {
   return realtime.recentEvents
@@ -454,28 +361,6 @@ const dashboardStateDescription = computed(() => {
   return 'No active failures, recordings or queue work are currently reported.'
 })
 
-const dashboardStatusLine = computed(() => {
-  if (isDashboardLoading.value && totalStreamers.value === 0 && activeRecordings.value.length === 0) return 'Loading live, recording, queue, errors and recent activity'
-  const activity = recentActivity.value.length > 0 ? `${recentActivity.value.length} event${recentActivity.value.length === 1 ? '' : 's'}` : 'quiet'
-  return `Live ${liveStreamers.value.length} | Recording ${activeRecordings.value.length} | Queue ${queueStateLabel.value} | Errors ${failureItems.value.length} | Recent activity ${activity}`
-})
-
-const primaryAction = computed<DashboardPrimaryAction>(() => {
-  if (failureItems.value.length > 0) {
-    return { label: 'Review alerts', icon: '#icon-alert-triangle', route: '/videos' }
-  }
-  if (liveStreamers.value.length > 0) {
-    return { label: 'Open live list', icon: '#icon-radio', route: '/streamers?filter=live' }
-  }
-  if (activeRecordings.value.length > 0) {
-    return { label: 'Follow recording', icon: '#icon-video', route: '/streamers?filter=recording' }
-  }
-  if (queueStats.value.active_tasks + queueStats.value.pending_tasks > 0) {
-    return { label: 'Check queue', icon: '#icon-activity', route: '/videos' }
-  }
-  return { label: 'Open library', icon: '#icon-film', route: '/videos' }
-})
-
 const dashboardBriefItems = computed<DashboardBriefItem[]>(() => [
   {
     label: 'Live',
@@ -498,44 +383,23 @@ const dashboardBriefItems = computed<DashboardBriefItem[]>(() => [
     value: isLoadingQueue.value ? 'Checking' : queueStateLabel.value,
     detail: `${queueStats.value.active_tasks} active, ${queueStats.value.pending_tasks} pending`,
     icon: '#icon-activity',
-    tone: queueStats.value.failed_tasks > 0 ? 'danger' : 'queue',
-    route: '/videos'
+    tone: queueStats.value.failed_tasks > 0 ? 'danger' : 'queue'
   },
   {
     label: 'Errors',
     value: `${failureItems.value.length} alert${failureItems.value.length === 1 ? '' : 's'}`,
     detail: failureItems.value.length > 0 ? 'Needs review' : 'No active alerts',
     icon: failureItems.value.length > 0 ? '#icon-alert-triangle' : '#icon-check-circle',
-    tone: failureItems.value.length > 0 ? 'danger' : 'success',
-    route: '/videos'
+    tone: failureItems.value.length > 0 ? 'danger' : 'success'
   },
   {
     label: 'Recent activity',
     value: recentActivity.value.length > 0 ? `${recentActivity.value.length} event${recentActivity.value.length === 1 ? '' : 's'}` : 'Quiet',
     detail: latestActivitySummary.value,
     icon: '#icon-clock',
-    tone: recentActivity.value.length > 0 ? 'info' : 'success',
-    route: '/videos'
+    tone: recentActivity.value.length > 0 ? 'info' : 'success'
   }
 ])
-
-const connectionLabel = computed(() => {
-  switch (realtime.connectionStatus) {
-    case 'connected':
-      return 'Realtime connected'
-    case 'connecting':
-      return 'Realtime connecting'
-
-    default:
-      return 'Realtime offline'
-  }
-})
-
-const connectionBadgeTone = computed<StatusBadgeTone>(() => {
-  if (realtime.connectionStatus === 'connected') return 'success'
-  if (realtime.connectionStatus === 'connecting') return 'warning'
-  return 'danger'
-})
 
 const queueStateLabel = computed(() => {
   if (queueStats.value.active_tasks > 0) return 'Active'
@@ -576,13 +440,11 @@ async function fetchVideos() {
 
 async function fetchActiveRecordings() {
   isLoadingRecordings.value = true
-  recordingsError.value = ''
   try {
     const response = await recordingApi.getActiveRecordings()
     activeRecordings.value = Array.isArray(response) ? response : response?.active_recordings || []
   } catch (error) {
     console.error('Failed to fetch active recordings:', error)
-    recordingsError.value = 'Could not load active recordings.'
     activeRecordings.value = []
   } finally {
     isLoadingRecordings.value = false
@@ -618,41 +480,10 @@ function playVideo(video: VideoSummary) {
   router.push(`/videos/${video.id}`)
 }
 
-function handleDashboardPrimaryAction() {
-  router.push(primaryAction.value.route)
-}
-
 async function handleForceRecord(streamer: { id: number }) {
   await forceStartRecording(streamer.id, async () => {
     await Promise.all([fetchStreamers(), fetchActiveRecordings()])
   })
-}
-
-function recordingKey(recording: ActiveRecording) {
-  return String(recording.id ?? recording.recording_id ?? recording.streamer_id ?? recording.streamer_name ?? recording.title)
-}
-
-function recordingTitle(recording: ActiveRecording) {
-  return recording.title || recording.stream_title || `${recording.streamer_name || recording.username || 'Unknown streamer'} recording`
-}
-
-function recordingSubtitle(recording: ActiveRecording) {
-  const name = recording.streamer_name || recording.username || 'Unknown streamer'
-  const started = recording.started_at || recording.created_at
-  if (!started) return name
-
-  const date = new Date(started)
-  if (Number.isNaN(date.getTime())) return name
-  return `${name} started ${date.toLocaleString()}`
-}
-
-function recordingStreamerLink(recording: ActiveRecording) {
-  return recording.streamer_id ? `/streamers/${recording.streamer_id}` : '/streamers'
-}
-
-function recordingLiveLink(recording: ActiveRecording) {
-  const target = recording.streamer_name || recording.username || recording.streamer_id
-  return target ? `/live/${target}` : '/streamers'
 }
 
 onMounted(() => {
@@ -831,82 +662,6 @@ onMounted(async () => {
   gap: var(--spacing-6);
 }
 
-.dashboard-hero {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
-  gap: var(--spacing-6);
-  padding: var(--spacing-8);
-  border: 1px solid var(--glass-border, var(--border-color));
-  border-radius: var(--radius-2xl);
-  background:
-    radial-gradient(circle at top left, rgba(var(--primary-color-rgb), 0.24), transparent 34rem),
-    var(--glass-bg-medium, var(--background-card));
-  box-shadow: var(--glass-shadow-md, 0 12px 40px rgba(0, 0, 0, 0.24));
-  overflow: hidden;
-}
-
-.hero-copy {
-  max-width: 720px;
-
-  h1 {
-    margin: var(--spacing-3) 0 var(--spacing-2);
-    color: var(--text-primary);
-    font-size: clamp(2rem, 5vw, 4rem);
-    line-height: 1;
-    font-weight: v.$font-bold;
-  }
-
-  p {
-    margin: 0;
-    color: var(--text-secondary);
-    font-size: var(--text-lg);
-    line-height: v.$leading-relaxed;
-  }
-}
-
-.hero-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--spacing-3);
-  justify-content: flex-end;
-}
-
-.hero-action {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--spacing-2);
-  min-height: 44px;
-  padding: var(--spacing-3) var(--spacing-4);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-full);
-  color: var(--text-primary);
-  background: rgba(var(--background-darker-rgb, 10, 10, 10), 0.36);
-  text-decoration: none;
-  font-weight: v.$font-semibold;
-  transition: all v.$duration-200 v.$ease-out;
-
-  svg {
-    width: 18px;
-    height: 18px;
-    stroke: currentColor;
-    fill: none;
-  }
-
-  &:hover {
-    transform: translateY(-1px);
-    border-color: var(--primary-color);
-    color: var(--primary-color);
-  }
-}
-
-.hero-action-primary {
-  border-color: rgba(var(--primary-color-rgb), 0.38);
-  background: rgba(var(--primary-color-rgb), 0.18);
-  color: var(--primary-color);
-}
-
 .dashboard-brief {
   display: flex;
   flex-direction: column;
@@ -941,17 +696,6 @@ onMounted(async () => {
   }
 }
 
-.brief-status-line {
-  margin-top: var(--spacing-3) !important;
-  padding: var(--spacing-3);
-  border: 1px solid rgba(var(--primary-color-rgb), 0.24);
-  border-radius: var(--radius-lg);
-  background: rgba(var(--primary-color-rgb), 0.1);
-  color: var(--text-primary) !important;
-  font-size: var(--text-sm);
-  font-weight: v.$font-semibold;
-}
-
 .section-eyebrow,
 .brief-item-label {
   color: var(--text-secondary);
@@ -959,34 +703,6 @@ onMounted(async () => {
   font-weight: v.$font-semibold;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-}
-
-.brief-actions {
-  display: flex;
-  flex: 0 0 auto;
-}
-
-.brief-primary-action {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--spacing-2);
-  min-height: 44px;
-  flex: 0 0 auto;
-  padding: var(--spacing-3) var(--spacing-4);
-  border: 1px solid rgba(var(--primary-color-rgb), 0.42);
-  border-radius: var(--radius-full);
-  background: rgba(var(--primary-color-rgb), 0.18);
-  color: var(--primary-color);
-  font-weight: v.$font-semibold;
-  cursor: pointer;
-
-  svg {
-    width: 18px;
-    height: 18px;
-    stroke: currentColor;
-    fill: none;
-  }
 }
 
 .brief-grid {
@@ -1012,6 +728,9 @@ onMounted(async () => {
   .brief-item-detail {
     display: block;
     min-width: 0;
+  }
+
+  .brief-item-detail {
     overflow-wrap: anywhere;
   }
 
@@ -1031,6 +750,17 @@ onMounted(async () => {
   &:focus-visible {
     outline: 2px solid var(--primary-color);
     outline-offset: 2px;
+  }
+
+  // Pure status tiles: no pointer affordance, no hover lift
+  &.brief-item-static {
+    cursor: default;
+
+    &:hover {
+      border-color: var(--border-color);
+      transform: none;
+      box-shadow: none;
+    }
   }
 }
 
@@ -1144,69 +874,6 @@ onMounted(async () => {
   }
 }
 
-.recording-list,
-.activity-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-3);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.recording-card,
-.activity-item {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--spacing-4);
-  padding: var(--spacing-4);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-lg);
-  background: rgba(var(--background-darker-rgb, 10, 10, 10), 0.28);
-}
-
-.recording-card-main,
-.activity-item > div {
-  min-width: 0;
-
-  h3,
-  strong {
-    display: block;
-    margin: var(--spacing-2) 0 var(--spacing-1);
-    color: var(--text-primary);
-    font-size: var(--text-base);
-    font-weight: v.$font-semibold;
-  }
-
-  p {
-    margin: 0;
-    color: var(--text-secondary);
-    font-size: var(--text-sm);
-    line-height: v.$leading-relaxed;
-  }
-}
-
-.recording-card-actions {
-  display: inline-flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: var(--spacing-2);
-
-  a {
-    min-height: 36px;
-    display: inline-flex;
-    align-items: center;
-    padding: 0 var(--spacing-3);
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-full);
-    color: var(--text-primary);
-    text-decoration: none;
-    font-size: var(--text-sm);
-    font-weight: v.$font-semibold;
-  }
-}
-
 .view-all-link,
 .panel-text-button {
   display: inline-flex;
@@ -1238,32 +905,12 @@ onMounted(async () => {
 }
 
 @include m.respond-below('md') {
-  .dashboard-hero {
-    align-items: flex-start;
-    flex-direction: column;
-    padding: var(--spacing-5);
-  }
-
-  .hero-actions {
-    justify-content: flex-start;
-    width: 100%;
-  }
-
-  .hero-action {
-    flex: 1 1 180px;
-  }
-
   .dashboard-brief {
-    order: -1;
     padding: var(--spacing-4);
   }
 
   .brief-header {
     flex-direction: column;
-  }
-
-  .brief-primary-action {
-    width: 100%;
   }
 
   .brief-grid {
@@ -1277,16 +924,6 @@ onMounted(async () => {
   .brief-item:last-child {
     grid-column: 1 / -1;
   }
-
-  .recording-card,
-  .activity-item {
-    flex-direction: column;
-  }
-
-  .recording-card-actions {
-    width: 100%;
-    justify-content: flex-start;
-  }
 }
 
 @include m.respond-below('sm') {
@@ -1294,8 +931,10 @@ onMounted(async () => {
     gap: var(--spacing-4);
   }
 
-  .hero-copy p {
-    font-size: var(--text-base);
+  // Two columns get too narrow below 640px and force mid-word breaks in the
+  // stat values - stack the snapshot tiles as full-width rows instead.
+  .brief-grid {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 

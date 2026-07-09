@@ -1,6 +1,6 @@
 <template>
   <div class="pwa-panel">
-    <div class="pwa-section settings-section">
+    <div class="pwa-section settings-section settings-group">
       <h4>Progressive Web App</h4>
 
       <div class="pwa-flow-card">
@@ -83,7 +83,7 @@
       </div>
     </div>
 
-    <div class="pwa-section settings-section">
+    <div class="pwa-section settings-section settings-group">
       <h4>Push Notifications</h4>
 
       <div class="pwa-flow-card pwa-flow-card--permission">
@@ -248,7 +248,7 @@
       </div>
     </div>
 
-    <div class="pwa-section settings-section">
+    <div class="pwa-section settings-section settings-group">
       <h4>App Features</h4>
 
       <div class="setting-item settings-item">

@@ -27,33 +27,8 @@
       </template>
     </PageHeader>
 
-    <section class="streamers-brief" aria-labelledby="streamers-brief-title">
-      <div>
-        <p class="eyebrow">Creator grid</p>
-        <h2 id="streamers-brief-title">Scan every creator by current action</h2>
-        <p class="brief-copy">
-          Search, filter, and sort without leaving the grid. Live and recording states stay visible on every card.
-        </p>
-      </div>
-      <dl class="brief-stats" aria-label="Streamer status summary">
-        <div class="brief-stat live">
-          <dt>Live</dt>
-          <dd>{{ liveStreamers.length }}</dd>
-        </div>
-        <div class="brief-stat recording">
-          <dt>Recording</dt>
-          <dd>{{ recordingStreamers.length }}</dd>
-        </div>
-        <div class="brief-stat offline">
-          <dt>Offline</dt>
-          <dd>{{ offlineStreamersCount }}</dd>
-        </div>
-        <div class="brief-stat total">
-          <dt>Total</dt>
-          <dd>{{ streamers.length }}</dd>
-        </div>
-      </dl>
-    </section>
+    <!-- Status counts live in the filter tabs below, where they are clickable;
+         a separate stat-tile row duplicated the same numbers. -->
 
     <!-- Controls Bar -->
     <div class="controls-bar" aria-label="Search, filter, and sort streamers">
@@ -134,6 +109,7 @@
           <use href="#icon-list-ordered" />
         </svg>
         <span class="sort-label">Sort</span>
+        <span class="sort-value">{{ currentSortLabel }}</span>
         <select
           v-model="sortBy"
           class="sort-control"
@@ -224,6 +200,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { appStorage } from '@/services/storage'
 import { useRoute } from 'vue-router'
 import { streamersApi } from '@/services/api'
 import { useRealtimeStore } from '@/stores/realtime'
@@ -247,7 +224,9 @@ const isLoading = ref(true)
 const isRefreshing = ref(false)
 const streamers = ref<any[]>([])
 const searchQuery = ref('')
-const viewMode = ref<'grid' | 'list'>('grid')
+// Grid/list choice survives reloads
+const viewMode = ref<'grid' | 'list'>(appStorage.getViewMode('streamers') ?? 'grid')
+watch(viewMode, (mode) => appStorage.setViewMode('streamers', mode))
 const sortBy = ref('live-first')
 const activeFilter = ref('all')
 const autoRefresh = ref(true)
@@ -274,6 +253,10 @@ const sortOptions = [
   { label: 'Recently added', value: 'recently-added' },
   { label: 'Most videos', value: 'most-videos' },
 ]
+
+const currentSortLabel = computed(() =>
+  sortOptions.find((option) => option.value === sortBy.value)?.label ?? 'Live first'
+)
 
 // Filter tabs with counts
 const filterTabs = computed(() => [
@@ -311,10 +294,6 @@ const liveStreamers = computed(() => {
 // Recording streamers
 const recordingStreamers = computed(() => {
   return streamers.value.filter(s => s.is_recording)
-})
-
-const offlineStreamersCount = computed(() => {
-  return streamers.value.filter(s => !s.is_live).length
 })
 
 // Filtered and sorted streamers
@@ -613,93 +592,6 @@ onUnmounted(() => {
   // Page-specific overrides only
 }
 
-.streamers-brief {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: var(--spacing-5);
-  align-items: stretch;
-  margin-bottom: var(--spacing-5);
-  padding: var(--spacing-5);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-xl);
-  background: linear-gradient(135deg, rgba(var(--primary-500-rgb), 0.14), rgba(var(--info-500-rgb), 0.08)), var(--background-card);
-  box-shadow: var(--shadow-sm);
-}
-
-.eyebrow {
-  margin: 0 0 var(--spacing-2);
-  color: var(--primary-color);
-  font-size: var(--text-xs);
-  font-weight: v.$font-bold;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.streamers-brief h2 {
-  margin: 0;
-  color: var(--text-primary);
-  font-size: clamp(var(--text-xl), 2.4vw, var(--text-3xl));
-  line-height: v.$leading-tight;
-}
-
-.brief-copy {
-  max-width: 680px;
-  margin: var(--spacing-2) 0 0;
-  color: var(--text-secondary);
-  font-size: var(--text-sm);
-  line-height: v.$leading-relaxed;
-}
-
-.brief-stats {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(72px, 1fr));
-  gap: var(--spacing-2);
-  margin: 0;
-  align-items: stretch;
-}
-
-.brief-stat {
-  display: flex;
-  min-height: 92px;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  min-width: 72px;
-  padding: var(--spacing-3);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-lg);
-  background: var(--background-card);
-  text-align: center;
-
-  dt {
-    color: var(--text-secondary);
-    font-size: var(--text-xs);
-    font-weight: v.$font-semibold;
-    line-height: 1.2;
-  }
-
-  dd {
-    margin: var(--spacing-1) 0 0;
-    color: var(--text-primary);
-    font-size: var(--text-2xl);
-    font-weight: v.$font-bold;
-    line-height: 1;
-  }
-
-  &.live dd,
-  &.recording dd {
-    color: var(--danger-text-color);
-  }
-
-  &.offline dd {
-    color: var(--text-secondary);
-  }
-
-  &.total dd {
-    color: var(--primary-color);
-  }
-}
-
 .auto-refresh-indicator {
   display: inline-flex;
   align-items: center;
@@ -830,7 +722,8 @@ $ctrl-h: 40px;
 
   .search-input {
     width: 100%;
-    min-height: $ctrl-h;
+    // Match the 48px filter/sort groups (40px controls in 3px padding + border)
+    min-height: calc(#{$ctrl-h} + 8px);
     padding: 0 var(--spacing-10);
     background: var(--background-card);
     border: 1px solid var(--border-color);
@@ -902,7 +795,9 @@ $ctrl-h: 40px;
   padding: 0 var(--spacing-3);
   background: transparent;
   border: none;
-  border-radius: var(--radius-md);
+  // Nested radius = container radius minus its 3px padding, so the active
+  // pill follows the container corner instead of looking rounder than it
+  border-radius: calc(var(--radius-lg) - 3px);
   color: var(--text-secondary);
   font-size: var(--text-sm);
   font-weight: v.$font-medium;
@@ -955,7 +850,7 @@ $ctrl-h: 40px;
   background: transparent;
   border: none;
   cursor: pointer;
-  border-radius: var(--radius-md);
+  border-radius: calc(var(--radius-lg) - 3px);
   transition: all v.$duration-200 v.$ease-out;
 
   .icon {
@@ -983,7 +878,11 @@ $ctrl-h: 40px;
   display: inline-flex;
   align-items: center;
   gap: var(--spacing-2);
-  min-height: $ctrl-h;
+  // Neutralize the global `label { margin-bottom }` form style
+  margin: 0;
+  // Match the visual height of .filter-tabs / .view-toggle, whose 40px
+  // buttons sit inside 3px padding + 1px border.
+  min-height: calc(#{$ctrl-h} + 8px);
   min-width: 180px;
   padding: 0 var(--spacing-8) 0 var(--spacing-3);
   border: 1px solid var(--border-color);
@@ -1021,22 +920,31 @@ $ctrl-h: 40px;
   white-space: nowrap;
 }
 
+.sort-value {
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  font-weight: v.$font-medium;
+  white-space: nowrap;
+}
+
+// The real select covers the whole control invisibly so a click anywhere
+// (icon, label, or value) opens the native picker; .sort-value renders the
+// selection.
 .sort-control {
-  min-width: 0;
-  min-height: $ctrl-h;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
   margin: 0;
   padding: 0;
   appearance: none;
   -webkit-appearance: none;
   -moz-appearance: none;
   background: transparent;
-  background-color: transparent;
-  background-image: none;
   border: 0;
   box-shadow: none;
-  color: var(--text-primary);
-  font-size: var(--text-sm);
-  font-weight: v.$font-medium;
+  opacity: 0;
   cursor: pointer;
 }
 
@@ -1111,9 +1019,14 @@ $ctrl-h: 40px;
 
 // Streamers Container
 .streamers-container {
-  // Grid mode uses global .grid-streamers class
-  &.view-grid {
-    align-items: start;  // Prevent cards from stretching
+  // Grid mode uses global .grid-streamers class; rows stretch (grid default)
+  // so all cards in a row share the same height.
+  &.view-grid .streamer-wrapper {
+    display: flex;
+
+    > :deep(*) {
+      width: 100%;
+    }
   }
 
   &.view-list {
@@ -1139,20 +1052,46 @@ $ctrl-h: 40px;
 }
 
 @include m.respond-below('lg') {  // < 1024px
-  .streamers-brief {
-    grid-template-columns: 1fr;
-  }
-
-  .brief-stats {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-
   .controls-bar {
     grid-template-columns: minmax(0, 1fr) auto minmax(204px, auto);
   }
 
   .filter-tabs {
     min-width: 0;
+  }
+}
+
+@include m.respond-below('md') {  // < 768px: stack controls at equal width
+  .controls-bar {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .filter-tabs {
+    width: 100%;
+    overflow-x: auto;
+
+    .filter-tab {
+      flex: 1;
+      justify-content: center;
+      white-space: nowrap;
+    }
+  }
+
+  .view-toggle {
+    width: 100%;
+
+    .toggle-btn {
+      flex: 1;
+      width: auto;
+    }
+  }
+
+  .sort-control-wrap {
+    width: 100%;
+  }
+
+  .results-info {
+    justify-content: flex-start;
   }
 }
 
@@ -1181,19 +1120,6 @@ $ctrl-h: 40px;
         min-width: 0;
       }
     }
-  }
-
-  .streamers-brief {
-    padding: var(--spacing-4);
-    margin-bottom: var(--spacing-4);
-  }
-
-  .brief-stats {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .brief-stat {
-    min-width: 0;
   }
 
   .btn-action {
