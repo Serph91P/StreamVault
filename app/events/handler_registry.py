@@ -7,6 +7,7 @@ from cachetools import TTLCache
 
 from app.database import SessionLocal
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import Session
 from app.services.communication.websocket_manager import ConnectionManager
 from app.services.notification_service import NotificationService
 from app.services.recording.recording_service import RecordingService
@@ -501,6 +502,34 @@ class EventHandlerRegistry:
         except Exception as e:
             logger.error(f"Error handling stream offline event: {e}", exc_info=True)
 
+    def _resolve_event_target_stream(
+        self, db: Session, streamer_id: int
+    ) -> Optional[Stream]:
+        """Resolve which stream a channel.update event belongs to.
+
+        Prefer the stream that is actively being recorded — its StreamEvents
+        become the chapter markers of the finished MP4. Fall back to the most
+        recent still-open stream when no recording is active.
+        """
+        stream = (
+            db.query(Stream)
+            .join(Recording, Recording.stream_id == Stream.id)
+            .filter(Stream.streamer_id == streamer_id)
+            .filter(Recording.status == "recording")
+            .order_by(Stream.started_at.desc())
+            .first()
+        )
+        if stream:
+            return stream
+
+        return (
+            db.query(Stream)
+            .filter(Stream.streamer_id == streamer_id)
+            .filter(Stream.ended_at.is_(None))
+            .order_by(Stream.started_at.desc())
+            .first()
+        )
+
     async def handle_stream_update(self, data: dict):
         try:
             logger.debug(f"Processing stream update event: {data}")
@@ -511,51 +540,50 @@ class EventHandlerRegistry:
                     .first()
                 )
 
-                if streamer:
-                    logger.debug(
-                        f"Found streamer: {streamer.username} (ID: {streamer.id})"
+                if not streamer:
+                    logger.warning(
+                        f"channel.update for unknown broadcaster {data.get('broadcaster_user_id')}; ignoring"
                     )
-                    # Resolve category name: prefer payload, else use category_id lookup
-                    incoming_category_name = data.get("category_name")
-                    category_id = data.get("category_id")
-                    effective_category_name = incoming_category_name
-                    if not effective_category_name and category_id:
-                        try:
-                            from app.services.streamer_service import StreamerService
+                    return
 
-                            streamer_service = StreamerService(
-                                db=db,
-                                websocket_manager=self.manager,
-                                event_registry=self,
-                            )
-                            game_data = await streamer_service.get_game_data(
-                                category_id
-                            )
-                            if game_data and game_data.get("name"):
-                                effective_category_name = game_data.get("name")
-                                logger.debug(
-                                    f"Resolved category name via category_id {category_id}: {effective_category_name}"
-                                )
-                        except Exception as e:
+                logger.debug(
+                    f"Found streamer: {streamer.username} (ID: {streamer.id})"
+                )
+                # Resolve category name: prefer payload, else use category_id lookup
+                incoming_category_name = data.get("category_name")
+                category_id = data.get("category_id")
+                effective_category_name = incoming_category_name
+                if not effective_category_name and category_id:
+                    try:
+                        from app.services.streamer_service import StreamerService
+
+                        streamer_service = StreamerService(
+                            db=db,
+                            websocket_manager=self.manager,
+                            event_registry=self,
+                        )
+                        game_data = await streamer_service.get_game_data(
+                            category_id
+                        )
+                        if game_data and game_data.get("name"):
+                            effective_category_name = game_data.get("name")
                             logger.debug(
-                                f"Failed to resolve category name for id {category_id}: {e}"
+                                f"Resolved category name via category_id {category_id}: {effective_category_name}"
                             )
+                    except Exception as e:
+                        logger.debug(
+                            f"Failed to resolve category name for id {category_id}: {e}"
+                        )
 
-                    streamer.title = data.get("title")
-                    streamer.category_name = effective_category_name
-                    streamer.language = data.get("language")
-                    streamer.last_updated = datetime.now(timezone.utc)
+                streamer.title = data.get("title")
+                streamer.category_name = effective_category_name
+                streamer.language = data.get("language")
+                streamer.last_updated = datetime.now(timezone.utc)
 
-                    db.commit()
-                    logger.debug(f"Updated streamer info in database: {streamer.title}")
+                db.commit()
+                logger.debug(f"Updated streamer info in database: {streamer.title}")
 
-                    stream = (
-                        db.query(Stream)
-                        .filter(Stream.streamer_id == streamer.id)
-                        .filter(Stream.ended_at.is_(None))
-                        .order_by(Stream.started_at.desc())
-                        .first()
-                    )
+                stream = self._resolve_event_target_stream(db, streamer.id)
 
                 if stream:
                     # Also update the active stream with the latest title/category/language

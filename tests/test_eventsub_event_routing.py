@@ -204,3 +204,79 @@ class TestHandleStreamOnline:
         asyncio.run(registry.handle_stream_online(self._online_payload()))
 
         registry.recording_service.start_recording.assert_not_awaited()
+
+
+class TestHandleStreamUpdate:
+    def _update_payload(self, broadcaster_id="111"):
+        return {
+            "broadcaster_user_id": broadcaster_id,
+            "broadcaster_user_login": "streamer_a",
+            "title": "New Title",
+            "category_name": "New Game",
+            "language": "de",
+        }
+
+    def test_event_attaches_to_actively_recorded_stream(self, db):
+        """Two open streams; the OLDER one has the active recording.
+
+        The chapter marker must go to the recorded stream, not the newest."""
+        streamer = _make_streamer(db)
+        recorded = Stream(
+            streamer_id=streamer.id,
+            started_at=datetime(2026, 7, 9, 10, 0, tzinfo=timezone.utc),
+            twitch_stream_id="8000",
+        )
+        orphan = Stream(
+            streamer_id=streamer.id,
+            started_at=datetime(2026, 7, 9, 11, 0, tzinfo=timezone.utc),
+            twitch_stream_id="9001",
+        )
+        db.add_all([recorded, orphan])
+        db.commit()
+        db.add(
+            Recording(
+                stream_id=recorded.id,
+                status="recording",
+                start_time=datetime(2026, 7, 9, 10, 0, tzinfo=timezone.utc),
+            )
+        )
+        db.commit()
+
+        registry = _make_registry()
+        asyncio.run(registry.handle_stream_update(self._update_payload()))
+
+        events = db.query(StreamEvent).filter(
+            StreamEvent.event_type == "channel.update"
+        ).all()
+        assert len(events) == 1
+        assert events[0].stream_id == recorded.id
+
+    def test_fallback_to_latest_open_stream_without_recording(self, db):
+        streamer = _make_streamer(db)
+        older = Stream(
+            streamer_id=streamer.id,
+            started_at=datetime(2026, 7, 9, 10, 0, tzinfo=timezone.utc),
+            twitch_stream_id="8000",
+        )
+        newer = Stream(
+            streamer_id=streamer.id,
+            started_at=datetime(2026, 7, 9, 11, 0, tzinfo=timezone.utc),
+            twitch_stream_id="9001",
+        )
+        db.add_all([older, newer])
+        db.commit()
+
+        registry = _make_registry()
+        asyncio.run(registry.handle_stream_update(self._update_payload()))
+
+        events = db.query(StreamEvent).filter(
+            StreamEvent.event_type == "channel.update"
+        ).all()
+        assert len(events) == 1
+        assert events[0].stream_id == newer.id
+
+    def test_unknown_broadcaster_is_ignored_without_error(self, db):
+        registry = _make_registry()
+        # Must not raise (previously: UnboundLocalError on `stream`)
+        asyncio.run(registry.handle_stream_update(self._update_payload("999")))
+        assert db.query(StreamEvent).count() == 0
