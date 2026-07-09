@@ -3,10 +3,9 @@
     variant="subtle"
     hoverable
     class="stream-card"
-    :class="{ 
-      'is-expanded': isExpanded, 
-      'actions-open': showActions,
-      'is-recording': isRecording 
+    :class="{
+      'is-expanded': isExpanded,
+      'is-recording': isRecording
     }"
   >
     <div class="stream-card-content">
@@ -26,13 +25,25 @@
         </div>
 
         <!-- Recording Status Badge (Pulsing if recording) -->
-        <div v-if="isRecording" class="recording-badge">
-          <span class="recording-indicator"></span>
-          <span class="recording-text">RECORDING</span>
-        </div>
+        <StatusBadge
+          v-if="isRecording"
+          class="stream-recording-badge"
+          tone="recording"
+          size="sm"
+          dot
+          pulse
+          aria-label="Stream status: recording"
+        >
+          RECORDING
+        </StatusBadge>
 
         <!-- Expand Icon -->
-        <button class="expand-btn" :class="{ rotated: isExpanded }" @click.stop="toggleExpand">
+        <button
+          class="expand-btn"
+          :class="{ rotated: isExpanded }"
+          :aria-label="isExpanded ? 'Collapse stream details' : 'Expand stream details'"
+          @click.stop="toggleExpand"
+        >
           <svg class="icon">
             <use href="#icon-chevron-down" />
           </svg>
@@ -127,63 +138,36 @@
             </svg>
             Watch Recording
           </button>
-        </div>
-      </transition>
 
-      <!-- Context Menu (Top Right) -->
-      <div class="stream-actions">
-        <button
-          ref="moreButtonRef"
-          @click.stop="toggleActions"
-          class="btn-action btn-more"
-          :class="{ active: showActions }"
-        >
-          <svg class="icon">
-            <use href="#icon-more-vertical" />
-          </svg>
-        </button>
-
-        <Teleport to="body">
-          <div
-            v-if="showActions"
-            class="actions-dropdown"
-            :style="dropdownStyle"
-            @click.stop
-          >
-            <button v-if="isRecording || isLive" @click="handleWatchLive" class="action-item">
+          <div class="expanded-actions" aria-label="Stream actions">
+            <button v-if="isRecording || isLive" @click.stop="handleWatchLive" class="action-item">
               <svg class="icon">
                 <use href="#icon-external-link" />
               </svg>
               Watch Live
             </button>
-            <button v-if="!isRecording && isLive" @click="handleForceRecord" class="action-item">
+            <button v-if="!isRecording && isLive" @click.stop="handleForceRecord" class="action-item">
               <svg class="icon">
                 <use href="#icon-video" />
               </svg>
               Force Record
             </button>
-            <button v-if="hasRecording" @click="handleWatch" class="action-item">
-              <svg class="icon">
-                <use href="#icon-play" />
-              </svg>
-              Watch Recording
-            </button>
-            <button @click="handleDelete" class="action-item action-danger">
+            <button @click.stop="handleDelete" class="action-item action-danger">
               <svg class="icon">
                 <use href="#icon-trash" />
               </svg>
               Delete Stream
             </button>
           </div>
-        </Teleport>
-      </div>
+        </div>
+      </transition>
     </div>
   </GlassCard>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, computed } from 'vue'
+import StatusBadge from '@/components/base/StatusBadge.vue'
 import GlassCard from './GlassCard.vue'
 
 interface StreamEvent {
@@ -223,10 +207,7 @@ const emit = defineEmits<{
   delete: [stream: Stream]
 }>()
 
-const _router = useRouter()
 const isExpanded = ref(false)
-const showActions = ref(false)
-const moreButtonRef = ref<HTMLButtonElement | null>(null)
 
 const isRecording = computed(() => props.stream.is_recording || false)
 const isLive = computed(() => props.stream.is_live || false)
@@ -236,51 +217,26 @@ const hasRecording = computed(() => !!props.stream.recording_path)
 const categoryEvents = computed(() => {
   if (!props.stream.events) return []
   // Backend sends 'channel.update' for category changes
-  return props.stream.events.filter(e => 
+  return props.stream.events.filter(e =>
     e.event_type === 'channel.update' || e.event_type === 'category_change'
   )
-})
-
-// Dropdown positioning
-const dropdownStyle = computed(() => {
-  if (!moreButtonRef.value) {
-    return {
-      position: 'fixed' as const,
-      top: '50%',
-      left: '50%',
-      transform: 'translate(-50%, -50%)',
-      zIndex: 10000
-    }
-  }
-
-  const rect = moreButtonRef.value.getBoundingClientRect()
-  return {
-    position: 'fixed' as const,
-    top: `${rect.bottom + 8}px`,
-    left: `${rect.left - 140}px`,
-    zIndex: 10000
-  }
 })
 
 function toggleExpand() {
   isExpanded.value = !isExpanded.value
 }
 
-function toggleActions() {
-  showActions.value = !showActions.value
-}
-
 function formatDuration(start?: string, end?: string) {
-  if (!start) return '—'
-  
+  if (!start) return '-'
+
   const startDate = new Date(start)
   const endDate = end ? new Date(end) : new Date()
-  
+
   const diffMs = endDate.getTime() - startDate.getTime()
   const diffMins = Math.floor(diffMs / 60000)
   const hours = Math.floor(diffMins / 60)
   const mins = diffMins % 60
-  
+
   if (hours > 0) {
     return `${hours}h ${mins}m`
   }
@@ -288,8 +244,8 @@ function formatDuration(start?: string, end?: string) {
 }
 
 function formatDate(dateStr?: string) {
-  if (!dateStr) return '—'
-  
+  if (!dateStr) return '-'
+
   const date = new Date(dateStr)
   return date.toLocaleString('de-DE', {
     day: '2-digit',
@@ -302,10 +258,10 @@ function formatDate(dateStr?: string) {
 
 function formatEventDuration(event: StreamEvent, index: number) {
   if (!event.timestamp) return ''
-  
+
   const eventDate = new Date(event.timestamp)
   const nextEvent = categoryEvents.value[index + 1]
-  
+
   let endDate: Date
   if (nextEvent && nextEvent.timestamp) {
     endDate = new Date(nextEvent.timestamp)
@@ -314,12 +270,12 @@ function formatEventDuration(event: StreamEvent, index: number) {
   } else {
     endDate = new Date()
   }
-  
+
   const diffMs = endDate.getTime() - eventDate.getTime()
   const diffMins = Math.floor(diffMs / 60000)
   const hours = Math.floor(diffMins / 60)
   const mins = diffMins % 60
-  
+
   if (hours > 0) {
     return `${hours}h ${mins}m`
   }
@@ -327,49 +283,20 @@ function formatEventDuration(event: StreamEvent, index: number) {
 }
 
 function handleWatchLive() {
-  showActions.value = false
   emit('watch-live', props.stream)
 }
 
 function handleForceRecord() {
-  showActions.value = false
   emit('force-record', props.stream)
 }
 
 function handleWatch() {
-  showActions.value = false
   emit('watch', props.stream)
 }
 
 function handleDelete() {
-  showActions.value = false
   emit('delete', props.stream)
 }
-
-// Close dropdown when clicking outside
-const handleClickOutside = (event: MouseEvent) => {
-  if (!showActions.value) return
-
-  const dropdown = document.querySelector('.actions-dropdown')
-  const target = event.target as Node
-
-  if (
-    moreButtonRef.value &&
-    !moreButtonRef.value.contains(target) &&
-    dropdown &&
-    !dropdown.contains(target)
-  ) {
-    showActions.value = false
-  }
-}
-
-onMounted(() => {
-  document.addEventListener('click', handleClickOutside)
-})
-
-onUnmounted(() => {
-  document.removeEventListener('click', handleClickOutside)
-})
 </script>
 
 <style scoped lang="scss">
@@ -382,10 +309,16 @@ onUnmounted(() => {
     overflow: hidden;
   }
 
-  &.is-recording {
-    :deep(.glass-card-content) {
-      animation: pulse-recording 2s ease-in-out infinite;
-    }
+  // Pulsing ring on a pseudo-element animating only opacity/transform
+  // (compositor-friendly) instead of a per-frame box-shadow repaint.
+  &.is-recording::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border: 2px solid rgba(239, 68, 68, 0.7);
+    border-radius: var(--radius-xl);
+    pointer-events: none;
+    animation: pulse-recording 2s ease-in-out infinite;
   }
 
   &.actions-open {
@@ -403,7 +336,8 @@ onUnmounted(() => {
 /* Compact View */
 .stream-compact {
   padding: var(--spacing-4);
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
   align-items: center;
   gap: var(--spacing-3);
   cursor: pointer;
@@ -426,15 +360,19 @@ onUnmounted(() => {
 }
 
 .category-badge {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: var(--spacing-1);
+  max-width: 220px;
   padding: var(--spacing-1) var(--spacing-2);
   background: rgba(var(--primary-500-rgb), 0.1);
+  border: 1px solid rgba(var(--primary-500-rgb), 0.22);
   border-radius: var(--radius-sm);
   font-size: var(--text-sm);
   color: var(--primary-color);
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 
   .icon {
     width: 14px;
@@ -442,29 +380,6 @@ onUnmounted(() => {
     stroke: currentColor;
     fill: none;
   }
-}
-
-.recording-badge {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-1);
-  padding: var(--spacing-1) var(--spacing-2);
-  background: var(--danger-color);
-  border-radius: var(--radius-sm);
-  font-size: var(--text-xs);
-  font-weight: v.$font-bold;
-  color: white;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  animation: pulse-recording 2s ease-in-out infinite;
-}
-
-.recording-indicator {
-  width: 6px;
-  height: 6px;
-  background: white;
-  border-radius: 50%;
-  animation: pulse-live 2s ease-in-out infinite;
 }
 
 .expand-btn {
@@ -680,87 +595,18 @@ onUnmounted(() => {
   }
 }
 
-/* Actions Dropdown */
-.stream-actions {
-  position: absolute;
-  top: var(--spacing-2);
-  right: var(--spacing-2);
-  z-index: 10;
-}
-
-.btn-action {
-  width: 32px;
-  height: 32px;
-  padding: 0;
-  background: transparent;
-  border: none;
-  border-radius: var(--radius-md);
+.expanded-actions {
   display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-2);
   align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all v.$duration-200 v.$ease-out;
-
-  .icon {
-    width: 16px;
-    height: 16px;
-    stroke: var(--text-secondary);
-    fill: none;
-    transition: stroke v.$duration-200 v.$ease-out;
-  }
-
-  &:hover {
-    background: rgba(var(--primary-500-rgb), 0.1);
-
-    .icon {
-      stroke: var(--text-primary);
-    }
-  }
-
-  &.active {
-    background: rgba(var(--primary-500-rgb), 0.15);
-
-    .icon {
-      stroke: var(--primary-color);
-    }
-  }
 }
 
-.actions-dropdown {
-  position: fixed;
-  background: var(--background-darker);
+.expanded-actions .action-item {
+  width: auto;
+  min-height: 40px;
   border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-xl);
-  min-width: 160px;
-  padding: var(--spacing-1);
-  overflow: hidden;
-  z-index: 10000;
-  animation: dropdown-appear 0.15s ease-out;
-  
-  // Mobile: Make dropdown full-width and position at bottom
-  @include m.respond-below('sm') {
-    position: fixed;
-    left: var(--spacing-2) !important;
-    right: var(--spacing-2) !important;
-    bottom: var(--spacing-2) !important;
-    top: auto !important;
-    width: auto;
-    min-width: unset;
-    border-radius: var(--radius-lg);
-    padding: var(--spacing-2);
-  }
-}
-
-@keyframes dropdown-appear {
-  from {
-    opacity: 0;
-    transform: translateY(-4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  background: var(--background-darker);
 }
 
 .action-item {
@@ -815,13 +661,16 @@ onUnmounted(() => {
 
 @keyframes pulse-recording {
   0% {
-    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+    opacity: 0.9;
+    transform: scale(1);
   }
   50% {
-    box-shadow: 0 0 0 10px rgba(239, 68, 68, 0);
+    opacity: 0;
+    transform: scale(1.025);
   }
   100% {
-    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+    opacity: 0;
+    transform: scale(1);
   }
 }
 
@@ -834,7 +683,7 @@ onUnmounted(() => {
     border-radius: var(--radius-md);
     margin: calc(-1 * var(--spacing-2));
     padding: var(--spacing-2);
-    
+
     /* Add subtle indicator that card is expandable */
     &::after {
       content: 'Tap to expand';
@@ -846,13 +695,13 @@ onUnmounted(() => {
       margin-top: var(--spacing-2);
       opacity: 0.6;
     }
-    
+
     /* Visual feedback on touch - shows user it's tappable */
     &:active {
       background: rgba(var(--primary-500-rgb), 0.15);
     }
   }
-  
+
   /* Hide hint when expanded */
   .stream-card.is-expanded .stream-compact::after {
     display: none;
@@ -869,22 +718,6 @@ onUnmounted(() => {
   /* Hide expand button on mobile - card tap expands instead */
   .expand-btn {
     display: none;
-  }
-
-  /* Hide action button when collapsed on mobile */
-  .stream-actions {
-    display: none;
-  }
-}
-
-/* Mobile: Show actions when expanded */
-.stream-card.is-expanded {
-  @include m.respond-below('sm') {
-    .stream-actions {
-      display: block;
-      position: static;
-      margin-top: var(--spacing-3);
-    }
   }
 }
 </style>

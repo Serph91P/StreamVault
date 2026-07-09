@@ -1,7 +1,7 @@
 <template>
   <div class="category-timeline" v-if="categoryEvents.length > 0">
     <div class="timeline-header">
-      <h4><i class="fas fa-history"></i> Category Timeline</h4>
+      <h4><SvgIcon name="clock" /> Category Timeline</h4>
       <span class="category-count">{{ categoryEvents.length }} {{ categoryEvents.length === 1 ? 'category' : 'categories' }}</span>
     </div>
     
@@ -12,7 +12,7 @@
         <span>Category change points</span>
       </div>
       <div class="legend-note">
-        <i class="fas fa-info-circle"></i>
+        <SvgIcon name="info" />
         <span>The timeline shows when the stream changed categories</span>
       </div>
     </div>
@@ -30,7 +30,7 @@
         <div class="timeline-marker">
           <div class="marker-content">
             <div class="category-icon-wrapper">
-              <i :class="getCategoryIcon(event.category_name)" class="category-icon"></i>
+              <SvgIcon :name="getCategoryIcon(event.category_name)" class="category-icon" />
             </div>
           </div>
         </div>
@@ -50,7 +50,7 @@
     
     <!-- Category List (compact) -->
     <div class="category-list-header">
-      <h5><i class="fas fa-list"></i> Stream Categories Timeline</h5>
+      <h5><SvgIcon name="list" /> Stream Categories Timeline</h5>
     </div>
     <div class="category-list">
       <div 
@@ -59,15 +59,15 @@
         class="category-item"
       >
         <div class="category-marker">
-          <i :class="getCategoryIcon(event.category_name)" class="category-icon"></i>
+          <SvgIcon :name="getCategoryIcon(event.category_name)" class="category-icon" />
         </div>
         <div class="category-details">
           <div class="category-name">{{ event.category_name || 'Unknown' }}</div>
           <div class="category-time">
-            <i class="far fa-clock"></i> {{ formatTime(event.timestamp) }}
+            <SvgIcon name="clock" /> {{ formatTime(event.timestamp) }}
           </div>
           <div v-if="index < categoryEvents.length - 1" class="category-duration">
-            <i class="fas fa-hourglass-half"></i> Duration: {{ calculateDuration(event.timestamp, getNextTimestamp(index)) }}
+            <SvgIcon name="clock" /> Duration: {{ calculateDuration(event.timestamp, getNextTimestamp(index)) }}
           </div>
         </div>
       </div>
@@ -76,7 +76,7 @@
   
   <div v-else class="no-category-history">
     <div class="no-data-content">
-      <i class="fas fa-info-circle"></i>
+      <SvgIcon name="info" />
       <p>No category changes recorded for this stream</p>
       <p class="help-text">When a streamer changes games or activities during a stream, they appear as purple markers on the timeline</p>
     </div>
@@ -84,6 +84,7 @@
 </template>
 
 <script setup lang="ts">
+import SvgIcon from '@/components/icons/SvgIcon.vue'
 import { computed } from 'vue'
 import { useCategoryImages } from '@/composables/useCategoryImages'
 import type { StreamEvent } from '@/types/streams'
@@ -105,17 +106,15 @@ const categoryEvents = computed(() => {
 })
 
 const getCategoryIcon = (categoryName: string | null): string => {
-  if (!categoryName) return 'fas fa-video';
-  
-  const imageUrl = getCategoryImage(categoryName);
-  
-  // If it's an icon (starts with icon:), return the icon class
+  if (!categoryName) return 'video'
+
+  const imageUrl = getCategoryImage(categoryName)
+
   if (imageUrl.startsWith('icon:')) {
-    return imageUrl.replace('icon:', '');
+    return imageUrl.replace('icon:', '')
   }
-  
-  // For actual images, return a generic gaming icon as fallback for the timeline
-  return 'fas fa-gamepad';
+
+  return 'gamepad'
 }
 
 const getTimelinePosition = (event: any, index: number): number => {

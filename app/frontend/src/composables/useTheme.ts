@@ -1,38 +1,39 @@
 /**
  * Theme Management Composable
- * 
+ *
  * Provides theme switching functionality between dark and light mode.
- * Theme preference is persisted in localStorage.
- * 
+ * Theme preference is persisted through the app storage service.
+ *
  * Usage:
  * ```ts
  * import { useTheme } from '@/composables/useTheme'
- * 
+ *
  * const { theme, toggleTheme, setTheme, isDark } = useTheme()
  * ```
  */
 
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, getCurrentInstance, onMounted } from 'vue'
+import { appStorage } from '@/services/storage'
 
 export type Theme = 'dark' | 'light'
 
-const STORAGE_KEY = 'streamvault-theme'
 const DEFAULT_THEME: Theme = 'dark'
 
 // Reactive theme state (shared across all components)
 const currentTheme = ref<Theme>(DEFAULT_THEME)
+let systemThemeListenerInitialized = false
 
 /**
  * Theme management composable
  */
 export function useTheme() {
   /**
-   * Initialize theme from localStorage or system preference
+   * Initialize theme from app storage or system preference
    */
   const initializeTheme = () => {
-    // 1. Check localStorage first
-    const stored = localStorage.getItem(STORAGE_KEY) as Theme | null
-    
+    // 1. Check stored preference first
+    const stored = appStorage.theme as Theme | null
+
     if (stored && (stored === 'dark' || stored === 'light')) {
       currentTheme.value = stored
     } else {
@@ -40,10 +41,10 @@ export function useTheme() {
       const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
       currentTheme.value = prefersDark ? 'dark' : 'light'
     }
-    
+
     applyTheme(currentTheme.value)
   }
-  
+
   /**
    * Apply theme to DOM
    */
@@ -54,16 +55,16 @@ export function useTheme() {
       document.documentElement.removeAttribute('data-theme')
     }
   }
-  
+
   /**
    * Set theme explicitly
    */
   const setTheme = (theme: Theme) => {
     currentTheme.value = theme
-    localStorage.setItem(STORAGE_KEY, theme)
+    appStorage.setTheme(theme)
     applyTheme(theme)
   }
-  
+
   /**
    * Toggle between dark and light
    */
@@ -71,32 +72,34 @@ export function useTheme() {
     const newTheme: Theme = currentTheme.value === 'dark' ? 'light' : 'dark'
     setTheme(newTheme)
   }
-  
+
   /**
    * Computed: Is dark mode active?
    */
   const isDark = computed(() => currentTheme.value === 'dark')
-  
+
   /**
    * Computed: Is light mode active?
    */
   const isLight = computed(() => currentTheme.value === 'light')
-  
-  // Watch for system theme changes
-  onMounted(() => {
+
+  const registerSystemThemeListener = () => {
+    if (systemThemeListenerInitialized) return
+    systemThemeListenerInitialized = true
+
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
-    
+
     const handleChange = (e: MediaQueryListEvent) => {
       // Only auto-switch if user hasn't explicitly set a preference
-      const hasExplicitPreference = localStorage.getItem(STORAGE_KEY)
-      
+      const hasExplicitPreference = appStorage.hasThemePreference()
+
       if (!hasExplicitPreference) {
         const newTheme: Theme = e.matches ? 'dark' : 'light'
         currentTheme.value = newTheme
         applyTheme(newTheme)
       }
     }
-    
+
     // Modern browsers
     if (mediaQuery.addEventListener) {
       mediaQuery.addEventListener('change', handleChange)
@@ -104,8 +107,16 @@ export function useTheme() {
       // Fallback for older browsers
       mediaQuery.addListener(handleChange)
     }
-  })
-  
+  }
+
+  // Watch for system theme changes. useTheme() also runs during app bootstrap,
+  // before Vue has an active component instance, so register immediately there.
+  if (getCurrentInstance()) {
+    onMounted(registerSystemThemeListener)
+  } else {
+    registerSystemThemeListener()
+  }
+
   return {
     theme: currentTheme,
     isDark,

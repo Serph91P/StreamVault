@@ -9,14 +9,14 @@
           @click="removeToast(toast.id)"
         >
           <div class="toast-icon">
-            <i :class="getToastIcon(toast.type)"></i>
+            <SvgIcon :name="getToastIcon(toast.type)" />
           </div>
           <div class="toast-content">
             <div class="toast-title">{{ toast.title }}</div>
             <div class="toast-message">{{ toast.message }}</div>
           </div>
           <button @click.stop="removeToast(toast.id)" class="toast-close">
-            <i class="fas fa-times"></i>
+            <SvgIcon name="x" />
           </button>
         </div>
       </TransitionGroup>
@@ -25,8 +25,10 @@
 </template>
 
 <script setup lang="ts">
+import SvgIcon from '@/components/icons/SvgIcon.vue'
 import { ref, onMounted, onUnmounted } from 'vue'
-import { useWebSocket } from '@/composables/useWebSocket'
+import { useRealtimeStore } from '@/stores/realtime'
+import type { RealtimeEvent } from '@/types/events'
 
 interface Toast {
   id: string
@@ -38,7 +40,8 @@ interface Toast {
 }
 
 const toasts = ref<Toast[]>([])
-const { messages } = useWebSocket()
+const realtime = useRealtimeStore()
+const realtimeUnsubs: Array<() => void> = []
 
 // Maximum number of toasts to show at once
 const MAX_TOASTS = 5
@@ -49,15 +52,15 @@ const timers = new Map<string, number>()
 const getToastIcon = (type: string): string => {
   switch (type) {
     case 'success':
-      return 'fas fa-check-circle'
+      return 'check-circle'
     case 'error':
-      return 'fas fa-exclamation-circle'
+      return 'alert-circle'
     case 'warning':
-      return 'fas fa-exclamation-triangle'
+      return 'alert-triangle'
     case 'info':
-      return 'fas fa-info-circle'
+      return 'info'
     default:
-      return 'fas fa-bell'
+      return 'bell'
   }
 }
 
@@ -103,8 +106,8 @@ const removeToast = (id: string): void => {
   }
 }
 
-const processToastMessage = (message: any): void => {
-  if (message.type === 'toast_notification' && message.data) {
+const processToastMessage = (message: RealtimeEvent<string>): void => {
+  if (message.data) {
     const { toast_type, title, message: msg, duration = 5000 } = message.data
     
     addToast({
@@ -116,33 +119,14 @@ const processToastMessage = (message: any): void => {
   }
 }
 
-// Watch for new WebSocket messages
-let lastProcessedCount = 0
-
-const checkForNewMessages = () => {
-  const currentCount = messages.value.length
-  if (currentCount > lastProcessedCount) {
-    // Process only new messages
-    const newMessages = messages.value.slice(lastProcessedCount)
-    newMessages.forEach(processToastMessage)
-    lastProcessedCount = currentCount
-  }
-}
-
 onMounted(() => {
-  // Process existing messages
-  lastProcessedCount = 0
-  checkForNewMessages()
-  
-  // Set up interval to check for new messages
-  const interval = setInterval(checkForNewMessages, 100)
-  
-  onUnmounted(() => {
-    clearInterval(interval)
-    // Clear all timers
-    timers.forEach(timer => clearTimeout(timer))
-    timers.clear()
-  })
+  realtimeUnsubs.push(realtime.onEvent('toast_notification', processToastMessage))
+})
+
+onUnmounted(() => {
+  realtimeUnsubs.forEach((fn) => fn())
+  timers.forEach(timer => clearTimeout(timer))
+  timers.clear()
 })
 
 // Expose addToast for manual usage

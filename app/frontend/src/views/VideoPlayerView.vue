@@ -1,19 +1,17 @@
 <template>
-  <div class="page-view video-player-view fade-in">
+  <div class="page-view video-player-view fade-in" :class="{ 'theater-mode': effectiveTheaterMode }">
     <!-- Loading State -->
     <div v-if="isLoading" class="content-state">
       <LoadingSkeleton type="video" />
-      <p class="state-text">Loading video player...</p>
+      <PlayerStatus state="loading" message="Loading video player..." />
     </div>
 
     <!-- Error State -->
     <div v-else-if="error" class="content-state">
-      <EmptyState
-        icon="alert-circle"
+      <PlayerError
         title="Failed to Load Video"
-        :description="error"
+        :message="error"
         action-label="Retry"
-        action-icon="refresh-cw"
         @action="retryLoad"
       />
     </div>
@@ -31,28 +29,34 @@
     </div>
 
     <!-- Video Player - Main Content -->
-    <div v-else class="player-layout">
+    <div v-else class="player-layout" :class="{ 'theater-mode': effectiveTheaterMode }">
       <!-- Main Content: Video + Sidebar -->
       <div class="player-main">
         <!-- Video Player with Header -->
-        <GlassCard variant="strong" :padding="false" class="player-card">
+        <GlassCard
+          variant="strong"
+          :padding="false"
+          class="player-card"
+          :style="effectiveTheaterMode ? { '--player-max-h': 'var(--player-max-h-theater)' } : undefined"
+        >
           <!-- Header inside the card -->
           <div class="player-header">
-            <button @click="goBack" class="back-button" v-ripple>
+            <button @click="goBack" class="back-button" aria-label="Back to previous page" v-ripple>
               <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M19 12H5M12 19l-7-7 7-7" />
               </svg>
               Back
             </button>
-            
+
             <h1 class="video-title">{{ streamTitle }}</h1>
-            
-            <div v-if="streamerName" class="streamer-badge">
-              <svg class="icon-streamer">
+
+            <div v-if="streamerName" class="streamer-badge" :aria-label="`Streamed by ${streamerName}`">
+              <svg class="icon-streamer" aria-hidden="true">
                 <use href="#icon-user" />
               </svg>
               <span>{{ streamerName }}</span>
             </div>
+            <span class="recorded-status">Recorded</span>
           </div>
 
           <!-- Video Player - directly in card, no wrapper -->
@@ -62,9 +66,13 @@
             :chapters="chapterData.chapters"
             :stream-title="chapterData.stream_title"
             :stream-id="parseInt(streamId)"
+            :theater-mode="effectiveTheaterMode"
             @chapter-change="onChapterChange"
             @video-ready="onVideoReady"
+            @video-loading="onVideoLoading"
+            @video-error="onVideoError"
             @time-update="onTimeUpdate"
+            @toggle-theater="toggleTheaterMode"
           />
         </GlassCard>
 
@@ -152,7 +160,7 @@
                 {{ isDeleting ? 'Deleting...' : 'Delete' }}
               </button>
             </div>
-            
+
             <!-- Share URL Display (shown after generating) -->
             <div v-if="shareUrl" class="share-url-container">
               <p class="share-label">Share URL (expires in 24h):</p>
@@ -172,7 +180,7 @@
         </aside>
       </div>
     </div>
-    
+
     <!-- Delete Confirmation Modal -->
     <BaseModal v-model="showDeleteModal" title="Delete Recording" size="md">
       <p class="modal-text">Are you sure you want to delete this recording? This action cannot be undone.</p>
@@ -188,7 +196,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import VideoPlayer from '@/components/VideoPlayer.vue'
 import LoadingSkeleton from '@/components/LoadingSkeleton.vue'
@@ -196,6 +204,8 @@ import EmptyState from '@/components/EmptyState.vue'
 import GlassCard from '@/components/cards/GlassCard.vue'
 import BaseModal from '@/components/base/BaseModal.vue'
 import BaseButton from '@/components/base/BaseButton.vue'
+import PlayerStatus from '@/components/player/PlayerStatus.vue'
+import PlayerError from '@/components/player/PlayerError.vue'
 import { videoApi } from '@/services/api'
 
 interface ChapterData {
@@ -229,12 +239,27 @@ const streamId = computed(() => {
   // Fallback to 'streamId' parameter (from legacy route)
   return route.params.streamId as string
 })
-const streamTitle = computed(() => (route.query.title as string) || `Stream ${streamId.value}`)
+const streamTitle = computed(() => chapterData.value?.stream_title || (route.query.title as string) || `Stream #${streamId.value}`)
 const streamerName = computed(() => route.query.streamerName as string)
 
 const chapterData = ref<ChapterData | null>(null)
 const isLoading = ref(true)
 const error = ref<string | null>(null)
+const playerReady = ref(false)
+const playerError = ref<string | null>(null)
+const theaterMode = ref(false)
+const isNarrowViewport = ref(false)
+
+const effectiveTheaterMode = computed(() => theaterMode.value && !isNarrowViewport.value)
+
+const updateViewportMode = () => {
+  isNarrowViewport.value = window.matchMedia('(max-width: 767px)').matches
+}
+
+const toggleTheaterMode = () => {
+  if (isNarrowViewport.value) return
+  theaterMode.value = !theaterMode.value
+}
 
 // Action button states
 const isDownloading = ref(false)
@@ -250,13 +275,22 @@ const loadChapterData = async () => {
   try {
     isLoading.value = true
     error.value = null
+    playerReady.value = false
+    playerError.value = null
 
     // Load video chapters using the new API
     let chapters: any[] = []
     let videoUrl = `/api/videos/${streamId.value}/stream`
-    
+    let resolvedTitle = (route.query.title as string) || ''
+
     try {
       chapters = await videoApi.getChapters(parseInt(streamId.value))
+      if (!resolvedTitle) {
+        const videos = await videoApi.getAll()
+        const videoList = Array.isArray(videos) ? videos : videos?.data || videos?.videos || []
+        const currentVideo = videoList.find((video: any) => String(video.id ?? video.stream_id) === String(streamId.value))
+        resolvedTitle = currentVideo?.title || currentVideo?.stream_title || currentVideo?.name || ''
+      }
     } catch {
       // If no chapters available, use mock data for development
       chapters = [
@@ -279,7 +313,7 @@ const loadChapterData = async () => {
         type: 'chapter'
       })),
       stream_id: parseInt(streamId.value),
-      stream_title: streamTitle.value,
+      stream_title: resolvedTitle || `Stream ${streamId.value}`,
       duration: 596, // Big Buck Bunny duration
       video_url: videoUrl,
       video_file: '',
@@ -311,10 +345,21 @@ const onChapterChange = (_chapter: any, index: number) => {
 }
 
 const onVideoReady = (duration: number) => {
-  console.log('Video ready, duration:', duration)
+  playerReady.value = true
+  playerError.value = null
   if (chapterData.value) {
     chapterData.value.duration = duration
   }
+}
+
+const onVideoLoading = () => {
+  playerReady.value = false
+  playerError.value = null
+}
+
+const onVideoError = (message: string) => {
+  playerReady.value = false
+  playerError.value = message
 }
 
 const onTimeUpdate = (_currentTime: number) => {
@@ -327,7 +372,7 @@ const formatDuration = (seconds: number): string => {
   const hours = Math.floor(seconds / 3600)
   const minutes = Math.floor((seconds % 3600) / 60)
   const secs = Math.floor(seconds % 60)
-  
+
   if (hours > 0) {
     return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
   }
@@ -372,10 +417,10 @@ const parseTimeToSeconds = (timeString: string): number => {
  */
 const downloadVideo = async () => {
   if (isDownloading.value) return
-  
+
   try {
     isDownloading.value = true
-    
+
     // Create a temporary link to trigger download
     const downloadUrl = `/api/videos/${streamId.value}/stream`
     const link = document.createElement('a')
@@ -385,7 +430,7 @@ const downloadVideo = async () => {
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
-    
+
   } catch (err) {
     console.error('Download failed:', err)
     error.value = 'Failed to start download'
@@ -402,12 +447,12 @@ const downloadVideo = async () => {
  */
 const shareVideo = async () => {
   if (isSharing.value) return
-  
+
   try {
     isSharing.value = true
     shareUrl.value = null
     copied.value = false
-    
+
     const response = await fetch(`/api/videos/${streamId.value}/share-token`, {
       method: 'POST',
       credentials: 'include',
@@ -415,19 +460,19 @@ const shareVideo = async () => {
         'Content-Type': 'application/json'
       }
     })
-    
+
     if (!response.ok) {
       throw new Error(`Failed to generate share token: ${response.status}`)
     }
-    
+
     const data = await response.json()
-    
+
     if (data.success && data.share_url) {
       shareUrl.value = data.share_url
     } else {
       throw new Error(data.error || 'Failed to generate share URL')
     }
-    
+
   } catch (err) {
     console.error('Share failed:', err)
     error.value = err instanceof Error ? err.message : 'Failed to generate share URL'
@@ -441,11 +486,11 @@ const shareVideo = async () => {
  */
 const copyShareUrl = async () => {
   if (!shareUrl.value) return
-  
+
   try {
     await navigator.clipboard.writeText(shareUrl.value)
     copied.value = true
-    
+
     // Reset copied state after 2 seconds
     setTimeout(() => {
       copied.value = false
@@ -476,10 +521,10 @@ const confirmDelete = () => {
  */
 const deleteVideo = async () => {
   if (isDeleting.value) return
-  
+
   try {
     isDeleting.value = true
-    
+
     const response = await fetch(`/api/streams/${streamId.value}`, {
       method: 'DELETE',
       credentials: 'include',
@@ -487,18 +532,18 @@ const deleteVideo = async () => {
         'Content-Type': 'application/json'
       }
     })
-    
+
     if (!response.ok) {
       const data = await response.json().catch(() => ({}))
       throw new Error(data.detail || `Failed to delete: ${response.status}`)
     }
-    
+
     // Success - close modal and navigate back
     showDeleteModal.value = false
-    
+
     // Navigate back to videos list or streamer page
     router.push({ name: 'Videos' })
-    
+
   } catch (err) {
     console.error('Delete failed:', err)
     error.value = err instanceof Error ? err.message : 'Failed to delete video'
@@ -508,7 +553,13 @@ const deleteVideo = async () => {
 }
 
 onMounted(() => {
+  updateViewportMode()
+  window.addEventListener('resize', updateViewportMode)
   loadChapterData()
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', updateViewportMode)
 })
 </script>
 
@@ -524,7 +575,7 @@ onMounted(() => {
   // Prevent horizontal overflow on mobile
   overflow-x: hidden;
   max-width: 100%;
-  
+
   // Override page-view padding for more immersive video experience on mobile
   @include m.respond-below('sm') {
     padding: var(--spacing-2) var(--spacing-2);
@@ -576,6 +627,56 @@ onMounted(() => {
   overflow: hidden;
 }
 
+// Theater mode: full-bleed black stage that fills exactly the viewport
+// below the app header (Twitch/YouTube style) - no page padding, no card
+// chrome, no dead space around the module.
+.video-player-view.theater-mode {
+  padding: 0;
+}
+
+.player-layout.theater-mode {
+  .player-main {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+
+  .info-sidebar {
+    display: none;
+  }
+
+  .player-header {
+    min-height: 0;
+    padding: var(--spacing-2) var(--spacing-3);
+  }
+
+  .player-header .video-title {
+    font-size: var(--text-base);
+  }
+
+  .player-header .back-button {
+    min-height: 36px;
+    padding: var(--spacing-1) var(--spacing-3);
+    font-size: var(--text-xs);
+  }
+
+  .player-header .streamer-badge {
+    display: none;
+  }
+
+  .player-card {
+    // Theater height budget comes via the inline --player-max-h binding on
+    // the card (token definitions live in _variables.scss only)
+    border: 0;
+    border-radius: 0;
+    background: var(--player-stage-bg);
+
+    :deep(.video-player-container),
+    :deep(.video-wrapper) {
+      background: var(--player-stage-bg);
+    }
+  }
+}
+
 // ============================================================================
 // MAIN CONTENT: Video + Sidebar side by side
 // ============================================================================
@@ -587,15 +688,15 @@ onMounted(() => {
   align-items: start;
   max-width: 100%;
   overflow: hidden;
-  
+
   @include m.respond-below('xl') {
     grid-template-columns: 1fr 280px;
   }
-  
+
   @include m.respond-below('lg') {
     grid-template-columns: 1fr;
   }
-  
+
   @include m.respond-below('sm') {
     gap: var(--spacing-2);
   }
@@ -607,31 +708,54 @@ onMounted(() => {
 
 .player-card {
   overflow: hidden;
-  
+  // The 16:9 stage height budget (--player-max-h) is defined in
+  // _variables.scss and consumed by VideoPlayer's .video-wrapper
+
   :deep(.glass-card-content) {
     padding: 0;
     display: flex;
     flex-direction: column;
+  }
+
+  // Letterbox bars around the size-capped video read as part of the stage
+  :deep(.video-player-container) {
+    display: flex;
+    justify-content: center;
+    background: var(--background-darker);
+  }
+}
+
+// Mobile: player goes edge-to-edge like YouTube instead of floating in a
+// card. The 50%-50vw trick escapes every ancestor padding regardless of
+// nesting depth (the root clips overflow-x, so no scrollbar can appear).
+@include m.respond-below('md') {
+  .player-card {
+    width: 100vw;
+    margin-inline: calc(50% - 50vw);
+    border-inline: 0;
+    border-radius: 0;
   }
 }
 
 .player-header {
   display: flex;
   align-items: center;
-  gap: var(--spacing-3);
-  padding: var(--spacing-3) var(--spacing-4);
-  
+  gap: var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-3);
+  min-height: 48px;
+
   @include m.respond-below('md') {
     flex-wrap: wrap;
-    padding: var(--spacing-3);
+    padding: var(--spacing-2);
+    gap: var(--spacing-2);
   }
 }
 
 .back-button {
   display: inline-flex;
   align-items: center;
-  gap: var(--spacing-2);
-  padding: var(--spacing-2) var(--spacing-4);
+  gap: var(--spacing-1-5);
+  padding: var(--spacing-1) var(--spacing-3);
   background: var(--background-darker);
   color: var(--text-primary);
   border: 1px solid var(--border-color);
@@ -641,11 +765,11 @@ onMounted(() => {
   cursor: pointer;
   transition: all v.$duration-200 v.$ease-out;
   flex-shrink: 0;
-  min-height: 44px;
+  min-height: 36px;
 
   .icon {
-    width: 16px;
-    height: 16px;
+    width: 14px;
+    height: 14px;
     stroke: currentColor;
     fill: none;
   }
@@ -655,61 +779,77 @@ onMounted(() => {
     border-color: var(--primary-color);
     color: white;
   }
-  
-  @include m.respond-below('md') {
-    min-height: 44px;  // Touch-friendly
-    padding: var(--spacing-2) var(--spacing-4);
-    font-size: var(--text-sm);
-  }
+}
+
+.recorded-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  padding: var(--spacing-1) var(--spacing-2);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-pill);
+  background: var(--background-darker);
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  font-weight: v.$font-semibold;
+  white-space: nowrap;
 }
 
 .video-title {
   flex: 1;
   margin: 0;
-  font-size: var(--text-lg);
+  font-size: var(--text-sm);
   font-weight: v.$font-semibold;
   color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  
+
   @include m.respond-below('lg') {
     white-space: normal;
-    overflow: visible;
+    // line-clamp needs overflow hidden; `visible` let the clamped box paint
+    // outside the header padding (title started left of the card edge)
+    overflow: hidden;
+    min-width: 0;
     display: -webkit-box;
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
+    -webkit-line-clamp: 1;
+    line-clamp: 1;
     -webkit-box-orient: vertical;
   }
-  
+
   @include m.respond-below('md') {
-    font-size: var(--text-base);
-    order: 3;
+    order: 100;
     flex-basis: 100%;
-    margin-top: var(--spacing-2);
+    margin-top: var(--spacing-1);
+    white-space: normal;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
   }
 }
 
 .streamer-badge {
   display: inline-flex;
   align-items: center;
-  gap: var(--spacing-2);
+  gap: var(--spacing-1);
   background: rgba(var(--primary-500-rgb), 0.15);
   border: 1px solid rgba(var(--primary-500-rgb), 0.3);
   border-radius: var(--radius-pill);
-  padding: var(--spacing-1) var(--spacing-3);
-  font-size: var(--text-sm);
+  padding: var(--spacing-0-5) var(--spacing-2);
+  font-size: var(--text-xs);
   font-weight: v.$font-medium;
   color: var(--primary-color);
   flex-shrink: 0;
-  
+
   .icon-streamer {
-    width: 14px;
-    height: 14px;
+    width: 12px;
+    height: 12px;
     stroke: currentColor;
     fill: none;
   }
 }
+
+
 
 // ============================================================================
 // INFO SIDEBAR
@@ -721,21 +861,21 @@ onMounted(() => {
   gap: var(--spacing-3);
   min-width: 0;  // Allow flex item to shrink below content size
   max-width: 100%;
-  
+
   @include m.respond-below('lg') {
     flex-direction: row;
     flex-wrap: wrap;
-    
+
     .info-card {
       flex: 1;
       min-width: 280px;
     }
   }
-  
+
   @include m.respond-below('sm') {
     flex-direction: column;
     gap: var(--spacing-2);
-    
+
     .info-card {
       min-width: 0;
       width: 100%;
@@ -749,7 +889,7 @@ onMounted(() => {
   min-width: 0;  // Allow shrinking below content size
   max-width: 100%;
   overflow: hidden;
-  
+
   // Ensure GlassCard content doesn't overflow
   :deep(.glass-card-content) {
     max-width: 100%;
@@ -765,7 +905,7 @@ onMounted(() => {
   font-size: var(--text-base);
   font-weight: v.$font-semibold;
   color: var(--text-primary);
-  
+
   .info-icon {
     width: 18px;
     height: 18px;
@@ -786,7 +926,7 @@ onMounted(() => {
   align-items: center;
   padding: var(--spacing-2) 0;
   border-bottom: 1px solid var(--border-color);
-  
+
   &:last-child {
     border-bottom: none;
   }
@@ -801,9 +941,9 @@ onMounted(() => {
   font-size: var(--text-sm);
   font-weight: v.$font-medium;
   color: var(--text-primary);
-  
+
   &.highlight {
-    color: var(--primary-color);
+    color: var(--text-primary);
     font-weight: v.$font-bold;
   }
 }
@@ -816,13 +956,13 @@ onMounted(() => {
   max-height: none;
   display: flex;
   flex-direction: column;
-  
+
   :deep(.glass-card-content) {
     display: flex;
     flex-direction: column;
     overflow: hidden;
   }
-  
+
   @include m.respond-to('lg') {
     max-height: 350px;
   }
@@ -837,15 +977,15 @@ onMounted(() => {
   flex: 1;
   min-width: 0;
   max-width: 100%;
-  
+
   &::-webkit-scrollbar {
     width: 4px;
   }
-  
+
   &::-webkit-scrollbar-track {
     background: transparent;
   }
-  
+
   &::-webkit-scrollbar-thumb {
     background: var(--primary-color);
     border-radius: var(--radius-full);
@@ -863,11 +1003,11 @@ onMounted(() => {
   transition: all v.$duration-150 v.$ease-out;
   min-width: 0;
   max-width: 100%;
-  
+
   &:hover {
     background: rgba(var(--primary-500-rgb), 0.15);
   }
-  
+
   &.active {
     background: rgba(var(--primary-500-rgb), 0.2);
   }
@@ -892,7 +1032,7 @@ onMounted(() => {
   min-width: 0;
   flex: 1;
   word-break: break-word;
-  
+
   // On desktop sidebar, truncate with ellipsis
   @include m.respond-to('lg') {
     font-size: var(--text-xs);
@@ -911,7 +1051,7 @@ onMounted(() => {
   flex-direction: column;
   gap: var(--spacing-3);
   max-width: 100%;
-  
+
   @include m.respond-below('sm') {
     gap: var(--spacing-2);
   }
@@ -934,7 +1074,7 @@ onMounted(() => {
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
-  
+
   .action-icon {
     width: 16px;
     height: 16px;
@@ -942,18 +1082,18 @@ onMounted(() => {
     fill: none;
     flex-shrink: 0;
   }
-  
+
   &:hover:not(:disabled) {
     background: var(--primary-color);
     border-color: var(--primary-color);
     color: white;
   }
-  
+
   &.danger:hover:not(:disabled) {
     background: var(--danger-color);
     border-color: var(--danger-color);
   }
-  
+
   &:disabled {
     opacity: 0.6;
     cursor: not-allowed;
@@ -982,7 +1122,7 @@ onMounted(() => {
   display: flex;
   gap: var(--spacing-2);
   max-width: 100%;
-  
+
   @include m.respond-below('sm') {
     flex-direction: column;
   }
@@ -1000,7 +1140,7 @@ onMounted(() => {
   font-family: monospace;
   max-width: 100%;
   box-sizing: border-box;
-  
+
   &:focus {
     outline: none;
     border-color: var(--primary-color);
@@ -1021,14 +1161,14 @@ onMounted(() => {
   cursor: pointer;
   transition: var(--transition-base);
   white-space: nowrap;
-  
+
   .copy-icon {
     width: 14px;
     height: 14px;
     stroke: currentColor;
     fill: none;
   }
-  
+
   &:hover {
     background: var(--primary-color);
     color: white;
@@ -1053,7 +1193,6 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   z-index: 1000;
-  backdrop-filter: blur(4px);
 }
 
 .delete-modal {
@@ -1095,26 +1234,26 @@ onMounted(() => {
   font-weight: v.$font-medium;
   cursor: pointer;
   transition: var(--transition-base);
-  
+
   &.cancel {
     background: transparent;
     border: 1px solid var(--border-color);
     color: var(--text-secondary);
-    
+
     &:hover {
       background: var(--surface-hover);
     }
   }
-  
+
   &.confirm {
     background: var(--danger-color);
     border: 1px solid var(--danger-color);
     color: white;
-    
+
     &:hover:not(:disabled) {
       filter: brightness(1.1);
     }
-    
+
     &:disabled {
       opacity: 0.6;
       cursor: not-allowed;
@@ -1130,14 +1269,14 @@ onMounted(() => {
   .player-main {
     gap: var(--spacing-3);
   }
-  
+
   .share-url-box {
     flex-direction: column;
   }
-  
+
   .modal-actions {
     flex-direction: column-reverse;
-    
+
     .modal-btn {
       width: 100%;
       text-align: center;
@@ -1154,68 +1293,68 @@ onMounted(() => {
     padding: var(--spacing-2);
     gap: var(--spacing-2);
   }
-  
+
   .video-title {
     font-size: var(--text-sm);
   }
-  
+
   .info-title {
     font-size: var(--text-sm);
     margin-bottom: var(--spacing-2);
-    
+
     .info-icon {
       width: 16px;
       height: 16px;
     }
   }
-  
+
   .info-row {
     padding: var(--spacing-1-5) 0;
   }
-  
+
   .info-label,
   .info-value {
     font-size: var(--text-xs);
   }
-  
+
   .chapter-item {
     padding: var(--spacing-2);
     gap: var(--spacing-2);
   }
-  
+
   .action-btn {
     padding: var(--spacing-2);
     font-size: var(--text-xs);
-    
+
     .action-icon {
       width: 14px;
       height: 14px;
     }
   }
-  
+
   .share-url-input {
     font-size: var(--text-xs);
     padding: var(--spacing-1-5) var(--spacing-2);
   }
-  
+
   .copy-btn {
     padding: var(--spacing-1-5) var(--spacing-2);
     font-size: var(--text-xs);
   }
-  
+
   .delete-modal {
     margin: var(--spacing-2);
     padding: var(--spacing-4);
   }
-  
+
   .modal-title {
     font-size: var(--text-base);
   }
-  
+
   .modal-text {
     font-size: var(--text-sm);
   }
-  
+
   .modal-warning {
     font-size: var(--text-xs);
   }
@@ -1230,12 +1369,12 @@ onMounted(() => {
   .info-sidebar {
     display: none;
   }
-  
+
   .player-container {
     height: 100vh;
     aspect-ratio: auto;
   }
-  
+
   .modal-overlay {
     display: none;
   }

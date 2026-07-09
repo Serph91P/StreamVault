@@ -1,0 +1,174 @@
+[
+  {
+    "prefix": "desktop",
+    "viewport": {
+      "width": 1280,
+      "height": 900
+    },
+    "logs": [
+      {
+        "type": "error",
+        "text": "Failed to fetch settings: SyntaxError: Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON"
+      },
+      {
+        "type": "error",
+        "text": "Failed to fetch streamer settings: SyntaxError: Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON"
+      },
+      {
+        "type": "error",
+        "text": "Error fetching streamer recording settings: SyntaxError: Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON"
+      },
+      {
+        "type": "error",
+        "text": "Error fetching active recordings: SyntaxError: Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON"
+      },
+      {
+        "type": "error",
+        "text": "Failed to fetch settings: SyntaxError: Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON"
+      },
+      {
+        "type": "error",
+        "text": "Failed to fetch settings: SyntaxError: Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON"
+      },
+      {
+        "type": "error",
+        "text": "Failed to fetch streamer settings: SyntaxError: Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON"
+      },
+      {
+        "type": "error",
+        "text": "Failed to fetch streamer settings: SyntaxError: Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON"
+      },
+      {
+        "type": "error",
+        "text": "Error fetching streamer recording settings: SyntaxError: Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON"
+      },
+      {
+        "type": "error",
+        "text": "Error fetching streamer recording settings: SyntaxError: Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON"
+      },
+      {
+        "type": "error",
+        "text": "Error fetching active recordings: SyntaxError: Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON"
+      },
+      {
+        "type": "error",
+        "text": "Error fetching active recordings: SyntaxError: Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON"
+      }
+    ],
+    "metrics": [
+      {
+        "section": "notifications",
+        "title": "Settings",
+        "bodyText": "Settings\nOverview\nSettings at a glance\nBASICS\nTwitch Connection\nOAuth & quality settings\nBASIC\nNotifications\nStream alerts & updates\nBASIC\nFavorite Games\nPriority categories\nBASIC\nADVANCED\nRecording\nQuality & storage\nADVANCED\nPWA & Mobile\nMobile app settings\nADVANCED\nACCESS & SAFETY\nAPI Keys\nExterna",
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "bodyScrollWidth": 1280,
+        "bodyClientWidth": 1280,
+        "tableWrappers": []
+      },
+      {
+        "section": "recording",
+        "title": "Settings",
+        "bodyText": "Settings\nOverview\nSettings at a glance\nBASICS\nTwitch Connection\nOAuth & quality settings\nBASIC\nNotifications\nStream alerts & updates\nBASIC\nFavorite Games\nPriority categories\nBASIC\nADVANCED\nRecording\nQuality & storage\nADVANCED\nPWA & Mobile\nMobile app settings\nADVANCED\nACCESS & SAFETY\nAPI Keys\nExterna",
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "bodyScrollWidth": 1280,
+        "bodyClientWidth": 1280,
+        "tableWrappers": []
+      },
+      {
+        "section": "api-keys",
+        "title": "Settings",
+        "bodyText": "Settings\nOverview\nSettings at a glance\nBASICS\nTwitch Connection\nOAuth & quality settings\nBASIC\nNotifications\nStream alerts & updates\nBASIC\nFavorite Games\nPriority categories\nBASIC\nADVANCED\nRecording\nQuality & storage\nADVANCED\nPWA & Mobile\nMobile app settings\nADVANCED\nACCESS & SAFETY\nAPI Keys\nExterna",
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "bodyScrollWidth": 1280,
+        "bodyClientWidth": 1280,
+        "tableWrappers": []
+      },
+      {
+        "section": "proxy",
+        "title": "Settings",
+        "bodyText": "Settings\nOverview\nSettings at a glance\nBASICS\nTwitch Connection\nOAuth & quality settings\nBASIC\nNotifications\nStream alerts & updates\nBASIC\nFavorite Games\nPriority categories\nBASIC\nADVANCED\nRecording\nQuality & storage\nADVANCED\nPWA & Mobile\nMobile app settings\nADVANCED\nACCESS & SAFETY\nAPI Keys\nExterna",
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "bodyScrollWidth": 1280,
+        "bodyClientWidth": 1280,
+        "tableWrappers": []
+      }
+    ]
+  },
+  {
+    "prefix": "mobile",
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "logs": [
+      {
+        "type": "error",
+        "text": "Failed to fetch settings: SyntaxError: Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON"
+      },
+      {
+        "type": "error",
+        "text": "Failed to fetch streamer settings: SyntaxError: Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON"
+      },
+      {
+        "type": "error",
+        "text": "Error fetching streamer recording settings: SyntaxError: Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON"
+      },
+      {
+        "type": "error",
+        "text": "Error fetching active recordings: SyntaxError: Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON"
+      }
+    ],
+    "metrics": [
+      {
+        "section": "notifications",
+        "title": "Settings",
+        "bodyText": "Notifications\nOverview\nTwitch Connection\nNotifications\nRecording\nFavorite Games\nPWA & Mobile\nAPI Keys\nProxy Management\nAbout\nNotifications\n\nConfigure notification preferences for stream events\n\nNotification Service URL\nUse any Apprise URL, or separate multiple services with commas.\n Enable Notificat",
+        "scrollWidth": 390,
+        "clientWidth": 390,
+        "bodyScrollWidth": 390,
+        "bodyClientWidth": 390,
+        "tableWrappers": [
+          {
+            "className": "table-wrapper",
+            "scrollWidth": 316,
+            "clientWidth": 316
+          }
+        ]
+      },
+      {
+        "section": "recording",
+        "title": "Settings",
+        "bodyText": "Recording\nOverview\nTwitch Connection\nNotifications\nRecording\nFavorite Games\nPWA & Mobile\nAPI Keys\nProxy Management\nAbout\nRecording\n\nManage recording quality, storage, and behavior\n\nError loading settings: Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON\nRecording\nStorage\nBasic Recording Setti",
+        "scrollWidth": 390,
+        "clientWidth": 390,
+        "bodyScrollWidth": 390,
+        "bodyClientWidth": 390,
+        "tableWrappers": []
+      },
+      {
+        "section": "api-keys",
+        "title": "Settings",
+        "bodyText": "API Keys\nOverview\nTwitch Connection\nNotifications\nRecording\nFavorite Games\nPWA & Mobile\nAPI Keys\nProxy Management\nAbout\nAPI Keys\n\nManage long-lived tokens for external clients (monitoring, scripts, dashboards)\n\nAPI keys provide programmatic access to StreamVault without an interactive login. Send th",
+        "scrollWidth": 390,
+        "clientWidth": 390,
+        "bodyScrollWidth": 390,
+        "bodyClientWidth": 390,
+        "tableWrappers": []
+      },
+      {
+        "section": "proxy",
+        "title": "Settings",
+        "bodyText": "Proxy Management\nOverview\nTwitch Connection\nNotifications\nRecording\nFavorite Games\nPWA & Mobile\nAPI Keys\nProxy Management\nAbout\nProxy Management\n\nConfigure multiple proxy servers with automatic health monitoring and failover\n\nProxy System Status\n\n1 healthy proxy(ies) available\n\n2\nEnabled\n1\nHealthy\n1",
+        "scrollWidth": 390,
+        "clientWidth": 390,
+        "bodyScrollWidth": 390,
+        "bodyClientWidth": 390,
+        "tableWrappers": []
+      }
+    ]
+  }
+]

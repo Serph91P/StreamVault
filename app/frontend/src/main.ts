@@ -12,8 +12,9 @@ import { useTheme } from './composables/useTheme'
 const { initializeTheme } = useTheme()
 initializeTheme()
 
-// PWA Debug helper (nur in development)
-import('./utils/pwaDebug')
+if (import.meta.env.DEV) {
+  import('./utils/pwaDebug')
+}
 
 // Import directives
 import rippleDirective from './directives/ripple'
@@ -28,22 +29,25 @@ app.directive('ripple', rippleDirective)
 
 app.mount('#app')
 
-// Service Worker wird automatisch von VitePWA registriert
+// VitePWA owns SW registration via virtual:pwa-register
 import { registerSW } from 'virtual:pwa-register'
 
 const _updateSW = registerSW({
   onNeedRefresh() {
-    // Zeige eine Benachrichtigung für Updates
     console.log('PWA needs refresh')
+    window.dispatchEvent(new CustomEvent('pwa-needs-refresh'))
   },
   onOfflineReady() {
     console.log('PWA is ready for offline use')
+    window.dispatchEvent(new CustomEvent('pwa-offline-ready'))
   },
   onRegistered(registration) {
     console.log('Service Worker registered successfully', registration)
+    window.dispatchEvent(new CustomEvent('pwa-sw-registered', { detail: { registration } }))
   },
   onRegisterError(error) {
     console.error('Service Worker registration failed:', error)
+    window.dispatchEvent(new CustomEvent('pwa-sw-register-error', { detail: { error } }))
   },
 })
 

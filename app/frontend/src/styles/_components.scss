@@ -3,11 +3,17 @@
 @use 'variables' as v;
 @use 'mixins' as m;
 
+// SCSS ownership: this file owns existing legacy global component classes while
+// migration to shared Vue primitives is in progress. Do not define design
+// tokens or add CSS custom property aliases here.
+
 // ============================================================================
 // NAVIGATION SYSTEM - Modern Design
 // ============================================================================
+// Scoped to .main-nav: a bare `nav` selector leaked flex centering and link
+// styles into every <nav> (sidebar, bottom nav, settings nav).
 
-nav {
+.main-nav {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
@@ -650,6 +656,13 @@ select {
   padding-right: v.$spacing-10;  // Space for dropdown arrow
 }
 
+// Native select popups ignore color-scheme in some browsers and render a
+// white list on the dark theme - color the options explicitly.
+option {
+  background-color: var(--background-card);
+  color: var(--text-primary);
+}
+
 // Label
 label {
   display: block;
@@ -983,17 +996,10 @@ input[type="radio"] {
 
 // ============================================================================
 // SETTINGS PANELS - Consistent Styling
+// (.settings-section spacing is owned by _settings-panels.scss; a duplicate
+// definition here fought it with different margins and made the gap between
+// groups vary from page to page.)
 // ============================================================================
-
-.settings-section {
-  display: block;
-  padding: 0;
-  margin-bottom: v.$spacing-6;
-
-  & + & {
-    margin-top: v.$spacing-6;
-  }
-}
 
 .settings-section--surface {
   border-radius: v.$border-radius-xl;

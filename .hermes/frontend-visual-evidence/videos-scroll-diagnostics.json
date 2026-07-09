@@ -1,0 +1,139 @@
+[
+  {
+    "label": "initial",
+    "windowScrollY": 0,
+    "containers": [
+      {
+        "name": "html",
+        "scrollTop": 0,
+        "scrollHeight": 5413,
+        "clientHeight": 844,
+        "overflowY": "auto"
+      },
+      {
+        "name": "body",
+        "scrollTop": 0,
+        "scrollHeight": 5413,
+        "clientHeight": 5413,
+        "overflowY": "auto"
+      },
+      {
+        "name": "app",
+        "scrollTop": 0,
+        "scrollHeight": 5413,
+        "clientHeight": 5413,
+        "overflowY": "auto"
+      },
+      {
+        "name": "main",
+        "scrollTop": 0,
+        "scrollHeight": 5365,
+        "clientHeight": 5365,
+        "overflowY": "visible"
+      }
+    ],
+    "firstVisibleCards": []
+  },
+  {
+    "label": "after-wheel",
+    "windowScrollY": 900,
+    "containers": [
+      {
+        "name": "html",
+        "scrollTop": 900,
+        "scrollHeight": 5413,
+        "clientHeight": 844,
+        "overflowY": "auto"
+      },
+      {
+        "name": "body",
+        "scrollTop": 0,
+        "scrollHeight": 5413,
+        "clientHeight": 5413,
+        "overflowY": "auto"
+      },
+      {
+        "name": "app",
+        "scrollTop": 0,
+        "scrollHeight": 5413,
+        "clientHeight": 5413,
+        "overflowY": "auto"
+      },
+      {
+        "name": "main",
+        "scrollTop": 0,
+        "scrollHeight": 5365,
+        "clientHeight": 5365,
+        "overflowY": "visible"
+      }
+    ],
+    "firstVisibleCards": [
+      {
+        "top": 59,
+        "bottom": 406,
+        "text": "Preview unavailable\nJust Chatting\n39:00\nMorning Talk Show - Community Discussion"
+      },
+      {
+        "top": 422,
+        "bottom": 770,
+        "text": "Preview unavailable\nCompetitive Gaming\n2:00:00\nRanked Climbing Session - Road to"
+      },
+      {
+        "top": 786,
+        "bottom": 1133,
+        "text": "Preview unavailable\nRetro\n3:00:00\nRetro RPG Marathon - Classic Gaming Session\nre"
+      }
+    ]
+  },
+  {
+    "label": "after-programmatic",
+    "windowScrollY": 900,
+    "containers": [
+      {
+        "name": "html",
+        "scrollTop": 900,
+        "scrollHeight": 5413,
+        "clientHeight": 844,
+        "overflowY": "auto"
+      },
+      {
+        "name": "body",
+        "scrollTop": 0,
+        "scrollHeight": 5413,
+        "clientHeight": 5413,
+        "overflowY": "auto"
+      },
+      {
+        "name": "app",
+        "scrollTop": 0,
+        "scrollHeight": 5413,
+        "clientHeight": 5413,
+        "overflowY": "auto"
+      },
+      {
+        "name": "main",
+        "scrollTop": 0,
+        "scrollHeight": 5365,
+        "clientHeight": 5365,
+        "overflowY": "visible"
+      }
+    ],
+    "firstVisibleCards": [
+      {
+        "top": 59,
+        "bottom": 406,
+        "text": "Preview unavailable\nJust Chatting\n39:00\nMorning Talk Show - Community Discussion"
+      },
+      {
+        "top": 422,
+        "bottom": 770,
+        "text": "Preview unavailable\nCompetitive Gaming\n2:00:00\nRanked Climbing Session - Road to"
+      },
+      {
+        "top": 786,
+        "bottom": 1133,
+        "text": "Preview unavailable\nRetro\n3:00:00\nRetro RPG Marathon - Classic Gaming Session\nre"
+      }
+    ]
+  }
+]

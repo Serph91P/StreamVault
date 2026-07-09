@@ -1,0 +1,140 @@
+[
+  {
+    "label": "Open background queue, 2 active jobs",
+    "width": 44,
+    "height": 44,
+    "visible": true
+  },
+  {
+    "label": "Open notifications",
+    "width": 44,
+    "height": 44,
+    "visible": true
+  },
+  {
+    "label": "Switch to dark mode",
+    "width": 44,
+    "height": 44,
+    "visible": true
+  },
+  {
+    "label": "Logout",
+    "width": 44,
+    "height": 44,
+    "visible": true
+  },
+  {
+    "label": "Auto ON",
+    "width": 171,
+    "height": 45,
+    "visible": true
+  },
+  {
+    "label": "Add Streamer",
+    "width": 171,
+    "height": 44,
+    "visible": true
+  },
+  {
+    "label": "Search streamers",
+    "width": 350,
+    "height": 50,
+    "visible": true
+  },
+  {
+    "label": "All 4",
+    "width": 82,
+    "height": 44,
+    "visible": true
+  },
+  {
+    "label": "Live 2",
+    "width": 82,
+    "height": 44,
+    "visible": true
+  },
+  {
+    "label": "Recording 1",
+    "width": 82,
+    "height": 44,
+    "visible": true
+  },
+  {
+    "label": "Offline 2",
+    "width": 82,
+    "height": 44,
+    "visible": true
+  },
+  {
+    "label": "Show streamers as grid",
+    "width": 44,
+    "height": 44,
+    "visible": true
+  },
+  {
+    "label": "Show streamers as list",
+    "width": 44,
+    "height": 44,
+    "visible": true
+  },
+  {
+    "label": "Refresh streamers",
+    "width": 44,
+    "height": 44,
+    "visible": true
+  },
+  {
+    "label": "Actions for Speedrunner Pro",
+    "width": 44,
+    "height": 44,
+    "visible": true
+  },
+  {
+    "label": "Actions for Streamer Alpha",
+    "width": 44,
+    "height": 44,
+    "visible": true
+  },
+  {
+    "label": "Actions for Casual Streamer",
+    "width": 44,
+    "height": 44,
+    "visible": true
+  },
+  {
+    "label": "Actions for Retro Gamer",
+    "width": 44,
+    "height": 44,
+    "visible": true
+  },
+  {
+    "label": "Dashboard",
+    "width": 68,
+    "height": 52,
+    "visible": true
+  },
+  {
+    "label": "Streamers",
+    "width": 68,
+    "height": 52,
+    "visible": true
+  },
+  {
+    "label": "Library",
+    "width": 68,
+    "height": 52,
+    "visible": true
+  },
+  {
+    "label": "Subscriptions",
+    "width": 68,
+    "height": 52,
+    "visible": true
+  },
+  {
+    "label": "Settings",
+    "width": 68,
+    "height": 52,
+    "visible": true
+  }
+]

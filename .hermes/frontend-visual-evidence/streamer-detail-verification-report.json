@@ -1,0 +1,128 @@
+{
+  "results": [
+    {
+      "viewport": "desktop",
+      "width": 1280,
+      "tab": "Overview",
+      "selectedTab": "Overview",
+      "headerVisible": true,
+      "hasPanelText": true,
+      "panelPreview": "Live | Status | Just Chatting with Chat! | Recording | Recording | Capture in progress | 4 | Total Streams",
+      "screenshotPath": "/opt/data/workspace/github_repos/StreamVault-frontend-product-overhaul-final/.hermes/frontend-visual-evidence/streamer-detail-desktop-overview.png",
+      "tablistWidth": 1020,
+      "viewportWidth": 1280,
+      "bodyWidth": 1280,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "desktop",
+      "width": 1280,
+      "tab": "Videos",
+      "selectedTab": "Videos",
+      "headerVisible": true,
+      "hasPanelText": true,
+      "panelPreview": "Stream History | Newest First | Oldest First | Longest Duration | Shortest Duration | 4 streams · 4 recorded | Morning Talk Show - Community Discussion | Just Chatting",
+      "screenshotPath": "/opt/data/workspace/github_repos/StreamVault-frontend-product-overhaul-final/.hermes/frontend-visual-evidence/streamer-detail-desktop-videos.png",
+      "tablistWidth": 1020,
+      "viewportWidth": 1280,
+      "bodyWidth": 1280,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "desktop",
+      "width": 1280,
+      "tab": "Settings",
+      "selectedTab": "Settings",
+      "headerVisible": true,
+      "hasPanelText": true,
+      "panelPreview": "Configure recording behavior and notifications for this streamer. Changes take effect on the next stream. |  | Stream Quality | Quality: | Best | 1080p60 | 1080p | 720p60",
+      "screenshotPath": "/opt/data/workspace/github_repos/StreamVault-frontend-product-overhaul-final/.hermes/frontend-visual-evidence/streamer-detail-desktop-settings.png",
+      "tablistWidth": 1020,
+      "viewportWidth": 1280,
+      "bodyWidth": 1280,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "desktop",
+      "width": 1280,
+      "tab": "Events",
+      "selectedTab": "Events",
+      "headerVisible": true,
+      "hasPanelText": true,
+      "panelPreview": "Recent Events | Waiting for Events |  | Real-time events for this streamer appear here automatically. Events include stream notifications, recording status changes, and channel updates.",
+      "screenshotPath": "/opt/data/workspace/github_repos/StreamVault-frontend-product-overhaul-final/.hermes/frontend-visual-evidence/streamer-detail-desktop-events.png",
+      "tablistWidth": 1020,
+      "viewportWidth": 1280,
+      "bodyWidth": 1280,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "mobile",
+      "width": 390,
+      "tab": "Overview",
+      "selectedTab": "Overview",
+      "headerVisible": true,
+      "hasPanelText": true,
+      "panelPreview": "Live | Status | Just Chatting with Chat! | Recording | Recording | Capture in progress | 4 | Total Streams",
+      "screenshotPath": "/opt/data/workspace/github_repos/StreamVault-frontend-product-overhaul-final/.hermes/frontend-visual-evidence/streamer-detail-mobile-overview.png",
+      "tablistWidth": 374,
+      "viewportWidth": 390,
+      "bodyWidth": 390,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "mobile",
+      "width": 390,
+      "tab": "Videos",
+      "selectedTab": "Videos",
+      "headerVisible": true,
+      "hasPanelText": true,
+      "panelPreview": "Stream History | Newest First | Oldest First | Longest Duration | Shortest Duration | 4 streams · 4 recorded | Morning Talk Show - Community Discussion | Just Chatting",
+      "screenshotPath": "/opt/data/workspace/github_repos/StreamVault-frontend-product-overhaul-final/.hermes/frontend-visual-evidence/streamer-detail-mobile-videos.png",
+      "tablistWidth": 374,
+      "viewportWidth": 390,
+      "bodyWidth": 390,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "mobile",
+      "width": 390,
+      "tab": "Settings",
+      "selectedTab": "Settings",
+      "headerVisible": true,
+      "hasPanelText": true,
+      "panelPreview": "Configure recording behavior and notifications for this streamer. Changes take effect on the next stream. |  | Stream Quality | Quality: | Best | 1080p60 | 1080p | 720p60",
+      "screenshotPath": "/opt/data/workspace/github_repos/StreamVault-frontend-product-overhaul-final/.hermes/frontend-visual-evidence/streamer-detail-mobile-settings.png",
+      "tablistWidth": 374,
+      "viewportWidth": 390,
+      "bodyWidth": 390,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "mobile",
+      "width": 390,
+      "tab": "Events",
+      "selectedTab": "Events",
+      "headerVisible": true,
+      "hasPanelText": true,
+      "panelPreview": "Recent Events | Waiting for Events |  | Real-time events for this streamer appear here automatically. Events include stream notifications, recording status changes, and channel updates.",
+      "screenshotPath": "/opt/data/workspace/github_repos/StreamVault-frontend-product-overhaul-final/.hermes/frontend-visual-evidence/streamer-detail-mobile-events.png",
+      "tablistWidth": 374,
+      "viewportWidth": 390,
+      "bodyWidth": 390,
+      "horizontalOverflow": false
+    }
+  ],
+  "relevantConsole": [
+    {
+      "viewport": "desktop",
+      "type": "warning",
+      "text": "[Vue Router warn]: The `next()` callback in navigation guards is deprecated. Return the value instead of calling `next(value)`."
+    },
+    {
+      "viewport": "mobile",
+      "type": "warning",
+      "text": "[Vue Router warn]: The `next()` callback in navigation guards is deprecated. Return the value instead of calling `next(value)`."
+    }
+  ]
+}

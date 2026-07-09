@@ -1,5 +1,5 @@
 /**
- * useTouchClick — prevents accidental clicks on touch devices when the user
+ * useTouchClick - prevents accidental clicks on touch devices when the user
  * is actually scrolling/swiping over a clickable element.
  *
  * Pattern extracted from StreamerCard.vue. Use on any clickable element that

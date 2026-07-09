@@ -16,9 +16,9 @@
     <!-- Main Content -->
     <div v-else class="proxy-content">
       <!-- System Status Section -->
-      <section class="settings-section">
+      <section class="settings-section settings-group">
         <div class="section-header">
-          <h3 class="section-title">
+          <h2 class="section-title">
             <span class="status-icon-wrapper">
               <svg v-if="proxySystemStatus.status === 'healthy'" class="status-svg status-healthy"><use href="#icon-check-circle" /></svg>
               <svg v-else-if="proxySystemStatus.status === 'degraded'" class="status-svg status-warning"><use href="#icon-alert-triangle" /></svg>
@@ -28,7 +28,7 @@
               <svg v-else class="status-svg status-muted"><use href="#icon-help-circle" /></svg>
             </span>
             Proxy System Status
-          </h3>
+          </h2>
           <p class="section-description">{{ proxySystemStatus.message }}</p>
         </div>
 
@@ -54,9 +54,9 @@
       </section>
 
       <!-- Proxy Servers Section -->
-      <section class="settings-section">
+      <section class="settings-section settings-group">
         <div class="section-header">
-          <h3 class="section-title">Proxy Servers</h3>
+          <h2 class="section-title">Proxy Servers</h2>
           <button @click="showAddDialog = true" class="btn btn-primary btn-sm">
             <svg class="icon">
               <use href="#icon-plus" />
@@ -68,10 +68,11 @@
         <!-- Empty State -->
         <EmptyState
           v-if="proxies.length === 0"
-          icon="icon-server"
+          icon="server"
           title="No Proxies Configured"
           description="Add proxy servers to improve connection reliability and enable failover"
-          action-text="Add First Proxy"
+          action-label="Add First Proxy"
+          action-icon="plus"
           @action="showAddDialog = true"
         />
 
@@ -98,7 +99,7 @@
                   <span class="priority-badge">Priority: {{ proxy.priority }}</span>
                 </div>
               </div>
-              <label class="toggle-switch">
+              <label class="toggle-switch" :aria-label="`${proxy.enabled ? 'Disable' : 'Enable'} proxy ${proxy.masked_url}`">
                 <input
                   type="checkbox"
                   :checked="proxy.enabled"
@@ -138,17 +139,6 @@
             <!-- Action Buttons -->
             <div class="proxy-action-buttons">
               <button
-                @click="handleTestProxy(proxy.id)"
-                class="btn btn-sm btn-secondary"
-                :disabled="testingProxyId === proxy.id"
-              >
-                <svg class="icon">
-                  <use href="#icon-refresh" />
-                </svg>
-                {{ testingProxyId === proxy.id ? 'Testing...' : 'Test Now' }}
-              </button>
-
-              <button
                 @click="showPriorityDialog(proxy)"
                 class="btn btn-sm btn-secondary"
               >
@@ -170,9 +160,9 @@
       </section>
 
       <!-- System Configuration Section -->
-      <section class="settings-section">
+      <section class="settings-section settings-group">
         <div class="section-header">
-          <h3 class="section-title">System Configuration</h3>
+          <h2 class="section-title">System Configuration</h2>
           <button @click="handleSaveConfig" class="btn btn-primary btn-sm" :disabled="isSavingConfig">
             <svg class="icon">
               <use href="#icon-check" />
@@ -210,8 +200,9 @@
 
           <!-- Health Check Interval -->
           <div class="config-option config-option-input">
-            <label class="config-label">Health Check Interval (seconds)</label>
+            <label class="config-label" for="proxy-health-check-interval">Health Check Interval (seconds)</label>
             <input
+              id="proxy-health-check-interval"
               type="number"
               v-model.number="localConfig.proxy_health_check_interval_seconds"
               class="form-control"
@@ -227,8 +218,9 @@
 
           <!-- Max Consecutive Failures -->
           <div class="config-option config-option-input">
-            <label class="config-label">Max Consecutive Failures</label>
+            <label class="config-label" for="proxy-max-consecutive-failures">Max Consecutive Failures</label>
             <input
+              id="proxy-max-consecutive-failures"
               type="number"
               v-model.number="localConfig.proxy_max_consecutive_failures"
               class="form-control"
@@ -263,36 +255,24 @@
     <BaseModal v-model="showAddDialog" title="Add Proxy Server" size="md" @close="closeAddDialog">
       <form @submit.prevent="handleAddProxy">
         <!-- Proxy URL -->
-        <div class="form-group">
-          <label class="form-label">Proxy URL *</label>
-          <input
-            v-model="newProxy.proxy_url"
-            type="text"
-            class="form-control"
-            :class="{ error: proxyUrlError }"
-            placeholder="http://user:pass@host:port"
-            required
-          />
-          <p v-if="proxyUrlError" class="error-text">{{ proxyUrlError }}</p>
-          <p v-else class="help-text">
-            Format: http://[user:pass@]host:port or socks5://[user:pass@]host:port
-          </p>
-        </div>
+        <BaseInput
+          v-model="newProxy.proxy_url"
+          label="Proxy URL"
+          placeholder="http://user:pass@host:port"
+          required
+          :error="proxyUrlError"
+          hint="Format: http://[user:pass@]host:port or socks5://[user:pass@]host:port"
+        />
 
         <!-- Priority -->
-        <div class="form-group">
-          <label class="form-label">Priority</label>
-          <input
-            v-model.number="newProxy.priority"
-            type="number"
-            class="form-control"
-            min="1"
-            max="100"
-          />
-          <p class="help-text">
-            Lower numbers = higher priority (1 = highest priority)
-          </p>
-        </div>
+        <BaseInput
+          v-model="newProxy.priority"
+          label="Priority"
+          type="number"
+          min="1"
+          max="100"
+          hint="Lower numbers = higher priority (1 = highest priority)"
+        />
 
         <!-- Enabled -->
         <div class="form-group">
@@ -304,7 +284,7 @@
 
         <!-- Examples -->
         <div class="proxy-examples">
-          <h4>Examples:</h4>
+          <h2>Examples:</h2>
           <ul>
             <li><code>http://proxy.example.com:8080</code> - Simple HTTP proxy</li>
             <li><code>http://user:pass@proxy.example.com:8080</code> - With authentication</li>
@@ -337,20 +317,15 @@
       @close="closePriorityDialog"
     >
       <form @submit.prevent="handleUpdatePriority">
-        <div class="form-group">
-          <label class="form-label">Priority for {{ selectedProxy?.masked_url }}</label>
-          <input
-            v-model.number="newPriority"
-            type="number"
-            class="form-control"
-            min="1"
-            max="100"
-            required
-          />
-          <p class="help-text">
-            Lower numbers = higher priority (1 = highest)
-          </p>
-        </div>
+        <BaseInput
+          v-model="newPriority"
+          :label="`Priority for ${selectedProxy?.masked_url}`"
+          type="number"
+          min="1"
+          max="100"
+          required
+          hint="Lower numbers = higher priority (1 = highest)"
+        />
 
         <div class="modal-actions">
           <BaseButton type="button" variant="secondary" @click="closePriorityDialog">
@@ -372,6 +347,7 @@ import { useToast } from '@/composables/useToast'
 import type { ProxySettings, ProxyAddRequest } from '@/types/proxy'
 import BaseModal from '@/components/base/BaseModal.vue'
 import BaseButton from '@/components/base/BaseButton.vue'
+import BaseInput from '@/components/base/BaseInput.vue'
 import LoadingSkeleton from '@/components/LoadingSkeleton.vue'
 import EmptyState from '@/components/EmptyState.vue'
 
@@ -390,7 +366,6 @@ const {
   addProxy,
   deleteProxy,
   toggleProxy,
-  testProxy,
   updatePriority,
   updateConfig
 } = useProxySettings()
@@ -402,7 +377,6 @@ const showAddDialog = ref(false)
 const showPriorityDialogVisible = ref(false)
 const selectedProxy = ref<ProxySettings | null>(null)
 const newPriority = ref(1)
-const testingProxyId = ref<number | null>(null)
 const isAddingProxy = ref(false)
 const isUpdatingPriority = ref(false)
 const isSavingConfig = ref(false)
@@ -442,11 +416,6 @@ const proxyUrlError = computed(() => {
 })
 
 // Helper methods
-function getHealthIcon(_status: string): string {
-  // Icons handled via CSS, return empty
-  return ''
-}
-
 function _getHealthBadgeClass(status: string): string {
   switch (status) {
     case 'healthy': return 'success'
@@ -530,24 +499,6 @@ async function handleToggleProxy(id: number, enabled: boolean) {
   }
 }
 
-async function handleTestProxy(id: number) {
-  testingProxyId.value = id
-
-  try {
-    const result = await testProxy(id)
-    const statusIcon = getHealthIcon(result.health_status)
-    toast.success(
-      `${statusIcon} Health check complete: ${result.health_status} ` +
-      `(${result.response_time_ms ? result.response_time_ms + 'ms' : 'N/A'})`
-    )
-  } catch (e) {
-    const errorMsg = e instanceof Error ? e.message : 'Failed to test proxy'
-    toast.error(errorMsg)
-  } finally {
-    testingProxyId.value = null
-  }
-}
-
 function showPriorityDialog(proxy: ProxySettings) {
   selectedProxy.value = proxy
   newPriority.value = proxy.priority
@@ -606,21 +557,20 @@ async function handleSaveConfig() {
 .proxy-content {
   display: flex;
   flex-direction: column;
-  gap: v.$spacing-8;
+  // Same 20px group gap as every other settings page; the shared
+  // .settings-group card border replaced the old hairline dividers.
+  gap: v.$spacing-5;
 }
 
 // ============================================================================
 // SETTINGS SECTIONS
 // ============================================================================
 
-.settings-section {
-  padding-bottom: v.$spacing-6;
-  border-bottom: 1px solid var(--border-color);
-  
-  &:last-child {
-    border-bottom: none;
-    padding-bottom: 0;
-  }
+// Spacing comes from the flex gap above; the group's own margin-bottom
+// would double it inside a flex column (margins don't collapse there).
+// .proxy-content prefix outranks the global .settings-group rule.
+.proxy-content .settings-section {
+  margin-bottom: 0;
 }
 
 .section-header {
@@ -629,7 +579,7 @@ async function handleSaveConfig() {
   justify-content: space-between;
   gap: v.$spacing-4;
   margin-bottom: v.$spacing-5;
-  
+
   @include m.respond-below('sm') {
     flex-direction: column;
     align-items: stretch;
@@ -662,7 +612,7 @@ async function handleSaveConfig() {
 .status-svg {
   width: 20px;
   height: 20px;
-  
+
   &.status-healthy { color: var(--success-color); }
   &.status-warning { color: var(--warning-color); }
   &.status-danger { color: var(--danger-color); }
@@ -678,11 +628,11 @@ async function handleSaveConfig() {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: v.$spacing-4;
-  
+
   @include m.respond-below('md') {
     grid-template-columns: repeat(2, 1fr);
   }
-  
+
   @include m.respond-below('sm') {
     grid-template-columns: 1fr 1fr;
     gap: v.$spacing-3;
@@ -695,7 +645,7 @@ async function handleSaveConfig() {
   border-radius: var(--radius-md);
   text-align: center;
   border: 1px solid var(--border-color);
-  
+
   .stat-value {
     display: block;
     font-size: v.$text-2xl;
@@ -703,21 +653,21 @@ async function handleSaveConfig() {
     color: var(--text-primary);
     margin-bottom: v.$spacing-1;
   }
-  
+
   .stat-label {
     display: block;
     font-size: v.$text-sm;
     color: var(--text-secondary);
   }
-  
+
   &.stat-healthy .stat-value {
     color: var(--success-color);
   }
-  
+
   &.stat-degraded .stat-value {
     color: var(--warning-color);
   }
-  
+
   &.stat-failed .stat-value {
     color: var(--danger-color);
   }
@@ -739,25 +689,25 @@ async function handleSaveConfig() {
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
   transition: all v.$duration-200 v.$ease-out;
-  
+
   &:hover {
     border-color: var(--primary-color);
   }
-  
+
   &.proxy-disabled {
     opacity: 0.6;
   }
-  
+
   &.proxy-status-healthy {
     background: linear-gradient(135deg, rgba(var(--success-500-rgb), 0.1) 0%, transparent 50%);
     border-color: var(--success-color);
   }
-  
+
   &.proxy-status-degraded {
     background: linear-gradient(135deg, rgba(var(--warning-500-rgb), 0.1) 0%, transparent 50%);
     border-color: var(--warning-color);
   }
-  
+
   &.proxy-status-failed {
     background: linear-gradient(135deg, rgba(var(--danger-500-rgb), 0.1) 0%, transparent 50%);
     border-color: var(--danger-color);
@@ -771,7 +721,7 @@ async function handleSaveConfig() {
   justify-content: space-between;
   gap: v.$spacing-4;
   margin-bottom: v.$spacing-4;
-  
+
   @include m.respond-below('sm') {
     flex-direction: column;
     gap: v.$spacing-3;
@@ -786,7 +736,7 @@ async function handleSaveConfig() {
 .proxy-url {
   font-family: var(--font-mono);
   font-size: v.$text-sm;
-  color: var(--primary-color);
+  color: var(--text-primary);
   background: var(--background-darker);
   padding: v.$spacing-2 v.$spacing-3;
   border-radius: var(--radius-sm);
@@ -811,42 +761,42 @@ async function handleSaveConfig() {
   font-size: v.$text-xs;
   font-weight: v.$font-semibold;
   text-transform: capitalize;
-  
+
   .health-icon {
     width: 14px;
     height: 14px;
     flex-shrink: 0;
   }
-  
+
   &.health-healthy {
     background: rgba(46, 213, 115, 0.15);
     color: var(--success-color);
     border: 1px solid rgba(46, 213, 115, 0.3);
-    
+
     .health-icon { stroke: var(--success-color); fill: none; }
   }
-  
+
   &.health-degraded {
     background: rgba(245, 158, 11, 0.15);
     color: var(--warning-color);
     border: 1px solid rgba(245, 158, 11, 0.3);
-    
+
     .health-icon { stroke: var(--warning-color); fill: none; }
   }
-  
+
   &.health-failed {
     background: rgba(239, 68, 68, 0.15);
     color: var(--danger-color);
     border: 1px solid rgba(239, 68, 68, 0.3);
-    
+
     .health-icon { stroke: var(--danger-color); fill: none; }
   }
-  
+
   &.health-unknown {
     background: rgba(148, 163, 184, 0.15);
     color: var(--text-secondary);
     border: 1px solid rgba(148, 163, 184, 0.3);
-    
+
     .health-icon { stroke: var(--text-secondary); fill: none; }
   }
 }
@@ -866,13 +816,13 @@ async function handleSaveConfig() {
   width: 48px;
   height: 26px;
   flex-shrink: 0;
-  
+
   input {
     opacity: 0;
     width: 0;
     height: 0;
   }
-  
+
   .toggle-slider {
     position: absolute;
     cursor: pointer;
@@ -881,7 +831,7 @@ async function handleSaveConfig() {
     border: 1px solid var(--border-color);
     border-radius: 26px;
     transition: v.$transition-all;
-    
+
     &::before {
       position: absolute;
       content: "";
@@ -894,11 +844,11 @@ async function handleSaveConfig() {
       transition: v.$transition-all;
     }
   }
-  
+
   input:checked + .toggle-slider {
-    background-color: var(--primary-color);
-    border-color: var(--primary-color);
-    
+    background-color: v.$primary-800;
+    border-color: v.$primary-800;
+
     &::before {
       transform: translateX(22px);
       background-color: white;
@@ -915,11 +865,11 @@ async function handleSaveConfig() {
   background: var(--background-darker);
   border-radius: var(--radius-md);
   margin-bottom: v.$spacing-4;
-  
+
   @include m.respond-below('md') {
     grid-template-columns: repeat(2, 1fr);
   }
-  
+
   @include m.respond-below('sm') {
     grid-template-columns: 1fr 1fr;
   }
@@ -927,7 +877,7 @@ async function handleSaveConfig() {
 
 .proxy-stat {
   text-align: center;
-  
+
   .proxy-stat-label {
     display: block;
     font-size: v.$text-xs;
@@ -936,7 +886,7 @@ async function handleSaveConfig() {
     text-transform: uppercase;
     letter-spacing: 0.05em;
   }
-  
+
   .proxy-stat-value {
     display: block;
     font-size: v.$text-base;
@@ -954,7 +904,7 @@ async function handleSaveConfig() {
   color: var(--danger-color);
   font-size: v.$text-sm;
   margin-bottom: v.$spacing-4;
-  
+
   strong {
     color: var(--danger-color);
   }
@@ -967,7 +917,7 @@ async function handleSaveConfig() {
   gap: v.$spacing-3;
   padding-top: v.$spacing-4;
   border-top: 1px solid var(--border-color);
-  
+
   @include m.respond-below('sm') {
     .btn {
       flex: 1;
@@ -989,7 +939,7 @@ async function handleSaveConfig() {
 .config-option {
   padding-bottom: v.$spacing-4;
   border-bottom: 1px solid rgba(var(--border-color-rgb), 0.3);
-  
+
   &:last-child {
     border-bottom: none;
     padding-bottom: 0;
@@ -1008,14 +958,14 @@ async function handleSaveConfig() {
   align-items: center;
   gap: v.$spacing-3;
   cursor: pointer;
-  
+
   input[type="checkbox"] {
     width: 18px;
     height: 18px;
     accent-color: var(--primary-color);
     cursor: pointer;
   }
-  
+
   .checkbox-text {
     font-weight: v.$font-medium;
     color: var(--text-primary);
@@ -1031,9 +981,44 @@ async function handleSaveConfig() {
 
 .config-help {
   font-size: v.$text-sm;
-  color: var(--text-secondary);
+  color: var(--text-primary);
   margin: v.$spacing-2 0 0 0;
   line-height: 1.5;
+}
+
+.proxy-examples {
+  margin: v.$spacing-4 0;
+
+  h2 {
+    font-size: v.$text-sm;
+    font-weight: v.$font-semibold;
+    color: var(--text-primary);
+    margin: 0 0 v.$spacing-2 0;
+  }
+
+  ul {
+    padding-left: v.$spacing-5;
+    margin: 0;
+  }
+
+  li {
+    font-size: v.$text-sm;
+    color: var(--text-secondary);
+    margin-bottom: v.$spacing-1;
+
+    code {
+      word-break: break-all;
+      font-family: var(--font-mono);
+      font-size: v.$text-xs;
+      background: var(--background-darker);
+      padding: v.$spacing-1 v.$spacing-2;
+      border-radius: var(--radius-sm);
+    }
+  }
+}
+
+:deep(.form-hint) {
+  color: var(--text-primary);
 }
 
 // ============================================================================
@@ -1063,8 +1048,8 @@ async function handleSaveConfig() {
   align-items: center;
   justify-content: space-between;
   margin-bottom: v.$spacing-5;
-  
-  h3 {
+
+  h2 {
     margin: 0;
     font-size: v.$text-xl;
     font-weight: v.$font-semibold;
@@ -1080,7 +1065,7 @@ async function handleSaveConfig() {
   cursor: pointer;
   padding: v.$spacing-1;
   line-height: 1;
-  
+
   &:hover {
     color: var(--text-primary);
   }
@@ -1090,24 +1075,24 @@ async function handleSaveConfig() {
   .form-group {
     margin-bottom: v.$spacing-4;
   }
-  
+
   .form-label {
     display: block;
     font-weight: v.$font-medium;
     color: var(--text-primary);
     margin-bottom: v.$spacing-2;
   }
-  
+
   .form-control {
     width: 100%;
   }
-  
+
   .help-text {
     font-size: v.$text-sm;
     color: var(--text-secondary);
     margin-top: v.$spacing-1;
   }
-  
+
   .error-text {
     font-size: v.$text-sm;
     color: var(--danger-color);
@@ -1131,7 +1116,7 @@ async function handleSaveConfig() {
 @include m.respond-below('md') {
   .proxy-action-buttons {
     justify-content: stretch;
-    
+
     .btn {
       flex: 1;
     }

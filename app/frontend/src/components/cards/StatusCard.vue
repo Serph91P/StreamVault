@@ -66,7 +66,7 @@ interface Props {
   label: string
   /** Subtitle text (optional) */
   subtitle?: string
-  /** Icon name (from icons.svg) */
+  /** Icon name from the StreamVault icon sprite */
   icon: string
   /** Status type (determines colors) */
   type?: StatusType

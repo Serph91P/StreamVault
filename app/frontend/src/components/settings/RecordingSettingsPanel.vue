@@ -1,42 +1,25 @@
 <template>
-    
+
     <div v-if="isLoading" class="loading-message">
       Loading recording settings...
     </div>
-    
-    <div v-else-if="error" class="error-message">
-      Error loading settings: {{ error }}    
-    </div>
-      <!-- Tab Navigation -->
-      <div class="tab-navigation">
-        <button 
-          v-for="tab in tabs" 
-          :key="tab.id"
-          @click="activeTab = tab.id"
-          :class="['tab-button', { active: activeTab === tab.id }]"
-        >
-          <svg v-if="tab.id === 'recording'" class="tab-icon">
-            <use href="#icon-video" />
-          </svg>
-          <svg v-else-if="tab.id === 'storage'" class="tab-icon">
-            <use href="#icon-server" />
-          </svg>
-          {{ tab.label }}
-        </button>
-      </div>
 
-      <!-- Tab Content -->
-      <div class="tab-content">        <!-- Recording Tab -->
-        <div v-if="activeTab === 'recording'" class="tab-panel">
+    <div v-else-if="error" class="error-message">
+      Error loading settings: {{ error }}
+    </div>
+      <!-- Recording and Storage are separate settings sections now; this
+           component renders one half, selected via the `section` prop -->
+      <div class="tab-content">
+        <div v-if="section === 'recording'" class="tab-panel">
           <!-- Basic Recording Settings Section -->
           <div class="panel-block">
             <div class="section-header">
               <svg class="section-icon">
                 <use href="#icon-video" />
               </svg>
-              <h4 class="section-title">Basic Recording Settings</h4>
+              <h3 class="section-title">Basic Recording Settings</h3>
             </div>
-            
+
             <div class="form-group">
               <label>
                 <input type="checkbox" v-model="data.enabled" />
@@ -60,7 +43,7 @@
             </div>
 
             <div class="form-group">
-              <label>Filename Template:</label>              
+              <label>Filename Template:</label>
               <select v-model="data.filename_preset" class="form-control" @change="updateFilenameFromPreset" :disabled="presetsLoading">
                 <option value="" v-if="presetsLoading">Loading presets...</option>
                 <option v-for="preset in FILENAME_PRESETS" :key="preset.value" :value="preset.value">
@@ -75,9 +58,9 @@
                 Choose a preset or customize the filename template.
                 <br><strong>Available variables (click to insert):</strong>
                 <div class="variables-container">
-                  <button 
-                    v-for="variable in FILENAME_VARIABLES" 
-                    :key="variable.key" 
+                  <button
+                    v-for="variable in FILENAME_VARIABLES"
+                    :key="variable.key"
                     @click="insertVariable(variable.key)"
                     class="variable-tag clickable"
                     type="button"
@@ -120,7 +103,7 @@
               <svg class="section-icon">
                 <use href="#icon-settings" />
               </svg>
-              <h4 class="section-title">Advanced Codec Settings</h4>
+              <h3 class="section-title">Advanced Codec Settings</h3>
             </div>
             <div class="form-group">
               <label>Supported Codecs:</label>
@@ -145,19 +128,19 @@
           </div>
         </div>
 
-        <!-- Storage Tab -->
-        <div v-if="activeTab === 'storage'" class="tab-panel">
+        <!-- Storage section -->
+        <div v-if="section === 'storage'" class="tab-panel">
           <div class="panel-block">
             <div class="section-header">
               <svg class="section-icon">
                 <use href="#icon-server" />
               </svg>
-              <h4 class="section-title">Storage & Cleanup Management</h4>
+              <h3 class="section-title">Storage & Cleanup Management</h3>
             </div>
             <p class="section-description">
               Configure automatic cleanup policies to manage storage space and organize your recordings efficiently.
             </p>
-            
+
             <CleanupPolicyEditor
               :is-global="true"
               title="Global Cleanup Policy"
@@ -167,14 +150,14 @@
         </div>
       </div>
 
-      <!-- Save Button (outside of tabs) -->
-      <div class="form-actions">
+      <!-- Save Button (recording settings only; cleanup policies save themselves) -->
+      <div v-if="section === 'recording'" class="form-actions">
         <button @click="saveSettings" class="btn btn-primary" :disabled="isSaving">
           {{ isSaving ? 'Saving...' : 'Save Settings' }}        </button>
       </div>
 
     <!-- Active Recordings -->
-    <div v-if="activeRecordings.length > 0" class="active-recordings panel-block">
+    <div v-if="section === 'recording' && activeRecordings.length > 0" class="active-recordings panel-block">
       <h3>Active Recordings</h3>
       <div class="recordings-grid">
         <div v-for="recording in activeRecordings" :key="recording.streamer_id" class="recording-card">
@@ -195,9 +178,9 @@
       </div>
     </div>
     <!-- Streamer Settings -->
-    <div class="streamer-settings panel-block">
+    <div v-if="section === 'recording'" class="streamer-settings panel-block">
       <h3>Streamer Recording Settings</h3>
-      
+
       <div v-if="!streamerSettings || streamerSettings.length === 0" class="no-streamers-message">
         <p>No streamers found. Add streamers in the Streamers section to configure recording settings.</p>
       </div>
@@ -295,16 +278,16 @@
                 </td>
                 <td data-label="Actions" class="actions-cell">
                   <div class="actions-group">
-                    <button 
-                      v-if="isActiveRecording(streamer.streamer_id)" 
-                      @click="stopRecording(streamer.streamer_id)" 
-                      class="btn btn-danger btn-sm" 
+                    <button
+                      v-if="isActiveRecording(streamer.streamer_id)"
+                      @click="stopRecording(streamer.streamer_id)"
+                      class="btn btn-danger btn-sm"
                       :disabled="isLoading">
                       Stop
                     </button>
-                    <button 
-                      @click="openCleanupPolicyEditor(streamer)" 
-                      class="btn btn-info btn-sm" 
+                    <button
+                      @click="openCleanupPolicyEditor(streamer)"
+                      class="btn btn-info btn-sm"
                       :disabled="isLoading"
                       title="Configure cleanup policy for this streamer">
                       Policy
@@ -317,7 +300,7 @@
         </div>
       </template>
     </div>
-    
+
     <!-- Per-Streamer Cleanup Policy Editor Dialog -->
     <BaseModal
       v-model="showStreamerPolicyDialog"
@@ -344,24 +327,23 @@ import type { RecordingSettings, StreamerRecordingSettings } from '@/types/recor
 import CleanupPolicyEditor from '@/components/CleanupPolicyEditor.vue';
 import BaseModal from '@/components/base/BaseModal.vue';
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   settings: RecordingSettings | null;
   streamerSettings: StreamerRecordingSettings[];
   activeRecordings: any[];
-}>();
+  /** Which settings page this instance renders: recording quality/behavior
+   *  or the storage/cleanup half. Each is its own sidebar section now -
+   *  the old in-panel tab bar is gone. */
+  section?: 'recording' | 'storage';
+}>(), {
+  section: 'recording'
+});
 
 const emits = defineEmits<{
   update: [settings: RecordingSettings];
   updateStreamer: [streamerId: number, settings: Partial<StreamerRecordingSettings>];
   stopRecording: [streamerId: number];
 }>();
-
-// Tab management
-const activeTab = ref('recording');
-const tabs = [
-  { id: 'recording', label: 'Recording' },
-  { id: 'storage', label: 'Storage' }
-];
 
 const { isLoading, error } = useRecordingSettings();
 const toast = useToast();
@@ -403,8 +385,8 @@ const _updateFilenameTemplate = () => {
 // Update local data when props change
 watch(() => props.settings, (newSettings: RecordingSettings | null) => {
   if (newSettings) {
-    data.value = { 
-      ...newSettings, 
+    data.value = {
+      ...newSettings,
       filename_preset: newSettings.filename_preset || detectPresetFromTemplate(newSettings.filename_template ?? '')
     };
   }
@@ -463,20 +445,20 @@ const updateFilenameFromPreset = () => {
 const insertVariable = (variableKey: string) => {
   const currentTemplate = data.value.filename_template || '';
   const inputElement = filenameTemplateInput.value;
-  
+
   // Get the actual cursor position from the input element
   let cursorPosition = currentTemplate.length; // Default to end
   if (inputElement && typeof inputElement.selectionStart === 'number') {
     cursorPosition = inputElement.selectionStart;
   }
-  
+
   // Insert the variable at the cursor position
   const newTemplate = currentTemplate.slice(0, cursorPosition) + variableKey + currentTemplate.slice(cursorPosition);
   data.value.filename_template = newTemplate;
-  
+
   // Update the preset to "custom" when manually adding variables
   data.value.filename_preset = 'custom';
-  
+
   // Focus back to input and set cursor position after the inserted variable
   if (inputElement) {
     inputElement.focus();
@@ -491,7 +473,7 @@ const insertVariable = (variableKey: string) => {
 const saveSettings = async () => {
   try {
     isSaving.value = true;
-    
+
     // Save recording settings
     emits('update', {
       enabled: data.value.enabled,
@@ -504,7 +486,7 @@ const saveSettings = async () => {
       supported_codecs: data.value.supported_codecs,
       prefer_higher_quality: data.value.prefer_higher_quality
     });
-    
+
   } catch (error) {
     console.error('Failed to save settings:', error);
     toast.error('Failed to save settings. Please try again.');
@@ -550,9 +532,9 @@ const _toggleStreamerRecording = (_streamerId: number, _enabled: boolean) => {
 
 const handleCleanupPolicySaved = (policy: any) => {
   if (props.settings) {
-    const updatedSettings = { 
-      ...props.settings, 
-      cleanup_policy: policy 
+    const updatedSettings = {
+      ...props.settings,
+      cleanup_policy: policy
     };
     emits('update', updatedSettings);
   }
@@ -570,7 +552,7 @@ const closeStreamerPolicyDialog = () => {
 };
 
 const handleStreamerPolicySaved = (_policy: any) => {
-  
+
   closeStreamerPolicyDialog();
 };
 </script>
@@ -585,10 +567,18 @@ const handleStreamerPolicySaved = (_policy: any) => {
   gap: var(--spacing-7, 28px);
 }
 
+// Match the shared .settings-group look so recording blocks read as the
+// same "these belong together" containers as every other settings page
 .panel-block {
-  padding: var(--spacing-6, 24px);
-  border-radius: var(--radius-xl, 32px);
-  background: transparent;
+  padding: var(--spacing-5);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  background: rgba(var(--background-darker-rgb, 10, 10, 10), 0.35);
+  margin-bottom: var(--spacing-5);
+
+  &:last-child {
+    margin-bottom: 0;
+  }
 }
 
 /* Section Headers with Icons */
@@ -620,56 +610,7 @@ const handleStreamerPolicySaved = (_policy: any) => {
   line-height: 1.6;
 }
 
-/* Tab Navigation Styles */
-.tab-navigation {
-  display: flex;
-  border-bottom: 2px solid var(--border-color);
-  margin-bottom: var(--spacing-8, 32px);
-  gap: var(--spacing-2, 8px);
-}
-
-.tab-button {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-2, 8px);
-  background: transparent;
-  border: none;
-  padding: var(--spacing-4) var(--spacing-6);
-  cursor: pointer;
-  color: var(--text-secondary);
-  font-weight: 600;
-  font-size: var(--text-base, 16px);
-  border-radius: var(--radius-lg, 12px) var(--radius-lg, 12px) 0 0;
-  transition: var(--transition-base);
-  border-bottom: 3px solid transparent;
-  position: relative;
-
-  .tab-icon {
-    width: 20px;
-    height: 20px;
-    flex-shrink: 0;
-  }
-}
-
-.tab-button:hover:not(.active) {
-  background-color: rgba(var(--primary-color-rgb), 0.05);
-  color: var(--text-primary);
-}
-
-.tab-button.active {
-  background-color: rgba(var(--primary-color-rgb), 0.1);
-  color: var(--primary-color);
-  border-bottom-color: var(--primary-color);
-  
-  .tab-icon {
-    color: var(--primary-color);
-  }
-}
-
-.tab-content {
-  min-height: 300px;
-}
-
+/* (Tab bar removed - Recording and Storage are separate settings sections) */
 .tab-panel {
   animation: fadeIn 0.3s ease-in-out;
 }
@@ -722,7 +663,7 @@ const handleStreamerPolicySaved = (_policy: any) => {
   display: flex;
   gap: v.$spacing-2;
   flex-wrap: wrap;
-  
+
   label {
     display: flex;
     align-items: center;
@@ -733,16 +674,16 @@ const handleStreamerPolicySaved = (_policy: any) => {
     border-radius: var(--radius-md);
     cursor: pointer;
     transition: v.$transition-all;
-    
+
     &:hover {
       border-color: var(--primary-color);
       background: var(--background-hover);
     }
-    
+
     input[type="checkbox"] {
       margin: 0;
     }
-    
+
     &:has(input:checked) {
       border-color: var(--primary-color);
       background: var(--primary-bg);
@@ -771,11 +712,11 @@ const handleStreamerPolicySaved = (_policy: any) => {
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
   transition: v.$transition-all;
-  
+
   &:hover {
     border-color: var(--primary-color);
   }
-  
+
   @include m.respond-below('md') {
     flex-direction: column;
     gap: v.$spacing-3;
@@ -785,13 +726,13 @@ const handleStreamerPolicySaved = (_policy: any) => {
 
 .recording-info {
   flex: 1;
-  
+
   .streamer-name {
     font-weight: v.$font-semibold;
     color: var(--text-primary);
     font-size: v.$text-base;
   }
-  
+
   .recording-meta {
     font-size: v.$text-sm;
     color: var(--text-secondary);
@@ -802,7 +743,7 @@ const handleStreamerPolicySaved = (_policy: any) => {
 .recording-actions {
   display: flex;
   gap: v.$spacing-2;
-  
+
   @include m.respond-below('md') {
     width: 100%;
     justify-content: flex-end;
@@ -816,32 +757,32 @@ const handleStreamerPolicySaved = (_policy: any) => {
 .streamer-table {
   width: 100%;
   border-collapse: collapse;
-  
+
   thead {
     background: var(--background-hover);
-    
+
     th {
       padding: v.$spacing-3;
       text-align: left;
       font-weight: v.$font-semibold;
       color: var(--text-primary);
       border-bottom: 2px solid var(--border-color);
-      
+
       @include m.respond-below('md') {
         display: none;
       }
     }
   }
-  
+
   tbody {
     tr {
       border-bottom: 1px solid var(--border-color);
       transition: v.$transition-colors;
-      
+
       &:hover {
         background: var(--background-hover);
       }
-      
+
       @include m.respond-below('md') {
         display: block;
         margin-bottom: v.$spacing-4;
@@ -850,17 +791,17 @@ const handleStreamerPolicySaved = (_policy: any) => {
         padding: v.$spacing-3;
       }
     }
-    
+
     td {
       padding: v.$spacing-3;
       color: var(--text-primary);
-      
+
       @include m.respond-below('md') {
         display: block;
         text-align: right;
         padding: v.$spacing-2 0;
         border: none;
-        
+
         &:before {
           content: attr(data-label);
           float: left;
@@ -883,33 +824,33 @@ const handleStreamerPolicySaved = (_policy: any) => {
     border-radius: var(--radius-md);
     padding: v.$spacing-4;
     margin-bottom: v.$spacing-4;
-    
+
     h5, h6 {
       color: var(--text-primary);
       margin-bottom: v.$spacing-2;
     }
-    
+
     h5 {
       font-size: v.$text-base;
       font-weight: v.$font-semibold;
     }
-    
+
     h6 {
       font-size: v.$text-sm;
       font-weight: v.$font-medium;
     }
   }
-  
+
   .proxy-examples-list,
   .proxy-tips {
     list-style: none;
     padding: 0;
-    
+
     li {
       padding: v.$spacing-2 0;
       color: var(--text-secondary);
       font-size: v.$text-sm;
-      
+
       code {
         background: var(--background-darker);
         padding: v.$spacing-1 v.$spacing-2;
@@ -920,13 +861,13 @@ const handleStreamerPolicySaved = (_policy: any) => {
       }
     }
   }
-  
+
   .example-item {
     padding: v.$spacing-3;
     margin-bottom: v.$spacing-2;
     background: var(--background-card);
     border-radius: var(--radius-sm);
-    
+
     code {
       display: block;
       word-break: break-all;
@@ -949,13 +890,13 @@ const handleStreamerPolicySaved = (_policy: any) => {
   position: relative;
   display: inline-flex;
   align-items: center;
-  
+
   &:hover .tooltip-wrapper {
     opacity: 1;
     visibility: visible;
     transform: translateY(0);
   }
-  
+
   .tooltip-wrapper {
     position: absolute;
     top: calc(100% + 8px);
@@ -967,7 +908,7 @@ const handleStreamerPolicySaved = (_policy: any) => {
     transition: all v.$duration-200 v.$ease-out;
     pointer-events: none;
     white-space: nowrap;
-    
+
     .tooltip {
       display: block;
       padding: var(--spacing-2, 8px) var(--spacing-3, 12px);
@@ -983,14 +924,14 @@ const handleStreamerPolicySaved = (_policy: any) => {
       max-width: 250px;
       white-space: normal;
       line-height: 1.4;
-      
+
       // Light mode: Better contrast
       [data-theme="light"] & {
         background: var(--background-card);
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
         border-color: var(--border-color);
       }
-      
+
       // Arrow
       &::before {
         content: '';
@@ -1000,7 +941,7 @@ const handleStreamerPolicySaved = (_policy: any) => {
         transform: translateX(-50%);
         border: 6px solid transparent;
         border-bottom-color: var(--background-darker);
-        
+
         [data-theme="light"] & {
           border-bottom-color: var(--background-card);
         }
@@ -1014,41 +955,10 @@ const handleStreamerPolicySaved = (_policy: any) => {
 // ============================================================================
 
 @include m.respond-below('md') {
-  .tab-navigation {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: thin;
-    gap: v.$spacing-1;
-    margin-bottom: v.$spacing-4;
-    padding-bottom: v.$spacing-2;
-    
-    &::-webkit-scrollbar {
-      height: 4px;
-    }
-    
-    &::-webkit-scrollbar-thumb {
-      background: var(--border-color);
-      border-radius: 2px;
-    }
-  }
-  
-  .tab-button {
-    min-width: 140px;  // Increased to show full text
-    flex-shrink: 0;
-    padding: v.$spacing-3 v.$spacing-4;
-    font-size: v.$text-sm;
-    white-space: nowrap;  // Prevent text wrapping
-    
-    .tab-icon {
-      width: 18px;
-      height: 18px;
-    }
-  }
-  
   .form-actions {
     flex-direction: column;
     gap: v.$spacing-3;
-    
+
     .btn {
       width: 100%;
     }
@@ -1080,17 +990,17 @@ const handleStreamerPolicySaved = (_policy: any) => {
   font-weight: v.$font-medium;
   white-space: nowrap;
   transition: v.$transition-all;
-  
+
   &.clickable {
     cursor: pointer;
-    
+
     &:hover {
       background: var(--primary-color);
       color: white;
       border-color: var(--primary-color);
       transform: translateY(-1px);
     }
-    
+
     &:active {
       transform: translateY(0);
     }
@@ -1102,7 +1012,7 @@ const handleStreamerPolicySaved = (_policy: any) => {
     font-size: v.$text-xs;
     padding: v.$spacing-1 v.$spacing-2;
   }
-  
+
   .section-title {
     font-size: v.$text-base;
   }

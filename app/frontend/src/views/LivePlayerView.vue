@@ -1,19 +1,29 @@
 <template>
-  <div class="page-view live-player-view fade-in">
+  <div class="page-view live-player-view fade-in" :class="{ 'theater-mode': effectiveTheaterMode }">
     <!-- Loading State -->
     <div v-if="isLoading" class="content-state">
       <LoadingSkeleton type="video" />
-      <p class="state-text">Starting live stream...</p>
+      <p class="state-text" role="status" aria-live="polite">Starting live stream...</p>
+    </div>
+
+    <!-- Stopped State -->
+    <div v-else-if="isStopped" class="content-state">
+      <EmptyState
+        icon="square"
+        title="Stream Stopped"
+        description="The live stream has been stopped."
+        action-label="Back to Streamers"
+        action-icon="arrow-left"
+        @action="goBack"
+      />
     </div>
 
     <!-- Error State -->
-    <div v-else-if="error || !sessionId" class="content-state">
-      <EmptyState
-        icon="alert-circle"
+    <div v-else-if="error && !sessionId" class="content-state">
+      <PlayerError
         title="Stream Error"
-        :description="error || 'Unknown error occurred'"
+        :message="error || 'Unknown error occurred'"
         action-label="Retry"
-        action-icon="refresh-cw"
         @action="retryStart"
       />
     </div>
@@ -24,7 +34,7 @@
         <GlassCard variant="strong" :padding="false" class="player-card">
           <!-- Header -->
           <div class="player-header">
-            <button @click="goBack" class="back-button" v-ripple>
+            <button @click="goBack" class="back-button" aria-label="Go back" v-ripple>
               <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M19 12H5M12 19l-7-7 7-7" />
               </svg>
@@ -33,14 +43,13 @@
 
             <h1 class="stream-title">{{ streamerName }}</h1>
 
-            <div v-if="streamInfo" class="live-badge-inline">
-              <span class="live-indicator"></span>
-              <span>LIVE</span>
+            <div v-if="streamInfo" class="live-status-strip" aria-label="Live stream status: Live">
+              <span class="live-status-pill">Live</span>
             </div>
           </div>
 
           <!-- Video Container -->
-          <div class="video-container" ref="videoContainer">
+          <div class="video-container" :class="{ 'show-controls': showControls }" ref="videoContainer" @click="onVideoContainerClick" @touchstart="onTouchStart">
             <video
               ref="videoElement"
               class="video-element"
@@ -53,15 +62,17 @@
             ></video>
 
             <!-- Buffering Overlay -->
-            <div v-if="isBuffering" class="buffering-overlay">
-              <div class="spinner"></div>
-              <p>Buffering...</p>
+            <div v-if="isBuffering && !error" class="buffering-overlay">
+              <PlayerStatus state="buffering" :message="'Buffering live stream...'" />
+            </div>
+            <div v-if="isRetrying && !error" class="buffering-overlay">
+              <PlayerStatus state="connecting" :message="'Reconnecting...'" :retry-count="retryCount" />
             </div>
 
             <!-- Controls Overlay -->
             <div class="live-controls-overlay">
               <div class="controls-bottom">
-                <button @click="togglePlayPause" class="control-button">
+                <button @click="togglePlayPause" class="control-button" :aria-label="isPlaying ? 'Pause live stream' : 'Play live stream'">
                   <svg v-if="isPlaying" viewBox="0 0 24 24" fill="currentColor" class="control-icon">
                     <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z"/>
                   </svg>
@@ -70,7 +81,7 @@
                   </svg>
                 </button>
 
-                <button @click="toggleMute" class="control-button">
+                <button @click="toggleMute" class="control-button" :aria-label="isMuted ? 'Unmute live stream' : 'Mute live stream'">
                   <svg v-if="!isMuted" viewBox="0 0 24 24" fill="currentColor" class="control-icon">
                     <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
                   </svg>
@@ -82,17 +93,32 @@
                 <div class="stream-meta">
                   <span class="meta-quality">{{ selectedQualityLabel }}</span>
                   <span class="meta-separator">|</span>
-                  <span class="meta-status">{{ isBuffering ? 'Buffering' : 'Playing' }}</span>
+                  <span class="meta-status">{{ streamStatusText }}</span>
                 </div>
 
-                <button @click="toggleFullscreen" class="control-button fullscreen-button">
-                  <svg v-if="!isFullscreen" viewBox="0 0 24 24" fill="currentColor" class="control-icon">
-                    <path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/>
-                  </svg>
-                  <svg v-else viewBox="0 0 24 24" fill="currentColor" class="control-icon">
-                    <path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z"/>
-                  </svg>
-                </button>
+                <div class="controls-spacer" aria-hidden="true"></div>
+
+                <div class="controls-right">
+                  <button
+                    v-if="!isNarrowViewport"
+                    @click="toggleTheaterMode"
+                    class="control-button theater-button"
+                    :class="{ active: effectiveTheaterMode }"
+                    :aria-label="effectiveTheaterMode ? 'Show details' : 'Theater mode'"
+                  >
+                    <svg viewBox="0 0 24 24" fill="currentColor" class="control-icon">
+                      <path d="M3 5h18v12H3V5zm2 2v8h14V7H5zm4 12h6v2H9v-2z"/>
+                    </svg>
+                  </button>
+                  <button @click="toggleFullscreen" class="control-button fullscreen-button" :aria-label="isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'">
+                    <svg v-if="!isFullscreen" viewBox="0 0 24 24" fill="currentColor" class="control-icon">
+                      <path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/>
+                    </svg>
+                    <svg v-else viewBox="0 0 24 24" fill="currentColor" class="control-icon">
+                      <path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z"/>
+                    </svg>
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -101,12 +127,12 @@
         <!-- Info Sidebar -->
         <aside class="info-sidebar">
           <GlassCard variant="subtle" class="info-card">
-            <h3 class="info-title">
+            <h2 class="info-title">
               <svg class="info-icon">
                 <use href="#icon-info" />
               </svg>
               Stream Info
-            </h3>
+            </h2>
             <div class="info-list">
               <div class="info-row">
                 <span class="info-label">Streamer</span>
@@ -138,12 +164,12 @@
           </GlassCard>
 
           <GlassCard variant="subtle" class="info-card">
-            <h3 class="info-title">
+            <h2 class="info-title">
               <svg class="info-icon">
                 <use href="#icon-settings" />
               </svg>
               Actions
-            </h3>
+            </h2>
             <div class="action-buttons">
               <label class="codec-selector">
                 <span class="codec-selector-label">Live codec</span>
@@ -159,6 +185,9 @@
                 </select>
               </label>
               <p class="codec-hint">{{ codecHint }}</p>
+              <p v-if="codecWarning" class="codec-warning" role="status">
+                {{ codecWarning }}
+              </p>
 
               <button class="action-btn danger" @click="stopStream" :disabled="isStopping" v-ripple>
                 <svg class="action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -180,7 +209,10 @@ import { useRoute, useRouter } from 'vue-router'
 import LoadingSkeleton from '@/components/LoadingSkeleton.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import GlassCard from '@/components/cards/GlassCard.vue'
+import PlayerStatus from '@/components/player/PlayerStatus.vue'
+import PlayerError from '@/components/player/PlayerError.vue'
 import { liveApi } from '@/services/api'
+import { appStorage } from '@/services/storage'
 
 // Hls.js type declaration (loaded via npm, no longer from CDN)
 declare global {
@@ -214,11 +246,17 @@ const error = ref<string | null>(null)
 const sessionId = ref<string | null>(null)
 const streamInfo = ref<any>(null)
 const isStopping = ref(false)
+const isStopped = ref(false)
 const isStarting = ref(false)
 const isBuffering = ref(false)
 const isPlaying = ref(false)
+const isRetrying = ref(false)
 const isMuted = ref(true)
 const isFullscreen = ref(false)
+const theaterMode = ref(false)
+const isNarrowViewport = ref(false)
+const showControls = ref(true)
+const controlsTimeout = ref<number | null>(null)
 const hlsInstance = ref<any>(null)
 const qualityLevels = ref<Array<{ name: string; index: number }>>([])
 const selectedQuality = ref<string | number>('-1')
@@ -226,12 +264,13 @@ const retryCount = ref(0)
 const retryTimer = ref<number | null>(null)
 const codecMode = ref<LiveCodecMode>(
   ((route.query.codec as LiveCodecMode) ||
-    localStorage.getItem('streamvault-live-codec-mode') ||
+    appStorage.liveCodecMode ||
     'auto') as LiveCodecMode
 )
 const activeSupportedCodecs = ref('h264')
 const preferNativeHls = ref(false)
 const hevcSupported = ref(false)
+const codecWarning = ref<string | null>(null)
 
 // Refs
 const videoElement = ref<HTMLVideoElement | null>(null)
@@ -252,10 +291,23 @@ const selectedQualityLabel = computed(() => {
 })
 
 const streamStatusText = computed(() => {
+  if (isStopped.value) return 'Stopped'
+  if (isRetrying.value) return 'Reconnecting'
   if (isBuffering.value) return 'Buffering'
   if (isPlaying.value) return 'Live'
   return 'Connecting'
 })
+
+const effectiveTheaterMode = computed(() => theaterMode.value && !isNarrowViewport.value)
+
+const updateViewportMode = () => {
+  isNarrowViewport.value = window.matchMedia('(max-width: 767px)').matches
+}
+
+const toggleTheaterMode = () => {
+  if (isNarrowViewport.value) return
+  theaterMode.value = !theaterMode.value
+}
 
 const codecModeLabel = computed(() => {
   if (codecMode.value === 'h264') return 'H264 compatibility'
@@ -268,12 +320,39 @@ const codecHint = computed(() => {
     return 'Most compatible; caps live playback to H264-compatible qualities.'
   }
   if (codecMode.value === 'hevc') {
-    return 'Tries Twitch HEVC/1440p. If video is black, switch back to H264.'
+    return hevcSupported.value
+      ? 'Uses native HLS for Twitch HEVC/1440p live playback.'
+      : 'HEVC live playback is not available in this browser pipeline.'
   }
   return hevcSupported.value
     ? 'HEVC appears supported here; Auto will allow 1440p/HEVC.'
     : 'HEVC is not supported by this playback pipeline; Auto uses H264.'
 })
+
+const hlsErrorToMessage = (data: any): string => {
+  if (!data || !data.type) return 'Stream playback failed'
+  const type = data.type
+  const details = data.details || ''
+  if (type === 'networkError') {
+    if (details.includes('manifestLoadError') || details.includes('levelLoadError')) {
+      return 'Unable to load the live stream. The streamer may be offline or the stream may have ended.'
+    }
+    if (details.includes('timeout')) {
+      return 'Connection to the live stream timed out. Check your network and try again.'
+    }
+    return 'Network error during stream playback. Please check your connection.'
+  }
+  if (type === 'mediaError') {
+    return 'An audio or video playback error occurred. Trying to recover...'
+  }
+  if (type === 'muxError') {
+    return 'The stream data could not be processed. This may be a codec compatibility issue.'
+  }
+  if (type === 'otherError') {
+    return 'An unexpected stream error occurred. Please try reconnecting.'
+  }
+  return 'Stream playback failed. Please try again.'
+}
 
 // Load hls.js (bundled locally, no CDN dependency)
 import Hls from 'hls.js'
@@ -283,7 +362,7 @@ const loadHlsJs = (): Promise<any> => {
 }
 
 const getStoredSessionToken = (): string | null => {
-  return localStorage.getItem('streamvault_session')
+  return appStorage.sessionToken
 }
 
 const canUseNativeHls = (): boolean => {
@@ -291,9 +370,8 @@ const canUseNativeHls = (): boolean => {
   return Boolean(video.canPlayType('application/vnd.apple.mpegurl'))
 }
 
-const canUseHevcWithMse = (): boolean => {
-  if (typeof MediaSource === 'undefined') return false
-
+const canUseNativeHevcHls = (): boolean => {
+  const video = document.createElement('video')
   const hevcCodecStrings = [
     'video/mp4; codecs="hvc1.1.6.L120.90, mp4a.40.2"',
     'video/mp4; codecs="hev1.1.6.L120.90, mp4a.40.2"',
@@ -301,29 +379,33 @@ const canUseHevcWithMse = (): boolean => {
     'video/mp4; codecs="hev1.1.6.L123.B0, mp4a.40.2"'
   ]
 
-  return hevcCodecStrings.some(codec => MediaSource.isTypeSupported(codec))
+  return canUseNativeHls() && hevcCodecStrings.some(codec => Boolean(video.canPlayType(codec)))
 }
 
 const resolveLiveCodecSelection = (): LiveCodecSelection => {
-  const nativeHls = canUseNativeHls()
-  const mseHevc = canUseHevcWithMse()
-  const supportsHevc = nativeHls || mseHevc
+  const supportsHevc = canUseNativeHevcHls()
   const mode = ['auto', 'h264', 'hevc'].includes(codecMode.value)
     ? codecMode.value
     : 'auto'
 
   hevcSupported.value = supportsHevc
+  codecWarning.value = null
 
   if (mode === 'h264') {
     return { supportedCodecs: 'h264', useNativeHls: false, hevcSupported: supportsHevc }
   }
 
   if (mode === 'hevc') {
-    return { supportedCodecs: 'h264,h265', useNativeHls: nativeHls, hevcSupported: supportsHevc }
+    if (supportsHevc) {
+      return { supportedCodecs: 'h264,h265', useNativeHls: true, hevcSupported: supportsHevc }
+    }
+
+    codecWarning.value = 'HEVC live playback needs native HLS support. This browser uses H264 live playback to avoid audio-only video.'
+    return { supportedCodecs: 'h264', useNativeHls: false, hevcSupported: supportsHevc }
   }
 
   return supportsHevc
-    ? { supportedCodecs: 'h264,h265', useNativeHls: nativeHls, hevcSupported: supportsHevc }
+    ? { supportedCodecs: 'h264,h265', useNativeHls: true, hevcSupported: supportsHevc }
     : { supportedCodecs: 'h264', useNativeHls: false, hevcSupported: supportsHevc }
 }
 
@@ -335,6 +417,8 @@ const startStream = async () => {
     isStarting.value = true
     isLoading.value = true
     error.value = null
+    isStopped.value = false
+    isRetrying.value = false
     retryCount.value = 0
     sessionId.value = null
 
@@ -342,7 +426,7 @@ const startStream = async () => {
     const codecSelection = resolveLiveCodecSelection()
     activeSupportedCodecs.value = codecSelection.supportedCodecs
     preferNativeHls.value = codecSelection.useNativeHls
-    localStorage.setItem('streamvault-live-codec-mode', codecMode.value)
+    appStorage.setLiveCodecMode(codecMode.value)
 
     const response = await liveApi.startLiveStream(
       streamerName.value,
@@ -439,15 +523,22 @@ const initPlayer = async (sid: string, useNativeHls: boolean = preferNativeHls.v
           switch (data.type) {
             case Hls.ErrorTypes.NETWORK_ERROR:
               console.warn('HLS network error, attempting recovery...')
+              isRetrying.value = true
+              retryCount.value++
               hls.startLoad()
               break
             case Hls.ErrorTypes.MEDIA_ERROR:
-              console.warn('HLS media error, attempting recovery...')
+              console.warn('HLS media error, attempting recovery...', data)
+              isRetrying.value = true
+              retryCount.value++
+              if (activeSupportedCodecs.value.includes('h265')) {
+                codecWarning.value = 'The live stream reported a media decode error. If video is black, switch to H264 compatibility.'
+              }
               hls.recoverMediaError()
               break
             default:
               console.error('Fatal HLS error:', data)
-              error.value = 'Stream playback failed. Please try again.'
+              error.value = hlsErrorToMessage(data)
               sessionId.value = null
               destroyPlayer()
               break
@@ -473,6 +564,7 @@ const initPlayer = async (sid: string, useNativeHls: boolean = preferNativeHls.v
   } catch (err: any) {
     console.error('Error initializing player:', err)
     error.value = err instanceof Error ? err.message : 'Failed to initialize player'
+    isRetrying.value = false
     sessionId.value = null
     streamInfo.value = null
     destroyPlayer()
@@ -499,11 +591,14 @@ const stopStream = async () => {
 
   try {
     isStopping.value = true
+    showControls.value = true
     destroyPlayer()
     await liveApi.stopLiveStream(sessionId.value)
     sessionId.value = null
     streamInfo.value = null
-    router.push('/streamers')
+    isStopped.value = true
+    isPlaying.value = false
+    isBuffering.value = false
   } catch (err: any) {
     console.error('Error stopping stream:', err)
     error.value = err instanceof Error ? err.message : 'Failed to stop stream'
@@ -524,7 +619,7 @@ const retryStart = () => {
 const restartWithCodecMode = async () => {
   if (isStarting.value || isStopping.value) return
 
-  localStorage.setItem('streamvault-live-codec-mode', codecMode.value)
+  appStorage.setLiveCodecMode(codecMode.value)
   router.replace({
     query: {
       ...route.query,
@@ -550,9 +645,11 @@ const restartWithCodecMode = async () => {
 const scheduleRetry = () => {
   if (retryCount.value >= 10) {
     error.value = 'Stream could not be started after multiple attempts. The streamer may be offline.'
+    isRetrying.value = false
     return
   }
   retryCount.value++
+  isRetrying.value = true
   retryTimer.value = window.setTimeout(() => {
     if (!isPlaying.value && sessionId.value) {
       console.log(`Auto-retry attempt ${retryCount.value}...`)
@@ -569,13 +666,41 @@ const onBuffering = () => {
 const onPlaying = () => {
   isBuffering.value = false
   isPlaying.value = true
+  isRetrying.value = false
+  showControls.value = true
+  resetControlsTimeout()
 }
 
 const onVideoError = () => {
   console.error('Video element error')
   isBuffering.value = false
   isPlaying.value = false
+  isRetrying.value = true
   scheduleRetry()
+}
+
+const resetControlsTimeout = () => {
+  if (controlsTimeout.value) {
+    clearTimeout(controlsTimeout.value)
+  }
+  if (isPlaying.value) {
+    const delay = window.innerWidth < 768 ? 5000 : 3000
+    controlsTimeout.value = window.setTimeout(() => {
+      showControls.value = false
+    }, delay)
+  }
+}
+
+const onVideoContainerClick = () => {
+  if (!showControls.value) {
+    showControls.value = true
+    resetControlsTimeout()
+  }
+}
+
+const onTouchStart = () => {
+  showControls.value = true
+  resetControlsTimeout()
 }
 
 // Controls
@@ -619,14 +744,20 @@ const onFullscreenChange = () => {
 }
 
 onMounted(() => {
+  updateViewportMode()
+  window.addEventListener('resize', updateViewportMode)
   document.addEventListener('fullscreenchange', onFullscreenChange)
   startStream()
 })
 
 onUnmounted(() => {
+  window.removeEventListener('resize', updateViewportMode)
   document.removeEventListener('fullscreenchange', onFullscreenChange)
   if (retryTimer.value) {
     clearTimeout(retryTimer.value)
+  }
+  if (controlsTimeout.value) {
+    clearTimeout(controlsTimeout.value)
   }
   destroyPlayer()
   // Also stop the stream on the backend if still active
@@ -646,6 +777,63 @@ onUnmounted(() => {
 
   @include m.respond-below('sm') {
     padding: var(--spacing-2) var(--spacing-2);
+    padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+  }
+
+  // Theater mode: full-bleed black stage that fills exactly the viewport
+  // below the app header (Twitch style) - no page padding, no card chrome.
+  &.theater-mode {
+    padding: 0;
+
+    .player-main {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 0;
+    }
+
+    .info-sidebar {
+      display: none;
+    }
+
+    .player-header {
+      min-height: 0;
+      padding: var(--spacing-2) var(--spacing-3);
+    }
+
+    .stream-title {
+      font-size: var(--text-base);
+    }
+
+    .back-button {
+      min-height: 36px;
+      padding: var(--spacing-1) var(--spacing-3);
+      font-size: var(--text-xs);
+    }
+
+    .live-status-strip {
+      display: none;
+    }
+
+    .player-card {
+      border: 0;
+      border-radius: 0;
+      background: var(--player-stage-bg);
+    }
+
+    .video-container {
+      width: min(100%, calc(var(--player-max-h-theater) * 16 / 9));
+      max-height: var(--player-max-h-theater);
+      margin: 0 auto;
+      border-top: 0;
+      background: var(--player-stage-bg);
+    }
+
+    @include m.respond-below('md') {
+      .video-container {
+        aspect-ratio: 16/9;
+        max-height: none;
+        min-height: 0;
+      }
+    }
   }
 }
 
@@ -714,6 +902,18 @@ onUnmounted(() => {
     padding: 0;
     display: flex;
     flex-direction: column;
+  }
+}
+
+// Mobile: player goes edge-to-edge like Twitch instead of floating in a
+// card. The 50%-50vw trick escapes every ancestor padding regardless of
+// nesting depth (the root clips overflow-x, so no scrollbar can appear).
+@include m.respond-below('md') {
+  .player-card {
+    width: 100vw;
+    margin-inline: calc(50% - 50vw);
+    border-inline: 0;
+    border-radius: 0;
   }
 }
 
@@ -792,31 +992,60 @@ onUnmounted(() => {
   }
 }
 
-.live-badge-inline {
+.live-status-strip {
   display: inline-flex;
   align-items: center;
   gap: var(--spacing-2);
-  background: var(--danger-color);
-  color: white;
+  border: 1px solid rgba(var(--danger-500-rgb), 0.35);
   border-radius: var(--radius-pill);
-  padding: var(--spacing-1) var(--spacing-3);
-  font-size: var(--text-sm);
-  font-weight: v.$font-bold;
-  text-transform: uppercase;
+  background: rgba(var(--danger-500-rgb), 0.12);
+  color: var(--text-secondary);
+  padding: var(--spacing-1) var(--spacing-2);
+  font-size: var(--text-xs);
+  font-weight: v.$font-semibold;
   flex-shrink: 0;
 }
 
-.live-indicator {
-  width: 8px;
-  height: 8px;
-  background: white;
-  border-radius: 50%;
-  animation: pulse-live 2s ease-in-out infinite;
+.live-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  color: var(--danger-text-color);
+  font-weight: v.$font-semibold;
 }
 
-@keyframes pulse-live {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.5; transform: scale(1.2); }
+.player-state-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  padding: var(--spacing-1) var(--spacing-3);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-xs);
+  font-weight: v.$font-semibold;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+  flex-shrink: 0;
+}
+
+.player-state-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-tertiary);
+}
+
+.player-state-dot.dot-live {
+  background: var(--danger-color);
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+
+.player-state-dot.dot-buffering {
+  background: var(--warning-color);
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
 }
 
 .video-container {
@@ -824,9 +1053,11 @@ onUnmounted(() => {
   width: 100%;
   background: var(--background-darker);
   overflow: hidden;
+  border-top: 1px solid var(--border-color);
 
   @include m.respond-to('md') {
-    max-width: min(70vw, 1280px);
+    width: min(100%, calc(min(62dvh, calc(100dvh - var(--app-header-height, 56px) - 192px)) * 16 / 9));
+    max-height: min(62dvh, calc(100dvh - var(--app-header-height, 56px) - 192px));
     margin: 0 auto;
     aspect-ratio: 16/9;
   }
@@ -863,7 +1094,7 @@ onUnmounted(() => {
   object-fit: contain;
 
   @include m.respond-to('md') {
-    max-height: 70vh;
+    max-height: none;
   }
 
   @include m.respond-below('md') {
@@ -894,7 +1125,6 @@ onUnmounted(() => {
   right: 0;
   bottom: 0;
   background: rgba(0, 0, 0, 0.8);
-  backdrop-filter: blur(4px);
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -931,11 +1161,17 @@ onUnmounted(() => {
   background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 100%);
   z-index: 10;
   opacity: 0;
-  transition: var(--transition-base);
+  transition: opacity var(--duration-300) var(--ease-out);
 
   .video-container:hover &,
-  .video-container:focus-within & {
+  .video-container:focus-within &,
+  .video-container.show-controls & {
     opacity: 1;
+  }
+
+  @include m.respond-below('md') {
+    opacity: 1;
+    padding-bottom: calc(var(--spacing-3) + env(safe-area-inset-bottom, 0px));
   }
 }
 
@@ -945,9 +1181,21 @@ onUnmounted(() => {
   gap: var(--spacing-3);
 }
 
+.controls-spacer {
+  flex: 1 1 auto;
+  min-width: var(--spacing-2);
+}
+
+.controls-right {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  flex: 0 0 auto;
+}
+
 .control-button {
-  width: 36px;
-  height: 36px;
+  min-width: 44px;
+  min-height: 44px;
   padding: 0;
   background: rgba(255, 255, 255, 0.15);
   border: none;
@@ -963,14 +1211,19 @@ onUnmounted(() => {
     background: rgba(255, 255, 255, 0.3);
   }
 
+  &:focus-visible {
+    outline: 2px solid white;
+    outline-offset: 2px;
+  }
+
   .control-icon {
     width: 20px;
     height: 20px;
   }
 }
 
-.fullscreen-button {
-  margin-left: auto;
+.theater-button.active {
+  background: var(--primary-color);
 }
 
 .stream-meta {
@@ -995,6 +1248,13 @@ onUnmounted(() => {
 .meta-status {
   text-transform: uppercase;
   letter-spacing: 0.05em;
+}
+
+.codec-warning {
+  margin: var(--spacing-2) 0 0;
+  color: var(--warning-color);
+  font-size: var(--text-xs);
+  line-height: 1.4;
 }
 
 .text-live {
@@ -1089,7 +1349,7 @@ onUnmounted(() => {
   color: var(--text-primary);
 
   &.highlight {
-    color: var(--primary-color);
+    color: var(--text-primary);
     font-weight: v.$font-bold;
   }
 }
@@ -1122,12 +1382,18 @@ onUnmounted(() => {
 
 .codec-select {
   width: 100%;
+  min-height: 44px;
   padding: var(--spacing-2) var(--spacing-3);
   background: var(--background-darker);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
   color: var(--text-primary);
   font-size: var(--text-sm);
+
+  &:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
+  }
 }
 
 .codec-hint {
@@ -1151,6 +1417,7 @@ onUnmounted(() => {
   font-weight: v.$font-medium;
   cursor: pointer;
   transition: all v.$duration-200 v.$ease-out;
+  min-height: 44px;
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
@@ -1177,6 +1444,11 @@ onUnmounted(() => {
   &:disabled {
     opacity: 0.6;
     cursor: not-allowed;
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
   }
 }
 </style>

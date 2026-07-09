@@ -1,42 +1,57 @@
 <template>
   <div class="page-view videos-view">
-    <!-- Header with Actions -->
-    <div class="view-header">
-      <div class="header-content">
-        <h1 class="page-title">
-          <svg class="icon-title">
-            <use href="#icon-video" />
-          </svg>
-          Videos
-        </h1>
-        <p class="page-subtitle">Browse and manage all recorded streams</p>
-      </div>
-
-      <div class="header-actions">
-        <button
+    <PageHeader
+      title="Videos"
+      icon="video"
+      subtitle="Browse and manage all recorded streams"
+    >
+      <template #actions>
+        <BaseButton
           v-if="selectedVideos.length > 0"
+          variant="danger"
+          size="sm"
           @click="handleBatchDelete"
-          class="btn-action btn-danger"
-          v-ripple
         >
-          <svg class="icon">
-            <use href="#icon-trash" />
-          </svg>
+          <svg class="icon"><use href="#icon-trash" /></svg>
           Delete ({{ selectedVideos.length }})
-        </button>
-        <button
+        </BaseButton>
+        <BaseButton
+          :variant="selectMode ? 'primary' : 'outline'"
+          size="sm"
           @click="toggleSelectMode"
-          class="btn-action"
-          :class="selectMode ? 'btn-primary' : 'btn-secondary'"
-          v-ripple
         >
-          <svg class="icon">
-            <use href="#icon-check-square" />
-          </svg>
+          <svg class="icon"><use href="#icon-check-square" /></svg>
           {{ selectMode ? 'Cancel' : 'Select' }}
-        </button>
-      </div>
-    </div>
+        </BaseButton>
+      </template>
+    </PageHeader>
+
+    <!-- Library stats strip (the marketing copy that used to sit next to it
+         explained the page to itself; the numbers are the useful part) -->
+    <section v-if="!isLoading && !fetchError && videos.length > 0" class="videos-brief" aria-label="Video library summary">
+      <dl class="brief-stats">
+        <div class="brief-stat total">
+          <dt>Recordings</dt>
+          <dd>{{ videos.length }}</dd>
+        </div>
+        <div class="brief-stat">
+          <dt>Hours</dt>
+          <dd>{{ totalHoursDisplay || '0m' }}</dd>
+        </div>
+        <div class="brief-stat">
+          <dt>Size</dt>
+          <dd>{{ totalSizeDisplay || '0 B' }}</dd>
+        </div>
+        <div v-if="failedCount > 0" class="brief-stat failed">
+          <dt>Failed</dt>
+          <dd>{{ failedCount }}</dd>
+        </div>
+        <div v-if="processingCount > 0" class="brief-stat processing">
+          <dt>Processing</dt>
+          <dd>{{ processingCount }}</dd>
+        </div>
+      </dl>
+    </section>
 
     <!-- Search and Filters -->
     <div class="controls-bar">
@@ -55,6 +70,8 @@
           v-if="searchQuery"
           @click="searchQuery = ''"
           class="clear-btn"
+          aria-label="Clear video search"
+          title="Clear video search"
         >
           <svg class="icon">
             <use href="#icon-x" />
@@ -68,6 +85,8 @@
           @click="viewMode = 'grid'"
           :class="{ active: viewMode === 'grid' }"
           class="toggle-btn"
+          aria-label="Show videos as grid"
+          title="Show videos as grid"
           v-ripple
         >
           <svg class="icon">
@@ -78,6 +97,8 @@
           @click="viewMode = 'list'"
           :class="{ active: viewMode === 'list' }"
           class="toggle-btn"
+          aria-label="Show videos as list"
+          title="Show videos as list"
           v-ripple
         >
           <svg class="icon">
@@ -98,24 +119,28 @@
       </button>
 
       <!-- Sort Dropdown -->
-      <select v-model="sortBy" class="sort-select">
-        <option value="newest">Newest First</option>
-        <option value="oldest">Oldest First</option>
-        <option value="duration-desc">Longest Duration</option>
-        <option value="duration-asc">Shortest Duration</option>
-        <option value="size-desc">Largest Size</option>
-        <option value="size-asc">Smallest Size</option>
-        <option value="title">Title A-Z</option>
-      </select>
+      <label class="sort-control-wrap">
+        <svg class="sort-icon" aria-hidden="true">
+          <use href="#icon-list-ordered" />
+        </svg>
+        <span class="sort-label">Sort</span>
+        <span class="sort-value">{{ currentSortLabel }}</span>
+        <select v-model="sortBy" class="sort-select" aria-label="Sort videos">
+          <option v-for="option in sortOptions" :key="option.value" :value="option.value">
+            {{ option.label }}
+          </option>
+        </select>
+      </label>
     </div>
 
-    <!-- Filter Panel -->
-    <Transition name="slide-down">
-      <div v-if="showFilters" class="filter-panel">
+    <!-- Filter Panel (grid-rows collapse: animating max-height re-layouts
+         every frame and stutters; 0fr->1fr interpolates smoothly) -->
+    <div class="filter-collapse" :class="{ open: showFilters }" :inert="!showFilters">
+      <div class="filter-panel">
         <!-- Streamer Filter -->
         <div class="filter-group">
           <label class="filter-label">Streamer</label>
-          <select v-model="filterStreamer" class="filter-select">
+          <select v-model="filterStreamer" class="filter-select" aria-label="Filter videos by streamer">
             <option value="">All Streamers</option>
             <option v-for="streamer in availableStreamers" :key="streamer" :value="streamer">
               {{ streamer }}
@@ -126,7 +151,7 @@
         <!-- Date Filter -->
         <div class="filter-group">
           <label class="filter-label">Date</label>
-          <select v-model="filterDate" class="filter-select">
+          <select v-model="filterDate" class="filter-select" aria-label="Filter videos by date">
             <option value="all">All Time</option>
             <option value="today">Today</option>
             <option value="week">This Week</option>
@@ -138,7 +163,7 @@
         <!-- Duration Filter -->
         <div class="filter-group">
           <label class="filter-label">Duration</label>
-          <select v-model="filterDuration" class="filter-select">
+          <select v-model="filterDuration" class="filter-select" aria-label="Filter videos by duration">
             <option value="">Any Duration</option>
             <option value="short">Short (&lt; 1h)</option>
             <option value="medium">Medium (1-3h)</option>
@@ -154,20 +179,56 @@
           Clear All
         </button>
       </div>
-    </Transition>
+    </div>
 
-    <!-- Results Count -->
-    <div class="results-info">
-      <span v-if="!isLoading">
-        {{ filteredAndSortedVideos.length }} {{ filteredAndSortedVideos.length === 1 ? 'video' : 'videos' }}
+    <!-- Filter Chips -->
+    <div v-if="!isLoading && !fetchError && activeFiltersCount > 0" class="filter-chips">
+      <span v-if="filterStreamer" class="chip" @click="filterStreamer = ''">
+        {{ filterStreamer }}
+        <svg class="icon"><use href="#icon-x" /></svg>
+      </span>
+      <span v-if="filterDate !== 'all'" class="chip" @click="filterDate = 'all'">
+        {{ filterDateLabel }}
+        <svg class="icon"><use href="#icon-x" /></svg>
+      </span>
+      <span v-if="filterDuration" class="chip" @click="filterDuration = ''">
+        {{ durationLabel }}
+        <svg class="icon"><use href="#icon-x" /></svg>
+      </span>
+    </div>
+
+    <!-- Results Count + Summary -->
+    <div v-if="!isLoading && !fetchError" class="results-info">
+      <span>
+        Showing {{ filteredAndSortedVideos.length }}
+        {{ filteredAndSortedVideos.length === 1 ? 'video' : 'videos' }}
+        <template v-if="videos.length > 0 && filteredAndSortedVideos.length < videos.length">
+          of {{ videos.length }}
+        </template>
+        <template v-if="hasActiveSearchOrFilters">
+          <template v-if="searchQuery"> matching "{{ searchQuery }}"</template>
+          <template v-else> with current filters</template>
+        </template>
       </span>
       <span v-if="selectedVideos.length > 0" class="selected-count">
         {{ selectedVideos.length }} selected
       </span>
     </div>
 
+    <!-- Error State -->
+    <EmptyState
+      v-if="fetchError"
+      title="Failed to Load Videos"
+      :description="fetchError"
+      icon="alert-circle"
+      tone="danger"
+      variant="large"
+      retry-label="Retry"
+      @retry="fetchVideos"
+    />
+
     <!-- Loading State -->
-    <div v-if="isLoading" class="videos-container" :class="[`view-${viewMode}`, viewMode === 'grid' ? 'grid-recordings' : '']">
+    <div v-else-if="isLoading" class="videos-container" :class="[`view-${viewMode}`, viewMode === 'grid' ? 'grid-recordings' : '']">
       <LoadingSkeleton
         v-for="i in 12"
         :key="i"
@@ -178,11 +239,11 @@
     <!-- Empty State -->
     <EmptyState
       v-else-if="filteredAndSortedVideos.length === 0"
-      :title="searchQuery ? 'No Results Found' : 'No Videos Yet'"
-      :description="searchQuery ? `No videos match '${searchQuery}'` : 'Start recording streamers to see their VODs here.'"
+      :title="hasActiveSearchOrFilters ? 'No Results Found' : 'No Videos Yet'"
+      :description="hasActiveSearchOrFilters ? emptyResultsDescription : 'Start recording streamers to see their VODs here.'"
       icon="video"
-      :action-label="searchQuery ? 'Clear Search' : undefined"
-      @action="searchQuery = ''"
+      :action-label="hasActiveSearchOrFilters ? 'Clear Search and Filters' : undefined"
+      @action="clearSearchAndFilters"
     />
 
     <!-- Videos Grid/List -->
@@ -246,21 +307,58 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
+import { appStorage } from '@/services/storage'
 import { useRouter } from 'vue-router'
 import { videoApi } from '@/services/api'
+import BaseButton from '@/components/base/BaseButton.vue'
 import LoadingSkeleton from '@/components/LoadingSkeleton.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import VideoCard from '@/components/cards/VideoCard.vue'
 import BaseModal from '@/components/base/BaseModal.vue'
+import PageHeader from '@/components/base/PageHeader.vue'
+
+interface Video {
+  id: number
+  title?: string | null
+  thumbnail_url?: string
+  duration?: number
+  file_size?: number
+  view_count?: number
+  viewer_count?: number
+  created_at?: string
+  recorded_at?: string
+  stream_date?: string
+  streamer_name?: string
+  streamer_id?: number
+  category_name?: string
+  file_path?: string
+  status?: 'recording' | 'processing' | 'ready' | 'failed' | string
+  is_recording?: boolean
+}
 
 const router = useRouter()
 
 // State
 const isLoading = ref(true)
-const videos = ref<any[]>([])
+const fetchError = ref('')
+const videos = ref<Video[]>([])
 const searchQuery = ref('')
-const viewMode = ref<'grid' | 'list'>('grid')
+// Grid/list choice survives reloads
+const viewMode = ref<'grid' | 'list'>(appStorage.getViewMode('videos') ?? 'grid')
+watch(viewMode, (mode) => appStorage.setViewMode('videos', mode))
 const sortBy = ref('newest')
+const sortOptions = [
+  { value: 'newest', label: 'Newest First' },
+  { value: 'oldest', label: 'Oldest First' },
+  { value: 'duration-desc', label: 'Longest Duration' },
+  { value: 'duration-asc', label: 'Shortest Duration' },
+  { value: 'size-desc', label: 'Largest Size' },
+  { value: 'size-asc', label: 'Smallest Size' },
+  { value: 'title', label: 'Title A-Z' }
+]
+const currentSortLabel = computed(() =>
+  sortOptions.find((option) => option.value === sortBy.value)?.label ?? 'Newest First'
+)
 const showFilters = ref(false)
 
 // Filters
@@ -292,6 +390,49 @@ const activeFiltersCount = computed(() => {
   if (filterDuration.value) count++
   return count
 })
+
+// Summary metrics
+const totalDuration = computed(() => videos.value.reduce((sum, v) => sum + (v.duration || 0), 0))
+const totalHoursDisplay = computed(() => {
+  const hours = totalDuration.value / 3600
+  if (hours >= 1) return `${Math.round(hours * 10) / 10}h`
+  const minutes = Math.round(totalDuration.value / 60)
+  return `${minutes}m`
+})
+const totalSizeDisplay = computed(() => {
+  const bytes = videos.value.reduce((sum, v) => sum + (v.file_size || 0), 0)
+  if (bytes >= 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`
+  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  if (bytes > 0) return `${(bytes / 1024).toFixed(0)} KB`
+  return ''
+})
+const failedCount = computed(() => videos.value.filter(v => v.status === 'failed').length)
+const processingCount = computed(() => videos.value.filter(v => v.is_recording || v.status === 'processing' || v.status === 'recording').length)
+
+// Filter chip labels
+const filterDateLabel = computed(() => {
+  const labels: Record<string, string> = {
+    today: 'Today',
+    week: 'This Week',
+    month: 'This Month',
+    custom: 'Custom Range'
+  }
+  return labels[filterDate.value] || filterDate.value
+})
+const durationLabel = computed(() => {
+  const labels: Record<string, string> = {
+    short: 'Short (< 1h)',
+    medium: 'Medium (1-3h)',
+    long: 'Long (> 3h)'
+  }
+  return labels[filterDuration.value] || filterDuration.value
+})
+const hasActiveSearchOrFilters = computed(() => Boolean(searchQuery.value || activeFiltersCount.value > 0))
+const emptyResultsDescription = computed(() => (
+  searchQuery.value
+    ? `No videos match '${searchQuery.value}'. Try adjusting your search or filters.`
+    : 'No videos match the selected filters. Try clearing one or more filters.'
+))
 
 // Filtered and sorted videos
 const filteredAndSortedVideos = computed(() => {
@@ -329,7 +470,7 @@ const filteredAndSortedVideos = computed(() => {
     }
 
     filtered = filtered.filter(v => {
-      const date = new Date(v.stream_date || v.created_at)
+      const date = new Date(v.recorded_at || v.stream_date || v.created_at || '')
       return date >= filterTime
     })
   }
@@ -356,16 +497,14 @@ const filteredAndSortedVideos = computed(() => {
   switch (sortBy.value) {
     case 'newest':
       sorted.sort((a, b) => {
-        const dateA = new Date(a.stream_date || a.created_at).getTime()
-        const dateB = new Date(b.stream_date || b.created_at).getTime()
-        return dateB - dateA
+        const getDate = (v: Video) => new Date(v.recorded_at || v.stream_date || v.created_at || '').getTime()
+        return getDate(b) - getDate(a)
       })
       break
     case 'oldest':
       sorted.sort((a, b) => {
-        const dateA = new Date(a.stream_date || a.created_at).getTime()
-        const dateB = new Date(b.stream_date || b.created_at).getTime()
-        return dateA - dateB
+        const getDate = (v: Video) => new Date(v.recorded_at || v.stream_date || v.created_at || '').getTime()
+        return getDate(a) - getDate(b)
       })
       break
     case 'duration-desc':
@@ -391,18 +530,15 @@ const filteredAndSortedVideos = computed(() => {
 // Fetch videos
 async function fetchVideos() {
   isLoading.value = true
+  fetchError.value = ''
   try {
     const response = await videoApi.getAll()
-    
+
     // Backend returns array directly (not wrapped in { data: [] })
     videos.value = Array.isArray(response) ? response : (response.data || [])
   } catch (error: any) {
     console.error('[VideosView] Failed to fetch videos:', error)
-    console.error('[VideosView] Error details:', {
-      message: error.message,
-      status: error.response?.status,
-      data: error.response?.data
-    })
+    fetchError.value = error?.message || 'An unexpected error occurred while loading videos.'
     videos.value = []
   } finally {
     isLoading.value = false
@@ -410,7 +546,9 @@ async function fetchVideos() {
 }
 
 // Actions
-function playVideo(video: any) {
+function playVideo(video: Video) {
+  if (!video.streamer_id || !video.id || video.status === 'failed') return
+
   // Navigate to video player with correct route parameters
   // Route expects: /streamer/:streamerId/stream/:streamId/watch
   router.push({
@@ -492,12 +630,10 @@ function clearFilters() {
   filterDuration.value = ''
 }
 
-// Watch for filter changes to auto-close panel
-watch([filterStreamer, filterDate, filterDuration], () => {
-  if (activeFiltersCount.value > 0) {
-    // Keep panel open while actively filtering
-  }
-})
+function clearSearchAndFilters() {
+  searchQuery.value = ''
+  clearFilters()
+}
 
 // Initialize
 onMounted(() => {
@@ -514,48 +650,52 @@ onMounted(() => {
   // Page-specific overrides only
 }
 
-// Header
-.view-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: var(--spacing-6);
-  gap: var(--spacing-4);
-  flex-wrap: wrap;
+.videos-brief {
+  margin-bottom: var(--spacing-5);
 }
 
-.header-content {
-  flex: 1;
-  min-width: 250px;
-}
-
-.page-title {
-  display: flex;
-  align-items: center;
+.brief-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--spacing-3);
-  font-size: var(--text-3xl);
-  font-weight: v.$font-bold;
-  color: var(--text-primary);
-  margin: 0 0 var(--spacing-2) 0;
-
-  .icon-title {
-    width: 32px;
-    height: 32px;
-    stroke: var(--primary-color);
-    fill: none;
-  }
-}
-
-.page-subtitle {
-  font-size: var(--text-base);
-  color: var(--text-secondary);
   margin: 0;
 }
 
-.header-actions {
-  display: flex;
-  gap: var(--spacing-3);
-  flex-wrap: wrap;
+.brief-stat {
+  min-width: 120px;
+  padding: var(--spacing-4);
+  background: rgba(var(--background-card-rgb), 0.72);
+  border: 1px solid rgba(var(--border-color-rgb), 0.8);
+  border-radius: var(--radius-xl);
+
+  dt {
+    margin: 0;
+    color: var(--text-tertiary);
+    font-size: var(--text-xs);
+    font-weight: v.$font-semibold;
+    text-transform: uppercase;
+    letter-spacing: v.$tracking-wide;
+  }
+
+  dd {
+    margin: var(--spacing-1) 0 0;
+    color: var(--text-primary);
+    font-size: var(--text-2xl);
+    font-weight: v.$font-bold;
+    line-height: 1;
+  }
+
+  &.total dd {
+    color: var(--primary-color);
+  }
+
+  &.failed dd {
+    color: var(--danger-color);
+  }
+
+  &.processing dd {
+    color: var(--warning-color);
+  }
 }
 
 .btn-action {
@@ -578,11 +718,11 @@ onMounted(() => {
   }
 
   &.btn-primary {
-    background: var(--primary-color);
+    background: v.$primary-700;
     color: white;
 
     &:hover {
-      background: var(--primary-600);
+      background: v.$primary-800;
       box-shadow: var(--shadow-md);
     }
   }
@@ -596,7 +736,7 @@ onMounted(() => {
       background: rgba(var(--primary-500-rgb), 0.1);
       border-color: var(--primary-color);
       color: var(--primary-color);
-      
+
       [data-theme="light"] & {
         background: var(--primary-50);
         color: var(--primary-700);
@@ -605,7 +745,7 @@ onMounted(() => {
   }
 
   &.btn-danger {
-    background: var(--danger-color);
+    background: v.$danger-700;
     color: white;
 
     &:hover {
@@ -620,8 +760,13 @@ onMounted(() => {
   display: flex;
   gap: var(--spacing-3);
   margin-bottom: var(--spacing-4);
+  padding: var(--spacing-3);
   flex-wrap: wrap;
   align-items: center;
+  background: var(--background-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-sm);
 }
 
 .search-box {
@@ -642,7 +787,8 @@ onMounted(() => {
 
   .search-input {
     width: 100%;
-    padding: var(--spacing-3) var(--spacing-10) var(--spacing-3) var(--spacing-10);
+    min-height: 46px;
+    padding: 0 var(--spacing-10);
     background: var(--background-card);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-lg);
@@ -701,14 +847,20 @@ onMounted(() => {
   border-radius: var(--radius-lg);
   padding: var(--spacing-1);
   border: 1px solid var(--border-color);
+  min-height: 44px;
 }
 
 .toggle-btn {
+  width: 40px;
+  min-width: 40px;
+  min-height: 36px;
   padding: var(--spacing-2);
   background: transparent;
   border: none;
   cursor: pointer;
-  border-radius: var(--radius-md);
+  // Nested radius = container radius minus its padding, so the inner pill
+  // follows the container corner instead of looking rounder than it
+  border-radius: calc(var(--radius-lg) - var(--spacing-1));
   transition: all v.$duration-200 v.$ease-out;
 
   .icon {
@@ -719,7 +871,7 @@ onMounted(() => {
   }
 
   &.active {
-    background: var(--primary-color);
+    background: v.$primary-700;
 
     .icon {
       stroke: white;
@@ -736,7 +888,8 @@ onMounted(() => {
   display: inline-flex;
   align-items: center;
   gap: var(--spacing-2);
-  padding: var(--spacing-3) var(--spacing-4);
+  min-height: 46px;
+  padding: 0 var(--spacing-4);
   background: var(--background-card);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
@@ -765,7 +918,7 @@ onMounted(() => {
     min-width: 20px;
     height: 20px;
     padding: 0 var(--spacing-1);
-    background: var(--primary-color);
+    background: v.$primary-700;
     color: white;
     font-size: var(--text-xs);
     font-weight: v.$font-bold;
@@ -773,25 +926,82 @@ onMounted(() => {
   }
 }
 
-.sort-select {
-  padding: var(--spacing-3) var(--spacing-4);
-  background: var(--background-card);
+.sort-control-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  // Neutralize the global `label { margin-bottom }` form style - it pushed
+  // this control 4px above its flex-centered neighbors
+  margin: 0;
+  min-height: 46px;
+  padding: 0 var(--spacing-8) 0 var(--spacing-3);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
+  background: var(--background-card);
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.sort-control-wrap::after {
+  content: '';
+  position: absolute;
+  right: var(--spacing-3);
+  width: 0.45rem;
+  height: 0.45rem;
+  border-right: 2px solid var(--text-secondary);
+  border-bottom: 2px solid var(--text-secondary);
+  pointer-events: none;
+  transform: translateY(-15%) rotate(45deg);
+}
+
+.sort-value {
   color: var(--text-primary);
   font-size: var(--text-sm);
   font-weight: v.$font-medium;
+  white-space: nowrap;
+}
+
+.sort-icon {
+  width: 18px;
+  height: 18px;
+  color: var(--text-secondary);
+  stroke: currentColor;
+  fill: none;
+}
+
+.sort-label {
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  font-weight: v.$font-semibold;
+}
+
+// The real select covers the whole control invisibly so a click anywhere
+// (icon, label, or value) opens the native picker; .sort-value renders the
+// selection.
+.sort-select {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  min-height: 0;
+  appearance: none;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  opacity: 0;
   cursor: pointer;
-  transition: all v.$duration-200 v.$ease-out;
+}
 
-  &:hover {
-    border-color: var(--primary-color);
-  }
+.sort-select:focus {
+  outline: none;
+}
 
-  &:focus {
-    outline: 2px solid var(--primary-color);
-    outline-offset: 2px;
-  }
+.sort-control-wrap:focus-within {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px rgba(var(--primary-500-rgb), 0.1);
 }
 
 // Filter Panel
@@ -868,28 +1078,74 @@ onMounted(() => {
   }
 }
 
+// Filter Chips
+.filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-2);
+  margin-bottom: var(--spacing-3);
+
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-1);
+    padding: var(--spacing-1) var(--spacing-3);
+    background: rgba(var(--primary-500-rgb), 0.12);
+    border: 1px solid rgba(var(--primary-500-rgb), 0.25);
+    border-radius: var(--radius-full);
+    font-size: var(--text-xs);
+    font-weight: v.$font-medium;
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: all v.$duration-200 v.$ease-out;
+
+    .icon {
+      width: 14px;
+      height: 14px;
+      stroke: currentColor;
+      fill: none;
+    }
+
+    &:hover {
+      background: rgba(var(--danger-500-rgb), 0.12);
+      border-color: rgba(var(--danger-500-rgb), 0.35);
+      color: var(--danger-color);
+    }
+  }
+}
+
 // Results Info
 .results-info {
   display: flex;
-  gap: var(--spacing-3);
   align-items: center;
-  margin-bottom: var(--spacing-4);
-  font-size: var(--text-sm);
+  justify-content: space-between;
+  gap: var(--spacing-3);
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 0 var(--spacing-4) auto;
+  padding: var(--spacing-2) var(--spacing-3);
+  background: rgba(var(--background-card-rgb, 20, 22, 29), 0.72);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-full);
+  font-size: var(--text-xs);
   color: var(--text-secondary);
 
   .selected-count {
     padding: var(--spacing-1) var(--spacing-2);
-    background: rgba(var(--primary-500-rgb), 0.1);
-    color: var(--primary-color);
+    background: rgba(var(--primary-700-rgb), 0.16);
+    color: var(--text-primary);
     border-radius: var(--radius-md);
     font-weight: v.$font-semibold;
+    white-space: nowrap;
   }
 }
 
 // Videos Container
 .videos-container {
-  // Grid mode uses global .grid-recordings class
-  
+  &.view-grid {
+    align-items: stretch;
+  }
+
   &.view-list {
     display: flex;
     flex-direction: column;
@@ -1010,45 +1266,59 @@ onMounted(() => {
   font-size: var(--text-sm);
 }
 
-// Transitions
-.slide-down-enter-active,
-.slide-down-leave-active {
-  transition: all v.$duration-300 v.$ease-out;
-  overflow: hidden;
-}
-
-.slide-down-enter-from,
-.slide-down-leave-to {
-  opacity: 0;
-  max-height: 0;
+// Filter panel collapse: grid-template-rows 0fr -> 1fr animates the actual
+// content height without the per-frame layout thrash of a max-height guess.
+.filter-collapse {
+  display: grid;
+  grid-template-rows: 0fr;
   margin-bottom: 0;
-  padding-top: 0;
-  padding-bottom: 0;
-}
+  transition:
+    grid-template-rows v.$duration-300 v.$ease-out,
+    margin-bottom v.$duration-300 v.$ease-out;
 
-.slide-down-enter-to,
-.slide-down-leave-from {
-  opacity: 1;
-  max-height: 500px;
+  > .filter-panel {
+    overflow: hidden;
+    min-height: 0;
+    margin-bottom: 0;
+    opacity: 0;
+    // A grid item can shrink below its content but not below its own
+    // padding/border, so those collapse along with the row
+    padding-block: 0;
+    border-color: transparent;
+    transition:
+      opacity v.$duration-200 v.$ease-out,
+      padding v.$duration-300 v.$ease-out,
+      border-color v.$duration-200 v.$ease-out;
+  }
+
+  &.open {
+    grid-template-rows: 1fr;
+    margin-bottom: var(--spacing-5);
+
+    > .filter-panel {
+      opacity: 1;
+      padding-block: var(--spacing-5);
+      border-color: var(--border-color);
+    }
+  }
 }
 
 // Responsive - Use SCSS mixins for breakpoints
 @include m.respond-below('lg') {  // < 1024px
+  .brief-stats {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
   .controls-bar {
-    flex-direction: column;
-    align-items: stretch;
+    flex-wrap: wrap;
+    align-items: center;
   }
 
-}
-
-@include m.respond-below('md') {  // < 768px
-  .view-header {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .header-content {
+  .search-box {
+    order: -1;
     width: 100%;
+    flex-basis: 100%;
+    min-width: unset;
   }
 }
 
@@ -1057,72 +1327,78 @@ onMounted(() => {
     padding: var(--spacing-4) var(--spacing-3);
   }
 
-  .page-title {
-    font-size: var(--text-2xl);
+  .videos-brief {
+    margin-bottom: var(--spacing-4);
   }
 
-  .header-actions {
-    width: 100%;
-
-    .btn-action {
-      flex: 1;
-      justify-content: center;
-      min-height: 44px;  // Touch-friendly
-    }
+  .brief-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  
+
+  .brief-stat {
+    min-width: 0;
+  }
+
   // Filter and sort controls
   .filters-btn,
-  .sort-select {
+  .sort-control-wrap {
     min-height: 44px;  // Touch-friendly
-    font-size: var(--text-base);  // Larger for readability
   }
-  
+
   .filter-panel {
     padding: var(--spacing-4);
     gap: var(--spacing-3);
   }
-  
+
   .filter-select {
     min-height: 44px;  // Touch-friendly
     font-size: 16px;  // Prevent iOS zoom
   }
-  
+
   .clear-filters-btn {
     width: 100%;  // Full width on mobile
     min-height: 44px;
     justify-content: center;
   }
-  
+
   // Search and view controls
   .search-box {
     order: -1;  // Move search to top on mobile
     width: 100%;
     margin-bottom: var(--spacing-3);
   }
-  
+
   .view-toggle,
   .filters-btn,
-  .sort-select {
-    flex: 1;  // Equal width buttons
+  .sort-control-wrap {
+    flex: 1;  // Equal width controls
+    justify-content: center;
   }
-  
+
+  .view-toggle .toggle-btn {
+    flex: 1;
+  }
+
   .filter-panel {
     flex-direction: column;  // Stack vertically on mobile
   }
-  
+
   .filter-group {
     width: 100%;
-    
+
     label {
       font-size: var(--text-sm);
       font-weight: 600;
     }
-    
+
     select {
       width: 100%;
     }
   }
 
+  .results-info {
+    align-items: stretch;
+    flex-direction: column;
+  }
 }
 </style>

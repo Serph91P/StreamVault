@@ -1,0 +1,1568 @@
+{
+  "baseUrl": "http://127.0.0.1:5173/videos",
+  "generatedAt": "2026-07-06T23:49:31.116Z",
+  "screenshots": [
+    "/opt/data/workspace/github_repos/StreamVault-frontend-product-overhaul-final/.hermes/frontend-visual-evidence/videos-desktop-1440x900-grid.png",
+    "/opt/data/workspace/github_repos/StreamVault-frontend-product-overhaul-final/.hermes/frontend-visual-evidence/videos-desktop-1440x900-list.png",
+    "/opt/data/workspace/github_repos/StreamVault-frontend-product-overhaul-final/.hermes/frontend-visual-evidence/videos-desktop-1440x900-media-states.png",
+    "/opt/data/workspace/github_repos/StreamVault-frontend-product-overhaul-final/.hermes/frontend-visual-evidence/videos-tablet-768x1024-grid.png",
+    "/opt/data/workspace/github_repos/StreamVault-frontend-product-overhaul-final/.hermes/frontend-visual-evidence/videos-tablet-768x1024-list.png",
+    "/opt/data/workspace/github_repos/StreamVault-frontend-product-overhaul-final/.hermes/frontend-visual-evidence/videos-mobile-390x844-grid.png",
+    "/opt/data/workspace/github_repos/StreamVault-frontend-product-overhaul-final/.hermes/frontend-visual-evidence/videos-mobile-390x844-list.png",
+    "/opt/data/workspace/github_repos/StreamVault-frontend-product-overhaul-final/.hermes/frontend-visual-evidence/videos-mobile-390x844-filters-open.png",
+    "/opt/data/workspace/github_repos/StreamVault-frontend-product-overhaul-final/.hermes/frontend-visual-evidence/videos-mobile-390x844-empty-filter.png",
+    "/opt/data/workspace/github_repos/StreamVault-frontend-product-overhaul-final/.hermes/frontend-visual-evidence/videos-mobile-390x844-media-states.png",
+    "/opt/data/workspace/github_repos/StreamVault-frontend-product-overhaul-final/.hermes/frontend-visual-evidence/videos-mobile-390x844-select-mode.png",
+    "/opt/data/workspace/github_repos/StreamVault-frontend-product-overhaul-final/.hermes/frontend-visual-evidence/videos-narrow-360x740-grid.png",
+    "/opt/data/workspace/github_repos/StreamVault-frontend-product-overhaul-final/.hermes/frontend-visual-evidence/videos-narrow-360x740-list.png",
+    "/opt/data/workspace/github_repos/StreamVault-frontend-product-overhaul-final/.hermes/frontend-visual-evidence/videos-narrow-360x740-filters-open.png",
+    "/opt/data/workspace/github_repos/StreamVault-frontend-product-overhaul-final/.hermes/frontend-visual-evidence/videos-narrow-360x740-empty-filter.png"
+  ],
+  "layouts": [
+    {
+      "label": "desktop-1440x900 grid",
+      "url": "http://127.0.0.1:5173/videos",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "document": {
+        "scrollWidth": 1440,
+        "scrollHeight": 2190,
+        "bodyScrollWidth": 1440
+      },
+      "hasHorizontalOverflow": false,
+      "cards": 12,
+      "firstRowCount": 3,
+      "controlsBar": {
+        "x": 284,
+        "y": 358,
+        "width": 1116,
+        "height": 132
+      },
+      "searchBox": {
+        "x": 297,
+        "y": 371,
+        "width": 878,
+        "height": 47
+      },
+      "tapTargets": [
+        {
+          "label": "INPUT",
+          "x": 297,
+          "y": 371,
+          "width": 878,
+          "height": 47
+        },
+        {
+          "label": "Show videos as grid",
+          "x": 1192,
+          "y": 376,
+          "width": 36,
+          "height": 36
+        },
+        {
+          "label": "Show videos as list",
+          "x": 1232,
+          "y": 376,
+          "width": 36,
+          "height": 36
+        },
+        {
+          "label": "Filters",
+          "x": 1285,
+          "y": 372,
+          "width": 102,
+          "height": 44
+        },
+        {
+          "label": "Sort videos",
+          "x": 297,
+          "y": 430,
+          "width": 1090,
+          "height": 47
+        }
+      ],
+      "visibleText": "StreamVault\nQueue\n2\nNotifications\nLogout\nDashboard\nDashboard overview\nStreamers\nManage creators\nLibrary\nVideo library\nSubscriptions\nManage subscriptions\nSettings\nApp preferences\nCollapse\nVideos\n\nBrowse and manage all recorded streams\n\nSelect\n\nVIDEO LIBRARY\n\nBrowse all recorded streams\n\nSearch, filter, and sort your video collection. Use grid view for browsing thumbnails or list view for detailed information.\n\nRECORDINGS\n12\nHOURS\n22.4h\nSIZE\n13.2 GB\nFilters\nNewest First\nOldest First\nLongest Duration\nShortest Duration\nLargest Size\nSmallest Size\nTitle A-Z\nShowing 12 videos\nPreview unavailable\nJust Chatting\n39:00\nMorning Talk Show - Community Discussion\nstreamer_alpha\n•\n7 months ago\nJust Chatting\n1.2K\n450.0 MB\nPreview unavailable\nCompetitive Gaming\n2:00:00\nRanked Climbing Session - Road to Masters\nspeedrunner_pro\n•\n7 months ago\nCompetitive Gaming\n5.5K\n1.2 GB\nPreview unavailable\nRetro\n3:00:00\nRetro RPG Marathon - Classic Gaming Session\nretro_gamer\n•\n7 months ago\nRetro\n890\n1.8 GB\nPreview unavailable\nJust Chatting\n1:10:00\nMorning Chill Stream - Coffee and Chat\nstreamer_alpha\n•\n7 months ago\nJust Chatting\n450\n680.0 MB\nPreview unavailable\nSpeedrunning\n1:30:00\nSpeedrun Practice - Sub 30 Minute"
+    },
+    {
+      "label": "desktop-1440x900 list",
+      "url": "http://127.0.0.1:5173/videos",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "document": {
+        "scrollWidth": 1440,
+        "scrollHeight": 3014,
+        "bodyScrollWidth": 1440
+      },
+      "hasHorizontalOverflow": false,
+      "cards": 12,
+      "firstRowCount": 1,
+      "controlsBar": {
+        "x": 284,
+        "y": 358,
+        "width": 1116,
+        "height": 132
+      },
+      "searchBox": {
+        "x": 297,
+        "y": 371,
+        "width": 878,
+        "height": 47
+      },
+      "tapTargets": [
+        {
+          "label": "INPUT",
+          "x": 297,
+          "y": 371,
+          "width": 878,
+          "height": 47
+        },
+        {
+          "label": "Show videos as grid",
+          "x": 1192,
+          "y": 376,
+          "width": 36,
+          "height": 36
+        },
+        {
+          "label": "Show videos as list",
+          "x": 1232,
+          "y": 375,
+          "width": 36,
+          "height": 36
+        },
+        {
+          "label": "Filters",
+          "x": 1285,
+          "y": 372,
+          "width": 102,
+          "height": 44
+        },
+        {
+          "label": "Sort videos",
+          "x": 297,
+          "y": 430,
+          "width": 1090,
+          "height": 47
+        }
+      ],
+      "visibleText": "StreamVault\nQueue\n2\nNotifications\nLogout\nDashboard\nDashboard overview\nStreamers\nManage creators\nLibrary\nVideo library\nSubscriptions\nManage subscriptions\nSettings\nApp preferences\nCollapse\nVideos\n\nBrowse and manage all recorded streams\n\nSelect\n\nVIDEO LIBRARY\n\nBrowse all recorded streams\n\nSearch, filter, and sort your video collection. Use grid view for browsing thumbnails or list view for detailed information.\n\nRECORDINGS\n12\nHOURS\n22.4h\nSIZE\n13.2 GB\nFilters\nNewest First\nOldest First\nLongest Duration\nShortest Duration\nLargest Size\nSmallest Size\nTitle A-Z\nShowing 12 videos\nPreview unavailable\nJust Chatting\n39:00\nMorning Talk Show - Community Discussion\nstreamer_alpha\n•\n7 months ago\n1.2K\n450.0 MB\nPreview unavailable\nCompetitive Gaming\n2:00:00\nRanked Climbing Session - Road to Masters\nspeedrunner_pro\n•\n7 months ago\n5.5K\n1.2 GB\nPreview unavailable\nRetro\n3:00:00\nRetro RPG Marathon - Classic Gaming Session\nretro_gamer\n•\n7 months ago\n890\n1.8 GB\nPreview unavailable\nJust Chatting\n1:10:00\nMorning Chill Stream - Coffee and Chat\nstreamer_alpha\n•\n7 months ago\n450\n680.0 MB\nPreview unavailable\nSpeedrunning\n1:30:00\nSpeedrun Practice - Sub 30 Minute Attempts\nspeedrunner_pro\n•\n7 months ago\n2.3K\n900.0 M"
+    },
+    {
+      "label": "desktop-1440x900 media-states",
+      "url": "http://127.0.0.1:5173/videos",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "document": {
+        "scrollWidth": 1440,
+        "scrollHeight": 1101,
+        "bodyScrollWidth": 1440
+      },
+      "hasHorizontalOverflow": false,
+      "cards": 3,
+      "firstRowCount": 3,
+      "controlsBar": {
+        "x": 284,
+        "y": 411,
+        "width": 1116,
+        "height": 132
+      },
+      "searchBox": {
+        "x": 297,
+        "y": 424,
+        "width": 878,
+        "height": 47
+      },
+      "tapTargets": [
+        {
+          "label": "INPUT",
+          "x": 297,
+          "y": 424,
+          "width": 878,
+          "height": 47
+        },
+        {
+          "label": "Clear video search",
+          "x": 1135,
+          "y": 430,
+          "width": 32,
+          "height": 36
+        },
+        {
+          "label": "Show videos as grid",
+          "x": 1192,
+          "y": 430,
+          "width": 36,
+          "height": 36
+        },
+        {
+          "label": "Show videos as list",
+          "x": 1232,
+          "y": 430,
+          "width": 36,
+          "height": 36
+        },
+        {
+          "label": "Filters",
+          "x": 1285,
+          "y": 426,
+          "width": 102,
+          "height": 44
+        },
+        {
+          "label": "Sort videos",
+          "x": 297,
+          "y": 483,
+          "width": 1090,
+          "height": 47
+        }
+      ],
+      "visibleText": "StreamVault\nQueue\n2\nNotifications\nLogout\nDashboard\nDashboard overview\nStreamers\nManage creators\nLibrary\nVideo library\nSubscriptions\nManage subscriptions\nSettings\nApp preferences\nCollapse\nVideos\n\nBrowse and manage all recorded streams\n\nSelect\n\nVIDEO LIBRARY\n\nBrowse all recorded streams\n\nSearch, filter, and sort your video collection. Use grid view for browsing thumbnails or list view for detailed information.\n\nRECORDINGS\n15\nHOURS\n22.4h\nSIZE\n13.2 GB\nFAILED\n1\nPROCESSING\n1\nFilters\nNewest First\nOldest First\nLongest Duration\nShortest Duration\nLargest Size\nSmallest Size\nTitle A-Z\nShowing 3 videos of 15 matching \"QA\"\nMedia unavailable\nQA State\nFAILED\nUnavailable\nQA failed corrupt media sample\nqa_corrupt\n•\nDate unavailable\nQA State\n\nRecording failed or media is unavailable.\n\nPreview unavailable\nQA State\n2:04\nUnavailable\nQA missing playback details sample\nqa_missing_details\n•\nDate unavailable\nQA State\n\nPlayback details are missing.\n\n1 KB\nPreview unavailable\nQA State\nPROCESSING\nQA low data processing sample\nqa_processing\n•\nToday\nQA State"
+    },
+    {
+      "label": "tablet-768x1024 grid",
+      "url": "http://127.0.0.1:5173/videos",
+      "viewport": {
+        "width": 768,
+        "height": 1024
+      },
+      "document": {
+        "scrollWidth": 768,
+        "scrollHeight": 3145,
+        "bodyScrollWidth": 768
+      },
+      "hasHorizontalOverflow": false,
+      "cards": 12,
+      "firstRowCount": 2,
+      "controlsBar": {
+        "x": 28,
+        "y": 446,
+        "width": 712,
+        "height": 246
+      },
+      "searchBox": {
+        "x": 41,
+        "y": 459,
+        "width": 686,
+        "height": 47
+      },
+      "tapTargets": [
+        {
+          "label": "INPUT",
+          "x": 41,
+          "y": 459,
+          "width": 686,
+          "height": 47
+        },
+        {
+          "label": "Show videos as grid",
+          "x": 46,
+          "y": 523,
+          "width": 36,
+          "height": 36
+        },
+        {
+          "label": "Show videos as list",
+          "x": 86,
+          "y": 523,
+          "width": 36,
+          "height": 36
+        },
+        {
+          "label": "Filters",
+          "x": 41,
+          "y": 576,
+          "width": 686,
+          "height": 44
+        },
+        {
+          "label": "Sort videos",
+          "x": 41,
+          "y": 632,
+          "width": 686,
+          "height": 47
+        }
+      ],
+      "visibleText": "StreamVault\n2\nVideos\n\nBrowse and manage all recorded streams\n\nSelect\n\nVIDEO LIBRARY\n\nBrowse all recorded streams\n\nSearch, filter, and sort your video collection. Use grid view for browsing thumbnails or list view for detailed information.\n\nRECORDINGS\n12\nHOURS\n22.4h\nSIZE\n13.2 GB\nFilters\nNewest First\nOldest First\nLongest Duration\nShortest Duration\nLargest Size\nSmallest Size\nTitle A-Z\nShowing 12 videos\nPreview unavailable\nJust Chatting\n39:00\nMorning Talk Show - Community Discussion\nstreamer_alpha\n•\n7 months ago\nJust Chatting\n1.2K\n450.0 MB\nPreview unavailable\nCompetitive Gaming\n2:00:00\nRanked Climbing Session - Road to Masters\nspeedrunner_pro\n•\n7 months ago\nCompetitive Gaming\n5.5K\n1.2 GB\nPreview unavailable\nRetro\n3:00:00\nRetro RPG Marathon - Classic Gaming Session\nretro_gamer\n•\n7 months ago\nRetro\n890\n1.8 GB\nPreview unavailable\nJust Chatting\n1:10:00\nMorning Chill Stream - Coffee and Chat\nstreamer_alpha\n•\n7 months ago\nJust Chatting\n450\n680.0 MB\nPreview unavailable\nSpeedrunning\n1:30:00\nSpeedrun Practice - Sub 30 Minute Attempts\nspeedrunner_pro\n•\n7 months ago\nSpeedrunning\n2.3K\n900.0 MB\nPreview unavailable\nVariety\n1:45:00\nLate Night Variety Stream - Viewer Games\ncasual_streamer\n•\n7 months a"
+    },
+    {
+      "label": "tablet-768x1024 list",
+      "url": "http://127.0.0.1:5173/videos",
+      "viewport": {
+        "width": 768,
+        "height": 1024
+      },
+      "document": {
+        "scrollWidth": 768,
+        "scrollHeight": 3244,
+        "bodyScrollWidth": 768
+      },
+      "hasHorizontalOverflow": false,
+      "cards": 12,
+      "firstRowCount": 1,
+      "controlsBar": {
+        "x": 28,
+        "y": 446,
+        "width": 712,
+        "height": 246
+      },
+      "searchBox": {
+        "x": 41,
+        "y": 459,
+        "width": 686,
+        "height": 47
+      },
+      "tapTargets": [
+        {
+          "label": "INPUT",
+          "x": 41,
+          "y": 459,
+          "width": 686,
+          "height": 47
+        },
+        {
+          "label": "Show videos as grid",
+          "x": 46,
+          "y": 523,
+          "width": 36,
+          "height": 36
+        },
+        {
+          "label": "Show videos as list",
+          "x": 86,
+          "y": 522,
+          "width": 36,
+          "height": 36
+        },
+        {
+          "label": "Filters",
+          "x": 41,
+          "y": 576,
+          "width": 686,
+          "height": 44
+        },
+        {
+          "label": "Sort videos",
+          "x": 41,
+          "y": 632,
+          "width": 686,
+          "height": 47
+        }
+      ],
+      "visibleText": "StreamVault\n2\nVideos\n\nBrowse and manage all recorded streams\n\nSelect\n\nVIDEO LIBRARY\n\nBrowse all recorded streams\n\nSearch, filter, and sort your video collection. Use grid view for browsing thumbnails or list view for detailed information.\n\nRECORDINGS\n12\nHOURS\n22.4h\nSIZE\n13.2 GB\nFilters\nNewest First\nOldest First\nLongest Duration\nShortest Duration\nLargest Size\nSmallest Size\nTitle A-Z\nShowing 12 videos\nPreview unavailable\nJust Chatting\n39:00\nMorning Talk Show - Community Discussion\nstreamer_alpha\n•\n7 months ago\n1.2K\n450.0 MB\nPreview unavailable\nCompetitive Gaming\n2:00:00\nRanked Climbing Session - Road to Masters\nspeedrunner_pro\n•\n7 months ago\n5.5K\n1.2 GB\nPreview unavailable\nRetro\n3:00:00\nRetro RPG Marathon - Classic Gaming Session\nretro_gamer\n•\n7 months ago\n890\n1.8 GB\nPreview unavailable\nJust Chatting\n1:10:00\nMorning Chill Stream - Coffee and Chat\nstreamer_alpha\n•\n7 months ago\n450\n680.0 MB\nPreview unavailable\nSpeedrunning\n1:30:00\nSpeedrun Practice - Sub 30 Minute Attempts\nspeedrunner_pro\n•\n7 months ago\n2.3K\n900.0 MB\nPreview unavailable\nVariety\n1:45:00\nLate Night Variety Stream - Viewer Games\ncasual_streamer\n•\n7 months ago\n780\n1.0 GB\nPreview unavailable\nIndie Games\n2:15:00\nIndie Game S"
+    },
+    {
+      "label": "mobile-390x844 grid",
+      "url": "http://127.0.0.1:5173/videos",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "document": {
+        "scrollWidth": 390,
+        "scrollHeight": 5413,
+        "bodyScrollWidth": 390
+      },
+      "hasHorizontalOverflow": false,
+      "cards": 12,
+      "firstRowCount": 1,
+      "controlsBar": {
+        "x": 20,
+        "y": 606,
+        "width": 350,
+        "height": 273
+      },
+      "searchBox": {
+        "x": 33,
+        "y": 619,
+        "width": 324,
+        "height": 50
+      },
+      "tapTargets": [
+        {
+          "label": "INPUT",
+          "x": 33,
+          "y": 619,
+          "width": 324,
+          "height": 50
+        },
+        {
+          "label": "Show videos as grid",
+          "x": 38,
+          "y": 698,
+          "width": 36,
+          "height": 44
+        },
+        {
+          "label": "Show videos as list",
+          "x": 78,
+          "y": 698,
+          "width": 36,
+          "height": 44
+        },
+        {
+          "label": "Filters",
+          "x": 33,
+          "y": 759,
+          "width": 324,
+          "height": 45
+        },
+        {
+          "label": "Sort videos",
+          "x": 33,
+          "y": 816,
+          "width": 324,
+          "height": 50
+        }
+      ],
+      "visibleText": "StreamVault\n2\nVideos\n\nBrowse and manage all recorded streams\n\nSelect\n\nVIDEO LIBRARY\n\nBrowse all recorded streams\n\nSearch, filter, and sort your video collection. Use grid view for browsing thumbnails or list view for detailed information.\n\nRECORDINGS\n12\nHOURS\n22.4h\nSIZE\n13.2 GB\nFilters\nNewest First\nOldest First\nLongest Duration\nShortest Duration\nLargest Size\nSmallest Size\nTitle A-Z\nShowing 12 videos\nPreview unavailable\nJust Chatting\n39:00\nMorning Talk Show - Community Discussion\nstreamer_alpha\n•\n7 months ago\nJust Chatting\n1.2K\n450.0 MB\nPreview unavailable\nCompetitive Gaming\n2:00:00\nRanked Climbing Session - Road to Masters\nspeedrunner_pro\n•\n7 months ago\nCompetitive Gaming\n5.5K\n1.2 GB\nPreview unavailable\nRetro\n3:00:00\nRetro RPG Marathon - Classic Gaming Session\nretro_gamer\n•\n7 months ago\nRetro\n890\n1.8 GB\nPreview unavailable\nJust Chatting\n1:10:00\nMorning Chill Stream - Coffee and Chat\nstreamer_alpha\n•\n7 months ago\nJust Chatting\n450\n680.0 MB\nPreview unavailable\nSpeedrunning\n1:30:00\nSpeedrun Practice - Sub 30 Minute Attempts\nspeedrunner_pro\n•\n7 months ago\nSpeedrunning\n2.3K\n900.0 MB\nPreview unavailable\nVariety\n1:45:00\nLate Night Variety Stream - Viewer Games\ncasual_streamer\n•\n7 months a"
+    },
+    {
+      "label": "mobile-390x844 list",
+      "url": "http://127.0.0.1:5173/videos",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "document": {
+        "scrollWidth": 390,
+        "scrollHeight": 3015,
+        "bodyScrollWidth": 390
+      },
+      "hasHorizontalOverflow": false,
+      "cards": 12,
+      "firstRowCount": 1,
+      "controlsBar": {
+        "x": 20,
+        "y": 606,
+        "width": 350,
+        "height": 273
+      },
+      "searchBox": {
+        "x": 33,
+        "y": 619,
+        "width": 324,
+        "height": 50
+      },
+      "tapTargets": [
+        {
+          "label": "INPUT",
+          "x": 33,
+          "y": 619,
+          "width": 324,
+          "height": 50
+        },
+        {
+          "label": "Show videos as grid",
+          "x": 38,
+          "y": 698,
+          "width": 36,
+          "height": 44
+        },
+        {
+          "label": "Show videos as list",
+          "x": 78,
+          "y": 697,
+          "width": 36,
+          "height": 44
+        },
+        {
+          "label": "Filters",
+          "x": 33,
+          "y": 759,
+          "width": 324,
+          "height": 45
+        },
+        {
+          "label": "Sort videos",
+          "x": 33,
+          "y": 816,
+          "width": 324,
+          "height": 50
+        }
+      ],
+      "visibleText": "StreamVault\n2\nVideos\n\nBrowse and manage all recorded streams\n\nSelect\n\nVIDEO LIBRARY\n\nBrowse all recorded streams\n\nSearch, filter, and sort your video collection. Use grid view for browsing thumbnails or list view for detailed information.\n\nRECORDINGS\n12\nHOURS\n22.4h\nSIZE\n13.2 GB\nFilters\nNewest First\nOldest First\nLongest Duration\nShortest Duration\nLargest Size\nSmallest Size\nTitle A-Z\nShowing 12 videos\nPreview unavailable\nJust Chatting\n39:00\nMorning Talk Show - Community Discussion\nstreamer_alpha\n•\n7 months ago\n1.2K\n450.0 MB\nPreview unavailable\nCompetitive Gaming\n2:00:00\nRanked Climbing Session - Road to Masters\nspeedrunner_pro\n•\n7 months ago\n5.5K\n1.2 GB\nPreview unavailable\nRetro\n3:00:00\nRetro RPG Marathon - Classic Gaming Session\nretro_gamer\n•\n7 months ago\n890\n1.8 GB\nPreview unavailable\nJust Chatting\n1:10:00\nMorning Chill Stream - Coffee and Chat\nstreamer_alpha\n•\n7 months ago\n450\n680.0 MB\nPreview unavailable\nSpeedrunning\n1:30:00\nSpeedrun Practice - Sub 30 Minute Attempts\nspeedrunner_pro\n•\n7 months ago\n2.3K\n900.0 MB\nPreview unavailable\nVariety\n1:45:00\nLate Night Variety Stream - Viewer Games\ncasual_streamer\n•\n7 months ago\n780\n1.0 GB\nPreview unavailable\nIndie Games\n2:15:00\nIndie Game S"
+    },
+    {
+      "label": "mobile-390x844 filters-open",
+      "url": "http://127.0.0.1:5173/videos",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "document": {
+        "scrollWidth": 390,
+        "scrollHeight": 3372,
+        "bodyScrollWidth": 390
+      },
+      "hasHorizontalOverflow": false,
+      "cards": 12,
+      "firstRowCount": 1,
+      "controlsBar": {
+        "x": 20,
+        "y": 247,
+        "width": 350,
+        "height": 273
+      },
+      "searchBox": {
+        "x": 33,
+        "y": 260,
+        "width": 324,
+        "height": 50
+      },
+      "tapTargets": [
+        {
+          "label": "INPUT",
+          "x": 33,
+          "y": 260,
+          "width": 324,
+          "height": 50
+        },
+        {
+          "label": "Show videos as grid",
+          "x": 38,
+          "y": 339,
+          "width": 36,
+          "height": 44
+        },
+        {
+          "label": "Show videos as list",
+          "x": 78,
+          "y": 339,
+          "width": 36,
+          "height": 44
+        },
+        {
+          "label": "Filters",
+          "x": 33,
+          "y": 399,
+          "width": 324,
+          "height": 45
+        },
+        {
+          "label": "Sort videos",
+          "x": 33,
+          "y": 457,
+          "width": 324,
+          "height": 50
+        }
+      ],
+      "visibleText": "StreamVault\n2\nVideos\n\nBrowse and manage all recorded streams\n\nSelect\n\nVIDEO LIBRARY\n\nBrowse all recorded streams\n\nSearch, filter, and sort your video collection. Use grid view for browsing thumbnails or list view for detailed information.\n\nRECORDINGS\n12\nHOURS\n22.4h\nSIZE\n13.2 GB\nFilters\nNewest First\nOldest First\nLongest Duration\nShortest Duration\nLargest Size\nSmallest Size\nTitle A-Z\nStreamer\nAll Streamers\ncasual_streamer\nretro_gamer\nspeedrunner_pro\nstreamer_alpha\nDate\nAll Time\nToday\nThis Week\nThis Month\nCustom Range\nDuration\nAny Duration\nShort (< 1h)\nMedium (1-3h)\nLong (> 3h)\nClear All\nShowing 12 videos\nPreview unavailable\nJust Chatting\n39:00\nMorning Talk Show - Community Discussion\nstreamer_alpha\n•\n7 months ago\n1.2K\n450.0 MB\nPreview unavailable\nCompetitive Gaming\n2:00:00\nRanked Climbing Session - Road to Masters\nspeedrunner_pro\n•\n7 months ago\n5.5K\n1.2 GB\nPreview unavailable\nRetro\n3:00:00\nRetro RPG Marathon - Classic Gaming Session\nretro_gamer\n•\n7 months ago\n890\n1.8 GB\nPreview unavailable\nJust Chatting\n1:10:00\nMorning Chill Stream - Coffee and Chat\nstreamer_alpha\n•\n7 months ago\n450\n680.0 MB\nPreview unavailable\nSpeedrunning\n1:30:00\nSpeedrun Practice - Sub 30 Minute Attempts\nspeedrunn"
+    },
+    {
+      "label": "mobile-390x844 empty-filter",
+      "url": "http://127.0.0.1:5173/videos",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "document": {
+        "scrollWidth": 390,
+        "scrollHeight": 1794,
+        "bodyScrollWidth": 390
+      },
+      "hasHorizontalOverflow": false,
+      "cards": 0,
+      "firstRowCount": 0,
+      "controlsBar": {
+        "x": 20,
+        "y": 247,
+        "width": 350,
+        "height": 273
+      },
+      "searchBox": {
+        "x": 33,
+        "y": 260,
+        "width": 324,
+        "height": 50
+      },
+      "tapTargets": [
+        {
+          "label": "INPUT",
+          "x": 33,
+          "y": 260,
+          "width": 324,
+          "height": 50
+        },
+        {
+          "label": "Clear video search",
+          "x": 317,
+          "y": 263,
+          "width": 32,
+          "height": 44
+        },
+        {
+          "label": "Show videos as grid",
+          "x": 38,
+          "y": 339,
+          "width": 36,
+          "height": 44
+        },
+        {
+          "label": "Show videos as list",
+          "x": 78,
+          "y": 339,
+          "width": 36,
+          "height": 44
+        },
+        {
+          "label": "Filters",
+          "x": 33,
+          "y": 399,
+          "width": 324,
+          "height": 45
+        },
+        {
+          "label": "Sort videos",
+          "x": 33,
+          "y": 457,
+          "width": 324,
+          "height": 50
+        }
+      ],
+      "visibleText": "StreamVault\n2\nVideos\n\nBrowse and manage all recorded streams\n\nSelect\n\nVIDEO LIBRARY\n\nBrowse all recorded streams\n\nSearch, filter, and sort your video collection. Use grid view for browsing thumbnails or list view for detailed information.\n\nRECORDINGS\n12\nHOURS\n22.4h\nSIZE\n13.2 GB\nFilters\nNewest First\nOldest First\nLongest Duration\nShortest Duration\nLargest Size\nSmallest Size\nTitle A-Z\nStreamer\nAll Streamers\ncasual_streamer\nretro_gamer\nspeedrunner_pro\nstreamer_alpha\nDate\nAll Time\nToday\nThis Week\nThis Month\nCustom Range\nDuration\nAny Duration\nShort (< 1h)\nMedium (1-3h)\nLong (> 3h)\nClear All\nShowing 0 videos of 12 matching \"no-video-results-qa\"\nNo Results Found\n\nNo videos match 'no-video-results-qa'. Try adjusting your search or filters.\n\nClear Search and Filters\nDashboard\nStreamers\nLibrary\nSubscriptions\nSettings"
+    },
+    {
+      "label": "mobile-390x844 media-states",
+      "url": "http://127.0.0.1:5173/videos",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "document": {
+        "scrollWidth": 390,
+        "scrollHeight": 2203,
+        "bodyScrollWidth": 390
+      },
+      "hasHorizontalOverflow": false,
+      "cards": 3,
+      "firstRowCount": 1,
+      "controlsBar": {
+        "x": 20,
+        "y": 699,
+        "width": 350,
+        "height": 273
+      },
+      "searchBox": {
+        "x": 33,
+        "y": 712,
+        "width": 324,
+        "height": 50
+      },
+      "tapTargets": [
+        {
+          "label": "INPUT",
+          "x": 33,
+          "y": 712,
+          "width": 324,
+          "height": 50
+        },
+        {
+          "label": "Clear video search",
+          "x": 317,
+          "y": 715,
+          "width": 32,
+          "height": 44
+        },
+        {
+          "label": "Show videos as grid",
+          "x": 38,
+          "y": 791,
+          "width": 36,
+          "height": 44
+        },
+        {
+          "label": "Show videos as list",
+          "x": 78,
+          "y": 791,
+          "width": 36,
+          "height": 44
+        },
+        {
+          "label": "Filters",
+          "x": 33,
+          "y": 852,
+          "width": 324,
+          "height": 45
+        },
+        {
+          "label": "Sort videos",
+          "x": 33,
+          "y": 909,
+          "width": 324,
+          "height": 50
+        }
+      ],
+      "visibleText": "StreamVault\n2\nVideos\n\nBrowse and manage all recorded streams\n\nSelect\n\nVIDEO LIBRARY\n\nBrowse all recorded streams\n\nSearch, filter, and sort your video collection. Use grid view for browsing thumbnails or list view for detailed information.\n\nRECORDINGS\n15\nHOURS\n22.4h\nSIZE\n13.2 GB\nFAILED\n1\nPROCESSING\n1\nFilters\nNewest First\nOldest First\nLongest Duration\nShortest Duration\nLargest Size\nSmallest Size\nTitle A-Z\nShowing 3 videos of 15 matching \"QA\"\nMedia unavailable\nQA State\nFAILED\nUnavailable\nQA failed corrupt media sample\nqa_corrupt\n•\nDate unavailable\nQA State\n\nRecording failed or media is unavailable.\n\nPreview unavailable\nQA State\n2:04\nUnavailable\nQA missing playback details sample\nqa_missing_details\n•\nDate unavailable\nQA State\n\nPlayback details are missing.\n\n1 KB\nPreview unavailable\nQA State\nPROCESSING\nQA low data processing sample\nqa_processing\n•\nToday\nQA State\nDashboard\nStreamers\nLibrary\nSubscriptions\nSettings"
+    },
+    {
+      "label": "mobile-390x844 select-mode",
+      "url": "http://127.0.0.1:5173/videos",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "document": {
+        "scrollWidth": 390,
+        "scrollHeight": 5497,
+        "bodyScrollWidth": 390
+      },
+      "hasHorizontalOverflow": false,
+      "cards": 12,
+      "firstRowCount": 1,
+      "controlsBar": {
+        "x": 20,
+        "y": 35,
+        "width": 350,
+        "height": 273
+      },
+      "searchBox": {
+        "x": 33,
+        "y": 48,
+        "width": 324,
+        "height": 50
+      },
+      "tapTargets": [
+        {
+          "label": "INPUT",
+          "x": 33,
+          "y": 48,
+          "width": 324,
+          "height": 50
+        },
+        {
+          "label": "Show videos as grid",
+          "x": 38,
+          "y": 127,
+          "width": 36,
+          "height": 44
+        },
+        {
+          "label": "Show videos as list",
+          "x": 78,
+          "y": 127,
+          "width": 36,
+          "height": 44
+        },
+        {
+          "label": "Filters",
+          "x": 33,
+          "y": 188,
+          "width": 324,
+          "height": 45
+        },
+        {
+          "label": "Sort videos",
+          "x": 33,
+          "y": 245,
+          "width": 324,
+          "height": 50
+        }
+      ],
+      "visibleText": "StreamVault\n2\nVideos\n\nBrowse and manage all recorded streams\n\nDelete (1)\nCancel\n\nVIDEO LIBRARY\n\nBrowse all recorded streams\n\nSearch, filter, and sort your video collection. Use grid view for browsing thumbnails or list view for detailed information.\n\nRECORDINGS\n12\nHOURS\n22.4h\nSIZE\n13.2 GB\nFilters\nNewest First\nOldest First\nLongest Duration\nShortest Duration\nLargest Size\nSmallest Size\nTitle A-Z\nShowing 12 videos\n1 selected\nPreview unavailable\nJust Chatting\n39:00\nMorning Talk Show - Community Discussion\nstreamer_alpha\n•\n7 months ago\nJust Chatting\n1.2K\n450.0 MB\nPreview unavailable\nCompetitive Gaming\n2:00:00\nRanked Climbing Session - Road to Masters\nspeedrunner_pro\n•\n7 months ago\nCompetitive Gaming\n5.5K\n1.2 GB\nPreview unavailable\nRetro\n3:00:00\nRetro RPG Marathon - Classic Gaming Session\nretro_gamer\n•\n7 months ago\nRetro\n890\n1.8 GB\nPreview unavailable\nJust Chatting\n1:10:00\nMorning Chill Stream - Coffee and Chat\nstreamer_alpha\n•\n7 months ago\nJust Chatting\n450\n680.0 MB\nPreview unavailable\nSpeedrunning\n1:30:00\nSpeedrun Practice - Sub 30 Minute Attempts\nspeedrunner_pro\n•\n7 months ago\nSpeedrunning\n2.3K\n900.0 MB\nPreview unavailable\nVariety\n1:45:00\nLate Night Variety Stream - Viewer Games\ncasual"
+    },
+    {
+      "label": "narrow-360x740 grid",
+      "url": "http://127.0.0.1:5173/videos",
+      "viewport": {
+        "width": 360,
+        "height": 740
+      },
+      "document": {
+        "scrollWidth": 360,
+        "scrollHeight": 4960,
+        "bodyScrollWidth": 360
+      },
+      "hasHorizontalOverflow": false,
+      "cards": 12,
+      "firstRowCount": 1,
+      "controlsBar": {
+        "x": 20,
+        "y": 630,
+        "width": 320,
+        "height": 273
+      },
+      "searchBox": {
+        "x": 33,
+        "y": 643,
+        "width": 294,
+        "height": 50
+      },
+      "tapTargets": [
+        {
+          "label": "INPUT",
+          "x": 33,
+          "y": 643,
+          "width": 294,
+          "height": 50
+        },
+        {
+          "label": "Show videos as grid",
+          "x": 38,
+          "y": 722,
+          "width": 36,
+          "height": 44
+        },
+        {
+          "label": "Show videos as list",
+          "x": 78,
+          "y": 722,
+          "width": 36,
+          "height": 44
+        },
+        {
+          "label": "Filters",
+          "x": 33,
+          "y": 783,
+          "width": 294,
+          "height": 45
+        },
+        {
+          "label": "Sort videos",
+          "x": 33,
+          "y": 840,
+          "width": 294,
+          "height": 50
+        }
+      ],
+      "visibleText": "StreamVault\n2\nVideos\n\nBrowse and manage all recorded streams\n\nSelect\n\nVIDEO LIBRARY\n\nBrowse all recorded streams\n\nSearch, filter, and sort your video collection. Use grid view for browsing thumbnails or list view for detailed information.\n\nRECORDINGS\n12\nHOURS\n22.4h\nSIZE\n13.2 GB\nFilters\nNewest First\nOldest First\nLongest Duration\nShortest Duration\nLargest Size\nSmallest Size\nTitle A-Z\nShowing 12 videos\nPreview unavailable\nJust Chatting\n39:00\nMorning Talk Show - Community Discussion\nstreamer_alpha\n•\n7 months ago\nJust Chatting\n1.2K\n450.0 MB\nPreview unavailable\nCompetitive Gaming\n2:00:00\nRanked Climbing Session - Road to Masters\nspeedrunner_pro\n•\n7 months ago\nCompetitive Gaming\n5.5K\n1.2 GB\nPreview unavailable\nRetro\n3:00:00\nRetro RPG Marathon - Classic Gaming Session\nretro_gamer\n•\n7 months ago\nRetro\n890\n1.8 GB\nPreview unavailable\nJust Chatting\n1:10:00\nMorning Chill Stream - Coffee and Chat\nstreamer_alpha\n•\n7 months ago\nJust Chatting\n450\n680.0 MB\nPreview unavailable\nSpeedrunning\n1:30:00\nSpeedrun Practice - Sub 30 Minute Attempts\nspeedrunner_pro\n•\n7 months ago\nSpeedrunning\n2.3K\n900.0 MB\nPreview unavailable\nVariety\n1:45:00\nLate Night Variety Stream - Viewer Games\ncasual_streamer\n•\n7 months a"
+    },
+    {
+      "label": "narrow-360x740 list",
+      "url": "http://127.0.0.1:5173/videos",
+      "viewport": {
+        "width": 360,
+        "height": 740
+      },
+      "document": {
+        "scrollWidth": 360,
+        "scrollHeight": 3039,
+        "bodyScrollWidth": 360
+      },
+      "hasHorizontalOverflow": false,
+      "cards": 12,
+      "firstRowCount": 1,
+      "controlsBar": {
+        "x": 20,
+        "y": 256,
+        "width": 320,
+        "height": 273
+      },
+      "searchBox": {
+        "x": 33,
+        "y": 269,
+        "width": 294,
+        "height": 50
+      },
+      "tapTargets": [
+        {
+          "label": "INPUT",
+          "x": 33,
+          "y": 269,
+          "width": 294,
+          "height": 50
+        },
+        {
+          "label": "Show videos as grid",
+          "x": 38,
+          "y": 348,
+          "width": 36,
+          "height": 44
+        },
+        {
+          "label": "Show videos as list",
+          "x": 78,
+          "y": 347,
+          "width": 36,
+          "height": 44
+        },
+        {
+          "label": "Filters",
+          "x": 33,
+          "y": 409,
+          "width": 294,
+          "height": 45
+        },
+        {
+          "label": "Sort videos",
+          "x": 33,
+          "y": 466,
+          "width": 294,
+          "height": 50
+        }
+      ],
+      "visibleText": "StreamVault\n2\nVideos\n\nBrowse and manage all recorded streams\n\nSelect\n\nVIDEO LIBRARY\n\nBrowse all recorded streams\n\nSearch, filter, and sort your video collection. Use grid view for browsing thumbnails or list view for detailed information.\n\nRECORDINGS\n12\nHOURS\n22.4h\nSIZE\n13.2 GB\nFilters\nNewest First\nOldest First\nLongest Duration\nShortest Duration\nLargest Size\nSmallest Size\nTitle A-Z\nShowing 12 videos\nPreview unavailable\nJust Chatting\n39:00\nMorning Talk Show - Community Discussion\nstreamer_alpha\n•\n7 months ago\n1.2K\n450.0 MB\nPreview unavailable\nCompetitive Gaming\n2:00:00\nRanked Climbing Session - Road to Masters\nspeedrunner_pro\n•\n7 months ago\n5.5K\n1.2 GB\nPreview unavailable\nRetro\n3:00:00\nRetro RPG Marathon - Classic Gaming Session\nretro_gamer\n•\n7 months ago\n890\n1.8 GB\nPreview unavailable\nJust Chatting\n1:10:00\nMorning Chill Stream - Coffee and Chat\nstreamer_alpha\n•\n7 months ago\n450\n680.0 MB\nPreview unavailable\nSpeedrunning\n1:30:00\nSpeedrun Practice - Sub 30 Minute Attempts\nspeedrunner_pro\n•\n7 months ago\n2.3K\n900.0 MB\nPreview unavailable\nVariety\n1:45:00\nLate Night Variety Stream - Viewer Games\ncasual_streamer\n•\n7 months ago\n780\n1.0 GB\nPreview unavailable\nIndie Games\n2:15:00\nIndie Game S"
+    },
+    {
+      "label": "narrow-360x740 filters-open",
+      "url": "http://127.0.0.1:5173/videos",
+      "viewport": {
+        "width": 360,
+        "height": 740
+      },
+      "document": {
+        "scrollWidth": 360,
+        "scrollHeight": 3396,
+        "bodyScrollWidth": 360
+      },
+      "hasHorizontalOverflow": false,
+      "cards": 12,
+      "firstRowCount": 1,
+      "controlsBar": {
+        "x": 20,
+        "y": 256,
+        "width": 320,
+        "height": 273
+      },
+      "searchBox": {
+        "x": 33,
+        "y": 269,
+        "width": 294,
+        "height": 50
+      },
+      "tapTargets": [
+        {
+          "label": "INPUT",
+          "x": 33,
+          "y": 269,
+          "width": 294,
+          "height": 50
+        },
+        {
+          "label": "Show videos as grid",
+          "x": 38,
+          "y": 348,
+          "width": 36,
+          "height": 44
+        },
+        {
+          "label": "Show videos as list",
+          "x": 78,
+          "y": 348,
+          "width": 36,
+          "height": 44
+        },
+        {
+          "label": "Filters",
+          "x": 33,
+          "y": 408,
+          "width": 294,
+          "height": 45
+        },
+        {
+          "label": "Sort videos",
+          "x": 33,
+          "y": 466,
+          "width": 294,
+          "height": 50
+        }
+      ],
+      "visibleText": "StreamVault\n2\nVideos\n\nBrowse and manage all recorded streams\n\nSelect\n\nVIDEO LIBRARY\n\nBrowse all recorded streams\n\nSearch, filter, and sort your video collection. Use grid view for browsing thumbnails or list view for detailed information.\n\nRECORDINGS\n12\nHOURS\n22.4h\nSIZE\n13.2 GB\nFilters\nNewest First\nOldest First\nLongest Duration\nShortest Duration\nLargest Size\nSmallest Size\nTitle A-Z\nStreamer\nAll Streamers\ncasual_streamer\nretro_gamer\nspeedrunner_pro\nstreamer_alpha\nDate\nAll Time\nToday\nThis Week\nThis Month\nCustom Range\nDuration\nAny Duration\nShort (< 1h)\nMedium (1-3h)\nLong (> 3h)\nClear All\nShowing 12 videos\nPreview unavailable\nJust Chatting\n39:00\nMorning Talk Show - Community Discussion\nstreamer_alpha\n•\n7 months ago\n1.2K\n450.0 MB\nPreview unavailable\nCompetitive Gaming\n2:00:00\nRanked Climbing Session - Road to Masters\nspeedrunner_pro\n•\n7 months ago\n5.5K\n1.2 GB\nPreview unavailable\nRetro\n3:00:00\nRetro RPG Marathon - Classic Gaming Session\nretro_gamer\n•\n7 months ago\n890\n1.8 GB\nPreview unavailable\nJust Chatting\n1:10:00\nMorning Chill Stream - Coffee and Chat\nstreamer_alpha\n•\n7 months ago\n450\n680.0 MB\nPreview unavailable\nSpeedrunning\n1:30:00\nSpeedrun Practice - Sub 30 Minute Attempts\nspeedrunn"
+    },
+    {
+      "label": "narrow-360x740 empty-filter",
+      "url": "http://127.0.0.1:5173/videos",
+      "viewport": {
+        "width": 360,
+        "height": 740
+      },
+      "document": {
+        "scrollWidth": 360,
+        "scrollHeight": 1818,
+        "bodyScrollWidth": 360
+      },
+      "hasHorizontalOverflow": false,
+      "cards": 0,
+      "firstRowCount": 0,
+      "controlsBar": {
+        "x": 20,
+        "y": 256,
+        "width": 320,
+        "height": 273
+      },
+      "searchBox": {
+        "x": 33,
+        "y": 269,
+        "width": 294,
+        "height": 50
+      },
+      "tapTargets": [
+        {
+          "label": "INPUT",
+          "x": 33,
+          "y": 269,
+          "width": 294,
+          "height": 50
+        },
+        {
+          "label": "Clear video search",
+          "x": 287,
+          "y": 272,
+          "width": 32,
+          "height": 44
+        },
+        {
+          "label": "Show videos as grid",
+          "x": 38,
+          "y": 348,
+          "width": 36,
+          "height": 44
+        },
+        {
+          "label": "Show videos as list",
+          "x": 78,
+          "y": 348,
+          "width": 36,
+          "height": 44
+        },
+        {
+          "label": "Filters",
+          "x": 33,
+          "y": 408,
+          "width": 294,
+          "height": 45
+        },
+        {
+          "label": "Sort videos",
+          "x": 33,
+          "y": 466,
+          "width": 294,
+          "height": 50
+        }
+      ],
+      "visibleText": "StreamVault\n2\nVideos\n\nBrowse and manage all recorded streams\n\nSelect\n\nVIDEO LIBRARY\n\nBrowse all recorded streams\n\nSearch, filter, and sort your video collection. Use grid view for browsing thumbnails or list view for detailed information.\n\nRECORDINGS\n12\nHOURS\n22.4h\nSIZE\n13.2 GB\nFilters\nNewest First\nOldest First\nLongest Duration\nShortest Duration\nLargest Size\nSmallest Size\nTitle A-Z\nStreamer\nAll Streamers\ncasual_streamer\nretro_gamer\nspeedrunner_pro\nstreamer_alpha\nDate\nAll Time\nToday\nThis Week\nThis Month\nCustom Range\nDuration\nAny Duration\nShort (< 1h)\nMedium (1-3h)\nLong (> 3h)\nClear All\nShowing 0 videos of 12 matching \"no-video-results-qa\"\nNo Results Found\n\nNo videos match 'no-video-results-qa'. Try adjusting your search or filters.\n\nClear Search and Filters\nDashboard\nStreamers\nLibrary\nSubscriptions\nSettings"
+    }
+  ],
+  "console": [
+    {
+      "viewport": "desktop-1440x900",
+      "type": "debug",
+      "text": "[vite] connecting..."
+    },
+    {
+      "viewport": "desktop-1440x900",
+      "type": "debug",
+      "text": "[vite] connected."
+    },
+    {
+      "viewport": "desktop-1440x900",
+      "type": "log",
+      "text": "🎭 Using MOCK API for all endpoints"
+    },
+    {
+      "viewport": "desktop-1440x900",
+      "type": "log",
+      "text": "🎭 Mock mode: WebSocket connections disabled"
+    },
+    {
+      "viewport": "desktop-1440x900",
+      "type": "log",
+      "text": "[2026-07-06T23:49:31.351Z] DEBUG [WebSocketManager] Singleton created with URL: ws://127.0.0.1:5173/ws"
+    },
+    {
+      "viewport": "desktop-1440x900",
+      "type": "log",
+      "text": "[2026-07-06T23:49:31.351Z] DEBUG [WebSocketManager] Singleton instance created"
+    },
+    {
+      "viewport": "desktop-1440x900",
+      "type": "log",
+      "text": "🎭 Mock mode: Skipping WebSocket connection"
+    },
+    {
+      "viewport": "desktop-1440x900",
+      "type": "log",
+      "text": "[2026-07-06T23:49:31.366Z] DEBUG [useBackgroundQueue] Background Queue: Waiting for WebSocket data"
+    },
+    {
+      "viewport": "desktop-1440x900",
+      "type": "log",
+      "text": "[2026-07-06T23:49:31.366Z] DEBUG [useBackgroundQueue] WebSocket not connected yet, using API fallback for initial load"
+    },
+    {
+      "viewport": "desktop-1440x900",
+      "type": "log",
+      "text": "[2026-07-06T23:49:31.366Z] DEBUG [useBackgroundQueue] FORCE REFRESH: Using API as fallback"
+    },
+    {
+      "viewport": "desktop-1440x900",
+      "type": "log",
+      "text": "[2026-07-06T23:49:31.366Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+    },
+    {
+      "viewport": "desktop-1440x900",
+      "type": "log",
+      "text": "[2026-07-06T23:49:31.367Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+    },
+    {
+      "viewport": "desktop-1440x900",
+      "type": "log",
+      "text": "🎭 Mock mode: Skipping auth checks, allowing all routes"
+    },
+    {
+      "viewport": "desktop-1440x900",
+      "type": "warning",
+      "text": "[Vue Router warn]: The `next()` callback in navigation guards is deprecated. Return the value instead of calling `next(value)`."
+    },
+    {
+      "viewport": "desktop-1440x900",
+      "type": "log",
+      "text": "[2026-07-06T23:49:31.566Z] DEBUG [useBackgroundQueue] FORCE REFRESH: API data loaded as fallback"
+    },
+    {
+      "viewport": "desktop-1440x900",
+      "type": "debug",
+      "text": "[vite] connecting..."
+    },
+    {
+      "viewport": "desktop-1440x900",
+      "type": "debug",
+      "text": "[vite] connected."
+    },
+    {
+      "viewport": "desktop-1440x900",
+      "type": "log",
+      "text": "🎭 Using MOCK API for all endpoints"
+    },
+    {
+      "viewport": "desktop-1440x900",
+      "type": "log",
+      "text": "🎭 Mock mode: WebSocket connections disabled"
+    },
+    {
+      "viewport": "desktop-1440x900",
+      "type": "log",
+      "text": "[2026-07-06T23:49:32.803Z] DEBUG [WebSocketManager] Singleton created with URL: ws://127.0.0.1:5173/ws"
+    },
+    {
+      "viewport": "desktop-1440x900",
+      "type": "log",
+      "text": "[2026-07-06T23:49:32.803Z] DEBUG [WebSocketManager] Singleton instance created"
+    },
+    {
+      "viewport": "desktop-1440x900",
+      "type": "log",
+      "text": "🎭 Mock mode: Skipping WebSocket connection"
+    },
+    {
+      "viewport": "desktop-1440x900",
+      "type": "log",
+      "text": "[2026-07-06T23:49:32.809Z] DEBUG [useBackgroundQueue] Background Queue: Waiting for WebSocket data"
+    },
+    {
+      "viewport": "desktop-1440x900",
+      "type": "log",
+      "text": "[2026-07-06T23:49:32.809Z] DEBUG [useBackgroundQueue] WebSocket not connected yet, using API fallback for initial load"
+    },
+    {
+      "viewport": "desktop-1440x900",
+      "type": "log",
+      "text": "[2026-07-06T23:49:32.809Z] DEBUG [useBackgroundQueue] FORCE REFRESH: Using API as fallback"
+    },
+    {
+      "viewport": "desktop-1440x900",
+      "type": "log",
+      "text": "[2026-07-06T23:49:32.809Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+    },
+    {
+      "viewport": "desktop-1440x900",
+      "type": "log",
+      "text": "[2026-07-06T23:49:32.809Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+    },
+    {
+      "viewport": "desktop-1440x900",
+      "type": "log",
+      "text": "🎭 Mock mode: Skipping auth checks, allowing all routes"
+    },
+    {
+      "viewport": "desktop-1440x900",
+      "type": "warning",
+      "text": "[Vue Router warn]: The `next()` callback in navigation guards is deprecated. Return the value instead of calling `next(value)`."
+    },
+    {
+      "viewport": "desktop-1440x900",
+      "type": "log",
+      "text": "[2026-07-06T23:49:33.015Z] DEBUG [useBackgroundQueue] FORCE REFRESH: API data loaded as fallback"
+    },
+    {
+      "viewport": "tablet-768x1024",
+      "type": "debug",
+      "text": "[vite] connecting..."
+    },
+    {
+      "viewport": "tablet-768x1024",
+      "type": "debug",
+      "text": "[vite] connected."
+    },
+    {
+      "viewport": "tablet-768x1024",
+      "type": "log",
+      "text": "🎭 Using MOCK API for all endpoints"
+    },
+    {
+      "viewport": "tablet-768x1024",
+      "type": "log",
+      "text": "🎭 Mock mode: WebSocket connections disabled"
+    },
+    {
+      "viewport": "tablet-768x1024",
+      "type": "log",
+      "text": "[2026-07-06T23:49:34.302Z] DEBUG [WebSocketManager] Singleton created with URL: ws://127.0.0.1:5173/ws"
+    },
+    {
+      "viewport": "tablet-768x1024",
+      "type": "log",
+      "text": "[2026-07-06T23:49:34.303Z] DEBUG [WebSocketManager] Singleton instance created"
+    },
+    {
+      "viewport": "tablet-768x1024",
+      "type": "log",
+      "text": "🎭 Mock mode: Skipping WebSocket connection"
+    },
+    {
+      "viewport": "tablet-768x1024",
+      "type": "log",
+      "text": "[2026-07-06T23:49:34.316Z] DEBUG [useBackgroundQueue] Background Queue: Waiting for WebSocket data"
+    },
+    {
+      "viewport": "tablet-768x1024",
+      "type": "log",
+      "text": "[2026-07-06T23:49:34.316Z] DEBUG [useBackgroundQueue] WebSocket not connected yet, using API fallback for initial load"
+    },
+    {
+      "viewport": "tablet-768x1024",
+      "type": "log",
+      "text": "[2026-07-06T23:49:34.316Z] DEBUG [useBackgroundQueue] FORCE REFRESH: Using API as fallback"
+    },
+    {
+      "viewport": "tablet-768x1024",
+      "type": "log",
+      "text": "[2026-07-06T23:49:34.316Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+    },
+    {
+      "viewport": "tablet-768x1024",
+      "type": "log",
+      "text": "[2026-07-06T23:49:34.317Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+    },
+    {
+      "viewport": "tablet-768x1024",
+      "type": "log",
+      "text": "🎭 Mock mode: Skipping auth checks, allowing all routes"
+    },
+    {
+      "viewport": "tablet-768x1024",
+      "type": "warning",
+      "text": "[Vue Router warn]: The `next()` callback in navigation guards is deprecated. Return the value instead of calling `next(value)`."
+    },
+    {
+      "viewport": "tablet-768x1024",
+      "type": "log",
+      "text": "[2026-07-06T23:49:34.516Z] DEBUG [useBackgroundQueue] FORCE REFRESH: API data loaded as fallback"
+    },
+    {
+      "viewport": "mobile-390x844",
+      "type": "debug",
+      "text": "[vite] connecting..."
+    },
+    {
+      "viewport": "mobile-390x844",
+      "type": "debug",
+      "text": "[vite] connected."
+    },
+    {
+      "viewport": "mobile-390x844",
+      "type": "log",
+      "text": "🎭 Using MOCK API for all endpoints"
+    },
+    {
+      "viewport": "mobile-390x844",
+      "type": "log",
+      "text": "🎭 Mock mode: WebSocket connections disabled"
+    },
+    {
+      "viewport": "mobile-390x844",
+      "type": "log",
+      "text": "[2026-07-06T23:49:35.912Z] DEBUG [WebSocketManager] Singleton created with URL: ws://127.0.0.1:5173/ws"
+    },
+    {
+      "viewport": "mobile-390x844",
+      "type": "log",
+      "text": "[2026-07-06T23:49:35.912Z] DEBUG [WebSocketManager] Singleton instance created"
+    },
+    {
+      "viewport": "mobile-390x844",
+      "type": "log",
+      "text": "🎭 Mock mode: Skipping WebSocket connection"
+    },
+    {
+      "viewport": "mobile-390x844",
+      "type": "log",
+      "text": "[2026-07-06T23:49:35.924Z] DEBUG [useBackgroundQueue] Background Queue: Waiting for WebSocket data"
+    },
+    {
+      "viewport": "mobile-390x844",
+      "type": "log",
+      "text": "[2026-07-06T23:49:35.925Z] DEBUG [useBackgroundQueue] WebSocket not connected yet, using API fallback for initial load"
+    },
+    {
+      "viewport": "mobile-390x844",
+      "type": "log",
+      "text": "[2026-07-06T23:49:35.925Z] DEBUG [useBackgroundQueue] FORCE REFRESH: Using API as fallback"
+    },
+    {
+      "viewport": "mobile-390x844",
+      "type": "log",
+      "text": "[2026-07-06T23:49:35.925Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+    },
+    {
+      "viewport": "mobile-390x844",
+      "type": "log",
+      "text": "[2026-07-06T23:49:35.926Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+    },
+    {
+      "viewport": "mobile-390x844",
+      "type": "log",
+      "text": "🎭 Mock mode: Skipping auth checks, allowing all routes"
+    },
+    {
+      "viewport": "mobile-390x844",
+      "type": "warning",
+      "text": "[Vue Router warn]: The `next()` callback in navigation guards is deprecated. Return the value instead of calling `next(value)`."
+    },
+    {
+      "viewport": "mobile-390x844",
+      "type": "log",
+      "text": "[2026-07-06T23:49:36.126Z] DEBUG [useBackgroundQueue] FORCE REFRESH: API data loaded as fallback"
+    },
+    {
+      "viewport": "mobile-390x844",
+      "type": "debug",
+      "text": "[vite] connecting..."
+    },
+    {
+      "viewport": "mobile-390x844",
+      "type": "debug",
+      "text": "[vite] connected."
+    },
+    {
+      "viewport": "mobile-390x844",
+      "type": "log",
+      "text": "🎭 Using MOCK API for all endpoints"
+    },
+    {
+      "viewport": "mobile-390x844",
+      "type": "log",
+      "text": "🎭 Mock mode: WebSocket connections disabled"
+    },
+    {
+      "viewport": "mobile-390x844",
+      "type": "log",
+      "text": "[2026-07-06T23:49:38.243Z] DEBUG [WebSocketManager] Singleton created with URL: ws://127.0.0.1:5173/ws"
+    },
+    {
+      "viewport": "mobile-390x844",
+      "type": "log",
+      "text": "[2026-07-06T23:49:38.243Z] DEBUG [WebSocketManager] Singleton instance created"
+    },
+    {
+      "viewport": "mobile-390x844",
+      "type": "log",
+      "text": "🎭 Mock mode: Skipping WebSocket connection"
+    },
+    {
+      "viewport": "mobile-390x844",
+      "type": "log",
+      "text": "[2026-07-06T23:49:38.248Z] DEBUG [useBackgroundQueue] Background Queue: Waiting for WebSocket data"
+    },
+    {
+      "viewport": "mobile-390x844",
+      "type": "log",
+      "text": "[2026-07-06T23:49:38.248Z] DEBUG [useBackgroundQueue] WebSocket not connected yet, using API fallback for initial load"
+    },
+    {
+      "viewport": "mobile-390x844",
+      "type": "log",
+      "text": "[2026-07-06T23:49:38.248Z] DEBUG [useBackgroundQueue] FORCE REFRESH: Using API as fallback"
+    },
+    {
+      "viewport": "mobile-390x844",
+      "type": "log",
+      "text": "[2026-07-06T23:49:38.249Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+    },
+    {
+      "viewport": "mobile-390x844",
+      "type": "log",
+      "text": "[2026-07-06T23:49:38.249Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+    },
+    {
+      "viewport": "mobile-390x844",
+      "type": "log",
+      "text": "🎭 Mock mode: Skipping auth checks, allowing all routes"
+    },
+    {
+      "viewport": "mobile-390x844",
+      "type": "warning",
+      "text": "[Vue Router warn]: The `next()` callback in navigation guards is deprecated. Return the value instead of calling `next(value)`."
+    },
+    {
+      "viewport": "mobile-390x844",
+      "type": "log",
+      "text": "[2026-07-06T23:49:38.448Z] DEBUG [useBackgroundQueue] FORCE REFRESH: API data loaded as fallback"
+    },
+    {
+      "viewport": "mobile-390x844",
+      "type": "debug",
+      "text": "[vite] connecting..."
+    },
+    {
+      "viewport": "mobile-390x844",
+      "type": "debug",
+      "text": "[vite] connected."
+    },
+    {
+      "viewport": "mobile-390x844",
+      "type": "log",
+      "text": "🎭 Using MOCK API for all endpoints"
+    },
+    {
+      "viewport": "mobile-390x844",
+      "type": "log",
+      "text": "🎭 Mock mode: WebSocket connections disabled"
+    },
+    {
+      "viewport": "mobile-390x844",
+      "type": "log",
+      "text": "[2026-07-06T23:49:39.587Z] DEBUG [WebSocketManager] Singleton created with URL: ws://127.0.0.1:5173/ws"
+    },
+    {
+      "viewport": "mobile-390x844",
+      "type": "log",
+      "text": "[2026-07-06T23:49:39.587Z] DEBUG [WebSocketManager] Singleton instance created"
+    },
+    {
+      "viewport": "mobile-390x844",
+      "type": "log",
+      "text": "🎭 Mock mode: Skipping WebSocket connection"
+    },
+    {
+      "viewport": "mobile-390x844",
+      "type": "log",
+      "text": "[2026-07-06T23:49:39.595Z] DEBUG [useBackgroundQueue] Background Queue: Waiting for WebSocket data"
+    },
+    {
+      "viewport": "mobile-390x844",
+      "type": "log",
+      "text": "[2026-07-06T23:49:39.595Z] DEBUG [useBackgroundQueue] WebSocket not connected yet, using API fallback for initial load"
+    },
+    {
+      "viewport": "mobile-390x844",
+      "type": "log",
+      "text": "[2026-07-06T23:49:39.595Z] DEBUG [useBackgroundQueue] FORCE REFRESH: Using API as fallback"
+    },
+    {
+      "viewport": "mobile-390x844",
+      "type": "log",
+      "text": "[2026-07-06T23:49:39.595Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+    },
+    {
+      "viewport": "mobile-390x844",
+      "type": "log",
+      "text": "[2026-07-06T23:49:39.596Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+    },
+    {
+      "viewport": "mobile-390x844",
+      "type": "log",
+      "text": "🎭 Mock mode: Skipping auth checks, allowing all routes"
+    },
+    {
+      "viewport": "mobile-390x844",
+      "type": "warning",
+      "text": "[Vue Router warn]: The `next()` callback in navigation guards is deprecated. Return the value instead of calling `next(value)`."
+    },
+    {
+      "viewport": "mobile-390x844",
+      "type": "log",
+      "text": "[2026-07-06T23:49:39.796Z] DEBUG [useBackgroundQueue] FORCE REFRESH: API data loaded as fallback"
+    },
+    {
+      "viewport": "narrow-360x740",
+      "type": "debug",
+      "text": "[vite] connecting..."
+    },
+    {
+      "viewport": "narrow-360x740",
+      "type": "debug",
+      "text": "[vite] connected."
+    },
+    {
+      "viewport": "narrow-360x740",
+      "type": "log",
+      "text": "🎭 Using MOCK API for all endpoints"
+    },
+    {
+      "viewport": "narrow-360x740",
+      "type": "log",
+      "text": "🎭 Mock mode: WebSocket connections disabled"
+    },
+    {
+      "viewport": "narrow-360x740",
+      "type": "log",
+      "text": "[2026-07-06T23:49:40.951Z] DEBUG [WebSocketManager] Singleton created with URL: ws://127.0.0.1:5173/ws"
+    },
+    {
+      "viewport": "narrow-360x740",
+      "type": "log",
+      "text": "[2026-07-06T23:49:40.951Z] DEBUG [WebSocketManager] Singleton instance created"
+    },
+    {
+      "viewport": "narrow-360x740",
+      "type": "log",
+      "text": "🎭 Mock mode: Skipping WebSocket connection"
+    },
+    {
+      "viewport": "narrow-360x740",
+      "type": "log",
+      "text": "[2026-07-06T23:49:40.963Z] DEBUG [useBackgroundQueue] Background Queue: Waiting for WebSocket data"
+    },
+    {
+      "viewport": "narrow-360x740",
+      "type": "log",
+      "text": "[2026-07-06T23:49:40.964Z] DEBUG [useBackgroundQueue] WebSocket not connected yet, using API fallback for initial load"
+    },
+    {
+      "viewport": "narrow-360x740",
+      "type": "log",
+      "text": "[2026-07-06T23:49:40.964Z] DEBUG [useBackgroundQueue] FORCE REFRESH: Using API as fallback"
+    },
+    {
+      "viewport": "narrow-360x740",
+      "type": "log",
+      "text": "[2026-07-06T23:49:40.964Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+    },
+    {
+      "viewport": "narrow-360x740",
+      "type": "log",
+      "text": "[2026-07-06T23:49:40.965Z] DEBUG [useSystemAndRecordingStatus] Periodic polling DISABLED - using WebSocket-only updates"
+    },
+    {
+      "viewport": "narrow-360x740",
+      "type": "log",
+      "text": "🎭 Mock mode: Skipping auth checks, allowing all routes"
+    },
+    {
+      "viewport": "narrow-360x740",
+      "type": "warning",
+      "text": "[Vue Router warn]: The `next()` callback in navigation guards is deprecated. Return the value instead of calling `next(value)`."
+    },
+    {
+      "viewport": "narrow-360x740",
+      "type": "log",
+      "text": "[2026-07-06T23:49:41.164Z] DEBUG [useBackgroundQueue] FORCE REFRESH: API data loaded as fallback"
+    }
+  ]
+}

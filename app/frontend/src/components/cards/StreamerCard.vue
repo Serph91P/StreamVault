@@ -2,22 +2,30 @@
   <GlassCard
     variant="subtle"
     hoverable
-    clickable
-    @click="handleClick"
-    @touchstart.passive="handleTouchStart"
-    @touchmove.passive="handleTouchMove"
     class="streamer-card"
     :class="{ 'actions-open': showActions, 'is-live': isLive, 'is-recording': streamer.is_recording, 'list-mode': viewMode === 'list' }"
   >
     <div class="streamer-card-content">
+      <router-link
+        class="streamer-card-body-link"
+        :to="streamerRoute"
+        :aria-label="`View details for ${streamer.display_name || streamer.username}`"
+        @click="handleCardLinkClick"
+        @contextmenu="handleContextMenu"
+        @touchstart.passive="handleTouchStart"
+        @touchmove.passive="handleTouchMove"
+        @touchend.passive="handleTouchEnd"
+        @touchcancel.passive="handleTouchEnd"
+      />
       <!-- Avatar/Thumbnail - CENTERED -->
       <div class="streamer-avatar-container">
         <div class="streamer-avatar" :class="{ 'is-live': isLive }">
           <img
-            v-if="streamer.profile_image_url || streamer.avatar"
+            v-if="(streamer.profile_image_url || streamer.avatar) && !imageError"
             :src="streamer.profile_image_url || streamer.avatar"
             :alt="streamer.display_name || streamer.username"
             loading="lazy"
+            @error="imageError = true"
           />
           <div v-else class="avatar-placeholder">
             <svg class="icon-user">
@@ -25,28 +33,37 @@
             </svg>
           </div>
 
-          <!-- Live Badge ON Avatar -->
-          <div v-if="isLive" class="live-badge" :class="{ 'is-recording': streamer.is_recording }">
-            <span class="live-indicator"></span>
-            <span class="live-text">LIVE</span>
-          </div>
         </div>
       </div>
 
       <!-- Streamer Name - ALWAYS VISIBLE, FULL WIDTH, MAX 2 LINES -->
-      <a 
-        :href="`https://twitch.tv/${streamer.username}`" 
-        target="_blank" 
+      <a
+        :href="`https://twitch.tv/${streamer.username}`"
+        target="_blank"
         rel="noopener noreferrer"
         class="streamer-name-link"
         @click.stop
         :title="`Open ${streamer.display_name || streamer.username} on Twitch`"
       >
-        <h3 class="streamer-name">
+        <h2 class="streamer-name">
           {{ streamer.display_name || streamer.username }}
-        </h3>
+        </h2>
       </a>
-      
+
+      <div class="status-row" :aria-label="statusSummary">
+        <StatusBadge
+          v-for="badge in statusBadges"
+          :key="badge.label"
+          :tone="badge.tone"
+          size="sm"
+          :dot="badge.dot"
+          :pulse="badge.pulse"
+          :uppercase="false"
+        >
+          {{ badge.label }}
+        </StatusBadge>
+      </div>
+
       <!-- Live Stream Info OR Offline Info -->
       <div class="stream-info-container">
         <!-- LIVE: Only show title (category is in stats below) -->
@@ -58,8 +75,12 @@
             No stream title
           </p>
         </div>
-        
+
         <!-- OFFLINE: Show last stream info if available -->
+        <p v-else-if="streamer.description" class="streamer-description" :title="streamer.description">
+          {{ truncatedDescription }}
+        </p>
+
         <div v-else-if="streamer.last_stream_title" class="offline-last-stream">
           <p class="last-stream-title" :title="streamer.last_stream_title">
             {{ streamer.last_stream_title }}
@@ -68,11 +89,7 @@
             {{ streamer.last_stream_category_name }}
           </p>
         </div>
-        
-        <!-- OFFLINE: Fallback to description if no last stream info -->
-        <p v-else-if="streamer.description" class="streamer-description">
-          {{ truncatedDescription }}
-        </p>
+
         <p v-else class="streamer-description no-description">
           No description available
         </p>
@@ -81,11 +98,11 @@
       <!-- Stats - AT BOTTOM -->
       <div class="streamer-stats">
         <!-- Viewers (only when live) -->
-        <div v-if="isLive && currentStream" class="stat stat-viewers">
+        <div v-if="isLive && displayViewerCount !== null" class="stat stat-viewers">
           <svg class="stat-icon">
             <use href="#icon-users" />
           </svg>
-          <span>{{ formatViewers(currentStream.viewer_count) }}</span>
+          <span>{{ formatViewers(displayViewerCount) }} viewers</span>
         </div>
 
         <!-- Category (live or last stream) -->
@@ -97,11 +114,11 @@
         </div>
 
         <!-- VOD Count (always visible if has recordings) -->
-        <div v-if="streamer.recording_count" class="stat stat-vods">
+        <div v-if="recordingCount" class="stat stat-vods">
           <svg class="stat-icon">
             <use href="#icon-video" />
           </svg>
-          <span>{{ streamer.recording_count }} VODs</span>
+          <span>{{ recordingCount }} VODs</span>
         </div>
 
         <!-- Last stream time (only when offline) -->
@@ -109,14 +126,9 @@
           <svg class="stat-icon">
             <use href="#icon-clock" />
           </svg>
-          <span>{{ lastStreamTime }}</span>
+          <span>Last stream {{ lastStreamTime }}</span>
         </div>
 
-        <!-- Recording indicator -->
-        <div v-if="streamer.is_recording" class="stat stat-recording">
-          <span class="recording-dot"></span>
-          <span>REC</span>
-        </div>
       </div>
 
       <!-- Actions Dropdown - TOP RIGHT CORNER -->
@@ -127,6 +139,8 @@
           class="btn-action btn-more"
           :class="{ active: showActions }"
           :aria-label="`Actions for ${streamer.display_name || streamer.username}`"
+          aria-haspopup="menu"
+          :aria-expanded="showActions"
           title="More actions"
         >
           <svg class="icon">
@@ -136,9 +150,9 @@
 
         <!-- Actions dropdown menu - Using Teleport to avoid clipping -->
         <Teleport to="body">
-          <div 
-            v-if="showActions" 
-            class="actions-dropdown" 
+          <div
+            v-if="showActions"
+            class="actions-dropdown"
             :style="dropdownStyle"
             @click.stop
           >
@@ -180,8 +194,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted, onUnmounted } from 'vue'
+import { computed, ref, watch, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
+import StatusBadge, { type StatusBadgeTone } from '@/components/base/StatusBadge.vue'
 import GlassCard from './GlassCard.vue'
 
 interface Streamer {
@@ -192,6 +207,8 @@ interface Streamer {
   avatar?: string
   description?: string
   recording_count?: number
+  video_count?: number
+  viewer_count?: number
   is_live?: boolean
   is_recording?: boolean  // NEW: Recording status
   last_stream_time?: string
@@ -225,9 +242,35 @@ const emit = defineEmits<{
 
 const router = useRouter()
 const showActions = ref(false)
+const imageError = ref(false)
 const moreButtonRef = ref<HTMLButtonElement | null>(null)
 
 const isLive = computed(() => props.streamer.is_live || false)
+const statusSummary = computed(() => {
+  if (isLive.value && props.streamer.is_recording) return 'Streamer status: live and recording'
+  if (isLive.value) return 'Streamer status: live'
+  if (props.streamer.is_recording) return 'Streamer status: recording'
+  return 'Streamer status: offline'
+})
+const statusBadges = computed<Array<{ label: string; tone: StatusBadgeTone; dot: boolean; pulse: boolean }>>(() => {
+  const badges: Array<{ label: string; tone: StatusBadgeTone; dot: boolean; pulse: boolean }> = []
+  if (isLive.value) {
+    badges.push({ label: 'Live now', tone: 'live', dot: true, pulse: Boolean(props.streamer.is_recording) })
+  } else {
+    badges.push({ label: 'Offline', tone: 'offline', dot: false, pulse: false })
+  }
+  if (props.streamer.is_recording) {
+    badges.push({ label: 'Recording', tone: 'recording', dot: true, pulse: true })
+  }
+  return badges
+})
+const streamerRoute = computed(() => `/streamers/${props.streamer.id}`)
+const displayViewerCount = computed(() => {
+  if (typeof props.currentStream?.viewer_count === 'number') return props.currentStream.viewer_count
+  if (typeof props.streamer.viewer_count === 'number') return props.streamer.viewer_count
+  return null
+})
+const recordingCount = computed(() => props.streamer.recording_count || props.streamer.video_count || 0)
 
 // Show category from live stream or last known stream
 const displayCategory = computed(() => {
@@ -236,8 +279,22 @@ const displayCategory = computed(() => {
   return null
 })
 
-// Calculate dropdown position relative to trigger button
+// Calculate dropdown position: at the finger for long-press, otherwise
+// relative to the trigger button
 const dropdownStyle = computed(() => {
+  if (longPressPoint.value) {
+    const menuWidth = 220
+    const menuHeight = 280
+    const left = Math.min(Math.max(8, longPressPoint.value.x - menuWidth / 2), window.innerWidth - menuWidth - 8)
+    const top = Math.min(longPressPoint.value.y + 12, window.innerHeight - menuHeight - 8)
+    return {
+      position: 'fixed' as const,
+      top: `${Math.max(8, top)}px`,
+      left: `${left}px`,
+      zIndex: 10000
+    }
+  }
+
   if (!moreButtonRef.value) {
     // Fallback positioning if button ref not available
     return {
@@ -248,15 +305,15 @@ const dropdownStyle = computed(() => {
       zIndex: 10000
     }
   }
-  
+
   // Get button position relative to viewport
   const rect = moreButtonRef.value.getBoundingClientRect()
-  
+
   // Position dropdown below and to the right of button
   return {
     position: 'fixed' as const,
     top: `${rect.bottom + 8}px`,  // 8px below button
-    left: `${rect.left - 140}px`,  // Align to right edge (180px width - 40px button)
+    right: `${Math.max(8, window.innerWidth - rect.right)}px`,
     zIndex: 10000
   }
 })
@@ -289,18 +346,35 @@ const formatViewers = (count?: number) => {
   return count.toString()
 }
 
+watch(
+  () => props.streamer.profile_image_url || props.streamer.avatar,
+  () => {
+    imageError.value = false
+  },
+)
+
+// Once the menu closes, the next open (via the ⋮ button) anchors to the
+// button again instead of the stale finger position
+watch(showActions, (open) => {
+  if (!open) longPressPoint.value = null
+})
+
 const _truncateText = (text: string, maxLength: number) => {
   if (!text || text.length <= maxLength) return text
   return text.substring(0, maxLength) + '...'
 }
 
-const handleClick = () => {
-  // Prevent navigation if user was scrolling (touch devices)
-  if (isTouchScrolling.value) {
-    isTouchScrolling.value = false
+const handleCardLinkClick = (event: MouseEvent) => {
+  // A finished long-press must not also navigate to the detail page
+  if (suppressNextClick.value) {
+    suppressNextClick.value = false
+    event.preventDefault()
     return
   }
-  router.push(`/streamers/${props.streamer.id}`)
+  if (isTouchScrolling.value) {
+    isTouchScrolling.value = false
+    event.preventDefault()
+  }
 }
 
 // Touch scroll detection to prevent accidental clicks when swiping
@@ -309,10 +383,47 @@ const touchStartY = ref(0)
 const touchStartX = ref(0)
 const SCROLL_THRESHOLD = 10 // pixels of movement before considering it a scroll
 
+// Long-press opens the actions menu at the finger position - the ⋮ button is
+// a small target on mobile, holding the card is the natural gesture there.
+const LONG_PRESS_MS = 500
+const longPressTimer = ref<number | null>(null)
+const longPressPoint = ref<{ x: number; y: number } | null>(null)
+const suppressNextClick = ref(false)
+
+const cancelLongPress = () => {
+  if (longPressTimer.value !== null) {
+    clearTimeout(longPressTimer.value)
+    longPressTimer.value = null
+  }
+}
+
+// Lifting the finger after a long-press emits a synthetic click at that
+// position - which would instantly hit the menu item that just appeared
+// under it. Swallow exactly that one click in the capture phase.
+const armClickSuppression = () => {
+  const swallow = (e: MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    document.removeEventListener('click', swallow, true)
+  }
+  document.addEventListener('click', swallow, true)
+  setTimeout(() => document.removeEventListener('click', swallow, true), 700)
+}
+
 const handleTouchStart = (e: TouchEvent) => {
   touchStartY.value = e.touches[0].clientY
   touchStartX.value = e.touches[0].clientX
   isTouchScrolling.value = false
+
+  cancelLongPress()
+  longPressTimer.value = window.setTimeout(() => {
+    longPressTimer.value = null
+    longPressPoint.value = { x: touchStartX.value, y: touchStartY.value }
+    suppressNextClick.value = true
+    armClickSuppression()
+    showActions.value = true
+    if ('vibrate' in navigator) navigator.vibrate(15)
+  }, LONG_PRESS_MS)
 }
 
 const handleTouchMove = (e: TouchEvent) => {
@@ -320,6 +431,19 @@ const handleTouchMove = (e: TouchEvent) => {
   const deltaX = Math.abs(e.touches[0].clientX - touchStartX.value)
   if (deltaY > SCROLL_THRESHOLD || deltaX > SCROLL_THRESHOLD) {
     isTouchScrolling.value = true
+    cancelLongPress()
+  }
+}
+
+const handleTouchEnd = () => {
+  cancelLongPress()
+}
+
+// While the long-press menu is open (or just fired), swallow the native
+// context menu some browsers raise for the same gesture
+const handleContextMenu = (event: MouseEvent) => {
+  if (showActions.value || suppressNextClick.value) {
+    event.preventDefault()
   }
 }
 
@@ -360,13 +484,13 @@ const handleWatchExternal = () => {
 // Close dropdown when clicking outside
 const handleClickOutside = (event: MouseEvent) => {
   if (!showActions.value) return
-  
+
   const dropdown = document.querySelector('.actions-dropdown')
   const target = event.target as Node
-  
-  if (moreButtonRef.value && 
+
+  if (moreButtonRef.value &&
       !moreButtonRef.value.contains(target) &&
-      dropdown && 
+      dropdown &&
       !dropdown.contains(target)) {
     showActions.value = false
   }
@@ -385,25 +509,38 @@ onUnmounted(() => {
 @use '@/styles/variables' as v;
 @use '@/styles/mixins' as m;
 .streamer-card {
-  // Card-specific overrides
-  :deep(.glass-card-content) {
-    padding: var(--spacing-4);
-    min-height: 220px;
-    max-height: 300px;  /* FIX: bumped from 260 so 3-line titles fit without clipping */
-    overflow: visible;
+  overflow: visible;
+
+  // Grid mode: fill the (row-stretched) wrapper so cards in a row are equal
+  // height; clamped title/description absorb varying text lengths.
+  &:not(.list-mode) {
     display: flex;
     flex-direction: column;
   }
-  
-  // LIVE indicator: REMOVED - Red border now only on avatar (line 377)
-  // Keeps card cleaner and less overwhelming
-  
-  // RECORDING indicator: Pulsing border animation on the card itself
-  &.is-recording {
-    animation: pulse-recording 2s ease-in-out infinite;
-    border-radius: var(--radius-xl);  /* Ensure rounded during animation */
+
+  // Card-specific overrides
+  :deep(.glass-card-content) {
+    padding: var(--spacing-4);
+    min-height: 240px;
+    overflow: visible;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
   }
-  
+
+  // RECORDING indicator: pulsing ring on a pseudo-element animating only
+  // opacity/transform (compositor-friendly). The previous box-shadow keyframe
+  // animation forced a repaint every frame on every recording card.
+  &.is-recording::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border: 2px solid rgba(239, 68, 68, 0.7);
+    border-radius: var(--radius-xl);
+    pointer-events: none;
+    animation: pulse-recording 2s ease-in-out infinite;
+  }
+
   // When actions dropdown is open, increase z-index to appear above other cards
   &.actions-open {
     position: relative;
@@ -412,14 +549,34 @@ onUnmounted(() => {
 }
 
 .streamer-card-content {
-  /* VERTICAL LAYOUT: Stack everything vertically */
   display: flex;
   flex-direction: column;
-  align-items: center;  /* Center horizontally */
-  gap: var(--spacing-3);
+  align-items: center;
+  gap: var(--spacing-2);
   flex: 1;
   min-height: 0;
-  position: relative;  /* For absolute positioning of actions button */
+  position: relative;
+  cursor: pointer;
+}
+
+.streamer-card-body-link {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: var(--radius-xl);
+  color: inherit;
+  text-decoration: none;
+  // Long-press opens our actions menu - suppress the native link preview /
+  // text-selection callout the OS would show for the same gesture
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+
+  &:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 3px;
+    box-shadow: var(--shadow-primary);
+  }
 }
 
 /* Avatar Container - CENTERED */
@@ -427,7 +584,7 @@ onUnmounted(() => {
   width: 100%;
   display: flex;
   justify-content: center;
-  margin-bottom: var(--spacing-2);
+  margin-bottom: var(--spacing-1);
 }
 
 .streamer-avatar {
@@ -468,60 +625,25 @@ onUnmounted(() => {
   }
 }
 
-.live-badge {
-  position: absolute;
-  bottom: 4px;
-  left: 4px;
-  right: 4px;
-
-  background: var(--danger-color);
-  color: white;
-
-  padding: 2px 8px;
-  border-radius: var(--radius-full);  /* More rounded pill shape */
-
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-
-  font-size: var(--text-xs);
-  font-weight: v.$font-bold;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  
-  /* Pulsing effect when recording */
-  &.is-recording {
-    animation: pulse-recording 2s ease-in-out infinite;
-    border-radius: var(--radius-full);  /* Pill shape for recording indicator */
-  }
-}
-
-.live-indicator {
-  width: 6px;
-  height: 6px;
-  background: white;
-  border-radius: 50%;
-  animation: pulse-live 2s ease-in-out infinite;
-}
-
 /* Streamer Name - FULL WIDTH, CENTERED, MAX 2 LINES */
 .streamer-name-link {
+  position: relative;
+  z-index: 2;
   text-decoration: none;
   color: inherit;
   display: block;
   width: 100%;  /* Full width */
   text-align: center;  /* Centered */
   transition: all v.$duration-200 v.$ease-out;
-  
+
   &:hover {
     color: var(--primary-color);
-    
+
     .streamer-name {
       color: var(--primary-color);
     }
   }
-  
+
   &:focus-visible {
     outline: 2px solid var(--primary-color);
     outline-offset: 2px;
@@ -545,8 +667,20 @@ onUnmounted(() => {
   -webkit-box-orient: vertical;
   word-break: break-word;
   max-height: 2.6em;  /* 2 * 1.3 line-height */
-  
+
   transition: color v.$duration-200 v.$ease-out;
+}
+
+.status-row {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: var(--spacing-2);
+  flex-wrap: wrap;
+  width: 100%;
+  min-height: 28px;
 }
 
 /* Stream Info - CENTERED */
@@ -558,7 +692,7 @@ onUnmounted(() => {
   flex-direction: column;
   justify-content: flex-start;
   overflow: hidden;
-  padding: var(--spacing-2) 0;  /* Add vertical spacing */
+  padding: var(--spacing-1) 0;
 }
 
 .streamer-description {
@@ -566,7 +700,7 @@ onUnmounted(() => {
   color: var(--text-secondary);
   line-height: v.$leading-snug;
   margin: 0;
-  
+
   /* Limit to 2 lines */
   overflow: hidden;
   text-overflow: ellipsis;
@@ -574,7 +708,7 @@ onUnmounted(() => {
   -webkit-line-clamp: 2;
   line-clamp: 2;
   -webkit-box-orient: vertical;
-  
+
   &.no-description {
     font-style: italic;
     opacity: 0.6;
@@ -592,26 +726,21 @@ onUnmounted(() => {
 }
 
 .stream-title {
-  font-size: var(--text-base);  /* INCREASED: Better readability */
+  font-size: var(--text-base);
   font-weight: v.$font-medium;
   color: var(--text-primary);
-  line-height: 1.5;  /* FIX: bumped from 1.4 to give descenders (g, j, p, y) room */
+  line-height: 1.5;
   margin: 0;
   width: 100%;
 
-  /* CRITICAL: Max 3 lines for live title (more important than description) */
-  /* FIX: -webkit-line-clamp + overflow:hidden clips descenders on the last line.
-     Use padding-bottom + matching max-height so descenders are not cut off, and
-     keep ellipsis behaviour. */
   overflow: hidden;
   text-overflow: ellipsis;
   display: -webkit-box;
-  -webkit-line-clamp: 3;  /* 3 lines for live streams */
+  -webkit-line-clamp: 3;
   line-clamp: 3;
   -webkit-box-orient: vertical;
   word-break: break-word;
-  padding-bottom: 0.2em;  /* descender safe-area */
-  max-height: calc(1.5em * 3 + 0.2em);  /* 3 lines * line-height + descender pad */
+  padding-bottom: 0.15em;
 
   &.no-title {
     font-style: italic;
@@ -661,12 +790,12 @@ onUnmounted(() => {
 /* Stats - AT BOTTOM, CENTERED */
 .streamer-stats {
   display: flex;
-  gap: var(--spacing-3);  /* REDUCED: Smaller gap for better fit */
+  gap: var(--spacing-2);
   justify-content: center;
   align-items: center;
   flex-wrap: wrap;
   margin-top: auto;
-  padding-top: var(--spacing-3);
+  padding-top: var(--spacing-2);
   width: 100%;
 }
 
@@ -694,7 +823,7 @@ onUnmounted(() => {
 .stat-category {
   color: var(--text-primary);
   font-weight: v.$font-medium;
-  
+
   /* Truncate long category names */
   max-width: 150px;
   overflow: hidden;
@@ -711,44 +840,15 @@ onUnmounted(() => {
   opacity: 0.8;
 }
 
-/* Actions - TOP RIGHT CORNER (ABSOLUTE POSITIONING) */.stat {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-1);
-
-  font-size: var(--text-sm);
-  color: var(--text-secondary);
-
-  .stat-icon {
-    width: 16px;
-    height: 16px;
-    stroke: currentColor;
-    fill: none;
-  }
-}
-
 .stat-live {
   color: var(--danger-color);
   font-weight: v.$font-semibold;
 }
 
-.stat-time {
-  color: var(--text-secondary);
-  opacity: 0.8;
-}
-
 .stat-recording {
-  color: var(--danger-color);
-  font-weight: v.$font-semibold;
+  color: var(--danger-text-color);
   font-size: var(--text-xs);
-  
-  .recording-dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: var(--danger-color);
-    animation: pulse-live 1.5s ease-in-out infinite;
-  }
+  font-weight: v.$font-semibold;
 }
 
 /* Actions - TOP RIGHT CORNER (ABSOLUTE POSITIONING) */
@@ -756,12 +856,12 @@ onUnmounted(() => {
   position: absolute;
   top: var(--spacing-2);
   right: var(--spacing-2);
-  z-index: 10;
+  z-index: 2;
 }
 
 .btn-action {
-  width: 36px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
   padding: 0;
 
   background: transparent;
@@ -785,7 +885,7 @@ onUnmounted(() => {
 
   &:hover {
     background: rgba(var(--primary-500-rgb), 0.1);
-    
+
     .icon {
       stroke: var(--text-primary);
     }
@@ -793,7 +893,7 @@ onUnmounted(() => {
 
   &.active {
     background: rgba(var(--primary-500-rgb), 0.15);
-    
+
     .icon {
       stroke: var(--primary-color);
     }
@@ -811,20 +911,19 @@ onUnmounted(() => {
 
 .actions-dropdown {
   position: fixed;
-  
+
+  // Solid background - a backdrop-filter on top of it had no visible effect.
   background: var(--glass-bg-solid);
-  backdrop-filter: blur(var(--glass-blur-md));
-  -webkit-backdrop-filter: blur(var(--glass-blur-md));
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-md);
   box-shadow: var(--glass-shadow-lg);
-  
+
   min-width: 160px;
   max-width: 180px;
   padding: var(--spacing-1);
   overflow: hidden;
   z-index: 10000;
-  
+
   /* Smooth appearance */
   animation: dropdown-appear 0.15s ease-out;
 }
@@ -842,24 +941,25 @@ onUnmounted(() => {
 
 .action-item {
   width: 100%;
+  min-height: 44px;
   padding: var(--spacing-2) var(--spacing-3);
-  
+
   background: transparent;
   border: none;
   border-radius: var(--radius-sm);
-  
+
   display: flex;
   align-items: center;
   gap: var(--spacing-2);
-  
+
   font-size: var(--text-sm);
   font-weight: v.$font-medium;
   color: var(--text-primary);
   text-align: left;
-  
+
   cursor: pointer;
   transition: background v.$duration-150 v.$ease-out;
-  
+
   .icon {
     width: 16px;
     height: 16px;
@@ -867,14 +967,14 @@ onUnmounted(() => {
     fill: none;
     flex-shrink: 0;
   }
-  
+
   &:hover {
     background: rgba(var(--primary-500-rgb), 0.1);
   }
-  
+
   &.action-danger {
     color: var(--danger-color);
-    
+
     &:hover {
       background: rgba(var(--danger-500-rgb), 0.1);
     }
@@ -901,12 +1001,14 @@ onUnmounted(() => {
 // ============================================================================
 
 .streamer-card.list-mode {
+  max-width: none;
+  min-height: 0;
+
   :deep(.glass-card-content) {
     display: flex;
     flex-direction: row;
     align-items: center;
     min-height: auto;
-    max-height: none;
     padding: 0;
     gap: 0;
   }
@@ -914,44 +1016,37 @@ onUnmounted(() => {
   .streamer-card-content {
     display: grid;
     grid-template-columns: auto 1fr auto auto;
-    grid-template-rows: auto auto auto;
+    grid-template-rows: auto auto;
     align-items: center;
-    gap: 0;
+    gap: var(--spacing-1) var(--spacing-4);
     width: 100%;
+    min-height: 80px;
+    // Right padding must clear the absolutely-positioned ⋮ button:
+    // 8px offset + 44px button + 12px breathing room
+    padding: var(--spacing-3) 64px var(--spacing-3) var(--spacing-3);
   }
 
   .streamer-avatar-container {
-    grid-row: 1 / 4;
+    grid-row: 1 / 3;
     grid-column: 1;
     margin-bottom: 0;
     width: auto;
-    padding: var(--spacing-3);
+    padding: 0;
   }
 
   .streamer-avatar {
-    width: 56px;
-    height: 56px;
-  }
-
-  .live-badge {
-    font-size: 8px;
-    padding: 1px 4px;
-    gap: 2px;
-    
-    .live-indicator {
-      width: 4px;
-      height: 4px;
-    }
+    width: 48px;
+    height: 48px;
   }
 
   .streamer-name-link {
     grid-row: 1;
-    grid-column: 2 / -1;
+    grid-column: 2;
+    align-self: end;
     text-align: left;
     width: auto;
-    padding-top: var(--spacing-2);
-    padding-right: var(--spacing-3);
-    
+    padding: 0;
+
     .streamer-name {
       font-size: var(--text-sm);
       font-weight: v.$font-semibold;
@@ -961,23 +1056,34 @@ onUnmounted(() => {
     }
   }
 
-  .stream-info-container {
+  .status-row {
     grid-row: 2;
-    grid-column: 2 / -1;
+    grid-column: 2;
+    align-self: start;
+    justify-content: flex-start;
+    min-height: 22px;
+    align-content: flex-start;
+  }
+
+  .stream-info-container {
+    grid-row: 1 / 3;
+    grid-column: 3;
+    justify-content: center;
     text-align: left;
     min-width: 0;
-    padding: 0 var(--spacing-3) 0 0;
+    padding: 0;
+    max-width: 320px;
 
     .stream-title,
     .last-stream-title,
     .streamer-description,
     .last-stream-category {
-      -webkit-line-clamp: 1;
-      line-clamp: 1;
+      -webkit-line-clamp: 2;
+      line-clamp: 2;
       font-size: var(--text-xs);
       text-align: left;
     }
-    
+
     .no-description,
     .no-title {
       font-size: var(--text-xs);
@@ -985,21 +1091,24 @@ onUnmounted(() => {
   }
 
   .streamer-stats {
-    grid-row: 3;
-    grid-column: 2;
+    grid-row: 1 / 3;
+    grid-column: 4;
     display: flex;
-    flex-direction: row;
-    flex-wrap: wrap;
-    gap: var(--spacing-2) var(--spacing-3);
-    padding: 0 0 var(--spacing-2) 0;
-    align-items: center;
-    
+    flex-direction: column;
+    flex-wrap: nowrap;
+    gap: var(--spacing-1);
+    margin-top: 0;
+    padding: 0;
+    align-items: flex-end;
+    justify-content: center;
+    width: auto;
+
     .stat {
       font-size: var(--text-xs);
       white-space: nowrap;
       color: var(--text-secondary);
     }
-    
+
     .stat-icon {
       width: 12px;
       height: 12px;
@@ -1007,13 +1116,68 @@ onUnmounted(() => {
   }
 
   .streamer-actions {
-    grid-row: 3;
-    grid-column: 4;
-    position: relative;
-    top: auto;
-    right: auto;
-    padding-right: var(--spacing-3);
+    position: absolute;
+    top: 50%;
+    right: var(--spacing-2);
+    transform: translateY(-50%);
+    padding-right: 0;
     align-self: center;
+  }
+}
+
+// Mobile: the 4-column desktop row squeezes name and title into unreadable
+// slivers - stack instead: avatar + name/badges, then title, then a meta row.
+@include m.respond-below('md') {
+  .streamer-card.list-mode {
+    .streamer-card-content {
+      grid-template-columns: auto minmax(0, 1fr);
+      grid-template-rows: auto;
+      gap: var(--spacing-1) var(--spacing-3);
+      padding: var(--spacing-3);
+      // Room for the ⋮ button in the top-right corner (8px offset + 44px
+      // button + breathing room), so long names never slide under it
+      padding-right: 60px;
+    }
+
+    .streamer-avatar-container {
+      grid-row: 1 / 3;
+      grid-column: 1;
+    }
+
+    .streamer-name-link {
+      grid-row: 1;
+      grid-column: 2;
+    }
+
+    .status-row {
+      grid-row: 2;
+      grid-column: 2;
+    }
+
+    .stream-info-container {
+      grid-row: 3;
+      grid-column: 1 / -1;
+      max-width: none;
+      padding-top: var(--spacing-1);
+    }
+
+    .streamer-stats {
+      grid-row: 4;
+      grid-column: 1 / -1;
+      flex-direction: row;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: flex-start;
+      gap: var(--spacing-1) var(--spacing-3);
+    }
+
+    // Corner position instead of vertically centered - centered, the button
+    // sat on top of the meta text
+    .streamer-actions {
+      top: var(--spacing-2);
+      right: var(--spacing-2);
+      transform: none;
+    }
   }
 }
 
@@ -1040,16 +1204,16 @@ onUnmounted(() => {
 
 @keyframes pulse-recording {
   0% {
-    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
-    border-radius: var(--radius-xl);  /* Rounded during animation */
+    opacity: 0.9;
+    transform: scale(1);
   }
   50% {
-    box-shadow: 0 0 0 8px rgba(239, 68, 68, 0);
-    border-radius: var(--radius-xl);
+    opacity: 0;
+    transform: scale(1.025);
   }
   100% {
-    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
-    border-radius: var(--radius-xl);
+    opacity: 0;
+    transform: scale(1);
   }
 }
 </style>

@@ -1,6 +1,8 @@
 <script setup lang="ts">
+import EmptyState from '@/components/EmptyState.vue'
+
 /**
- * BaseList — opinionated list primitive used as a card-stack on every
+ * BaseList is an opinionated list primitive used as a card-stack on every
  * breakpoint. Items render as separate surfaces (no inner dividers,
  * no first/last edge artifacts) and slot whatever content the caller
  * needs. Designed as the "default list" for new views; existing tables
@@ -21,6 +23,12 @@ defineProps<{
   density?: 'comfortable' | 'compact'
   /** Optional aria-label for the list container. */
   ariaLabel?: string
+  /** Default empty-state title when no #empty slot is provided. */
+  emptyTitle?: string
+  /** Default empty-state description when no #empty slot is provided. */
+  emptyDescription?: string
+  /** Default empty-state icon when no #empty slot is provided. */
+  emptyIcon?: string
 }>()
 
 function resolveKey(item: unknown, keyField: string | undefined, fallback: number): string | number {
@@ -48,7 +56,13 @@ function resolveKey(item: unknown, keyField: string | undefined, fallback: numbe
     </li>
     <li v-if="items.length === 0" class="base-list-empty">
       <slot name="empty">
-        <span class="base-list-empty-text">No items</span>
+        <EmptyState
+          variant="compact"
+          tone="neutral"
+          :title="emptyTitle || 'No items'"
+          :description="emptyDescription"
+          :icon="emptyIcon || 'info'"
+        />
       </slot>
     </li>
   </ul>
@@ -85,15 +99,8 @@ function resolveKey(item: unknown, keyField: string | undefined, fallback: numbe
 }
 
 .base-list-empty {
-  padding: var(--spacing-6);
-  text-align: center;
   background: transparent;
   border: 1px dashed var(--border-color);
   border-radius: var(--radius-lg);
-}
-
-.base-list-empty-text {
-  color: var(--text-secondary);
-  font-size: var(--font-size-sm);
 }
 </style>

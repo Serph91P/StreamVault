@@ -1,7 +1,7 @@
 <template>
   <div class="logging-panel">
     <h2>Logging & Monitoring</h2>
-    
+
     <!-- Logging Statistics -->
     <div class="stats-section content-section">
       <h3>Logging Statistics</h3>
@@ -41,13 +41,13 @@
 
       <!-- Log Type Tabs -->
       <div class="tabs">
-        <button 
-          v-for="logType in logTypes" 
+        <button
+          v-for="logType in logTypes"
           :key="logType"
           @click="activeTab = logType"
           :class="['tab', { active: activeTab === logType }]"
         >
-          {{ logType.charAt(0).toUpperCase() + logType.slice(1) }} 
+          {{ logType.charAt(0).toUpperCase() + logType.slice(1) }}
           ({{ getLogCount(logType) }})
         </button>
       </div>
@@ -58,8 +58,8 @@
           No {{ activeTab }} logs found
         </div>
         <div v-else>
-          <div 
-            v-for="logFile in getCurrentLogs().slice(0, showAllLogs ? undefined : 10)" 
+          <div
+            v-for="logFile in getCurrentLogs().slice(0, showAllLogs ? undefined : 10)"
             :key="logFile.filename"
             class="log-file-item"
           >
@@ -82,7 +82,7 @@
               </button>
             </div>
           </div>
-          
+
           <div v-if="getCurrentLogs().length > 10 && !showAllLogs" class="show-more">
             <button @click="showAllLogs = true" class="btn btn-outline">
               Show {{ getCurrentLogs().length - 10 }} more files
@@ -93,7 +93,12 @@
     </div>
 
     <!-- Log Viewer Modal -->
-    <BaseModal v-model="showLogViewer" size="xl" @close="closeLogViewer">
+    <BaseModal
+      v-model="showLogViewer"
+      :aria-label="viewingLogFile?.filename || 'Log viewer'"
+      size="xl"
+      @close="closeLogViewer"
+    >
       <template #header>
         <h3>{{ viewingLogFile?.filename }}</h3>
         <div class="log-controls">
@@ -265,7 +270,7 @@ const viewLogFile = async (logFile: LogFile) => {
 
 const refreshLogContent = async () => {
   if (!viewingLogFile.value) return
-  
+
   try {
     isLoadingContent.value = true
     const response = await fetch(
@@ -308,7 +313,7 @@ const downloadLogFile = async (logFile: LogFile) => {
 
 const deleteLogFile = async (logFile: LogFile) => {
   if (!confirm(`Are you sure you want to delete ${logFile.filename}?`)) return
-  
+
   try {
     const response = await fetch(`/api/logging/files/${logFile.type}/${logFile.filename}`, {
       method: 'DELETE',
@@ -328,7 +333,7 @@ const deleteLogFile = async (logFile: LogFile) => {
 
 const cleanupLogs = async () => {
   if (!confirm(`This will permanently delete all logs older than ${daysToKeep.value} days. Continue?`)) return
-  
+
   try {
     isCleaningUp.value = true
     const response = await fetch(`/api/logging/cleanup?days_to_keep=${daysToKeep.value}`, {

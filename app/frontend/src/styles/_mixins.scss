@@ -318,10 +318,9 @@
   border: 1px solid transparent;
   min-height: $min-height-desktop;
   
-  // Glassmorphism item design
+  // Translucent item design (no backdrop-filter: lists render many rows and
+  // per-row blur is a measurable scroll cost for near-zero visual effect at 4px)
   background: rgba(var(--background-darker-rgb), 0.3);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
   position: relative;
   
   // Mobile: Larger touch targets (Apple HIG compliant)
@@ -360,8 +359,6 @@
   border-left: $border-width-desktop solid var(--primary-color);
   border-color: rgba(var(--primary-color-rgb), 0.3);
   box-shadow: v.$shadow-md, 0 0 12px rgba(var(--primary-color-rgb), 0.2);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
   
   @include respond-below('md') {
     border-left-width: $border-width-mobile;

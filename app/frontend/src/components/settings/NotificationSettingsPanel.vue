@@ -1,34 +1,36 @@
 <template>
-      <div class="form-group">
-        <label>Notification Service URL:</label>
+      <div class="settings-group">
+        <div class="settings-group-header">
+          <h3 class="settings-group-title">
+            <svg><use href="#icon-send" /></svg>
+            Delivery
+          </h3>
+          <p class="settings-group-desc">Where notifications are sent and whether they are active</p>
+        </div>
+
         <div class="input-with-tooltip">
-          <input 
-            v-model="data.notificationUrl" 
+          <BaseInput
+            v-model="data.notificationUrl"
+            label="Notification Service URL"
             placeholder="e.g., discord://webhook1,telegram://bot_token/chat_id"
-            class="form-control"
-            :class="{ 'is-invalid': showValidationError && !isValidNotificationUrl && data.notificationUrl.trim() }"
+            :error="notificationUrlError"
+            hint="Use any Apprise URL, or separate multiple services with commas."
             @focus="showTooltip = true"
-            @input="handleInput"
+            @update:model-value="handleInput"
             @blur="handleBlur"
           />
-          <div 
-            v-if="showValidationError && !isValidNotificationUrl && data.notificationUrl.trim()" 
-            class="invalid-feedback"
-          >
-            Please enter a valid URL (e.g., discord://webhook_id/webhook_token)
-          </div>
-          <div 
-            v-if="showTooltip" 
+          <div
+            v-if="showTooltip"
             class="tooltip-wrapper"
             @mouseenter="handleTooltipMouseEnter"
             @mouseleave="handleTooltipMouseLeave"
           >
             <div class="tooltip">
-              StreamVault supports over 100 notification services including Discord, Telegram, Ntfy, 
-              Pushover, Slack and more. Check the 
-              <a 
+              StreamVault supports over 100 notification services including Discord, Telegram, Ntfy,
+              Pushover, Slack and more. Check the
+              <a
                 href="https://github.com/caronc/apprise/wiki#notification-services"
-                target="_blank" 
+                target="_blank"
                 rel="noopener noreferrer"
                 @click.stop
                 class="tooltip-link"
@@ -36,28 +38,55 @@
             </div>
           </div>
         </div>
-      </div>
-      
-      <div class="form-group">
-        <label>
-          <input type="checkbox" v-model="data.notificationsEnabled" />
-          Enable Notifications
-        </label>
-      </div>
-      
-      <div class="form-group">
-        <h4>Global Notification Settings</h4>
-        <div class="checkbox-group">
-          <!-- Checkboxes... -->
+
+        <div class="form-check">
+          <label>
+            <input type="checkbox" v-model="data.notificationsEnabled" />
+            Enable Notifications
+          </label>
         </div>
       </div>
-      
-      <!-- System Notification Settings (NEW) -->
-      <div class="form-group">
-        <h4>System Notification Settings</h4>
-        <p class="section-description" style="margin-bottom: var(--spacing-4);">
-          Configure which recording events trigger external notifications (Discord, Telegram, etc.)
-        </p>
+
+      <div class="settings-group">
+        <div class="settings-group-header">
+          <h3 class="settings-group-title">
+            <svg><use href="#icon-radio" /></svg>
+            Stream Events
+          </h3>
+          <p class="settings-group-desc">Choose which stream events trigger notifications</p>
+        </div>
+        <div class="checkbox-group">
+          <label>
+            <input type="checkbox" v-model="data.notifyOnlineGlobal" />
+            Stream Online
+          </label>
+          <label>
+            <input type="checkbox" v-model="data.notifyOfflineGlobal" />
+            Stream Offline
+          </label>
+          <label>
+            <input type="checkbox" v-model="data.notifyUpdateGlobal" />
+            Title / Category Changes
+          </label>
+          <label>
+            <input type="checkbox" v-model="data.notifyFavoriteCategoryGlobal" />
+            Favorite Category Streams
+          </label>
+        </div>
+      </div>
+
+      <!-- System Notification Settings (advanced) -->
+      <div class="settings-group">
+        <div class="settings-group-header">
+          <h3 class="settings-group-title">
+            <svg><use href="#icon-video" /></svg>
+            Recording Events
+            <span class="badge badge-advanced">Advanced</span>
+          </h3>
+          <p class="settings-group-desc">
+            Configure which recording events trigger external notifications (Discord, Telegram, etc.)
+          </p>
+        </div>
         <div class="checkbox-group">
           <label>
             <input type="checkbox" v-model="data.notifyRecordingStarted" />
@@ -78,37 +107,32 @@
       </div>
 
       <div class="form-actions">
-        <button 
-          @click="saveSettings" 
+        <button
+          @click="saveSettings"
           class="btn btn-primary"
           :disabled="isSaving || !canSave"
         >
           {{ isSaving ? 'Saving...' : 'Save Settings' }}
         </button>
-        <button 
-          @click="testNotification" 
-          class="btn btn-secondary"
-          :disabled="!data.notificationsEnabled || !data.notificationUrl"
-        >
-          Test Notification
-        </button>
-        <button 
-          @click="testWebSocketNotification" 
-          class="btn btn-secondary"
-          style="margin-left: 10px;"
-        >
-          Test WebSocket
-        </button>
+        <p class="diagnostics-note">
+          Delivery tests live in Admin Diagnostics so notification settings stay focused on preferences.
+        </p>
       </div>
 
     <!-- Streamer Notification Table -->
-    <div class="streamer-notifications">
-      <h3>Streamer Notifications</h3>
+    <div class="settings-group streamer-notifications">
+      <div class="settings-group-header">
+        <h3 class="settings-group-title">
+          <svg><use href="#icon-users" /></svg>
+          Per-Streamer Notifications
+        </h3>
+        <p class="settings-group-desc">Override the global events for individual streamers</p>
+      </div>
       <div class="table-controls">
         <BaseButton variant="secondary" @click="toggleAllStreamers(true)">Enable All</BaseButton>
         <BaseButton variant="secondary" @click="toggleAllStreamers(false)">Disable All</BaseButton>
       </div>
-      
+
       <div class="table-wrapper">
         <table class="data-table">
           <thead>
@@ -137,47 +161,47 @@
             <tr v-for="streamer in typedStreamerSettings" :key="streamer.streamer_id">
               <td class="streamer-info">
                 <div class="streamer-avatar" v-if="streamer.profile_image_url">
-                  <img 
-                    :src="streamer.profile_image_url" 
+                  <img
+                    :src="streamer.profile_image_url"
                     :alt="streamer.username || ''"
                   />
                 </div>
                 <span class="streamer-name">{{ streamer.username || 'Unknown Streamer' }}</span>
               </td>              <td data-label="Online">
-                <input 
-                  type="checkbox" 
+                <input
+                  type="checkbox"
                   v-model="streamer.notify_online"
                   @change="updateStreamerSettings(streamer.streamer_id, { notify_online: streamer.notify_online })"
                 />
               </td>
               <td data-label="Offline">
-                <input 
-                  type="checkbox" 
+                <input
+                  type="checkbox"
                   v-model="streamer.notify_offline"
                   @change="updateStreamerSettings(streamer.streamer_id, { notify_offline: streamer.notify_offline })"
                 />
               </td>
               <td data-label="Updates">
-                <input 
-                  type="checkbox" 
+                <input
+                  type="checkbox"
                   v-model="streamer.notify_update"
                   @change="updateStreamerSettings(streamer.streamer_id, { notify_update: streamer.notify_update })"
                 />
               </td>
               <td data-label="Favorites">
-                <input 
-                  type="checkbox" 
+                <input
+                  type="checkbox"
                   v-model="streamer.notify_favorite_category"
                   @change="updateStreamerSettings(streamer.streamer_id, { notify_favorite_category: streamer.notify_favorite_category })"
                 />
               </td>              <td class="actions-cell">
                 <div class="btn-group">
-                  <button 
-                    @click="toggleAllForStreamer(streamer.streamer_id, true)" 
+                  <button
+                    @click="toggleAllForStreamer(streamer.streamer_id, true)"
                     class="btn btn-sm btn-secondary"
                   >On</button>
-                  <button 
-                    @click="toggleAllForStreamer(streamer.streamer_id, false)" 
+                  <button
+                    @click="toggleAllForStreamer(streamer.streamer_id, false)"
                     class="btn btn-sm btn-secondary"
                   >Off</button>
                 </div>
@@ -191,9 +215,9 @@
 
 <script setup lang="ts">
 import { ref, computed, onUnmounted } from 'vue'
-import { useToast } from '@/composables/useToast'
 import { UI } from '@/config/constants'
 import BaseButton from '@/components/base/BaseButton.vue'
+import BaseInput from '@/components/base/BaseInput.vue'
 import type { NotificationSettings, StreamerNotificationSettings } from '@/types/settings'
 
 // Props
@@ -214,8 +238,7 @@ const typedStreamerSettings = computed(() => {
 })
 
 // Emits
-const emit = defineEmits(['update-settings', 'update-streamer-settings', 'test-notification'])
-const toast = useToast()
+const emit = defineEmits(['update-settings', 'update-streamer-settings'])
 
 // Data kopieren, um sie im Formular zu verwenden
 const data = ref({
@@ -223,7 +246,7 @@ const data = ref({
   // SECURITY: Only enable if URL is configured - prevents errors when no URL is set
   notificationsEnabled: props.settings.notifications_enabled === true && !!props.settings.notification_url,
   notifyOnlineGlobal: props.settings.notify_online_global !== false,
-  notifyOfflineGlobal: props.settings.notify_offline_global !== false, 
+  notifyOfflineGlobal: props.settings.notify_offline_global !== false,
   notifyUpdateGlobal: props.settings.notify_update_global !== false,
   notifyFavoriteCategoryGlobal: props.settings.notify_favorite_category_global !== false,
   // System notification settings (NEW - Migration 028)
@@ -244,7 +267,7 @@ const handleInput = () => {
   if (inputTimeout.value) {
     clearTimeout(inputTimeout.value)
   }
-  
+
   // Set a new timeout to show validation after typing stops
   inputTimeout.value = window.setTimeout(() => {
     showValidationError.value = true
@@ -295,10 +318,10 @@ const isSaving = ref(false)
 
 const isValidNotificationUrl = computed(() => {
   const url = data.value.notificationUrl.trim()
-  
+
   // Empty URL is considered valid (though not for saving)
   if (!url) return true
-  
+
   // Handle multiple URLs separated by comma
   if (url.includes(',')) {
     return url.split(',')
@@ -307,34 +330,42 @@ const isValidNotificationUrl = computed(() => {
         return trimmedPart === '' || validateSingleUrl(trimmedPart)
       })
   }
-  
+
   return validateSingleUrl(url)
+})
+
+const notificationUrlError = computed(() => {
+  if (!showValidationError.value || isValidNotificationUrl.value || !data.value.notificationUrl.trim()) {
+    return undefined
+  }
+
+  return 'Please enter a valid URL (e.g., discord://webhook_id/webhook_token)'
 })
 
 const validateSingleUrl = (url: string): boolean => {
   // Basic URL structure check
   if (!url.includes('://')) return false
-  
+
   // Extract scheme
   const scheme = url.split('://')[0].toLowerCase()
-  
+
   // Check against known schemes
   if (KNOWN_SCHEMES.includes(scheme)) return true
-  
+
   // Allow custom schemes that follow the pattern: xxx://
   return /^[a-zA-Z]+:\/\/.+/.test(url)
 }
 
 // Can Save Computed
 const canSave = computed(() => {
-  return isValidNotificationUrl.value && 
+  return isValidNotificationUrl.value &&
          (data.value.notificationUrl.trim() !== '' || !data.value.notificationsEnabled)
 })
 
 // Aktionen
 const saveSettings = async () => {
   if (isSaving.value) return
-  
+
   try {
     isSaving.value = true
     emit('update-settings', {
@@ -362,7 +393,7 @@ const updateStreamerSettings = (streamerId: number, settings: Partial<StreamerNo
 
 const toggleAllForStreamer = (streamerId: number, enabled: boolean) => {
   if (!streamerId) return
-  
+
   const settingsUpdate: Partial<StreamerNotificationSettings> = {
     notify_online: enabled,
     notify_offline: enabled,
@@ -374,38 +405,14 @@ const toggleAllForStreamer = (streamerId: number, enabled: boolean) => {
 
 const toggleAllStreamers = (enabled: boolean) => {
   if (!props.streamerSettings) return
-  
+
   for (const streamer of typedStreamerSettings.value) {
     if (!streamer?.streamer_id) continue
-    
+
     toggleAllForStreamer(streamer.streamer_id, enabled)
   }
 }
 
-const testNotification = () => {
-  emit('test-notification')
-}
-
-const testWebSocketNotification = async () => {
-  try {
-    const response = await fetch('/api/settings/test-websocket-notification', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      credentials: 'include'
-    })
-
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.detail || 'Failed to send test WebSocket notification')
-    }
-
-    toast.success('Test WebSocket notification sent! Check the notification bell.')
-  } catch (error) {
-    toast.error(error instanceof Error ? error.message : 'Failed to send test WebSocket notification')
-  }
-}
 </script>
 
 <style scoped lang="scss">
@@ -426,7 +433,7 @@ const testWebSocketNotification = async () => {
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: v.$spacing-4;
   margin-bottom: v.$spacing-6;
-  
+
   @include m.respond-below('sm') {
     grid-template-columns: 1fr;
   }
@@ -439,61 +446,31 @@ const testWebSocketNotification = async () => {
   border-radius: var(--radius-md);
   transition: v.$transition-all;
   cursor: pointer;
-  
+
   &:hover {
     border-color: var(--primary-color);
     background: var(--background-hover);
   }
-  
+
   &.active {
     border-color: var(--primary-color);
     background: var(--primary-bg);
   }
-  
+
   .type-icon {
     font-size: v.$text-2xl;
     margin-bottom: v.$spacing-2;
   }
-  
+
   .type-title {
     font-weight: v.$font-semibold;
     color: var(--text-primary);
     margin-bottom: v.$spacing-1;
   }
-  
+
   .type-description {
     font-size: v.$text-sm;
     color: var(--text-secondary);
-  }
-}
-
-// ============================================================================
-// TEST NOTIFICATION BUTTON
-// ============================================================================
-
-.test-notification-section {
-  margin-top: v.$spacing-6;
-  padding: v.$spacing-4;
-  background: var(--info-bg-color);
-  border: 1px solid var(--info-border-color);
-  border-radius: var(--radius-md);
-  
-  .test-result {
-    margin-top: v.$spacing-3;
-    padding: v.$spacing-3;
-    border-radius: var(--radius-sm);
-    
-    &.success {
-      background: var(--success-bg-color);
-      border: 1px solid var(--success-border-color);
-      color: var(--success-color);
-    }
-    
-    &.error {
-      background: var(--danger-bg-color);
-      border: 1px solid var(--danger-border-color);
-      color: var(--danger-color);
-    }
   }
 }
 
@@ -505,7 +482,7 @@ const testWebSocketNotification = async () => {
   display: flex;
   flex-direction: column;
   gap: v.$spacing-4;  // More spacing between checkboxes
-  
+
   label {
     display: flex;
     align-items: flex-start;
@@ -516,26 +493,35 @@ const testWebSocketNotification = async () => {
     border-radius: var(--radius-md);
     transition: v.$transition-all;
     cursor: pointer;
-    
+
     &:hover {
       border-color: var(--primary-color);
       background: var(--background-hover);
     }
-    
+
     input[type="checkbox"] {
       margin-top: 2px;  // Align with text
       flex-shrink: 0;
     }
   }
-  
+
+  @include m.respond-below('lg') {
+    gap: v.$spacing-2;
+
+    label {
+      padding: v.$spacing-2 v.$spacing-3;
+      min-height: 44px;
+    }
+  }
+
   @include m.respond-below('md') {
     gap: v.$spacing-3;
-    
+
     label {
       padding: v.$spacing-3;
       min-height: 44px;  // Touch-friendly
       flex-wrap: wrap;  // Allow content to wrap on mobile
-      
+
       // Stack label text and hint vertically
       .label-hint {
         flex-basis: 100%;
@@ -554,15 +540,24 @@ const testWebSocketNotification = async () => {
   display: flex;
   gap: v.$spacing-3;
   flex-wrap: wrap;
-  
+
   .btn {
     flex: 1;
     min-width: 150px;
-    
+
     &:last-child {
       margin-left: 0 !important;  // Remove inline margin
     }
   }
+}
+
+.diagnostics-note {
+  flex: 2;
+  min-width: 240px;
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: v.$text-sm;
+  line-height: var(--leading-relaxed);
 }
 
 // ============================================================================
@@ -571,13 +566,37 @@ const testWebSocketNotification = async () => {
 
 .streamer-notifications {
   margin-top: v.$spacing-6;
-  
-  h3 {
-    margin-bottom: v.$spacing-4;
-  }
-  
+
   .table-wrapper {
     margin-top: v.$spacing-4;  // Space from table controls
+  }
+
+  .data-table th,
+  .data-table td {
+    vertical-align: middle;
+  }
+
+  .actions-cell {
+    width: 116px;
+  }
+}
+
+.btn-group {
+  display: inline-flex;
+  align-items: center;
+  min-width: 96px;
+  padding: 2px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-full);
+  background: var(--background-darker);
+
+  .btn {
+    min-height: 30px;
+    min-width: 44px;
+    padding: 0 var(--spacing-2);
+    border-radius: var(--radius-full);
+    font-size: var(--text-xs);
+    line-height: 1;
   }
 }
 
@@ -589,16 +608,16 @@ const testWebSocketNotification = async () => {
   .form-actions {
     flex-direction: column;
     gap: v.$spacing-3;
-    
+
     .btn {
       width: 100%;
       min-width: 100%;
       flex: none;
     }
   }
-  
+
   .streamer-notifications {
-    h3 {
+    h2 {
       font-size: v.$text-xl;
     }
   }

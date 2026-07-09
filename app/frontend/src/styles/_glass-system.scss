@@ -1,6 +1,8 @@
 // ============================================================================
 // UNIFIED GLASSMORPHISM DESIGN SYSTEM
-// Single source of truth for all glass effects, surfaces, and components
+// Single source of truth for glass effects, surfaces and utility classes.
+// Ownership: this file owns only glass tokens, glass mixins and glass classes.
+// Non-glass app tokens belong in _variables.scss.
 // ============================================================================
 
 @use 'variables' as v;
@@ -8,6 +10,7 @@
 
 // ============================================================================
 // GLASS SURFACE TOKENS
+// Canonical names for glass-only implementation work. Do not add aliases here.
 // ============================================================================
 
 // Glass backgrounds with consistent opacity levels
@@ -57,11 +60,13 @@ $glass-shadow-xl: 0 12px 48px rgba(0, 0, 0, 0.3);
   --glass-highlight: rgba(255, 255, 255, 0.05);
   --glass-highlight-strong: rgba(255, 255, 255, 0.1);
   
-  // Glass blur amounts
+  // Glass blur amounts. Kept in the 8-16px range: backdrop-filter cost grows
+  // steeply with radius and values beyond ~16px rarely look better, but they
+  // do drop frames on mobile (the old lg/xl were 24/40px).
   --glass-blur-sm: 8px;
-  --glass-blur-md: 16px;
-  --glass-blur-lg: 24px;
-  --glass-blur-xl: 40px;
+  --glass-blur-md: 12px;
+  --glass-blur-lg: 16px;
+  --glass-blur-xl: 16px;
   
   // Glass inner glow
   --glass-glow: inset 0 1px 0 0 rgba(255, 255, 255, 0.05);
@@ -96,10 +101,13 @@ $glass-shadow-xl: 0 12px 48px rgba(0, 0, 0, 0.3);
 /// Base glass surface - the foundation for all glass elements
 /// @param {string} $strength [medium] - subtle | medium | strong
 /// @param {bool} $interactive [false] - adds hover/active states
-@mixin glass-surface($strength: medium, $interactive: false) {
+/// @param {bool} $blur-backdrop [false] - real backdrop blur. Only floating
+///   layers (header, nav bars, popups) should pass true: in-flow cards render
+///   by the dozen and per-card backdrop-filter is the top scroll-perf cost.
+@mixin glass-surface($strength: medium, $interactive: false, $blur-backdrop: false) {
   $blur: var(--glass-blur-md);
   $bg: var(--glass-bg);
-  
+
   @if $strength == subtle {
     $blur: var(--glass-blur-sm);
     $bg: var(--glass-bg-subtle);
@@ -107,18 +115,21 @@ $glass-shadow-xl: 0 12px 48px rgba(0, 0, 0, 0.3);
     $blur: var(--glass-blur-lg);
     $bg: var(--glass-bg-strong);
   }
-  
+
   background: $bg;
-  backdrop-filter: blur(#{$blur});
-  -webkit-backdrop-filter: blur(#{$blur});
   border: 1px solid var(--glass-border);
   box-shadow: var(--glass-shadow-sm), var(--glass-glow);
-  
-  // Fallback for browsers without backdrop-filter
-  @supports not (backdrop-filter: blur(1px)) {
-    background: var(--glass-bg-solid);
+
+  @if $blur-backdrop {
+    backdrop-filter: blur(#{$blur});
+    -webkit-backdrop-filter: blur(#{$blur});
+
+    // Fallback for browsers without backdrop-filter
+    @supports not (backdrop-filter: blur(1px)) {
+      background: var(--glass-bg-solid);
+    }
   }
-  
+
   @if $interactive {
     transition: all v.$duration-200 v.$ease-out;
     cursor: pointer;
@@ -184,7 +195,7 @@ $glass-shadow-xl: 0 12px 48px rgba(0, 0, 0, 0.3);
 
 /// Glass Header - app header / navigation bars
 .glass-header {
-  @include glass-surface(strong);
+  @include glass-surface(strong, false, true);
   border-radius: 0;
   border-left: none;
   border-right: none;
@@ -193,7 +204,7 @@ $glass-shadow-xl: 0 12px 48px rgba(0, 0, 0, 0.3);
 
 /// Glass Sidebar - navigation sidebar
 .glass-sidebar {
-  @include glass-surface(strong);
+  @include glass-surface(strong, false, true);
   border-radius: 0;
   border-top: none;
   border-bottom: none;
@@ -202,7 +213,7 @@ $glass-shadow-xl: 0 12px 48px rgba(0, 0, 0, 0.3);
 
 /// Glass Bottom Bar - mobile bottom navigation
 .glass-bottom-bar {
-  @include glass-surface(strong);
+  @include glass-surface(strong, false, true);
   border-radius: 0;
   border-left: none;
   border-right: none;
@@ -684,7 +695,7 @@ $glass-shadow-xl: 0 12px 48px rgba(0, 0, 0, 0.3);
 }
 
 // ============================================================================
-// GLASS POPUP PANEL — Shared overlay for notifications, background jobs, etc.
+// GLASS POPUP PANEL - Shared overlay for notifications, background jobs, etc.
 // Usage: .glass-popup-backdrop + .glass-popup-panel > .glass-popup-header + content
 // ============================================================================
 
@@ -768,9 +779,9 @@ $glass-shadow-xl: 0 12px 48px rgba(0, 0, 0, 0.3);
   align-items: center;
   padding: 20px 24px;
   border-bottom: 1px solid var(--glass-border-hover);
+  // No own backdrop-filter: the parent .glass-popup-panel already blurs;
+  // nesting blur inside blur doubles the GPU cost for no visible gain.
   background: var(--glass-bg-subtle);
-  backdrop-filter: blur(var(--glass-blur-sm));
-  -webkit-backdrop-filter: blur(var(--glass-blur-sm));
   border-radius: var(--radius-xl) var(--radius-xl) 0 0;
   box-shadow: inset 0 1px 0 0 var(--glass-highlight-strong);
 

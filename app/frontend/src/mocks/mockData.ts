@@ -1,6 +1,6 @@
 /**
  * Mock Data for Frontend Development
- * 
+ *
  * Use VITE_USE_MOCK_DATA=true in .env to enable mock mode
  * This allows testing all UI components without a running backend
  */
@@ -9,6 +9,7 @@ export const mockStreamers = [
   {
     id: 1,
     username: 'streamer_alpha',
+    display_name: 'Streamer Alpha',
     twitch_id: '12345',
     profile_image_url: 'https://static-cdn.jtvnw.net/jtv_user_pictures/2b1f0b6e-8b0c-4f3a-8b1a-1f0b6e8b0c4f-profile_image-300x300.png',
     is_live: true,
@@ -23,6 +24,7 @@ export const mockStreamers = [
   {
     id: 2,
     username: 'speedrunner_pro',
+    display_name: 'Speedrunner Pro',
     twitch_id: '23456',
     profile_image_url: 'https://static-cdn.jtvnw.net/jtv_user_pictures/3c2f1c7f-9c1d-5g4b-9c2b-2g1c7f9c1d5g-profile_image-300x300.png',
     is_live: true,
@@ -37,6 +39,7 @@ export const mockStreamers = [
   {
     id: 3,
     username: 'retro_gamer',
+    display_name: 'Retro Gamer',
     twitch_id: '34567',
     profile_image_url: 'https://static-cdn.jtvnw.net/jtv_user_pictures/4d3g2d8g-0d2e-6h5c-0d3c-3h2d8g0d2e6h-profile_image-300x300.png',
     is_live: false,
@@ -51,6 +54,7 @@ export const mockStreamers = [
   {
     id: 4,
     username: 'casual_streamer',
+    display_name: 'Casual Streamer',
     twitch_id: '45678',
     profile_image_url: 'https://static-cdn.jtvnw.net/jtv_user_pictures/5e4h3e9h-1e3f-7i6d-1e4d-4i3e9h1e3f7i-profile_image-300x300.png',
     is_live: false,

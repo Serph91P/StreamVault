@@ -1,51 +1,46 @@
 <template>
   <div class="admin-panel">
-    <div class="page-header">
-      <h1>StreamVault Admin Panel</h1>
-      <p class="subtitle">System Testing & Diagnostics</p>
-    </div>
-
     <!-- Quick Health Check -->
     <GlassCard variant="medium" :padding="true" class="admin-section">
       <div class="section-header">
         <h2>System Health</h2>
-        <button 
-          @click="runQuickHealthCheck" 
+        <button
+          @click="runQuickHealthCheck"
           :disabled="healthCheckLoading"
           class="btn btn-primary"
         >
-          <i class="fas fa-heartbeat"></i>
+          <SvgIcon name="heart-pulse" />
           {{ healthCheckLoading ? 'Checking...' : 'Quick Health Check' }}
         </button>
       </div>
 
       <div v-if="healthStatus" class="health-status status-border" :class="[healthStatus.overall_status, getHealthBorderClass(healthStatus.overall_status)]">
         <div class="status-indicator">
-          <i :class="getHealthIcon(healthStatus.overall_status)"></i>
+          <SvgIcon :name="getHealthIconName(healthStatus.overall_status)" :class="getHealthIconClass(healthStatus.overall_status)" />
           <span class="status-text">{{ healthStatus.overall_status.toUpperCase() }}</span>
           <span class="timestamp">{{ formatTime(healthStatus.timestamp) }}</span>
         </div>
-        
+
         <div class="health-legend">
           <div class="legend-item">
-            <i class="fas fa-check-circle text-green"></i> Healthy
+            <SvgIcon name="check-circle" class="text-green" /> Healthy
           </div>
           <div class="legend-item">
-            <i class="fas fa-exclamation-triangle text-yellow"></i> Warning
+            <SvgIcon name="alert-triangle" class="text-yellow" /> Warning
           </div>
           <div class="legend-item">
-            <i class="fas fa-times-circle text-red"></i> Error
+            <SvgIcon name="x-circle" class="text-red" /> Error
           </div>
         </div>
-        
+
         <div class="health-checks">
-          <div 
-            v-for="(check, name) in healthStatus.checks" 
+          <div
+            v-for="(check, name) in healthStatus.checks"
             :key="name"
             class="health-check status-border"
             :class="[check.status, getHealthBorderClass(check.status)]"
           >
-            <i :class="getHealthIcon(check.status)"></i>
+            <SvgIcon :name="getHealthIconName(check.status)" :class="getHealthIconClass(check.status)" />
             <span class="check-name">{{ formatCheckName(String(name)) }}</span>
             <span class="check-message">{{ check.message }}</span>
           </div>
@@ -58,7 +53,7 @@
       <div class="section-header">
         <h2>System Information</h2>
         <button @click="loadSystemInfo" :disabled="systemInfoLoading" class="btn btn-secondary">
-          <i class="fas fa-info-circle"></i>
+          <SvgIcon name="info" />
           {{ systemInfoLoading ? 'Loading...' : 'Refresh Info' }}
         </button>
       </div>
@@ -116,6 +111,72 @@
       <WebSocketMonitor />
     </GlassCard>
 
+    <details class="admin-disclosure">
+      <summary>
+        <span>Notification Diagnostics</span>
+        <span>Test notification channels: Apprise, Web Push and WebSocket</span>
+      </summary>
+      <GlassCard variant="medium" :padding="true" class="admin-section">
+        <div class="section-header">
+          <h2>Notification Diagnostics</h2>
+          <p class="section-description">Test notification channels: Apprise, Web Push and WebSocket</p>
+        </div>
+
+        <div class="diagnostic-channels">
+          <div class="channel-card">
+            <div class="channel-header">
+              <SvgIcon name="bell" />
+              <h3>Apprise (External Notifications)</h3>
+            </div>
+            <p class="channel-description">
+              Send a test notification through configured Apprise webhooks (Discord, Telegram, etc.)
+            </p>
+            <button @click="testAppriseNotification" :disabled="appriseTestLoading" class="btn btn-primary">
+              <SvgIcon name="bell" />
+              {{ appriseTestLoading ? 'Sending...' : 'Test Apprise Notification' }}
+            </button>
+            <div v-if="appriseTestResult" class="test-result" :class="appriseTestResult.success ? 'success' : 'error'">
+              {{ appriseTestResult.message }}
+            </div>
+          </div>
+
+          <div class="channel-card">
+            <div class="channel-header">
+              <SvgIcon name="send" />
+              <h3>Web Push (Browser Push)</h3>
+            </div>
+            <p class="channel-description">
+              Send a server-side browser push test to subscribed devices.
+            </p>
+            <button @click="testWebPushNotification" :disabled="webPushTestLoading" class="btn btn-primary">
+              <SvgIcon name="send" />
+              {{ webPushTestLoading ? 'Sending...' : 'Test Web Push Notification' }}
+            </button>
+            <div v-if="webPushTestResult" class="test-result" :class="webPushTestResult.success ? 'success' : 'error'">
+              {{ webPushTestResult.message }}
+            </div>
+          </div>
+
+          <div class="channel-card">
+            <div class="channel-header">
+              <SvgIcon name="wifi" />
+              <h3>WebSocket (In-App Notifications)</h3>
+            </div>
+            <p class="channel-description">
+              Send a test WebSocket event to verify real-time notification delivery
+            </p>
+            <button @click="testWebSocketDiagnostic" :disabled="wsTestLoading" class="btn btn-primary">
+              <SvgIcon name="wifi" />
+              {{ wsTestLoading ? 'Sending...' : 'Test WebSocket Notification' }}
+            </button>
+            <div v-if="wsTestResult" class="test-result" :class="wsTestResult.success ? 'success' : 'error'">
+              {{ wsTestResult.message }}
+            </div>
+          </div>
+        </div>
+      </GlassCard>
+    </details>
+
     <!-- Background Queue Monitoring -->
     <GlassCard variant="medium" :padding="true" class="admin-section">
       <div class="section-header">
@@ -125,39 +186,53 @@
       <BackgroundQueueMonitor />
     </GlassCard>
 
-    <!-- Background Queue Management & Cleanup -->
-    <GlassCard variant="medium" :padding="true" class="admin-section">
+    <details class="admin-disclosure">
+      <summary>
+        <span>Background Queue Tools</span>
+        <span>Repair stuck jobs and inspect queue cleanup actions</span>
+      </summary>
+      <GlassCard variant="medium" :padding="true" class="admin-section">
       <div class="section-header">
         <h2>🔧 Background Queue Management</h2>
         <p class="section-description">
           Fix Background Queue Problems: Stuck Recording Jobs, Continuous Orphaned Recovery, Unknown Task Names
         </p>
       </div>
-      <BackgroundQueueAdmin />
-    </GlassCard>
+        <BackgroundQueueAdmin />
+      </GlassCard>
+    </details>
 
-    <!-- Post-Processing Management -->
-    <GlassCard variant="medium" :padding="true" class="admin-section">
+    <details class="admin-disclosure">
+      <summary>
+        <span>Post-Processing Tools</span>
+        <span>Retry failed recordings and clean segment files</span>
+      </summary>
+      <GlassCard variant="medium" :padding="true" class="admin-section">
       <div class="section-header">
         <h2>🔄 Post-Processing Management</h2>
         <p class="section-description">
           Manual Post-Processing for Failed Recordings and Cleanup of Orphaned Files
         </p>
       </div>
-      <PostProcessingManagement />
-    </GlassCard>
+        <PostProcessingManagement />
+      </GlassCard>
+    </details>
 
-    <!-- Test Suite -->
-    <GlassCard variant="medium" :padding="true" class="admin-section">
+    <details class="admin-disclosure">
+      <summary>
+        <span>Admin Verification Suite</span>
+        <span>Run diagnostic checks only when troubleshooting</span>
+      </summary>
+      <GlassCard variant="medium" :padding="true" class="admin-section">
       <div class="section-header">
-        <h2>Comprehensive Test Suite</h2>
+        <h2>Admin Verification Suite</h2>
         <div class="test-controls">
           <button @click="runAllTests" :disabled="testsLoading" class="btn btn-success">
-            <i class="fas fa-play"></i>
+            <SvgIcon name="play" />
             {{ testsLoading ? 'Running Tests...' : 'Run All Tests' }}
           </button>
           <button @click="loadAvailableTests" class="btn btn-secondary">
-            <i class="fas fa-list"></i>
+            <SvgIcon name="list" />
             Show Available Tests
           </button>
         </div>
@@ -177,22 +252,22 @@
           <h3 class="summary-title">Test Results Summary</h3>
           <div class="summary-stats">
             <div class="stat passed">
-              <i class="fas fa-check-circle"></i>
+              <SvgIcon name="check-circle" />
               <span class="count">{{ testResults.passed }}</span>
               <span class="label">Passed</span>
             </div>
             <div class="stat failed">
-              <i class="fas fa-times-circle"></i>
+              <SvgIcon name="x-circle" />
               <span class="count">{{ testResults.failed }}</span>
               <span class="label">Failed</span>
             </div>
             <div class="stat total">
-              <i class="fas fa-clipboard-list"></i>
+              <SvgIcon name="list" />
               <span class="count">{{ testResults.total_tests }}</span>
               <span class="label">Total</span>
             </div>
             <div class="stat success-rate">
-              <i class="fas fa-percentage"></i>
+              <SvgIcon name="activity" />
               <span class="count">{{ Math.round(testResults.success_rate) }}%</span>
               <span class="label">Success Rate</span>
             </div>
@@ -201,21 +276,21 @@
 
         <div class="detailed-results">
           <div class="results-filters">
-            <button 
+            <button
               @click="resultFilter = 'all'"
               :class="{active: resultFilter === 'all'}"
               class="filter-btn"
             >
               All ({{ testResults.results.length }})
             </button>
-            <button 
+            <button
               @click="resultFilter = 'failed'"
               :class="{active: resultFilter === 'failed'}"
               class="filter-btn"
             >
               Failed ({{ testResults.results.filter((r: any) => !r.success).length }})
             </button>
-            <button 
+            <button
               @click="resultFilter = 'passed'"
               :class="{active: resultFilter === 'passed'}"
               class="filter-btn"
@@ -225,8 +300,8 @@
           </div>
 
           <div class="test-results-list">
-            <div 
-              v-for="result in filteredResults" 
+            <div
+              v-for="result in filteredResults"
               :key="result.test_name"
               class="test-result-item status-border"
               :class="[
@@ -235,14 +310,14 @@
               ]"
             >
               <div class="result-header">
-                <i :class="result.success ? 'fas fa-check-circle' : 'fas fa-times-circle'"></i>
+                <SvgIcon :name="result.success ? 'check-circle' : 'x-circle'" />
                 <span class="test-name">{{ formatTestName(result.test_name) }}</span>
                 <span class="test-time">{{ formatTime(result.timestamp) }}</span>
               </div>
               <div class="result-message">{{ result.message }}</div>
               <div v-if="result.details && Object.keys(result.details).length > 0" class="result-details">
                 <button @click="toggleDetails(result.test_name)" class="details-toggle">
-                  <i :class="expandedDetails.includes(result.test_name) ? 'fas fa-chevron-up' : 'fas fa-chevron-down'"></i>
+                  <SvgIcon :name="expandedDetails.includes(result.test_name) ? 'chevron-up' : 'chevron-down'" />
                   Details
                 </button>
                 <div v-if="expandedDetails.includes(result.test_name)" class="details-content">
@@ -266,22 +341,27 @@
           </div>
         </div>
       </div>
-    </GlassCard>
+      </GlassCard>
+    </details>
 
-    <!-- Maintenance -->
-    <GlassCard variant="medium" :padding="true" class="admin-section">
+    <details class="admin-disclosure">
+      <summary>
+        <span>Maintenance</span>
+        <span>Review logs and cleanup temporary files</span>
+      </summary>
+      <GlassCard variant="medium" :padding="true" class="admin-section">
       <div class="section-header">
         <h2>Maintenance</h2>
       </div>
 
       <div class="maintenance-actions">
         <button @click="cleanupTempFiles" :disabled="cleanupLoading" class="btn btn-warning">
-          <i class="fas fa-broom"></i>
+          <SvgIcon name="trash" />
           {{ cleanupLoading ? 'Cleaning...' : 'Cleanup Temp Files' }}
         </button>
-        
+
         <button @click="viewLogs" class="btn btn-info">
-          <i class="fas fa-file-alt"></i>
+          <SvgIcon name="file-text" />
           View Recent Logs
         </button>
       </div>
@@ -299,50 +379,56 @@
           </li>
         </ul>
       </div>
-    </GlassCard>
+      </GlassCard>
+    </details>
 
-    <!-- Video Debug Section -->
-    <GlassCard variant="medium" :padding="true" class="admin-section">
+    <details class="admin-disclosure">
+      <summary>
+        <span>Video and Recording Diagnostics</span>
+        <span>Inspect storage state and repair recording paths</span>
+      </summary>
+      <GlassCard variant="medium" :padding="true" class="admin-section">
       <div class="section-header">
-        <h2>Video & Recording Debug</h2>
-        <p class="section-description">Debug video availability and recording file system status</p>
+        <h2>Video and Recording Diagnostics</h2>
+        <p class="section-description">Inspect video availability and recording file system status</p>
       </div>
 
       <div class="debug-actions">
         <button @click="loadVideosDebug" :disabled="videosDebugLoading" class="btn btn-info">
-          <i class="fas fa-database"></i>
+          <SvgIcon name="database" />
           {{ videosDebugLoading ? 'Loading...' : 'Check Videos Database' }}
         </button>
-        
+
         <button @click="loadRecordingsDirectory" :disabled="recordingsDirectoryLoading" class="btn btn-secondary">
-          <i class="fas fa-folder-open"></i>
+          <SvgIcon name="folder" />
           {{ recordingsDirectoryLoading ? 'Loading...' : 'Scan Recordings Directory' }}
         </button>
-        
+
         <button @click="fixRecordingAvailability" :disabled="fixingRecordings" class="btn btn-warning">
-          <i class="fas fa-wrench"></i>
+          <SvgIcon name="wrench" />
           {{ fixingRecordings ? 'Fixing...' : 'Fix Recording Paths' }}
         </button>
-        
+
         <button @click="cleanupOrphanedRecordings" :disabled="cleaningOrphaned" class="btn btn-danger">
-          <i class="fas fa-broom"></i>
+          <SvgIcon name="trash" />
           {{ cleaningOrphaned ? 'Cleaning...' : 'Cleanup Orphaned DB' }}
         </button>
-        
+
         <button @click="cleanupProcessOrphanedRecordings" :disabled="cleaningProcessOrphaned" class="btn btn-danger">
-          <i class="fas fa-broom"></i>
+          <SvgIcon name="trash" />
           {{ cleaningProcessOrphaned ? 'Cleaning...' : 'Cleanup Process Orphaned' }}
         </button>
-        
+
         <button @click="cleanupZombieRecordings" :disabled="cleaningZombies" class="btn btn-warning">
-          <i class="fas fa-ghost"></i>
+          <SvgIcon name="alert-circle" />
           {{ cleaningZombies ? 'Cleaning...' : 'Cleanup Zombie Recordings' }}
         </button>
       </div>
-    </GlassCard>
+      </GlassCard>
+    </details>
 
     <!-- Logs Modal -->
-    <BaseModal v-model="showLogsModal" size="xl">
+    <BaseModal v-model="showLogsModal" title="Recent Logs" size="xl">
       <template #header>
         <h3>Recent Logs</h3>
         <div class="log-controls">
@@ -410,10 +496,10 @@
                       <td class="path-cell">{{ stream.recording_path || 'None' }}</td>
                       <td>
                         <span v-if="stream.recording_path_exists" class="text-green">
-                          <i class="fas fa-check"></i> Yes
+                          <SvgIcon name="check" /> Yes
                         </span>
                         <span v-else-if="stream.recording_path" class="text-red">
-                          <i class="fas fa-times"></i> No
+                          <SvgIcon name="x" /> No
                         </span>
                         <span v-else class="text-gray">N/A</span>
                       </td>
@@ -446,18 +532,18 @@
                       <td>{{ recording.status }}</td>
                       <td>
                         <span v-if="recording.ts_path_exists" class="text-green">
-                          <i class="fas fa-check"></i>
+                          <SvgIcon name="check" />
                         </span>
                         <span v-else class="text-red">
-                          <i class="fas fa-times"></i>
+                          <SvgIcon name="x" />
                         </span>
                       </td>
                       <td>
                         <span v-if="recording.mp4_path_exists" class="text-green">
-                          <i class="fas fa-check"></i>
+                          <SvgIcon name="check" />
                         </span>
                         <span v-else class="text-red">
-                          <i class="fas fa-times"></i>
+                          <SvgIcon name="x" />
                         </span>
                       </td>
                     </tr>
@@ -501,6 +587,7 @@
 </template>
 
 <script setup lang="ts">
+import SvgIcon from '@/components/icons/SvgIcon.vue'
 import { ref, computed, onMounted } from 'vue'
 import GlassCard from '../cards/GlassCard.vue'
 import BaseModal from '../base/BaseModal.vue'
@@ -528,6 +615,80 @@ const logLines = ref(200)
 const resultFilter = ref('all')
 const expandedDetails = ref<string[]>([])
 
+// Notification Diagnostics
+const appriseTestLoading = ref(false)
+const appriseTestResult = ref<{ success: boolean; message: string } | null>(null)
+const webPushTestLoading = ref(false)
+const webPushTestResult = ref<{ success: boolean; message: string } | null>(null)
+const wsTestLoading = ref(false)
+const wsTestResult = ref<{ success: boolean; message: string } | null>(null)
+
+const testAppriseNotification = async () => {
+  appriseTestLoading.value = true
+  appriseTestResult.value = null
+  try {
+    const response = await fetch('/api/settings/test-notification', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' }
+    })
+    if (response.ok) {
+      appriseTestResult.value = { success: true, message: 'Test notification sent successfully' }
+    } else {
+      const errorData = await response.json()
+      appriseTestResult.value = { success: false, message: `Failed: ${errorData.detail || 'Unknown error'}` }
+    }
+  } catch (error) {
+    appriseTestResult.value = { success: false, message: `Failed to send test notification: ${error instanceof Error ? error.message : 'Unknown error'}` }
+  } finally {
+    appriseTestLoading.value = false
+  }
+}
+
+const testWebPushNotification = async () => {
+  webPushTestLoading.value = true
+  webPushTestResult.value = null
+  try {
+    const response = await fetch('/api/push/test', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' }
+    })
+    const result = await response.json()
+    if (response.ok && result.success && result.sent_count > 0) {
+      webPushTestResult.value = { success: true, message: result.message || 'Web Push test sent' }
+    } else {
+      webPushTestResult.value = { success: false, message: result.message || 'No Web Push subscribers received the test' }
+    }
+  } catch (error) {
+    webPushTestResult.value = { success: false, message: `Failed to send Web Push test: ${error instanceof Error ? error.message : 'Unknown error'}` }
+  } finally {
+    webPushTestLoading.value = false
+  }
+}
+
+const testWebSocketDiagnostic = async () => {
+  wsTestLoading.value = true
+  wsTestResult.value = null
+  try {
+    const response = await fetch('/api/settings/test-websocket-notification', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' }
+    })
+    if (response.ok) {
+      wsTestResult.value = { success: true, message: 'Test WebSocket notification sent' }
+    } else {
+      const errorData = await response.json()
+      wsTestResult.value = { success: false, message: `Failed: ${errorData.detail || 'Unknown error'}` }
+    }
+  } catch (error) {
+    wsTestResult.value = { success: false, message: `Failed to send test WebSocket notification: ${error instanceof Error ? error.message : 'Unknown error'}` }
+  } finally {
+    wsTestLoading.value = false
+  }
+}
+
 // Video Debug data
 const videosDebugData = ref<any>(null)
 const videosDebugLoading = ref(false)
@@ -543,7 +704,7 @@ const showRecordingsDirectoryModal = ref(false)
 // Computed
 const filteredResults = computed(() => {
   if (!testResults.value) return []
-  
+
   const results = testResults.value.results
   switch (resultFilter.value) {
     case 'passed':
@@ -663,11 +824,11 @@ const loadVideosDebug = async () => {
     const response = await fetch('/api/admin/debug/videos-database', {
       credentials: 'include'
     })
-    
+
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`)
     }
-    
+
     const result = await response.json()
     videosDebugData.value = result.data
     showVideosDebugModal.value = true
@@ -685,11 +846,11 @@ const loadRecordingsDirectory = async () => {
     const response = await fetch('/api/admin/debug/recordings-directory', {
       credentials: 'include'
     })
-    
+
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`)
     }
-    
+
     const result = await response.json()
     recordingsDirectoryData.value = result.data
     showRecordingsDirectoryModal.value = true
@@ -706,7 +867,7 @@ const fixRecordingAvailability = async () => {
   if (!confirm('This will scan all streams and fix recording_path fields based on actual files. Continue?')) {
     return
   }
-  
+
   fixingRecordings.value = true
   try {
     // First do a dry run
@@ -714,34 +875,34 @@ const fixRecordingAvailability = async () => {
       method: 'POST',
       credentials: 'include'
     })
-    
+
     if (!dryRunResponse.ok) {
       throw new Error(`HTTP ${dryRunResponse.status}: ${dryRunResponse.statusText}`)
     }
-    
+
     const dryRunResult = await dryRunResponse.json()
     const message = `Dry run completed:\n- Checked: ${dryRunResult.data.checked} streams\n- Would fix: ${dryRunResult.data.fixed} streams\n- Errors: ${dryRunResult.data.errors}\n\nProceed with actual fix?`
-    
+
     if (!confirm(message)) {
       return
     }
-    
+
     // Do the actual fix
     const fixResponse = await fetch('/api/admin/recordings/fix-availability?dry_run=false', {
       method: 'POST',
       credentials: 'include'
     })
-    
+
     if (!fixResponse.ok) {
       throw new Error(`HTTP ${fixResponse.status}: ${fixResponse.statusText}`)
     }
-    
+
     const fixResult = await fixResponse.json()
     alert(`Recording paths fixed!\n- Checked: ${fixResult.data.checked} streams\n- Fixed: ${fixResult.data.fixed} streams\n- Errors: ${fixResult.data.errors}`)
-    
+
     // Refresh the videos debug data
     await loadVideosDebug()
-    
+
   } catch (error) {
     console.error('Failed to fix recording availability:', error)
     alert('Failed to fix recording availability: ' + String(error))
@@ -754,7 +915,7 @@ const cleanupOrphanedRecordings = async () => {
   if (!confirm('This will cleanup database recordings that have been "recording" for more than 48 hours. Continue?')) {
     return
   }
-  
+
   cleaningOrphaned.value = true
   try {
     // First do a dry run
@@ -762,31 +923,31 @@ const cleanupOrphanedRecordings = async () => {
       method: 'POST',
       credentials: 'include'
     })
-    
+
     if (!dryRunResponse.ok) {
       throw new Error(`HTTP ${dryRunResponse.status}: ${dryRunResponse.statusText}`)
     }
-    
+
     const dryRunResult = await dryRunResponse.json()
     const message = `Dry run completed:\n- Found orphaned recordings: ${dryRunResult.data.checked}\n- Would cleanup: ${dryRunResult.data.cleaned}\n\nProceed with cleanup?`
-    
+
     if (!confirm(message)) {
       return
     }
-    
+
     // Do the actual cleanup
     const cleanupResponse = await fetch('/api/admin/recordings/cleanup-orphaned-db?dry_run=false&max_age_hours=48', {
       method: 'POST',
       credentials: 'include'
     })
-    
+
     if (!cleanupResponse.ok) {
       throw new Error(`HTTP ${cleanupResponse.status}: ${cleanupResponse.statusText}`)
     }
-    
+
     const cleanupResult = await cleanupResponse.json()
     alert(`Orphaned recordings cleaned up!\n- Checked: ${cleanupResult.data.checked} recordings\n- Cleaned: ${cleanupResult.data.cleaned} recordings`)
-    
+
   } catch (error) {
     console.error('Failed to cleanup orphaned recordings:', error)
     alert('Failed to cleanup orphaned recordings: ' + String(error))
@@ -799,7 +960,7 @@ const cleanupProcessOrphanedRecordings = async () => {
   if (!confirm('This will cleanup database recordings marked as "recording" but without active processes. Continue?')) {
     return
   }
-  
+
   cleaningProcessOrphaned.value = true
   try {
     // First do a dry run
@@ -807,31 +968,31 @@ const cleanupProcessOrphanedRecordings = async () => {
       method: 'POST',
       credentials: 'include'
     })
-    
+
     if (!dryRunResponse.ok) {
       throw new Error(`HTTP ${dryRunResponse.status}: ${dryRunResponse.statusText}`)
     }
-    
+
     const dryRunResult = await dryRunResponse.json()
     const message = `Dry run completed:\n- Found recordings: ${dryRunResult.data.checked}\n- Would cleanup: ${dryRunResult.data.cleaned}\n\nProceed with cleanup?`
-    
+
     if (!confirm(message)) {
       return
     }
-    
+
     // Do the actual cleanup
     const cleanupResponse = await fetch('/api/admin/recordings/cleanup-process-orphaned?dry_run=false', {
       method: 'POST',
       credentials: 'include'
     })
-    
+
     if (!cleanupResponse.ok) {
       throw new Error(`HTTP ${cleanupResponse.status}: ${cleanupResponse.statusText}`)
     }
-    
+
     const cleanupResult = await cleanupResponse.json()
     alert(`Process orphaned recordings cleaned up!\n- Checked: ${cleanupResult.data.checked} recordings\n- Cleaned: ${cleanupResult.data.cleaned} recordings`)
-    
+
   } catch (error) {
     console.error('Failed to cleanup process orphaned recordings:', error)
     alert('Failed to cleanup process orphaned recordings: ' + String(error))
@@ -848,7 +1009,7 @@ const cleanupZombieRecordings = async () => {
   if (!confirm('This will clean up recordings stuck in "recording" status with no active process.\n\nContinue?')) {
     return
   }
-  
+
   cleaningZombies.value = true
   try {
     const response = await fetch('/api/admin/recordings/cleanup-zombies', {
@@ -856,14 +1017,14 @@ const cleanupZombieRecordings = async () => {
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' }
     })
-    
+
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`)
     }
-    
+
     const result = await response.json()
     alert(`Zombie recording cleanup complete!\n\nCleaned: ${result.cleaned_count} recordings`)
-    
+
   } catch (error) {
     console.error('Failed to cleanup zombie recordings:', error)
     alert('Failed to cleanup zombie recordings: ' + String(error))
@@ -873,12 +1034,21 @@ const cleanupZombieRecordings = async () => {
 }
 
 // Utility functions
-const getHealthIcon = (status: string) => {
+const getHealthIconName = (status: string) => {
   switch (status) {
-    case 'healthy': return 'fas fa-check-circle text-green'
-    case 'warning': return 'fas fa-exclamation-triangle text-yellow'
-    case 'error': return 'fas fa-times-circle text-red'
-    default: return 'fas fa-question-circle text-gray'
+    case 'healthy': return 'check-circle'
+    case 'warning': return 'alert-triangle'
+    case 'error': return 'x-circle'
+    default: return 'help-circle'
+  }
+}
+
+const getHealthIconClass = (status: string) => {
+  switch (status) {
+    case 'healthy': return 'text-green'
+    case 'warning': return 'text-yellow'
+    case 'error': return 'text-red'
+    default: return 'text-gray'
   }
 }
 
@@ -926,27 +1096,54 @@ onMounted(() => {
   margin: 0 auto;
 }
 
-.page-header {
-  text-align: center;
-  margin-bottom: var(--spacing-8);
-}
-
-.page-header h1 {
-  color: var(--text-primary);
-  margin-bottom: var(--spacing-1);
-  font-size: var(--text-3xl);
-  font-weight: var(--font-bold);
-}
-
-.subtitle {
-  color: var(--text-secondary);
-  font-size: var(--text-lg);
-  line-height: var(--leading-normal);
-}
-
 /* Admin Sections - GlassCard wrappers */
 .admin-section {
   margin-bottom: var(--spacing-6);
+}
+
+.admin-disclosure {
+  margin-bottom: var(--spacing-4);
+}
+
+.admin-disclosure > summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--spacing-4);
+  padding: var(--spacing-4) var(--spacing-5);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  background: var(--background-card);
+  color: var(--text-primary);
+  cursor: pointer;
+  font-weight: var(--font-semibold);
+  list-style: none;
+}
+
+.admin-disclosure > summary::-webkit-details-marker {
+  display: none;
+}
+
+.admin-disclosure > summary::after {
+  content: '+';
+  color: var(--text-secondary);
+  font-size: var(--text-xl);
+}
+
+.admin-disclosure[open] > summary {
+  margin-bottom: var(--spacing-3);
+  border-color: var(--primary-color);
+}
+
+.admin-disclosure[open] > summary::after {
+  content: '-';
+}
+
+.admin-disclosure > summary span:last-child {
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  font-weight: var(--font-normal);
+  text-align: right;
 }
 
 .section-header {
@@ -977,16 +1174,16 @@ onMounted(() => {
   border-radius: var(--radius-md);
 }
 
-.health-status.healthy { 
-  background: rgba(39, 174, 96, 0.15); 
+.health-status.healthy {
+  background: rgba(39, 174, 96, 0.15);
   border: 2px solid var(--success-color);
 }
-.health-status.warning { 
-  background: rgba(243, 156, 18, 0.15); 
+.health-status.warning {
+  background: rgba(243, 156, 18, 0.15);
   border: 2px solid var(--warning-color);
 }
-.health-status.unhealthy { 
-  background: rgba(231, 76, 60, 0.15); 
+.health-status.unhealthy {
+  background: rgba(231, 76, 60, 0.15);
   border: 2px solid var(--danger-color);
 }
 
@@ -1007,7 +1204,7 @@ onMounted(() => {
 .timestamp {
   font-weight: var(--font-normal);
   font-size: var(--text-xs);  /* 12px */
-  opacity: 0.8;
+  color: var(--text-primary);
   margin-left: var(--spacing-4);  /* 16px */
 }
 
@@ -1052,17 +1249,22 @@ onMounted(() => {
   font-size: var(--text-sm);  /* 14px */
 }
 
-.health-check.healthy { 
-  background: rgba(39, 174, 96, 0.1); 
+.health-check.healthy {
+  background: rgba(39, 174, 96, 0.1);
   border-left: 3px solid var(--success-color);
 }
-.health-check.warning { 
-  background: rgba(243, 156, 18, 0.1); 
+.health-check.warning {
+  background: rgba(243, 156, 18, 0.1);
   border-left: 3px solid var(--warning-color);
 }
-.health-check.error { 
-  background: rgba(231, 76, 60, 0.1); 
+.health-check.error {
+  background: rgba(231, 76, 60, 0.1);
   border-left: 3px solid var(--danger-color);
+  color: var(--text-primary);
+}
+
+.error {
+  color: var(--text-primary);
 }
 
 /* System Info */
@@ -1102,6 +1304,61 @@ onMounted(() => {
 /* Test Suite - no wrapper class needed, GlassCard handles it */
 
 /* WebSocket and Background Queue - no wrapper classes needed, GlassCard handles it */
+
+/* Notification Diagnostics */
+.diagnostic-channels {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: var(--spacing-5);
+}
+
+.channel-card {
+  background: var(--background-darker);
+  padding: var(--spacing-5);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+}
+
+.channel-header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  margin-bottom: var(--spacing-3);
+}
+
+.channel-header h3 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: var(--text-lg);
+  font-weight: var(--font-semibold);
+}
+
+.channel-description {
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  margin: 0 0 var(--spacing-4) 0;
+  line-height: var(--leading-relaxed);
+}
+
+.test-result {
+  margin-top: var(--spacing-3);
+  padding: var(--spacing-3);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+}
+
+.test-result.success {
+  background: rgba(39, 174, 96, 0.15);
+  border: 1px solid var(--success-color);
+  color: var(--success-color);
+}
+
+.test-result.error {
+  background: rgba(231, 76, 60, 0.15);
+  border: 1px solid var(--danger-color);
+  color: var(--danger-color);
+}
 
 .section-description {
   color: var(--text-secondary);
@@ -1165,19 +1422,19 @@ onMounted(() => {
   box-shadow: var(--shadow-sm);
 }
 
-.stat.passed { 
-  background: rgba(39, 174, 96, 0.2); 
+.stat.passed {
+  background: rgba(39, 174, 96, 0.2);
   border: 2px solid var(--success-color);
 }
-.stat.failed { 
+.stat.failed {
   background: rgba(231, 76, 60, 0.2);
   border: 2px solid var(--danger-color);
 }
-.stat.total { 
+.stat.total {
   background: rgba(52, 73, 94, 0.2);
   border: 2px solid var(--text-secondary);
 }
-.stat.success-rate { 
+.stat.success-rate {
   background: rgba(52, 152, 219, 0.2);
   border: 2px solid var(--info-color);
 }
@@ -1267,10 +1524,10 @@ onMounted(() => {
   box-shadow: var(--shadow-md);
 }
 
-.test-result-item.passed { 
+.test-result-item.passed {
   border-left: 4px solid var(--success-color);
 }
-.test-result-item.failed { 
+.test-result-item.failed {
   border-left: 4px solid var(--danger-color);
 }
 
@@ -1462,13 +1719,13 @@ onMounted(() => {
     width: 100%;
     min-height: 44px;  /* Touch-friendly */
   }
-  
+
   .section-header {
     flex-direction: column;
     align-items: flex-start;
     gap: var(--spacing-3);
   }
-  
+
   .section-header .btn {
     width: 100%;
     justify-content: center;
@@ -1479,11 +1736,11 @@ onMounted(() => {
   .admin-panel {
     padding: var(--spacing-2);
   }
-  
+
   .page-header h1 {
     font-size: var(--text-2xl);
   }
-  
+
   .subtitle {
     font-size: var(--text-sm);
   }
@@ -1492,32 +1749,32 @@ onMounted(() => {
     grid-template-columns: 1fr;  /* Single column on small mobile */
     gap: var(--spacing-2);
   }
-  
+
   .system-info-grid {
     grid-template-columns: 1fr;  /* Single column */
     gap: var(--spacing-3);
   }
-  
+
   .health-checks {
     display: flex;
     flex-direction: column;
     gap: var(--spacing-2);
   }
-  
+
   .health-check {
     padding: var(--spacing-3);
   }
-  
+
   .btn {
     min-height: 44px;  /* Touch-friendly */
     padding: var(--spacing-3) var(--spacing-4);
     font-size: var(--text-sm);
   }
-  
+
   .test-item {
     padding: var(--spacing-3);
   }
-  
+
   .results-table {
     font-size: var(--text-xs);
   }

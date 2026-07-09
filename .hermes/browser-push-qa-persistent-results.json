@@ -1,0 +1,75 @@
+{
+  "timestamp": "2026-07-07T04:36:19.270Z",
+  "base": "http://localhost:7001",
+  "session": {
+    "user_id": 1,
+    "username": "Eloquent9017"
+  },
+  "environment": {
+    "node": "v22.22.3",
+    "display": null,
+    "playwrightBrowsersPath": "/opt/hermes/.playwright",
+    "headless": true,
+    "persistentProfile": "/opt/data/workspace/github_repos/StreamVault-frontend-product-overhaul-final/.hermes/browser-push-profile"
+  },
+  "steps": [
+    {
+      "console": "error",
+      "text": "X-Frame-Options may only be set via an HTTP header sent along with a document. It may not be set inside <meta>."
+    },
+    {
+      "console": "log",
+      "text": "🌐 Using REAL API for all endpoints"
+    },
+    {
+      "console": "log",
+      "text": "🔌 First subscriber - connecting WebSocket"
+    },
+    {
+      "console": "log",
+      "text": "🔌 Creating single WebSocket connection for entire app"
+    },
+    {
+      "console": "log",
+      "text": "🆔 WebSocket connection ID: 133748703094544 - Real IP: 192.168.96.1"
+    },
+    {
+      "console": "log",
+      "text": "Service Worker registered successfully ServiceWorkerRegistration"
+    },
+    {
+      "console": "log",
+      "text": "PWA is ready for offline use"
+    },
+    {
+      "navigation_url": "http://localhost:7001/"
+    }
+  ],
+  "gates": {
+    "browser_push_permission": "failed",
+    "browser_push_subscription": "failed",
+    "browser_push_delivery": "failed"
+  },
+  "auth": {
+    "authenticated": true
+  },
+  "browserPush": {
+    "location": "http://localhost:7001/",
+    "secureContext": true,
+    "notificationPermission": "denied",
+    "pushManager": true,
+    "serviceWorker": true,
+    "permissionsQuery": "granted",
+    "vapidStatus": 200,
+    "vapid": {
+      "publicKey": "BDrbwBlEeCPaj5yFEGYRuoEAalOkRiQXR0ziFKEMqmVPFx4Jsorn5AwP-6kzGtC2ZYbzg-TXjOeGK8edsJWfD4o",
+      "configured": true
+    },
+    "registrationScope": "http://localhost:7001/",
+    "existingSubscription": false,
+    "flowError": {
+      "name": "AbortError",
+      "message": "Registration failed - push service not available"
+    }
+  }
+}

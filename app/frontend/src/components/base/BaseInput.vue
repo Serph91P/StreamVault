@@ -3,6 +3,7 @@ import { computed, useAttrs, useId } from 'vue'
 
 interface Props {
   modelValue: string | number | null | undefined
+  id?: string
   label?: string
   /** Native input type. Default 'text'. */
   type?:
@@ -17,7 +18,9 @@ interface Props {
   state?: 'default' | 'error' | 'success'
   /** Error message displayed below the input. Implies state='error'. */
   error?: string
-  /** Helper text below the input (when no error). */
+  /** Success message displayed below the input when no error is present. */
+  success?: string
+  /** Helper text below the input (when no error or success message is present). */
   hint?: string
   required?: boolean
   disabled?: boolean
@@ -37,9 +40,11 @@ const emit = defineEmits<{
 defineOptions({ inheritAttrs: false })
 const attrs = useAttrs()
 
-const id = useId()
-const errorId = computed(() => `${id}-error`)
-const hintId = computed(() => `${id}-hint`)
+const generatedId = useId()
+const inputId = computed(() => props.id || generatedId)
+const errorId = computed(() => `${inputId.value}-error`)
+const successId = computed(() => `${inputId.value}-success`)
+const hintId = computed(() => `${inputId.value}-hint`)
 
 const effectiveState = computed<'default' | 'error' | 'success'>(() =>
   props.error ? 'error' : props.state,
@@ -53,7 +58,10 @@ const inputClasses = computed(() => [
 
 const describedBy = computed(() => {
   const ids: string[] = []
+  const externalDescribedBy = attrs['aria-describedby']
+  if (typeof externalDescribedBy === 'string') ids.push(externalDescribedBy)
   if (props.error) ids.push(errorId.value)
+  else if (props.success) ids.push(successId.value)
   else if (props.hint) ids.push(hintId.value)
   return ids.length ? ids.join(' ') : undefined
 })
@@ -67,10 +75,10 @@ function onInput(ev: Event) {
 
 <template>
   <div class="form-group">
-    <label v-if="label" :for="id" :class="{ required }">{{ label }}</label>
+    <label v-if="label" :for="inputId" :class="{ required }">{{ label }}</label>
     <input
-      :id="id"
       v-bind="attrs"
+      :id="inputId"
       :type="type"
       :value="modelValue"
       :class="inputClasses"
@@ -82,6 +90,7 @@ function onInput(ev: Event) {
       @input="onInput"
     >
     <small v-if="error" :id="errorId" class="form-error">{{ error }}</small>
+    <small v-else-if="success" :id="successId" class="form-success">{{ success }}</small>
     <small v-else-if="hint" :id="hintId" class="form-hint">{{ hint }}</small>
   </div>
 </template>
@@ -95,10 +104,16 @@ function onInput(ev: Event) {
   color: var(--danger-color);
   font-size: v.$text-sm;
 }
+.form-success {
+  display: block;
+  margin-top: v.$spacing-2;
+  color: var(--success-color);
+  font-size: v.$text-sm;
+}
 .form-hint {
   display: block;
   margin-top: v.$spacing-2;
-  color: var(--text-secondary);
+  color: var(--text-primary);
   font-size: v.$text-sm;
 }
 </style>

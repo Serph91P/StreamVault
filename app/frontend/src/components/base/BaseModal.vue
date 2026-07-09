@@ -5,6 +5,8 @@ interface Props {
   modelValue: boolean
   /** Optional title rendered in the header (slot 'header' overrides) */
   title?: string
+  /** Accessible label when the visible header is custom or omitted */
+  ariaLabel?: string
   /** Modal width preset */
   size?: 'sm' | 'md' | 'lg' | 'xl'
   /** Full-screen on mobile (<= md). Defaults to true. */
@@ -47,7 +49,38 @@ function onKeydown(ev: KeyboardEvent) {
   if (ev.key === 'Escape' && props.closeOnEsc) {
     ev.stopPropagation()
     close()
+    return
   }
+  if (ev.key === 'Tab') {
+    trapTabFocus(ev)
+  }
+}
+
+function trapTabFocus(event: KeyboardEvent) {
+  const panel = dialogRef.value
+  if (!panel) return
+  const focusable = getFocusableElements(panel)
+  if (!focusable.length) {
+    event.preventDefault()
+    return
+  }
+  const first = focusable[0]
+  const last = focusable[focusable.length - 1]
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault()
+    last.focus()
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault()
+    first.focus()
+  }
+}
+
+function getFocusableElements(container: HTMLElement): HTMLElement[] {
+  return Array.from(
+    container.querySelectorAll<HTMLElement>(
+      'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    )
+  )
 }
 
 const modalClasses = computed(() => [
@@ -93,12 +126,12 @@ onBeforeUnmount(() => {
           :class="modalClasses"
           role="dialog"
           aria-modal="true"
-          :aria-label="title || undefined"
+          :aria-label="ariaLabel || title || undefined"
           tabindex="-1"
         >
-          <header v-if="$slots.header || title || !hideClose" class="modal-header">
+          <div v-if="$slots.header || title || !hideClose" class="modal-header">
             <slot name="header">
-              <h3 v-if="title">{{ title }}</h3>
+              <h2 v-if="title">{{ title }}</h2>
             </slot>
             <button
               v-if="!hideClose"
@@ -109,7 +142,7 @@ onBeforeUnmount(() => {
             >
               ×
             </button>
-          </header>
+          </div>
 
           <div class="modal-body">
             <slot />
@@ -126,9 +159,17 @@ onBeforeUnmount(() => {
 
 <style scoped lang="scss">
 @use '@/styles/variables' as v;
+@use '@/styles/mixins' as m;
 
 .modal-xl {
   max-width: 1200px;
+}
+
+.modal-fullscreen-mobile {
+  @include m.respond-below('md') {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    padding-top: env(safe-area-inset-top, 0px);
+  }
 }
 
 // Vue transition hooks (timings come from tokens via _components.scss
@@ -141,5 +182,12 @@ onBeforeUnmount(() => {
 .modal-enter-from,
 .modal-leave-to {
   opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .modal-enter-active,
+  .modal-leave-active {
+    transition: none;
+  }
 }
 </style>

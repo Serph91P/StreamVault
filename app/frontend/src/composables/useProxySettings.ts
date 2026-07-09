@@ -10,6 +10,7 @@ import type {
 } from '@/types/proxy'
 import { UI } from '@/config/constants'
 import { mockProxies } from '@/mocks/mockData'
+import { hasRealtimeEventType } from '@/types/events'
 
 // Check for mock data mode
 const USE_MOCK_DATA = import.meta.env.VITE_USE_MOCK_DATA === 'true'
@@ -283,7 +284,7 @@ export function useProxySettings() {
         try {
           const message: ProxyHealthUpdateEvent = JSON.parse(event.data)
           
-          if (message.type === 'proxy_health_update') {
+          if (hasRealtimeEventType(message, 'proxy_health_update')) {
             handleProxyHealthUpdate(message.data)
           }
         } catch (e) {

@@ -590,8 +590,11 @@ async def cleanup_zombie_recordings():
                         logger.error(
                             f"❌ Failed to check live status for {streamer.username}: {api_error}"
                         )
-                        # On API error, conservatively mark as stopped to avoid leaving zombie state
-                        is_still_live = False
+                        logger.warning(
+                            f"⏳ Deferring zombie recording cleanup for {streamer.username} "
+                            "because live status could not be verified"
+                        )
+                        continue
 
                     if is_still_live:
                         # Streamer is STILL LIVE - Resume recording!

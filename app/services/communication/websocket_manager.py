@@ -1,18 +1,23 @@
 from fastapi import WebSocket
 from starlette.websockets import WebSocketState
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 import asyncio
+import copy
+from collections import deque
 from app.utils.client_ip import get_client_info
 
 logger = logging.getLogger("streamvault")
 
 
 class ConnectionManager:
-    def __init__(self):
-        self.active_connections: Dict[str, WebSocket] = {}  # Use dict instead of list
+    def __init__(self, event_log_size: int = 500):
+        self.active_connections: Dict[int, WebSocket] = {}  # Use dict instead of list
         self._lock = asyncio.Lock()
+        self._event_log_size = event_log_size
+        self._event_log = deque(maxlen=event_log_size)
+        self._next_event_id = 0
 
     async def connect(self, websocket: WebSocket):
         await websocket.accept()
@@ -140,6 +145,9 @@ class ConnectionManager:
             return False
 
     async def send_notification(self, message: dict):
+        replay_event = await self._record_replayable_event(message)
+        outbound_message = replay_event if replay_event else message
+
         # Only log for non-routine broadcasts or when there's actual data
         should_log = (
             message.get("type") != "active_recordings_update"
@@ -162,13 +170,64 @@ class ConnectionManager:
 
         for ws in active_sockets:
             try:
-                await ws.send_json(message)
+                await ws.send_json(outbound_message)
                 if should_log:
                     logger.debug(f"WebSocketManager: Notification sent to {ws.client}")
             except Exception as e:
                 logger.error(f"WebSocketManager: Failed to send to {ws.client}: {e}")
                 # Remove failed connection
                 await self.disconnect(ws)
+
+    async def _record_replayable_event(self, message: dict) -> Optional[Dict[str, Any]]:
+        """Assign a monotonic cursor and keep a bounded replay log.
+
+        Retention is intentionally in memory and bounded to the most recent
+        events. The replay API is authenticated, so reconnecting clients can
+        request missed events without exposing realtime data publicly.
+        """
+        if message.get("type") == "connection.status":
+            return None
+
+        event = copy.deepcopy(message)
+
+        async with self._lock:
+            self._next_event_id += 1
+            event["event_id"] = self._next_event_id
+            event.setdefault("timestamp", datetime.now(timezone.utc).isoformat())
+            self._event_log.append(event)
+
+        return event
+
+    async def get_events_since(
+        self, since: int = 0, limit: Optional[int] = None
+    ) -> List[Dict[str, Any]]:
+        """Return replayable events with event_id greater than since."""
+        async with self._lock:
+            events = [
+                copy.deepcopy(event)
+                for event in self._event_log
+                if event.get("event_id", 0) > since
+            ]
+
+        if limit is not None:
+            events = events[:limit]
+        return events
+
+    async def get_replay_state(self) -> Dict[str, Any]:
+        """Return current replay cursor and retention metadata."""
+        async with self._lock:
+            oldest_event_id = (
+                self._event_log[0]["event_id"] if self._event_log else None
+            )
+            latest_event_id = self._next_event_id
+            retained_events = len(self._event_log)
+
+        return {
+            "latest_event_id": latest_event_id,
+            "oldest_event_id": oldest_event_id,
+            "retained_events": retained_events,
+            "max_retained_events": self._event_log_size,
+        }
 
     async def send_active_recordings_update(
         self, active_recordings: List[Dict[str, Any]]

@@ -24,14 +24,14 @@
           :disabled="isLoading"
           title="Force refresh status"
         >
-          <RefreshIcon :class="{ spinning: isLoading }" />
+          <SvgIcon name="refresh" :class="{ spinning: isLoading }" />
         </button>
       </div>
     </div>
 
     <!-- Error display -->
     <div v-if="error" class="error-banner">
-      <AlertIcon />
+      <SvgIcon name="alert-triangle" />
       <span>{{ error }}</span>
       <button @click="clearError" class="close-button">×</button>
     </div>
@@ -46,7 +46,7 @@
       <!-- Active Recordings Card -->
       <div class="status-card recording-card">
         <div class="card-header">
-          <RecordIcon />
+          <SvgIcon name="circle" />
           <h3>Active Recordings</h3>
         </div>
         <div class="card-content">
@@ -85,7 +85,7 @@
       <!-- System Stats Card -->
       <div class="status-card stats-card" v-if="systemStatus">
         <div class="card-header">
-          <StatsIcon />
+          <SvgIcon name="activity" />
           <h3>System Statistics</h3>
         </div>
         <div class="card-content">
@@ -109,7 +109,7 @@
       <!-- Background Queue Card -->
       <div class="status-card queue-card" v-if="backgroundQueue">
         <div class="card-header">
-          <QueueIcon />
+          <SvgIcon name="list" />
           <h3>Background Tasks</h3>
         </div>
         <div class="card-content">
@@ -175,15 +175,9 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import SvgIcon from '@/components/icons/SvgIcon.vue'
 import { useSystemAndRecordingStatus } from '@/composables/useSystemAndRecordingStatus'
 import { useBackgroundQueue } from '@/composables/useBackgroundQueue'
-
-// Icons (you can replace these with your preferred icon library)
-const RefreshIcon = { template: '<div class="icon refresh-icon">↻</div>' }
-const AlertIcon = { template: '<div class="icon alert-icon">⚠</div>' }
-const RecordIcon = { template: '<div class="icon record-icon">●</div>' }
-const StatsIcon = { template: '<div class="icon stats-icon">📊</div>' }
-const QueueIcon = { template: '<div class="icon queue-icon">📋</div>' }
 
 // Use separate composables for different data
 const {

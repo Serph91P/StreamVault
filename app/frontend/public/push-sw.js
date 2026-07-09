@@ -36,17 +36,37 @@ self.addEventListener('push', (event) => {
   }
 });
 
+const normalizeNotificationTarget = (data) => {
+  const requestedUrl = data.target_url || data.internal_url || data.url || '/';
+  let url;
+
+  try {
+    url = new URL(requestedUrl, self.location.origin);
+  } catch (_error) {
+    url = new URL('/', self.location.origin);
+  }
+
+  if (url.origin === self.location.origin) {
+    const streamerMatch = url.pathname.match(/^\/streamer\/([^/]+)\/?$/);
+    if (streamerMatch) {
+      url.pathname = `/streamers/${streamerMatch[1]}`;
+    }
+  }
+
+  return url.href;
+};
+
 self.addEventListener('notificationclick', (event) => {
   const notification = event.notification;
   const action = event.action;
   const data = notification && notification.data ? notification.data : {};
 
-  const internalUrl = data.internal_url || data.url || '/';
+  const targetUrl = normalizeNotificationTarget(data);
 
   const openOrFocus = async (url) => {
     const allClients = await clients.matchAll({ type: 'window', includeUncontrolled: true });
     const root = new URL('/', self.location.origin).href;
-    const targetUrl = new URL(internalUrl, self.location.origin).href;
+    const target = new URL(url, self.location.origin).href;
 
     // Try focus an existing tab on same origin
     for (const client of allClients) {
@@ -56,22 +76,22 @@ self.addEventListener('notificationclick', (event) => {
           await client.focus();
           // If router-based SPA, navigate within the app
           // Note: postMessage can be handled by app to navigate
-          client.postMessage({ type: 'navigate', url: targetUrl });
+          client.postMessage({ type: 'navigate', url: target });
           return;
         }
       } catch (_) { /* ignore */ }
     }
 
     // Otherwise open a new window
-    await clients.openWindow(targetUrl);
+    await clients.openWindow(target);
   };
 
   event.waitUntil((async () => {
     try {
       if (action && action !== 'dismiss') {
-        await openOrFocus(internalUrl);
+        await openOrFocus(targetUrl);
       } else if (!action) {
-        await openOrFocus(internalUrl);
+        await openOrFocus(targetUrl);
       }
     } finally {
       notification.close();

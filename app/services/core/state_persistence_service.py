@@ -5,6 +5,7 @@ This service manages the persistent state of active recordings,
 enabling recovery after application restarts.
 """
 
+import errno
 import os
 import logging
 
@@ -326,13 +327,25 @@ class StatePersistenceService:
 
     def _process_exists(self, pid: int) -> bool:
         """Check if a process exists"""
+        if not pid or pid <= 0:
+            return False
+
         try:
             if HAS_PSUTIL:
                 return psutil.pid_exists(pid)
-            else:
-                # Fallback method when psutil is not available
-                logger.warning("psutil not available, cannot check process existence")
+
+            # Fallback method when psutil is not available. This keeps recovery
+            # usable in stripped down environments instead of treating every
+            # persisted recording as dead.
+            try:
+                os.kill(pid, 0)
+                return True
+            except ProcessLookupError:
                 return False
+            except PermissionError:
+                return True
+            except OSError as e:
+                return e.errno == errno.EPERM
         except Exception:
             return False
 

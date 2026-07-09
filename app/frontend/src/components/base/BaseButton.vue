@@ -4,24 +4,31 @@ import { computed } from 'vue'
 type Variant =
   | 'primary'
   | 'secondary'
+  | 'accent'
   | 'success'
   | 'danger'
+  | 'delete'
   | 'warning'
   | 'info'
   | 'outline'
   | 'outline-primary'
   | 'outline-danger'
+  | 'ghost'
+  | 'link'
+  | 'text'
 
 interface Props {
-  /** Visual style — maps to .btn-{variant} class on the design-system .btn base */
+  /** Visual style maps to .btn-{variant} class on the design-system .btn base */
   variant?: Variant
-  /** Size — maps to .btn-sm / .btn-lg, default is medium */
+  /** Size maps to .btn-sm / .btn-lg, default is medium */
   size?: 'sm' | 'md' | 'lg'
   /** Native button type. Defaults to 'button' to avoid accidental form submits. */
   type?: 'button' | 'submit' | 'reset'
   disabled?: boolean
   /** Show a spinner and disable interaction */
   loading?: boolean
+  /** Accessible label while the loading spinner is shown */
+  loadingLabel?: string
   /** Stretch to fill its container (width: 100%) */
   block?: boolean
   /** Optional ARIA label override (recommended for icon-only buttons) */
@@ -51,6 +58,7 @@ const classes = computed(() => [
 ])
 
 const isDisabled = computed(() => props.disabled || props.loading)
+const accessibleLabel = computed(() => (props.loading ? props.loadingLabel || props.ariaLabel : props.ariaLabel))
 
 function onClick(ev: MouseEvent) {
   if (isDisabled.value) {
@@ -68,7 +76,7 @@ function onClick(ev: MouseEvent) {
     :class="classes"
     :disabled="isDisabled"
     :aria-busy="loading || undefined"
-    :aria-label="ariaLabel"
+    :aria-label="accessibleLabel"
     @click="onClick"
   >
     <span class="btn-content" :class="{ 'is-hidden': loading }">
@@ -99,6 +107,8 @@ function onClick(ev: MouseEvent) {
   display: inline-flex;
   align-items: center;
   gap: inherit;
+  color: inherit;
+  background: inherit;
 
   &.is-hidden {
     visibility: hidden;

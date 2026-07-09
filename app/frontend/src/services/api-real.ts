@@ -2,6 +2,7 @@
 // This file is imported by api.ts when NOT in mock mode
 
 import router from '@/router'
+import { appStorage } from '@/services/storage'
 
 // Global redirect guard to prevent concurrent redirects
 let isAuthRedirecting = false
@@ -51,8 +52,8 @@ class ApiClient {
         if (response.status === 401) {
           console.warn('Session expired or invalid, redirecting to login...')
           // Clear any stored auth data
-          localStorage.removeItem('streamvault_session')
-          sessionStorage.clear()
+          appStorage.clearSessionToken()
+          appStorage.clearSessionStorage()
           // Use Vue Router (soft navigation) to prevent reload loops
           if (!isAuthRedirecting) {
             isAuthRedirecting = true
@@ -250,32 +251,36 @@ export const streamsApi = {
 // System API endpoints
 export const systemApi = {
   // Get system status
-  getStatus: () => 
-    apiClient.get('/api/status/system'),
+  getStatus: (params: Record<string, any> = {}) =>
+    apiClient.get('/api/status/system', params),
+
+  // Get frontend/backend version information
+  getVersion: () =>
+    apiClient.get('/api/version'),
 
   // Get health status
   getHealth: () => 
     apiClient.get('/api/status/health'),
 
   // Get all streamers status
-  getStreamersStatus: () => 
-    apiClient.get('/api/status/streamers'),
+  getStreamersStatus: (params: Record<string, any> = {}) =>
+    apiClient.get('/api/status/streamers', params),
 
   // Get all streams status
-  getStreamsStatus: () => 
-    apiClient.get('/api/status/streams'),
+  getStreamsStatus: (params: Record<string, any> = {}) =>
+    apiClient.get('/api/status/streams', params),
 
   // Get active recordings status
-  getActiveRecordingsStatus: () => 
-    apiClient.get('/api/status/active-recordings'),
+  getActiveRecordingsStatus: (params: Record<string, any> = {}) =>
+    apiClient.get('/api/status/active-recordings', params),
 
   // Get background queue status
   getBackgroundQueueStatus: () => 
     apiClient.get('/api/status/background-queue'),
 
   // Get notifications status
-  getNotificationsStatus: () => 
-    apiClient.get('/api/status/notifications'),
+  getNotificationsStatus: (params: Record<string, any> = {}) =>
+    apiClient.get('/api/status/notifications', params),
 }
 
 // Notification API endpoints
@@ -380,6 +385,9 @@ export const backgroundQueueApi = {
   // Get queue health
   getHealth: () => 
     apiClient.get('/api/background-queue/health'),
+
+  cancelStreamTasks: (streamId: number) =>
+    apiClient.post(`/api/background-queue/cancel-stream/${streamId}`),
 }
 
 // Authentication API endpoints
@@ -465,7 +473,7 @@ export const categoriesApi = {
 
   // Immediate category image fetch (downloads if missing)
   getImage: (categoryName: string) =>
-    apiClient.get(`/api/categories/image/${categoryName}`),
+    apiClient.get(`/api/categories/image/${encodeURIComponent(categoryName)}`),
 
   // Batch image fetch helper
   getImagesBatch: (categoryNames: string[]) =>
