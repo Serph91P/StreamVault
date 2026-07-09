@@ -245,8 +245,12 @@ class EventHandlerRegistry:
                             "skipping duplicate stream.online event"
                         )
                         # A retry after a failed first attempt must still be able
-                        # to start the recording (dedup must not swallow it).
-                        if self.config_manager.is_recording_enabled(streamer.id):
+                        # to start the recording (dedup must not swallow it) —
+                        # but never for a stream that has already ended.
+                        if (
+                            existing_stream.ended_at is None
+                            and self.config_manager.is_recording_enabled(streamer.id)
+                        ):
                             active_recording = (
                                 db.query(Recording)
                                 .filter(
@@ -416,6 +420,8 @@ class EventHandlerRegistry:
 
                     # Close ALL open streams — leftover un-ended rows would
                     # attract future channel.update chapter events.
+                    # Recordings attached to older streams are intentionally not
+                    # stopped here; the recovery machinery (zombie cleanup) owns them.
                     for open_stream in open_streams:
                         open_stream.ended_at = ended_at
 

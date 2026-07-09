@@ -205,6 +205,24 @@ class TestHandleStreamOnline:
 
         registry.recording_service.start_recording.assert_not_awaited()
 
+    def test_duplicate_online_for_ended_stream_does_not_start_recording(self, db):
+        streamer = _make_streamer(db)
+        registry = _make_registry()
+        asyncio.run(registry.handle_stream_online(self._online_payload()))
+
+        existing = db.query(Stream).filter(Stream.twitch_stream_id == "9001").first()
+        existing.ended_at = datetime(2026, 7, 9, 13, 0, tzinfo=timezone.utc)
+        db.commit()
+
+        registry.config_manager.is_recording_enabled.return_value = True
+        registry.recording_service.start_recording.reset_mock()
+        asyncio.run(registry.handle_stream_online(self._online_payload()))
+
+        registry.recording_service.start_recording.assert_not_awaited()
+        assert (
+            db.query(Stream).filter(Stream.streamer_id == streamer.id).count() == 1
+        )
+
 
 class TestHandleStreamUpdate:
     def _update_payload(self, broadcaster_id="111"):
