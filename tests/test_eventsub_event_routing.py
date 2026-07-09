@@ -26,9 +26,11 @@ from app.models import Recording, Stream, Streamer, StreamEvent
 
 def _make_registry():
     """Build an EventHandlerRegistry with all heavy dependencies mocked."""
-    with patch("app.events.handler_registry.RecordingService"), patch(
-        "app.events.handler_registry.ConfigManager"
-    ), patch("app.events.handler_registry.NotificationService"):
+    with (
+        patch("app.events.handler_registry.RecordingService"),
+        patch("app.events.handler_registry.ConfigManager"),
+        patch("app.events.handler_registry.NotificationService"),
+    ):
         from app.events.handler_registry import EventHandlerRegistry
 
         registry = EventHandlerRegistry(connection_manager=MagicMock())
@@ -140,9 +142,7 @@ class TestHandleStreamOnline:
         # equivalent of 2026-07-09T12:00:00Z.
         assert stale_row.ended_at == datetime(2026, 7, 9, 12, 0)
 
-        new_stream = (
-            db.query(Stream).filter(Stream.twitch_stream_id == "9001").first()
-        )
+        new_stream = db.query(Stream).filter(Stream.twitch_stream_id == "9001").first()
         assert new_stream is not None
         assert new_stream.ended_at is None
 
@@ -162,8 +162,7 @@ class TestHandleStreamOnline:
 
         db.expire_all()
         assert (
-            db.query(Stream).filter(Stream.id == other_open.id).first().ended_at
-            is None
+            db.query(Stream).filter(Stream.id == other_open.id).first().ended_at is None
         )
 
     def test_duplicate_online_resumes_missing_recording(self, db):
@@ -180,9 +179,7 @@ class TestHandleStreamOnline:
         registry.recording_service.start_recording.assert_awaited_once_with(
             existing.id, streamer.id, force_mode=False
         )
-        assert (
-            db.query(Stream).filter(Stream.streamer_id == streamer.id).count() == 1
-        )
+        assert db.query(Stream).filter(Stream.streamer_id == streamer.id).count() == 1
 
     def test_duplicate_online_with_active_recording_does_not_restart(self, db):
         _make_streamer(db)
@@ -219,9 +216,7 @@ class TestHandleStreamOnline:
         asyncio.run(registry.handle_stream_online(self._online_payload()))
 
         registry.recording_service.start_recording.assert_not_awaited()
-        assert (
-            db.query(Stream).filter(Stream.streamer_id == streamer.id).count() == 1
-        )
+        assert db.query(Stream).filter(Stream.streamer_id == streamer.id).count() == 1
 
 
 class TestHandleStreamUpdate:
@@ -263,9 +258,11 @@ class TestHandleStreamUpdate:
         registry = _make_registry()
         asyncio.run(registry.handle_stream_update(self._update_payload()))
 
-        events = db.query(StreamEvent).filter(
-            StreamEvent.event_type == "channel.update"
-        ).all()
+        events = (
+            db.query(StreamEvent)
+            .filter(StreamEvent.event_type == "channel.update")
+            .all()
+        )
         assert len(events) == 1
         assert events[0].stream_id == recorded.id
 
@@ -287,9 +284,11 @@ class TestHandleStreamUpdate:
         registry = _make_registry()
         asyncio.run(registry.handle_stream_update(self._update_payload()))
 
-        events = db.query(StreamEvent).filter(
-            StreamEvent.event_type == "channel.update"
-        ).all()
+        events = (
+            db.query(StreamEvent)
+            .filter(StreamEvent.event_type == "channel.update")
+            .all()
+        )
         assert len(events) == 1
         assert events[0].stream_id == newer.id
 
@@ -328,9 +327,11 @@ class TestHandleStreamUpdate:
         registry = _make_registry()
         asyncio.run(registry.handle_stream_update(self._update_payload()))
 
-        events = db.query(StreamEvent).filter(
-            StreamEvent.event_type == "channel.update"
-        ).all()
+        events = (
+            db.query(StreamEvent)
+            .filter(StreamEvent.event_type == "channel.update")
+            .all()
+        )
         assert len(events) == 1
         assert events[0].stream_id == live.id
 
@@ -446,8 +447,7 @@ class TestChapterCrossContaminationGuard:
 
         assert result is None
         assert not any(
-            p.suffix in {".vtt", ".srt", ".txt", ".xml"}
-            for p in wrong_dir.iterdir()
+            p.suffix in {".vtt", ".srt", ".txt", ".xml"} for p in wrong_dir.iterdir()
         )
 
     def test_allows_correct_streamer_path(self, db, tmp_path):

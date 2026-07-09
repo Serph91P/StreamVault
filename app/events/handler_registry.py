@@ -562,9 +562,7 @@ class EventHandlerRegistry:
                     )
                     return
 
-                logger.debug(
-                    f"Found streamer: {streamer.username} (ID: {streamer.id})"
-                )
+                logger.debug(f"Found streamer: {streamer.username} (ID: {streamer.id})")
                 # Resolve category name: prefer payload, else use category_id lookup
                 incoming_category_name = data.get("category_name")
                 category_id = data.get("category_id")
@@ -578,9 +576,7 @@ class EventHandlerRegistry:
                             websocket_manager=self.manager,
                             event_registry=self,
                         )
-                        game_data = await streamer_service.get_game_data(
-                            category_id
-                        )
+                        game_data = await streamer_service.get_game_data(category_id)
                         if game_data and game_data.get("name"):
                             effective_category_name = game_data.get("name")
                             logger.debug(
