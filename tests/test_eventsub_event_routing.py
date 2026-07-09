@@ -402,3 +402,58 @@ class TestHandleStreamOffline:
         registry.recording_service.stop_recording.assert_awaited_once_with(
             new_rec_id, reason="automatic"
         )
+
+
+class TestChapterCrossContaminationGuard:
+    def test_refuses_wrong_streamer_path(self, db, tmp_path):
+        streamer = _make_streamer(db, twitch_id="222", username="streamer_a")
+        stream = Stream(
+            streamer_id=streamer.id,
+            started_at=datetime(2026, 7, 9, 10, 0, tzinfo=timezone.utc),
+            twitch_stream_id="7000",
+        )
+        db.add(stream)
+        db.commit()
+
+        from app.services.media.metadata_service import MetadataService
+
+        service = MetadataService()
+        wrong_dir = tmp_path / "streamer_b" / "Season 2026-07"
+        wrong_dir.mkdir(parents=True)
+        mp4_path = wrong_dir / "episode.mp4"
+
+        result = asyncio.run(
+            service.ensure_all_chapter_formats(stream.id, str(mp4_path), db)
+        )
+
+        assert result is None
+        assert not any(
+            p.suffix in {".vtt", ".srt", ".txt", ".xml"}
+            for p in wrong_dir.iterdir()
+        )
+
+    def test_allows_correct_streamer_path(self, db, tmp_path):
+        streamer = _make_streamer(db, twitch_id="333", username="streamer_c")
+        stream = Stream(
+            streamer_id=streamer.id,
+            started_at=datetime(2026, 7, 9, 10, 0, tzinfo=timezone.utc),
+            twitch_stream_id="7001",
+            title="My Stream",
+            category_name="My Game",
+        )
+        db.add(stream)
+        db.commit()
+
+        from app.services.media.metadata_service import MetadataService
+
+        service = MetadataService()
+        right_dir = tmp_path / "streamer_c" / "Season 2026-07"
+        right_dir.mkdir(parents=True)
+        mp4_path = right_dir / "episode.mp4"
+
+        result = asyncio.run(
+            service.ensure_all_chapter_formats(stream.id, str(mp4_path), db)
+        )
+
+        assert result is not None
+        assert (right_dir / "episode-ffmpeg-chapters.txt").exists()
