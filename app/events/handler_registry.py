@@ -516,6 +516,10 @@ class EventHandlerRegistry:
             .join(Recording, Recording.stream_id == Stream.id)
             .filter(Stream.streamer_id == streamer_id)
             .filter(Recording.status == "recording")
+            # A stream being actively recorded must still be open; stuck
+            # status="recording" rows on ended streams (zombie recordings)
+            # must not steal chapter events.
+            .filter(Stream.ended_at.is_(None))
             .order_by(Stream.started_at.desc())
             .first()
         )

@@ -280,3 +280,38 @@ class TestHandleStreamUpdate:
         # Must not raise (previously: UnboundLocalError on `stream`)
         asyncio.run(registry.handle_stream_update(self._update_payload("999")))
         assert db.query(StreamEvent).count() == 0
+
+    def test_zombie_recording_on_ended_stream_does_not_steal_events(self, db):
+        """An ended stream with a stuck status='recording' row must not win
+        over a genuinely open stream."""
+        streamer = _make_streamer(db)
+        zombie = Stream(
+            streamer_id=streamer.id,
+            started_at=datetime(2026, 7, 8, 10, 0, tzinfo=timezone.utc),
+            ended_at=datetime(2026, 7, 8, 14, 0, tzinfo=timezone.utc),
+            twitch_stream_id="7000",
+        )
+        live = Stream(
+            streamer_id=streamer.id,
+            started_at=datetime(2026, 7, 9, 10, 0, tzinfo=timezone.utc),
+            twitch_stream_id="9001",
+        )
+        db.add_all([zombie, live])
+        db.commit()
+        db.add(
+            Recording(
+                stream_id=zombie.id,
+                status="recording",
+                start_time=datetime(2026, 7, 8, 10, 0, tzinfo=timezone.utc),
+            )
+        )
+        db.commit()
+
+        registry = _make_registry()
+        asyncio.run(registry.handle_stream_update(self._update_payload()))
+
+        events = db.query(StreamEvent).filter(
+            StreamEvent.event_type == "channel.update"
+        ).all()
+        assert len(events) == 1
+        assert events[0].stream_id == live.id
