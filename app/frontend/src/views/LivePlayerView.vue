@@ -816,16 +816,15 @@ onUnmounted(() => {
     .player-card {
       border: 0;
       border-radius: 0;
-      background: #000;
+      background: var(--player-stage-bg);
     }
 
     .video-container {
-      // 52px = real compact player-header height
-      width: min(100%, calc((100dvh - var(--app-header-height, 56px) - 52px) * 16 / 9));
-      max-height: calc(100dvh - var(--app-header-height, 56px) - 52px);
+      width: min(100%, calc(var(--player-max-h-theater) * 16 / 9));
+      max-height: var(--player-max-h-theater);
       margin: 0 auto;
       border-top: 0;
-      background: #000;
+      background: var(--player-stage-bg);
     }
 
     @include m.respond-below('md') {

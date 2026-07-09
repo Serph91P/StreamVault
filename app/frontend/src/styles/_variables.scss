@@ -559,6 +559,16 @@ $duration-400: 400ms;  // Missing in original list
 
   // ===== LAYOUT =====
   --app-header-height: 56px;
+
+  // ===== VIDEO PLAYER STAGE =====
+  // Height budget for the 16:9 player stage (viewport minus app header,
+  // player header and page chrome). Views switch to the theater value by
+  // re-assigning --player-max-h via an inline style binding.
+  --player-max-h: calc(100dvh - var(--app-header-height) - 176px);
+  --player-max-h-theater: calc(100dvh - var(--app-header-height) - 52px);
+  // Letterbox/stage color: intentionally pure black in both themes,
+  // like every video site
+  --player-stage-bg: #000;
 }
 
 // ============================================================================

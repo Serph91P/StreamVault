@@ -33,7 +33,12 @@
       <!-- Main Content: Video + Sidebar -->
       <div class="player-main">
         <!-- Video Player with Header -->
-        <GlassCard variant="strong" :padding="false" class="player-card">
+        <GlassCard
+          variant="strong"
+          :padding="false"
+          class="player-card"
+          :style="effectiveTheaterMode ? { '--player-max-h': 'var(--player-max-h-theater)' } : undefined"
+        >
           <!-- Header inside the card -->
           <div class="player-header">
             <button @click="goBack" class="back-button" aria-label="Back to previous page" v-ripple>
@@ -659,16 +664,15 @@ onUnmounted(() => {
   }
 
   .player-card {
-    // Compact header (52px real height) + stage fill the viewport below the
-    // app header exactly
-    --player-max-h: calc(100dvh - var(--app-header-height, 56px) - 52px);
+    // Theater height budget comes via the inline --player-max-h binding on
+    // the card (token definitions live in _variables.scss only)
     border: 0;
     border-radius: 0;
-    background: #000;
+    background: var(--player-stage-bg);
 
     :deep(.video-player-container),
     :deep(.video-wrapper) {
-      background: #000;
+      background: var(--player-stage-bg);
     }
   }
 }
@@ -704,9 +708,8 @@ onUnmounted(() => {
 
 .player-card {
   overflow: hidden;
-  // Height budget for the 16:9 stage (consumed by VideoPlayer's
-  // .video-wrapper): viewport minus app header, player header and page chrome
-  --player-max-h: calc(100dvh - var(--app-header-height, 56px) - 176px);
+  // The 16:9 stage height budget (--player-max-h) is defined in
+  // _variables.scss and consumed by VideoPlayer's .video-wrapper
 
   :deep(.glass-card-content) {
     padding: 0;
