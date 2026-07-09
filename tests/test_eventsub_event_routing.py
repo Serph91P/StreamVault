@@ -5,7 +5,7 @@ were attached to the wrong stream and ended up as bookmarks in the wrong MP4.
 """
 
 import asyncio
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -147,7 +147,7 @@ class TestHandleStreamOnline:
         assert new_stream.ended_at is None
 
     def test_other_streamers_open_stream_is_not_closed(self, db):
-        streamer_a = _make_streamer(db)
+        _make_streamer(db)
         streamer_b = _make_streamer(db, twitch_id="222", username="streamer_b")
         other_open = Stream(
             streamer_id=streamer_b.id,
@@ -185,7 +185,7 @@ class TestHandleStreamOnline:
         )
 
     def test_duplicate_online_with_active_recording_does_not_restart(self, db):
-        streamer = _make_streamer(db)
+        _make_streamer(db)
         registry = _make_registry()
         asyncio.run(registry.handle_stream_online(self._online_payload()))
 
