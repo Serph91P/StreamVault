@@ -457,3 +457,35 @@ class TestChapterCrossContaminationGuard:
 
         assert result is not None
         assert (right_dir / "episode-ffmpeg-chapters.txt").exists()
+
+    def test_allows_sanitized_username_path(self, db, tmp_path):
+        """Recording paths use sanitize_filename(username); a username whose
+        sanitized form differs (consecutive underscores collapse) must still
+        pass the guard."""
+        streamer = _make_streamer(db, twitch_id="444", username="streamer__x")
+        stream = Stream(
+            streamer_id=streamer.id,
+            started_at=datetime(2026, 7, 9, 10, 0, tzinfo=timezone.utc),
+            twitch_stream_id="7002",
+            title="My Stream",
+            category_name="My Game",
+        )
+        db.add(stream)
+        db.commit()
+
+        from app.services.media.metadata_service import MetadataService
+        from app.utils.file_utils import sanitize_filename
+
+        sanitized = sanitize_filename("streamer__x")
+        assert sanitized != "streamer__x"  # precondition: sanitizer changes it
+
+        service = MetadataService()
+        right_dir = tmp_path / sanitized / "Season 2026-07"
+        right_dir.mkdir(parents=True)
+        mp4_path = right_dir / "episode.mp4"
+
+        result = asyncio.run(
+            service.ensure_all_chapter_formats(stream.id, str(mp4_path), db)
+        )
+
+        assert result is not None
