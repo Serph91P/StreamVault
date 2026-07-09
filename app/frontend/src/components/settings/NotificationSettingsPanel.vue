@@ -1,5 +1,13 @@
 <template>
-      <div>
+      <div class="settings-group">
+        <div class="settings-group-header">
+          <h3 class="settings-group-title">
+            <svg><use href="#icon-send" /></svg>
+            Delivery
+          </h3>
+          <p class="settings-group-desc">Where notifications are sent and whether they are active</p>
+        </div>
+
         <div class="input-with-tooltip">
           <BaseInput
             v-model="data.notificationUrl"
@@ -30,20 +38,23 @@
             </div>
           </div>
         </div>
+
+        <div class="form-check">
+          <label>
+            <input type="checkbox" v-model="data.notificationsEnabled" />
+            Enable Notifications
+          </label>
+        </div>
       </div>
 
-      <div class="form-group">
-        <label>
-          <input type="checkbox" v-model="data.notificationsEnabled" />
-          Enable Notifications
-        </label>
-      </div>
-
-      <div class="form-group">
-        <h2>Notification Events</h2>
-        <p class="section-description" style="margin-bottom: var(--spacing-4);">
-          Choose which stream events trigger notifications
-        </p>
+      <div class="settings-group">
+        <div class="settings-group-header">
+          <h3 class="settings-group-title">
+            <svg><use href="#icon-radio" /></svg>
+            Stream Events
+          </h3>
+          <p class="settings-group-desc">Choose which stream events trigger notifications</p>
+        </div>
         <div class="checkbox-group">
           <label>
             <input type="checkbox" v-model="data.notifyOnlineGlobal" />
@@ -65,14 +76,17 @@
       </div>
 
       <!-- System Notification Settings (advanced) -->
-      <div class="form-group advanced-section">
-        <div class="advanced-header">
-          <h2>Recording Event Notifications</h2>
-          <span class="badge badge-advanced">Advanced</span>
+      <div class="settings-group">
+        <div class="settings-group-header">
+          <h3 class="settings-group-title">
+            <svg><use href="#icon-video" /></svg>
+            Recording Events
+            <span class="badge badge-advanced">Advanced</span>
+          </h3>
+          <p class="settings-group-desc">
+            Configure which recording events trigger external notifications (Discord, Telegram, etc.)
+          </p>
         </div>
-        <p class="section-description" style="margin-bottom: var(--spacing-4);">
-          Configure which recording events trigger external notifications (Discord, Telegram, etc.)
-        </p>
         <div class="checkbox-group">
           <label>
             <input type="checkbox" v-model="data.notifyRecordingStarted" />
@@ -106,8 +120,14 @@
       </div>
 
     <!-- Streamer Notification Table -->
-    <div class="streamer-notifications">
-      <h2>Streamer Notifications</h2>
+    <div class="settings-group streamer-notifications">
+      <div class="settings-group-header">
+        <h3 class="settings-group-title">
+          <svg><use href="#icon-users" /></svg>
+          Per-Streamer Notifications
+        </h3>
+        <p class="settings-group-desc">Override the global events for individual streamers</p>
+      </div>
       <div class="table-controls">
         <BaseButton variant="secondary" @click="toggleAllStreamers(true)">Enable All</BaseButton>
         <BaseButton variant="secondary" @click="toggleAllStreamers(false)">Disable All</BaseButton>
@@ -546,10 +566,6 @@ const toggleAllStreamers = (enabled: boolean) => {
 
 .streamer-notifications {
   margin-top: v.$spacing-6;
-
-  h2 {
-    margin-bottom: v.$spacing-4;
-  }
 
   .table-wrapper {
     margin-top: v.$spacing-4;  // Space from table controls

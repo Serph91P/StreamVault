@@ -59,6 +59,78 @@
 }
 
 // ============================================================================
+// SETTINGS GROUP - the "these controls belong together" container
+// Every settings panel should wrap related controls in one of these instead
+// of letting fields float on the page background.
+// ============================================================================
+
+.settings-group {
+  padding: v.$spacing-5;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  background: rgba(var(--background-darker-rgb, 10, 10, 10), 0.35);
+  margin-bottom: v.$spacing-5;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+
+  @include m.respond-below('md') {
+    padding: v.$spacing-4;
+  }
+}
+
+.settings-group-header {
+  margin-bottom: v.$spacing-4;
+}
+
+.settings-group-title {
+  display: flex;
+  align-items: center;
+  gap: v.$spacing-2;
+  margin: 0;
+  font-size: v.$text-base;
+  font-weight: v.$font-semibold;
+  color: var(--text-primary);
+
+  .group-icon,
+  svg {
+    width: 18px;
+    height: 18px;
+    stroke: var(--primary-color);
+    fill: none;
+    flex-shrink: 0;
+  }
+}
+
+.settings-group-desc {
+  margin: v.$spacing-1 0 0;
+  font-size: v.$text-sm;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+// Row inside a group: label/content left, control/value right,
+// hairline between rows (PWA-status style, usable everywhere)
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: v.$spacing-4;
+  padding: v.$spacing-3 0;
+  border-bottom: 1px solid var(--border-color);
+
+  &:first-child {
+    padding-top: 0;
+  }
+
+  &:last-child {
+    padding-bottom: 0;
+    border-bottom: none;
+  }
+}
+
+// ============================================================================
 // FORM ELEMENTS
 // ============================================================================
 

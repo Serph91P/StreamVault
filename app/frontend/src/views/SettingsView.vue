@@ -65,119 +65,6 @@
 
       <!-- Settings Content -->
       <div class="settings-content">
-        <!-- Overview Section -->
-        <div v-if="activeSection === 'overview'" class="settings-section">
-          <div class="section-header">
-            <h2 class="section-title">
-              <svg class="section-icon">
-                <use href="#icon-grid" />
-              </svg>
-              Settings Overview
-            </h2>
-            <p class="section-description">
-              Quick status summary for all settings areas
-            </p>
-          </div>
-
-          <div class="overview-grid">
-            <button @click="activeSection = 'twitch'" class="overview-card">
-              <div class="overview-card-icon">
-                <svg><use href="#icon-link" /></svg>
-              </div>
-              <div class="overview-card-body">
-                <span class="overview-card-label">Twitch Connection</span>
-                <span class="overview-card-desc">OAuth tokens & connection status</span>
-              </div>
-              <span class="overview-badge badge-basic">Basic</span>
-              <svg class="overview-arrow"><use href="#icon-chevron-right" /></svg>
-            </button>
-
-            <button @click="activeSection = 'notifications'" class="overview-card">
-              <div class="overview-card-icon">
-                <svg><use href="#icon-bell" /></svg>
-              </div>
-              <div class="overview-card-body">
-                <span class="overview-card-label">Notifications</span>
-                <span class="overview-card-desc">{{ notificationSettings?.notifications_enabled ? 'Enabled' : 'Disabled' }} &bull; {{ notificationStreamerSettings.length }} streamers</span>
-              </div>
-              <span class="overview-badge badge-basic">Basic</span>
-              <svg class="overview-arrow"><use href="#icon-chevron-right" /></svg>
-            </button>
-
-            <button @click="activeSection = 'recording'" class="overview-card">
-              <div class="overview-card-icon">
-                <svg><use href="#icon-video" /></svg>
-              </div>
-              <div class="overview-card-body">
-                <span class="overview-card-label">Recording</span>
-                <span class="overview-card-desc">{{ recordingSettings?.enabled ? 'Enabled' : 'Disabled' }} &bull; {{ activeRecordings.length }} active</span>
-              </div>
-              <span class="overview-badge badge-advanced">Advanced</span>
-              <svg class="overview-arrow"><use href="#icon-chevron-right" /></svg>
-            </button>
-
-            <button @click="activeSection = 'favorites'" class="overview-card">
-              <div class="overview-card-icon">
-                <svg><use href="#icon-star" /></svg>
-              </div>
-              <div class="overview-card-body">
-                <span class="overview-card-label">Favorite Games</span>
-                <span class="overview-card-desc">Priority game categories</span>
-              </div>
-              <span class="overview-badge badge-basic">Basic</span>
-              <svg class="overview-arrow"><use href="#icon-chevron-right" /></svg>
-            </button>
-
-            <button @click="activeSection = 'pwa'" class="overview-card">
-              <div class="overview-card-icon">
-                <svg><use href="#icon-smartphone" /></svg>
-              </div>
-              <div class="overview-card-body">
-                <span class="overview-card-label">PWA & Mobile</span>
-                <span class="overview-card-desc">App install & push notifications</span>
-              </div>
-              <span class="overview-badge badge-advanced">Advanced</span>
-              <svg class="overview-arrow"><use href="#icon-chevron-right" /></svg>
-            </button>
-
-            <button @click="activeSection = 'api-keys'" class="overview-card">
-              <div class="overview-card-icon">
-                <svg><use href="#icon-key" /></svg>
-              </div>
-              <div class="overview-card-body">
-                <span class="overview-card-label">API Keys</span>
-                <span class="overview-card-desc">External access tokens</span>
-              </div>
-              <span class="overview-badge badge-safety">Safety</span>
-              <svg class="overview-arrow"><use href="#icon-chevron-right" /></svg>
-            </button>
-
-            <button @click="activeSection = 'proxy'" class="overview-card">
-              <div class="overview-card-icon">
-                <svg><use href="#icon-server" /></svg>
-              </div>
-              <div class="overview-card-body">
-                <span class="overview-card-label">Proxy Management</span>
-                <span class="overview-card-desc">Multi-proxy system & failover</span>
-              </div>
-              <span class="overview-badge badge-safety">Safety</span>
-              <svg class="overview-arrow"><use href="#icon-chevron-right" /></svg>
-            </button>
-
-            <button @click="activeSection = 'about'" class="overview-card">
-              <div class="overview-card-icon">
-                <svg><use href="#icon-info" /></svg>
-              </div>
-              <div class="overview-card-body">
-                <span class="overview-card-label">About</span>
-                <span class="overview-card-desc">{{ displayVersion }}</span>
-              </div>
-              <span class="overview-badge badge-account">Account</span>
-              <svg class="overview-arrow"><use href="#icon-chevron-right" /></svg>
-            </button>
-          </div>
-        </div>
-
         <!-- Twitch Connection Settings -->
         <div v-if="activeSection === 'twitch'" class="settings-section">
           <BasePanel tone="glass" padding="lg">
@@ -205,8 +92,26 @@
         <div v-if="activeSection === 'recording'" class="settings-section">
           <BasePanel tone="glass" padding="lg">
             <template #title>Recording</template>
-            <template #description>Manage recording quality, storage, and behavior</template>
+            <template #description>Manage recording quality, codecs, and behavior</template>
             <RecordingSettingsPanel
+              section="recording"
+              :settings="recordingSettings"
+              :streamer-settings="recordingStreamerSettings"
+              :active-recordings="activeRecordings"
+              @update="handleUpdateRecordingSettings"
+              @update-streamer="handleUpdateStreamerRecordingSettings"
+              @stop-recording="handleStopRecording"
+            />
+          </BasePanel>
+        </div>
+
+        <!-- Storage Settings -->
+        <div v-if="activeSection === 'storage'" class="settings-section">
+          <BasePanel tone="glass" padding="lg">
+            <template #title>Storage</template>
+            <template #description>Automatic cleanup policies, retention and storage management</template>
+            <RecordingSettingsPanel
+              section="storage"
               :settings="recordingSettings"
               :streamer-settings="recordingStreamerSettings"
               :active-recordings="activeRecordings"
@@ -378,11 +283,13 @@ interface SectionGroup {
   sections: Section[]
 }
 
+// No 'overview' pseudo-section: it only mirrored this navigation as a card
+// grid, so Settings lands directly in the first real section instead.
 const allSectionItems: Section[] = [
-  { id: 'overview', label: 'Overview', description: 'Settings at a glance', icon: 'grid' },
   { id: 'twitch', label: 'Twitch Connection', description: 'OAuth & quality settings', icon: 'link', badge: 'Basic' },
   { id: 'notifications', label: 'Notifications', description: 'Stream alerts & updates', icon: 'bell', badge: 'Basic' },
-  { id: 'recording', label: 'Recording', description: 'Quality & storage', icon: 'video', badge: 'Advanced' },
+  { id: 'recording', label: 'Recording', description: 'Quality & behavior', icon: 'video', badge: 'Advanced' },
+  { id: 'storage', label: 'Storage', description: 'Cleanup & retention', icon: 'server', badge: 'Advanced' },
   { id: 'favorites', label: 'Favorite Games', description: 'Priority categories', icon: 'star', badge: 'Basic' },
   { id: 'pwa', label: 'PWA & Mobile', description: 'Mobile app settings', icon: 'smartphone', badge: 'Advanced' },
   { id: 'api-keys', label: 'API Keys', description: 'External access tokens', icon: 'key', badge: 'Safety' },
@@ -392,15 +299,12 @@ const allSectionItems: Section[] = [
 
 const sectionGroups: SectionGroup[] = [
   {
-    sections: [allSectionItems[0]]
-  },
-  {
     label: 'Basics',
     sections: allSectionItems.filter(s => s.id === 'twitch' || s.id === 'notifications' || s.id === 'favorites')
   },
   {
     label: 'Advanced',
-    sections: allSectionItems.filter(s => s.id === 'recording' || s.id === 'pwa')
+    sections: allSectionItems.filter(s => s.id === 'recording' || s.id === 'storage' || s.id === 'pwa')
   },
   {
     label: 'Access & Safety',
@@ -410,8 +314,8 @@ const sectionGroups: SectionGroup[] = [
 
 // State
 const route = useRoute()
-const routeSection = typeof route.query.section === 'string' ? route.query.section : 'overview'
-const activeSection = ref(allSectionItems.some(section => section.id === routeSection) ? routeSection : 'overview')
+const routeSection = typeof route.query.section === 'string' ? route.query.section : 'twitch'
+const activeSection = ref(allSectionItems.some(section => section.id === routeSection) ? routeSection : 'twitch')
 const activeSectionData = computed(() => allSectionItems.find(s => s.id === activeSection.value))
 const isLoading = ref(true)
 
@@ -778,6 +682,66 @@ onMounted(() => {
 // Settings Content
 .settings-content {
   min-width: 0;
+
+  // ------------------------------------------------------------------
+  // Cross-panel typography normalization. The panels grew their own
+  // heading vocabulary (section-title, status-title, setup-title, ...)
+  // at wildly different sizes; this maps them onto one scale so every
+  // settings page reads the same:
+  //   panel title/desc  -> provided by BasePanel (outside this scope)
+  //   group heading     -> text-base semibold
+  //   group description -> text-sm secondary
+  // ------------------------------------------------------------------
+  :deep(h2.section-title),
+  :deep(h3.section-title),
+  :deep(h3.status-title),
+  :deep(h4.setup-title),
+  :deep(h5.steps-title),
+  :deep(h5.benefits-title) {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-2);
+    margin: 0 0 var(--spacing-2);
+    font-size: var(--text-base);
+    font-weight: v.$font-semibold;
+    color: var(--text-primary);
+
+    svg,
+    .section-icon,
+    .title-icon {
+      width: 18px;
+      height: 18px;
+      stroke: var(--primary-color);
+      fill: none;
+      flex-shrink: 0;
+    }
+  }
+
+  :deep(p.section-description) {
+    margin: 0 0 var(--spacing-4);
+    font-size: var(--text-sm);
+    color: var(--text-secondary);
+    line-height: 1.5;
+  }
+
+  // Unclassed headings some panels use as group titles (PWA, API keys,
+  // recording sub-lists) join the same scale; classed headings like the
+  // favorites game-card titles are intentionally excluded.
+  :deep(.settings-section h2:not([class])),
+  :deep(.settings-section h3:not([class])),
+  :deep(.settings-section h4:not([class])) {
+    margin: 0 0 var(--spacing-3);
+    font-size: var(--text-base);
+    font-weight: v.$font-semibold;
+    color: var(--text-primary);
+  }
+
+  :deep(.settings-section h5:not([class])) {
+    margin: 0 0 var(--spacing-2);
+    font-size: var(--text-sm);
+    font-weight: v.$font-semibold;
+    color: var(--text-primary);
+  }
 }
 
 .settings-section {
@@ -1162,6 +1126,12 @@ onMounted(() => {
     margin-bottom: var(--spacing-4);
   }
 
+  // The page header and the section selector already name the section;
+  // repeating it as the panel title cost ~100px of scarce mobile space.
+  .settings-content :deep(.base-panel-header) {
+    display: none;
+  }
+
   .section-select {
     width: 100%;
     padding: var(--spacing-3) var(--spacing-4);
@@ -1320,126 +1290,4 @@ onMounted(() => {
   }
 }
 
-// Overview grid
-.overview-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--spacing-3);
-}
-
-.overview-card {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-3);
-  padding: var(--spacing-4);
-  background: var(--background-card);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-lg);
-  cursor: pointer;
-  transition: all v.$duration-200 v.$ease-out;
-  text-align: left;
-  color: inherit;
-  font: inherit;
-  min-height: 56px;
-
-  &:hover {
-    border-color: var(--primary-color);
-    background: rgba(var(--primary-500-rgb), 0.04);
-    transform: translateY(-1px);
-  }
-
-  &:focus-visible {
-    outline: 2px solid var(--primary-color);
-    outline-offset: 2px;
-  }
-}
-
-.overview-card-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-  border-radius: var(--radius-md);
-  background: rgba(var(--primary-500-rgb), 0.1);
-  flex-shrink: 0;
-
-  svg {
-    width: 20px;
-    height: 20px;
-    stroke: var(--primary-color);
-    fill: none;
-  }
-}
-
-.overview-card-body {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.overview-card-label {
-  font-size: var(--text-sm);
-  font-weight: v.$font-semibold;
-  color: var(--text-primary);
-  line-height: 1.3;
-}
-
-.overview-card-desc {
-  font-size: var(--text-xs);
-  color: var(--text-secondary);
-  line-height: 1.3;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.overview-badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 1px 6px;
-  border-radius: var(--radius-pill);
-  font-size: 0.625rem;
-  font-weight: v.$font-semibold;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  flex-shrink: 0;
-  margin-left: auto;
-
-  &.badge-basic {
-    background: rgba(var(--primary-500-rgb), 0.12);
-    color: var(--text-primary);
-  }
-
-  &.badge-advanced {
-    background: rgba(var(--accent-500-rgb), 0.12);
-    color: var(--accent-color);
-  }
-
-  &.badge-safety {
-    background: rgba(var(--warning-500-rgb), 0.12);
-    color: var(--warning-color-dark);
-  }
-
-  &.badge-account {
-    background: rgba(var(--info-500-rgb), 0.12);
-    color: var(--info-color);
-  }
-}
-
-.overview-arrow {
-  width: 16px;
-  height: 16px;
-  stroke: var(--text-tertiary);
-  fill: none;
-  flex-shrink: 0;
-}
-
-@include m.respond-below('md') {
-  .overview-grid {
-    grid-template-columns: 1fr;
-  }
-}
 </style>

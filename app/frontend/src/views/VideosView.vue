@@ -26,16 +26,10 @@
       </template>
     </PageHeader>
 
-    <!-- Library Brief -->
-    <section v-if="!isLoading && !fetchError && videos.length > 0" class="videos-brief" aria-labelledby="videos-brief-title">
-      <div>
-        <p class="eyebrow">Video Library</p>
-        <h2 id="videos-brief-title">Browse all recorded streams</h2>
-        <p class="brief-copy">
-          Search, filter, and sort your video collection. Use grid view for browsing thumbnails or list view for detailed information.
-        </p>
-      </div>
-      <dl class="brief-stats" aria-label="Video library summary">
+    <!-- Library stats strip (the marketing copy that used to sit next to it
+         explained the page to itself; the numbers are the useful part) -->
+    <section v-if="!isLoading && !fetchError && videos.length > 0" class="videos-brief" aria-label="Video library summary">
+      <dl class="brief-stats">
         <div class="brief-stat total">
           <dt>Recordings</dt>
           <dd>{{ videos.length }}</dd>
@@ -130,21 +124,19 @@
           <use href="#icon-list-ordered" />
         </svg>
         <span class="sort-label">Sort</span>
+        <span class="sort-value">{{ currentSortLabel }}</span>
         <select v-model="sortBy" class="sort-select" aria-label="Sort videos">
-          <option value="newest">Newest First</option>
-          <option value="oldest">Oldest First</option>
-          <option value="duration-desc">Longest Duration</option>
-          <option value="duration-asc">Shortest Duration</option>
-          <option value="size-desc">Largest Size</option>
-          <option value="size-asc">Smallest Size</option>
-          <option value="title">Title A-Z</option>
+          <option v-for="option in sortOptions" :key="option.value" :value="option.value">
+            {{ option.label }}
+          </option>
         </select>
       </label>
     </div>
 
-    <!-- Filter Panel -->
-    <Transition name="slide-down">
-      <div v-if="showFilters" class="filter-panel">
+    <!-- Filter Panel (grid-rows collapse: animating max-height re-layouts
+         every frame and stutters; 0fr->1fr interpolates smoothly) -->
+    <div class="filter-collapse" :class="{ open: showFilters }" :inert="!showFilters">
+      <div class="filter-panel">
         <!-- Streamer Filter -->
         <div class="filter-group">
           <label class="filter-label">Streamer</label>
@@ -187,7 +179,7 @@
           Clear All
         </button>
       </div>
-    </Transition>
+    </div>
 
     <!-- Filter Chips -->
     <div v-if="!isLoading && !fetchError && activeFiltersCount > 0" class="filter-chips">
@@ -314,7 +306,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
+import { appStorage } from '@/services/storage'
 import { useRouter } from 'vue-router'
 import { videoApi } from '@/services/api'
 import BaseButton from '@/components/base/BaseButton.vue'
@@ -350,8 +343,22 @@ const isLoading = ref(true)
 const fetchError = ref('')
 const videos = ref<Video[]>([])
 const searchQuery = ref('')
-const viewMode = ref<'grid' | 'list'>('grid')
+// Grid/list choice survives reloads
+const viewMode = ref<'grid' | 'list'>(appStorage.getViewMode('videos') ?? 'grid')
+watch(viewMode, (mode) => appStorage.setViewMode('videos', mode))
 const sortBy = ref('newest')
+const sortOptions = [
+  { value: 'newest', label: 'Newest First' },
+  { value: 'oldest', label: 'Oldest First' },
+  { value: 'duration-desc', label: 'Longest Duration' },
+  { value: 'duration-asc', label: 'Shortest Duration' },
+  { value: 'size-desc', label: 'Largest Size' },
+  { value: 'size-asc', label: 'Smallest Size' },
+  { value: 'title', label: 'Title A-Z' }
+]
+const currentSortLabel = computed(() =>
+  sortOptions.find((option) => option.value === sortBy.value)?.label ?? 'Newest First'
+)
 const showFilters = ref(false)
 
 // Filters
@@ -644,42 +651,7 @@ onMounted(() => {
 }
 
 .videos-brief {
-  display: grid;
-  grid-template-columns: minmax(0, 1.15fr) minmax(360px, 0.85fr);
-  gap: var(--spacing-6);
-  align-items: center;
   margin-bottom: var(--spacing-5);
-  padding: var(--spacing-6);
-  overflow: hidden;
-  background:
-    radial-gradient(circle at top left, rgba(var(--primary-500-rgb), 0.2), transparent 34%),
-    linear-gradient(135deg, rgba(var(--primary-500-rgb), 0.12), rgba(var(--accent-500-rgb), 0.08));
-  border: 1px solid rgba(var(--primary-500-rgb), 0.2);
-  border-radius: var(--radius-2xl);
-  box-shadow: var(--shadow-lg);
-
-  h2 {
-    margin: var(--spacing-1) 0 var(--spacing-2);
-    color: var(--text-primary);
-    font-size: clamp(var(--text-xl), 3vw, var(--text-3xl));
-    line-height: v.$leading-tight;
-  }
-}
-
-.eyebrow {
-  margin: 0;
-  color: var(--primary-color);
-  font-size: var(--text-xs);
-  font-weight: v.$font-bold;
-  letter-spacing: v.$tracking-widest;
-  text-transform: uppercase;
-}
-
-.brief-copy {
-  max-width: 58ch;
-  margin: 0;
-  color: var(--text-secondary);
-  line-height: v.$leading-relaxed;
 }
 
 .brief-stats {
@@ -695,8 +667,6 @@ onMounted(() => {
   background: rgba(var(--background-card-rgb), 0.72);
   border: 1px solid rgba(var(--border-color-rgb), 0.8);
   border-radius: var(--radius-xl);
-  backdrop-filter: blur(var(--glass-blur-sm));
-  -webkit-backdrop-filter: blur(var(--glass-blur-sm));
 
   dt {
     margin: 0;
@@ -817,7 +787,8 @@ onMounted(() => {
 
   .search-input {
     width: 100%;
-    padding: var(--spacing-3) var(--spacing-10) var(--spacing-3) var(--spacing-10);
+    min-height: 46px;
+    padding: 0 var(--spacing-10);
     background: var(--background-card);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-lg);
@@ -887,7 +858,9 @@ onMounted(() => {
   background: transparent;
   border: none;
   cursor: pointer;
-  border-radius: var(--radius-md);
+  // Nested radius = container radius minus its padding, so the inner pill
+  // follows the container corner instead of looking rounder than it
+  border-radius: calc(var(--radius-lg) - var(--spacing-1));
   transition: all v.$duration-200 v.$ease-out;
 
   .icon {
@@ -915,7 +888,8 @@ onMounted(() => {
   display: inline-flex;
   align-items: center;
   gap: var(--spacing-2);
-  padding: var(--spacing-3) var(--spacing-4);
+  min-height: 46px;
+  padding: 0 var(--spacing-4);
   background: var(--background-card);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
@@ -953,16 +927,39 @@ onMounted(() => {
 }
 
 .sort-control-wrap {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: var(--spacing-2);
-  min-height: 44px;
-  padding: 0 var(--spacing-3);
+  // Neutralize the global `label { margin-bottom }` form style - it pushed
+  // this control 4px above its flex-centered neighbors
+  margin: 0;
+  min-height: 46px;
+  padding: 0 var(--spacing-8) 0 var(--spacing-3);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
   background: var(--background-card);
   cursor: pointer;
   overflow: hidden;
+}
+
+.sort-control-wrap::after {
+  content: '';
+  position: absolute;
+  right: var(--spacing-3);
+  width: 0.45rem;
+  height: 0.45rem;
+  border-right: 2px solid var(--text-secondary);
+  border-bottom: 2px solid var(--text-secondary);
+  pointer-events: none;
+  transform: translateY(-15%) rotate(45deg);
+}
+
+.sort-value {
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  font-weight: v.$font-medium;
+  white-space: nowrap;
 }
 
 .sort-icon {
@@ -979,19 +976,22 @@ onMounted(() => {
   font-weight: v.$font-semibold;
 }
 
+// The real select covers the whole control invisibly so a click anywhere
+// (icon, label, or value) opens the native picker; .sort-value renders the
+// selection.
 .sort-select {
-  min-width: 156px;
-  min-height: 40px;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
   margin: 0;
-  padding: 0 var(--spacing-6) 0 0;
+  padding: 0;
+  min-height: 0;
   appearance: none;
   background: transparent;
-  background-color: transparent;
   border: 0;
   box-shadow: none;
-  color: var(--text-primary);
-  font-size: var(--text-sm);
-  font-weight: v.$font-medium;
+  opacity: 0;
   cursor: pointer;
 }
 
@@ -1266,34 +1266,45 @@ onMounted(() => {
   font-size: var(--text-sm);
 }
 
-// Transitions
-.slide-down-enter-active,
-.slide-down-leave-active {
-  transition: all v.$duration-300 v.$ease-out;
-  overflow: hidden;
-}
-
-.slide-down-enter-from,
-.slide-down-leave-to {
-  opacity: 0;
-  max-height: 0;
+// Filter panel collapse: grid-template-rows 0fr -> 1fr animates the actual
+// content height without the per-frame layout thrash of a max-height guess.
+.filter-collapse {
+  display: grid;
+  grid-template-rows: 0fr;
   margin-bottom: 0;
-  padding-top: 0;
-  padding-bottom: 0;
-}
+  transition:
+    grid-template-rows v.$duration-300 v.$ease-out,
+    margin-bottom v.$duration-300 v.$ease-out;
 
-.slide-down-enter-to,
-.slide-down-leave-from {
-  opacity: 1;
-  max-height: 500px;
+  > .filter-panel {
+    overflow: hidden;
+    min-height: 0;
+    margin-bottom: 0;
+    opacity: 0;
+    // A grid item can shrink below its content but not below its own
+    // padding/border, so those collapse along with the row
+    padding-block: 0;
+    border-color: transparent;
+    transition:
+      opacity v.$duration-200 v.$ease-out,
+      padding v.$duration-300 v.$ease-out,
+      border-color v.$duration-200 v.$ease-out;
+  }
+
+  &.open {
+    grid-template-rows: 1fr;
+    margin-bottom: var(--spacing-5);
+
+    > .filter-panel {
+      opacity: 1;
+      padding-block: var(--spacing-5);
+      border-color: var(--border-color);
+    }
+  }
 }
 
 // Responsive - Use SCSS mixins for breakpoints
 @include m.respond-below('lg') {  // < 1024px
-  .videos-brief {
-    grid-template-columns: 1fr;
-  }
-
   .brief-stats {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
@@ -1317,7 +1328,6 @@ onMounted(() => {
   }
 
   .videos-brief {
-    padding: var(--spacing-4);
     margin-bottom: var(--spacing-4);
   }
 
@@ -1331,9 +1341,8 @@ onMounted(() => {
 
   // Filter and sort controls
   .filters-btn,
-  .sort-select {
+  .sort-control-wrap {
     min-height: 44px;  // Touch-friendly
-    font-size: var(--text-base);  // Larger for readability
   }
 
   .filter-panel {
@@ -1361,8 +1370,13 @@ onMounted(() => {
 
   .view-toggle,
   .filters-btn,
-  .sort-select {
-    flex: 1;  // Equal width buttons
+  .sort-control-wrap {
+    flex: 1;  // Equal width controls
+    justify-content: center;
+  }
+
+  .view-toggle .toggle-btn {
+    flex: 1;
   }
 
   .filter-panel {

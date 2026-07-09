@@ -16,7 +16,7 @@
     <!-- Main Content -->
     <div v-else class="proxy-content">
       <!-- System Status Section -->
-      <section class="settings-section">
+      <section class="settings-section settings-group">
         <div class="section-header">
           <h2 class="section-title">
             <span class="status-icon-wrapper">
@@ -54,7 +54,7 @@
       </section>
 
       <!-- Proxy Servers Section -->
-      <section class="settings-section">
+      <section class="settings-section settings-group">
         <div class="section-header">
           <h2 class="section-title">Proxy Servers</h2>
           <button @click="showAddDialog = true" class="btn btn-primary btn-sm">
@@ -160,7 +160,7 @@
       </section>
 
       <!-- System Configuration Section -->
-      <section class="settings-section">
+      <section class="settings-section settings-group">
         <div class="section-header">
           <h2 class="section-title">System Configuration</h2>
           <button @click="handleSaveConfig" class="btn btn-primary btn-sm" :disabled="isSavingConfig">
@@ -557,21 +557,20 @@ async function handleSaveConfig() {
 .proxy-content {
   display: flex;
   flex-direction: column;
-  gap: v.$spacing-8;
+  // Same 20px group gap as every other settings page; the shared
+  // .settings-group card border replaced the old hairline dividers.
+  gap: v.$spacing-5;
 }
 
 // ============================================================================
 // SETTINGS SECTIONS
 // ============================================================================
 
-.settings-section {
-  padding-bottom: v.$spacing-6;
-  border-bottom: 1px solid var(--border-color);
-
-  &:last-child {
-    border-bottom: none;
-    padding-bottom: 0;
-  }
+// Spacing comes from the flex gap above; the group's own margin-bottom
+// would double it inside a flex column (margins don't collapse there).
+// .proxy-content prefix outranks the global .settings-group rule.
+.proxy-content .settings-section {
+  margin-bottom: 0;
 }
 
 .section-header {

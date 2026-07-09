@@ -872,30 +872,9 @@
 // CARD PATTERNS (Beyond _mixins.scss)
 // ============================================================================
 
-// Glassmorphism card (pure blur effect - no background color)
-// NOTE: GlassCard.vue component implements its own scoped glass styles via mixins/variables
-// This utility class kept for backwards compatibility but should use GlassCard component
-.glass-card {
-  // NO background - pure blur effect only
-  backdrop-filter: blur(16px);
-  border: 1px solid rgba(var(--primary-color-rgb), 0.2);
-  border-radius: var(--radius-xl);  // 16px
-  padding: var(--spacing-6);  // 24px
-  box-shadow: v.$shadow-lg;
-  transition: v.$transition-all;
-  
-  // Mobile: Reduce padding significantly
-  @include m.respond-below('sm') {
-    padding: var(--spacing-2);
-    border-radius: var(--radius-lg);
-  }
-
-  &:hover {
-    // NO background change on hover
-    box-shadow: v.$shadow-xl;
-    transform: translateY(-2px);
-  }
-}
+// (Removed legacy .glass-card utility: no template used it directly, but the
+// selector collided with the GlassCard.vue component root and forced a 16px
+// backdrop blur + hover lift onto every card in the app.)
 
 // Simple bordered card (no glassmorphism)
 .card {

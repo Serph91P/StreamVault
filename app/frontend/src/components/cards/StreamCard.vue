@@ -309,10 +309,16 @@ function handleDelete() {
     overflow: hidden;
   }
 
-  &.is-recording {
-    :deep(.glass-card-content) {
-      animation: pulse-recording 2s ease-in-out infinite;
-    }
+  // Pulsing ring on a pseudo-element animating only opacity/transform
+  // (compositor-friendly) instead of a per-frame box-shadow repaint.
+  &.is-recording::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border: 2px solid rgba(239, 68, 68, 0.7);
+    border-radius: var(--radius-xl);
+    pointer-events: none;
+    animation: pulse-recording 2s ease-in-out infinite;
   }
 
   &.actions-open {
@@ -655,13 +661,16 @@ function handleDelete() {
 
 @keyframes pulse-recording {
   0% {
-    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+    opacity: 0.9;
+    transform: scale(1);
   }
   50% {
-    box-shadow: 0 0 0 10px rgba(239, 68, 68, 0);
+    opacity: 0;
+    transform: scale(1.025);
   }
   100% {
-    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+    opacity: 0;
+    transform: scale(1);
   }
 }
 

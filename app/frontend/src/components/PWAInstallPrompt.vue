@@ -124,6 +124,9 @@ const dismissPrompt = () => {
 .install-prompt__content {
   display: flex;
   align-items: center;
+  // Icon + text share the first row; the action buttons wrap onto their own
+  // row - all three never fit next to the text within the 400px card.
+  flex-wrap: wrap;
   padding: v.$spacing-4;
   gap: v.$spacing-3;
 }
@@ -142,6 +145,7 @@ const dismissPrompt = () => {
 
 .install-prompt__text {
   flex: 1;
+  min-width: 0;
 }
 
 .install-prompt__text h3 {
@@ -160,7 +164,9 @@ const dismissPrompt = () => {
 .install-prompt__actions {
   display: flex;
   gap: v.$spacing-2;
-  flex-shrink: 0;
+  flex-basis: 100%;
+  justify-content: flex-end;
+  flex-wrap: wrap;
 }
 
 @keyframes slideUp {

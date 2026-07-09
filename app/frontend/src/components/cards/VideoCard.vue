@@ -63,8 +63,9 @@
           {{ statusBadge.text }}
         </StatusBadge>
 
-        <!-- Hover Overlay (grid mode only) -->
-        <div v-if="viewMode !== 'list'" class="hover-overlay" :class="{ 'is-disabled': !canPlay }">
+        <!-- Hover Overlay (grid mode only; hidden in select mode so the
+             selection ring and checkmark stay readable) -->
+        <div v-if="viewMode !== 'list' && !disableNavigation" class="hover-overlay" :class="{ 'is-disabled': !canPlay }">
           <button class="play-button" :disabled="!canPlay" @click.stop="handlePlay" :aria-label="playButtonLabel">
             <svg class="icon-play">
               <use href="#icon-video" />
@@ -431,8 +432,9 @@ const handlePlay = () => {
   width: 100%;
   height: 100%;
 
+  // Dark scrim only - a backdrop-filter here is composited for every card
+  // in the grid even while invisible (opacity 0), which costs GPU time.
   background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(4px);
 
   display: flex;
   align-items: center;
@@ -666,18 +668,28 @@ const handlePlay = () => {
    ======================================== */
 .video-card.list-mode {
   :deep(.glass-card-content) {
+    padding: 0;
+  }
+
+  // The row layout lives on .video-card-action: thumbnail and info are its
+  // children (.glass-card-content only wraps this single element, so flexing
+  // the content div had no effect and the info stacked under the thumbnail).
+  .video-card-action {
     display: flex;
     flex-direction: row;
-    align-items: center;
-    padding: 0;
+    align-items: stretch;
   }
 
   .video-thumbnail {
     flex-shrink: 0;
-    width: 160px;
-    height: 90px;
+    align-self: center;
+    width: 168px;
+    aspect-ratio: 16 / 9;
+    height: auto;
     padding-top: 0;
-    border-radius: var(--radius-lg) 0 0 var(--radius-lg);
+    margin: var(--spacing-2);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
 
     img, .thumbnail-placeholder {
       position: absolute;
@@ -695,6 +707,11 @@ const handlePlay = () => {
     .icon-video {
       width: 32px;
       height: 32px;
+    }
+
+    // The duration badge sits over this corner in the compact list thumb
+    .placeholder-cue {
+      display: none;
     }
   }
 
@@ -759,7 +776,6 @@ const handlePlay = () => {
   .video-card.list-mode {
     .video-thumbnail {
       width: 120px;
-      height: 68px;
     }
 
     .video-info {

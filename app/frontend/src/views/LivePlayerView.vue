@@ -780,9 +780,14 @@ onUnmounted(() => {
     padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px));
   }
 
+  // Theater mode: full-bleed black stage that fills exactly the viewport
+  // below the app header (Twitch style) - no page padding, no card chrome.
   &.theater-mode {
+    padding: 0;
+
     .player-main {
       grid-template-columns: minmax(0, 1fr);
+      gap: 0;
     }
 
     .info-sidebar {
@@ -808,10 +813,18 @@ onUnmounted(() => {
       display: none;
     }
 
+    .player-card {
+      border: 0;
+      border-radius: 0;
+      background: var(--player-stage-bg);
+    }
+
     .video-container {
-      width: min(100%, calc((100dvh - var(--app-header-height, 56px) - 112px) * 16 / 9));
-      max-height: calc(100dvh - var(--app-header-height, 56px) - 112px);
+      width: min(100%, calc(var(--player-max-h-theater) * 16 / 9));
+      max-height: var(--player-max-h-theater);
       margin: 0 auto;
+      border-top: 0;
+      background: var(--player-stage-bg);
     }
 
     @include m.respond-below('md') {
@@ -889,6 +902,18 @@ onUnmounted(() => {
     padding: 0;
     display: flex;
     flex-direction: column;
+  }
+}
+
+// Mobile: player goes edge-to-edge like Twitch instead of floating in a
+// card. The 50%-50vw trick escapes every ancestor padding regardless of
+// nesting depth (the root clips overflow-x, so no scrollbar can appear).
+@include m.respond-below('md') {
+  .player-card {
+    width: 100vw;
+    margin-inline: calc(50% - 50vw);
+    border-inline: 0;
+    border-radius: 0;
   }
 }
 
@@ -1100,7 +1125,6 @@ onUnmounted(() => {
   right: 0;
   bottom: 0;
   background: rgba(0, 0, 0, 0.8);
-  backdrop-filter: blur(4px);
   display: flex;
   flex-direction: column;
   justify-content: center;

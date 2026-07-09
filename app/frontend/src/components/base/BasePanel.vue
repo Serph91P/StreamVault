@@ -71,9 +71,10 @@ const paddingClass = computed(() => (props.padded ? `base-panel-padding-${props.
 }
 
 .base-panel-glass {
+  // Translucency without backdrop-filter: panels are in-flow content
+  // surfaces; real blur stays reserved for floating layers.
   background: var(--glass-bg-subtle, var(--background-card));
   border-color: var(--glass-border, var(--border-color));
-  backdrop-filter: blur(var(--glass-blur-sm, 8px));
 }
 
 .base-panel-strong {

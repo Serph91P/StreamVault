@@ -433,6 +433,13 @@ function formatSource(source: string): string {
 // Most styles inherited from global _settings-panels.scss
 // ============================================================================
 
+// The panel content starts flush like every other settings page (an
+// inherited padding pushed the first group 24px lower than elsewhere).
+// Element+class outranks the inherited class-only rule.
+div.card-content {
+  padding: 0;
+}
+
 // ============================================================================
 // CONNECTION STATUS
 // ============================================================================
@@ -445,7 +452,8 @@ function formatSource(source: string): string {
   background: var(--background-card);
   border: 2px solid var(--border-color);
   border-radius: var(--radius-md);
-  margin-bottom: v.$spacing-6;
+  // Same group gap as .settings-group everywhere else
+  margin-bottom: v.$spacing-5;
   
   &.connected {
     border-color: var(--success-color);
@@ -583,8 +591,14 @@ function formatSource(source: string): string {
 // TOKEN SETUP GUIDE
 // ============================================================================
 
+// Shared .settings-group look: token setup reads as one coherent block.
+// No own top margin - the connection status above brings its bottom margin,
+// and when it is hidden the block starts flush like every other panel.
 .setup-section {
-  margin-top: v.$spacing-6;
+  padding: var(--spacing-5);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  background: rgba(var(--background-darker-rgb, 10, 10, 10), 0.35);
 }
 
 .setup-header {
