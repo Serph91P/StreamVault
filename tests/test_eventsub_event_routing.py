@@ -86,3 +86,13 @@ class TestIsDuplicateMessage:
     def test_old_broken_method_is_gone(self):
         registry = _make_registry()
         assert not hasattr(registry, "_is_duplicate_event")
+
+    def test_forget_message_allows_retry_to_be_processed(self):
+        registry = _make_registry()
+        assert registry.is_duplicate_message("msg-1", "stream.online", "111") is False
+        registry.forget_message("msg-1", "stream.online", "111")
+        assert registry.is_duplicate_message("msg-1", "stream.online", "111") is False
+
+    def test_forget_message_tolerates_unknown_fingerprint(self):
+        registry = _make_registry()
+        registry.forget_message("never-seen", "stream.online", "111")

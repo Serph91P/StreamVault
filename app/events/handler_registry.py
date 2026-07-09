@@ -49,7 +49,6 @@ class EventHandlerRegistry:
             maxsize=CACHE_CONFIG.DEFAULT_CACHE_SIZE,
             ttl=CACHE_CONFIG.EVENT_DEDUPLICATION_TTL,
         )
-        self._event_cache_timeout = CACHE_CONFIG.EVENT_DEDUPLICATION_TTL
 
     async def get_access_token(self) -> str:
         if not self._access_token:
@@ -193,6 +192,24 @@ class EventHandlerRegistry:
         except Exception as e:
             logger.error(f"Error checking for duplicate event: {e}", exc_info=True)
             return False
+
+    def forget_message(
+        self,
+        message_id: Optional[str],
+        event_type: Optional[str],
+        broadcaster_id: Optional[str],
+    ) -> None:
+        """Remove a delivery fingerprint so a Twitch retry can be reprocessed.
+
+        Called when handling failed (timeout/exception) and we return a non-2xx
+        status: the retry must not be swallowed by the dedup cache.
+        """
+        try:
+            self._processed_events.pop(
+                f"{message_id}:{event_type}:{broadcaster_id}", None
+            )
+        except Exception as e:
+            logger.error(f"Error forgetting event fingerprint: {e}", exc_info=True)
 
     async def handle_stream_online(self, data: dict):
         logger.info(

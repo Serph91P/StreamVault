@@ -993,10 +993,6 @@ async def eventsub_callback(request: Request):
                     event_type,
                     (event_data or {}).get("broadcaster_user_id"),
                 ):
-                    logger.info(
-                        f"Duplicate EventSub delivery ignored: {event_type} "
-                        f"(message_id={message_id})"
-                    )
                     return Response(status_code=204)
 
                 logger.debug(f"Processing EventSub notification: {event_type}")
@@ -1012,11 +1008,21 @@ async def eventsub_callback(request: Request):
                         return Response(status_code=204)
                     except asyncio.TimeoutError:
                         logger.error(f"Handler for {event_type} timed out.")
+                        event_registry.forget_message(
+                            message_id,
+                            event_type,
+                            (event_data or {}).get("broadcaster_user_id"),
+                        )
                         return Response(status_code=500)
                     except Exception as e:
                         logger.error(
                             f"Error in event handler for {event_type}: {e}",
                             exc_info=True,
+                        )
+                        event_registry.forget_message(
+                            message_id,
+                            event_type,
+                            (event_data or {}).get("broadcaster_user_id"),
                         )
                         return Response(status_code=500)
                 else:
