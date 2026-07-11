@@ -143,7 +143,7 @@ class CacheConfig:
     SMALL_CACHE_SIZE: int = 500  # Small cache max size
 
     # TTL values (in seconds)
-    EVENT_DEDUPLICATION_TTL: int = 60  # Event deduplication TTL (1 minute)
+    EVENT_DEDUPLICATION_TTL: int = 600  # Event deduplication TTL (10 minutes, covers the webhook's 600s replay-acceptance window)
     NOTIFICATION_DEBOUNCE_TTL: int = 300  # Notification debounce TTL (5 minutes)
     BROADCAST_DEBOUNCE_TTL: int = 60  # WebSocket broadcast debounce TTL (1 minute)
     IMAGE_CACHE_TTL: int = 3600  # Image cache TTL (1 hour)

@@ -1814,6 +1814,28 @@ class MetadataService:
                     )
                     return None
 
+                # Cross-contamination guard (mirrors generate_metadata_for_stream):
+                # refuse to write chapter files when the target path does not
+                # belong to this stream's streamer. Otherwise the wrong
+                # streamer's events end up as bookmarks in the finished MP4.
+                # Recording paths are built from sanitize_filename(username),
+                # so accept either the raw or the sanitized form.
+                streamer = stream.streamer
+                if streamer and getattr(streamer, "username", None):
+                    path_lower = str(mp4_path).lower()
+                    username_lower = streamer.username.lower()
+                    sanitized_lower = sanitize_filename(streamer.username).lower()
+                    if (
+                        username_lower not in path_lower
+                        and sanitized_lower not in path_lower
+                    ):
+                        logger.error(
+                            f"CRITICAL: Chapter generation refused: stream {stream_id} "
+                            f"belongs to {streamer.username} but target path is {mp4_path}. "
+                            "This indicates wrong stream-to-recording mapping."
+                        )
+                        return None
+
                 # Stream-Events abrufen (Kategorie-Wechsel usw.)
                 events = (
                     db.query(StreamEvent)
