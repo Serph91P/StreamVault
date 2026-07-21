@@ -1,5 +1,5 @@
 # Core FastAPI and server dependencies
-fastapi==0.139.0
+fastapi==0.139.2
 uvicorn[standard]==0.51.0
 
 # Database dependencies
