@@ -32,6 +32,13 @@ from app.services.core.auth_service import AuthService
 
 logger = logging.getLogger("streamvault")
 
+
+def _path_check_error_message(context: str, error: Exception) -> str:
+    """Log filesystem details server-side and return a stable client message."""
+    logger.warning("Unable to verify %s: %s", context, error, exc_info=True)
+    return f"Unable to verify {context}"
+
+
 # SECURITY: Debug endpoints are only available in development mode
 _IS_DEVELOPMENT = os.getenv("ENVIRONMENT", "").lower() == "development"
 
@@ -1578,7 +1585,7 @@ async def stream_video_by_filename(
 async def test_video_access(
     stream_id: int, request: Request, db: Session = Depends(get_db)
 ):
-    """Test endpoint to debug video access issues — DEVELOPMENT ONLY"""
+    """Test endpoint to debug video access issues - DEVELOPMENT ONLY"""
     # SECURITY: Gate debug endpoints behind environment check (CWE-489)
     if not _IS_DEVELOPMENT:
         raise HTTPException(status_code=404, detail="Not found")
@@ -1764,7 +1771,7 @@ async def debug_videos_database(
         None, description="Filter by specific streamer username"
     ),
 ):
-    """Debug endpoint to see what's in the database vs filesystem — DEVELOPMENT ONLY"""
+    """Debug endpoint to see what's in the database vs filesystem - DEVELOPMENT ONLY"""
     # SECURITY: Gate debug endpoints behind environment check (CWE-489)
     if not _IS_DEVELOPMENT:
         raise HTTPException(status_code=404, detail="Not found")
@@ -1814,7 +1821,9 @@ async def debug_videos_database(
                 if path.exists():
                     stream_info["recording_path_size"] = path.stat().st_size
             except Exception as e:
-                stream_info["recording_path_error"] = str(e)
+                stream_info["recording_path_error"] = _path_check_error_message(
+                    "recording path", e
+                )
 
         result["streams"].append(stream_info)
 
@@ -1865,7 +1874,9 @@ async def debug_videos_database(
                     recording_info["mp4_path"] = str(mp4_path)
 
             except Exception as e:
-                recording_info["path_check_error"] = str(e)
+                recording_info["path_check_error"] = _path_check_error_message(
+                    "recording path", e
+                )
 
         result["recordings"].append(recording_info)
 
@@ -1956,7 +1967,7 @@ async def debug_recordings_directory(
         None, description="Filter by specific streamer username"
     ),
 ):
-    """Debug endpoint to list contents of recordings directory — DEVELOPMENT ONLY"""
+    """Debug endpoint to list contents of recordings directory - DEVELOPMENT ONLY"""
     # SECURITY: Gate debug endpoints behind environment check (CWE-489)
     if not _IS_DEVELOPMENT:
         raise HTTPException(status_code=404, detail="Not found")
