@@ -119,6 +119,21 @@ class RecordingTaskFactory:
         cleanup_task_id = f"{base_id}_cleanup"
 
         validated_ts_path = RecordingTaskFactory._validated_recording_path(ts_file_path)
+        from app.config.settings import settings
+
+        recording_dir = os.path.realpath(settings.RECORDING_DIRECTORY)
+        resolved_ts_path = os.path.realpath(
+            os.path.abspath(os.fspath(validated_ts_path))
+        )
+        try:
+            is_contained = (
+                os.path.commonpath((recording_dir, resolved_ts_path)) == recording_dir
+            )
+        except ValueError:
+            is_contained = False
+        if not is_contained:
+            raise ValueError("Recording path is outside the recording directory")
+        validated_ts_path = Path(resolved_ts_path)
         validated_ts_file_path = str(validated_ts_path)
 
         # Common payload data
