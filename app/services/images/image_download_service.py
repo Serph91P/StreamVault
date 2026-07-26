@@ -8,6 +8,7 @@ Handles HTTP sessions, downloads, and common image operations.
 import aiohttp
 import hashlib
 import logging
+import os
 import re
 from pathlib import Path
 from typing import Optional, Set
@@ -90,15 +91,15 @@ class ImageDownloadService:
         if self.images_base_dir is None:
             raise ValueError("Media directory is not initialized")
 
-        media_dir = Path(self.images_base_dir).resolve()
-        destination = Path(file_path).resolve()
+        media_dir = os.path.realpath(os.fspath(self.images_base_dir))
+        destination = os.path.realpath(os.path.abspath(os.fspath(file_path)))
         try:
-            destination.relative_to(media_dir)
-        except ValueError as exc:
-            raise ValueError(
-                "Download destination is outside the media directory"
-            ) from exc
-        return destination
+            is_contained = os.path.commonpath((media_dir, destination)) == media_dir
+        except ValueError:
+            is_contained = False
+        if not is_contained:
+            raise ValueError("Download destination is outside the media directory")
+        return Path(destination)
 
     def create_filename_hash(self, url: str) -> str:
         """Create a hash-based filename for an image URL"""

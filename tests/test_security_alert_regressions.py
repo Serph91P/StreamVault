@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 import pytest
@@ -30,6 +31,23 @@ def test_image_destination_accepts_path_inside_media_directory(tmp_path: Path) -
     service = _image_download_service(media_dir)
 
     assert service._resolve_destination_path(destination) == destination.resolve()
+
+
+def test_image_destination_does_not_use_pathlib_resolve(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    media_dir = tmp_path / ".media"
+    media_dir.mkdir()
+    destination = media_dir / "categories" / "game.jpg"
+    expected = Path(os.path.realpath(destination))
+    service = _image_download_service(media_dir)
+    monkeypatch.setattr(
+        Path,
+        "resolve",
+        lambda *_args, **_kwargs: pytest.fail("Path.resolve must not handle input"),
+    )
+
+    assert service._resolve_destination_path(destination) == expected
 
 
 @pytest.mark.parametrize(
@@ -77,6 +95,22 @@ def test_category_image_path_preserves_normal_filename(tmp_path: Path) -> None:
     )
 
 
+def test_category_image_path_does_not_use_pathlib_resolve(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    categories_dir = tmp_path / ".media" / "categories"
+    categories_dir.mkdir(parents=True)
+    expected = Path(os.path.realpath(categories_dir / "just_chatting.jpg"))
+    service = _category_image_service(categories_dir)
+    monkeypatch.setattr(
+        Path,
+        "resolve",
+        lambda *_args, **_kwargs: pytest.fail("Path.resolve must not handle input"),
+    )
+
+    assert service._category_image_path("Just Chatting") == expected
+
+
 @pytest.mark.parametrize("category_name", ["", ".", "..", "../secret", "/tmp/secret"])
 def test_category_image_path_rejects_unsafe_names(
     tmp_path: Path, category_name: str
@@ -114,6 +148,27 @@ def test_recording_path_accepts_file_inside_recording_directory(
     assert (
         RecordingTaskFactory._validated_recording_path(str(recording_path))
         == recording_path.resolve()
+    )
+
+
+def test_recording_path_does_not_use_pathlib_resolve(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    recordings_dir = tmp_path / "recordings"
+    recordings_dir.mkdir()
+    recording_path = recordings_dir / "stream.ts"
+    expected = Path(os.path.realpath(recording_path))
+    monkeypatch.setattr(
+        "app.config.settings.settings.RECORDING_DIRECTORY", str(recordings_dir)
+    )
+    monkeypatch.setattr(
+        Path,
+        "resolve",
+        lambda *_args, **_kwargs: pytest.fail("Path.resolve must not handle input"),
+    )
+
+    assert (
+        RecordingTaskFactory._validated_recording_path(str(recording_path)) == expected
     )
 
 
