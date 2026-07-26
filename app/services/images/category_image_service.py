@@ -7,6 +7,7 @@ Handles downloading, caching, and serving of category/game images.
 
 import asyncio
 import logging
+import os
 import tempfile
 from pathlib import Path
 from typing import Dict, Optional, List, Set
@@ -75,6 +76,37 @@ class CategoryImageService:
         # This is a simplified approach - in production you might want a mapping file
         return filename.replace("_", " ").replace("-", " ")
 
+    def _category_image_path(self, category_name: str) -> Path:
+        """Build a category image path contained by the categories directory."""
+        normalized_name = category_name.replace("\\", "/") if category_name else ""
+        name_parts = normalized_name.split("/")
+        if (
+            not category_name
+            or normalized_name.startswith("/")
+            or any(part in {".", ".."} for part in name_parts)
+        ):
+            raise ValueError("Invalid category name")
+
+        safe_name = self.download_service.sanitize_filename(category_name)
+        if not safe_name or not safe_name.strip("."):
+            raise ValueError("Invalid category name")
+
+        self._ensure_categories_dir()
+        if self.categories_dir is None:
+            raise ValueError("Categories directory is not initialized")
+
+        categories_dir = os.path.realpath(os.fspath(self.categories_dir))
+        destination = os.path.realpath(os.path.join(categories_dir, f"{safe_name}.jpg"))
+        try:
+            is_contained = (
+                os.path.commonpath((categories_dir, destination)) == categories_dir
+            )
+        except ValueError:
+            is_contained = False
+        if not is_contained:
+            raise ValueError("Category image path is outside the categories directory")
+        return Path(destination)
+
     async def download_category_image(
         self, category_name: str, box_art_url: str = None
     ) -> Optional[str]:
@@ -92,6 +124,13 @@ class CategoryImageService:
 
         if not category_name:
             return None
+
+        try:
+            file_path = self._category_image_path(category_name)
+        except ValueError as e:
+            logger.warning(f"Invalid category image path for {category_name}: {e}")
+            return None
+        filename = file_path.name
 
         # If no box_art_url provided, try to get it from database
         if not box_art_url:
@@ -118,10 +157,6 @@ class CategoryImageService:
         # Check if the box_art_url is already a local path (cached)
         if box_art_url.startswith("/api/media/categories/"):
             # This is already a local cached path, check if file exists
-            safe_name = self.download_service.sanitize_filename(category_name)
-            filename = f"{safe_name}.jpg"
-            file_path = self.categories_dir / filename
-
             if file_path.exists():
                 # File exists, update cache and return path
                 self._category_cache[category_name] = box_art_url
@@ -149,10 +184,6 @@ class CategoryImageService:
             if self.categories_dir is None:
                 logger.error("Categories directory not initialized")
                 return None
-
-            safe_name = self.download_service.sanitize_filename(category_name)
-            filename = f"{safe_name}.jpg"
-            file_path = self.categories_dir / filename
 
             success = await self.download_service.download_image(box_art_url, file_path)
             if success:
@@ -186,12 +217,13 @@ class CategoryImageService:
                 if category and category.box_art_url:
                     # If it's already a local path, check if file exists
                     if category.box_art_url.startswith("/api/media/categories/"):
-                        safe_name = self.download_service.sanitize_filename(
-                            category_name
-                        )
-                        filename = f"{safe_name}.jpg"
-                        self._ensure_categories_dir()
-                        file_path = self.categories_dir / filename
+                        try:
+                            file_path = self._category_image_path(category_name)
+                        except ValueError as e:
+                            logger.warning(
+                                f"Invalid category image path for {category_name}: {e}"
+                            )
+                            return None
 
                         if file_path.exists():
                             # Cache it and return

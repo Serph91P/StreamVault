@@ -8,6 +8,7 @@ Handles HTTP sessions, downloads, and common image operations.
 import aiohttp
 import hashlib
 import logging
+import os
 import re
 from pathlib import Path
 from typing import Optional, Set
@@ -84,9 +85,25 @@ class ImageDownloadService:
         safe_name = re.sub(r"_+", "_", safe_name)
         return safe_name.strip("_").lower()
 
+    def _resolve_destination_path(self, file_path: Path) -> Path:
+        """Resolve a download destination and enforce media directory containment."""
+        self._ensure_initialized()
+        if self.images_base_dir is None:
+            raise ValueError("Media directory is not initialized")
+
+        media_dir = os.path.realpath(os.fspath(self.images_base_dir))
+        destination = os.path.realpath(os.path.abspath(os.fspath(file_path)))
+        try:
+            is_contained = os.path.commonpath((media_dir, destination)) == media_dir
+        except ValueError:
+            is_contained = False
+        if not is_contained:
+            raise ValueError("Download destination is outside the media directory")
+        return Path(destination)
+
     def create_filename_hash(self, url: str) -> str:
         """Create a hash-based filename for an image URL"""
-        return hashlib.md5(url.encode()).hexdigest()
+        return hashlib.md5(url.encode(), usedforsecurity=False).hexdigest()
 
     async def download_image(
         self, url: str, file_path: Path, expected_content_types: list = None
@@ -117,6 +134,7 @@ class ImageDownloadService:
             expected_content_types = ["image"]
 
         try:
+            file_path = self._resolve_destination_path(file_path)
             session = await self.get_session()
             async with session.get(url) as response:
                 if response.status == 200:
