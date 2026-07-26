@@ -4,6 +4,7 @@ Creates task chains for recording post-processing with proper dependencies
 """
 
 import logging
+import os
 from typing import List
 from datetime import datetime
 from pathlib import Path
@@ -23,15 +24,17 @@ class RecordingTaskFactory:
         """Resolve a recording path and enforce recording directory containment."""
         from app.config.settings import settings
 
-        recording_dir = Path(settings.RECORDING_DIRECTORY).resolve()
-        resolved_path = Path(file_path).resolve()
+        recording_dir = os.path.realpath(settings.RECORDING_DIRECTORY)
+        resolved_path = os.path.realpath(os.path.abspath(file_path))
         try:
-            resolved_path.relative_to(recording_dir)
-        except ValueError as exc:
-            raise ValueError(
-                "Recording path is outside the recording directory"
-            ) from exc
-        return resolved_path
+            is_contained = (
+                os.path.commonpath((recording_dir, resolved_path)) == recording_dir
+            )
+        except ValueError:
+            is_contained = False
+        if not is_contained:
+            raise ValueError("Recording path is outside the recording directory")
+        return Path(resolved_path)
 
     @staticmethod
     def create_post_processing_chain(

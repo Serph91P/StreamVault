@@ -7,6 +7,7 @@ Handles downloading, caching, and serving of category/game images.
 
 import asyncio
 import logging
+import os
 import tempfile
 from pathlib import Path
 from typing import Dict, Optional, List, Set
@@ -94,15 +95,17 @@ class CategoryImageService:
         if self.categories_dir is None:
             raise ValueError("Categories directory is not initialized")
 
-        categories_dir = Path(self.categories_dir).resolve()
-        destination = (categories_dir / f"{safe_name}.jpg").resolve()
+        categories_dir = os.path.realpath(os.fspath(self.categories_dir))
+        destination = os.path.realpath(os.path.join(categories_dir, f"{safe_name}.jpg"))
         try:
-            destination.relative_to(categories_dir)
-        except ValueError as exc:
-            raise ValueError(
-                "Category image path is outside the categories directory"
-            ) from exc
-        return destination
+            is_contained = (
+                os.path.commonpath((categories_dir, destination)) == categories_dir
+            )
+        except ValueError:
+            is_contained = False
+        if not is_contained:
+            raise ValueError("Category image path is outside the categories directory")
+        return Path(destination)
 
     async def download_category_image(
         self, category_name: str, box_art_url: str = None
