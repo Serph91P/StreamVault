@@ -135,6 +135,11 @@ class ImageDownloadService:
 
         try:
             file_path = self._resolve_destination_path(file_path)
+            media_dir = os.path.realpath(os.fspath(self.images_base_dir))
+            destination = os.path.realpath(os.path.abspath(os.fspath(file_path)))
+            if not destination.startswith(media_dir + os.sep):
+                raise ValueError("Download destination is outside the media directory")
+            file_path = Path(destination)
             session = await self.get_session()
             async with session.get(url) as response:
                 if response.status == 200:
