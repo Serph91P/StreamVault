@@ -137,11 +137,7 @@ class ImageDownloadService:
             file_path = self._resolve_destination_path(file_path)
             media_dir = os.path.realpath(os.fspath(self.images_base_dir))
             destination = os.path.realpath(os.path.abspath(os.fspath(file_path)))
-            try:
-                is_contained = os.path.commonpath((media_dir, destination)) == media_dir
-            except ValueError:
-                is_contained = False
-            if not is_contained:
+            if not destination.startswith(media_dir + os.sep):
                 raise ValueError("Download destination is outside the media directory")
             file_path = Path(destination)
             session = await self.get_session()

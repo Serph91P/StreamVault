@@ -125,13 +125,7 @@ class RecordingTaskFactory:
         resolved_ts_path = os.path.realpath(
             os.path.abspath(os.fspath(validated_ts_path))
         )
-        try:
-            is_contained = (
-                os.path.commonpath((recording_dir, resolved_ts_path)) == recording_dir
-            )
-        except ValueError:
-            is_contained = False
-        if not is_contained:
+        if not resolved_ts_path.startswith(recording_dir + os.sep):
             raise ValueError("Recording path is outside the recording directory")
         validated_ts_path = Path(resolved_ts_path)
         validated_ts_file_path = str(validated_ts_path)
