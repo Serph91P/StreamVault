@@ -448,6 +448,15 @@ async def enqueue_manual_post_processing(
         normalized_path = validate_path_security(
             os.path.join(RECORDINGS_ROOT, ts_file_path), "read"
         )
+        from app.config.settings import get_settings
+
+        recordings_root = os.path.realpath(get_settings().RECORDING_DIRECTORY)
+        normalized_path = os.path.realpath(os.path.abspath(normalized_path))
+        if not normalized_path.startswith(recordings_root + os.sep):
+            raise HTTPException(
+                status_code=403,
+                detail="Access denied: Path outside allowed directory",
+            )
 
         # Validate file exists
         if not Path(normalized_path).exists():

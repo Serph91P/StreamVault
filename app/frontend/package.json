@@ -32,17 +32,17 @@
     "@vue/tsconfig": "^0.9.1",
     "axe-core": "^4.12.1",
     "esbuild": "^0.28.1",
-    "eslint": "^10.7.0",
+    "eslint": "^10.8.0",
     "eslint-plugin-vue": "^10.10.0",
     "npm-run-all2": "^9.0.2",
-    "playwright": "^1.61.1",
-    "prettier": "^3.9.5",
-    "sass": "^1.101.0",
+    "playwright": "^1.62.0",
+    "prettier": "^3.9.6",
+    "sass": "^1.102.0",
     "typescript": "~6.0.3",
     "vite": "^8.1.5",
     "vite-plugin-pwa": "^1.3.0",
-    "vite-plugin-vue-devtools": "^8.1.5",
-    "vue-tsc": "^3.3.7"
+    "vite-plugin-vue-devtools": "^8.2.1",
+    "vue-tsc": "^3.3.8"
   },
   "overrides": {
     "serialize-javascript": "^7.0.3",

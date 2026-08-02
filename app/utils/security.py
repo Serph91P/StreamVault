@@ -244,6 +244,11 @@ def validate_path_security(user_path: str, operation_type: str = "access") -> st
 
     # Additional validation based on operation type
     if operation_type in ["read", "write", "delete"]:
+        if not normalized_path.startswith(safe_base + os.sep):
+            raise HTTPException(
+                status_code=403,
+                detail="Access denied: Path outside allowed directory",
+            )
         if not os.path.exists(normalized_path):
             raise HTTPException(status_code=404, detail=f"Path not found: {user_path}")
 

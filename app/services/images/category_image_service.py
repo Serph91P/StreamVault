@@ -130,6 +130,12 @@ class CategoryImageService:
         except ValueError as e:
             logger.warning(f"Invalid category image path for {category_name}: {e}")
             return None
+        categories_dir = os.path.realpath(os.fspath(self.categories_dir))
+        destination = os.path.realpath(os.path.abspath(os.fspath(file_path)))
+        if not destination.startswith(categories_dir + os.sep):
+            logger.warning(f"Invalid category image path for {category_name}")
+            return None
+        file_path = Path(destination)
         filename = file_path.name
 
         # If no box_art_url provided, try to get it from database
@@ -224,6 +230,19 @@ class CategoryImageService:
                                 f"Invalid category image path for {category_name}: {e}"
                             )
                             return None
+
+                        categories_dir = os.path.realpath(
+                            os.fspath(self.categories_dir)
+                        )
+                        destination = os.path.realpath(
+                            os.path.abspath(os.fspath(file_path))
+                        )
+                        if not destination.startswith(categories_dir + os.sep):
+                            logger.warning(
+                                f"Invalid category image path for {category_name}"
+                            )
+                            return None
+                        file_path = Path(destination)
 
                         if file_path.exists():
                             # Cache it and return

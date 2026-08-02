@@ -1,9 +1,12 @@
 import os
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
 import app.routes.videos as videos
+import app.services.images.category_image_service as category_images
+import app.services.images.image_download_service as image_downloads
 from app.services.images.category_image_service import CategoryImageService
 from app.services.images.image_download_service import ImageDownloadService
 from app.services.processing.recording_task_factory import RecordingTaskFactory
@@ -13,6 +16,8 @@ def _image_download_service(media_dir: Path) -> ImageDownloadService:
     service = ImageDownloadService.__new__(ImageDownloadService)
     service._initialized = True
     service.images_base_dir = media_dir
+    service._failed_downloads = set()
+    service.session = None
     return service
 
 
@@ -21,7 +26,60 @@ def _category_image_service(categories_dir: Path) -> CategoryImageService:
     service = CategoryImageService.__new__(CategoryImageService)
     service.download_service = download_service
     service.categories_dir = categories_dir
+    service._category_cache = {}
+    service._background_tasks = set()
     return service
+
+
+class _ImageContent:
+    async def iter_chunked(self, _size: int):
+        yield b"image"
+
+
+class _ImageResponse:
+    status = 200
+    headers = {"content-type": "image/jpeg"}
+    content = _ImageContent()
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *_args):
+        return None
+
+
+class _ImageSession:
+    def get(self, _url: str) -> _ImageResponse:
+        return _ImageResponse()
+
+
+class _CategoryQuery:
+    def __init__(self, category) -> None:
+        self.category = category
+
+    def filter(self, *_args):
+        return self
+
+    def first(self):
+        return self.category
+
+
+class _CategorySession:
+    def __init__(self, category) -> None:
+        self.category = category
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_args):
+        return None
+
+    def query(self, *_args) -> _CategoryQuery:
+        return _CategoryQuery(self.category)
+
+
+async def _async_value(value):
+    return value
 
 
 def test_image_destination_accepts_path_inside_media_directory(tmp_path: Path) -> None:
@@ -84,6 +142,38 @@ def test_image_destination_rejects_symlink_escape(tmp_path: Path) -> None:
         service._resolve_destination_path(categories_dir / "escape" / "game.jpg")
 
 
+@pytest.mark.asyncio
+async def test_download_rechecks_destination_before_filesystem_sinks(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    media_dir = tmp_path / ".media"
+    media_dir.mkdir()
+    outside_path = tmp_path / "outside" / "game.jpg"
+    service = _image_download_service(media_dir)
+    filesystem_sinks = []
+
+    monkeypatch.setattr(
+        service, "_resolve_destination_path", lambda _path: outside_path
+    )
+    monkeypatch.setattr(service, "get_session", lambda: _async_value(_ImageSession()))
+    monkeypatch.setattr(
+        Path,
+        "mkdir",
+        lambda path, **_kwargs: filesystem_sinks.append(("mkdir", path)),
+    )
+    monkeypatch.setattr(
+        image_downloads.aiofiles,
+        "open",
+        lambda path, _mode: filesystem_sinks.append(("open", path)),
+    )
+
+    assert (
+        await service.download_image("https://example.test/game.jpg", outside_path)
+        is False
+    )
+    assert filesystem_sinks == []
+
+
 def test_category_image_path_preserves_normal_filename(tmp_path: Path) -> None:
     categories_dir = tmp_path / ".media" / "categories"
     categories_dir.mkdir(parents=True)
@@ -133,6 +223,55 @@ def test_category_image_path_rejects_symlink_escape(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="outside the categories directory"):
         service._category_image_path("unsafe")
+
+
+@pytest.mark.asyncio
+async def test_category_download_rechecks_path_before_cached_exists(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    categories_dir = tmp_path / ".media" / "categories"
+    categories_dir.mkdir(parents=True)
+    outside_path = tmp_path / "outside.jpg"
+    service = _category_image_service(categories_dir)
+    filesystem_probes = []
+
+    monkeypatch.setattr(service, "_category_image_path", lambda _name: outside_path)
+    monkeypatch.setattr(
+        Path,
+        "exists",
+        lambda path: filesystem_probes.append(path) or False,
+    )
+
+    result = await service.download_category_image(
+        "Unsafe", "/api/media/categories/unsafe.jpg"
+    )
+
+    assert result is None
+    assert filesystem_probes == []
+
+
+def test_category_cache_lookup_rechecks_path_before_exists(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    categories_dir = tmp_path / ".media" / "categories"
+    categories_dir.mkdir(parents=True)
+    outside_path = tmp_path / "outside.jpg"
+    category = SimpleNamespace(box_art_url="/api/media/categories/unsafe.jpg")
+    service = _category_image_service(categories_dir)
+    filesystem_probes = []
+
+    monkeypatch.setattr(service, "_category_image_path", lambda _name: outside_path)
+    monkeypatch.setattr(
+        category_images, "SessionLocal", lambda: _CategorySession(category)
+    )
+    monkeypatch.setattr(
+        Path,
+        "exists",
+        lambda path: filesystem_probes.append(path) or False,
+    )
+
+    assert service.get_cached_category_image("Unsafe") is None
+    assert filesystem_probes == []
 
 
 def test_recording_path_accepts_file_inside_recording_directory(
@@ -249,6 +388,40 @@ def test_recording_chain_rejects_outside_path_before_filesystem_probe(
             stream_id=1,
             recording_id=1,
             ts_file_path=str(tmp_path / "outside.ts"),
+            output_dir=str(recordings_dir),
+            streamer_name="test",
+            started_at="2026-01-01T00:00:00",
+        )
+
+    assert filesystem_probes == []
+
+
+def test_recording_chain_rechecks_validated_path_before_segments_probe(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    recordings_dir = tmp_path / "recordings"
+    recordings_dir.mkdir()
+    outside_path = tmp_path / "outside.ts"
+    filesystem_probes = []
+    monkeypatch.setattr(
+        "app.config.settings.settings.RECORDING_DIRECTORY", str(recordings_dir)
+    )
+    monkeypatch.setattr(
+        RecordingTaskFactory,
+        "_validated_recording_path",
+        staticmethod(lambda _path: outside_path),
+    )
+    monkeypatch.setattr(
+        Path,
+        "is_dir",
+        lambda path: filesystem_probes.append(path) or False,
+    )
+
+    with pytest.raises(ValueError, match="outside the recording directory"):
+        RecordingTaskFactory.create_post_processing_chain(
+            stream_id=1,
+            recording_id=1,
+            ts_file_path=str(outside_path),
             output_dir=str(recordings_dir),
             streamer_name="test",
             started_at="2026-01-01T00:00:00",
