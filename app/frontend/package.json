@@ -30,7 +30,7 @@
     "@vue/eslint-config-prettier": "^10.2.0",
     "@vue/eslint-config-typescript": "^14.9.0",
     "@vue/tsconfig": "^0.9.1",
-    "axe-core": "^4.12.1",
+    "axe-core": "^4.13.0",
     "esbuild": "^0.28.1",
     "eslint": "^10.8.0",
     "eslint-plugin-vue": "^10.10.0",
