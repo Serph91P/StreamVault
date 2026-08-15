@@ -163,11 +163,14 @@ class ProxyHealthService:
                     return
 
                 logger.info(f"🔍 Checking {len(proxies)} enabled proxies...")
+                access_token = await self._get_app_access_token()
 
                 # Check each proxy
                 for proxy in proxies:
                     try:
-                        health_result = await self._check_proxy_health(proxy.proxy_url)
+                        health_result = await self._check_proxy_health(
+                            proxy.proxy_url, access_token
+                        )
 
                         # Update proxy health in database
                         proxy.last_health_check = datetime.now(timezone.utc)
@@ -234,7 +237,32 @@ class ProxyHealthService:
         # Default: 3 failures
         return 3
 
-    async def _check_proxy_health(self, proxy_url: str) -> Dict[str, Any]:
+    async def _get_app_access_token(self) -> Optional[str]:
+        try:
+            async with aiohttp.ClientSession() as token_session:
+                async with token_session.post(
+                    "https://id.twitch.tv/oauth2/token",
+                    params={
+                        "client_id": settings.TWITCH_APP_ID,
+                        "client_secret": settings.TWITCH_APP_SECRET,
+                        "grant_type": "client_credentials",
+                    },
+                ) as token_response:
+                    if token_response.status != 200:
+                        logger.error(
+                            "Failed to get Twitch access token for proxy health check"
+                        )
+                        return None
+
+                    token_data = await token_response.json()
+                    return token_data.get("access_token")
+        except Exception as e:
+            logger.error(f"Error getting access token for proxy check: {e}")
+            return None
+
+    async def _check_proxy_health(
+        self, proxy_url: str, access_token: Optional[str]
+    ) -> Dict[str, Any]:
         """
         Check health of a single proxy by testing connectivity with Twitch API.
 
@@ -252,41 +280,7 @@ class ProxyHealthService:
                 'error': str or None
             }
         """
-        # Get Twitch access token first
-        try:
-            # Use app credentials to get access token (same as in recordings)
-            async with aiohttp.ClientSession() as token_session:
-                async with token_session.post(
-                    "https://id.twitch.tv/oauth2/token",
-                    params={
-                        "client_id": settings.TWITCH_APP_ID,
-                        "client_secret": settings.TWITCH_APP_SECRET,
-                        "grant_type": "client_credentials",
-                    },
-                ) as token_response:
-                    if token_response.status != 200:
-                        logger.error(
-                            f"Failed to get Twitch access token for proxy health check: {token_response.status}"
-                        )
-                        return {
-                            "status": "failed",
-                            "response_time_ms": None,
-                            "error": "Failed to get Twitch access token",
-                        }
-
-                    token_data = await token_response.json()
-                    access_token = token_data.get("access_token")
-
-                    if not access_token:
-                        return {
-                            "status": "failed",
-                            "response_time_ms": None,
-                            "error": "No access token received",
-                        }
-
-        except Exception as e:
-            # Log full exception details server-side, but return only a generic error message to the client.
-            logger.error(f"Error getting access token for proxy check: {e}")
+        if not access_token:
             return {
                 "status": "failed",
                 "response_time_ms": None,
@@ -421,7 +415,10 @@ class ProxyHealthService:
                 return {"error": "Proxy not found"}
 
             # Run health check
-            health_result = await self._check_proxy_health(proxy.proxy_url)
+            access_token = await self._get_app_access_token()
+            health_result = await self._check_proxy_health(
+                proxy.proxy_url, access_token
+            )
 
             # Update database
             proxy.last_health_check = datetime.now(timezone.utc)
