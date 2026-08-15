@@ -7,11 +7,36 @@ import pytest
 from unittest.mock import patch, MagicMock
 
 from app.utils.streamlink_utils import (
+    _add_proxy_settings,
     get_streamlink_command,
     get_streamlink_vod_command,
     get_streamlink_clip_command,
     get_proxy_settings_from_db,
 )
+
+
+def test_add_proxy_settings_redacts_credentials_from_log(caplog):
+    proxy_url = "http://user:password@proxy.example.com:8080"
+
+    with caplog.at_level("DEBUG", logger="app.utils.streamlink_utils"):
+        _add_proxy_settings([], {"http": proxy_url}, force_mode=False)
+
+    assert "user" not in caplog.text
+    assert "password" not in caplog.text
+    assert "proxy.example.com:8080" in caplog.text
+
+
+def test_add_proxy_settings_redacts_credentials_from_invalid_proxy(caplog):
+    proxy_url = "user:password@proxy.example.com:8080"
+
+    with caplog.at_level("ERROR", logger="app.utils.streamlink_utils"):
+        with pytest.raises(ValueError) as exc_info:
+            _add_proxy_settings([], {"http": proxy_url}, force_mode=False)
+
+    diagnostic = f"{exc_info.value} {caplog.text}"
+    assert "user" not in diagnostic
+    assert "password" not in diagnostic
+    assert "proxy.example.com:8080" in diagnostic
 
 
 class TestStreamlinkUtils:

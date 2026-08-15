@@ -483,6 +483,17 @@ class TestProxyURLSanitization:
         assert result == url
         assert "[REDACTED]" not in result
 
+    def test_proxy_credentials_without_scheme_redacted(self):
+        """Test malformed proxy credentials are still redacted"""
+        from app.utils.security import sanitize_proxy_url_for_logging
+
+        url = "user:password@proxy.example.com:8080"
+        result = sanitize_proxy_url_for_logging(url)
+
+        assert "user" not in result
+        assert "password" not in result
+        assert "proxy.example.com:8080" in result
+
     def test_https_proxy_with_credentials_redacted(self):
         """Test HTTPS proxy credentials are redacted"""
         from app.utils.security import sanitize_proxy_url_for_logging

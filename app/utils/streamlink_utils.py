@@ -15,6 +15,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from app.models import GlobalSettings
+from app.utils.security import sanitize_proxy_url_for_logging
 
 # Get the logger
 logger = logging.getLogger(__name__)
@@ -332,9 +333,10 @@ def _add_proxy_settings(
         return cmd
 
     if not proxy_url.startswith(("http://", "https://")):
+        sanitized_proxy_url = sanitize_proxy_url_for_logging(proxy_url)
         error_msg = (
             "HTTP proxy URL must start with 'http://' or 'https://'. "
-            f"Current value: {proxy_url}"
+            f"Current value: {sanitized_proxy_url}"
         )
         logger.error(f"PROXY_VALIDATION_FAILED: {error_msg}")
         raise ValueError(error_msg)
@@ -361,7 +363,7 @@ def _add_proxy_settings(
             "segment",
         ]
     )
-    logger.debug(f"Using HTTP proxy: {proxy_url}")
+    logger.debug(f"Using HTTP proxy: {sanitize_proxy_url_for_logging(proxy_url)}")
 
     return cmd
 

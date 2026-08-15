@@ -621,6 +621,10 @@ def sanitize_proxy_url_for_logging(proxy_url: str) -> str:
 
         parsed = urlparse(proxy_url)
 
+        if "@" in proxy_url and "@" not in parsed.netloc:
+            host_part = proxy_url.rsplit("@", 1)[1]
+            return f"[REDACTED]:[REDACTED]@{host_part}"
+
         # If credentials are present, redact them
         if parsed.username or parsed.password:
             # Replace credentials with [REDACTED]

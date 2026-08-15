@@ -12,6 +12,8 @@ import logging
 from pathlib import Path
 from typing import Optional
 
+from app.utils.security import sanitize_proxy_url_for_logging
+
 logger = logging.getLogger("streamvault")
 
 
@@ -109,7 +111,9 @@ class StreamlinkConfigService:
                         "",
                     ]
                 )
-                logger.info(f"🔧 HTTP proxy configured: {proxy_url[:30]}...")
+                logger.info(
+                    f"🔧 HTTP proxy configured: {sanitize_proxy_url_for_logging(proxy_url)}"
+                )
 
             # Add static Streamlink options (from get_streamlink_command)
             config_lines.extend(
