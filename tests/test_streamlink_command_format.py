@@ -20,7 +20,10 @@ from app.utils.streamlink_utils import get_streamlink_command
 def test_oauth_token_format():
     """Test that OAuth token is passed as single argument with ="""
     cmd = get_streamlink_command(
-        streamer_name="test_streamer", quality="best", output_path="/tmp/test.ts", oauth_token="test_token_123"
+        streamer_name="test_streamer",
+        quality="best",
+        output_path="/tmp/test.ts",
+        oauth_token="test_token_123",
     )
 
     # Find the OAuth argument
@@ -43,7 +46,10 @@ def test_oauth_token_format():
 def test_codec_format():
     """Test that codecs are passed as single argument with ="""
     cmd = get_streamlink_command(
-        streamer_name="test_streamer", quality="best", output_path="/tmp/test.ts", supported_codecs="h264,h265,av1"
+        streamer_name="test_streamer",
+        quality="best",
+        output_path="/tmp/test.ts",
+        supported_codecs="h264,h265,av1",
     )
 
     # Find the codec argument
@@ -59,7 +65,6 @@ def test_codec_format():
 
 
 def test_proxy_format():
-    """Test that proxy URLs are passed as single argument with ="""
     cmd = get_streamlink_command(
         streamer_name="test_streamer",
         quality="best",
@@ -70,18 +75,27 @@ def test_proxy_format():
         },
     )
 
-    # Find proxy arguments
-    http_proxy_arg = None
-    https_proxy_arg = None
-    for arg in cmd:
-        if arg.startswith("--http-proxy="):
-            http_proxy_arg = arg
-        if arg.startswith("--https-proxy="):
-            https_proxy_arg = arg
+    proxy_args = [arg for arg in cmd if "proxy=" in arg]
+    assert proxy_args == ["--http-proxy=http://user:pass@proxy.example.com:8080"]
 
-    # Verify format
-    assert http_proxy_arg == "--http-proxy=http://user:pass@proxy.example.com:8080"
-    assert https_proxy_arg == "--https-proxy=https://user:pass@proxy.example.com:8443"
+
+def test_https_proxy_falls_back_to_one_http_proxy_with_six_total_segment_attempts():
+    # Given: an HTTPS-only proxy for a force recording command
+    cmd = get_streamlink_command(
+        streamer_name="test_streamer",
+        quality="best",
+        output_path="/tmp/test.ts",
+        proxy_settings={"https": "https://proxy.example.com:8443"},
+        force_mode=True,
+    )
+
+    # When: Streamlink 8.4.0 receives the generated command
+    proxy_args = [arg for arg in cmd if "proxy=" in arg]
+
+    # Then: it has one HTTP proxy and five retries after the initial segment request.
+    assert proxy_args == ["--http-proxy=https://proxy.example.com:8443"]
+    attempts_index = cmd.index("--stream-segment-attempts")
+    assert cmd[attempts_index + 1] == "5"
 
 
 def test_no_space_in_critical_arguments():
@@ -96,7 +110,12 @@ def test_no_space_in_critical_arguments():
     )
 
     # Critical arguments that should use = format
-    critical_args = ["--twitch-api-header", "--twitch-supported-codecs", "--http-proxy", "--https-proxy"]
+    critical_args = [
+        "--twitch-api-header",
+        "--twitch-supported-codecs",
+        "--http-proxy",
+        "--https-proxy",
+    ]
 
     # Check each critical argument
     for arg_name in critical_args:
@@ -113,14 +132,19 @@ def test_no_space_in_critical_arguments():
                 next_arg = cmd[idx + 1]
                 # Next argument should be another option or the URL
                 assert (
-                    next_arg.startswith("--") or "twitch.tv" in next_arg or next_arg in ["best", "/tmp/test.ts"]
+                    next_arg.startswith("--")
+                    or "twitch.tv" in next_arg
+                    or next_arg in ["best", "/tmp/test.ts"]
                 ), f"{arg_name} appears to have value as separate argument: {next_arg}"
 
 
 def test_command_structure():
     """Test overall command structure"""
     cmd = get_streamlink_command(
-        streamer_name="test_streamer", quality="best", output_path="/tmp/test.ts", oauth_token="test_token_123"
+        streamer_name="test_streamer",
+        quality="best",
+        output_path="/tmp/test.ts",
+        oauth_token="test_token_123",
     )
 
     # Basic structure checks

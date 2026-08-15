@@ -66,10 +66,11 @@ def check_proxy_connectivity(
     # Test proxy connectivity with a simple Streamlink command
     test_cmd = ["streamlink", "--json", "twitch.tv/test"]
 
-    if "http" in proxy_settings and proxy_settings["http"].strip():
-        test_cmd.append(f"--http-proxy={proxy_settings['http'].strip()}")
-    if "https" in proxy_settings and proxy_settings["https"].strip():
-        test_cmd.append(f"--https-proxy={proxy_settings['https'].strip()}")
+    proxy_url = (
+        proxy_settings.get("http") or proxy_settings.get("https") or ""
+    ).strip()
+    if proxy_url:
+        test_cmd.append(f"--http-proxy={proxy_url}")
 
     try:
         # Use a short timeout to fail fast if proxy is down
@@ -152,10 +153,11 @@ def get_stream_info(
 
     # Add proxy settings if provided
     if proxy_settings:
-        if "http" in proxy_settings and proxy_settings["http"].strip():
-            cmd.append(f"--http-proxy={proxy_settings['http'].strip()}")
-        if "https" in proxy_settings and proxy_settings["https"].strip():
-            cmd.append(f"--https-proxy={proxy_settings['https'].strip()}")
+        proxy_url = (
+            proxy_settings.get("http") or proxy_settings.get("https") or ""
+        ).strip()
+        if proxy_url:
+            cmd.append(f"--http-proxy={proxy_url}")
 
     try:
         # SECURITY: Sanitize command for logging to prevent token exposure (CWE-532)
@@ -323,84 +325,43 @@ def _add_proxy_settings(
     Returns:
         Updated command list with proxy settings
     """
-    # Add HTTP proxy if configured
-    if "http" in proxy_settings and proxy_settings["http"].strip():
-        proxy_url = proxy_settings["http"].strip()
-        # Validate that the proxy URL has the correct protocol prefix
-        if not proxy_url.startswith(("http://", "https://")):
-            error_msg = (
-                f"HTTP proxy URL must start with 'http://' or 'https://'. "
-                f"Current value: {proxy_url}"
-            )
-            logger.error(f"PROXY_VALIDATION_FAILED: {error_msg}")
-            raise ValueError(error_msg)
+    proxy_url = (
+        proxy_settings.get("http") or proxy_settings.get("https") or ""
+    ).strip()
+    if not proxy_url:
+        return cmd
 
-        cmd.append(f"--http-proxy={proxy_url}")
-        logger.debug(f"Using HTTP proxy: {proxy_url}")
-
-        # Add proxy-specific optimizations for better audio sync
-        seg_timeout = "60" if not force_mode else "90"
-        stream_timeout = "300" if not force_mode else "360"
-        seg_attempts = "15" if not force_mode else "20"
-        cmd.extend(
-            [
-                "--stream-segment-timeout",
-                seg_timeout,
-                "--stream-timeout",
-                stream_timeout,
-                # Multiplication factor for segment queue deadline (default 3.0)
-                # 8x = generous tolerance for proxy latency (replaces deprecated
-                # --hls-segment-queue-threshold since Streamlink 8.1.0)
-                "--stream-segmented-queue-deadline",
-                "8",
-                "--stream-segment-attempts",
-                seg_attempts,
-                "--hls-live-edge",
-                "10",
-                "--ringbuffer-size",
-                "512M",
-                "--hls-segment-stream-data",
-                "--stream-segment-threads",
-                "2",
-                "--hls-playlist-reload-time",
-                "segment",
-            ]
+    if not proxy_url.startswith(("http://", "https://")):
+        error_msg = (
+            "HTTP proxy URL must start with 'http://' or 'https://'. "
+            f"Current value: {proxy_url}"
         )
+        logger.error(f"PROXY_VALIDATION_FAILED: {error_msg}")
+        raise ValueError(error_msg)
 
-    # Add HTTPS proxy if configured
-    if "https" in proxy_settings and proxy_settings["https"].strip():
-        proxy_url = proxy_settings["https"].strip()
-        # Validate that the proxy URL has the correct protocol prefix
-        if not proxy_url.startswith(("http://", "https://")):
-            error_msg = (
-                f"HTTPS proxy URL must start with 'http://' or 'https://'. "
-                f"Current value: {proxy_url}"
-            )
-            logger.error(f"PROXY_VALIDATION_FAILED: {error_msg}")
-            raise ValueError(error_msg)
-
-        cmd.append(f"--https-proxy={proxy_url}")
-        logger.debug(f"Using HTTPS proxy: {proxy_url}")
-
-        # Add proxy-specific optimizations for HTTPS connections too
-        cmd.extend(
-            [
-                "--stream-segment-timeout",
-                "60" if not force_mode else "90",
-                "--stream-timeout",
-                "300" if not force_mode else "360",
-                # Multiplication factor for segment queue deadline (default 3.0)
-                # 8x = generous tolerance for proxy latency
-                "--stream-segmented-queue-deadline",
-                "8",
-                "--stream-segment-attempts",
-                "15" if not force_mode else "20",
-                "--hls-live-edge",
-                "10",
-                "--ringbuffer-size",
-                "512M",
-            ]
-        )
+    cmd.extend(
+        [
+            f"--http-proxy={proxy_url}",
+            "--stream-segment-timeout",
+            "60" if not force_mode else "90",
+            "--stream-timeout",
+            "300" if not force_mode else "360",
+            "--stream-segmented-queue-deadline",
+            "8",
+            "--stream-segment-attempts",
+            "5",
+            "--hls-live-edge",
+            "10",
+            "--ringbuffer-size",
+            "512M",
+            "--hls-segment-stream-data",
+            "--stream-segment-threads",
+            "2",
+            "--hls-playlist-reload-time",
+            "segment",
+        ]
+    )
+    logger.debug(f"Using HTTP proxy: {proxy_url}")
 
     return cmd
 
