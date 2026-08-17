@@ -5,8 +5,10 @@ Pure unit tests — no database imports, no pytest-asyncio.
 Tests only logic that doesn't require external services.
 """
 
-from unittest.mock import MagicMock
+import asyncio
+import logging
 from datetime import datetime, timedelta
+from unittest.mock import MagicMock
 
 
 def test_live_stream_session_properties():
@@ -191,3 +193,80 @@ def test_stop_existing_user_streams_replaces_same_streamer():
     assert "old" not in svc.user_sessions["user-1"]
     assert "other-streamer" in svc.sessions
     assert "other-user" in svc.sessions
+
+
+def test_live_proxy_command_preserves_url_and_redacts_diagnostics(monkeypatch, caplog):
+    from app.services import live_streaming_service
+
+    proxy_url = (
+        "https://live-user:live-password@proxy.example:8443/"
+        "signed/path?token=live-secret#live-fragment"
+    )
+
+    class TokenService:
+        def __init__(self, db):
+            pass
+
+        async def get_valid_access_token(self):
+            return None
+
+    async def get_best_proxy():
+        return proxy_url
+
+    monkeypatch.setattr(live_streaming_service, "TwitchTokenService", TokenService)
+    monkeypatch.setattr(
+        live_streaming_service.proxy_health_service,
+        "get_best_proxy",
+        get_best_proxy,
+    )
+
+    service = live_streaming_service.LiveStreamingService()
+    with caplog.at_level(logging.DEBUG, logger="streamvault"):
+        command = asyncio.run(service._build_streamlink_command("streamer", "best"))
+
+    assert f"--http-proxy={proxy_url}" in command
+    assert "proxy.example:8443" in caplog.text
+    for secret in (
+        "live-user",
+        "live-password",
+        "signed",
+        "path",
+        "token",
+        "live-secret",
+        "live-fragment",
+    ):
+        assert secret not in caplog.text
+
+
+def test_live_proxy_lookup_exception_does_not_reach_diagnostics(monkeypatch, caplog):
+    from app.services import live_streaming_service
+
+    proxy_url = (
+        "https://live-user:live-password@proxy.example:8443/"
+        "signed/path?token=live-secret#live-fragment"
+    )
+
+    class TokenService:
+        def __init__(self, db):
+            pass
+
+        async def get_valid_access_token(self):
+            return None
+
+    async def get_best_proxy():
+        raise RuntimeError(proxy_url)
+
+    monkeypatch.setattr(live_streaming_service, "TwitchTokenService", TokenService)
+    monkeypatch.setattr(
+        live_streaming_service.proxy_health_service,
+        "get_best_proxy",
+        get_best_proxy,
+    )
+
+    service = live_streaming_service.LiveStreamingService()
+    with caplog.at_level(logging.WARNING, logger="streamvault"):
+        command = asyncio.run(service._build_streamlink_command("streamer", "best"))
+
+    assert not any(arg.startswith("--http-proxy=") for arg in command)
+    assert "Could not get proxy" in caplog.text
+    assert proxy_url not in caplog.text

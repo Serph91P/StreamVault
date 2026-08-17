@@ -142,10 +142,6 @@ async def add_proxy(request: ProxyAddRequest, user=Depends(get_current_user)):
         # URL-encode credentials in proxy URL (fixes passwords with special chars like _)
         encoded_proxy_url = encode_proxy_url(request.proxy_url)
 
-        logger.debug(
-            f"Encoding proxy URL: {request.proxy_url[:30]}... → {encoded_proxy_url[:30]}..."
-        )
-
         # Check for duplicate proxy URL (check both raw and encoded)
         existing = (
             db.query(ProxySettings)
