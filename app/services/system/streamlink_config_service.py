@@ -12,6 +12,8 @@ import logging
 from pathlib import Path
 from typing import Optional
 
+from app.utils.security import sanitize_proxy_url_for_logging
+
 logger = logging.getLogger("streamvault")
 
 
@@ -100,37 +102,30 @@ class StreamlinkConfigService:
                 logger.warning("⚠️ No OAuth token - H.265/1440p quality unavailable")
                 logger.warning("⚠️ No OAuth token - recordings limited to 1080p60 H.264")
 
-            # Add proxy settings if configured
-            if http_proxy and http_proxy.strip():
+            proxy_url = (http_proxy or "").strip() or (https_proxy or "").strip()
+            if proxy_url:
                 config_lines.extend(
                     [
                         "# HTTP Proxy",
-                        f"http-proxy={http_proxy.strip()}",
+                        f"http-proxy={proxy_url}",
                         "",
                     ]
                 )
-                logger.info(f"🔧 HTTP proxy configured: {http_proxy[:30]}...")
-
-            if https_proxy and https_proxy.strip():
-                config_lines.extend(
-                    [
-                        "# HTTPS Proxy",
-                        f"https-proxy={https_proxy.strip()}",
-                        "",
-                    ]
+                logger.info(
+                    "🔧 HTTP proxy configured: %s",
+                    sanitize_proxy_url_for_logging(proxy_url),
                 )
-                logger.info(f"🔧 HTTPS proxy configured: {https_proxy[:30]}...")
 
             # Add static Streamlink options (from get_streamlink_command)
             config_lines.extend(
                 [
                     "# Stream stability settings",
-                    "hls-live-edge=99999",
+                    "hls-live-edge=3",
                     "stream-timeout=200",
                     "stream-segment-timeout=200",
                     "stream-segment-threads=5",
                     "retry-streams=10",
-                    "retry-max=5",
+                    "retry-max=2",
                     "",
                     "# FFmpeg output format",
                     "ffmpeg-fout=mpegts",

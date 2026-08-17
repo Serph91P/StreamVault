@@ -792,20 +792,13 @@ class ProxySettings(Base):
     @property
     def masked_url(self) -> str:
         """
-        Return proxy URL with password masked for security.
-        Example: http://username:***@proxy-host:9999
+        Return validated proxy host and port for diagnostics.
 
         SECURITY: Safe to display in UI and logs.
         """
-        decrypted_url = self.proxy_url
+        from app.utils.security import sanitize_proxy_url_for_logging
 
-        if "@" in decrypted_url:
-            parts = decrypted_url.split("@")
-            if ":" in parts[0]:
-                # Split protocol://username:password
-                user_part = parts[0].rsplit(":", 1)[0]
-                return f"{user_part}:***@{parts[1]}"
-        return decrypted_url
+        return sanitize_proxy_url_for_logging(self.proxy_url)
 
     def calculate_success_rate(self) -> Optional[float]:
         """Calculate success rate as percentage"""
@@ -824,12 +817,13 @@ class ProxySettings(Base):
         Serialize proxy settings to dictionary.
 
         Args:
-            mask_password: If True, replace password with *** in URL
+            mask_password: If True, expose only validated host and port
         """
+        masked_url = self.masked_url
         return {
             "id": self.id,
-            "proxy_url": self.masked_url if mask_password else self.proxy_url,
-            "masked_url": self.masked_url,  # Always include masked URL for display
+            "proxy_url": masked_url if mask_password else self.proxy_url,
+            "masked_url": masked_url,
             "priority": self.priority,
             "enabled": self.enabled,
             "last_check": self.last_health_check.isoformat()
