@@ -470,17 +470,16 @@ class TestProxyURLSanitization:
 
         assert "user" not in result
         assert "password" not in result
-        assert "[REDACTED]" in result
-        assert "proxy.com:8080" in result
+        assert result == "proxy.com:8080"
 
     def test_proxy_without_credentials_unchanged(self):
-        """Test that proxy URLs without credentials are unchanged"""
+        """Test that proxy URLs without credentials retain only host and port"""
         from app.utils.security import sanitize_proxy_url_for_logging
 
         url = "http://proxy.com:8080"
         result = sanitize_proxy_url_for_logging(url)
 
-        assert result == url
+        assert result == "proxy.com:8080"
         assert "[REDACTED]" not in result
 
     def test_https_proxy_with_credentials_redacted(self):
@@ -492,8 +491,7 @@ class TestProxyURLSanitization:
 
         assert "admin" not in result
         assert "secret123" not in result
-        assert "[REDACTED]" in result
-        assert "secure-proxy.example.com:443" in result
+        assert result == "secure-proxy.example.com:443"
 
     def test_socks_proxy_with_credentials_redacted(self):
         """Test SOCKS proxy credentials are redacted"""
@@ -504,8 +502,7 @@ class TestProxyURLSanitization:
 
         assert "user" not in result
         assert "pass" not in result
-        assert "[REDACTED]" in result
-        assert "socks-proxy.com:1080" in result
+        assert result == "socks-proxy.com:1080"
 
     def test_empty_or_invalid_proxy_url(self):
         """Test that empty or invalid URLs are handled gracefully"""
@@ -522,8 +519,42 @@ class TestProxyURLSanitization:
         url = "not-a-valid-url-format"
         result = sanitize_proxy_url_for_logging(url)
 
-        # Should be safe - either return as-is (no credentials) or redact
-        assert "not-a-valid-url-format" in result or "[REDACTED" in result
+        assert result == "[REDACTED_PROXY_URL]"
+
+    @pytest.mark.parametrize(
+        ("url", "expected"),
+        [
+            (
+                "http://user-secret:password-secret@proxy.example:8080/signed/path?token=query-secret#fragment-secret",
+                "proxy.example:8080",
+            ),
+            ("https://proxy.example/private/path?signature=secret", "proxy.example"),
+            (
+                "http://user:password@[broken-host:8080/path?secret=value",
+                "[REDACTED_PROXY_URL]",
+            ),
+            (
+                "user:password@proxy.example:8080/signed?secret=value",
+                "[REDACTED_PROXY_URL]",
+            ),
+        ],
+    )
+    def test_proxy_diagnostics_are_host_port_only_or_redacted(self, url, expected):
+        from app.utils.security import sanitize_proxy_url_for_logging
+
+        result = sanitize_proxy_url_for_logging(url)
+
+        assert result == expected
+        for secret in (
+            "user-secret",
+            "password-secret",
+            "signed",
+            "private",
+            "query-secret",
+            "fragment-secret",
+            "value",
+        ):
+            assert secret not in result
 
 
 class TestCommandSanitization:

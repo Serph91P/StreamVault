@@ -31,6 +31,7 @@ from app.config.constants import ASYNC_DELAYS
 from app.config.settings import settings
 from app.database import SessionLocal
 from app.models import ProxySettings, RecordingSettings
+from app.utils.security import sanitize_proxy_url_for_logging
 
 logger = logging.getLogger("streamvault")
 
@@ -107,8 +108,8 @@ class ProxyHealthService:
             except asyncio.CancelledError:
                 logger.info("🛑 Health check loop cancelled")
                 break
-            except Exception as e:
-                logger.error(f"🚨 Error in health check loop: {e}", exc_info=True)
+            except Exception:
+                logger.error("🚨 Error in health check loop")
                 # Wait before retrying to avoid tight error loop
                 await asyncio.sleep(ASYNC_DELAYS.PROXY_HEALTH_CHECK_ERROR_WAIT)
 
@@ -121,8 +122,8 @@ class ProxyHealthService:
                     settings, "proxy_health_check_interval_seconds"
                 ):
                     return settings.proxy_health_check_interval_seconds
-        except Exception as e:
-            logger.error(f"Error getting check interval: {e}")
+        except Exception:
+            logger.error("Error getting check interval")
 
         # Default: 5 minutes
         return 300
@@ -134,8 +135,8 @@ class ProxyHealthService:
                 settings = db.query(RecordingSettings).first()
                 if settings and hasattr(settings, "proxy_health_check_enabled"):
                     return settings.proxy_health_check_enabled
-        except Exception as e:
-            logger.error(f"Error checking if health checks enabled: {e}")
+        except Exception:
+            logger.error("Error checking if health checks enabled")
 
         # Default: enabled
         return True
@@ -164,10 +165,21 @@ class ProxyHealthService:
 
                 logger.info(f"🔍 Checking {len(proxies)} enabled proxies...")
 
+                access_token = await self._get_twitch_access_token()
+                if not access_token:
+                    logger.error(
+                        "Proxy health checks skipped: Twitch token unavailable"
+                    )
+                    return
+
                 # Check each proxy
                 for proxy in proxies:
                     try:
-                        health_result = await self._check_proxy_health(proxy.proxy_url)
+                        proxy_url = proxy.proxy_url
+                        safe_proxy_url = sanitize_proxy_url_for_logging(proxy_url)
+                        health_result = await self._check_proxy_health(
+                            proxy_url, access_token
+                        )
 
                         # Update proxy health in database
                         proxy.last_health_check = datetime.now(timezone.utc)
@@ -180,7 +192,7 @@ class ProxyHealthService:
                         if health_result["status"] == "failed":
                             proxy.consecutive_failures += 1
                             logger.warning(
-                                f"⚠️ Proxy health check failed: {proxy.masked_url} - "
+                                f"⚠️ Proxy health check failed: {safe_proxy_url} - "
                                 f"Failures: {proxy.consecutive_failures}/{await self._get_max_failures()} - "
                                 f"Error: {health_result.get('error', 'Unknown')}"
                             )
@@ -188,7 +200,7 @@ class ProxyHealthService:
                             # Reset counter on success
                             proxy.consecutive_failures = 0
                             logger.info(
-                                f"✅ Proxy health check passed: {proxy.masked_url} - "
+                                f"✅ Proxy health check passed: {safe_proxy_url} - "
                                 f"{health_result['status']} ({health_result.get('response_time_ms')}ms)"
                             )
 
@@ -198,7 +210,7 @@ class ProxyHealthService:
                             proxy.enabled = False
                             logger.error(
                                 f"🚨 Proxy auto-disabled after {proxy.consecutive_failures} failures: "
-                                f"{proxy.masked_url}"
+                                f"{safe_proxy_url}"
                             )
 
                             # Broadcast notification
@@ -213,10 +225,8 @@ class ProxyHealthService:
 
                         db.commit()
 
-                    except Exception as e:
-                        logger.error(
-                            f"Error checking proxy {proxy.id}: {e}", exc_info=True
-                        )
+                    except Exception:
+                        logger.error(f"Error checking proxy {proxy.id}")
                         db.rollback()
 
                 logger.info("✅ Proxy health checks completed")
@@ -228,13 +238,49 @@ class ProxyHealthService:
                 settings = db.query(RecordingSettings).first()
                 if settings and hasattr(settings, "proxy_max_consecutive_failures"):
                     return settings.proxy_max_consecutive_failures
-        except Exception as e:
-            logger.error(f"Error getting max failures: {e}")
+        except Exception:
+            logger.error("Error getting max failures")
 
         # Default: 3 failures
         return 3
 
-    async def _check_proxy_health(self, proxy_url: str) -> Dict[str, Any]:
+    async def _get_twitch_access_token(self) -> Optional[str]:
+        """Fetch one ephemeral Twitch app token for a health-check operation."""
+        try:
+            async with aiohttp.ClientSession() as token_session:
+                async with token_session.post(
+                    "https://id.twitch.tv/oauth2/token",
+                    params={
+                        "client_id": settings.TWITCH_APP_ID,
+                        "client_secret": settings.TWITCH_APP_SECRET,
+                        "grant_type": "client_credentials",
+                    },
+                ) as token_response:
+                    if token_response.status != 200:
+                        logger.error(
+                            "Failed to get Twitch access token for proxy health check "
+                            f"(HTTP {token_response.status})"
+                        )
+                        return None
+
+                    token_data = await token_response.json()
+                    access_token = token_data.get("access_token")
+                    if not access_token:
+                        logger.error(
+                            "Twitch token response for proxy health check was invalid"
+                        )
+                        return None
+                    return access_token
+        except asyncio.CancelledError:
+            logger.error("Twitch token request for proxy health check was cancelled")
+            raise
+        except Exception:
+            logger.error("Error getting access token for proxy health check")
+            return None
+
+    async def _check_proxy_health(
+        self, proxy_url: str, access_token: str
+    ) -> Dict[str, Any]:
         """
         Check health of a single proxy by testing connectivity with Twitch API.
 
@@ -252,48 +298,6 @@ class ProxyHealthService:
                 'error': str or None
             }
         """
-        # Get Twitch access token first
-        try:
-            # Use app credentials to get access token (same as in recordings)
-            async with aiohttp.ClientSession() as token_session:
-                async with token_session.post(
-                    "https://id.twitch.tv/oauth2/token",
-                    params={
-                        "client_id": settings.TWITCH_APP_ID,
-                        "client_secret": settings.TWITCH_APP_SECRET,
-                        "grant_type": "client_credentials",
-                    },
-                ) as token_response:
-                    if token_response.status != 200:
-                        logger.error(
-                            f"Failed to get Twitch access token for proxy health check: {token_response.status}"
-                        )
-                        return {
-                            "status": "failed",
-                            "response_time_ms": None,
-                            "error": "Failed to get Twitch access token",
-                        }
-
-                    token_data = await token_response.json()
-                    access_token = token_data.get("access_token")
-
-                    if not access_token:
-                        return {
-                            "status": "failed",
-                            "response_time_ms": None,
-                            "error": "No access token received",
-                        }
-
-        except Exception as e:
-            # Log full exception details server-side, but return only a generic error message to the client.
-            logger.error(f"Error getting access token for proxy check: {e}")
-            return {
-                "status": "failed",
-                "response_time_ms": None,
-                "error": "Token error",
-            }
-
-        # Now test the proxy with authenticated Twitch API request
         timeout = aiohttp.ClientTimeout(total=10.0, connect=5.0)
 
         try:
@@ -313,7 +317,7 @@ class ProxyHealthService:
                         "Authorization": f"Bearer {access_token}",
                     },
                     proxy=proxy_url,  # Use proxy for this request
-                    allow_redirects=True,
+                    allow_redirects=False,
                 ) as response:
                     end_time = asyncio.get_event_loop().time()
                     response_time_ms = int((end_time - start_time) * 1000)
@@ -345,9 +349,8 @@ class ProxyHealthService:
                         # 4xx = proxy works but might have auth issues
                         # Check if it's specifically auth (401/403) which might be token issue
                         if response.status in (401, 403):
-                            error_text = await response.text()
                             logger.warning(
-                                f"Proxy health check got {response.status}: {error_text[:100]}"
+                                f"Proxy health check got HTTP {response.status}"
                             )
                             return {
                                 "status": "degraded",
@@ -375,27 +378,28 @@ class ProxyHealthService:
                 "error": "Timeout after 10 seconds",
             }
 
-            # Log detailed connection error, but expose only a generic message to the client.
-        except aiohttp.ClientProxyConnectionError as e:
-            logger.error(f"Proxy connection error during health check: {e}")
+        except asyncio.CancelledError:
+            logger.warning("Proxy health request was cancelled")
+            raise
+
+        except aiohttp.ClientProxyConnectionError:
+            logger.error("Proxy connection error during health check")
             return {
                 "status": "failed",
                 "response_time_ms": None,
                 "error": "Proxy connection failed",
             }
 
-            # Log detailed client error, but expose only a generic message to the client.
-        except aiohttp.ClientError as e:
-            logger.error(f"Client error during proxy health check: {e}")
+        except aiohttp.ClientError:
+            logger.error("Client error during proxy health check")
             return {
                 "status": "failed",
                 "response_time_ms": None,
                 "error": "Connection error",
             }
 
-            # Log unexpected exceptions with stack trace, but do not leak details to the client.
-        except Exception as e:
-            logger.error(f"Unexpected error checking proxy health: {e}", exc_info=True)
+        except Exception:
+            logger.error("Unexpected error checking proxy health")
             return {
                 "status": "failed",
                 "response_time_ms": None,
@@ -420,8 +424,17 @@ class ProxyHealthService:
             if not proxy:
                 return {"error": "Proxy not found"}
 
-            # Run health check
-            health_result = await self._check_proxy_health(proxy.proxy_url)
+            access_token = await self._get_twitch_access_token()
+            if access_token:
+                health_result = await self._check_proxy_health(
+                    proxy.proxy_url, access_token
+                )
+            else:
+                health_result = {
+                    "status": "failed",
+                    "response_time_ms": None,
+                    "error": "Health check unavailable",
+                }
 
             # Update database
             proxy.last_health_check = datetime.now(timezone.utc)
@@ -440,7 +453,9 @@ class ProxyHealthService:
             await self._broadcast_proxy_status(proxy, auto_disabled=False)
 
             logger.info(
-                f"🔧 Manual health check: {proxy.masked_url} - {health_result['status']}"
+                "🔧 Manual health check: "
+                f"{sanitize_proxy_url_for_logging(proxy.proxy_url)} - "
+                f"{health_result['status']}"
                 + (
                     f" - Error: {health_result.get('error')}"
                     if health_result.get("error")
@@ -500,7 +515,8 @@ class ProxyHealthService:
             best_proxy = sorted_proxies[0]
 
             logger.info(
-                f"✅ Selected best proxy: {best_proxy.masked_url} - "
+                "✅ Selected best proxy: "
+                f"{sanitize_proxy_url_for_logging(best_proxy.proxy_url)} - "
                 f"Status: {best_proxy.health_status}, Priority: {best_proxy.priority}, "
                 f"Response: {best_proxy.average_response_time_ms}ms"
             )
@@ -520,17 +536,21 @@ class ProxyHealthService:
         try:
             from app.services.communication.websocket_manager import websocket_manager
 
+            proxy_data = proxy.to_dict(mask_password=True)
+            safe_proxy_url = sanitize_proxy_url_for_logging(proxy.proxy_url)
+            proxy_data["proxy_url"] = safe_proxy_url
+            proxy_data["masked_url"] = safe_proxy_url
             message = {
                 "type": "proxy_health_update",
-                "proxy": proxy.to_dict(mask_password=True),
+                "proxy": proxy_data,
                 "auto_disabled": auto_disabled,
                 "timestamp": datetime.now(timezone.utc).isoformat(),
             }
 
             await websocket_manager.send_notification(message)
 
-        except Exception as e:
-            logger.error(f"Error broadcasting proxy status: {e}", exc_info=True)
+        except Exception:
+            logger.error("Error broadcasting proxy status")
 
     async def increment_recording_stats(self, proxy_url: str, success: bool):
         """
@@ -556,7 +576,8 @@ class ProxyHealthService:
                 db.commit()
 
                 logger.debug(
-                    f"📊 Proxy stats updated: {proxy.masked_url} - "
+                    "📊 Proxy stats updated: "
+                    f"{sanitize_proxy_url_for_logging(proxy.proxy_url)} - "
                     f"Total: {proxy.total_recordings}, Failed: {proxy.failed_recordings}, "
                     f"Success rate: {proxy.success_rate:.1f}%"
                 )
