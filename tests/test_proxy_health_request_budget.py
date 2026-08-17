@@ -236,7 +236,8 @@ async def test_proxy_failure_is_isolated_without_secret_leaks(
     proxies = [
         make_proxy(
             1,
-            f"http://{proxy_secret}:password-secret@first.example:8080/path?key=query-secret#fragment-secret",
+            f"http://{proxy_secret}:password-secret@first.example:8080/"
+            "path?key=query-secret#fragment-secret",
         ),
         make_proxy(2, "http://second.example:8080"),
     ]

@@ -525,7 +525,8 @@ class TestProxyURLSanitization:
         ("url", "expected"),
         [
             (
-                "http://user-secret:password-secret@proxy.example:8080/signed/path?token=query-secret#fragment-secret",
+                "http://user-secret:password-secret@proxy.example:8080/"
+                "signed/path?token=query-secret#fragment-secret",
                 "proxy.example:8080",
             ),
             ("https://proxy.example/private/path?signature=secret", "proxy.example"),

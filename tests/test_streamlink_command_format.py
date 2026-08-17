@@ -14,12 +14,16 @@ FIX: Now sends:
 """
 
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+import logging
 from pathlib import Path
+import subprocess
 from threading import Thread
+from types import SimpleNamespace
 from unittest.mock import patch
 from urllib.parse import urlsplit
 
 import pytest
+from app.utils import streamlink_utils
 from app.utils.streamlink_utils import get_streamlink_command
 
 
@@ -87,6 +91,111 @@ def test_proxy_format():
     # Verify format
     assert http_proxy_arg == "--http-proxy=https://user:pass@proxy.example.com:8443"
     assert not any(arg.startswith("--https-proxy=") for arg in cmd)
+
+
+@pytest.mark.parametrize(
+    ("proxy_settings", "expected_proxy"),
+    [
+        (
+            {
+                "http": "http://preferred.example:8080",
+                "https": "https://fallback.example:8443",
+            },
+            "http://preferred.example:8080",
+        ),
+        (
+            {"https": "https://fallback.example:8443"},
+            "https://fallback.example:8443",
+        ),
+    ],
+)
+def test_proxy_probe_and_stream_info_use_one_http_proxy_argument(
+    monkeypatch, proxy_settings, expected_proxy
+):
+    commands = []
+
+    def fake_run(command, **kwargs):
+        commands.append(command)
+        return subprocess.CompletedProcess(command, 0, stdout="{}", stderr="")
+
+    monkeypatch.setattr(streamlink_utils.subprocess, "run", fake_run)
+
+    assert streamlink_utils.check_proxy_connectivity(proxy_settings) == (True, "")
+    assert streamlink_utils.get_stream_info("test_streamer", proxy_settings) == (
+        True,
+        {},
+    )
+
+    for command in commands:
+        assert [arg for arg in command if arg.startswith("--http-proxy=")] == [
+            f"--http-proxy={expected_proxy}"
+        ]
+        assert not any(arg.startswith("--https-proxy=") for arg in command)
+
+
+def test_proxy_diagnostics_retain_only_host_port(monkeypatch, caplog, tmp_path: Path):
+    proxy_url = (
+        "https://user:password@proxy.example:8443/signed/path?token=secret#fragment"
+    )
+    with caplog.at_level(logging.DEBUG):
+        get_streamlink_command(
+            streamer_name="test_streamer",
+            quality="best",
+            output_path="/tmp/test.ts",
+            proxy_settings={"https": proxy_url},
+            log_path="/tmp/streamlink.log",
+        )
+
+        with pytest.raises(ValueError) as exc_info:
+            streamlink_utils._add_proxy_settings(
+                [], {"http": proxy_url.replace("https://", "socks5://")}, False
+            )
+
+        with patch("pathlib.Path.exists", return_value=True):
+            from app.services.system.streamlink_config_service import (
+                StreamlinkConfigService,
+            )
+
+        service = StreamlinkConfigService.__new__(StreamlinkConfigService)
+        service.config_dir = tmp_path
+        service.twitch_config_path = tmp_path / "config.twitch"
+        assert service.generate_twitch_config(https_proxy=proxy_url)
+
+    diagnostics = "\n".join(
+        record.getMessage()
+        for record in caplog.records
+        if "proxy" in record.getMessage().lower()
+    )
+    diagnostics = f"{diagnostics}\n{exc_info.value}"
+    assert "proxy.example:8443" in diagnostics
+    for secret in (
+        "user",
+        "password",
+        "signed",
+        "path",
+        "token",
+        "secret",
+        "fragment",
+    ):
+        assert secret not in diagnostics
+
+
+def test_proxy_failure_details_retain_only_host_port(monkeypatch):
+    proxy_url = (
+        "https://user:password@proxy.example:8443/signed/path?token=secret#fragment"
+    )
+    monkeypatch.setattr(
+        streamlink_utils,
+        "check_proxy_connectivity",
+        lambda settings: (False, "Proxy connectivity check failed"),
+    )
+
+    success, details = streamlink_utils.get_stream_info(
+        "test_streamer", {"https": proxy_url}
+    )
+
+    assert not success
+    assert details["proxy_settings"] == {"https": "proxy.example:8443"}
 
 
 @pytest.mark.parametrize("force_mode", [False, True])
@@ -191,6 +300,89 @@ def test_streamlink_840_segment_attempts_cap_http_requests(monkeypatch):
 
         assert set(requested_hosts) == {"127.0.0.1"}
         assert segment_requests <= 6
+    finally:
+        server.shutdown()
+        server.server_close()
+        server_thread.join()
+
+
+def test_streamlink_840_retry_max_caps_missing_stream_resolution_attempts(
+    monkeypatch, tmp_path: Path
+):
+    streamlink = pytest.importorskip("streamlink")
+    streamlink_cli = pytest.importorskip("streamlink_cli.main")
+    plugin_module = pytest.importorskip("streamlink.plugin")
+    assert streamlink.__version__ == "8.4.0"
+
+    with patch("pathlib.Path.exists", return_value=True):
+        from app.services.system.streamlink_config_service import (
+            StreamlinkConfigService,
+        )
+
+    service = StreamlinkConfigService.__new__(StreamlinkConfigService)
+    service.config_dir = tmp_path
+    service.twitch_config_path = tmp_path / "config.twitch"
+
+    assert service.generate_twitch_config()
+
+    config = dict(
+        line.split("=", 1)
+        for line in service.twitch_config_path.read_text().splitlines()
+        if "=" in line
+    )
+    assert config["retry-streams"] == "10"
+    assert config["retry-max"] == "2"
+    resolution_attempts = 0
+
+    class MissingStreamHandler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            nonlocal resolution_attempts
+            resolution_attempts += 1
+            self.send_response(404)
+            self.end_headers()
+
+        def log_message(self, format, *args):
+            pass
+
+    class MissingStreamPlugin(plugin_module.Plugin):
+        def _get_streams(self):
+            response = self.session.http.get(self.url, timeout=1)
+            response.raise_for_status()
+            return {}
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), MissingStreamHandler)
+    server_thread = Thread(target=server.serve_forever, daemon=True)
+    server_thread.start()
+    try:
+        session = streamlink.Streamlink()
+        request = session.http.request
+
+        def local_only_request(method, url, *args, **kwargs):
+            if urlsplit(url).hostname != "127.0.0.1":
+                raise RuntimeError(f"Blocked non-loopback request to {url}")
+            return request(method, url, *args, **kwargs)
+
+        monkeypatch.setattr(session.http, "request", local_only_request)
+        monkeypatch.setattr(streamlink_cli, "sleep", lambda _delay: None)
+        monkeypatch.setattr(
+            streamlink_cli,
+            "args",
+            SimpleNamespace(stream_types=None, stream_sorting_excludes=None),
+        )
+        plugin = MissingStreamPlugin(
+            session,
+            f"http://127.0.0.1:{server.server_port}/missing-stream",
+        )
+
+        assert (
+            streamlink_cli.fetch_streams_with_retry(
+                plugin,
+                int(config["retry-streams"]),
+                int(config["retry-max"]),
+            )
+            is None
+        )
+        assert resolution_attempts == 3
     finally:
         server.shutdown()
         server.server_close()

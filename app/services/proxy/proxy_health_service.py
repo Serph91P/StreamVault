@@ -284,7 +284,8 @@ class ProxyHealthService:
         """
         Check health of a single proxy by testing connectivity with Twitch API.
 
-        Uses authenticated Twitch API request to test the actual endpoint used for recordings.
+        Uses authenticated Twitch API request to test the actual endpoint used for
+        recordings.
         This ensures the proxy works for Streamlink, not just general web traffic.
 
         Args:
