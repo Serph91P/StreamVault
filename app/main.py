@@ -170,6 +170,13 @@ async def lifespan(app: FastAPI):
                 "⚠️ Application will continue but may have limited functionality"
             )
 
+        from app.services.twitch_upstream_coordinator import (
+            twitch_upstream_coordinator,
+        )
+
+        reconciled_leases = await twitch_upstream_coordinator.reconcile()
+        logger.info("Reconciled %s stale Twitch upstream leases", reconciled_leases)
+
         # Initialize EventSub
         event_registry = await get_event_registry()
         await event_registry.initialize_eventsub()

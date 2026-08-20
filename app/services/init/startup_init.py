@@ -525,7 +525,7 @@ async def cleanup_zombie_recordings():
         )
 
         from app.database import SessionLocal
-        from app.models import Recording, Stream
+        from app.models import Recording, Stream, TwitchUpstreamLease
         from app.services.streamer_service import StreamerService
         from app.services.recording.recording_service import RecordingService
         from app.services.communication.websocket_manager import websocket_manager
@@ -660,12 +660,30 @@ async def cleanup_zombie_recordings():
                         try:
                             # Resume recording through RecordingService
                             # Pass resume_segments_dir to continue in the same segments folder
-                            await recording_service.start_recording(
-                                stream_id=stream.id,
-                                streamer_id=streamer.id,
-                                force_mode=True,  # Force resume even if recording "exists"
-                                resume_segments_dir=resume_segments_dir,  # Continue in same segments folder!
+                            upstream_lease = (
+                                db.query(TwitchUpstreamLease)
+                                .filter(
+                                    TwitchUpstreamLease.channel_key
+                                    == streamer.twitch_id,
+                                    TwitchUpstreamLease.state == "RELEASED",
+                                )
+                                .first()
                             )
+                            if upstream_lease:
+                                await recording_service.start_recording(
+                                    stream_id=stream.id,
+                                    streamer_id=streamer.id,
+                                    force_mode=True,
+                                    resume_segments_dir=resume_segments_dir,
+                                    recovery_generation=upstream_lease.generation,
+                                )
+                            else:
+                                await recording_service.start_recording(
+                                    stream_id=stream.id,
+                                    streamer_id=streamer.id,
+                                    force_mode=True,
+                                    resume_segments_dir=resume_segments_dir,
+                                )
                             resumed_count += 1
                             if resume_segments_dir:
                                 logger.info(

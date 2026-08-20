@@ -23,8 +23,10 @@ import asyncio
 import logging
 import os
 import secrets
+import signal
 import shutil
 import uuid
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Optional, Set
@@ -32,10 +34,25 @@ from typing import Dict, Optional, Set
 from app.database import SessionLocal
 from app.services.proxy.proxy_health_service import proxy_health_service
 from app.services.system.twitch_token_service import TwitchTokenService
+from app.services.twitch_upstream_coordinator import (
+    AUTHENTICATED_TWITCH_ACCOUNT,
+    TwitchUpstreamConflict,
+    twitch_upstream_coordinator,
+)
 from app.utils.security import sanitize_proxy_url_for_logging
 from app.utils.streamlink_utils import _add_proxy_settings
 
 logger = logging.getLogger("streamvault")
+
+
+@dataclass(frozen=True)
+class LiveStreamStartResult:
+    session_id: str
+    idempotent: bool
+
+
+class TwitchUpstreamStopForbidden(PermissionError):
+    pass
 
 
 class LiveStreamSession:
@@ -50,6 +67,12 @@ class LiveStreamSession:
         ffmpeg_process: asyncio.subprocess.Process,
         output_dir: Path,
         user_id: Optional[str] = None,
+        channel_key: Optional[str] = None,
+        enhanced_quality: bool = False,
+        lease_generation: Optional[int] = None,
+        process_group_id: Optional[int] = None,
+        process_started_at: Optional[datetime] = None,
+        process_start_fingerprint: Optional[str] = None,
     ):
         self.session_id = session_id
         self.streamer_name = streamer_name
@@ -58,6 +81,12 @@ class LiveStreamSession:
         self.ffmpeg_process = ffmpeg_process
         self.output_dir = output_dir
         self.user_id = user_id
+        self.channel_key = channel_key
+        self.enhanced_quality = enhanced_quality
+        self.lease_generation = lease_generation
+        self.process_group_id = process_group_id
+        self.process_started_at = process_started_at
+        self.process_start_fingerprint = process_start_fingerprint
         self.playback_token = secrets.token_urlsafe(32)
         self.created_at = datetime.utcnow()
         self.last_accessed = datetime.utcnow()
@@ -97,11 +126,13 @@ class LiveStreamingService:
     # Playlist window size (number of segments)
     HLS_LIST_SIZE = 10
 
-    def __init__(self):
+    def __init__(self, coordinator=None, output_root=None):
         self.sessions: Dict[str, LiveStreamSession] = {}
         self.user_sessions: Dict[str, Set[str]] = {}  # user_id -> set of session_ids
         self._cleanup_task: Optional[asyncio.Task] = None
         self._lock = asyncio.Lock()
+        self._coordinator = coordinator or twitch_upstream_coordinator
+        self._output_root = Path(output_root or "/tmp/streamvault-live")
 
     async def start(self):
         """Start the background cleanup task"""
@@ -123,18 +154,25 @@ class LiveStreamingService:
             session_ids = list(self.sessions.keys())
 
         for session_id in session_ids:
-            await self.stop_stream(session_id)
+            try:
+                await self.stop_stream(session_id)
+            except PermissionError:
+                logger.warning(
+                    "[LIVE] Session %s was fenced during shutdown", session_id
+                )
 
         logger.info("Live streaming service stopped")
 
     async def start_stream(
         self,
         streamer_name: str,
+        channel_key: Optional[str] = None,
         quality: str = "best",
         supported_codecs: str = "h264",
         user_id: Optional[str] = None,
-        replace_existing: bool = True,
-    ) -> str:
+        enhanced_quality: bool = False,
+        replace_existing: bool = False,
+    ) -> LiveStreamStartResult:
         """
         Start a new live streaming session.
 
@@ -151,28 +189,6 @@ class LiveStreamingService:
         Raises:
             RuntimeError: If max concurrent streams reached or stream start fails
         """
-        if replace_existing and user_id:
-            await self._stop_existing_user_streams(user_id, streamer_name)
-
-        async with self._lock:
-            # Check global concurrent limit
-            active_count = sum(1 for s in self.sessions.values() if s.is_active)
-            if active_count >= self.MAX_CONCURRENT_STREAMS:
-                raise RuntimeError(
-                    f"Maximum concurrent streams reached"
-                    f" ({self.MAX_CONCURRENT_STREAMS})."
-                    " Please stop another stream first."
-                )
-
-            # Limit per-user concurrent streams
-            if user_id:
-                user_stream_count = len(self.user_sessions.get(user_id, set()))
-                if user_stream_count >= 2:
-                    raise RuntimeError(
-                        "Maximum 2 concurrent streams per user."
-                        " Please stop another stream first."
-                    )
-
         # Verify FFmpeg is available before starting anything
         ffmpeg_bin = os.environ.get("FFMPEG_PATH") or "ffmpeg"
         if shutil.which(ffmpeg_bin) is None:
@@ -182,17 +198,39 @@ class LiveStreamingService:
 
         # Generate unique session ID
         session_id = str(uuid.uuid4())[:8]
+        channel_key = channel_key or streamer_name.strip().casefold()
+        auth_key = AUTHENTICATED_TWITCH_ACCOUNT if enhanced_quality else None
+        reservation = await self._coordinator.reserve(
+            channel_key=channel_key,
+            auth_key=auth_key,
+            purpose="LIVE",
+            owner_user_id=int(user_id) if user_id is not None else None,
+            live_session_id=session_id,
+        )
+        if reservation.live_session_id != session_id:
+            existing = self.sessions.get(reservation.live_session_id)
+            if existing and existing.is_active:
+                return LiveStreamStartResult(existing.session_id, True)
+            raise TwitchUpstreamConflict(
+                "twitch_upstream_channel_conflict",
+                "active_live_session_not_local",
+                channel_key,
+            )
 
         # Create output directory for HLS segments
-        output_dir = Path(f"/tmp/streamvault-live/{session_id}")
-        output_dir.mkdir(parents=True, exist_ok=True)
+        output_dir = self._output_root / session_id
 
         streamlink_process = None
         ffmpeg_process = None
+        active_lease = None
         try:
+            output_dir.mkdir(parents=True, exist_ok=True)
             # Get fresh OAuth token and proxy settings
             streamlink_cmd = await self._build_streamlink_command(
-                streamer_name, quality, supported_codecs=supported_codecs
+                streamer_name,
+                quality,
+                supported_codecs=supported_codecs,
+                enhanced_quality=enhanced_quality,
             )
 
             # Build FFmpeg HLS command
@@ -210,6 +248,7 @@ class LiveStreamingService:
                 stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.DEVNULL,
                 stderr=asyncio.subprocess.PIPE,
+                start_new_session=True,
             )
 
             # Start Streamlink with stdout captured
@@ -217,7 +256,22 @@ class LiveStreamingService:
                 *streamlink_cmd,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
+                start_new_session=True,
             )
+            process_group_id = os.getpgid(streamlink_process.pid)
+            activation = asyncio.create_task(
+                self._coordinator.activate(
+                    channel_key=channel_key,
+                    generation=reservation.generation,
+                    process_pid=streamlink_process.pid,
+                    process_group_id=process_group_id,
+                )
+            )
+            try:
+                active_lease = await asyncio.shield(activation)
+            except asyncio.CancelledError:
+                active_lease = await activation
+                raise
 
             # Start background stderr loggers so we can diagnose failures
             asyncio.create_task(
@@ -259,6 +313,16 @@ class LiveStreamingService:
                 ffmpeg_process=ffmpeg_process,
                 output_dir=output_dir,
                 user_id=user_id,
+                channel_key=channel_key,
+                enhanced_quality=enhanced_quality,
+                lease_generation=reservation.generation,
+                process_group_id=getattr(
+                    active_lease, "process_group_id", process_group_id
+                ),
+                process_started_at=getattr(active_lease, "process_started_at", None),
+                process_start_fingerprint=getattr(
+                    active_lease, "process_start_fingerprint", ""
+                ),
             )
 
             async with self._lock:
@@ -272,14 +336,38 @@ class LiveStreamingService:
             asyncio.create_task(self._monitor_session(session_id))
 
             logger.info(f"[LIVE] Session {session_id} started successfully")
-            return session_id
+            return LiveStreamStartResult(session_id, False)
 
-        except Exception:
-            # Cleanup on any failure
-            if streamlink_process and streamlink_process.returncode is None:
-                streamlink_process.kill()
-            if ffmpeg_process and ffmpeg_process.returncode is None:
-                ffmpeg_process.kill()
+        except BaseException:
+            authorized = active_lease is None
+            if active_lease is not None:
+                try:
+                    await self._coordinator.assert_stop_authorized(
+                        channel_key=channel_key,
+                        generation=reservation.generation,
+                        process_pid=streamlink_process.pid,
+                        process_group_id=getattr(
+                            active_lease, "process_group_id", process_group_id
+                        ),
+                        process_start_fingerprint=getattr(
+                            active_lease, "process_start_fingerprint", ""
+                        ),
+                        expected_purpose="LIVE",
+                        requesting_owner_user_id=(
+                            int(user_id) if user_id is not None else None
+                        ),
+                    )
+                    authorized = True
+                except PermissionError:
+                    authorized = False
+            if authorized:
+                await self._reap_process(streamlink_process)
+                await self._reap_process(ffmpeg_process)
+            await self._coordinator.release(
+                channel_key=channel_key,
+                generation=reservation.generation,
+                reason="live_start_failed",
+            )
             shutil.rmtree(output_dir, ignore_errors=True)
             raise
 
@@ -333,13 +421,16 @@ class LiveStreamingService:
                 line = await process.stderr.readline()
                 if not line:
                     break
-                text = line.decode("utf-8", errors="replace").rstrip()
-                if text:
-                    logger.debug(f"[LIVE][{name}] {text}")
-        except Exception as e:
-            logger.debug(f"[LIVE][{name}] stderr logger ended: {e}")
+                # Drain stderr without copying upstream URLs, headers, or credentials
+                # into application diagnostics.
+        except Exception as error:
+            logger.debug(
+                "[LIVE][%s] stderr logger ended (%s)", name, type(error).__name__
+            )
 
-    async def stop_stream(self, session_id: str) -> bool:
+    async def stop_stream(
+        self, session_id: str, requesting_user_id: Optional[str] = None
+    ) -> bool:
         """
         Stop a live streaming session and cleanup resources.
 
@@ -349,36 +440,90 @@ class LiveStreamingService:
         Returns:
             True if session was stopped, False if not found
         """
+        return await self._stop_session(
+            session_id, requesting_user_id=requesting_user_id
+        )
+
+    async def _stop_monitored_session(
+        self,
+        session_id: str,
+        monitored_session: LiveStreamSession,
+        *,
+        leader_exited: bool,
+    ) -> bool:
+        return await self._stop_session(
+            session_id,
+            monitored_session=monitored_session,
+            leader_exited=leader_exited,
+        )
+
+    async def _stop_session(
+        self,
+        session_id: str,
+        requesting_user_id: Optional[str] = None,
+        monitored_session: Optional[LiveStreamSession] = None,
+        leader_exited: bool = False,
+    ) -> bool:
         async with self._lock:
             session = self.sessions.get(session_id)
-            if not session:
+            if not session or not session.is_active:
                 return False
+            if monitored_session is not None and session is not monitored_session:
+                return False
+            if requesting_user_id is not None and session.user_id != requesting_user_id:
+                raise TwitchUpstreamStopForbidden("not_lease_owner")
+            session.is_active = False
+
+        try:
+            if session.lease_generation is not None:
+                owner_user_id = (
+                    int(
+                        requesting_user_id
+                        if requesting_user_id is not None
+                        else session.user_id
+                    )
+                    if (requesting_user_id is not None or session.user_id is not None)
+                    else None
+                )
+                authorization = {
+                    "channel_key": session.channel_key,
+                    "generation": session.lease_generation,
+                    "process_pid": session.streamlink_process.pid,
+                    "process_group_id": session.process_group_id,
+                    "process_start_fingerprint": session.process_start_fingerprint,
+                    "expected_purpose": "LIVE",
+                    "requesting_owner_user_id": owner_user_id,
+                }
+                if leader_exited:
+                    if (
+                        monitored_session is None
+                        or session.streamlink_process.returncode is None
+                    ):
+                        raise PermissionError("leader has not exited")
+                    await self._coordinator.assert_exited_process_cleanup_authorized(
+                        **authorization,
+                        expected_live_session_id=session_id,
+                    )
+                else:
+                    await self._coordinator.assert_stop_authorized(**authorization)
+        except PermissionError as error:
+            session.is_active = True
+            raise TwitchUpstreamStopForbidden("not_lease_owner") from error
+        except BaseException:
+            session.is_active = True
+            raise
 
         logger.info(f"[LIVE] Stopping session {session_id} ({session.streamer_name})")
 
-        # Mark as inactive
-        session.is_active = False
+        await self._reap_process(session.streamlink_process)
+        await self._reap_process(session.ffmpeg_process)
 
-        # Terminate processes gracefully
-        for proc, name in [
-            (session.streamlink_process, "streamlink"),
-            (session.ffmpeg_process, "ffmpeg"),
-        ]:
-            if proc and proc.returncode is None:
-                try:
-                    proc.terminate()
-                    # Wait up to 5 seconds for graceful shutdown
-                    try:
-                        await asyncio.wait_for(proc.wait(), timeout=5.0)
-                    except asyncio.TimeoutError:
-                        logger.warning(
-                            f"[LIVE] {name} process did not terminate"
-                            " gracefully, killing..."
-                        )
-                        proc.kill()
-                        await proc.wait()
-                except Exception as e:
-                    logger.error(f"[LIVE] Error stopping {name}: {e}")
+        if session.lease_generation is not None:
+            await self._coordinator.release(
+                channel_key=session.channel_key,
+                generation=session.lease_generation,
+                reason="live_stopped",
+            )
 
         # Cleanup files
         try:
@@ -397,6 +542,28 @@ class LiveStreamingService:
 
         logger.info(f"[LIVE] Session {session_id} stopped and cleaned up")
         return True
+
+    @staticmethod
+    async def _reap_process(process) -> None:
+        if not process or process.returncode is not None:
+            return
+        try:
+            process_group_id = os.getpgid(process.pid)
+            os.killpg(process_group_id, signal.SIGTERM)
+            try:
+                await asyncio.wait_for(process.wait(), timeout=5.0)
+            except asyncio.TimeoutError:
+                os.killpg(process_group_id, signal.SIGKILL)
+                await process.wait()
+            if process.returncode is None:
+                process.kill()
+                await process.wait()
+        except ProcessLookupError:
+            await process.wait()
+        except Exception:
+            if process.returncode is None:
+                process.kill()
+                await process.wait()
 
     def get_session(self, session_id: str) -> Optional[LiveStreamSession]:
         """Get a session by ID and update its access time"""
@@ -441,6 +608,7 @@ class LiveStreamingService:
         streamer_name: str,
         quality: str,
         supported_codecs: str = "h264",
+        enhanced_quality: bool = False,
     ) -> list:
         """Build Streamlink command for live streaming (no file output)"""
         normalized_codecs = self._normalize_supported_codecs(supported_codecs)
@@ -456,15 +624,14 @@ class LiveStreamingService:
             f"--twitch-supported-codecs={normalized_codecs}",
         ]
 
-        # Get fresh OAuth token
         with SessionLocal() as db:
-            token_service = TwitchTokenService(db)
-            oauth_token = await token_service.get_valid_access_token()
-
-            if oauth_token:
-                token_header = f"Authorization=OAuth {oauth_token.strip()}"
-                cmd.append(f"--twitch-api-header={token_header}")
-                logger.debug("[LIVE] Using OAuth token for stream")
+            if enhanced_quality:
+                token_service = TwitchTokenService(db)
+                oauth_token = await token_service.get_valid_access_token()
+                if oauth_token:
+                    token_header = f"Authorization=OAuth {oauth_token.strip()}"
+                    cmd.append(f"--twitch-api-header={token_header}")
+                    logger.debug("[LIVE] Using OAuth token for enhanced stream")
 
             # Get proxy settings from health service
             try:
@@ -524,8 +691,8 @@ class LiveStreamingService:
                     ffmpeg_process.stdin.write(chunk)
                     await ffmpeg_process.stdin.drain()
                 ffmpeg_process.stdin.close()
-        except Exception as e:
-            logger.error(f"[LIVE] Error piping streamlink to ffmpeg: {e}")
+        except Exception as error:
+            logger.error("[LIVE] Stream pipe ended (%s)", type(error).__name__)
 
     async def _monitor_session(self, session_id: str):
         """Monitor a session and auto-cleanup if processes die"""
@@ -536,6 +703,14 @@ class LiveStreamingService:
 
             # Wait for either process to exit
             while session.is_active:
+                if session.lease_generation is not None:
+                    heartbeat_ok = await self._coordinator.heartbeat(
+                        channel_key=session.channel_key,
+                        generation=session.lease_generation,
+                    )
+                    if not heartbeat_ok:
+                        session.is_active = False
+                        break
                 # Check if processes are still running
                 streamlink_done = session.streamlink_process.returncode is not None
                 ffmpeg_done = session.ffmpeg_process.returncode is not None
@@ -545,7 +720,11 @@ class LiveStreamingService:
                         f"[LIVE] Process exited for session {session_id}, "
                         f"cleaning up..."
                     )
-                    await self.stop_stream(session_id)
+                    await self._stop_monitored_session(
+                        session_id,
+                        session,
+                        leader_exited=streamlink_done,
+                    )
                     break
 
                 await asyncio.sleep(2)

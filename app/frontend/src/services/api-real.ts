@@ -64,7 +64,19 @@ class ApiClient {
           // Throw to abort the caller so it doesn't continue processing
           throw new Error('Session expired - redirecting to login')
         }
-        throw new Error(`HTTP error! status: ${response.status}`)
+        const contentType = response.headers.get('content-type')
+        const errorBody = contentType?.includes('application/json')
+          ? await response.json()
+          : null
+        const detail = errorBody?.detail
+        const error = new Error(
+          typeof detail?.reason === 'string'
+            ? detail.reason
+            : `HTTP error! status: ${response.status}`
+        ) as Error & { status?: number; detail?: unknown }
+        error.status = response.status
+        error.detail = detail
+        throw error
       }
 
       const contentType = response.headers.get('content-type')
@@ -512,10 +524,12 @@ export const liveApi = {
   startLiveStream: (
     streamerName: string,
     quality: string = 'best',
-    supportedCodecs: string = 'h264'
+    supportedCodecs: string = 'h264',
+    enhancedQuality: boolean = false
   ) => apiClient.post(`/api/live/start/${streamerName}`, {
     quality,
-    supported_codecs: supportedCodecs
+    supported_codecs: supportedCodecs,
+    enhanced_quality: enhancedQuality
   }),
 
   // Stop a live stream session
@@ -605,5 +619,4 @@ export const videoApi = {
 
 // Export the main API client as default
 export default apiClient
-
 

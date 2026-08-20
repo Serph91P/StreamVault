@@ -27,6 +27,7 @@ class GlobalSettingsSchema(BaseModel):
     # Codec preferences (Migration 024) - H.265/AV1 Support (Streamlink 8.0.0+)
     supported_codecs: str = "h264,h265"  # Default: H.264 with H.265 fallback
     prefer_higher_quality: bool = True  # Auto-select highest available quality
+    twitch_max_concurrent_upstreams: int = Field(default=5, ge=1, le=100)
     http_proxy: Optional[str] = Field(
         default="",
         description="HTTP proxy URL for Streamlink (e.g., http://proxy.example.com:8080)",

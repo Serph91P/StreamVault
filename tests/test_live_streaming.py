@@ -1,14 +1,17 @@
 """
 Tests for the Live Streaming Service.
 
-Pure unit tests — no database imports, no pytest-asyncio.
+Pure unit tests, no database imports, no pytest-asyncio.
 Tests only logic that doesn't require external services.
 """
 
 import asyncio
 import logging
 from datetime import datetime, timedelta
+from types import SimpleNamespace
 from unittest.mock import MagicMock
+
+import pytest
 
 
 def test_live_stream_session_properties():
@@ -270,3 +273,339 @@ def test_live_proxy_lookup_exception_does_not_reach_diagnostics(monkeypatch, cap
     assert not any(arg.startswith("--http-proxy=") for arg in command)
     assert "Could not get proxy" in caplog.text
     assert proxy_url not in caplog.text
+
+
+def test_anonymous_live_does_not_request_twitch_token(monkeypatch):
+    from app.services import live_streaming_service
+
+    class ForbiddenTokenService:
+        def __init__(self, db):
+            raise AssertionError("anonymous Live requested a Twitch token")
+
+    async def no_proxy():
+        return None
+
+    monkeypatch.setattr(
+        live_streaming_service, "TwitchTokenService", ForbiddenTokenService
+    )
+    monkeypatch.setattr(
+        live_streaming_service.proxy_health_service, "get_best_proxy", no_proxy
+    )
+
+    service = live_streaming_service.LiveStreamingService()
+    command = asyncio.run(
+        service._build_streamlink_command(
+            "streamer", "best", supported_codecs="h264,h265"
+        )
+    )
+
+    assert not any(argument.startswith("--twitch-api-header=") for argument in command)
+
+
+def test_enhanced_live_requests_twitch_token_explicitly(monkeypatch):
+    from app.services import live_streaming_service
+
+    calls = []
+
+    class TokenService:
+        def __init__(self, db):
+            calls.append("created")
+
+        async def get_valid_access_token(self):
+            calls.append("requested")
+            return "local-test-token"
+
+    async def no_proxy():
+        return None
+
+    monkeypatch.setattr(live_streaming_service, "TwitchTokenService", TokenService)
+    monkeypatch.setattr(
+        live_streaming_service.proxy_health_service, "get_best_proxy", no_proxy
+    )
+
+    service = live_streaming_service.LiveStreamingService()
+    command = asyncio.run(
+        service._build_streamlink_command(
+            "streamer",
+            "best",
+            supported_codecs="h264",
+            enhanced_quality=True,
+        )
+    )
+
+    assert calls == ["created", "requested"]
+    assert any(argument.startswith("--twitch-api-header=") for argument in command)
+
+
+@pytest.mark.asyncio
+async def test_live_reserves_before_children_and_releases_on_cancellation(
+    monkeypatch, tmp_path
+):
+    from app.services import live_streaming_service
+
+    calls = []
+    activated = asyncio.Event()
+    playlist_wait = asyncio.Event()
+
+    class Coordinator:
+        async def reserve(self, **values):
+            calls.append(("reserve", values))
+            return SimpleNamespace(
+                channel_key=values["channel_key"],
+                generation=1,
+                live_session_id=values["live_session_id"],
+            )
+
+        async def activate(self, **values):
+            calls.append(("activate", values))
+            activated.set()
+            return SimpleNamespace(
+                process_group_id=values["process_group_id"],
+                process_started_at=datetime.utcnow(),
+                process_start_fingerprint="birth-302",
+            )
+
+        async def assert_stop_authorized(self, **values):
+            calls.append(("authorize-stop", values))
+
+        async def release(self, **values):
+            calls.append(("release", values))
+            return True
+
+    class Process:
+        def __init__(self, pid):
+            self.pid = pid
+            self.returncode = None
+            self.stdout = None
+            self.stderr = None
+            self.stdin = None
+            self.terminate_calls = 0
+            self.kill_calls = 0
+
+        def terminate(self):
+            self.terminate_calls += 1
+            self.returncode = -15
+
+        def kill(self):
+            self.kill_calls += 1
+            self.returncode = -9
+
+        async def wait(self):
+            return self.returncode
+
+    processes = [Process(301), Process(302)]
+    subprocess_kwargs = []
+
+    async def create_subprocess(*args, **kwargs):
+        assert calls and calls[0][0] == "reserve"
+        subprocess_kwargs.append(kwargs)
+        return processes[len(subprocess_kwargs) - 1]
+
+    async def wait_for_playlist(*args, **kwargs):
+        await playlist_wait.wait()
+        return True
+
+    async def command(*args, **kwargs):
+        return ["local-streamlink-fixture"]
+
+    monkeypatch.setattr(live_streaming_service.shutil, "which", lambda path: path)
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", create_subprocess)
+    monkeypatch.setattr(live_streaming_service.os, "getpgid", lambda pid: pid)
+    monkeypatch.setattr(live_streaming_service.os, "killpg", lambda pgid, sig: None)
+
+    service = live_streaming_service.LiveStreamingService(
+        coordinator=Coordinator(), output_root=tmp_path
+    )
+    service._wait_for_playlist = wait_for_playlist
+    service._build_streamlink_command = command
+
+    start = asyncio.create_task(
+        service.start_stream(
+            streamer_name="streamer",
+            channel_key="stable-channel-id",
+            user_id="7",
+        )
+    )
+    await activated.wait()
+    start.cancel()
+
+    with pytest.raises(asyncio.CancelledError):
+        await start
+
+    assert [name for name, _values in calls] == [
+        "reserve",
+        "activate",
+        "authorize-stop",
+        "release",
+    ]
+    assert all(options["start_new_session"] is True for options in subprocess_kwargs)
+    assert all(process.returncode is not None for process in processes)
+
+
+@pytest.mark.asyncio
+async def test_live_stop_requires_persisted_live_owner_before_signaling(tmp_path):
+    from app.services.live_streaming_service import (
+        LiveStreamSession,
+        LiveStreamingService,
+        TwitchUpstreamStopForbidden,
+    )
+
+    calls = []
+
+    class Coordinator:
+        async def assert_stop_authorized(self, **values):
+            calls.append(("authorize", values))
+            raise PermissionError("durable owner mismatch")
+
+        async def release(self, **values):
+            calls.append(("release", values))
+            return True
+
+    streamlink_process = SimpleNamespace(pid=701, returncode=None)
+    ffmpeg_process = SimpleNamespace(pid=702, returncode=None)
+    session = LiveStreamSession(
+        session_id="session-7",
+        streamer_name="streamer",
+        quality="best",
+        streamlink_process=streamlink_process,
+        ffmpeg_process=ffmpeg_process,
+        output_dir=tmp_path,
+        user_id="7",
+        channel_key="live-stop-channel",
+        lease_generation=3,
+        process_group_id=701,
+        process_start_fingerprint="birth-701",
+    )
+    service = LiveStreamingService(coordinator=Coordinator(), output_root=tmp_path)
+    service.sessions[session.session_id] = session
+    service.user_sessions = {"7": {session.session_id}}
+
+    async def forbidden_reap(process):
+        raise AssertionError("unauthorized process was signaled")
+
+    service._reap_process = forbidden_reap
+
+    with pytest.raises(TwitchUpstreamStopForbidden):
+        await service.stop_stream(session.session_id, requesting_user_id="7")
+
+    assert calls == [
+        (
+            "authorize",
+            {
+                "channel_key": "live-stop-channel",
+                "generation": 3,
+                "process_pid": 701,
+                "process_group_id": 701,
+                "process_start_fingerprint": "birth-701",
+                "expected_purpose": "LIVE",
+                "requesting_owner_user_id": 7,
+            },
+        )
+    ]
+    assert session.is_active is True
+
+
+@pytest.mark.asyncio
+async def test_live_monitor_releases_dead_leader_without_signaling_reused_pid(
+    monkeypatch, tmp_path
+):
+    from app.services import live_streaming_service
+    from app.services.live_streaming_service import (
+        LiveStreamSession,
+        LiveStreamingService,
+    )
+
+    calls = []
+
+    class Coordinator:
+        async def heartbeat(self, **values):
+            calls.append(("heartbeat", values))
+            return True
+
+        async def assert_stop_authorized(self, **values):
+            raise AssertionError("dead leader used the manual stop authorization path")
+
+        async def assert_exited_process_cleanup_authorized(self, **values):
+            calls.append(("authorize-exited-cleanup", values))
+
+        async def release(self, **values):
+            calls.append(("release", values))
+            return True
+
+    class Process:
+        def __init__(self, pid, returncode):
+            self.pid = pid
+            self.returncode = returncode
+            self.kill_calls = 0
+
+        def kill(self):
+            self.kill_calls += 1
+            self.returncode = -9
+
+        async def wait(self):
+            return self.returncode
+
+    streamlink_process = Process(701, 1)
+    ffmpeg_process = Process(702, None)
+    session = LiveStreamSession(
+        session_id="session-7",
+        streamer_name="streamer",
+        quality="best",
+        streamlink_process=streamlink_process,
+        ffmpeg_process=ffmpeg_process,
+        output_dir=tmp_path,
+        user_id="7",
+        channel_key="live-monitor-channel",
+        lease_generation=3,
+        process_group_id=701,
+        process_start_fingerprint="birth-701",
+    )
+    service = LiveStreamingService(coordinator=Coordinator(), output_root=tmp_path)
+    service.sessions[session.session_id] = session
+    service.user_sessions = {"7": {session.session_id}}
+
+    signaled_process_groups = []
+
+    def kill_process_group(process_group_id, sig):
+        signaled_process_groups.append(process_group_id)
+        if process_group_id == ffmpeg_process.pid:
+            ffmpeg_process.returncode = -sig
+
+    monkeypatch.setattr(
+        live_streaming_service.os, "getpgid", lambda process_id: process_id
+    )
+    monkeypatch.setattr(live_streaming_service.os, "killpg", kill_process_group)
+
+    await service._monitor_session(session.session_id)
+
+    assert calls == [
+        (
+            "heartbeat",
+            {"channel_key": "live-monitor-channel", "generation": 3},
+        ),
+        (
+            "authorize-exited-cleanup",
+            {
+                "channel_key": "live-monitor-channel",
+                "generation": 3,
+                "process_pid": 701,
+                "process_group_id": 701,
+                "process_start_fingerprint": "birth-701",
+                "expected_purpose": "LIVE",
+                "requesting_owner_user_id": 7,
+                "expected_live_session_id": "session-7",
+            },
+        ),
+        (
+            "release",
+            {
+                "channel_key": "live-monitor-channel",
+                "generation": 3,
+                "reason": "live_stopped",
+            },
+        ),
+    ]
+    assert signaled_process_groups == [702]
+    assert streamlink_process.kill_calls == 0
+    assert session.session_id not in service.sessions
+    assert session.session_id not in service.user_sessions["7"]
