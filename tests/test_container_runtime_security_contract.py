@@ -31,20 +31,24 @@ def _instructions(dockerfile: str) -> list[tuple[str, str]]:
 
 
 def _runtime_instructions(dockerfile: str) -> list[tuple[str, str]]:
-    runtime: list[tuple[str, str]] = []
-    in_runtime = False
+    stages: list[tuple[str, list[tuple[str, str]]]] = []
 
     for keyword, value in _instructions(dockerfile):
         if keyword == "FROM":
-            if in_runtime:
-                break
-            in_runtime = value.lower().endswith(" as runtime")
+            stages.append((value, []))
             continue
-        if in_runtime:
-            runtime.append((keyword, value))
+        assert stages, "Instruction before first FROM"
+        stages[-1][1].append((keyword, value))
 
-    assert in_runtime, "Runtime stage not found"
-    return runtime
+    runtime_indices = [
+        index
+        for index, (from_value, _) in enumerate(stages)
+        if from_value.lower().endswith(" as runtime")
+    ]
+    assert len(runtime_indices) == 1, "Expected exactly one runtime stage"
+    runtime_index = runtime_indices[0]
+    assert runtime_index == len(stages) - 1, "Runtime must be the final stage"
+    return stages[runtime_index][1]
 
 
 def _validate_runtime_contract(dockerfile: str) -> None:
@@ -110,3 +114,11 @@ def test_contract_rejects_later_root_user_override():
         _validate_runtime_contract(
             dockerfile.replace(marker, "USER appuser\nUSER root\nWORKDIR /app", 1)
         )
+
+
+def test_contract_rejects_replacement_stage_after_runtime():
+    dockerfile = DOCKERFILE.read_text(encoding="utf-8")
+    replacement_stage = "\nFROM python-deps AS runtime-reintroduced-pip\nUSER root\n"
+
+    with pytest.raises(AssertionError):
+        _validate_runtime_contract(dockerfile + replacement_stage)
