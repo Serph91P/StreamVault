@@ -175,6 +175,12 @@ RUN apk add --no-cache \
 COPY --from=python-deps /usr/local/lib/python3.14/site-packages /usr/local/lib/python3.14/site-packages
 COPY --from=python-deps /usr/local/bin /usr/local/bin
 
+# pip is only needed while building dependencies. Removing it from the runtime
+# also removes pip's embedded vendor SBOM, which lists build-time packages that
+# are not installed in the final image and must not drive release scan results.
+RUN python -m pip uninstall --yes pip && \
+    chmod -R a+rX /bin /lib /usr/bin /usr/lib /usr/sbin /usr/share /usr/local/bin /usr/local/lib/python3.14/site-packages
+
 # Copy application from final stage
 COPY --from=final --chown=appuser:appuser /app /app
 
