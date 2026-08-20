@@ -597,8 +597,8 @@ def sanitize_proxy_url_for_logging(proxy_url: str) -> str:
     """
     Sanitize proxy URL for logging to prevent credential exposure
 
-    This function prevents logging of proxy credentials (CWE-532) by redacting
-    username and password from proxy URLs while preserving host information.
+    This function prevents logging of proxy credentials and signed URL data
+    (CWE-532) by retaining only validated host and port information.
 
     Args:
         proxy_url: Proxy URL that may contain credentials
@@ -608,39 +608,37 @@ def sanitize_proxy_url_for_logging(proxy_url: str) -> str:
 
     Example:
         >>> sanitize_proxy_url_for_logging("http://user:pass@proxy.com:8080")
-        "http://[REDACTED]:[REDACTED]@proxy.com:8080"
+        "proxy.com:8080"
 
-        >>> sanitize_proxy_url_for_logging("http://proxy.com:8080")
-        "http://proxy.com:8080"
+        >>> sanitize_proxy_url_for_logging("http://proxy.com:8080/private?token=secret")
+        "proxy.com:8080"
     """
     if not proxy_url or not isinstance(proxy_url, str):
         return "[INVALID_URL]"
 
     try:
-        from urllib.parse import urlparse, urlunparse
+        from urllib.parse import urlsplit
 
-        parsed = urlparse(proxy_url)
+        parsed = urlsplit(proxy_url)
+        if not parsed.scheme or not parsed.netloc:
+            return "[REDACTED_PROXY_URL]"
 
-        # If credentials are present, redact them
-        if parsed.username or parsed.password:
-            # Replace credentials with [REDACTED]
-            netloc = parsed.netloc
-            if "@" in netloc:
-                # Extract host part after @
-                host_part = netloc.split("@", 1)[1]
-                # Reconstruct with redacted credentials
-                netloc = f"[REDACTED]:[REDACTED]@{host_part}"
+        host = parsed.hostname
+        port = parsed.port
+        if not host:
+            return "[REDACTED_PROXY_URL]"
 
-            # Rebuild URL with redacted credentials
-            sanitized_parsed = parsed._replace(netloc=netloc)
-            return urlunparse(sanitized_parsed)
-        else:
-            # No credentials, safe to log as-is
-            return proxy_url
+        if ":" in host:
+            import ipaddress
 
-    except Exception as e:
-        # If parsing fails, redact the entire URL to be safe
-        logger.warning(f"Failed to parse proxy URL for sanitization: {e}")
+            ipaddress.IPv6Address(host)
+            host = f"[{host}]"
+        elif not re.fullmatch(r"[A-Za-z0-9.-]+", host):
+            return "[REDACTED_PROXY_URL]"
+
+        return f"{host}:{port}" if port is not None else host
+
+    except (TypeError, ValueError):
         return "[REDACTED_PROXY_URL]"
 
 

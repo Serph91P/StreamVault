@@ -32,6 +32,7 @@ from typing import Dict, Optional, Set
 from app.database import SessionLocal
 from app.services.proxy.proxy_health_service import proxy_health_service
 from app.services.system.twitch_token_service import TwitchTokenService
+from app.utils.security import sanitize_proxy_url_for_logging
 from app.utils.streamlink_utils import _add_proxy_settings
 
 logger = logging.getLogger("streamvault")
@@ -471,9 +472,12 @@ class LiveStreamingService:
                 if proxy_url:
                     proxy_settings = {"http": proxy_url, "https": proxy_url}
                     cmd = _add_proxy_settings(cmd, proxy_settings, force_mode=False)
-                    logger.debug(f"[LIVE] Using proxy: {proxy_url}")
-            except Exception as e:
-                logger.warning(f"[LIVE] Could not get proxy: {e}")
+                    logger.debug(
+                        "[LIVE] Using proxy: %s",
+                        sanitize_proxy_url_for_logging(proxy_url),
+                    )
+            except Exception:
+                logger.warning("[LIVE] Could not get proxy")
 
         return cmd
 

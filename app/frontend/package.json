@@ -17,32 +17,32 @@
     "update-browsers": "npx update-browserslist-db@latest"
   },
   "dependencies": {
-    "@vueuse/core": "^14.3.0",
-    "hls.js": "^1.6.16",
-    "pinia": "^4.0.2",
-    "vue": "^3.5.40",
+    "@vueuse/core": "^14.4.0",
+    "hls.js": "^1.7.0",
+    "pinia": "^4.0.3",
+    "vue": "^3.5.41",
     "vue-router": "^5.2.0"
   },
   "devDependencies": {
     "@tsconfig/node24": "^24.0.4",
-    "@types/node": "^26.1.1",
+    "@types/node": "^26.2.0",
     "@vitejs/plugin-vue": "^6.0.8",
     "@vue/eslint-config-prettier": "^10.2.0",
     "@vue/eslint-config-typescript": "^14.9.0",
     "@vue/tsconfig": "^0.9.1",
-    "axe-core": "^4.12.1",
-    "esbuild": "^0.28.1",
-    "eslint": "^10.8.0",
+    "axe-core": "^4.13.0",
+    "esbuild": "^0.28.2",
+    "eslint": "^10.8.1",
     "eslint-plugin-vue": "^10.10.0",
-    "npm-run-all2": "^9.0.2",
-    "playwright": "^1.62.0",
+    "npm-run-all2": "^9.0.3",
+    "playwright": "^1.62.1",
     "prettier": "^3.9.6",
     "sass": "^1.102.0",
     "typescript": "~6.0.3",
-    "vite": "^8.1.5",
+    "vite": "^8.2.1",
     "vite-plugin-pwa": "^1.3.0",
     "vite-plugin-vue-devtools": "^8.2.1",
-    "vue-tsc": "^3.3.8"
+    "vue-tsc": "^3.3.9"
   },
   "overrides": {
     "serialize-javascript": "^7.0.3",
@@ -50,10 +50,11 @@
       "vite": "$vite"
     },
     "@babel/core": "7.29.7",
-    "fast-uri": "3.1.4",
+    "fast-uri": "3.1.5",
     "immutable": "5.1.9",
     "shell-quote": "1.10.0",
-    "brace-expansion@5": "5.0.8",
+    "brace-expansion@5": "5.0.9",
+    "nanoid": "3.3.18",
     "jake": "12.10.1"
   }
 }
