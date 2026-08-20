@@ -6,6 +6,7 @@ from types import SimpleNamespace
 import pytest
 
 from app.services.recording.process_manager import ProcessManager
+from app.services.recording.exceptions import ProcessError
 
 
 class FakeProcess:
@@ -24,6 +25,7 @@ class FakeProcess:
         self.terminate_calls = 0
         self.kill_calls = 0
         self.wait_calls = 0
+        self.communicate_calls = 0
         self.wait_started = asyncio.Event()
         self.release = asyncio.Event()
         if returncode is not None:
@@ -49,6 +51,10 @@ class FakeProcess:
         await self.release.wait()
         assert self.returncode is not None
         return self.returncode
+
+    async def communicate(self) -> tuple[bytes, bytes]:
+        self.communicate_calls += 1
+        return b"", b"harmless local failure"
 
 
 def make_manager(process: FakeProcess, stream_id: int = 7) -> ProcessManager:
@@ -84,6 +90,80 @@ def install_segment_starter(
         return replacement
 
     manager._start_segment = start_segment
+
+
+def install_immediate_exit_start(
+    monkeypatch,
+    failed_process: FakeProcess,
+) -> tuple[ProcessManager, SimpleNamespace, list]:
+    process_manager_module = importlib.import_module(
+        "app.services.recording.process_manager"
+    )
+    manager = object.__new__(ProcessManager)
+    manager.active_processes = {}
+    manager.long_stream_processes = {}
+    manager.lock = asyncio.Lock()
+    manager.rotation_locks = {}
+    manager.logging_service = None
+    monitor_coroutines = []
+
+    class FakeQuery:
+        def first(self):
+            return None
+
+        def filter(self, *args):
+            return self
+
+    class FakeSession:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return None
+
+        def query(self, *args):
+            return FakeQuery()
+
+    class FakeTokenService:
+        def __init__(self, db):
+            pass
+
+        async def get_valid_access_token(self):
+            return None
+
+    async def create_subprocess(*args, **kwargs):
+        return failed_process
+
+    def create_task(coroutine):
+        monitor_coroutines.append(coroutine)
+        coroutine.close()
+        return SimpleNamespace()
+
+    monkeypatch.setattr("app.database.SessionLocal", FakeSession)
+    monkeypatch.setattr(
+        "app.services.system.twitch_token_service.TwitchTokenService",
+        FakeTokenService,
+    )
+    monkeypatch.setattr(
+        process_manager_module,
+        "get_streamlink_command",
+        lambda **kwargs: ["harmless-local-command"],
+    )
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", create_subprocess)
+    monkeypatch.setattr(asyncio, "create_task", create_task)
+    monkeypatch.setattr(
+        process_manager_module,
+        "ASYNC_DELAYS",
+        SimpleNamespace(PROCESS_START_GRACE=0),
+    )
+    stream = SimpleNamespace(
+        id=7,
+        streamer_id=3,
+        streamer=SimpleNamespace(username="local-test"),
+        title="",
+        category_name="",
+    )
+    return manager, stream, monitor_coroutines
 
 
 @pytest.mark.asyncio
@@ -385,3 +465,69 @@ async def test_rotation_cancellation_tracks_or_reaps_created_replacement(
     assert tracked or reaped, (
         f"created replacement was orphaned: tracked={tracked}, reaped={reaped}"
     )
+
+
+@pytest.mark.asyncio
+async def test_start_recording_cleans_up_immediately_exited_child(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    failed_process = FakeProcess(returncode=1)
+    failed_process.pid = 1234
+    manager, stream, monitor_coroutines = install_immediate_exit_start(
+        monkeypatch,
+        failed_process,
+    )
+
+    with pytest.raises(ProcessError):
+        await manager.start_recording_process(
+            stream,
+            str(tmp_path / "recording.ts"),
+            "best",
+        )
+
+    assert failed_process.communicate_calls == 1
+    assert (manager.active_processes, manager.long_stream_processes) == ({}, {})
+    assert monitor_coroutines == []
+
+
+@pytest.mark.asyncio
+async def test_immediate_exit_cleanup_preserves_newer_owners(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    failed_process = FakeProcess(returncode=1)
+    failed_process.pid = 1234
+    manager, stream, monitor_coroutines = install_immediate_exit_start(
+        monkeypatch,
+        failed_process,
+    )
+    newer_process = FakeProcess()
+    newer_segment_info = {"attempt": "newer"}
+
+    class ReplacingLock:
+        def __init__(self):
+            self.enter_calls = 0
+
+        async def __aenter__(self):
+            self.enter_calls += 1
+            if self.enter_calls == 2:
+                manager.active_processes["stream_7"] = newer_process
+                manager.long_stream_processes["stream_7"] = newer_segment_info
+
+        async def __aexit__(self, *args):
+            return None
+
+    manager.lock = ReplacingLock()
+
+    with pytest.raises(ProcessError):
+        await manager.start_recording_process(
+            stream,
+            str(tmp_path / "recording.ts"),
+            "best",
+        )
+
+    assert manager.active_processes["stream_7"] is newer_process
+    assert manager.long_stream_processes["stream_7"] is newer_segment_info
+    assert failed_process.communicate_calls == 1
+    assert monitor_coroutines == []

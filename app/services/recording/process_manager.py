@@ -499,6 +499,11 @@ class ProcessManager:
             if process.returncode is not None:
                 # Process already ended, capture output
                 stdout, stderr = await process.communicate()
+                async with self.lock:
+                    if self.active_processes.get(process_id) is process:
+                        del self.active_processes[process_id]
+                    if self.long_stream_processes.get(process_id) is segment_info:
+                        del self.long_stream_processes[process_id]
                 logger.error(
                     f"🎬 PROCESS_FAILED_IMMEDIATELY: PID would be {process.pid}, exit code {process.returncode}"
                 )
@@ -777,9 +782,11 @@ class ProcessManager:
                         del self.active_processes[process_id]
 
                     try:
-                        # Claim the exact owner before finalization so rotation cannot replace it.
+                        # Claim the exact owner before finalization so rotation
+                        # cannot replace it.
                         logger.info(
-                            f"Segmented recording completed for stream {segment_info['stream_id']}"
+                            "Segmented recording completed for stream "
+                            f"{segment_info['stream_id']}"
                         )
                         await self._finalize_segmented_recording(segment_info)
                         return 0  # Success for segmented recording
