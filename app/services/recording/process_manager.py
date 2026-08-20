@@ -490,6 +490,10 @@ class ProcessManager:
                 *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
             )
 
+            # Publish ownership before any cancellable post-creation work.
+            process_id = f"stream_{stream.id}"
+            self.active_processes[process_id] = process
+
             # Add immediate check to see if process started successfully
             await asyncio.sleep(ASYNC_DELAYS.PROCESS_START_GRACE)
             if process.returncode is not None:
@@ -527,10 +531,6 @@ class ProcessManager:
                 raise ProcessError(
                     f"Streamlink process failed immediately: {stderr.decode()}"
                 )
-
-            process_id = f"stream_{stream.id}"
-            async with self.lock:
-                self.active_processes[process_id] = process
 
             # Add segment to the list
             segment_info["total_segments"].append(
@@ -765,17 +765,31 @@ class ProcessManager:
 
             # Handle segmented vs normal recording completion
             if segment_info:
-                async with self.lock:
-                    if self.active_processes.get(process_id) is not process:
-                        return process.returncode or 0
+                rotation_locks = getattr(self, "rotation_locks", None)
+                if rotation_locks is None:
+                    rotation_locks = self.rotation_locks = {}
+                rotation_lock = rotation_locks.setdefault(process_id, asyncio.Lock())
 
-                # For segmented recordings, the process ending means the stream is over
-                # We need to concatenate all segments
-                logger.info(
-                    f"Segmented recording completed for stream {segment_info['stream_id']}"
-                )
-                await self._finalize_segmented_recording(segment_info)
-                return 0  # Success for segmented recording
+                async with rotation_lock:
+                    async with self.lock:
+                        if self.active_processes.get(process_id) is not process:
+                            return process.returncode or 0
+                        del self.active_processes[process_id]
+
+                    try:
+                        # Claim the exact owner before finalization so rotation cannot replace it.
+                        logger.info(
+                            f"Segmented recording completed for stream {segment_info['stream_id']}"
+                        )
+                        await self._finalize_segmented_recording(segment_info)
+                        return 0  # Success for segmented recording
+                    finally:
+                        async with self.lock:
+                            if (
+                                self.long_stream_processes.get(process_id)
+                                is segment_info
+                            ):
+                                del self.long_stream_processes[process_id]
             else:
                 # Normal single-file recording
                 stdout, stderr = await process.communicate()
