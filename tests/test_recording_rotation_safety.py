@@ -1,4 +1,5 @@
 import asyncio
+import importlib
 from datetime import datetime
 from types import SimpleNamespace
 
@@ -53,6 +54,7 @@ class FakeProcess:
 def make_manager(process: FakeProcess, stream_id: int = 7) -> ProcessManager:
     manager = object.__new__(ProcessManager)
     manager.active_processes = {f"stream_{stream_id}": process}
+    manager.long_stream_processes = {}
     manager.lock = asyncio.Lock()
     manager.rotation_locks = {}
     return manager
@@ -60,12 +62,14 @@ def make_manager(process: FakeProcess, stream_id: int = 7) -> ProcessManager:
 
 def make_segment_info() -> dict:
     return {
+        "stream_id": 7,
         "base_output_path": "/tmp/recording.ts",
         "segment_dir": "/tmp/recording_segments",
         "current_segment_path": "/tmp/recording_segments/recording_part001.ts",
         "segment_count": 1,
         "segment_start_time": datetime(2026, 1, 1),
         "total_segments": [],
+        "monitor_task": None,
     }
 
 
@@ -252,3 +256,132 @@ async def test_concurrent_rotation_requests_start_one_replacement() -> None:
     assert old_process.terminate_calls == 1
     assert len(started) == 1
     assert manager.active_processes["stream_7"] is started[0]
+
+
+@pytest.mark.asyncio
+async def test_monitor_finalization_and_rotation_cannot_both_win() -> None:
+    old_process = FakeProcess(returncode=0)
+    manager = make_manager(old_process)
+    segment_info = make_segment_info()
+    manager.long_stream_processes["stream_7"] = segment_info
+    started = []
+    install_segment_starter(manager, started)
+    finalization_started = asyncio.Event()
+    release_finalization = asyncio.Event()
+
+    async def finalize_segmented_recording(info):
+        assert info is segment_info
+        finalization_started.set()
+        await release_finalization.wait()
+
+    manager._finalize_segmented_recording = finalize_segmented_recording
+    monitor = asyncio.create_task(manager.monitor_process(old_process))
+    await finalization_started.wait()
+    rotation = asyncio.create_task(
+        manager._rotate_segment(SimpleNamespace(id=7), segment_info, "best")
+    )
+
+    try:
+        rotated_while_finalizing = await asyncio.wait_for(
+            asyncio.shield(rotation), timeout=0.05
+        )
+    except TimeoutError:
+        rotated_while_finalizing = None
+    owner_while_finalizing = manager.active_processes.get("stream_7")
+    release_finalization.set()
+    monitor_result, rotation_result = await asyncio.gather(monitor, rotation)
+
+    assert (
+        rotated_while_finalizing is not True and owner_while_finalizing not in started
+    ), (
+        "rotation and finalization both won: "
+        f"rotation={rotated_while_finalizing!r}, "
+        f"replacement_owned={owner_while_finalizing in started}"
+    )
+    assert monitor_result == 0
+    assert rotation_result is False
+    assert started == []
+
+
+@pytest.mark.asyncio
+async def test_rotation_cancellation_tracks_or_reaps_created_replacement(
+    monkeypatch,
+) -> None:
+    process_manager_module = importlib.import_module(
+        "app.services.recording.process_manager"
+    )
+    old_process = FakeProcess(returncode=0)
+    manager = make_manager(old_process)
+    manager.logging_service = None
+    segment_info = make_segment_info()
+    replacement = FakeProcess()
+    replacement.pid = 1234
+    child_created = asyncio.Event()
+
+    class FakeQuery:
+        def first(self):
+            return None
+
+        def filter(self, *args):
+            return self
+
+    class FakeSession:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return None
+
+        def query(self, *args):
+            return FakeQuery()
+
+    class FakeTokenService:
+        def __init__(self, db):
+            pass
+
+        async def get_valid_access_token(self):
+            return None
+
+    async def create_subprocess(*args, **kwargs):
+        child_created.set()
+        return replacement
+
+    monkeypatch.setattr("app.database.SessionLocal", FakeSession)
+    monkeypatch.setattr(
+        "app.services.system.twitch_token_service.TwitchTokenService",
+        FakeTokenService,
+    )
+    monkeypatch.setattr(
+        process_manager_module,
+        "get_streamlink_command",
+        lambda **kwargs: ["harmless-local-command"],
+    )
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", create_subprocess)
+    monkeypatch.setattr(
+        process_manager_module,
+        "ASYNC_DELAYS",
+        SimpleNamespace(PROCESS_START_GRACE=3600, RECORDING_ERROR_RECOVERY=1),
+    )
+    stream = SimpleNamespace(
+        id=7,
+        streamer_id=3,
+        streamer=SimpleNamespace(username="local-test"),
+        title="",
+        category_name="",
+    )
+
+    rotation = asyncio.create_task(
+        manager._rotate_segment(stream, segment_info, "best")
+    )
+    await child_created.wait()
+    rotation.cancel()
+
+    with pytest.raises(asyncio.CancelledError):
+        await rotation
+
+    tracked = manager.active_processes.get("stream_7") is replacement
+    reaped = replacement.returncode is not None and replacement.wait_calls > 0
+    assert manager.active_processes.get("stream_7") is not old_process
+    assert tracked or reaped, (
+        f"created replacement was orphaned: tracked={tracked}, reaped={reaped}"
+    )
