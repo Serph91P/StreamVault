@@ -620,7 +620,8 @@ class ProcessManager:
                     rotated = await self._rotate_segment(stream, segment_info, quality)
                     if not rotated:
                         logger.error(
-                            f"Segment rotation failed for stream {stream.id}; current process ownership retained"
+                            f"Segment rotation failed for stream {stream.id}; "
+                            "current process ownership retained"
                         )
 
         except asyncio.CancelledError:
@@ -704,7 +705,8 @@ class ProcessManager:
 
             if captured_process.returncode is None:
                 logger.error(
-                    f"Segment rotation could not confirm exit for stream {stream.id}; retaining current ownership"
+                    f"Segment rotation could not confirm exit for stream {stream.id}; "
+                    "retaining current ownership"
                 )
                 return False
 
@@ -738,7 +740,8 @@ class ProcessManager:
                 return False
 
             logger.info(
-                f"Successfully rotated to segment {segment_info['segment_count']} for stream {stream.id}"
+                f"Successfully rotated to segment {segment_info['segment_count']} "
+                f"for stream {stream.id}"
             )
             return True
 
