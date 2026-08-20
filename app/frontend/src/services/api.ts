@@ -228,13 +228,15 @@ const mockLiveApi = {
   startLiveStream: (
     streamerName: string,
     quality: string = 'best',
-    supportedCodecs: string = 'h264'
+    supportedCodecs: string = 'h264',
+    _enhancedQuality: boolean = false
   ) => mockResponse({
     success: true,
     session_id: `mock-live-${Date.now()}`,
     streamer_name: streamerName,
     quality,
     supported_codecs: supportedCodecs,
+    idempotent: false,
     playlist_url: '/api/live/stream/mock/playlist.m3u8',
     message: 'Stream started (mock)'
   }),
