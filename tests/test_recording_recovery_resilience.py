@@ -1,4 +1,12 @@
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
+
+import pytest
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
+from app.database import Base
+from app.models import Recording, Stream, Streamer, TwitchUpstreamLease, User
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -36,17 +44,243 @@ def test_process_manager_psutil_flag_reflects_import_result() -> None:
     assert "self.psutil_available = HAS_PSUTIL" in source
 
 
-def test_recovery_paths_forward_persisted_lease_generation() -> None:
-    startup = (ROOT / "app/services/init/startup_init.py").read_text(encoding="utf-8")
-    unified = (ROOT / "app/services/recording/unified_recovery_service.py").read_text(
-        encoding="utf-8"
+@pytest.fixture
+def recovery_database(tmp_path):
+    engine = create_engine(
+        f"sqlite:///{tmp_path / 'recovery.db'}",
+        future=True,
+        connect_args={"check_same_thread": False},
     )
-    process_manager = (ROOT / "app/services/recording/process_manager.py").read_text(
-        encoding="utf-8"
+    Base.metadata.create_all(
+        engine,
+        tables=[
+            User.__table__,
+            Streamer.__table__,
+            Stream.__table__,
+            Recording.__table__,
+            TwitchUpstreamLease.__table__,
+        ],
+    )
+    Session = sessionmaker(bind=engine)
+    now = datetime.now(timezone.utc)
+    with Session() as db:
+        streamer = Streamer(twitch_id="stable-channel-id", username="streamer")
+        db.add(streamer)
+        db.flush()
+        stream = Stream(streamer_id=streamer.id, started_at=now - timedelta(hours=1))
+        db.add(stream)
+        db.flush()
+        recording = Recording(
+            stream_id=stream.id,
+            start_time=now - timedelta(minutes=30),
+            status="recording",
+            duration=17,
+        )
+        db.add(recording)
+        db.flush()
+        lease = TwitchUpstreamLease(
+            channel_key=streamer.twitch_id,
+            auth_key=None,
+            recording_id=recording.id,
+            purpose="RECORDING",
+            state="ACTIVE",
+            generation=11,
+            process_pid=501,
+            process_group_id=501,
+            process_started_at=now - timedelta(hours=1),
+            process_start_fingerprint="dead-process-501",
+            reserved_at=now - timedelta(hours=1),
+            activated_at=now - timedelta(hours=1),
+            heartbeat_at=now - timedelta(minutes=5),
+            expires_at=now - timedelta(minutes=4),
+            created_at=now - timedelta(hours=1),
+            updated_at=now - timedelta(minutes=5),
+        )
+        db.add(lease)
+        db.commit()
+        values = {
+            "recording_id": recording.id,
+            "stream_id": stream.id,
+            "streamer_id": streamer.id,
+        }
+    yield Session, values
+    engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_unified_failed_resume_preserves_recoverable_recording(
+    monkeypatch, recovery_database, tmp_path
+):
+    from app.services.recording import recording_service as recording_service_module
+    from app.services.recording import unified_recovery_service
+
+    Session, values = recovery_database
+    calls = []
+
+    class RecordingService:
+        async def start_recording(self, stream_id, streamer_id, **kwargs):
+            with Session() as db:
+                prior = db.get(Recording, values["recording_id"])
+                assert prior.status == "recording"
+                assert prior.end_time is None
+                assert prior.duration == 17
+            calls.append((stream_id, streamer_id, kwargs))
+            return None
+
+    monkeypatch.setattr(unified_recovery_service, "SessionLocal", Session)
+    monkeypatch.setattr(recording_service_module, "RecordingService", RecordingService)
+
+    service = unified_recovery_service.UnifiedRecoveryService()
+    resumed = await service._resume_live_recording(
+        values["recording_id"], tmp_path, "streamer"
     )
 
-    assert "recovery_generation=upstream_lease.generation" in startup
-    assert "recovery_generation=upstream_lease.generation" in unified
-    assert 'purpose="RECOVERY"' in process_manager
-    assert 'else "RECORDING"' in process_manager
-    assert "expected_generation=recovery_generation" in process_manager
+    assert resumed is False
+    assert calls == [
+        (
+            values["stream_id"],
+            values["streamer_id"],
+            {
+                "resume_segments_dir": str(tmp_path),
+                "recovery_generation": 11,
+            },
+        )
+    ]
+    with Session() as db:
+        prior = db.get(Recording, values["recording_id"])
+        assert prior.status == "recording"
+        assert prior.end_time is None
+        assert prior.duration == 17
+
+
+@pytest.mark.asyncio
+async def test_unified_success_stops_prior_only_after_fenced_resume(
+    monkeypatch, recovery_database, tmp_path
+):
+    from app.services.recording import recording_service as recording_service_module
+    from app.services.recording import unified_recovery_service
+
+    Session, values = recovery_database
+
+    class RecordingService:
+        async def start_recording(self, stream_id, streamer_id, **kwargs):
+            with Session() as db:
+                prior = db.get(Recording, values["recording_id"])
+                assert prior.status == "recording"
+                assert prior.end_time is None
+            assert kwargs["recovery_generation"] == 11
+            return 99
+
+    monkeypatch.setattr(unified_recovery_service, "SessionLocal", Session)
+    monkeypatch.setattr(recording_service_module, "RecordingService", RecordingService)
+    monkeypatch.setattr(
+        unified_recovery_service.logging_service,
+        "log_post_processing_activity",
+        lambda *args, **kwargs: None,
+    )
+
+    service = unified_recovery_service.UnifiedRecoveryService()
+    resumed = await service._resume_live_recording(
+        values["recording_id"], tmp_path, "streamer"
+    )
+
+    assert resumed is True
+    with Session() as db:
+        prior = db.get(Recording, values["recording_id"])
+        assert prior.status == "stopped"
+        assert prior.end_time is not None
+        assert prior.duration > 17
+
+
+@pytest.mark.asyncio
+async def test_unified_recovery_rejects_lease_for_other_recording(
+    monkeypatch, recovery_database, tmp_path
+):
+    from app.services.recording import recording_service as recording_service_module
+    from app.services.recording import unified_recovery_service
+
+    Session, values = recovery_database
+    with Session() as db:
+        lease = db.query(TwitchUpstreamLease).one()
+        lease.recording_id = None
+        db.commit()
+
+    class RecordingService:
+        async def start_recording(self, *args, **kwargs):
+            raise AssertionError("recovery bypassed the persisted recording owner")
+
+    monkeypatch.setattr(unified_recovery_service, "SessionLocal", Session)
+    monkeypatch.setattr(recording_service_module, "RecordingService", RecordingService)
+
+    service = unified_recovery_service.UnifiedRecoveryService()
+    resumed = await service._resume_live_recording(
+        values["recording_id"], tmp_path, "streamer"
+    )
+
+    assert resumed is False
+    with Session() as db:
+        prior = db.get(Recording, values["recording_id"])
+        assert prior.status == "recording"
+        assert prior.end_time is None
+
+
+@pytest.mark.asyncio
+async def test_startup_failed_resume_preserves_recoverable_recording(
+    monkeypatch, recovery_database
+):
+    import importlib
+
+    import app.database
+    from app.services import streamer_service as streamer_service_module
+    from app.events import handler_registry
+    from app.services.recording import recording_service as recording_service_module
+
+    startup_init = importlib.import_module("app.services.init.startup_init")
+
+    Session, values = recovery_database
+    calls = []
+
+    class StreamerService:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def check_streamer_live_status(self, twitch_id):
+            return True
+
+    class RecordingService:
+        async def start_recording(self, stream_id, streamer_id, **kwargs):
+            with Session() as db:
+                prior = db.get(Recording, values["recording_id"])
+                assert prior.status == "recording"
+                assert prior.end_time is None
+                assert prior.duration == 17
+            calls.append((stream_id, streamer_id, kwargs))
+            return None
+
+    class EventHandlerRegistry:
+        def __init__(self, *args, **kwargs):
+            pass
+
+    monkeypatch.setattr(app.database, "SessionLocal", Session)
+    monkeypatch.setattr(streamer_service_module, "StreamerService", StreamerService)
+    monkeypatch.setattr(recording_service_module, "RecordingService", RecordingService)
+    monkeypatch.setattr(handler_registry, "EventHandlerRegistry", EventHandlerRegistry)
+
+    await startup_init.cleanup_zombie_recordings()
+
+    assert calls == [
+        (
+            values["stream_id"],
+            values["streamer_id"],
+            {
+                "force_mode": True,
+                "resume_segments_dir": None,
+                "recovery_generation": 11,
+            },
+        )
+    ]
+    with Session() as db:
+        prior = db.get(Recording, values["recording_id"])
+        assert prior.status == "recording"
+        assert prior.end_time is None
+        assert prior.duration == 17
