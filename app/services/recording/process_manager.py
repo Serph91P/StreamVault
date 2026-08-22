@@ -216,31 +216,37 @@ class ProcessManager:
                         stop_authorized = True
                     except (KeyError, PermissionError):
                         pass
-                released = await self.upstream_coordinator.release(
-                    channel_key=reservation.channel_key,
-                    generation=segment_info.get(
-                        "upstream_generation", reservation.generation
-                    )
-                    if "segment_info" in locals()
-                    else reservation.generation,
-                    reason="recording_start_failed",
+                cleanup_complete = (
+                    owned_process is None or owned_process.returncode is not None
                 )
                 if (
                     owned_process
                     and owned_process.returncode is None
-                    and (stop_authorized or released)
+                    and stop_authorized
                 ):
-                    await self._terminate_process_group(
+                    cleanup_complete = await self._terminate_process_group(
                         owned_process,
                         segment_info.get(
                             "upstream_process_group_id", owned_process.pid
                         ),
                         ASYNC_DELAYS.RECORDING_ERROR_RECOVERY,
+                        segment_info.get("upstream_process_start_fingerprint"),
                     )
-                    if self.active_processes.get(process_id) is owned_process:
-                        del self.active_processes[process_id]
-                    if self.long_stream_processes.get(process_id) is segment_info:
-                        del self.long_stream_processes[process_id]
+                    if cleanup_complete:
+                        if self.active_processes.get(process_id) is owned_process:
+                            del self.active_processes[process_id]
+                        if self.long_stream_processes.get(process_id) is segment_info:
+                            del self.long_stream_processes[process_id]
+                if cleanup_complete:
+                    await self.upstream_coordinator.release(
+                        channel_key=reservation.channel_key,
+                        generation=segment_info.get(
+                            "upstream_generation", reservation.generation
+                        )
+                        if "segment_info" in locals()
+                        else reservation.generation,
+                        reason="recording_start_failed",
+                    )
             if isinstance(e, asyncio.CancelledError):
                 raise
             logger.error(
@@ -820,6 +826,7 @@ class ProcessManager:
                             captured_process,
                             segment_info["upstream_process_group_id"],
                             wait_timeout,
+                            segment_info["upstream_process_start_fingerprint"],
                         )
                         if not stopped:
                             return False
@@ -959,6 +966,7 @@ class ProcessManager:
     ) -> None:
         channel_key = segment_info["upstream_channel_key"]
         generation = segment_info["upstream_generation"]
+        cleanup_complete = False
         try:
             tracked_process = self.active_processes.get(process_id)
             process = replacement_process or tracked_process
@@ -981,23 +989,36 @@ class ProcessManager:
                         process_start_fingerprint=fingerprint,
                     )
                 except PermissionError:
-                    pass
-                else:
-                    stopped = await self._terminate_process_group(
-                        process, process_group_id, wait_timeout
+                    if process is captured_process:
+                        return
+                    await self.upstream_coordinator.assert_rotation_replacement_cleanup_authorized(
+                        channel_key=channel_key,
+                        generation=generation,
+                        process_pid=process.pid,
+                        process_group_id=process_group_id,
+                        process_start_fingerprint=fingerprint,
                     )
-                    if stopped:
-                        async with self.lock:
-                            if self.active_processes.get(process_id) is process:
-                                del self.active_processes[process_id]
+                cleanup_complete = await self._terminate_process_group(
+                    process,
+                    process_group_id,
+                    wait_timeout,
+                    fingerprint,
+                )
+                if cleanup_complete:
+                    async with self.lock:
+                        if self.active_processes.get(process_id) is process:
+                            del self.active_processes[process_id]
             elif process is not None:
                 await process.wait()
                 async with self.lock:
                     if self.active_processes.get(process_id) is process:
                         del self.active_processes[process_id]
-        except (OSError, ProcessLookupError, KeyError, AttributeError):
-            pass
-        finally:
+                cleanup_complete = True
+            else:
+                cleanup_complete = True
+        except (OSError, ProcessLookupError, KeyError, AttributeError, PermissionError):
+            return
+        if cleanup_complete:
             await self.upstream_coordinator.release(
                 channel_key=channel_key,
                 generation=generation,
@@ -1689,6 +1710,7 @@ class ProcessManager:
                         process,
                         segment_info["upstream_process_group_id"],
                         timeout,
+                        segment_info["upstream_process_start_fingerprint"],
                     )
                     if not stopped:
                         self.active_processes[process_id] = process
@@ -1728,29 +1750,74 @@ class ProcessManager:
                 logger.error(f"Failed to terminate process {process_id}: {e}")
                 return False
 
-    @staticmethod
-    async def _terminate_process_group(process, process_group_id, timeout) -> bool:
+    async def _terminate_process_group(
+        self,
+        process,
+        process_group_id,
+        timeout,
+        process_start_fingerprint=None,
+    ) -> bool:
         if process.returncode is not None:
             await process.wait()
             return True
+        if process_start_fingerprint is None:
+            try:
+                identity = await self.upstream_coordinator.inspect_process_identity(
+                    process.pid
+                )
+            except Exception:
+                return False
+            if identity.process_group_id != process_group_id:
+                return False
+            process_start_fingerprint = identity.fingerprint
+        elif not await self._process_identity_matches(
+            process.pid,
+            process_group_id,
+            process_start_fingerprint,
+        ):
+            return False
         try:
             try:
                 os.killpg(process_group_id, signal.SIGTERM)
             except ProcessLookupError:
-                process.terminate()
+                return process.returncode is not None
             try:
                 await asyncio.wait_for(process.wait(), timeout=timeout)
             except TimeoutError:
+                if not await self._process_identity_matches(
+                    process.pid,
+                    process_group_id,
+                    process_start_fingerprint,
+                ):
+                    return False
                 try:
                     os.killpg(process_group_id, signal.SIGKILL)
                 except ProcessLookupError:
-                    process.kill()
+                    return process.returncode is not None
                 await asyncio.wait_for(process.wait(), timeout=timeout)
             return process.returncode is not None
         except asyncio.CancelledError:
             raise
         except Exception:
             return False
+
+    async def _process_identity_matches(
+        self,
+        process_pid,
+        process_group_id,
+        process_start_fingerprint,
+    ) -> bool:
+        try:
+            identity = await self.upstream_coordinator.inspect_process_identity(
+                process_pid
+            )
+        except Exception:
+            return False
+        return (
+            identity.pid,
+            identity.process_group_id,
+            identity.fingerprint,
+        ) == (process_pid, process_group_id, process_start_fingerprint)
 
     async def cleanup_all(self):
         """Terminate all active processes"""

@@ -77,11 +77,17 @@ class ProcessInspector:
 
     def is_exact_process_alive(self, **identity) -> bool:
         pid = identity.get("process_pid")
+        process_group_id = identity.get("process_group_id")
         fingerprint = identity.get("process_start_fingerprint")
-        if pid is None or not fingerprint:
+        if pid is None or process_group_id is None or not fingerprint:
             return False
         try:
-            return self.inspect(pid).fingerprint == fingerprint
+            current = self.inspect(pid)
+            return (
+                current.pid,
+                current.process_group_id,
+                current.fingerprint,
+            ) == (pid, process_group_id, fingerprint)
         except (OSError, psutil.Error):
             return False
 
@@ -237,6 +243,24 @@ class TwitchUpstreamCoordinator:
             expected_purpose,
             requesting_owner_user_id,
             expected_live_session_id,
+        )
+
+    async def assert_rotation_replacement_cleanup_authorized(
+        self,
+        *,
+        channel_key: str,
+        generation: int,
+        process_pid: int,
+        process_group_id: int,
+        process_start_fingerprint: str,
+    ) -> TwitchUpstreamReservation:
+        return await asyncio.to_thread(
+            self._assert_rotation_replacement_cleanup_authorized,
+            channel_key,
+            generation,
+            process_pid,
+            process_group_id,
+            process_start_fingerprint,
         )
 
     def _reserve(
@@ -635,6 +659,36 @@ class TwitchUpstreamCoordinator:
                 or self._process_inspector.is_exact_process_alive(**identity)
             ):
                 raise PermissionError("stale, live, or foreign process owner")
+            return self._snapshot(lease)
+
+    def _assert_rotation_replacement_cleanup_authorized(
+        self,
+        channel_key,
+        generation,
+        process_pid,
+        process_group_id,
+        process_start_fingerprint,
+    ):
+        with self._session_factory() as db:
+            lease = self._lease_for_generation(db, channel_key, generation)
+            replacement_identity = {
+                "process_pid": process_pid,
+                "process_group_id": process_group_id,
+                "process_start_fingerprint": process_start_fingerprint,
+            }
+            if (
+                lease.state != "ROTATING"
+                or (
+                    lease.process_pid,
+                    lease.process_group_id,
+                    lease.process_start_fingerprint,
+                )
+                == (process_pid, process_group_id, process_start_fingerprint)
+                or not self._process_inspector.is_exact_process_alive(
+                    **replacement_identity
+                )
+            ):
+                raise PermissionError("stale or foreign rotation replacement")
             return self._snapshot(lease)
 
     def _begin_guarded_transaction(self, db):

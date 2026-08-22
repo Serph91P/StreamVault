@@ -486,7 +486,9 @@ async def test_rotation_cancellation_tracks_or_reaps_created_replacement(
     )
     manager.upstream_coordinator = Coordinator()
 
-    async def terminate_process_group(process, process_group_id, timeout):
+    async def terminate_process_group(
+        process, process_group_id, timeout, process_start_fingerprint=None
+    ):
         if process is old_process:
             await process.wait()
             return True
@@ -628,7 +630,9 @@ async def test_rotation_failed_handoff_reaps_only_authorized_replacement() -> No
 
     terminated = []
 
-    async def terminate_process_group(process, process_group_id, timeout):
+    async def terminate_process_group(
+        process, process_group_id, timeout, process_start_fingerprint=None
+    ):
         terminated.append((process, process_group_id))
         process.returncode = -15
         process.release.set()
@@ -764,8 +768,18 @@ async def test_rotation_uses_generation_fenced_handoff() -> None:
         manager.active_processes[f"stream_{stream.id}"] = replacement
         return replacement
 
+    async def terminate_process_group(
+        process, process_group_id, timeout, process_start_fingerprint=None
+    ):
+        assert process is old_process
+        process.returncode = -15
+        process.release.set()
+        await process.wait()
+        return True
+
     manager.upstream_coordinator = Coordinator()
     manager._start_segment = start_segment
+    manager._terminate_process_group = terminate_process_group
 
     rotated = await manager._rotate_segment(SimpleNamespace(id=7), segment_info, "best")
 
@@ -877,7 +891,9 @@ async def test_rotation_real_coordinator_hands_off_replacement(
         events.append("replacement_started")
         return replacement
 
-    async def stop_process_group(process, process_group_id, timeout):
+    async def stop_process_group(
+        process, process_group_id, timeout, process_start_fingerprint=None
+    ):
         assert process is old_process
         assert process_group_id == 401
         events.append("old_group_stopped")
@@ -973,3 +989,284 @@ async def test_recording_immediate_exit_releases_reserved_generation(
     assert calls[0][1]["channel_key"] == "stable-recording-channel"
     assert calls[0][1]["recording_id"] == 12
     assert manager.active_processes == {}
+
+
+async def make_real_failed_handoff_rotation(tmp_path, name):
+    engine = create_engine(
+        f"sqlite:///{tmp_path / name}",
+        future=True,
+        connect_args={"check_same_thread": False, "timeout": 30},
+    )
+    Base.metadata.create_all(
+        engine,
+        tables=[
+            TwitchUpstreamCoordinationState.__table__,
+            TwitchUpstreamLease.__table__,
+            GlobalSettings.__table__,
+        ],
+    )
+    Session = sessionmaker(bind=engine, expire_on_commit=False)
+    started_at = datetime(2026, 8, 20, 12, 0, tzinfo=timezone.utc)
+
+    class Inspector:
+        def inspect(self, pid):
+            return ProcessIdentity(pid, pid, started_at, f"birth-{pid}")
+
+        def is_exact_process_alive(self, **identity):
+            pid = identity["process_pid"]
+            return identity["process_start_fingerprint"] == f"birth-{pid}"
+
+    coordinator = TwitchUpstreamCoordinator(
+        Session,
+        utc_clock=lambda: started_at,
+        monotonic_clock=lambda: 1.0,
+        process_inspector=Inspector(),
+    )
+    reservation = await coordinator.reserve(
+        channel_key="failed-handoff-channel",
+        auth_key=None,
+        purpose="RECORDING",
+        recording_id=12,
+    )
+    active = await coordinator.activate(
+        channel_key=reservation.channel_key,
+        generation=reservation.generation,
+        process_pid=401,
+        process_group_id=401,
+        process_started_at=started_at,
+        process_start_fingerprint="birth-401",
+    )
+    old_process = FakeProcess()
+    old_process.pid = 401
+    replacement = FakeProcess()
+    replacement.pid = 402
+    manager = make_manager(old_process)
+    manager.upstream_coordinator = coordinator
+    segment_info = make_segment_info()
+    segment_info.update(
+        {
+            "upstream_channel_key": active.channel_key,
+            "upstream_generation": active.generation,
+            "upstream_process_group_id": active.process_group_id,
+            "upstream_process_start_fingerprint": active.process_start_fingerprint,
+        }
+    )
+
+    async def start_segment(stream, segment_path, quality, info):
+        manager.active_processes[f"stream_{stream.id}"] = replacement
+        return replacement
+
+    stopped = []
+
+    async def stop_process_group(
+        process, process_group_id, timeout, process_start_fingerprint=None
+    ):
+        with Session() as db:
+            lease = db.query(TwitchUpstreamLease).one()
+            stopped.append((process.pid, lease.state))
+        process.returncode = -15
+        process.release.set()
+        await process.wait()
+        return True
+
+    manager._start_segment = start_segment
+    manager._terminate_process_group = stop_process_group
+    return engine, Session, coordinator, manager, segment_info, replacement, stopped
+
+
+@pytest.mark.asyncio
+async def test_real_coordinator_failed_handoff_reaps_replacement_before_release(
+    tmp_path,
+) -> None:
+    (
+        engine,
+        Session,
+        coordinator,
+        manager,
+        segment_info,
+        replacement,
+        stopped,
+    ) = await make_real_failed_handoff_rotation(tmp_path, "failed-handoff.db")
+
+    async def fail_handoff(**values):
+        raise RuntimeError("injected local handoff failure")
+
+    coordinator.handoff_rotation = fail_handoff
+
+    assert (
+        await manager._rotate_segment(SimpleNamespace(id=7), segment_info, "best")
+        is False
+    )
+    assert stopped == [(401, "ROTATING"), (402, "ROTATING")]
+    assert replacement.returncode == -15
+    with Session() as db:
+        lease = db.query(TwitchUpstreamLease).one()
+        assert (lease.state, lease.release_reason) == (
+            "RELEASED",
+            "rotation_handoff_failed",
+        )
+    engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_real_coordinator_cancelled_handoff_reaps_replacement_before_release(
+    tmp_path,
+) -> None:
+    (
+        engine,
+        Session,
+        coordinator,
+        manager,
+        segment_info,
+        replacement,
+        stopped,
+    ) = await make_real_failed_handoff_rotation(tmp_path, "cancelled-handoff.db")
+    handoff_started = asyncio.Event()
+    finish_handoff = asyncio.Event()
+
+    async def cancel_handoff(**values):
+        handoff_started.set()
+        await finish_handoff.wait()
+        raise asyncio.CancelledError
+
+    coordinator.handoff_rotation = cancel_handoff
+    rotation = asyncio.create_task(
+        manager._rotate_segment(SimpleNamespace(id=7), segment_info, "best")
+    )
+    await handoff_started.wait()
+    rotation.cancel()
+    finish_handoff.set()
+
+    with pytest.raises(asyncio.CancelledError):
+        await rotation
+
+    assert stopped == [(401, "ROTATING"), (402, "ROTATING")]
+    assert replacement.returncode == -15
+    with Session() as db:
+        lease = db.query(TwitchUpstreamLease).one()
+        assert (lease.state, lease.release_reason) == (
+            "RELEASED",
+            "rotation_cancelled",
+        )
+    engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_recording_stop_revalidates_persisted_identity_before_sigterm(
+    monkeypatch,
+) -> None:
+    process_manager_module = importlib.import_module(
+        "app.services.recording.process_manager"
+    )
+    process = FakeProcess()
+    process.pid = 401
+    manager = make_manager(process)
+    segment_info = make_segment_info()
+    segment_info.update(
+        {
+            "upstream_channel_key": "recording-stop-channel",
+            "upstream_generation": 3,
+            "upstream_process_group_id": 401,
+            "upstream_process_start_fingerprint": "birth-401",
+        }
+    )
+    manager.long_stream_processes["stream_7"] = segment_info
+    releases = []
+
+    class Coordinator:
+        async def assert_stop_authorized(self, **values):
+            return None
+
+        async def inspect_process_identity(self, process_pid):
+            return ProcessIdentity(
+                process_pid,
+                9401,
+                datetime.now(timezone.utc),
+                "foreign-birth-401",
+            )
+
+        async def release(self, **values):
+            releases.append(values)
+            return True
+
+    async def finalize(info):
+        return None
+
+    manager.upstream_coordinator = Coordinator()
+    manager._finalize_segmented_recording = finalize
+    signaled = []
+
+    def kill_process_group(process_group_id, sig):
+        signaled.append((process_group_id, sig))
+        process.returncode = -sig
+        process.release.set()
+
+    monkeypatch.setattr(process_manager_module.os, "killpg", kill_process_group)
+
+    assert await manager.terminate_process("stream_7") is False
+    assert signaled == []
+    assert releases == []
+    assert manager.active_processes["stream_7"] is process
+
+
+@pytest.mark.asyncio
+async def test_recording_stop_revalidates_persisted_identity_before_sigkill(
+    monkeypatch,
+) -> None:
+    process_manager_module = importlib.import_module(
+        "app.services.recording.process_manager"
+    )
+    process = FakeProcess(release_on_terminate=False)
+    process.pid = 401
+    manager = make_manager(process)
+    segment_info = make_segment_info()
+    segment_info.update(
+        {
+            "upstream_channel_key": "recording-stop-channel",
+            "upstream_generation": 3,
+            "upstream_process_group_id": 401,
+            "upstream_process_start_fingerprint": "birth-401",
+        }
+    )
+    manager.long_stream_processes["stream_7"] = segment_info
+    identity_changed = False
+    releases = []
+
+    class Coordinator:
+        async def assert_stop_authorized(self, **values):
+            return None
+
+        async def inspect_process_identity(self, process_pid):
+            return ProcessIdentity(
+                process_pid,
+                401,
+                datetime.now(timezone.utc),
+                "foreign-birth-401" if identity_changed else "birth-401",
+            )
+
+        async def release(self, **values):
+            releases.append(values)
+            return True
+
+    manager.upstream_coordinator = Coordinator()
+    signaled = []
+
+    def kill_process_group(process_group_id, sig):
+        signaled.append((process_group_id, sig))
+        if sig == process_manager_module.signal.SIGKILL:
+            process.returncode = -sig
+            process.release.set()
+
+    async def expire_wait(awaitable, timeout):
+        nonlocal identity_changed
+        awaitable.close()
+        identity_changed = True
+        raise asyncio.TimeoutError
+
+    monkeypatch.setattr(process_manager_module.os, "killpg", kill_process_group)
+    monkeypatch.setattr(process_manager_module.asyncio, "wait_for", expire_wait)
+
+    assert await manager.terminate_process("stream_7") is False
+    assert signaled == [(401, process_manager_module.signal.SIGTERM)]
+    assert releases == []
+    assert manager.active_processes["stream_7"] is process
