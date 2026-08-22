@@ -137,6 +137,7 @@ class LiveStreamingService:
         self._lock = asyncio.Lock()
         self._coordinator = coordinator or twitch_upstream_coordinator
         self._output_root = Path(output_root or "/tmp/streamvault-live")
+        self._pending_starts: Dict[tuple, asyncio.Future] = {}
 
     async def start(self):
         """Start the background cleanup task"""
@@ -168,6 +169,59 @@ class LiveStreamingService:
         logger.info("Live streaming service stopped")
 
     async def start_stream(
+        self,
+        streamer_name: str,
+        channel_key: Optional[str] = None,
+        quality: str = "best",
+        supported_codecs: str = "h264",
+        user_id: Optional[str] = None,
+        enhanced_quality: bool = False,
+        replace_existing: bool = False,
+    ) -> LiveStreamStartResult:
+        channel_key = channel_key or streamer_name.strip().casefold()
+        owner_user_id = int(user_id) if user_id is not None else None
+        auth_key = AUTHENTICATED_TWITCH_ACCOUNT if enhanced_quality else None
+        start_key = (channel_key, owner_user_id, auth_key)
+
+        async with self._lock:
+            pending = self._pending_starts.get(start_key)
+            is_owner = pending is None
+            if pending is None:
+                pending = asyncio.get_running_loop().create_future()
+                pending.add_done_callback(
+                    lambda done: None if done.cancelled() else done.exception()
+                )
+                self._pending_starts[start_key] = pending
+
+        if not is_owner:
+            result = await asyncio.shield(pending)
+            return LiveStreamStartResult(result.session_id, True)
+
+        try:
+            result = await self._start_stream_once(
+                streamer_name=streamer_name,
+                channel_key=channel_key,
+                quality=quality,
+                supported_codecs=supported_codecs,
+                user_id=user_id,
+                enhanced_quality=enhanced_quality,
+                replace_existing=replace_existing,
+            )
+        except BaseException as error:
+            if isinstance(error, asyncio.CancelledError):
+                pending.cancel()
+            else:
+                pending.set_exception(error)
+            raise
+        else:
+            pending.set_result(result)
+            return result
+        finally:
+            async with self._lock:
+                if self._pending_starts.get(start_key) is pending:
+                    self._pending_starts.pop(start_key)
+
+    async def _start_stream_once(
         self,
         streamer_name: str,
         channel_key: Optional[str] = None,

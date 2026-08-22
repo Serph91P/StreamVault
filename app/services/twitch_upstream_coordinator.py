@@ -293,7 +293,7 @@ class TwitchUpstreamCoordinator:
 
             if existing and existing.state in ACTIVE_STATES:
                 if (
-                    existing.state == "ACTIVE"
+                    existing.state in ("STARTING", "ACTIVE")
                     and existing.purpose == "LIVE"
                     and purpose == "LIVE"
                     and existing.owner_user_id == owner_user_id

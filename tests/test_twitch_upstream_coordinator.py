@@ -195,6 +195,61 @@ async def test_generation_fencing_rotation_and_pid_reuse(tmp_path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_starting_live_reservation_is_idempotent_for_owner_and_policy(
+    tmp_path,
+) -> None:
+    engine, Session, _clock, _inspector, coordinator = make_coordinator(
+        tmp_path, "starting-idempotency.db"
+    )
+    original = await coordinator.reserve(
+        channel_key="starting-live-channel",
+        auth_key=None,
+        purpose="LIVE",
+        owner_user_id=7,
+        live_session_id="session-original",
+    )
+
+    duplicate = await coordinator.reserve(
+        channel_key="starting-live-channel",
+        auth_key=None,
+        purpose="LIVE",
+        owner_user_id=7,
+        live_session_id="session-duplicate",
+    )
+
+    assert duplicate.state == "STARTING"
+    assert duplicate.live_session_id == original.live_session_id
+    assert duplicate.generation == original.generation
+    with Session() as db:
+        lease = db.query(TwitchUpstreamLease).one()
+        assert (lease.live_session_id, lease.generation) == (
+            original.live_session_id,
+            original.generation,
+        )
+
+    with pytest.raises(TwitchUpstreamConflict) as policy:
+        await coordinator.reserve(
+            channel_key="starting-live-channel",
+            auth_key=AUTHENTICATED_TWITCH_ACCOUNT,
+            purpose="LIVE",
+            owner_user_id=7,
+            live_session_id="different-policy",
+        )
+    assert policy.value.code == "twitch_upstream_live_policy_conflict"
+
+    with pytest.raises(TwitchUpstreamConflict) as owner:
+        await coordinator.reserve(
+            channel_key="starting-live-channel",
+            auth_key=None,
+            purpose="LIVE",
+            owner_user_id=8,
+            live_session_id="different-owner",
+        )
+    assert owner.value.code == "twitch_upstream_channel_conflict"
+    engine.dispose()
+
+
+@pytest.mark.asyncio
 async def test_idempotency_policy_and_global_budgets(tmp_path) -> None:
     engine, Session, clock, _inspector, coordinator = make_coordinator(
         tmp_path, "budgets.db"
