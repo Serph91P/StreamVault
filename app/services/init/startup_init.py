@@ -643,47 +643,51 @@ async def cleanup_zombie_recordings():
                                     f"📂 Found segments directory from recording path: {resume_segments_dir}"
                                 )
 
-                        # CRITICAL FIX: Mark OLD recording as "stopped" BEFORE starting a new one
-                        # This prevents duplicate jobs appearing in the Background Jobs UI
-                        now_utc = datetime.now(timezone.utc)
-                        recording.status = "stopped"
-                        recording.end_time = now_utc
-                        if recording.start_time:
-                            recording.duration_seconds = int(
-                                (now_utc - recording.start_time).total_seconds()
-                            )
-                        db.commit()
-                        logger.info(
-                            f"📝 Marked old recording {recording.id} as stopped before resuming"
-                        )
-
                         try:
                             # Resume recording through RecordingService
                             # Pass resume_segments_dir to continue in the same segments folder
-                            upstream_lease = (
-                                db.query(TwitchUpstreamLease)
+                            recovery_generation = (
+                                db.query(TwitchUpstreamLease.generation)
                                 .filter(
                                     TwitchUpstreamLease.channel_key
                                     == streamer.twitch_id,
-                                    TwitchUpstreamLease.state == "RELEASED",
+                                    TwitchUpstreamLease.recording_id == recording.id,
                                 )
-                                .first()
+                                .scalar()
                             )
-                            if upstream_lease:
+                            if recovery_generation is None:
+                                logger.warning(
+                                    "No persisted upstream generation for recording %s; "
+                                    "deferring recovery",
+                                    recording.id,
+                                )
+                                continue
+                            resumed_recording_id = (
                                 await recording_service.start_recording(
                                     stream_id=stream.id,
                                     streamer_id=streamer.id,
                                     force_mode=True,
                                     resume_segments_dir=resume_segments_dir,
-                                    recovery_generation=upstream_lease.generation,
+                                    recovery_generation=recovery_generation,
                                 )
-                            else:
-                                await recording_service.start_recording(
-                                    stream_id=stream.id,
-                                    streamer_id=streamer.id,
-                                    force_mode=True,
-                                    resume_segments_dir=resume_segments_dir,
+                            )
+                            if not resumed_recording_id:
+                                logger.error(
+                                    f"❌ Failed to resume recording for {streamer.username}"
                                 )
+                                continue
+
+                            now_utc = datetime.now(timezone.utc)
+                            recording.status = "stopped"
+                            recording.end_time = now_utc
+                            if recording.start_time:
+                                start_time = recording.start_time
+                                if start_time.tzinfo is None:
+                                    start_time = start_time.replace(tzinfo=timezone.utc)
+                                recording.duration = int(
+                                    (now_utc - start_time).total_seconds()
+                                )
+                            db.commit()
                             resumed_count += 1
                             if resume_segments_dir:
                                 logger.info(
@@ -697,8 +701,6 @@ async def cleanup_zombie_recordings():
                             logger.error(
                                 f"❌ Failed to resume recording for {streamer.username}: {resume_error}"
                             )
-                            # Old recording is already stopped, just log the error
-                            cleaned_count += 1
                     else:
                         # Streamer is OFFLINE - Mark as stopped
                         logger.info(

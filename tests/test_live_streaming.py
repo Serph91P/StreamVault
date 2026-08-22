@@ -457,6 +457,134 @@ async def test_live_reserves_before_children_and_releases_on_cancellation(
 
 
 @pytest.mark.asyncio
+async def test_compatible_duplicate_joins_in_flight_live_start(monkeypatch, tmp_path):
+    from app.services import live_streaming_service
+    from app.services.twitch_upstream_coordinator import (
+        ProcessIdentity,
+        TwitchUpstreamConflict,
+    )
+
+    reservations = []
+    first_session_id = None
+    playlist_waiting = asyncio.Event()
+    playlist_ready = asyncio.Event()
+
+    class Coordinator:
+        async def reserve(self, **values):
+            nonlocal first_session_id
+            reservations.append(values)
+            if first_session_id is None:
+                first_session_id = values["live_session_id"]
+            elif values["auth_key"] is not None:
+                raise TwitchUpstreamConflict(
+                    "twitch_upstream_live_policy_conflict",
+                    "live_policy_mismatch",
+                    values["channel_key"],
+                )
+            return SimpleNamespace(
+                channel_key=values["channel_key"],
+                generation=1,
+                live_session_id=first_session_id,
+            )
+
+        async def activate(self, **values):
+            return SimpleNamespace(
+                process_group_id=values["process_group_id"],
+                process_started_at=datetime.now(timezone.utc),
+                process_start_fingerprint=f"birth-{values['process_pid']}",
+            )
+
+        async def inspect_process_identity(self, process_pid):
+            return ProcessIdentity(
+                process_pid,
+                process_pid,
+                datetime.now(timezone.utc),
+                f"birth-{process_pid}",
+            )
+
+        async def assert_stop_authorized(self, **values):
+            return None
+
+        async def release(self, **values):
+            return True
+
+    class Process:
+        def __init__(self, pid):
+            self.pid = pid
+            self.returncode = None
+            self.stdout = None
+            self.stderr = None
+            self.stdin = None
+
+        async def wait(self):
+            return self.returncode
+
+    processes = [Process(401), Process(402)]
+    subprocess_calls = []
+
+    async def create_subprocess(*args, **kwargs):
+        subprocess_calls.append((args, kwargs))
+        return processes[len(subprocess_calls) - 1]
+
+    async def command(*args, **kwargs):
+        return ["local-streamlink-fixture"]
+
+    async def wait_for_playlist(*args, **kwargs):
+        playlist_waiting.set()
+        await playlist_ready.wait()
+        return True
+
+    async def monitor(*args, **kwargs):
+        return None
+
+    monkeypatch.setattr(live_streaming_service.shutil, "which", lambda path: path)
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", create_subprocess)
+    service = live_streaming_service.LiveStreamingService(
+        coordinator=Coordinator(), output_root=tmp_path
+    )
+    service._build_streamlink_command = command
+    service._wait_for_playlist = wait_for_playlist
+    service._monitor_session = monitor
+
+    first = asyncio.create_task(
+        service.start_stream(
+            streamer_name="streamer",
+            channel_key="stable-channel-id",
+            user_id="7",
+        )
+    )
+    await playlist_waiting.wait()
+    duplicate = asyncio.create_task(
+        service.start_stream(
+            streamer_name="streamer",
+            channel_key="stable-channel-id",
+            user_id="7",
+        )
+    )
+    await asyncio.sleep(0)
+    assert not duplicate.done()
+
+    with pytest.raises(TwitchUpstreamConflict) as policy:
+        await service.start_stream(
+            streamer_name="streamer",
+            channel_key="stable-channel-id",
+            user_id="7",
+            enhanced_quality=True,
+        )
+    assert policy.value.code == "twitch_upstream_live_policy_conflict"
+
+    playlist_ready.set()
+    first_result, duplicate_result = await asyncio.gather(first, duplicate)
+
+    assert first_result.idempotent is False
+    assert duplicate_result.idempotent is True
+    assert duplicate_result.session_id == first_result.session_id
+    assert service.get_session(first_result.session_id) is not None
+    assert len(subprocess_calls) == 2
+    assert len(reservations) == 2
+
+
+@pytest.mark.asyncio
 async def test_live_activation_failure_reaps_exact_children_before_durable_release(
     monkeypatch, tmp_path
 ):
