@@ -34,3 +34,19 @@ def test_process_manager_psutil_flag_reflects_import_result() -> None:
     assert "HAS_PSUTIL = True" in source
     assert "HAS_PSUTIL = False" in source
     assert "self.psutil_available = HAS_PSUTIL" in source
+
+
+def test_recovery_paths_forward_persisted_lease_generation() -> None:
+    startup = (ROOT / "app/services/init/startup_init.py").read_text(encoding="utf-8")
+    unified = (ROOT / "app/services/recording/unified_recovery_service.py").read_text(
+        encoding="utf-8"
+    )
+    process_manager = (ROOT / "app/services/recording/process_manager.py").read_text(
+        encoding="utf-8"
+    )
+
+    assert "recovery_generation=upstream_lease.generation" in startup
+    assert "recovery_generation=upstream_lease.generation" in unified
+    assert 'purpose="RECOVERY"' in process_manager
+    assert 'else "RECORDING"' in process_manager
+    assert "expected_generation=recovery_generation" in process_manager

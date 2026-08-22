@@ -1237,8 +1237,26 @@ class UnifiedRecoveryService:
                     logger.error(f"❌ Recording {recording_id} not found")
                     return False
 
-                stream_id = recording.stream_id
-                streamer_id = recording.streamer_id
+                stream = (
+                    db.query(Stream).filter(Stream.id == recording.stream_id).first()
+                )
+                if not stream or not stream.streamer:
+                    logger.error(
+                        "Recording stream or streamer not found during recovery"
+                    )
+                    return False
+                stream_id = stream.id
+                streamer_id = stream.streamer_id
+                from app.models import TwitchUpstreamLease
+
+                upstream_lease = (
+                    db.query(TwitchUpstreamLease)
+                    .filter(
+                        TwitchUpstreamLease.channel_key == stream.streamer.twitch_id,
+                        TwitchUpstreamLease.state == "RELEASED",
+                    )
+                    .first()
+                )
 
                 # CRITICAL FIX: Mark OLD recording as "stopped" BEFORE starting a new one
                 # This prevents duplicate jobs appearing in the Background Jobs UI
@@ -1255,7 +1273,19 @@ class UnifiedRecoveryService:
                 )
 
             # Start recording - this will automatically handle segment continuation
-            success = await recording_service.start_recording(stream_id, streamer_id)
+            if upstream_lease:
+                success = await recording_service.start_recording(
+                    stream_id,
+                    streamer_id,
+                    resume_segments_dir=str(segments_dir),
+                    recovery_generation=upstream_lease.generation,
+                )
+            else:
+                success = await recording_service.start_recording(
+                    stream_id,
+                    streamer_id,
+                    resume_segments_dir=str(segments_dir),
+                )
 
             if success:
                 logger.info(f"✅ Successfully resumed recording for {streamer_name}")

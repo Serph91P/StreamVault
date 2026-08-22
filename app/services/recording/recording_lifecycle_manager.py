@@ -205,6 +205,7 @@ class RecordingLifecycleManager:
             streamer_name = streamer.username if streamer else f"streamer_{streamer_id}"
             quality = kwargs.get("quality", "best")
             resume_segments_dir = kwargs.get("resume_segments_dir")
+            recovery_generation = kwargs.get("recovery_generation")
 
             # Log recording start to dedicated file
             if hasattr(self, "recording_logger"):
@@ -221,6 +222,7 @@ class RecordingLifecycleManager:
                 file_path,
                 streamer_id,
                 resume_segments_dir=resume_segments_dir,
+                recovery_generation=recovery_generation,
             )
 
             if success:
@@ -537,6 +539,7 @@ class RecordingLifecycleManager:
         file_path: str,
         streamer_id: int,
         resume_segments_dir: Optional[str] = None,
+        recovery_generation: Optional[int] = None,
     ) -> bool:
         """Start the actual recording process
 
@@ -581,7 +584,9 @@ class RecordingLifecycleManager:
                 stream=stream,
                 output_path=file_path,
                 quality="best",  # TODO: Get quality from recording settings
+                recording_id=recording_id,
                 resume_segments_dir=resume_segments_dir,
+                recovery_generation=recovery_generation,
             )
 
             success = process is not None
