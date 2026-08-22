@@ -368,6 +368,16 @@ async def test_live_reserves_before_children_and_releases_on_cancellation(
         async def assert_stop_authorized(self, **values):
             calls.append(("authorize-stop", values))
 
+        async def inspect_process_identity(self, process_pid):
+            from app.services.twitch_upstream_coordinator import ProcessIdentity
+
+            return ProcessIdentity(
+                process_pid,
+                process_pid,
+                datetime.utcnow(),
+                f"birth-{process_pid}",
+            )
+
         async def release(self, **values):
             calls.append(("release", values))
             return True
@@ -411,7 +421,14 @@ async def test_live_reserves_before_children_and_releases_on_cancellation(
     monkeypatch.setattr(live_streaming_service.shutil, "which", lambda path: path)
     monkeypatch.setattr(asyncio, "create_subprocess_exec", create_subprocess)
     monkeypatch.setattr(live_streaming_service.os, "getpgid", lambda pid: pid)
-    monkeypatch.setattr(live_streaming_service.os, "killpg", lambda pgid, sig: None)
+
+    def kill_process_group(process_group_id, sig):
+        process = next(
+            process for process in processes if process.pid == process_group_id
+        )
+        process.returncode = -sig
+
+    monkeypatch.setattr(live_streaming_service.os, "killpg", kill_process_group)
 
     service = live_streaming_service.LiveStreamingService(
         coordinator=Coordinator(), output_root=tmp_path
@@ -475,6 +492,8 @@ async def test_live_stop_requires_persisted_live_owner_before_signaling(tmp_path
         lease_generation=3,
         process_group_id=701,
         process_start_fingerprint="birth-701",
+        ffmpeg_process_group_id=702,
+        ffmpeg_process_start_fingerprint="birth-702",
     )
     service = LiveStreamingService(coordinator=Coordinator(), output_root=tmp_path)
     service.sessions[session.session_id] = session
@@ -528,6 +547,16 @@ async def test_live_monitor_releases_dead_leader_without_signaling_reused_pid(
         async def assert_exited_process_cleanup_authorized(self, **values):
             calls.append(("authorize-exited-cleanup", values))
 
+        async def inspect_process_identity(self, process_pid):
+            from app.services.twitch_upstream_coordinator import ProcessIdentity
+
+            return ProcessIdentity(
+                process_pid,
+                process_pid,
+                datetime.utcnow(),
+                f"birth-{process_pid}",
+            )
+
         async def release(self, **values):
             calls.append(("release", values))
             return True
@@ -559,6 +588,8 @@ async def test_live_monitor_releases_dead_leader_without_signaling_reused_pid(
         lease_generation=3,
         process_group_id=701,
         process_start_fingerprint="birth-701",
+        ffmpeg_process_group_id=702,
+        ffmpeg_process_start_fingerprint="birth-702",
     )
     service = LiveStreamingService(coordinator=Coordinator(), output_root=tmp_path)
     service.sessions[session.session_id] = session
@@ -609,3 +640,235 @@ async def test_live_monitor_releases_dead_leader_without_signaling_reused_pid(
     assert streamlink_process.kill_calls == 0
     assert session.session_id not in service.sessions
     assert session.session_id not in service.user_sessions["7"]
+
+
+@pytest.mark.asyncio
+async def test_live_stop_revalidates_persisted_identity_before_sigterm(
+    monkeypatch, tmp_path
+):
+    from app.services import live_streaming_service
+    from app.services.live_streaming_service import (
+        LiveStreamSession,
+        LiveStreamingService,
+        TwitchUpstreamStopForbidden,
+    )
+    from app.services.twitch_upstream_coordinator import ProcessIdentity
+
+    identity_changed = False
+    releases = []
+
+    class Coordinator:
+        async def assert_stop_authorized(self, **values):
+            nonlocal identity_changed
+            identity_changed = True
+
+        async def inspect_process_identity(self, process_pid):
+            assert process_pid == 701
+            return ProcessIdentity(
+                pid=701,
+                process_group_id=9701,
+                started_at=datetime.utcnow(),
+                fingerprint="foreign-birth-701",
+            )
+
+        async def release(self, **values):
+            releases.append(values)
+            return True
+
+    class Process:
+        def __init__(self, pid, returncode=None):
+            self.pid = pid
+            self.returncode = returncode
+
+        def kill(self):
+            self.returncode = -9
+
+        async def wait(self):
+            return self.returncode
+
+    streamlink_process = Process(701)
+    ffmpeg_process = Process(702, returncode=0)
+    session = LiveStreamSession(
+        session_id="session-7",
+        streamer_name="streamer",
+        quality="best",
+        streamlink_process=streamlink_process,
+        ffmpeg_process=ffmpeg_process,
+        output_dir=tmp_path,
+        user_id="7",
+        channel_key="live-stop-channel",
+        lease_generation=3,
+        process_group_id=701,
+        process_start_fingerprint="birth-701",
+    )
+    service = LiveStreamingService(coordinator=Coordinator(), output_root=tmp_path)
+    service.sessions[session.session_id] = session
+    service.user_sessions = {"7": {session.session_id}}
+    signaled = []
+
+    monkeypatch.setattr(
+        live_streaming_service.os,
+        "getpgid",
+        lambda process_pid: 9701 if identity_changed else process_pid,
+    )
+
+    def kill_process_group(process_group_id, sig):
+        signaled.append((process_group_id, sig))
+        streamlink_process.returncode = -sig
+
+    monkeypatch.setattr(live_streaming_service.os, "killpg", kill_process_group)
+
+    with pytest.raises(TwitchUpstreamStopForbidden):
+        await service.stop_stream(session.session_id, requesting_user_id="7")
+
+    assert signaled == []
+    assert releases == []
+    assert session.is_active is True
+
+
+@pytest.mark.asyncio
+async def test_live_stop_revalidates_persisted_identity_before_sigkill(
+    monkeypatch, tmp_path
+):
+    from app.services import live_streaming_service
+    from app.services.live_streaming_service import (
+        LiveStreamSession,
+        LiveStreamingService,
+        TwitchUpstreamStopForbidden,
+    )
+    from app.services.twitch_upstream_coordinator import ProcessIdentity
+
+    identity_changed = False
+    releases = []
+
+    class Coordinator:
+        async def assert_stop_authorized(self, **values):
+            return None
+
+        async def inspect_process_identity(self, process_pid):
+            assert process_pid == 701
+            return ProcessIdentity(
+                pid=701,
+                process_group_id=701,
+                started_at=datetime.utcnow(),
+                fingerprint=("foreign-birth-701" if identity_changed else "birth-701"),
+            )
+
+        async def release(self, **values):
+            releases.append(values)
+            return True
+
+    class Process:
+        def __init__(self, pid, returncode=None):
+            self.pid = pid
+            self.returncode = returncode
+
+        def kill(self):
+            self.returncode = -9
+
+        async def wait(self):
+            return self.returncode
+
+    streamlink_process = Process(701)
+    ffmpeg_process = Process(702, returncode=0)
+    session = LiveStreamSession(
+        session_id="session-7",
+        streamer_name="streamer",
+        quality="best",
+        streamlink_process=streamlink_process,
+        ffmpeg_process=ffmpeg_process,
+        output_dir=tmp_path,
+        user_id="7",
+        channel_key="live-stop-channel",
+        lease_generation=3,
+        process_group_id=701,
+        process_start_fingerprint="birth-701",
+    )
+    service = LiveStreamingService(coordinator=Coordinator(), output_root=tmp_path)
+    service.sessions[session.session_id] = session
+    service.user_sessions = {"7": {session.session_id}}
+    signaled = []
+
+    monkeypatch.setattr(live_streaming_service.os, "getpgid", lambda process_pid: 701)
+
+    def kill_process_group(process_group_id, sig):
+        signaled.append((process_group_id, sig))
+        if sig == live_streaming_service.signal.SIGKILL:
+            streamlink_process.returncode = -sig
+
+    async def expire_wait(awaitable, timeout):
+        nonlocal identity_changed
+        awaitable.close()
+        identity_changed = True
+        raise asyncio.TimeoutError
+
+    monkeypatch.setattr(live_streaming_service.os, "killpg", kill_process_group)
+    monkeypatch.setattr(live_streaming_service.asyncio, "wait_for", expire_wait)
+
+    with pytest.raises(TwitchUpstreamStopForbidden):
+        await service.stop_stream(session.session_id, requesting_user_id="7")
+
+    assert signaled == [(701, live_streaming_service.signal.SIGTERM)]
+    assert releases == []
+    assert session.is_active is True
+
+
+@pytest.mark.asyncio
+async def test_live_ffmpeg_reap_revalidates_identity_before_sigkill(
+    monkeypatch, tmp_path
+):
+    from app.services import live_streaming_service
+    from app.services.live_streaming_service import LiveStreamingService
+    from app.services.twitch_upstream_coordinator import ProcessIdentity
+
+    identity_changed = False
+
+    class Coordinator:
+        async def inspect_process_identity(self, process_pid):
+            assert process_pid == 702
+            return ProcessIdentity(
+                pid=702,
+                process_group_id=702,
+                started_at=datetime.utcnow(),
+                fingerprint=("foreign-birth-702" if identity_changed else "birth-702"),
+            )
+
+    class Process:
+        pid = 702
+        returncode = None
+
+        def kill(self):
+            self.returncode = -9
+
+        async def wait(self):
+            return self.returncode
+
+    process = Process()
+    service = LiveStreamingService(coordinator=Coordinator(), output_root=tmp_path)
+    signaled = []
+
+    monkeypatch.setattr(live_streaming_service.os, "getpgid", lambda process_pid: 702)
+
+    def kill_process_group(process_group_id, sig):
+        signaled.append((process_group_id, sig))
+        if sig == live_streaming_service.signal.SIGKILL:
+            process.returncode = -sig
+
+    async def expire_wait(awaitable, timeout):
+        nonlocal identity_changed
+        awaitable.close()
+        identity_changed = True
+        raise asyncio.TimeoutError
+
+    monkeypatch.setattr(live_streaming_service.os, "killpg", kill_process_group)
+    monkeypatch.setattr(live_streaming_service.asyncio, "wait_for", expire_wait)
+
+    assert (
+        await service._reap_process(
+            process,
+            process_group_id=702,
+            process_start_fingerprint="birth-702",
+        )
+        is False
+    )
+    assert signaled == [(702, live_streaming_service.signal.SIGTERM)]

@@ -73,6 +73,8 @@ class LiveStreamSession:
         process_group_id: Optional[int] = None,
         process_started_at: Optional[datetime] = None,
         process_start_fingerprint: Optional[str] = None,
+        ffmpeg_process_group_id: Optional[int] = None,
+        ffmpeg_process_start_fingerprint: Optional[str] = None,
     ):
         self.session_id = session_id
         self.streamer_name = streamer_name
@@ -87,6 +89,8 @@ class LiveStreamSession:
         self.process_group_id = process_group_id
         self.process_started_at = process_started_at
         self.process_start_fingerprint = process_start_fingerprint
+        self.ffmpeg_process_group_id = ffmpeg_process_group_id
+        self.ffmpeg_process_start_fingerprint = ffmpeg_process_start_fingerprint
         self.playback_token = secrets.token_urlsafe(32)
         self.created_at = datetime.utcnow()
         self.last_accessed = datetime.utcnow()
@@ -222,6 +226,7 @@ class LiveStreamingService:
 
         streamlink_process = None
         ffmpeg_process = None
+        ffmpeg_identity = None
         active_lease = None
         try:
             output_dir.mkdir(parents=True, exist_ok=True)
@@ -250,6 +255,14 @@ class LiveStreamingService:
                 stderr=asyncio.subprocess.PIPE,
                 start_new_session=True,
             )
+            identity_task = asyncio.create_task(
+                self._coordinator.inspect_process_identity(ffmpeg_process.pid)
+            )
+            try:
+                ffmpeg_identity = await asyncio.shield(identity_task)
+            except asyncio.CancelledError:
+                ffmpeg_identity = await identity_task
+                raise
 
             # Start Streamlink with stdout captured
             streamlink_process = await asyncio.create_subprocess_exec(
@@ -323,6 +336,8 @@ class LiveStreamingService:
                 process_start_fingerprint=getattr(
                     active_lease, "process_start_fingerprint", ""
                 ),
+                ffmpeg_process_group_id=ffmpeg_identity.process_group_id,
+                ffmpeg_process_start_fingerprint=ffmpeg_identity.fingerprint,
             )
 
             async with self._lock:
@@ -361,13 +376,38 @@ class LiveStreamingService:
                 except PermissionError:
                     authorized = False
             if authorized:
-                await self._reap_process(streamlink_process)
-                await self._reap_process(ffmpeg_process)
-            await self._coordinator.release(
-                channel_key=channel_key,
-                generation=reservation.generation,
-                reason="live_start_failed",
-            )
+                streamlink_reaped = await self._reap_process(
+                    streamlink_process,
+                    process_group_id=(
+                        getattr(active_lease, "process_group_id", None)
+                        if active_lease is not None
+                        else None
+                    ),
+                    process_start_fingerprint=(
+                        getattr(active_lease, "process_start_fingerprint", None)
+                        if active_lease is not None
+                        else None
+                    ),
+                )
+                await self._reap_process(
+                    ffmpeg_process,
+                    process_group_id=(
+                        ffmpeg_identity.process_group_id
+                        if ffmpeg_identity is not None
+                        else None
+                    ),
+                    process_start_fingerprint=(
+                        ffmpeg_identity.fingerprint
+                        if ffmpeg_identity is not None
+                        else None
+                    ),
+                )
+                if streamlink_reaped:
+                    await self._coordinator.release(
+                        channel_key=channel_key,
+                        generation=reservation.generation,
+                        reason="live_start_failed",
+                    )
             shutil.rmtree(output_dir, ignore_errors=True)
             raise
 
@@ -515,8 +555,19 @@ class LiveStreamingService:
 
         logger.info(f"[LIVE] Stopping session {session_id} ({session.streamer_name})")
 
-        await self._reap_process(session.streamlink_process)
-        await self._reap_process(session.ffmpeg_process)
+        streamlink_reaped = await self._reap_process(
+            session.streamlink_process,
+            process_group_id=session.process_group_id,
+            process_start_fingerprint=session.process_start_fingerprint,
+        )
+        ffmpeg_reaped = await self._reap_process(
+            session.ffmpeg_process,
+            process_group_id=session.ffmpeg_process_group_id,
+            process_start_fingerprint=session.ffmpeg_process_start_fingerprint,
+        )
+        if not streamlink_reaped or not ffmpeg_reaped:
+            session.is_active = True
+            raise TwitchUpstreamStopForbidden("process_identity_changed")
 
         if session.lease_generation is not None:
             await self._coordinator.release(
@@ -543,27 +594,64 @@ class LiveStreamingService:
         logger.info(f"[LIVE] Session {session_id} stopped and cleaned up")
         return True
 
-    @staticmethod
-    async def _reap_process(process) -> None:
+    async def _reap_process(
+        self,
+        process,
+        *,
+        process_group_id=None,
+        process_start_fingerprint=None,
+    ) -> bool:
         if not process or process.returncode is not None:
-            return
+            return True
+
+        if process_group_id is None or not process_start_fingerprint:
+            return False
+        if not await self._process_identity_matches(
+            process.pid,
+            process_group_id,
+            process_start_fingerprint,
+        ):
+            return False
+
         try:
-            process_group_id = os.getpgid(process.pid)
             os.killpg(process_group_id, signal.SIGTERM)
             try:
                 await asyncio.wait_for(process.wait(), timeout=5.0)
             except asyncio.TimeoutError:
+                if not await self._process_identity_matches(
+                    process.pid,
+                    process_group_id,
+                    process_start_fingerprint,
+                ):
+                    return False
                 os.killpg(process_group_id, signal.SIGKILL)
                 await process.wait()
-            if process.returncode is None:
-                process.kill()
-                await process.wait()
+            return process.returncode is not None
         except ProcessLookupError:
-            await process.wait()
-        except Exception:
-            if process.returncode is None:
-                process.kill()
+            if process.returncode is not None:
                 await process.wait()
+                return True
+            return False
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            return False
+
+    async def _process_identity_matches(
+        self,
+        process_pid,
+        process_group_id,
+        process_start_fingerprint,
+    ) -> bool:
+        try:
+            identity = await self._coordinator.inspect_process_identity(process_pid)
+        except Exception:
+            return False
+        return (
+            identity.pid,
+            identity.process_group_id,
+            identity.fingerprint,
+        ) == (process_pid, process_group_id, process_start_fingerprint)
 
     def get_session(self, session_id: str) -> Optional[LiveStreamSession]:
         """Get a session by ID and update its access time"""

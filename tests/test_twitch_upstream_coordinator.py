@@ -428,3 +428,52 @@ async def test_recovery_rejects_merely_released_live_process(tmp_path) -> None:
             active.generation,
         )
     engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_rotation_replacement_cleanup_is_generation_fenced(tmp_path) -> None:
+    engine, _Session, clock, inspector, coordinator = make_coordinator(
+        tmp_path, "rotation-cleanup.db"
+    )
+    reservation = await coordinator.reserve(
+        channel_key="rotation-cleanup-channel",
+        auth_key=None,
+        purpose="RECORDING",
+        recording_id=24,
+    )
+    active = await coordinator.activate(
+        channel_key=reservation.channel_key,
+        generation=reservation.generation,
+        process_pid=901,
+        process_group_id=901,
+        process_started_at=clock.utcnow(),
+        process_start_fingerprint="birth-901",
+    )
+    rotating = await coordinator.begin_rotation(
+        channel_key=active.channel_key,
+        generation=active.generation,
+    )
+    inspector.alive_fingerprints.add("birth-902")
+
+    authorized = await coordinator.assert_rotation_replacement_cleanup_authorized(
+        channel_key=rotating.channel_key,
+        generation=rotating.generation,
+        process_pid=902,
+        process_group_id=902,
+        process_start_fingerprint="birth-902",
+    )
+    assert (authorized.state, authorized.process_pid) == ("ROTATING", 901)
+
+    for generation, fingerprint in (
+        (active.generation, "birth-902"),
+        (rotating.generation, "foreign-birth-902"),
+    ):
+        with pytest.raises(PermissionError):
+            await coordinator.assert_rotation_replacement_cleanup_authorized(
+                channel_key=rotating.channel_key,
+                generation=generation,
+                process_pid=902,
+                process_group_id=902,
+                process_start_fingerprint=fingerprint,
+            )
+    engine.dispose()
