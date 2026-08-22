@@ -1,5 +1,6 @@
 import asyncio
 import importlib
+import signal
 from datetime import datetime, timezone
 from types import SimpleNamespace
 
@@ -146,10 +147,14 @@ def install_immediate_exit_start(
     async def create_subprocess(*args, **kwargs):
         return failed_process
 
+    original_create_task = asyncio.create_task
+
     def create_task(coroutine):
-        monitor_coroutines.append(coroutine)
-        coroutine.close()
-        return SimpleNamespace()
+        if coroutine.cr_code.co_name == "_monitor_long_stream":
+            monitor_coroutines.append(coroutine)
+            coroutine.close()
+            return SimpleNamespace()
+        return original_create_task(coroutine)
 
     monkeypatch.setattr("app.database.SessionLocal", FakeSession)
     monkeypatch.setattr(
@@ -971,6 +976,14 @@ async def test_recording_immediate_exit_releases_reserved_generation(
                 process_start_fingerprint="birth-501",
             )
 
+        async def inspect_process_identity(self, process_pid):
+            return ProcessIdentity(
+                process_pid,
+                process_pid,
+                datetime.now(timezone.utc),
+                f"birth-{process_pid}",
+            )
+
         async def release(self, **values):
             calls.append(("release", values))
             return True
@@ -989,6 +1002,167 @@ async def test_recording_immediate_exit_releases_reserved_generation(
     assert calls[0][1]["channel_key"] == "stable-recording-channel"
     assert calls[0][1]["recording_id"] == 12
     assert manager.active_processes == {}
+
+
+@pytest.mark.asyncio
+async def test_recording_activation_failure_reaps_exact_child_before_durable_release(
+    monkeypatch, tmp_path
+) -> None:
+    process_manager_module = importlib.import_module(
+        "app.services.recording.process_manager"
+    )
+    engine = create_engine(
+        f"sqlite:///{tmp_path / 'recording-activation-failure.db'}",
+        future=True,
+        connect_args={"check_same_thread": False, "timeout": 30},
+    )
+    Base.metadata.create_all(
+        engine,
+        tables=[
+            TwitchUpstreamCoordinationState.__table__,
+            TwitchUpstreamLease.__table__,
+            GlobalSettings.__table__,
+        ],
+    )
+    Session = sessionmaker(bind=engine, expire_on_commit=False)
+    started_at = datetime(2026, 8, 22, 12, 0, tzinfo=timezone.utc)
+
+    class Inspector:
+        def inspect(self, pid):
+            return ProcessIdentity(pid, pid + 1000, started_at, f"birth-{pid}")
+
+        def is_exact_process_alive(self, **identity):
+            return True
+
+    coordinator = TwitchUpstreamCoordinator(
+        Session,
+        utc_clock=lambda: started_at,
+        monotonic_clock=lambda: 1.0,
+        process_inspector=Inspector(),
+    )
+    activation_values = []
+
+    async def fail_activation(**values):
+        activation_values.append(values)
+        raise RuntimeError("injected activation failure")
+
+    coordinator.activate = fail_activation
+    process = FakeProcess()
+    process.pid = 501
+    manager = object.__new__(ProcessManager)
+    manager.active_processes = {}
+    manager.long_stream_processes = {}
+    manager.lock = asyncio.Lock()
+    manager.rotation_locks = {}
+    manager.logging_service = None
+    manager.upstream_coordinator = coordinator
+
+    class FakeQuery:
+        def first(self):
+            return None
+
+        def filter(self, *args):
+            return self
+
+    class FakeSession:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return None
+
+        def query(self, *args):
+            return FakeQuery()
+
+    class FakeTokenService:
+        def __init__(self, db):
+            pass
+
+        async def get_valid_access_token(self):
+            return None
+
+    async def create_subprocess(*args, **kwargs):
+        return process
+
+    signaled = []
+
+    def kill_process_group(process_group_id, sig):
+        signaled.append((process_group_id, sig))
+        process.returncode = -sig
+        process.release.set()
+
+    original_release = coordinator.release
+    release_observations = []
+
+    async def release_after_reap(**values):
+        release_observations.append((values, process.returncode, tuple(signaled)))
+        return await original_release(**values)
+
+    coordinator.release = release_after_reap
+    monkeypatch.setattr("app.database.SessionLocal", FakeSession)
+    monkeypatch.setattr(
+        "app.services.system.twitch_token_service.TwitchTokenService",
+        FakeTokenService,
+    )
+    monkeypatch.setattr(
+        process_manager_module,
+        "get_streamlink_command",
+        lambda **kwargs: ["harmless-local-command"],
+    )
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", create_subprocess)
+    monkeypatch.setattr(process_manager_module.os, "killpg", kill_process_group)
+    monkeypatch.setattr(
+        process_manager_module,
+        "ASYNC_DELAYS",
+        SimpleNamespace(PROCESS_START_GRACE=0, RECORDING_ERROR_RECOVERY=1),
+    )
+    stream = SimpleNamespace(
+        id=7,
+        streamer_id=3,
+        streamer=SimpleNamespace(
+            username="local-test", twitch_id="recording-activation-channel"
+        ),
+        title="",
+        category_name="",
+    )
+
+    with pytest.raises(ProcessError):
+        await manager.start_recording_process(
+            stream,
+            str(tmp_path / "recording.ts"),
+            "best",
+            recording_id=12,
+        )
+
+    assert activation_values == [
+        {
+            "channel_key": "recording-activation-channel",
+            "generation": 1,
+            "process_pid": 501,
+            "process_group_id": 1501,
+            "process_started_at": started_at,
+            "process_start_fingerprint": "birth-501",
+        }
+    ]
+    assert release_observations == [
+        (
+            {
+                "channel_key": "recording-activation-channel",
+                "generation": 1,
+                "reason": "recording_start_failed",
+            },
+            -15,
+            ((1501, signal.SIGTERM),),
+        )
+    ]
+    assert (manager.active_processes, manager.long_stream_processes) == ({}, {})
+    with Session() as db:
+        lease = db.query(TwitchUpstreamLease).one()
+        assert (lease.state, lease.release_reason) == (
+            "RELEASED",
+            "recording_start_failed",
+        )
+    engine.dispose()
 
 
 async def make_real_failed_handoff_rotation(tmp_path, name):

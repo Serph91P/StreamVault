@@ -1,13 +1,10 @@
 """
-Tests for the Live Streaming Service.
-
-Pure unit tests, no database imports, no pytest-asyncio.
-Tests only logic that doesn't require external services.
+Tests for the Live Streaming Service without external services.
 """
 
 import asyncio
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
@@ -457,6 +454,154 @@ async def test_live_reserves_before_children_and_releases_on_cancellation(
     ]
     assert all(options["start_new_session"] is True for options in subprocess_kwargs)
     assert all(process.returncode is not None for process in processes)
+
+
+@pytest.mark.asyncio
+async def test_live_activation_failure_reaps_exact_children_before_durable_release(
+    monkeypatch, tmp_path
+):
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+
+    from app.database import Base
+    from app.models import (
+        GlobalSettings,
+        TwitchUpstreamCoordinationState,
+        TwitchUpstreamLease,
+    )
+    from app.services import live_streaming_service
+    from app.services.twitch_upstream_coordinator import (
+        ProcessIdentity,
+        TwitchUpstreamCoordinator,
+    )
+
+    engine = create_engine(
+        f"sqlite:///{tmp_path / 'live-activation-failure.db'}",
+        future=True,
+        connect_args={"check_same_thread": False, "timeout": 30},
+    )
+    Base.metadata.create_all(
+        engine,
+        tables=[
+            TwitchUpstreamCoordinationState.__table__,
+            TwitchUpstreamLease.__table__,
+            GlobalSettings.__table__,
+        ],
+    )
+    Session = sessionmaker(bind=engine, expire_on_commit=False)
+    started_at = datetime(2026, 8, 22, 12, 0, tzinfo=timezone.utc)
+
+    class Inspector:
+        def inspect(self, pid):
+            return ProcessIdentity(pid, pid + 1000, started_at, f"birth-{pid}")
+
+        def is_exact_process_alive(self, **identity):
+            return True
+
+    class Process:
+        def __init__(self, pid):
+            self.pid = pid
+            self.returncode = None
+            self.stdout = None
+            self.stderr = None
+            self.stdin = None
+
+        async def wait(self):
+            return self.returncode
+
+    coordinator = TwitchUpstreamCoordinator(
+        Session,
+        monotonic_clock=lambda: 1.0,
+        process_inspector=Inspector(),
+    )
+    activation_values = []
+
+    async def fail_activation(**values):
+        activation_values.append(values)
+        raise RuntimeError("injected activation failure")
+
+    coordinator.activate = fail_activation
+    processes = [Process(301), Process(302)]
+    subprocess_calls = []
+
+    async def create_subprocess(*args, **kwargs):
+        subprocess_calls.append((args, kwargs))
+        return processes[len(subprocess_calls) - 1]
+
+    async def command(*args, **kwargs):
+        return ["local-streamlink-fixture"]
+
+    signaled = []
+
+    def kill_process_group(process_group_id, sig):
+        signaled.append((process_group_id, sig))
+        process = next(
+            process for process in processes if process.pid + 1000 == process_group_id
+        )
+        process.returncode = -sig
+
+    original_release = coordinator.release
+    release_observations = []
+
+    async def release_after_reap(**values):
+        release_observations.append(
+            (
+                values,
+                tuple(process.returncode for process in processes),
+                tuple(signaled),
+            )
+        )
+        return await original_release(**values)
+
+    coordinator.release = release_after_reap
+    monkeypatch.setattr(live_streaming_service.shutil, "which", lambda path: path)
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", create_subprocess)
+    monkeypatch.setattr(live_streaming_service.os, "killpg", kill_process_group)
+
+    service = live_streaming_service.LiveStreamingService(
+        coordinator=coordinator, output_root=tmp_path / "live"
+    )
+    service._build_streamlink_command = command
+
+    with pytest.raises(RuntimeError, match="injected activation failure"):
+        await service.start_stream(
+            streamer_name="streamer",
+            channel_key="live-activation-channel",
+            user_id="7",
+        )
+
+    assert len(subprocess_calls) == 2
+    assert activation_values == [
+        {
+            "channel_key": "live-activation-channel",
+            "generation": 1,
+            "process_pid": 302,
+            "process_group_id": 1302,
+            "process_started_at": started_at,
+            "process_start_fingerprint": "birth-302",
+        }
+    ]
+    assert release_observations == [
+        (
+            {
+                "channel_key": "live-activation-channel",
+                "generation": 1,
+                "reason": "live_start_failed",
+            },
+            (-15, -15),
+            (
+                (1302, live_streaming_service.signal.SIGTERM),
+                (1301, live_streaming_service.signal.SIGTERM),
+            ),
+        )
+    ]
+    with Session() as db:
+        lease = db.query(TwitchUpstreamLease).one()
+        assert (lease.state, lease.release_reason) == (
+            "RELEASED",
+            "live_start_failed",
+        )
+    engine.dispose()
 
 
 @pytest.mark.asyncio
