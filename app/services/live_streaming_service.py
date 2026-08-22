@@ -225,6 +225,7 @@ class LiveStreamingService:
         output_dir = self._output_root / session_id
 
         streamlink_process = None
+        streamlink_identity = None
         ffmpeg_process = None
         ffmpeg_identity = None
         active_lease = None
@@ -271,13 +272,22 @@ class LiveStreamingService:
                 stderr=asyncio.subprocess.PIPE,
                 start_new_session=True,
             )
-            process_group_id = os.getpgid(streamlink_process.pid)
+            identity_task = asyncio.create_task(
+                self._coordinator.inspect_process_identity(streamlink_process.pid)
+            )
+            try:
+                streamlink_identity = await asyncio.shield(identity_task)
+            except asyncio.CancelledError:
+                streamlink_identity = await identity_task
+                raise
             activation = asyncio.create_task(
                 self._coordinator.activate(
                     channel_key=channel_key,
                     generation=reservation.generation,
                     process_pid=streamlink_process.pid,
-                    process_group_id=process_group_id,
+                    process_group_id=streamlink_identity.process_group_id,
+                    process_started_at=streamlink_identity.started_at,
+                    process_start_fingerprint=streamlink_identity.fingerprint,
                 )
             )
             try:
@@ -330,11 +340,19 @@ class LiveStreamingService:
                 enhanced_quality=enhanced_quality,
                 lease_generation=reservation.generation,
                 process_group_id=getattr(
-                    active_lease, "process_group_id", process_group_id
+                    active_lease,
+                    "process_group_id",
+                    streamlink_identity.process_group_id,
                 ),
-                process_started_at=getattr(active_lease, "process_started_at", None),
+                process_started_at=getattr(
+                    active_lease,
+                    "process_started_at",
+                    streamlink_identity.started_at,
+                ),
                 process_start_fingerprint=getattr(
-                    active_lease, "process_start_fingerprint", ""
+                    active_lease,
+                    "process_start_fingerprint",
+                    streamlink_identity.fingerprint,
                 ),
                 ffmpeg_process_group_id=ffmpeg_identity.process_group_id,
                 ffmpeg_process_start_fingerprint=ffmpeg_identity.fingerprint,
@@ -362,7 +380,9 @@ class LiveStreamingService:
                         generation=reservation.generation,
                         process_pid=streamlink_process.pid,
                         process_group_id=getattr(
-                            active_lease, "process_group_id", process_group_id
+                            active_lease,
+                            "process_group_id",
+                            streamlink_identity.process_group_id,
                         ),
                         process_start_fingerprint=getattr(
                             active_lease, "process_start_fingerprint", ""
@@ -375,39 +395,46 @@ class LiveStreamingService:
                     authorized = True
                 except PermissionError:
                     authorized = False
+            streamlink_reaped = False
             if authorized:
                 streamlink_reaped = await self._reap_process(
                     streamlink_process,
                     process_group_id=(
-                        getattr(active_lease, "process_group_id", None)
+                        getattr(
+                            active_lease,
+                            "process_group_id",
+                            streamlink_identity.process_group_id,
+                        )
                         if active_lease is not None
-                        else None
+                        else getattr(streamlink_identity, "process_group_id", None)
                     ),
                     process_start_fingerprint=(
-                        getattr(active_lease, "process_start_fingerprint", None)
+                        getattr(
+                            active_lease,
+                            "process_start_fingerprint",
+                            streamlink_identity.fingerprint,
+                        )
                         if active_lease is not None
-                        else None
+                        else getattr(streamlink_identity, "fingerprint", None)
                     ),
                 )
-                await self._reap_process(
-                    ffmpeg_process,
-                    process_group_id=(
-                        ffmpeg_identity.process_group_id
-                        if ffmpeg_identity is not None
-                        else None
-                    ),
-                    process_start_fingerprint=(
-                        ffmpeg_identity.fingerprint
-                        if ffmpeg_identity is not None
-                        else None
-                    ),
+            ffmpeg_reaped = await self._reap_process(
+                ffmpeg_process,
+                process_group_id=(
+                    ffmpeg_identity.process_group_id
+                    if ffmpeg_identity is not None
+                    else None
+                ),
+                process_start_fingerprint=(
+                    ffmpeg_identity.fingerprint if ffmpeg_identity is not None else None
+                ),
+            )
+            if streamlink_reaped and ffmpeg_reaped:
+                await self._coordinator.release(
+                    channel_key=channel_key,
+                    generation=reservation.generation,
+                    reason="live_start_failed",
                 )
-                if streamlink_reaped:
-                    await self._coordinator.release(
-                        channel_key=channel_key,
-                        generation=reservation.generation,
-                        reason="live_start_failed",
-                    )
             shutil.rmtree(output_dir, ignore_errors=True)
             raise
 

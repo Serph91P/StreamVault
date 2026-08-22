@@ -201,8 +201,18 @@ class ProcessManager:
             if reservation:
                 process_id = f"stream_{stream.id}"
                 owned_process = self.active_processes.get(process_id)
-                stop_authorized = False
-                if owned_process and owned_process.returncode is None:
+                stop_authorized = bool(
+                    owned_process
+                    and owned_process.returncode is None
+                    and not segment_info.get("upstream_activated", False)
+                    and segment_info.get("upstream_process_group_id") is not None
+                    and segment_info.get("upstream_process_start_fingerprint")
+                )
+                if (
+                    owned_process
+                    and owned_process.returncode is None
+                    and segment_info.get("upstream_activated", False)
+                ):
                     try:
                         await self.upstream_coordinator.assert_stop_authorized(
                             channel_key=reservation.channel_key,
@@ -575,22 +585,79 @@ class ProcessManager:
             self.active_processes[process_id] = process
 
             rotation_generation = segment_info.get("upstream_rotation_generation")
-            if (
+            activation_required = (
                 segment_info.get("upstream_channel_key")
                 and rotation_generation != segment_info["upstream_generation"]
-            ):
-                active_lease = await self.upstream_coordinator.activate(
-                    channel_key=segment_info["upstream_channel_key"],
-                    generation=segment_info["upstream_generation"],
-                    process_pid=process.pid,
-                    process_group_id=process.pid,
+            )
+            if activation_required:
+                identity_task = asyncio.create_task(
+                    self.upstream_coordinator.inspect_process_identity(process.pid)
                 )
+                try:
+                    process_identity = await asyncio.shield(identity_task)
+                except asyncio.CancelledError:
+                    process_identity = await identity_task
+                    segment_info["upstream_process_group_id"] = (
+                        process_identity.process_group_id
+                    )
+                    segment_info["upstream_process_started_at"] = (
+                        process_identity.started_at
+                    )
+                    segment_info["upstream_process_start_fingerprint"] = (
+                        process_identity.fingerprint
+                    )
+                    segment_info["upstream_activated"] = False
+                    raise
+
+                segment_info["upstream_process_group_id"] = (
+                    process_identity.process_group_id
+                )
+                segment_info["upstream_process_started_at"] = (
+                    process_identity.started_at
+                )
+                segment_info["upstream_process_start_fingerprint"] = (
+                    process_identity.fingerprint
+                )
+                segment_info["upstream_activated"] = False
+                activation_task = asyncio.create_task(
+                    self.upstream_coordinator.activate(
+                        channel_key=segment_info["upstream_channel_key"],
+                        generation=segment_info["upstream_generation"],
+                        process_pid=process.pid,
+                        process_group_id=process_identity.process_group_id,
+                        process_started_at=process_identity.started_at,
+                        process_start_fingerprint=process_identity.fingerprint,
+                    )
+                )
+                try:
+                    active_lease = await asyncio.shield(activation_task)
+                except asyncio.CancelledError:
+                    active_lease = await activation_task
+                    segment_info["upstream_process_group_id"] = (
+                        active_lease.process_group_id
+                    )
+                    segment_info["upstream_process_started_at"] = getattr(
+                        active_lease,
+                        "process_started_at",
+                        process_identity.started_at,
+                    )
+                    segment_info["upstream_process_start_fingerprint"] = (
+                        active_lease.process_start_fingerprint
+                    )
+                    segment_info["upstream_activated"] = True
+                    raise
                 segment_info["upstream_process_group_id"] = (
                     active_lease.process_group_id
+                )
+                segment_info["upstream_process_started_at"] = getattr(
+                    active_lease,
+                    "process_started_at",
+                    process_identity.started_at,
                 )
                 segment_info["upstream_process_start_fingerprint"] = (
                     active_lease.process_start_fingerprint
                 )
+                segment_info["upstream_activated"] = True
 
             # Add immediate check to see if process started successfully
             await asyncio.sleep(ASYNC_DELAYS.PROCESS_START_GRACE)
