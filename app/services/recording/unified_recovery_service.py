@@ -12,7 +12,7 @@ Replaces multiple overlapping services with one unified approach.
 
 import asyncio
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
@@ -1219,7 +1219,6 @@ class UnifiedRecoveryService:
         try:
             # Get recording service to resume recording
             from app.services.recording.recording_service import RecordingService
-            from datetime import datetime, timezone
 
             recording_service = RecordingService()
 
@@ -1237,27 +1236,65 @@ class UnifiedRecoveryService:
                     logger.error(f"❌ Recording {recording_id} not found")
                     return False
 
-                stream_id = recording.stream_id
-                streamer_id = recording.streamer_id
-
-                # CRITICAL FIX: Mark OLD recording as "stopped" BEFORE starting a new one
-                # This prevents duplicate jobs appearing in the Background Jobs UI
-                now_utc = datetime.now(timezone.utc)
-                recording.status = "stopped"
-                recording.end_time = now_utc
-                if recording.start_time:
-                    recording.duration_seconds = int(
-                        (now_utc - recording.start_time).total_seconds()
+                stream = (
+                    db.query(Stream).filter(Stream.id == recording.stream_id).first()
+                )
+                if not stream or not stream.streamer:
+                    logger.error(
+                        "Recording stream or streamer not found during recovery"
                     )
-                db.commit()
-                logger.info(
-                    f"📝 Marked old recording {recording_id} as stopped before resuming"
+                    return False
+                stream_id = stream.id
+                streamer_id = stream.streamer_id
+                from app.models import TwitchUpstreamLease
+
+                recovery_generation = (
+                    db.query(TwitchUpstreamLease.generation)
+                    .filter(
+                        TwitchUpstreamLease.channel_key == stream.streamer.twitch_id,
+                        TwitchUpstreamLease.recording_id == recording_id,
+                    )
+                    .scalar()
                 )
 
-            # Start recording - this will automatically handle segment continuation
-            success = await recording_service.start_recording(stream_id, streamer_id)
+                if recovery_generation is None:
+                    logger.warning(
+                        "No persisted upstream generation for recording %s; "
+                        "deferring recovery",
+                        recording_id,
+                    )
+                    return False
 
-            if success:
+            # Start recording - this will automatically handle segment continuation
+            resumed_recording_id = await recording_service.start_recording(
+                stream_id,
+                streamer_id,
+                resume_segments_dir=str(segments_dir),
+                recovery_generation=recovery_generation,
+            )
+
+            if resumed_recording_id:
+                try:
+                    with SessionLocal() as db:
+                        recording = db.get(Recording, recording_id)
+                        if recording and recording.status == "recording":
+                            now_utc = datetime.now(timezone.utc)
+                            recording.status = "stopped"
+                            recording.end_time = now_utc
+                            if recording.start_time:
+                                start_time = recording.start_time
+                                if start_time.tzinfo is None:
+                                    start_time = start_time.replace(tzinfo=timezone.utc)
+                                recording.duration = int(
+                                    (now_utc - start_time).total_seconds()
+                                )
+                            db.commit()
+                except Exception as bookkeeping_error:
+                    logger.error(
+                        "Recording %s resumed but prior-row bookkeeping failed: %s",
+                        recording_id,
+                        bookkeeping_error,
+                    )
                 logger.info(f"✅ Successfully resumed recording for {streamer_name}")
                 logging_service.log_post_processing_activity(
                     "RECORDING_RESUMED",
@@ -1265,9 +1302,8 @@ class UnifiedRecoveryService:
                     f"Resumed live recording {recording_id} that was interrupted during restart",
                 )
                 return True
-            else:
-                logger.error(f"❌ Failed to resume recording for {streamer_name}")
-                return False
+            logger.error(f"❌ Failed to resume recording for {streamer_name}")
+            return False
 
         except Exception as e:
             logger.error(f"❌ Error resuming recording: {e}")

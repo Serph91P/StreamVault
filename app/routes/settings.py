@@ -82,6 +82,11 @@ async def get_settings():
                 if hasattr(settings, "prefer_higher_quality")
                 else True
             ),
+            twitch_max_concurrent_upstreams=(
+                settings.twitch_max_concurrent_upstreams
+                if hasattr(settings, "twitch_max_concurrent_upstreams")
+                else 5
+            ),
             http_proxy=settings.http_proxy,
             https_proxy=settings.https_proxy,
             apprise_docs_url="https://github.com/caronc/apprise/wiki",
@@ -353,6 +358,9 @@ async def update_settings(settings_data: GlobalSettingsSchema):
                 )
             if hasattr(settings_data, "prefer_higher_quality"):
                 settings.prefer_higher_quality = settings_data.prefer_higher_quality
+            settings.twitch_max_concurrent_upstreams = (
+                settings_data.twitch_max_concurrent_upstreams
+            )
             settings.http_proxy = settings_data.http_proxy or ""
             settings.https_proxy = settings_data.https_proxy or ""
 

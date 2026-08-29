@@ -29,6 +29,8 @@ from app.database import get_db
 from app.dependencies import get_current_user
 from app.models import Streamer, User
 from app.services.live_streaming_service import live_streaming_service
+from app.services.live_streaming_service import TwitchUpstreamStopForbidden
+from app.services.twitch_upstream_coordinator import TwitchUpstreamConflict
 
 logger = logging.getLogger("streamvault")
 
@@ -56,6 +58,7 @@ def _append_playback_token_to_playlist(playlist: str, token: str) -> str:
 class LiveStartRequest(BaseModel):
     quality: Optional[str] = None
     supported_codecs: Optional[str] = None
+    enhanced_quality: bool = False
 
 
 @router.post("/start/{streamer_name}")
@@ -89,8 +92,15 @@ async def start_live_stream(
         requested_quality = body.quality or quality
         supported_codecs = body.supported_codecs or "h264"
 
-        # Verify streamer exists
-        streamer = db.query(Streamer).filter(Streamer.username == streamer_name).first()
+        normalized_name = streamer_name.strip().casefold()
+        streamer = next(
+            (
+                candidate
+                for candidate in db.query(Streamer).all()
+                if candidate.username.strip().casefold() == normalized_name
+            ),
+            None,
+        )
         if not streamer:
             raise HTTPException(
                 status_code=404, detail=f"Streamer '{streamer_name}' not found"
@@ -101,12 +111,15 @@ async def start_live_stream(
 
         # Start stream
         user_id = str(current_user.id) if current_user else None
-        session_id = await live_streaming_service.start_stream(
-            streamer_name=streamer_name,
+        start_result = await live_streaming_service.start_stream(
+            streamer_name=streamer.username,
+            channel_key=streamer.twitch_id,
             quality=requested_quality,
             supported_codecs=supported_codecs,
             user_id=user_id,
+            enhanced_quality=body.enhanced_quality,
         )
+        session_id = start_result.session_id
 
         session = live_streaming_service.get_session(session_id)
         if not session:
@@ -120,21 +133,25 @@ async def start_live_stream(
         )
 
         logger.info(
-            f"[LIVE] Stream started by user {user_id}: {session_id} ({streamer_name})"
+            f"[LIVE] Stream started by user {user_id}: {session_id} ({streamer.username})"
         )
 
         return {
             "success": True,
             "session_id": session_id,
-            "streamer_name": streamer_name,
+            "streamer_name": streamer.username,
             "quality": requested_quality,
             "supported_codecs": live_streaming_service._normalize_supported_codecs(
                 supported_codecs
             ),
             "playlist_url": playlist_url,
-            "message": "Stream started successfully",
+            "idempotent": start_result.idempotent,
         }
 
+    except TwitchUpstreamConflict as conflict:
+        raise HTTPException(status_code=409, detail=conflict.as_detail())
+    except HTTPException:
+        raise
     except RuntimeError as e:
         logger.warning(f"[LIVE] Failed to start stream for {streamer_name}: {e}")
         raise HTTPException(status_code=429, detail=str(e))
@@ -165,7 +182,10 @@ async def stop_live_stream(
                 status_code=404, detail="Session not found or already stopped"
             )
 
-        success = await live_streaming_service.stop_stream(session_id)
+        user_id = str(current_user.id) if current_user else None
+        success = await live_streaming_service.stop_stream(
+            session_id, requesting_user_id=user_id
+        )
 
         if success:
             return {
@@ -175,6 +195,14 @@ async def stop_live_stream(
         else:
             raise HTTPException(status_code=404, detail="Session not found")
 
+    except TwitchUpstreamStopForbidden:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "code": "twitch_upstream_stop_forbidden",
+                "reason": "not_lease_owner",
+            },
+        )
     except HTTPException:
         raise
     except Exception as e:

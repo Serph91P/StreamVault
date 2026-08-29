@@ -18,7 +18,9 @@ Dependency Injection:
 
 import logging
 import asyncio
+import os
 import re
+import signal
 import shutil
 from datetime import datetime, timedelta
 from typing import Dict, Optional, Callable, Awaitable
@@ -38,6 +40,10 @@ from app.services.recording.exceptions import ProcessError
 from app.models import Stream
 from app.utils import async_file
 from app.config.constants import ASYNC_DELAYS
+from app.services.twitch_upstream_coordinator import (
+    AUTHENTICATED_TWITCH_ACCOUNT,
+    twitch_upstream_coordinator,
+)
 
 logger = logging.getLogger("streamvault")
 
@@ -68,6 +74,7 @@ class ProcessManager:
         post_processing_callback: Optional[
             Callable[[int, str], Awaitable[None]]
         ] = None,
+        upstream_coordinator=None,
     ):
         """Singleton pattern - return existing instance if available"""
         if cls._instance is None:
@@ -80,6 +87,7 @@ class ProcessManager:
         post_processing_callback: Optional[
             Callable[[int, str], Awaitable[None]]
         ] = None,
+        upstream_coordinator=None,
     ):
         # Only initialize once (singleton)
         if ProcessManager._initialized:
@@ -88,13 +96,18 @@ class ProcessManager:
                 self.config_manager = config_manager
             if post_processing_callback is not None:
                 self.post_processing_callback = post_processing_callback
+            if upstream_coordinator is not None:
+                self.upstream_coordinator = upstream_coordinator
             return
 
         self.active_processes = {}
         self.long_stream_processes = {}  # Track processes that need segmentation
         self.lock = asyncio.Lock()
+        self.rotation_locks = {}
+        self.ASYNC_DELAYS = ASYNC_DELAYS
         self.config_manager = config_manager
         self.post_processing_callback = post_processing_callback  # Injected dependency
+        self.upstream_coordinator = upstream_coordinator or twitch_upstream_coordinator
 
         # Configuration for long stream handling (avoid streamlink 24h cutoff)
         self.segment_duration_hours = (
@@ -134,6 +147,7 @@ class ProcessManager:
         quality: str,
         recording_id: Optional[int] = None,
         resume_segments_dir: Optional[str] = None,
+        recovery_generation: Optional[int] = None,
     ) -> Optional[asyncio.subprocess.Process]:
         """Start a streamlink recording process for a specific stream
 
@@ -147,11 +161,27 @@ class ProcessManager:
         Returns:
             Process object or None if failed
         """
+        reservation = None
         try:
+            streamer = getattr(stream, "streamer", None)
+            channel_key = getattr(streamer, "twitch_id", None)
+            if channel_key:
+                reservation = await self.upstream_coordinator.reserve(
+                    channel_key=channel_key,
+                    auth_key=AUTHENTICATED_TWITCH_ACCOUNT,
+                    purpose="RECOVERY"
+                    if recovery_generation is not None
+                    else "RECORDING",
+                    recording_id=recording_id,
+                    expected_generation=recovery_generation,
+                )
             # Initialize segmented recording for long streams
             segment_info = await self._initialize_segmented_recording(
                 stream, output_path, quality, recording_id, resume_segments_dir
             )
+            if reservation:
+                segment_info["upstream_channel_key"] = reservation.channel_key
+                segment_info["upstream_generation"] = reservation.generation
 
             # Start the first segment
             process = await self._start_segment(
@@ -167,12 +197,75 @@ class ProcessManager:
 
             return process
 
-        except Exception as e:
+        except BaseException as e:
+            if reservation:
+                process_id = f"stream_{stream.id}"
+                owned_process = self.active_processes.get(process_id)
+                stop_authorized = bool(
+                    owned_process
+                    and owned_process.returncode is None
+                    and not segment_info.get("upstream_activated", False)
+                    and segment_info.get("upstream_process_group_id") is not None
+                    and segment_info.get("upstream_process_start_fingerprint")
+                )
+                if (
+                    owned_process
+                    and owned_process.returncode is None
+                    and segment_info.get("upstream_activated", False)
+                ):
+                    try:
+                        await self.upstream_coordinator.assert_stop_authorized(
+                            channel_key=reservation.channel_key,
+                            generation=segment_info["upstream_generation"],
+                            process_pid=owned_process.pid,
+                            process_group_id=segment_info["upstream_process_group_id"],
+                            process_start_fingerprint=segment_info[
+                                "upstream_process_start_fingerprint"
+                            ],
+                        )
+                        stop_authorized = True
+                    except (KeyError, PermissionError):
+                        pass
+                cleanup_complete = (
+                    owned_process is None or owned_process.returncode is not None
+                )
+                if (
+                    owned_process
+                    and owned_process.returncode is None
+                    and stop_authorized
+                ):
+                    cleanup_complete = await self._terminate_process_group(
+                        owned_process,
+                        segment_info.get(
+                            "upstream_process_group_id", owned_process.pid
+                        ),
+                        ASYNC_DELAYS.RECORDING_ERROR_RECOVERY,
+                        segment_info.get("upstream_process_start_fingerprint"),
+                    )
+                    if cleanup_complete:
+                        if self.active_processes.get(process_id) is owned_process:
+                            del self.active_processes[process_id]
+                        if self.long_stream_processes.get(process_id) is segment_info:
+                            del self.long_stream_processes[process_id]
+                if cleanup_complete:
+                    await self.upstream_coordinator.release(
+                        channel_key=reservation.channel_key,
+                        generation=segment_info.get(
+                            "upstream_generation", reservation.generation
+                        )
+                        if "segment_info" in locals()
+                        else reservation.generation,
+                        reason="recording_start_failed",
+                    )
+            if isinstance(e, asyncio.CancelledError):
+                raise
             logger.error(
-                f"Failed to start recording process for stream {stream.id}: {e}",
+                "Failed to start recording process for stream %s (%s)",
+                stream.id,
+                type(e).__name__,
                 exc_info=True,
             )
-            raise ProcessError(f"Failed to start recording: {e}")
+            raise ProcessError("Failed to start recording") from e
 
     async def _initialize_segmented_recording(
         self,
@@ -383,7 +476,7 @@ class ProcessManager:
                             "ℹ️ No OAuth token available - H.265/1440p quality unavailable"
                         )
                 except Exception as e:
-                    logger.warning(f"Failed to get OAuth token: {e}")
+                    logger.warning("Failed to get OAuth token (%s)", type(e).__name__)
                     oauth_token = None
 
                 # === STEP 2: Get codec preferences ===
@@ -439,12 +532,8 @@ class ProcessManager:
 
             # Log to structured logging service
             if self.logging_service:
-                # The logging service now automatically creates streamer-specific directories
-                streamlink_log_path = self.logging_service.log_streamlink_start(
-                    streamer_name=streamer_name,
-                    quality=quality,
-                    output_path=segment_path,
-                    cmd=cmd,
+                streamlink_log_path = self.logging_service.get_streamlink_log_path(
+                    streamer_name
                 )
 
                 logger.info(
@@ -485,50 +574,117 @@ class ProcessManager:
 
             # Start the process
             process = await asyncio.create_subprocess_exec(
-                *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                start_new_session=True,
             )
+
+            # Publish ownership before any cancellable post-creation work.
+            process_id = f"stream_{stream.id}"
+            self.active_processes[process_id] = process
+
+            rotation_generation = segment_info.get("upstream_rotation_generation")
+            activation_required = (
+                segment_info.get("upstream_channel_key")
+                and rotation_generation != segment_info["upstream_generation"]
+            )
+            if activation_required:
+                identity_task = asyncio.create_task(
+                    self.upstream_coordinator.inspect_process_identity(process.pid)
+                )
+                try:
+                    process_identity = await asyncio.shield(identity_task)
+                except asyncio.CancelledError:
+                    process_identity = await identity_task
+                    segment_info["upstream_process_group_id"] = (
+                        process_identity.process_group_id
+                    )
+                    segment_info["upstream_process_started_at"] = (
+                        process_identity.started_at
+                    )
+                    segment_info["upstream_process_start_fingerprint"] = (
+                        process_identity.fingerprint
+                    )
+                    segment_info["upstream_activated"] = False
+                    raise
+
+                segment_info["upstream_process_group_id"] = (
+                    process_identity.process_group_id
+                )
+                segment_info["upstream_process_started_at"] = (
+                    process_identity.started_at
+                )
+                segment_info["upstream_process_start_fingerprint"] = (
+                    process_identity.fingerprint
+                )
+                segment_info["upstream_activated"] = False
+                activation_task = asyncio.create_task(
+                    self.upstream_coordinator.activate(
+                        channel_key=segment_info["upstream_channel_key"],
+                        generation=segment_info["upstream_generation"],
+                        process_pid=process.pid,
+                        process_group_id=process_identity.process_group_id,
+                        process_started_at=process_identity.started_at,
+                        process_start_fingerprint=process_identity.fingerprint,
+                    )
+                )
+                try:
+                    active_lease = await asyncio.shield(activation_task)
+                except asyncio.CancelledError:
+                    active_lease = await activation_task
+                    segment_info["upstream_process_group_id"] = (
+                        active_lease.process_group_id
+                    )
+                    segment_info["upstream_process_started_at"] = getattr(
+                        active_lease,
+                        "process_started_at",
+                        process_identity.started_at,
+                    )
+                    segment_info["upstream_process_start_fingerprint"] = (
+                        active_lease.process_start_fingerprint
+                    )
+                    segment_info["upstream_activated"] = True
+                    raise
+                segment_info["upstream_process_group_id"] = (
+                    active_lease.process_group_id
+                )
+                segment_info["upstream_process_started_at"] = getattr(
+                    active_lease,
+                    "process_started_at",
+                    process_identity.started_at,
+                )
+                segment_info["upstream_process_start_fingerprint"] = (
+                    active_lease.process_start_fingerprint
+                )
+                segment_info["upstream_activated"] = True
 
             # Add immediate check to see if process started successfully
             await asyncio.sleep(ASYNC_DELAYS.PROCESS_START_GRACE)
             if process.returncode is not None:
                 # Process already ended, capture output
                 stdout, stderr = await process.communicate()
+                async with self.lock:
+                    if self.active_processes.get(process_id) is process:
+                        del self.active_processes[process_id]
+                    if self.long_stream_processes.get(process_id) is segment_info:
+                        del self.long_stream_processes[process_id]
                 logger.error(
                     f"🎬 PROCESS_FAILED_IMMEDIATELY: PID would be {process.pid}, exit code {process.returncode}"
                 )
-                logger.error(f"🎬 STDOUT: {stdout.decode()}")
-                logger.error(f"🎬 STDERR: {stderr.decode()}")
+                logger.error("Streamlink exited during recording startup")
 
                 # Log to structured logging service
                 if self.logging_service:
-                    self.logging_service.log_streamlink_output(
-                        streamer_name=streamer_name,
-                        stdout=stdout,
-                        stderr=stderr,
-                        exit_code=process.returncode,
-                        log_path=streamlink_log_path,  # Pass the log path from start
-                    )
-
-                    # Also append to the streamer-specific log file using proper logging
                     streamer_logger = logging.getLogger(f"streamlink.{streamer_name}")
                     try:
                         streamer_logger.error(
                             f"PROCESS FAILED IMMEDIATELY (exit code: {process.returncode})"
                         )
-                        if stdout:
-                            streamer_logger.error(f"STDOUT:\n{stdout.decode()}")
-                        if stderr:
-                            streamer_logger.error(f"STDERR:\n{stderr.decode()}")
                     except Exception as e:
                         logger.warning(f"Could not write to streamlink log file: {e}")
 
-                raise ProcessError(
-                    f"Streamlink process failed immediately: {stderr.decode()}"
-                )
-
-            process_id = f"stream_{stream.id}"
-            async with self.lock:
-                self.active_processes[process_id] = process
+                raise ProcessError("Streamlink process failed immediately")
 
             # Add segment to the list
             segment_info["total_segments"].append(
@@ -590,10 +746,12 @@ class ProcessManager:
 
         except Exception as e:
             logger.error(
-                f"Failed to start segment recording for stream {stream.id}: {e}",
+                "Failed to start segment recording for stream %s (%s)",
+                stream.id,
+                type(e).__name__,
                 exc_info=True,
             )
-            raise ProcessError(f"Failed to start segment recording: {e}")
+            raise ProcessError("Failed to start segment recording") from e
 
     async def _monitor_long_stream(
         self, stream: Stream, segment_info: Dict, quality: str
@@ -603,14 +761,31 @@ class ProcessManager:
 
         try:
             while process_id in self.active_processes:
-                await asyncio.sleep(self.monitor_interval_seconds)
+                await asyncio.sleep(min(self.monitor_interval_seconds, 10))
+
+                if segment_info.get("upstream_channel_key"):
+                    heartbeat_ok = await self.upstream_coordinator.heartbeat(
+                        channel_key=segment_info["upstream_channel_key"],
+                        generation=segment_info["upstream_generation"],
+                    )
+                    if not heartbeat_ok:
+                        logger.warning(
+                            "Recording lease heartbeat was fenced for stream %s",
+                            stream.id,
+                        )
+                        break
 
                 # Check if we need to start a new segment
                 should_rotate = await self._should_rotate_segment(segment_info)
 
                 if should_rotate:
                     logger.info(f"Rotating segment for stream {stream.id}")
-                    await self._rotate_segment(stream, segment_info, quality)
+                    rotated = await self._rotate_segment(stream, segment_info, quality)
+                    if not rotated:
+                        logger.error(
+                            f"Segment rotation failed for stream {stream.id}; "
+                            "current process ownership retained"
+                        )
 
         except asyncio.CancelledError:
             logger.info(f"Long stream monitoring cancelled for stream {stream.id}")
@@ -645,94 +820,278 @@ class ProcessManager:
             logger.error(f"Error checking segment rotation: {e}", exc_info=True)
             return False
 
-    async def _rotate_segment(self, stream: Stream, segment_info: Dict, quality: str):
+    async def _rotate_segment(
+        self, stream: Stream, segment_info: Dict, quality: str
+    ) -> bool:
         """Rotate to a new segment file"""
-        try:
-            process_id = f"stream_{stream.id}"
+        process_id = f"stream_{stream.id}"
+        rotation_locks = getattr(self, "rotation_locks", None)
+        if rotation_locks is None:
+            rotation_locks = self.rotation_locks = {}
+        rotation_lock = rotation_locks.setdefault(process_id, asyncio.Lock())
+        captured_process = self.active_processes.get(process_id)
 
-            # Stop current process gracefully
-            # CRITICAL: Entire process cleanup must be wrapped in try-catch
-            # because uvloop can throw ProcessLookupError at ANY point when checking dead processes
-            if process_id in self.active_processes:
-                current_process = self.active_processes[process_id]
+        if captured_process is None:
+            return False
 
-                try:
-                    # Try to poll the process to update returncode
-                    # uvloop may throw ProcessLookupError here if process is a zombie
-                    current_process.poll()
+        async with rotation_lock:
+            if self.active_processes.get(process_id) is not captured_process:
+                return False
 
-                    # Check if process is still alive before trying to terminate
-                    if current_process.returncode is None:
-                        # Process appears to be running, try graceful termination
-                        current_process.terminate()
-                        logger.debug(f"Sent SIGTERM to stream {stream.id} process")
-
-                        # Wait a bit for graceful termination
-                        await asyncio.sleep(ASYNC_DELAYS.RECORDING_ERROR_RECOVERY)
-
-                        # Poll again to check termination status
-                        current_process.poll()
-
-                        # Check again and force kill if still running
-                        if current_process.returncode is None:
-                            current_process.kill()
-                            logger.debug(f"Sent SIGKILL to stream {stream.id} process")
-                    else:
-                        logger.info(
-                            f"Process for stream {stream.id} already terminated (returncode: {current_process.returncode})"
-                        )
-
-                except ProcessLookupError:
-                    # Process is a zombie or was cleaned up externally
-                    # This is EXPECTED for long-running streams where streamlink crashes/OOM
-                    logger.info(
-                        f"🔄 ROTATION: Process for stream {stream.id} already terminated externally, continuing with rotation"
-                    )
-
-                except Exception as proc_error:
-                    # Log but continue - we still want to start the new segment
-                    logger.warning(
-                        f"🔄 ROTATION: Error stopping old process for stream {stream.id}: {proc_error}, continuing anyway"
-                    )
-
-                finally:
-                    # ALWAYS remove the old process from tracking, even if cleanup failed
-                    # This prevents stuck process references
+            upstream_channel_key = segment_info.get("upstream_channel_key")
+            rotation_generation = None
+            replacement_process = None
+            rotation_succeeded = False
+            failure_reason = "rotation_failed"
+            try:
+                if upstream_channel_key:
                     try:
-                        self.active_processes.pop(process_id, None)
-                        logger.debug(
-                            f"Removed process {process_id} from active_processes tracking"
+                        begin_task = asyncio.create_task(
+                            self.upstream_coordinator.begin_rotation(
+                                channel_key=upstream_channel_key,
+                                generation=segment_info["upstream_generation"],
+                            )
                         )
-                    except Exception as e:
-                        logger.warning(
-                            f"Error removing process {process_id} from tracking: {e}"
+                        try:
+                            rotation = await asyncio.shield(begin_task)
+                        except asyncio.CancelledError:
+                            rotation = await begin_task
+                            rotation_generation = rotation.generation
+                            segment_info["upstream_generation"] = rotation.generation
+                            segment_info["upstream_rotation_generation"] = (
+                                rotation.generation
+                            )
+                            raise
+                        rotation_generation = rotation.generation
+                        segment_info["upstream_generation"] = rotation.generation
+                        segment_info["upstream_rotation_generation"] = (
+                            rotation.generation
                         )
+                        await self.upstream_coordinator.assert_stop_authorized(
+                            channel_key=upstream_channel_key,
+                            generation=rotation.generation,
+                            process_pid=captured_process.pid,
+                            process_group_id=segment_info["upstream_process_group_id"],
+                            process_start_fingerprint=segment_info[
+                                "upstream_process_start_fingerprint"
+                            ],
+                        )
+                    except asyncio.CancelledError:
+                        raise
+                    except Exception as coordinator_error:
+                        logger.error(
+                            "Segment rotation fencing failed for stream %s (%s)",
+                            stream.id,
+                            type(coordinator_error).__name__,
+                        )
+                        return False
 
-            # Prepare next segment
-            segment_info["segment_count"] += 1
-            base_path = Path(segment_info["base_output_path"])
-            segment_filename = f"{base_path.stem}{self.SEGMENT_PART_IDENTIFIER}{segment_info['segment_count']:03d}.ts"
-            next_segment_path = Path(segment_info["segment_dir"]) / segment_filename
+                wait_timeout = ASYNC_DELAYS.RECORDING_ERROR_RECOVERY
+                if captured_process.returncode is None:
+                    if upstream_channel_key:
+                        stopped = await self._terminate_process_group(
+                            captured_process,
+                            segment_info["upstream_process_group_id"],
+                            wait_timeout,
+                            segment_info["upstream_process_start_fingerprint"],
+                        )
+                        if not stopped:
+                            return False
+                    else:
+                        captured_process.terminate()
+                        logger.debug(f"Sent SIGTERM to stream {stream.id} process")
+                        try:
+                            await asyncio.wait_for(
+                                captured_process.wait(), timeout=wait_timeout
+                            )
+                        except TimeoutError:
+                            captured_process.kill()
+                            logger.debug(f"Sent SIGKILL to stream {stream.id} process")
+                            await asyncio.wait_for(
+                                captured_process.wait(), timeout=wait_timeout
+                            )
+                else:
+                    await asyncio.wait_for(
+                        captured_process.wait(), timeout=wait_timeout
+                    )
 
-            segment_info["current_segment_path"] = str(next_segment_path)
-            segment_info["segment_start_time"] = datetime.now()
+                if captured_process.returncode is None:
+                    logger.error(
+                        f"Segment rotation could not confirm exit for stream {stream.id}; "
+                        "retaining current ownership"
+                    )
+                    return False
 
-            # Start new segment
-            new_process = await self._start_segment(
-                stream, str(next_segment_path), quality, segment_info
-            )
+                async with self.lock:
+                    if self.active_processes.get(process_id) is not captured_process:
+                        return False
+                    del self.active_processes[process_id]
 
-            if new_process:
+                segment_info["segment_count"] += 1
+                base_path = Path(segment_info["base_output_path"])
+                segment_filename = f"{base_path.stem}{self.SEGMENT_PART_IDENTIFIER}{segment_info['segment_count']:03d}.ts"
+                next_segment_path = Path(segment_info["segment_dir"]) / segment_filename
+                segment_info["current_segment_path"] = str(next_segment_path)
+                segment_info["segment_start_time"] = datetime.now()
+
+                failure_reason = "rotation_start_failed"
+                try:
+                    replacement_process = await self._start_segment(
+                        stream, str(next_segment_path), quality, segment_info
+                    )
+                except asyncio.CancelledError:
+                    raise
+                except Exception as start_error:
+                    logger.error(
+                        f"Failed to start rotated segment for stream {stream.id} "
+                        f"({type(start_error).__name__})"
+                    )
+                    return False
+
+                if not replacement_process:
+                    logger.error(f"Failed to start new segment for stream {stream.id}")
+                    return False
+
+                if upstream_channel_key:
+                    failure_reason = "rotation_handoff_failed"
+                    try:
+                        handoff_task = asyncio.create_task(
+                            self.upstream_coordinator.handoff_rotation(
+                                channel_key=upstream_channel_key,
+                                generation=segment_info["upstream_generation"],
+                                process_pid=replacement_process.pid,
+                                process_group_id=replacement_process.pid,
+                                purpose="RECORDING",
+                            )
+                        )
+                        try:
+                            handoff = await asyncio.shield(handoff_task)
+                        except asyncio.CancelledError:
+                            handoff = await handoff_task
+                            segment_info["upstream_generation"] = handoff.generation
+                            segment_info["upstream_process_group_id"] = (
+                                handoff.process_group_id
+                            )
+                            segment_info["upstream_process_start_fingerprint"] = (
+                                handoff.process_start_fingerprint
+                            )
+                            segment_info.pop("upstream_rotation_generation", None)
+                            raise
+                        segment_info["upstream_generation"] = handoff.generation
+                        segment_info["upstream_process_group_id"] = (
+                            handoff.process_group_id
+                        )
+                        segment_info["upstream_process_start_fingerprint"] = (
+                            handoff.process_start_fingerprint
+                        )
+                        segment_info.pop("upstream_rotation_generation", None)
+                    except asyncio.CancelledError:
+                        raise
+                    except Exception as coordinator_error:
+                        logger.error(
+                            "Segment rotation handoff failed for stream %s (%s)",
+                            stream.id,
+                            type(coordinator_error).__name__,
+                        )
+                        return False
+
+                rotation_succeeded = True
                 logger.info(
-                    f"Successfully rotated to segment {segment_info['segment_count']} for stream {stream.id}"
+                    f"Successfully rotated to segment {segment_info['segment_count']} "
+                    f"for stream {stream.id}"
                 )
-            else:
-                logger.error(f"Failed to start new segment for stream {stream.id}")
+                return True
+            except asyncio.CancelledError:
+                failure_reason = "rotation_cancelled"
+                raise
+            except Exception as process_error:
+                logger.error(
+                    f"Segment rotation could not stop stream {stream.id} process "
+                    f"({type(process_error).__name__}); retaining current ownership"
+                )
+                return False
+            finally:
+                if rotation_generation is not None and not rotation_succeeded:
+                    await self._cleanup_failed_rotation(
+                        process_id,
+                        captured_process,
+                        replacement_process,
+                        segment_info,
+                        failure_reason,
+                        wait_timeout=ASYNC_DELAYS.RECORDING_ERROR_RECOVERY,
+                    )
 
-        except Exception as e:
-            logger.error(
-                f"Error rotating segment for stream {stream.id}: {e}", exc_info=True
+    async def _cleanup_failed_rotation(
+        self,
+        process_id,
+        captured_process,
+        replacement_process,
+        segment_info,
+        reason,
+        *,
+        wait_timeout,
+    ) -> None:
+        channel_key = segment_info["upstream_channel_key"]
+        generation = segment_info["upstream_generation"]
+        cleanup_complete = False
+        try:
+            tracked_process = self.active_processes.get(process_id)
+            process = replacement_process or tracked_process
+            if process is not None and process.returncode is None:
+                if process is captured_process:
+                    process_group_id = segment_info["upstream_process_group_id"]
+                    fingerprint = segment_info["upstream_process_start_fingerprint"]
+                else:
+                    identity = await self.upstream_coordinator.inspect_process_identity(
+                        process.pid
+                    )
+                    process_group_id = identity.process_group_id
+                    fingerprint = identity.fingerprint
+                try:
+                    await self.upstream_coordinator.assert_stop_authorized(
+                        channel_key=channel_key,
+                        generation=generation,
+                        process_pid=process.pid,
+                        process_group_id=process_group_id,
+                        process_start_fingerprint=fingerprint,
+                    )
+                except PermissionError:
+                    if process is captured_process:
+                        return
+                    await self.upstream_coordinator.assert_rotation_replacement_cleanup_authorized(
+                        channel_key=channel_key,
+                        generation=generation,
+                        process_pid=process.pid,
+                        process_group_id=process_group_id,
+                        process_start_fingerprint=fingerprint,
+                    )
+                cleanup_complete = await self._terminate_process_group(
+                    process,
+                    process_group_id,
+                    wait_timeout,
+                    fingerprint,
+                )
+                if cleanup_complete:
+                    async with self.lock:
+                        if self.active_processes.get(process_id) is process:
+                            del self.active_processes[process_id]
+            elif process is not None:
+                await process.wait()
+                async with self.lock:
+                    if self.active_processes.get(process_id) is process:
+                        del self.active_processes[process_id]
+                cleanup_complete = True
+            else:
+                cleanup_complete = True
+        except (OSError, ProcessLookupError, KeyError, AttributeError, PermissionError):
+            return
+        if cleanup_complete:
+            await self.upstream_coordinator.release(
+                channel_key=channel_key,
+                generation=generation,
+                reason=reason,
             )
+            segment_info.pop("upstream_rotation_generation", None)
 
     async def monitor_process(self, process: asyncio.subprocess.Process) -> int:
         """Monitor a recording process until completion with failure detection
@@ -762,13 +1121,39 @@ class ProcessManager:
 
             # Handle segmented vs normal recording completion
             if segment_info:
-                # For segmented recordings, the process ending means the stream is over
-                # We need to concatenate all segments
-                logger.info(
-                    f"Segmented recording completed for stream {segment_info['stream_id']}"
-                )
-                await self._finalize_segmented_recording(segment_info)
-                return 0  # Success for segmented recording
+                rotation_locks = getattr(self, "rotation_locks", None)
+                if rotation_locks is None:
+                    rotation_locks = self.rotation_locks = {}
+                rotation_lock = rotation_locks.setdefault(process_id, asyncio.Lock())
+
+                async with rotation_lock:
+                    async with self.lock:
+                        if self.active_processes.get(process_id) is not process:
+                            return process.returncode or 0
+                        del self.active_processes[process_id]
+
+                    try:
+                        # Claim the exact owner before finalization so rotation
+                        # cannot replace it.
+                        logger.info(
+                            "Segmented recording completed for stream "
+                            f"{segment_info['stream_id']}"
+                        )
+                        await self._finalize_segmented_recording(segment_info)
+                        if segment_info.get("upstream_channel_key"):
+                            await self.upstream_coordinator.release(
+                                channel_key=segment_info["upstream_channel_key"],
+                                generation=segment_info["upstream_generation"],
+                                reason="recording_process_exited",
+                            )
+                        return 0  # Success for segmented recording
+                    finally:
+                        async with self.lock:
+                            if (
+                                self.long_stream_processes.get(process_id)
+                                is segment_info
+                            ):
+                                del self.long_stream_processes[process_id]
             else:
                 # Normal single-file recording
                 stdout, stderr = await process.communicate()
@@ -785,8 +1170,6 @@ class ProcessManager:
 
                     if stderr:
                         stderr_text = stderr.decode("utf-8", errors="replace")
-                        logger.error(f"Process stderr: {stderr_text[:1000]}")
-
                         # Parse common failure reasons
                         if (
                             "ProxyError" in stderr_text
@@ -900,42 +1283,6 @@ class ProcessManager:
                     except Exception as apprise_error:
                         logger.error(
                             f"Failed to send Apprise notification for recording_completed: {apprise_error}"
-                        )
-
-                # Log to structured logging service
-                if self.logging_service:
-                    # Get streamer name from database for logging
-                    try:
-                        from app.database import SessionLocal
-                        from app.models import Stream
-
-                        with SessionLocal() as db:
-                            # Get stream from process_id in the segment info with eager loading
-                            stream_id = process_id.split("_")[1] if process_id else None
-                            if stream_id:
-                                stream = (
-                                    db.query(Stream)
-                                    .options(joinedload(Stream.streamer))
-                                    .filter(Stream.id == int(stream_id))
-                                    .first()
-                                )
-                                if stream:
-                                    streamer = stream.streamer
-                                    if streamer:
-                                        # Get the log path for this streamer to append output
-                                        log_path = self.logging_service.get_streamlink_log_path(
-                                            streamer.username
-                                        )
-                                        self.logging_service.log_streamlink_output(
-                                            streamer_name=streamer.username,
-                                            stdout=stdout,
-                                            stderr=stderr,
-                                            exit_code=process.returncode or 0,
-                                            log_path=log_path,
-                                        )
-                    except Exception as e:
-                        logger.warning(
-                            f"Could not log streamlink output to structured logging: {e}"
                         )
 
                 return process.returncode or 0
@@ -1402,27 +1749,60 @@ class ProcessManager:
                 )
                 return True  # Process already terminated = success, not failure
 
-            process = self.active_processes.pop(
-                process_id
-            )  # Handle segmented recording cleanup
-            if process_id in self.long_stream_processes:
-                segment_info = self.long_stream_processes[process_id]
+            process = self.active_processes[process_id]
+            segment_info = self.long_stream_processes.get(process_id)
+            if segment_info and segment_info.get("upstream_channel_key"):
+                try:
+                    await self.upstream_coordinator.assert_stop_authorized(
+                        channel_key=segment_info["upstream_channel_key"],
+                        generation=segment_info["upstream_generation"],
+                        process_pid=process.pid,
+                        process_group_id=segment_info["upstream_process_group_id"],
+                        process_start_fingerprint=segment_info[
+                            "upstream_process_start_fingerprint"
+                        ],
+                    )
+                except PermissionError:
+                    logger.warning("Refusing stale stop for process %s", process_id)
+                    return False
+
+            self.active_processes.pop(process_id)
+            if segment_info:
                 if segment_info["monitor_task"]:
                     segment_info["monitor_task"].cancel()
 
             try:
-                process.terminate()
-                await asyncio.wait_for(process.wait(), timeout=timeout)
+                if segment_info and segment_info.get("upstream_channel_key"):
+                    stopped = await self._terminate_process_group(
+                        process,
+                        segment_info["upstream_process_group_id"],
+                        timeout,
+                        segment_info["upstream_process_start_fingerprint"],
+                    )
+                    if not stopped:
+                        self.active_processes[process_id] = process
+                        return False
+                else:
+                    process.terminate()
+                    await asyncio.wait_for(process.wait(), timeout=timeout)
                 logger.info(f"Process {process_id} terminated gracefully")
 
                 # Finalize segmented recording if needed
-                if process_id in self.long_stream_processes:
-                    segment_info = self.long_stream_processes.pop(process_id)
+                if segment_info:
+                    self.long_stream_processes.pop(process_id, None)
                     await self._finalize_segmented_recording(segment_info)
+
+                if segment_info and segment_info.get("upstream_channel_key"):
+                    await self.upstream_coordinator.release(
+                        channel_key=segment_info["upstream_channel_key"],
+                        generation=segment_info["upstream_generation"],
+                        reason="recording_stopped",
+                    )
 
                 return True
             except asyncio.TimeoutError:
                 process.kill()
+                await process.wait()
                 logger.warning(f"Process {process_id} killed after timeout")
 
                 # Still try to finalize if it was segmented
@@ -1432,8 +1812,79 @@ class ProcessManager:
 
                 return True
             except Exception as e:
+                if process.returncode is None:
+                    self.active_processes[process_id] = process
                 logger.error(f"Failed to terminate process {process_id}: {e}")
                 return False
+
+    async def _terminate_process_group(
+        self,
+        process,
+        process_group_id,
+        timeout,
+        process_start_fingerprint=None,
+    ) -> bool:
+        if process.returncode is not None:
+            await process.wait()
+            return True
+        if process_start_fingerprint is None:
+            try:
+                identity = await self.upstream_coordinator.inspect_process_identity(
+                    process.pid
+                )
+            except Exception:
+                return False
+            if identity.process_group_id != process_group_id:
+                return False
+            process_start_fingerprint = identity.fingerprint
+        elif not await self._process_identity_matches(
+            process.pid,
+            process_group_id,
+            process_start_fingerprint,
+        ):
+            return False
+        try:
+            try:
+                os.killpg(process_group_id, signal.SIGTERM)
+            except ProcessLookupError:
+                return process.returncode is not None
+            try:
+                await asyncio.wait_for(process.wait(), timeout=timeout)
+            except TimeoutError:
+                if not await self._process_identity_matches(
+                    process.pid,
+                    process_group_id,
+                    process_start_fingerprint,
+                ):
+                    return False
+                try:
+                    os.killpg(process_group_id, signal.SIGKILL)
+                except ProcessLookupError:
+                    return process.returncode is not None
+                await asyncio.wait_for(process.wait(), timeout=timeout)
+            return process.returncode is not None
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            return False
+
+    async def _process_identity_matches(
+        self,
+        process_pid,
+        process_group_id,
+        process_start_fingerprint,
+    ) -> bool:
+        try:
+            identity = await self.upstream_coordinator.inspect_process_identity(
+                process_pid
+            )
+        except Exception:
+            return False
+        return (
+            identity.pid,
+            identity.process_group_id,
+            identity.fingerprint,
+        ) == (process_pid, process_group_id, process_start_fingerprint)
 
     async def cleanup_all(self):
         """Terminate all active processes"""
@@ -1470,31 +1921,19 @@ class ProcessManager:
             # Terminate all active processes gracefully
             termination_tasks = []
 
-            # Handle regular processes
-            for stream_id, process in list(self.active_processes.items()):
+            for process_id in list(self.active_processes):
                 termination_tasks.append(
-                    self._terminate_process_gracefully(stream_id, process, timeout)
+                    self.terminate_process(process_id, timeout=timeout)
                 )
-
-            # Handle segmented processes
-            for stream_id, segment_info in list(self.long_stream_processes.items()):
-                current_process = segment_info.get("current_process")
-                if current_process:
-                    termination_tasks.append(
-                        self._terminate_process_gracefully(
-                            stream_id, current_process, timeout
-                        )
-                    )
 
             # Wait for all terminations to complete
             if termination_tasks:
                 await asyncio.gather(*termination_tasks, return_exceptions=True)
 
-            # Clear process tracking
-            self.active_processes.clear()
-            self.long_stream_processes.clear()
-
-            logger.info("✅ Process Manager graceful shutdown completed")
+            logger.info(
+                "Process Manager shutdown completed with %s fenced owners retained",
+                len(self.active_processes),
+            )
 
         except Exception as e:
             logger.error(
