@@ -166,7 +166,7 @@ ENTRYPOINT ["/app/entrypoint.sh"]
 FROM python:3.14-alpine AS runtime
 
 # Install only runtime dependencies (no build tools)
-RUN apk add --no-cache \
+RUN apk upgrade --no-cache && apk add --no-cache \
     curl bash ffmpeg fontconfig ttf-dejavu libpq && \
     addgroup -g 1000 appuser && \
     adduser -u 1000 -G appuser -s /bin/bash -D appuser
