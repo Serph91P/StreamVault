@@ -58,6 +58,10 @@ def _validate_runtime_contract(dockerfile: str) -> None:
         "--from=python-deps /usr/local/lib/python3.14/site-packages "
         "/usr/local/lib/python3.14/site-packages"
     )
+    runtime_dependencies = (
+        "apk add --no-cache curl bash ffmpeg fontconfig ttf-dejavu libpq"
+    )
+    runtime_upgrade = "apk upgrade --no-cache"
     remove_pip = "python -m pip uninstall --yes pip"
     normalize_permissions = (
         "chmod -R a+rX /bin /lib /usr/bin /usr/lib /usr/sbin /usr/share "
@@ -86,6 +90,19 @@ def _validate_runtime_contract(dockerfile: str) -> None:
     assert all("setuptools==" not in value for _, value in runtime)
     assert all("msgpack==" not in value for _, value in runtime)
 
+    runtime_package_indices = [
+        index
+        for index, (keyword, value) in enumerate(runtime)
+        if keyword == "RUN" and runtime_dependencies in value
+    ]
+    assert len(runtime_package_indices) == 1
+    runtime_package_index = runtime_package_indices[0]
+    assert (
+        f"{runtime_upgrade} && {runtime_dependencies}"
+        in runtime[runtime_package_index][1]
+    )
+    assert runtime_package_index < final_user_index
+
 
 def test_runtime_image_removes_pip_and_normalizes_public_runtime_paths():
     _validate_runtime_contract(DOCKERFILE.read_text(encoding="utf-8"))
@@ -103,6 +120,15 @@ def test_contract_rejects_commented_out_runtime_cleanup():
 
     with pytest.raises(AssertionError):
         _validate_runtime_contract(dockerfile.replace(active, commented, 1))
+
+
+def test_contract_rejects_runtime_package_upgrade_removal():
+    dockerfile = DOCKERFILE.read_text(encoding="utf-8")
+    runtime_upgrade = "apk upgrade --no-cache && "
+    assert dockerfile.count(runtime_upgrade) == 1
+
+    with pytest.raises(AssertionError):
+        _validate_runtime_contract(dockerfile.replace(runtime_upgrade, "", 1))
 
 
 def test_contract_rejects_later_root_user_override():
