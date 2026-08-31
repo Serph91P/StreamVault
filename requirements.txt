@@ -12,7 +12,7 @@ greenlet==3.5.5
 # Security dependencies - updated to latest secure versions
 python-dotenv==1.2.3
 argon2-cffi==25.1.0
-cryptography==50.0.0
+cryptography==50.0.1
 
 # API and data handling
 python-multipart==0.0.32
