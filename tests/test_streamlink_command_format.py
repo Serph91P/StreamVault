@@ -24,7 +24,11 @@ from urllib.parse import urlsplit
 
 import pytest
 from app.utils import streamlink_utils
-from app.utils.streamlink_utils import get_streamlink_command
+from app.utils.streamlink_utils import (
+    get_streamlink_clip_command,
+    get_streamlink_command,
+    get_streamlink_vod_command,
+)
 
 
 def test_oauth_token_format():
@@ -513,6 +517,36 @@ def test_command_structure():
     output_idx = cmd.index("-o") if "-o" in cmd else None
     if output_idx:
         assert cmd[output_idx + 1] == "/tmp/test.ts"
+
+
+def test_streamlink_children_do_not_receive_logfile_arguments():
+    commands = [
+        get_streamlink_command("test_streamer", "best", "/tmp/test.ts"),
+        get_streamlink_vod_command("123456", "best", "/tmp/vod.ts"),
+        get_streamlink_clip_command(
+            "https://clips.twitch.tv/FixtureClip", "best", "/tmp/clip.ts"
+        ),
+    ]
+
+    assert all("--logfile" not in command for command in commands)
+    assert all(not any("streamlink_" in arg for arg in command) for command in commands)
+
+
+def test_closed_world_streamlink_sinks_use_shared_boundary():
+    root = Path(__file__).parents[1]
+    logging_source = (root / "app/services/system/logging_service.py").read_text()
+    command_source = (root / "app/utils/streamlink_utils.py").read_text()
+    streamlink_sinks = logging_source[
+        logging_source.index("    def log_streamlink_output(") : logging_source.index(
+            "    def log_ffmpeg_start("
+        )
+    ]
+
+    assert logging_source.count("sanitize_streamlink_output(") >= 3
+    assert "stdout_text}" not in streamlink_sinks
+    assert "stderr_text}" not in streamlink_sinks
+    assert "{error_message}" not in streamlink_sinks
+    assert "--logfile" not in command_source
 
 
 if __name__ == "__main__":

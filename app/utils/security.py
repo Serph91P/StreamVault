@@ -12,10 +12,12 @@ import re
 import html
 import json
 import logging
+import unicodedata
 from typing import Optional
 from pathlib import Path
 from datetime import datetime
 from fastapi import HTTPException
+from urllib.parse import unquote, unquote_plus, urlsplit
 
 logger = logging.getLogger("streamvault.security")
 
@@ -640,6 +642,92 @@ def sanitize_proxy_url_for_logging(proxy_url: str) -> str:
 
     except (TypeError, ValueError):
         return "[REDACTED_PROXY_URL]"
+
+
+def _streamlink_secret_forms(secret: object) -> set[str]:
+    if not isinstance(secret, (str, bytes)):
+        return set()
+
+    value = (
+        secret.decode("utf-8", errors="replace")
+        if isinstance(secret, bytes)
+        else secret
+    )
+    forms = {value}
+    for _ in range(2):
+        forms.update({unquote(item) for item in forms})
+        forms.update({unquote_plus(item) for item in forms})
+        forms.update({unicodedata.normalize("NFKC", item) for item in forms})
+    return {item for item in forms if len(item.strip()) >= 4}
+
+
+def _redact_streamlink_url(match: re.Match) -> str:
+    value = match.group(0)
+    try:
+        parsed = urlsplit(value)
+        host = parsed.hostname
+        port = parsed.port
+    except ValueError:
+        return "[REDACTED_URL]"
+
+    if not host:
+        return "[REDACTED_URL]"
+    if ":" in host:
+        host = f"[{host}]"
+    authority = f"{host}:{port}" if port is not None else host
+    return f"{parsed.scheme}://{authority}/[REDACTED]"
+
+
+def sanitize_streamlink_output(
+    output: str | bytes, known_secrets: tuple | list | set = ()
+) -> str:
+    """Redact Streamlink child output before it reaches diagnostics or storage."""
+    if isinstance(output, bytes):
+        sanitized = output.decode("utf-8", errors="replace")
+    elif isinstance(output, str):
+        sanitized = output
+    else:
+        sanitized = str(output)
+
+    for secret in known_secrets:
+        for form in sorted(_streamlink_secret_forms(secret), key=len, reverse=True):
+            sanitized = sanitized.replace(form, "[REDACTED]")
+
+    sanitized = re.sub(r"(?i)(--(?:http|https)-proxy=)\S+", r"\1[REDACTED]", sanitized)
+    sanitized = re.sub(
+        r"(?im)(--(?:twitch-api-header|http-header|password|token|api-key|"
+        r"secret|access-token)=[^\r\n]*)",
+        lambda match: f"{match.group(1).split('=', 1)[0]}=[REDACTED]",
+        sanitized,
+    )
+    sanitized = re.sub(
+        r"(?i)(authorization\s*[:=]\s*(?:oauth|bearer)\s+)\S+",
+        r"\1[REDACTED]",
+        sanitized,
+    )
+    sanitized = re.sub(r"(?i)https?%3a%2f%2f[^\s'\"<>]+", "[REDACTED_URL]", sanitized)
+    sanitized = re.sub(r"https?://[^\s'\"<>]+", _redact_streamlink_url, sanitized)
+    return re.sub(
+        r"(?i)\b(token|oauth|signature|sig|expires|key)=([^\s&#,]+)",
+        r"\1=[REDACTED]",
+        sanitized,
+    )
+
+
+def get_streamlink_command_secret_values(command: list) -> tuple[str, ...]:
+    """Return secret values from a Streamlink command without retaining URLs."""
+    values = []
+    for argument in command:
+        if not isinstance(argument, str):
+            continue
+        if argument.startswith("--twitch-api-header="):
+            header = argument.split("=", 1)[1]
+            match = re.search(r"(?i)authorization=oauth\s+(.+)", header)
+            if match:
+                values.append(match.group(1).strip())
+        elif re.match(r"--(?:password|token|api-key|secret|access-token)=", argument):
+            values.append(argument.split("=", 1)[1])
+    return tuple(value for value in values if len(value) >= 4)
 
 
 def sanitize_command_for_logging(cmd: list) -> str:

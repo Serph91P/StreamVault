@@ -369,17 +369,22 @@ class LoggingService:
     def log_streamlink_output(
         self,
         streamer_name: str,
-        stdout: bytes,
-        stderr: bytes,
+        stdout: bytes | str,
+        stderr: bytes | str,
         exit_code: int,
         log_path: str = None,
+        known_secrets: tuple | list | set = (),
     ):
         """Log streamlink process output to streamer-specific file"""
         if not streamer_name:
             streamer_name = "unknown"
 
+        from app.utils.security import sanitize_streamlink_output
+
+        safe_stdout = sanitize_streamlink_output(stdout, known_secrets)
+        safe_stderr = sanitize_streamlink_output(stderr, known_secrets)
         logger.debug(
-            f"🎯 Logging streamlink output for {streamer_name} (exit code: {exit_code})"
+            "Logging streamlink output for %s (exit code: %s)", streamer_name, exit_code
         )
 
         # Get log path if not provided
@@ -389,19 +394,20 @@ class LoggingService:
         try:
             with open(log_path, "a", encoding="utf-8") as f:
                 f.write(
-                    f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Streamlink completed with exit code: {exit_code}\n"
+                    f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] "
+                    f"Streamlink completed with exit code: {exit_code}\n"
                 )
 
-                if stdout:
-                    stdout_text = stdout.decode("utf-8", errors="ignore")
+                if safe_stdout:
                     f.write(
-                        f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] STDOUT:\n{stdout_text}\n"
+                        f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] "
+                        f"STDOUT:\n{safe_stdout}\n"
                     )
 
-                if stderr:
-                    stderr_text = stderr.decode("utf-8", errors="ignore")
+                if safe_stderr:
                     f.write(
-                        f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] STDERR:\n{stderr_text}\n"
+                        f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] "
+                        f"STDERR:\n{safe_stderr}\n"
                     )
 
             logger.debug(f"✅ Streamlink output logged to: {log_path}")
@@ -409,23 +415,25 @@ class LoggingService:
             logger.error(f"❌ Could not write to streamlink log {log_path}: {e}")
 
         # Also log to main streamlink logger
-        if stdout:
-            stdout_text = stdout.decode("utf-8", errors="ignore")
-            self.streamlink_logger.info(f"[{streamer_name}] STDOUT:\n{stdout_text}")
+        if safe_stdout:
+            self.streamlink_logger.info(f"[{streamer_name}] STDOUT:\n{safe_stdout}")
 
-        if stderr:
-            stderr_text = stderr.decode("utf-8", errors="ignore")
+        if safe_stderr:
             if exit_code == 0:
-                self.streamlink_logger.info(f"[{streamer_name}] STDERR:\n{stderr_text}")
+                self.streamlink_logger.info(f"[{streamer_name}] STDERR:\n{safe_stderr}")
             else:
                 self.streamlink_logger.error(
-                    f"[{streamer_name}] STDERR (exit {exit_code}):\n{stderr_text}"
+                    f"[{streamer_name}] STDERR (exit {exit_code}):\n{safe_stderr}"
                 )
 
         logger.debug(f"✅ Streamlink output logged for {streamer_name}")
 
     def log_streamlink_error(
-        self, streamer_name: str, error_message: str, log_path: str = None
+        self,
+        streamer_name: str,
+        error_message: str | bytes,
+        log_path: str = None,
+        known_secrets: tuple | list | set = (),
     ):
         """
         Log streamlink errors (e.g., proxy failures) to streamer-specific file
@@ -438,8 +446,11 @@ class LoggingService:
         if not streamer_name:
             streamer_name = "unknown"
 
+        from app.utils.security import sanitize_streamlink_output
+
+        safe_error_message = sanitize_streamlink_output(error_message, known_secrets)
         logger.error(
-            f"🔴 Logging streamlink error for {streamer_name}: {error_message}"
+            "Logging streamlink error for %s: %s", streamer_name, safe_error_message
         )
 
         # Get log path if not provided
@@ -449,7 +460,8 @@ class LoggingService:
         try:
             with open(log_path, "a", encoding="utf-8") as f:
                 f.write(
-                    f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] ERROR: {error_message}\n"
+                    f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] "
+                    f"ERROR: {safe_error_message}\n"
                 )
                 f.write("=" * 80 + "\n")
 
@@ -458,7 +470,7 @@ class LoggingService:
             logger.error(f"❌ Could not write streamlink error to log {log_path}: {e}")
 
         # Also log to main streamlink logger
-        self.streamlink_logger.error(f"[{streamer_name}] {error_message}")
+        self.streamlink_logger.error(f"[{streamer_name}] {safe_error_message}")
 
     def log_ffmpeg_start(self, operation: str, cmd: List[str], streamer_name: str):
         """Log FFmpeg command start with mandatory streamer name"""
