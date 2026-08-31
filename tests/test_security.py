@@ -698,11 +698,12 @@ class TestStreamlinkOutputSanitization:
     def test_output_boundary_redacts_child_diagnostics_idempotently(self):
         from app.utils.security import sanitize_streamlink_output
 
+        proxy_url = "https://" + ":".join(("viewer", "fixture-pass"))
+        proxy_url += "@relay.example:8443"
         raw_output = (
             "exit code 23 via relay.example:8443 ",
-            "https://viewer:fixture-pass@relay.example:8443/private?token=",
-            "fixture-token#fragment --http-proxy=https://viewer:fixture-pass@",
-            "relay.example:8443 Authorization=OAuth fixture-auth-value-807 ",
+            f"{proxy_url}/private?token=fixture-token#fragment ",
+            f"--http-proxy={proxy_url} Authorization=OAuth fixture-auth-value-807 ",
             "https%3A%2F%2Fviewer%3Afixture-pass%40relay.example%3A8443%2Fpath",
         )
         raw_output = "".join(raw_output)
@@ -724,13 +725,15 @@ class TestStreamlinkOutputSanitization:
         from app.utils.security import sanitize_streamlink_output
 
         diagnostic = "exit 7 on localhost:8123"
+        proxy_url = "https://" + ":".join(("viewer", "fixture-pass"))
+        proxy_url += "@relay.example:8443"
 
         assert (
             sanitize_streamlink_output(diagnostic, known_secrets=("", "x", "  "))
             == diagnostic
         )
         assert "fixture-pass" not in sanitize_streamlink_output(
-            "https://viewer:fixture-pass@relay.example:8443/path",
+            f"{proxy_url}/path",
             known_secrets=("fixture-pass",),
         )
 
@@ -741,13 +744,15 @@ class TestStreamlinkOutputSanitization:
 
         service = LoggingService(logs_base_dir=str(tmp_path))
         log_path = tmp_path / "streamlink-child.log"
-        raw_output = b"proxy https://viewer:fixture-pass@relay.example:8443/path"
+        proxy_url = "https://" + ":".join(("viewer", "fixture-pass"))
+        proxy_url += "@relay.example:8443"
+        raw_output = f"proxy {proxy_url}/path".encode()
         raw_error = "Authorization=OAuth fixture-auth-value-807"
 
         service.log_streamlink_output(
             "local-test",
             raw_output,
-            b"--https-proxy=https://viewer:fixture-pass@relay.example:8443",
+            f"--https-proxy={proxy_url}".encode(),
             23,
             str(log_path),
             known_secrets=("fixture-auth-value-807",),

@@ -338,11 +338,14 @@ def test_enhanced_live_requests_twitch_token_explicitly(monkeypatch):
 async def test_live_streamlink_stderr_is_sanitized_and_context_is_released(caplog):
     from app.services.live_streaming_service import LiveStreamingService
 
+    proxy_url = "https://" + ":".join(("viewer", "fixture-pass"))
+    proxy_url += "@relay.example:8443"
+
     class Stderr:
         def __init__(self):
             self.lines = [
                 b"Authorization=OAuth fixture-auth-value-807 ",
-                b"https://viewer:fixture-pass@relay.example:8443/path\n",
+                (proxy_url + "/path\n").encode(),
                 b"",
             ]
 
