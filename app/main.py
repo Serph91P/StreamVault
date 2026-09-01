@@ -74,25 +74,16 @@ async def lifespan(app: FastAPI):
     recording_service = None
     background_services_task = None
 
+    # Database migrations are the only fatal startup task in this best-effort block.
+    logger.info("🔄 Running database migrations...")
+    from app.services.system.migration_service import MigrationService
+
+    migration_success = MigrationService.run_safe_migrations()
+    if not migration_success:
+        raise RuntimeError("Database migrations did not complete successfully")
+    logger.info("✅ All database migrations completed successfully")
+
     try:
-        # Run database migrations always (development and production)
-        logger.info("🔄 Running database migrations...")
-        from app.services.system.migration_service import MigrationService
-
-        try:
-            migration_success = MigrationService.run_safe_migrations()
-            if migration_success:
-                logger.info("✅ All database migrations completed successfully")
-            else:
-                logger.warning(
-                    "⚠️ Some migrations failed, application may have limited functionality"
-                )
-        except Exception as e:
-            logger.error(f"❌ Database migration failed: {e}")
-            logger.warning(
-                "⚠️ Application will continue but may have limited functionality"
-            )
-
         # Image migration check and execution
         logger.info("🖼️ Checking image migration status...")
         from app.services.migration.image_migration_service import (

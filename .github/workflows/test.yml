@@ -167,6 +167,9 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Test fresh PostgreSQL migrations and restart
+        run: bash tests/run_fresh_postgres_proxy_migrations.sh streamvault:test
+
       - name: Run integration tests
         run: |
           # Run container in background
