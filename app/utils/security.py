@@ -7,11 +7,12 @@ like path traversal, SQL injection, and input validation bypasses.
 CRITICAL: All user input must be validated using these functions.
 """
 
-import os
-import re
+import codecs
 import html
 import json
 import logging
+import os
+import re
 import unicodedata
 from typing import Optional
 from pathlib import Path
@@ -712,6 +713,59 @@ def sanitize_streamlink_output(
         r"\1=[REDACTED]",
         sanitized,
     )
+
+
+class StreamingStreamlinkOutputSanitizer:
+    """Sanitize chunks while retaining only possible known-secret suffixes."""
+
+    MAX_UNTERMINATED_OUTPUT = 64 * 1024
+
+    def __init__(self, known_secrets: tuple | list | set = ()):
+        self._known_secrets = tuple(known_secrets)
+        self._secret_forms = tuple(
+            form
+            for secret in self._known_secrets
+            for form in _streamlink_secret_forms(secret)
+        )
+        self._holdback = max((len(form) for form in self._secret_forms), default=1) - 1
+        self._max_buffer_size = max(self.MAX_UNTERMINATED_OUTPUT, self._holdback * 2)
+        self._buffer = ""
+        self._decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
+
+    def feed(self, output: str | bytes) -> str:
+        if isinstance(output, bytes):
+            self._buffer += self._decoder.decode(output)
+        else:
+            self._buffer += str(output)
+
+        line_end = max(self._buffer.rfind("\n"), self._buffer.rfind("\r"))
+        if line_end >= 0:
+            split_at = line_end + 1
+        elif len(self._buffer) > self._max_buffer_size:
+            split_at = len(self._buffer) - self._holdback
+        else:
+            return ""
+
+        while True:
+            adjusted_split = split_at
+            for form in self._secret_forms:
+                occurrence = self._buffer.find(form, max(0, split_at - len(form) + 1))
+                while occurrence != -1 and occurrence < split_at:
+                    if occurrence + len(form) > split_at:
+                        adjusted_split = min(adjusted_split, occurrence)
+                        break
+                    occurrence = self._buffer.find(form, occurrence + 1)
+            if adjusted_split == split_at:
+                break
+            split_at = adjusted_split
+
+        output, self._buffer = self._buffer[:split_at], self._buffer[split_at:]
+        return sanitize_streamlink_output(output, self._known_secrets)
+
+    def flush(self) -> str:
+        self._buffer += self._decoder.decode(b"", final=True)
+        output, self._buffer = self._buffer, ""
+        return sanitize_streamlink_output(output, self._known_secrets)
 
 
 def get_streamlink_command_secret_values(command: list) -> tuple[str, ...]:

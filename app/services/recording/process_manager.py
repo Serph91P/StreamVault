@@ -1146,8 +1146,17 @@ class ProcessManager:
             if process_id and process_id in self.long_stream_processes:
                 segment_info = self.long_stream_processes[process_id]
 
-            # Wait for the process to complete
-            await process.wait()
+            stdout, stderr = await process.communicate()
+            known_secrets = self._get_streamlink_output_secrets(process)
+            logging_service = getattr(self, "logging_service", None)
+            if logging_service:
+                logging_service.log_streamlink_output(
+                    process_id or "unknown",
+                    stdout,
+                    stderr,
+                    process.returncode,
+                    known_secrets=known_secrets,
+                )
 
             # Handle segmented vs normal recording completion
             if segment_info:
@@ -1186,17 +1195,6 @@ class ProcessManager:
                                 del self.long_stream_processes[process_id]
             else:
                 # Normal single-file recording
-                stdout, stderr = await process.communicate()
-                known_secrets = self._get_streamlink_output_secrets(process)
-                if self.logging_service:
-                    self.logging_service.log_streamlink_output(
-                        process_id or "unknown",
-                        stdout,
-                        stderr,
-                        process.returncode,
-                        known_secrets=known_secrets,
-                    )
-
                 # CRITICAL: Detect recording failure and update database
                 if process.returncode != 0:
                     logger.error(

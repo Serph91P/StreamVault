@@ -737,6 +737,30 @@ class TestStreamlinkOutputSanitization:
             known_secrets=("fixture-pass",),
         )
 
+    def test_streaming_boundary_redacts_every_secret_split_and_flushes_eof(self):
+        from app.utils.security import StreamingStreamlinkOutputSanitizer
+
+        secret = "fixture-auth-value-807"
+        for split_at in range(1, len(secret)):
+            sanitizer = StreamingStreamlinkOutputSanitizer((secret,))
+            output = [sanitizer.feed(f"diagnostic {secret[:split_at]}")]
+            output.append(sanitizer.feed(f"{secret[split_at:]} complete"))
+            output.append(sanitizer.flush())
+            sanitized = "".join(output)
+
+            assert sanitized == "diagnostic [REDACTED] complete"
+            assert secret not in sanitized
+
+        sanitizer = StreamingStreamlinkOutputSanitizer((secret,))
+        output = sanitizer.feed("ordinary diagnostic at eof") + sanitizer.flush()
+        assert output == "ordinary diagnostic at eof"
+
+        sanitizer = StreamingStreamlinkOutputSanitizer((secret,))
+        unterminated = "x" * (sanitizer.MAX_UNTERMINATED_OUTPUT + 1)
+        streamed = sanitizer.feed(unterminated)
+        assert streamed
+        assert streamed + sanitizer.flush() == unterminated
+
     def test_logging_service_persists_only_sanitized_child_output(
         self, tmp_path, caplog
     ):

@@ -405,6 +405,97 @@ async def test_monitor_finalization_and_rotation_cannot_both_win() -> None:
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("finalization_outcome", ["success", "error", "cancelled"])
+async def test_segmented_monitor_drains_logs_and_releases_exact_secret_context(
+    finalization_outcome: str,
+) -> None:
+    class PipeBoundProcess(FakeProcess):
+        async def wait(self) -> int:
+            raise AssertionError("wait() cannot drain full child pipes")
+
+    process = PipeBoundProcess(
+        returncode=0,
+        stdout=b"local stdout",
+        stderr=b"Authorization=OAuth fixture-auth-value-807",
+    )
+    process.pid = 401
+    replacement = FakeProcess()
+    manager = make_manager(process)
+    segment_info = make_segment_info()
+    replacement_segment_info = {"attempt": "replacement"}
+    manager.long_stream_processes["stream_7"] = segment_info
+    manager._streamlink_output_secrets = {
+        process: ("fixture-auth-value-807",),
+        replacement: ("replacement-secret",),
+    }
+    logged = []
+    releases = []
+
+    class LoggingService:
+        def log_streamlink_output(self, *args, **kwargs):
+            logged.append((args, kwargs))
+
+    class Coordinator:
+        async def release(self, **values):
+            releases.append(values)
+
+    async def finalize(info):
+        assert info is segment_info
+        manager.active_processes["stream_7"] = replacement
+        manager.long_stream_processes["stream_7"] = replacement_segment_info
+        if finalization_outcome == "error":
+            raise RuntimeError("injected finalization failure")
+        if finalization_outcome == "cancelled":
+            raise asyncio.CancelledError
+
+    segment_info.update(
+        {"upstream_channel_key": "stable-channel", "upstream_generation": 4}
+    )
+    manager.logging_service = LoggingService()
+    manager.upstream_coordinator = Coordinator()
+    manager._finalize_segmented_recording = finalize
+
+    if finalization_outcome == "cancelled":
+        with pytest.raises(asyncio.CancelledError):
+            await manager.monitor_process(process)
+        result = None
+    else:
+        result = await manager.monitor_process(process)
+
+    assert (
+        result == {"success": 0, "error": -1, "cancelled": None}[finalization_outcome]
+    )
+    assert process.wait_calls == 0
+    assert process.communicate_calls == 1
+    assert logged == [
+        (
+            (
+                "stream_7",
+                b"local stdout",
+                b"Authorization=OAuth fixture-auth-value-807",
+                0,
+            ),
+            {"known_secrets": ("fixture-auth-value-807",)},
+        )
+    ]
+    assert process not in manager._streamlink_output_secrets
+    assert manager._streamlink_output_secrets[replacement] == ("replacement-secret",)
+    assert manager.active_processes["stream_7"] is replacement
+    assert manager.long_stream_processes["stream_7"] is replacement_segment_info
+    assert releases == (
+        [
+            {
+                "channel_key": "stable-channel",
+                "generation": 4,
+                "reason": "recording_process_exited",
+            }
+        ]
+        if finalization_outcome == "success"
+        else []
+    )
+
+
+@pytest.mark.asyncio
 async def test_rotation_cancellation_tracks_or_reaps_created_replacement(
     monkeypatch,
 ) -> None:

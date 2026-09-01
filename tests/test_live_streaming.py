@@ -340,12 +340,13 @@ async def test_live_streamlink_stderr_is_sanitized_and_context_is_released(caplo
 
     proxy_url = "https://" + ":".join(("viewer", "fixture-pass"))
     proxy_url += "@relay.example:8443"
+    secret_fragments = ("fixture-auth-", "value-807")
 
     class Stderr:
         def __init__(self):
             self.lines = [
-                b"Authorization=OAuth fixture-auth-value-807 ",
-                (proxy_url + "/path\n").encode(),
+                f"local diagnostic {secret_fragments[0]}".encode(),
+                f"{secret_fragments[1]} via {proxy_url}/path\n".encode(),
                 b"",
             ]
 
@@ -364,8 +365,9 @@ async def test_live_streamlink_stderr_is_sanitized_and_context_is_released(caplo
         await service._log_stderr(process, "streamlink-local")
 
     assert process not in service._streamlink_output_secrets
+    assert "local diagnostic" in caplog.text
     assert "relay.example:8443" in caplog.text
-    for value in ("viewer", "fixture-pass", "fixture-auth-value-807"):
+    for value in ("viewer", "fixture-pass", *secret_fragments):
         assert value not in caplog.text
 
 

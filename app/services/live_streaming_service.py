@@ -40,9 +40,9 @@ from app.services.twitch_upstream_coordinator import (
     twitch_upstream_coordinator,
 )
 from app.utils.security import (
+    StreamingStreamlinkOutputSanitizer,
     get_streamlink_command_secret_values,
     sanitize_proxy_url_for_logging,
-    sanitize_streamlink_output,
 )
 from app.utils.streamlink_utils import _add_proxy_settings
 
@@ -545,21 +545,26 @@ class LiveStreamingService:
         name: str,
     ):
         """Read stderr from a subprocess and log it for diagnostics."""
-        if not process.stderr:
-            return
+        sanitizer = StreamingStreamlinkOutputSanitizer(
+            self._streamlink_output_secrets.get(process, ())
+        )
         try:
+            if not process.stderr:
+                return
             while True:
                 line = await process.stderr.readline()
                 if not line:
                     break
-                logger.debug(
-                    "[LIVE][%s] %s",
-                    name,
-                    sanitize_streamlink_output(
-                        line, self._streamlink_output_secrets.get(process, ())
-                    ),
-                )
+                safe_output = sanitizer.feed(line)
+                if safe_output:
+                    logger.debug("[LIVE][%s] %s", name, safe_output)
+            safe_output = sanitizer.flush()
+            if safe_output:
+                logger.debug("[LIVE][%s] %s", name, safe_output)
         except Exception as error:
+            safe_output = sanitizer.flush()
+            if safe_output:
+                logger.debug("[LIVE][%s] %s", name, safe_output)
             logger.debug(
                 "[LIVE][%s] stderr logger ended (%s)", name, type(error).__name__
             )
