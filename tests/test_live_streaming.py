@@ -345,7 +345,7 @@ async def test_live_streamlink_stderr_is_sanitized_and_context_is_released(caplo
     class Stderr:
         def __init__(self):
             self.lines = [
-                f"local diagnostic {secret_fragments[0]}".encode(),
+                f"local diagnostic {secret_fragments[0]}\n".encode(),
                 f"{secret_fragments[1]} via {proxy_url}/path\n".encode(),
                 b"",
             ]

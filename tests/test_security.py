@@ -761,6 +761,101 @@ class TestStreamlinkOutputSanitization:
         assert streamed
         assert streamed + sanitizer.flush() == unterminated
 
+    def test_streaming_boundary_redacts_newline_at_every_secret_split(self):
+        from app.utils.security import StreamingStreamlinkOutputSanitizer
+
+        secret = "QZXproxyCredential807"
+        for split_at in range(1, len(secret)):
+            sanitizer = StreamingStreamlinkOutputSanitizer((secret,))
+            records = [sanitizer.feed(f"diagnostic {secret[:split_at]}\n")]
+            records.append(sanitizer.feed(f"{secret[split_at:]} complete\n"))
+            records.append(sanitizer.flush())
+            reconstructible = "".join(records).replace("\r", "").replace("\n", "")
+
+            assert reconstructible == "diagnostic [REDACTED] complete"
+            assert secret not in reconstructible
+
+    def test_oversized_known_secret_uses_fixed_pending_cap_and_fails_closed(self):
+        from app.utils.security import StreamingStreamlinkOutputSanitizer
+
+        secret = "oversized-secret-start-" + "x" * (3 * 1024 * 1024)
+        sanitizer = StreamingStreamlinkOutputSanitizer((secret,))
+        midpoint = len(secret) // 2
+
+        output = sanitizer.feed(secret[:midpoint])
+        assert len(sanitizer._buffer) <= sanitizer.MAX_UNTERMINATED_OUTPUT
+        output += sanitizer.feed(secret[midpoint:])
+        assert len(sanitizer._buffer) <= sanitizer.MAX_UNTERMINATED_OUTPUT
+        output += sanitizer.flush()
+
+        assert sanitizer._max_buffer_size == sanitizer.MAX_UNTERMINATED_OUTPUT
+        assert secret[:1024] not in output
+        assert secret[-1024:] not in output
+
+    def test_proxy_components_are_bound_without_retaining_full_url(self):
+        from app.utils.security import get_streamlink_command_secret_values
+
+        proxy_url = (
+            "https://proxy-user-807:proxy-password-807@relay.example:8443/"
+            "private-path-807?session=query-secret-807#fragment-secret-807"
+        )
+        values = get_streamlink_command_secret_values(
+            ["streamlink", f"--http-proxy={proxy_url}"]
+        )
+
+        assert proxy_url not in values
+        for value in (
+            "proxy-user-807",
+            "proxy-password-807",
+            "private-path-807",
+            "query-secret-807",
+            "fragment-secret-807",
+        ):
+            assert value in values
+
+    def test_proxy_component_only_echoes_are_redacted_from_all_log_sinks(
+        self, tmp_path, caplog
+    ):
+        from app.services.system.logging_service import LoggingService
+        from app.utils.security import get_streamlink_command_secret_values
+
+        proxy_url = (
+            "https://proxy-user-807:proxy-password-807@relay.example:8443/"
+            "private-path-807?session=query-secret-807#fragment-secret-807"
+        )
+        known_secrets = get_streamlink_command_secret_values(
+            ["streamlink", f"--https-proxy={proxy_url}"]
+        )
+        service = LoggingService(logs_base_dir=str(tmp_path))
+        log_path = tmp_path / "proxy-component-child.log"
+
+        with caplog.at_level("INFO"):
+            service.log_streamlink_output(
+                "local-test",
+                b"proxy-user-807",
+                b"proxy-password-807",
+                23,
+                str(log_path),
+                known_secrets=known_secrets,
+            )
+            service.log_streamlink_error(
+                "local-test",
+                b"query-secret-807 fragment-secret-807 private-path-807",
+                str(log_path),
+                known_secrets=known_secrets,
+            )
+
+        persisted = log_path.read_text()
+        for value in (
+            "proxy-user-807",
+            "proxy-password-807",
+            "private-path-807",
+            "query-secret-807",
+            "fragment-secret-807",
+        ):
+            assert value not in persisted
+            assert value not in caplog.text
+
     def test_logging_service_persists_only_sanitized_child_output(
         self, tmp_path, caplog
     ):

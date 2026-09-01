@@ -788,6 +788,91 @@ async def test_start_recording_cleans_up_immediately_exited_child(
 
 
 @pytest.mark.asyncio
+async def test_segment_start_and_rotation_own_one_exact_completion_drain_task(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    class PipeBoundProcess(FakeProcess):
+        def __init__(self, pid: int) -> None:
+            super().__init__()
+            self.pid = pid
+            self.drain_started = asyncio.Event()
+
+        async def communicate(self) -> tuple[bytes, bytes]:
+            self.communicate_calls += 1
+            self.drain_started.set()
+            await self.release.wait()
+            return self.stdout, self.stderr
+
+    process = PipeBoundProcess(1234)
+    manager, stream, monitor_coroutines = install_immediate_exit_start(
+        monkeypatch,
+        process,
+    )
+
+    async def finalize(_segment_info):
+        return None
+
+    manager._finalize_segmented_recording = finalize
+
+    started_process = await manager.start_recording_process(
+        stream,
+        str(tmp_path / "recording.ts"),
+        "best",
+    )
+    await asyncio.wait_for(process.drain_started.wait(), timeout=0.1)
+
+    completion_task = manager._segment_completion_tasks[process]
+    assert started_process is process
+    assert completion_task is manager._track_segment_completion(process)
+    assert len(manager._segment_completion_tasks) == 1
+    assert process.communicate_calls == 1
+    assert monitor_coroutines
+
+    replacement = PipeBoundProcess(1235)
+
+    async def create_replacement(*args, **kwargs):
+        return replacement
+
+    process_manager_module = importlib.import_module(
+        "app.services.recording.process_manager"
+    )
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", create_replacement)
+    monkeypatch.setattr(
+        process_manager_module,
+        "get_streamlink_command",
+        lambda **kwargs: [
+            "streamlink",
+            "--twitch-api-header=Authorization=OAuth replacement-secret-807",
+        ],
+    )
+
+    segment_info = manager.long_stream_processes["stream_7"]
+    assert await manager._rotate_segment(stream, segment_info, "best") is True
+    await asyncio.wait_for(replacement.drain_started.wait(), timeout=0.1)
+    assert await completion_task == -15
+    await asyncio.sleep(0)
+
+    assert process not in manager._segment_completion_tasks
+    assert process not in manager._streamlink_output_secrets
+    replacement_task = manager._segment_completion_tasks[replacement]
+    assert replacement_task is manager._track_segment_completion(replacement)
+    assert len(manager._segment_completion_tasks) == 1
+    assert replacement.communicate_calls == 1
+    assert manager._streamlink_output_secrets[replacement] == (
+        "replacement-secret-807",
+    )
+
+    replacement.returncode = 0
+    replacement.release.set()
+    assert await replacement_task == 0
+    await asyncio.sleep(0)
+
+    assert replacement not in manager._segment_completion_tasks
+    assert replacement not in manager._streamlink_output_secrets
+
+
+@pytest.mark.asyncio
 async def test_immediate_exit_uses_child_bound_sanitization_context(
     monkeypatch, tmp_path, caplog
 ) -> None:

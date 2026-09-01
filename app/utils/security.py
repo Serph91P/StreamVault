@@ -18,7 +18,7 @@ from typing import Optional
 from pathlib import Path
 from datetime import datetime
 from fastapi import HTTPException
-from urllib.parse import unquote, unquote_plus, urlsplit
+from urllib.parse import parse_qsl, unquote, unquote_plus, urlsplit
 
 logger = logging.getLogger("streamvault.security")
 
@@ -662,6 +662,49 @@ def _streamlink_secret_forms(secret: object) -> set[str]:
     return {item for item in forms if len(item.strip()) >= 4}
 
 
+def _redact_line_fragmented_secret_forms(value: str, forms: tuple[str, ...]) -> str:
+    """Redact known values even when child output inserts CR/LF separators."""
+    if not value or not forms:
+        return value
+
+    positions = []
+    collapsed = []
+    for index, character in enumerate(value):
+        if character not in "\r\n":
+            positions.append(index)
+            collapsed.append(character)
+    collapsed_value = "".join(collapsed)
+    intervals = []
+    for form in forms:
+        collapsed_form = form.replace("\r", "").replace("\n", "")
+        if not collapsed_form:
+            continue
+        start = collapsed_value.find(collapsed_form)
+        while start != -1:
+            intervals.append(
+                (positions[start], positions[start + len(collapsed_form) - 1] + 1)
+            )
+            start = collapsed_value.find(collapsed_form, start + 1)
+
+    if not intervals:
+        return value
+
+    merged = []
+    for start, end in sorted(intervals):
+        if merged and start <= merged[-1][1]:
+            merged[-1] = (merged[-1][0], max(merged[-1][1], end))
+        else:
+            merged.append((start, end))
+
+    output = []
+    previous_end = 0
+    for start, end in merged:
+        output.extend((value[previous_end:start], "[REDACTED]"))
+        previous_end = end
+    output.append(value[previous_end:])
+    return "".join(output)
+
+
 def _redact_streamlink_url(match: re.Match) -> str:
     value = match.group(0)
     try:
@@ -690,9 +733,18 @@ def sanitize_streamlink_output(
     else:
         sanitized = str(output)
 
-    for secret in known_secrets:
-        for form in sorted(_streamlink_secret_forms(secret), key=len, reverse=True):
-            sanitized = sanitized.replace(form, "[REDACTED]")
+    secret_forms = tuple(
+        sorted(
+            {
+                form
+                for secret in known_secrets
+                for form in _streamlink_secret_forms(secret)
+            },
+            key=len,
+            reverse=True,
+        )
+    )
+    sanitized = _redact_line_fragmented_secret_forms(sanitized, secret_forms)
 
     sanitized = re.sub(r"(?i)(--(?:http|https)-proxy=)\S+", r"\1[REDACTED]", sanitized)
     sanitized = re.sub(
@@ -719,53 +771,110 @@ class StreamingStreamlinkOutputSanitizer:
     """Sanitize chunks while retaining only possible known-secret suffixes."""
 
     MAX_UNTERMINATED_OUTPUT = 64 * 1024
+    MAX_SECRET_FORM_LENGTH = 4 * 1024
 
     def __init__(self, known_secrets: tuple | list | set = ()):
         self._known_secrets = tuple(known_secrets)
-        self._secret_forms = tuple(
-            form
+        self._fail_closed = any(
+            len(secret) > self.MAX_SECRET_FORM_LENGTH
             for secret in self._known_secrets
-            for form in _streamlink_secret_forms(secret)
+            if isinstance(secret, (str, bytes))
         )
-        self._holdback = max((len(form) for form in self._secret_forms), default=1) - 1
-        self._max_buffer_size = max(self.MAX_UNTERMINATED_OUTPUT, self._holdback * 2)
+        self._secret_forms = (
+            ()
+            if self._fail_closed
+            else tuple(
+                {
+                    form
+                    for secret in self._known_secrets
+                    for form in _streamlink_secret_forms(secret)
+                }
+            )
+        )
+        self._fail_closed = self._fail_closed or any(
+            len(form) > self.MAX_SECRET_FORM_LENGTH for form in self._secret_forms
+        )
+        if self._fail_closed:
+            self._secret_forms = ()
+        self._max_buffer_size = self.MAX_UNTERMINATED_OUTPUT
         self._buffer = ""
         self._decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
+        self._redaction_emitted = False
+
+    def _pending_secret_start(self) -> int:
+        positions = []
+        collapsed = []
+        for index, character in enumerate(self._buffer):
+            if character not in "\r\n":
+                positions.append(index)
+                collapsed.append(character)
+        collapsed_value = "".join(collapsed)
+        pending_start = len(self._buffer)
+        for form in self._secret_forms:
+            collapsed_form = form.replace("\r", "").replace("\n", "")
+            tail = collapsed_value[-(len(collapsed_form) - 1) :]
+            for offset in range(len(tail)):
+                candidate = tail[offset:]
+                if collapsed_form.startswith(candidate):
+                    pending_start = min(
+                        pending_start,
+                        positions[len(collapsed_value) - len(candidate)],
+                    )
+                    break
+        return pending_start
+
+    def _closed_output(self) -> str:
+        self._buffer = ""
+        if self._redaction_emitted:
+            return ""
+        self._redaction_emitted = True
+        return "[REDACTED]"
 
     def feed(self, output: str | bytes) -> str:
-        if isinstance(output, bytes):
-            self._buffer += self._decoder.decode(output)
-        else:
-            self._buffer += str(output)
+        decoded = (
+            self._decoder.decode(output) if isinstance(output, bytes) else str(output)
+        )
+        if self._fail_closed:
+            return self._closed_output() if decoded else ""
 
-        line_end = max(self._buffer.rfind("\n"), self._buffer.rfind("\r"))
-        if line_end >= 0:
-            split_at = line_end + 1
-        elif len(self._buffer) > self._max_buffer_size:
-            split_at = len(self._buffer) - self._holdback
-        else:
-            return ""
-
-        while True:
-            adjusted_split = split_at
-            for form in self._secret_forms:
-                occurrence = self._buffer.find(form, max(0, split_at - len(form) + 1))
-                while occurrence != -1 and occurrence < split_at:
-                    if occurrence + len(form) > split_at:
-                        adjusted_split = min(adjusted_split, occurrence)
-                        break
-                    occurrence = self._buffer.find(form, occurrence + 1)
-            if adjusted_split == split_at:
-                break
-            split_at = adjusted_split
-
-        output, self._buffer = self._buffer[:split_at], self._buffer[split_at:]
-        return sanitize_streamlink_output(output, self._known_secrets)
+        self._buffer += decoded
+        split_at = self._pending_secret_start()
+        safe_output, self._buffer = self._buffer[:split_at], self._buffer[split_at:]
+        if len(self._buffer) > self._max_buffer_size:
+            self._fail_closed = True
+            return (
+                sanitize_streamlink_output(safe_output, self._known_secrets)
+                + self._closed_output()
+            )
+        return sanitize_streamlink_output(safe_output, self._known_secrets)
 
     def flush(self) -> str:
-        self._buffer += self._decoder.decode(b"", final=True)
+        decoded = self._decoder.decode(b"", final=True)
+        if self._fail_closed:
+            return self._closed_output() if decoded else ""
+        self._buffer += decoded
         output, self._buffer = self._buffer, ""
         return sanitize_streamlink_output(output, self._known_secrets)
+
+
+def _get_proxy_secret_values(proxy_url: str) -> tuple[str, ...]:
+    try:
+        parsed = urlsplit(proxy_url)
+    except (TypeError, ValueError):
+        return ()
+
+    values = [parsed.username, parsed.password]
+    values.extend(part for part in parsed.path.split("/") if part)
+    values.extend(
+        value for _name, value in parse_qsl(parsed.query, keep_blank_values=False)
+    )
+    if parsed.fragment:
+        fragment_values = [
+            value
+            for _name, value in parse_qsl(parsed.fragment, keep_blank_values=False)
+        ]
+        values.extend(fragment_values or [parsed.fragment])
+    return tuple(value for value in values if value)
 
 
 def get_streamlink_command_secret_values(command: list) -> tuple[str, ...]:
@@ -779,9 +888,11 @@ def get_streamlink_command_secret_values(command: list) -> tuple[str, ...]:
             match = re.search(r"(?i)authorization=oauth\s+(.+)", header)
             if match:
                 values.append(match.group(1).strip())
+        elif re.match(r"--(?:http|https)-proxy=", argument):
+            values.extend(_get_proxy_secret_values(argument.split("=", 1)[1]))
         elif re.match(r"--(?:password|token|api-key|secret|access-token)=", argument):
             values.append(argument.split("=", 1)[1])
-    return tuple(value for value in values if len(value) >= 4)
+    return tuple(dict.fromkeys(value for value in values if len(value) >= 4))
 
 
 def sanitize_command_for_logging(cmd: list) -> str:

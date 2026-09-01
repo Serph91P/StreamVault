@@ -106,6 +106,7 @@ class ProcessManager:
         self.lock = asyncio.Lock()
         self.rotation_locks = {}
         self._streamlink_output_secrets = {}
+        self._segment_completion_tasks = {}
         self.ASYNC_DELAYS = ASYNC_DELAYS
         self.config_manager = config_manager
         self.post_processing_callback = post_processing_callback  # Injected dependency
@@ -155,6 +156,24 @@ class ProcessManager:
         contexts = getattr(self, "_streamlink_output_secrets", None)
         if contexts is not None:
             contexts.pop(process, None)
+
+    def _track_segment_completion(self, process) -> asyncio.Task:
+        tasks = getattr(self, "_segment_completion_tasks", None)
+        if tasks is None:
+            tasks = self._segment_completion_tasks = {}
+        existing_task = tasks.get(process)
+        if existing_task is not None:
+            return existing_task
+
+        task = asyncio.create_task(self.monitor_process(process))
+        tasks[process] = task
+
+        def release_task(completed_task):
+            if tasks.get(process) is completed_task:
+                tasks.pop(process, None)
+
+        task.add_done_callback(release_task)
+        return task
 
     async def start_recording_process(
         self,
@@ -721,6 +740,7 @@ class ProcessManager:
                     "process_pid": process.pid,
                 }
             )
+            self._track_segment_completion(process)
 
             # Register process with ProcessMonitor - temporarily disabled
             # if process_monitor and ProcessType:
@@ -953,8 +973,6 @@ class ProcessManager:
                     if self.active_processes.get(process_id) is not captured_process:
                         return False
                     del self.active_processes[process_id]
-                self._release_streamlink_output_secrets(captured_process)
-
                 segment_info["segment_count"] += 1
                 base_path = Path(segment_info["base_output_path"])
                 segment_filename = f"{base_path.stem}{self.SEGMENT_PART_IDENTIFIER}{segment_info['segment_count']:03d}.ts"
@@ -1132,6 +1150,7 @@ class ProcessManager:
         Returns:
             Exit code of the process (0 if segmented recording completed successfully)
         """
+        known_secrets = self._get_streamlink_output_secrets(process)
         try:
             # Find if this is a segmented recording
             process_id = None
@@ -1147,7 +1166,6 @@ class ProcessManager:
                 segment_info = self.long_stream_processes[process_id]
 
             stdout, stderr = await process.communicate()
-            known_secrets = self._get_streamlink_output_secrets(process)
             logging_service = getattr(self, "logging_service", None)
             if logging_service:
                 logging_service.log_streamlink_output(
