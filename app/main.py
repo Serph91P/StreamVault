@@ -48,15 +48,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from typing import Dict, Optional, Tuple
 
-from app.config.logging_config import setup_logging
 from app.database import engine, SessionLocal
 from app.services.core.auth_service import AuthService
 import app.models as models
 from app.dependencies import websocket_manager, get_event_registry, get_current_user
 from app.services.images.image_sync_service import image_sync_service
-from app.middleware.error_handler import error_handler
 from app.middleware.logging import logging_middleware
 from app.config.settings import settings
+from app.config.logging_config import request_context, setup_logging
+from app.core.exceptions import install_exception_handlers
 from app.middleware.auth import AuthMiddleware
 from app.routes import categories
 from app.tasks.websocket_broadcast_task import websocket_broadcast_task
@@ -495,15 +495,31 @@ async def lifespan(app: FastAPI):
 # Initialize application components
 logger = setup_logging()
 
-# Initialize FastAPI app
-app = FastAPI(
-    title="StreamVault API",
-    version="2.0.0",
-    docs_url="/api/docs",
-    redoc_url="/api/redoc",
-    openapi_url="/api/openapi.json",
-    lifespan=lifespan,
-)
+_application: FastAPI | None = None
+
+
+def create_app() -> FastAPI:
+    """Create the process-scoped ASGI application with its stable metadata.
+
+    The module completes route and middleware registration immediately after
+    creating this instance, so the compatibility ``app`` export and explicit
+    factory always reference the same fully configured application.
+    """
+
+    global _application
+    if _application is None:
+        _application = FastAPI(
+            title="StreamVault API",
+            version="2.0.0",
+            docs_url="/api/docs",
+            redoc_url="/api/redoc",
+            openapi_url="/api/openapi.json",
+            lifespan=lifespan,
+        )
+    return _application
+
+
+app = create_app()
 
 # Add Trusted Host middleware (security best practice)
 if settings.is_secure:
@@ -621,6 +637,8 @@ async def add_request_id(request: Request, call_next):
     import uuid
 
     request_id = str(uuid.uuid4())
+    request.state.request_id = request_id
+    request_token = request_context.set(request_id)
 
     # Skip logging for frequent background queue polling endpoints to reduce log spam
     skip_logging_paths = [
@@ -635,10 +653,12 @@ async def add_request_id(request: Request, call_next):
         # Log at debug level for background queue endpoints
         logger.debug(f"Request {request_id}: {request.method} {request.url.path}")
 
-    response = await call_next(request)
-    response.headers["X-Request-ID"] = request_id
-
-    return response
+    try:
+        response = await call_next(request)
+        response.headers["X-Request-ID"] = request_id
+        return response
+    finally:
+        request_context.reset(request_token)
 
 
 # Adaptive rate limiting middleware (token-bucket with soft-wait)
@@ -662,14 +682,10 @@ class _TokenBucket:
 
 class _AdaptiveLimiter:
     def __init__(self) -> None:
-        self.enabled = os.getenv("RATE_LIMIT_ENABLED", "true").lower() not in (
-            "false",
-            "0",
-            "no",
-        )
-        self.default_capacity = int(os.getenv("RATE_LIMIT_CAPACITY", "300"))
-        self.default_refill = float(os.getenv("RATE_LIMIT_REFILL_PER_SEC", "5"))
-        self.max_wait_ms = int(os.getenv("RATE_LIMIT_MAX_WAIT_MS", "500"))
+        self.enabled = settings.RATE_LIMIT_ENABLED
+        self.default_capacity = settings.RATE_LIMIT_CAPACITY
+        self.default_refill = settings.RATE_LIMIT_REFILL_PER_SEC
+        self.max_wait_ms = settings.RATE_LIMIT_MAX_WAIT_MS
         self._buckets: Dict[str, _TokenBucket] = {}
         self._lock = asyncio.Lock()
 
@@ -1559,8 +1575,9 @@ async def serve_root():
     )
 
 
-# Error handler
-app.add_exception_handler(Exception, error_handler)
+# Error handlers preserve FastAPI's existing HTTPException contract while
+# making domain and unhandled failures safe and consistent.
+install_exception_handlers(app)
 
 # Auth Middleware
 app.add_middleware(AuthMiddleware)

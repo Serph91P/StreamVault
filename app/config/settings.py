@@ -4,7 +4,7 @@ import secrets
 from typing import List
 import logging
 import base64
-import os
+from functools import lru_cache
 from pathlib import Path
 from cryptography.hazmat.primitives import serialization
 from urllib.parse import urlparse
@@ -132,11 +132,15 @@ class Settings(BaseSettings):
     TWITCH_APP_ID: str
     TWITCH_APP_SECRET: str
     BASE_URL: str
+    ENVIRONMENT: str = "production"
     WEBHOOK_URL: Optional[str] = None
     DATABASE_URL: Optional[str] = None
     # Base directory for the application
     BASE_DIR: str = str(Path(__file__).parent.parent.parent.absolute())
     LOG_LEVEL: str = "INFO"
+    LOG_FORMAT: str = "text"
+    LOGS_BASE_DIR: Optional[str] = None
+    LOG_DIR: Optional[str] = None
     POSTGRES_USER: Optional[str] = None
     POSTGRES_PASSWORD: Optional[str] = None
     POSTGRES_DB: Optional[str] = None
@@ -188,6 +192,12 @@ class Settings(BaseSettings):
     HSTS_MAX_AGE: int = 31536000  # 1 year
     CONTENT_SECURITY_POLICY: Optional[str] = None
 
+    # Request rate limiting remains opt-out compatible with the existing names.
+    RATE_LIMIT_ENABLED: bool = True
+    RATE_LIMIT_CAPACITY: int = 300
+    RATE_LIMIT_REFILL_PER_SEC: float = 5.0
+    RATE_LIMIT_MAX_WAIT_MS: int = 500
+
     @property
     def allowed_origins(self) -> List[str]:
         """
@@ -218,7 +228,7 @@ class Settings(BaseSettings):
             logger.warning(f"Could not parse BASE_URL for CORS: {e}")
 
         # Add localhost origins for development
-        if os.getenv("ENVIRONMENT") == "development":
+        if self.environment_is_development:
             origins.update(
                 [
                     "http://localhost:5173",  # Vite dev server
@@ -239,6 +249,10 @@ class Settings(BaseSettings):
 
         # Convert to sorted list for consistent ordering
         return sorted(list(origins))
+
+    @property
+    def environment_is_development(self) -> bool:
+        return self.ENVIRONMENT.lower() == "development"
 
     @property
     def has_push_notifications_configured(self) -> bool:
@@ -424,12 +438,15 @@ class Settings(BaseSettings):
             # Default to secure for safety
             self.USE_SECURE_COOKIES = True
 
-    model_config = SettingsConfigDict(env_file=".env")
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 
-settings = Settings()
-
-
+@lru_cache
 def get_settings() -> Settings:
-    """Get the global settings instance"""
-    return settings
+    """Return the process-scoped typed settings object."""
+    return Settings()
+
+
+# Compatibility export for existing callers. New call sites should depend on
+# get_settings so tests can clear the cache and inject explicit values.
+settings = get_settings()
