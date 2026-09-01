@@ -9,8 +9,9 @@ import glob
 import logging
 import importlib.util
 import importlib
+from contextlib import contextmanager
 from pathlib import Path
-from typing import List, Tuple
+from typing import Iterator, List, Tuple
 from sqlalchemy import text
 
 from app.database import engine, SessionLocal
@@ -19,6 +20,32 @@ logger = logging.getLogger("streamvault")
 
 
 class MigrationService:
+    _POSTGRES_MIGRATION_LOCK_ID = 6005076117384319316
+
+    @classmethod
+    @contextmanager
+    def _migration_orchestration_lock(cls) -> Iterator[None]:
+        """Serialize the complete migration sequence between PostgreSQL processes."""
+        if engine.dialect.name != "postgresql":
+            yield
+            return
+
+        with engine.connect() as lock_connection:
+            logger.info("Waiting for PostgreSQL migration orchestration lock...")
+            lock_connection.execute(
+                text("SELECT pg_advisory_lock(:lock_id)"),
+                {"lock_id": cls._POSTGRES_MIGRATION_LOCK_ID},
+            )
+            logger.info("PostgreSQL migration orchestration lock acquired")
+            try:
+                yield
+            finally:
+                lock_connection.execute(
+                    text("SELECT pg_advisory_unlock(:lock_id)"),
+                    {"lock_id": cls._POSTGRES_MIGRATION_LOCK_ID},
+                )
+                logger.info("PostgreSQL migration orchestration lock released")
+
     @staticmethod
     def ensure_migrations_table():
         """Create the migrations table if it doesn't exist"""
@@ -83,8 +110,7 @@ class MigrationService:
 
         except Exception as e:
             logger.error(f"❌ Failed to ensure migrations table: {e}")
-            # Don't raise the exception, just log it
-            logger.warning("⚠️ Continuing without migrations table")
+            raise
 
     @staticmethod
     def is_migration_applied(migration_name: str) -> bool:
@@ -100,7 +126,7 @@ class MigrationService:
                 return result > 0
         except Exception as e:
             logger.error(f"Error checking migration status: {e}")
-            return False
+            raise
 
     @staticmethod
     def mark_migration_applied(migration_name: str, success: bool = True):
@@ -121,17 +147,19 @@ class MigrationService:
                 db.commit()
         except Exception as e:
             logger.error(f"Error marking migration as applied: {e}")
+            raise
 
-    @staticmethod
-    def run_migrations():
+    @classmethod
+    def run_migrations(cls):
         """Run all database migrations"""
         logger.info("🔄 Starting database migrations...")
 
-        # Ensure migrations table exists
-        MigrationService.ensure_migrations_table()
+        with cls._migration_orchestration_lock():
+            # Ensure migrations table exists
+            cls.ensure_migrations_table()
 
-        # Run all file-based migrations from the migrations directory
-        file_migration_results = MigrationService.run_pending_migrations()
+            # Run all file-based migrations from the migrations directory
+            file_migration_results = cls._run_pending_migrations()
 
         successful_migrations = len([r for r in file_migration_results if r[1]])
         failed_migrations = len([r for r in file_migration_results if not r[1]])
@@ -305,11 +333,17 @@ class MigrationService:
                 return [row[0] for row in result]
         except Exception as e:
             logger.error(f"Error getting applied migrations: {str(e)}", exc_info=True)
-            return []
+            raise
 
     @classmethod
     def run_pending_migrations(cls) -> List[Tuple[str, bool, str]]:
         """Run only migrations that haven't been applied yet"""
+        with cls._migration_orchestration_lock():
+            return cls._run_pending_migrations()
+
+    @classmethod
+    def _run_pending_migrations(cls) -> List[Tuple[str, bool, str]]:
+        """Run pending migrations while the orchestration lock is held."""
         try:
             # Wait for database to be ready
             max_retries = 5
@@ -333,7 +367,7 @@ class MigrationService:
                         logger.error(
                             f"Failed to connect to database after {max_retries} attempts: {e}"
                         )
-                        return []
+                        return [("database_connection", False, str(e))]
 
             # Ensure migrations table exists
             cls.ensure_migrations_table()
@@ -377,7 +411,7 @@ class MigrationService:
             return results
         except Exception as e:
             logger.error(f"Error running pending migrations: {str(e)}", exc_info=True)
-            return []
+            return [("migration_orchestration", False, str(e))]
 
 
 # Global migration service instance
