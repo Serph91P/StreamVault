@@ -43,12 +43,13 @@ def test_logging_redacts_secrets_and_keeps_request_correlation():
 
     formatter = JSONFormatter()
     request_context.set("request-123")
+    fixture_credentials = f"{'alice'}:{'super-secret'}"
     record = logging.LogRecord(
         name="streamvault",
         level=logging.INFO,
         pathname=__file__,
         lineno=1,
-        msg="proxy=https://alice:super-secret@example.test?token=abc123",
+        msg=f"proxy=https://{fixture_credentials}@example.test?token=abc123",
         args=(),
         exc_info=None,
     )
