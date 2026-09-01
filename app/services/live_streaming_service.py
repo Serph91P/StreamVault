@@ -32,6 +32,7 @@ from pathlib import Path
 from typing import Dict, Optional, Set
 
 from app.database import SessionLocal
+from app.models import GlobalSettings
 from app.services.proxy.proxy_health_service import proxy_health_service
 from app.services.system.twitch_token_service import TwitchTokenService
 from app.services.twitch_upstream_coordinator import (
@@ -824,18 +825,26 @@ class LiveStreamingService:
                     cmd.append(f"--twitch-api-header={token_header}")
                     logger.debug("[LIVE] Using OAuth token for enhanced stream")
 
-            # Get proxy settings from health service
+            # Prefer a healthy pool proxy, then use stored settings for this child.
+            proxy_url = None
             try:
                 proxy_url = await proxy_health_service.get_best_proxy()
-                if proxy_url:
-                    proxy_settings = {"http": proxy_url, "https": proxy_url}
-                    cmd = _add_proxy_settings(cmd, proxy_settings, force_mode=False)
-                    logger.debug(
-                        "[LIVE] Using proxy: %s",
-                        sanitize_proxy_url_for_logging(proxy_url),
-                    )
             except Exception:
                 logger.warning("[LIVE] Could not get proxy")
+
+            if not proxy_url:
+                global_settings = db.query(GlobalSettings).first()
+                if global_settings:
+                    proxy_url = (global_settings.http_proxy or "").strip() or (
+                        global_settings.https_proxy or ""
+                    ).strip()
+
+            if proxy_url:
+                cmd = _add_proxy_settings(cmd, {"http": proxy_url}, force_mode=False)
+                logger.debug(
+                    "[LIVE] Using proxy: %s",
+                    sanitize_proxy_url_for_logging(proxy_url),
+                )
 
         return cmd
 

@@ -262,13 +262,10 @@ def get_streamlink_command(
         ts_output_path,
     ]
 
-    # Note: These settings are now in config.twitch (auto-generated from settings):
+    # Note: Static settings are in config.twitch; process-specific values stay on CLI:
     # - --twitch-supported-codecs (codec preferences from database)
-    # - --twitch-disable-ads (ad blocking)
     # - --twitch-api-header (OAuth token - auto-refreshed before recording)
     # - --http-proxy / --https-proxy (proxy settings from database)
-    # - --hls-live-edge, --stream-timeout, etc. (stability settings)
-    # - --loglevel, --logformat (logging config)
 
     # Only add codec support if explicitly requested (overrides config.twitch)
     if supported_codecs and supported_codecs.strip():
@@ -292,7 +289,7 @@ def get_streamlink_command(
     else:
         logger.warning("⚠️ No OAuth token - limited to 1080p H.264, ads may appear")
 
-    # Add proxy settings if provided (overrides config.twitch)
+    # Add process-specific proxy settings if provided.
     if proxy_settings:
         cmd = _add_proxy_settings(cmd, proxy_settings, force_mode)
 
@@ -313,6 +310,20 @@ def _add_proxy_settings(
     Returns:
         Updated command list with proxy settings
     """
+    filtered_cmd = []
+    skip_value = False
+    for arg in cmd:
+        if skip_value:
+            skip_value = False
+            continue
+        if arg in ("--http-proxy", "--https-proxy"):
+            skip_value = True
+            continue
+        if arg.startswith(("--http-proxy=", "--https-proxy=")):
+            continue
+        filtered_cmd.append(arg)
+    cmd = filtered_cmd
+
     http_proxy = proxy_settings.get("http", "").strip()
     proxy_url = _select_proxy_url(proxy_settings)
     if not proxy_url:
@@ -336,23 +347,21 @@ def _add_proxy_settings(
 
     seg_timeout = "60" if not force_mode else "90"
     stream_timeout = "300" if not force_mode else "360"
-    cmd.extend(
-        [
-            "--stream-segment-timeout",
-            seg_timeout,
-            "--stream-timeout",
-            stream_timeout,
-            "--stream-segmented-queue-deadline",
-            "8",
-            "--stream-segment-attempts",
-            "5",
-            "--ringbuffer-size",
-            "512M",
-            "--hls-segment-stream-data",
-            "--hls-playlist-reload-time",
-            "segment",
-        ]
+    helper_options = (
+        ("--stream-segment-timeout", seg_timeout),
+        ("--stream-timeout", stream_timeout),
+        ("--stream-segmented-queue-deadline", "8"),
+        ("--stream-segment-attempts", "5"),
+        ("--ringbuffer-size", "512M"),
+        ("--hls-segment-stream-data", None),
+        ("--hls-playlist-reload-time", "segment"),
     )
+    for option, value in helper_options:
+        if any(arg == option or arg.startswith(f"{option}=") for arg in cmd):
+            continue
+        cmd.append(option)
+        if value is not None:
+            cmd.append(value)
 
     return cmd
 
