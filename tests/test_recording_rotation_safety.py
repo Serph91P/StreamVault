@@ -30,6 +30,8 @@ class FakeProcess:
         terminate_error: BaseException | None = None,
         release_on_terminate: bool = True,
         release_on_kill: bool = True,
+        stdout: bytes = b"",
+        stderr: bytes = b"harmless local failure",
     ) -> None:
         self.returncode = returncode
         self.terminate_error = terminate_error
@@ -41,6 +43,8 @@ class FakeProcess:
         self.communicate_calls = 0
         self.wait_started = asyncio.Event()
         self.release = asyncio.Event()
+        self.stdout = stdout
+        self.stderr = stderr
         if returncode is not None:
             self.release.set()
 
@@ -67,7 +71,7 @@ class FakeProcess:
 
     async def communicate(self) -> tuple[bytes, bytes]:
         self.communicate_calls += 1
-        return b"", b"harmless local failure"
+        return self.stdout, self.stderr
 
 
 def make_manager(process: FakeProcess, stream_id: int = 7) -> ProcessManager:
@@ -401,6 +405,97 @@ async def test_monitor_finalization_and_rotation_cannot_both_win() -> None:
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("finalization_outcome", ["success", "error", "cancelled"])
+async def test_segmented_monitor_drains_logs_and_releases_exact_secret_context(
+    finalization_outcome: str,
+) -> None:
+    class PipeBoundProcess(FakeProcess):
+        async def wait(self) -> int:
+            raise AssertionError("wait() cannot drain full child pipes")
+
+    process = PipeBoundProcess(
+        returncode=0,
+        stdout=b"local stdout",
+        stderr=b"Authorization=OAuth fixture-auth-value-807",
+    )
+    process.pid = 401
+    replacement = FakeProcess()
+    manager = make_manager(process)
+    segment_info = make_segment_info()
+    replacement_segment_info = {"attempt": "replacement"}
+    manager.long_stream_processes["stream_7"] = segment_info
+    manager._streamlink_output_secrets = {
+        process: ("fixture-auth-value-807",),
+        replacement: ("replacement-secret",),
+    }
+    logged = []
+    releases = []
+
+    class LoggingService:
+        def log_streamlink_output(self, *args, **kwargs):
+            logged.append((args, kwargs))
+
+    class Coordinator:
+        async def release(self, **values):
+            releases.append(values)
+
+    async def finalize(info):
+        assert info is segment_info
+        manager.active_processes["stream_7"] = replacement
+        manager.long_stream_processes["stream_7"] = replacement_segment_info
+        if finalization_outcome == "error":
+            raise RuntimeError("injected finalization failure")
+        if finalization_outcome == "cancelled":
+            raise asyncio.CancelledError
+
+    segment_info.update(
+        {"upstream_channel_key": "stable-channel", "upstream_generation": 4}
+    )
+    manager.logging_service = LoggingService()
+    manager.upstream_coordinator = Coordinator()
+    manager._finalize_segmented_recording = finalize
+
+    if finalization_outcome == "cancelled":
+        with pytest.raises(asyncio.CancelledError):
+            await manager.monitor_process(process)
+        result = None
+    else:
+        result = await manager.monitor_process(process)
+
+    assert (
+        result == {"success": 0, "error": -1, "cancelled": None}[finalization_outcome]
+    )
+    assert process.wait_calls == 0
+    assert process.communicate_calls == 1
+    assert logged == [
+        (
+            (
+                "stream_7",
+                b"local stdout",
+                b"Authorization=OAuth fixture-auth-value-807",
+                0,
+            ),
+            {"known_secrets": ("fixture-auth-value-807",)},
+        )
+    ]
+    assert process not in manager._streamlink_output_secrets
+    assert manager._streamlink_output_secrets[replacement] == ("replacement-secret",)
+    assert manager.active_processes["stream_7"] is replacement
+    assert manager.long_stream_processes["stream_7"] is replacement_segment_info
+    assert releases == (
+        [
+            {
+                "channel_key": "stable-channel",
+                "generation": 4,
+                "reason": "recording_process_exited",
+            }
+        ]
+        if finalization_outcome == "success"
+        else []
+    )
+
+
+@pytest.mark.asyncio
 async def test_rotation_cancellation_tracks_or_reaps_created_replacement(
     monkeypatch,
 ) -> None:
@@ -690,6 +785,136 @@ async def test_start_recording_cleans_up_immediately_exited_child(
     assert failed_process.communicate_calls == 1
     assert (manager.active_processes, manager.long_stream_processes) == ({}, {})
     assert monitor_coroutines == []
+
+
+@pytest.mark.asyncio
+async def test_segment_start_and_rotation_own_one_exact_completion_drain_task(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    class PipeBoundProcess(FakeProcess):
+        def __init__(self, pid: int) -> None:
+            super().__init__()
+            self.pid = pid
+            self.drain_started = asyncio.Event()
+
+        async def communicate(self) -> tuple[bytes, bytes]:
+            self.communicate_calls += 1
+            self.drain_started.set()
+            await self.release.wait()
+            return self.stdout, self.stderr
+
+    process = PipeBoundProcess(1234)
+    manager, stream, monitor_coroutines = install_immediate_exit_start(
+        monkeypatch,
+        process,
+    )
+
+    async def finalize(_segment_info):
+        return None
+
+    manager._finalize_segmented_recording = finalize
+
+    started_process = await manager.start_recording_process(
+        stream,
+        str(tmp_path / "recording.ts"),
+        "best",
+    )
+    await asyncio.wait_for(process.drain_started.wait(), timeout=0.1)
+
+    completion_task = manager._segment_completion_tasks[process]
+    assert started_process is process
+    assert completion_task is manager._track_segment_completion(process)
+    assert len(manager._segment_completion_tasks) == 1
+    assert process.communicate_calls == 1
+    assert monitor_coroutines
+
+    replacement = PipeBoundProcess(1235)
+
+    async def create_replacement(*args, **kwargs):
+        return replacement
+
+    process_manager_module = importlib.import_module(
+        "app.services.recording.process_manager"
+    )
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", create_replacement)
+    monkeypatch.setattr(
+        process_manager_module,
+        "get_streamlink_command",
+        lambda **kwargs: [
+            "streamlink",
+            "--twitch-api-header=Authorization=OAuth replacement-secret-807",
+        ],
+    )
+
+    segment_info = manager.long_stream_processes["stream_7"]
+    assert await manager._rotate_segment(stream, segment_info, "best") is True
+    await asyncio.wait_for(replacement.drain_started.wait(), timeout=0.1)
+    assert await completion_task == -15
+    await asyncio.sleep(0)
+
+    assert process not in manager._segment_completion_tasks
+    assert process not in manager._streamlink_output_secrets
+    replacement_task = manager._segment_completion_tasks[replacement]
+    assert replacement_task is manager._track_segment_completion(replacement)
+    assert len(manager._segment_completion_tasks) == 1
+    assert replacement.communicate_calls == 1
+    assert manager._streamlink_output_secrets[replacement] == (
+        "replacement-secret-807",
+    )
+
+    replacement.returncode = 0
+    replacement.release.set()
+    assert await replacement_task == 0
+    await asyncio.sleep(0)
+
+    assert replacement not in manager._segment_completion_tasks
+    assert replacement not in manager._streamlink_output_secrets
+
+
+@pytest.mark.asyncio
+async def test_immediate_exit_uses_child_bound_sanitization_context(
+    monkeypatch, tmp_path, caplog
+) -> None:
+    failed_process = FakeProcess(
+        returncode=1,
+        stderr=b"Authorization=OAuth fixture-auth-value-807",
+    )
+    failed_process.pid = 1234
+    manager, stream, _monitor_coroutines = install_immediate_exit_start(
+        monkeypatch, failed_process
+    )
+    calls = []
+
+    class LoggingService:
+        def get_streamlink_log_path(self, streamer_name):
+            return str(tmp_path / "streamlink-child.log")
+
+        def log_streamlink_output(self, *args, **kwargs):
+            calls.append((args, kwargs))
+
+    manager.logging_service = LoggingService()
+    process_manager_module = importlib.import_module(
+        "app.services.recording.process_manager"
+    )
+    monkeypatch.setattr(
+        process_manager_module,
+        "get_streamlink_command",
+        lambda **kwargs: [
+            "streamlink",
+            "--twitch-api-header=Authorization=OAuth fixture-auth-value-807",
+        ],
+    )
+
+    with pytest.raises(ProcessError):
+        await manager.start_recording_process(
+            stream, str(tmp_path / "recording.ts"), "best"
+        )
+
+    assert calls
+    assert calls[0][1]["known_secrets"] == ("fixture-auth-value-807",)
+    assert "fixture-auth-value-807" not in caplog.text
+    assert failed_process not in manager._streamlink_output_secrets
 
 
 @pytest.mark.asyncio

@@ -39,6 +39,7 @@ from app.utils.streamlink_utils import get_streamlink_command
 from app.services.recording.exceptions import ProcessError
 from app.models import Stream
 from app.utils import async_file
+from app.utils.security import get_streamlink_command_secret_values
 from app.config.constants import ASYNC_DELAYS
 from app.services.twitch_upstream_coordinator import (
     AUTHENTICATED_TWITCH_ACCOUNT,
@@ -104,6 +105,8 @@ class ProcessManager:
         self.long_stream_processes = {}  # Track processes that need segmentation
         self.lock = asyncio.Lock()
         self.rotation_locks = {}
+        self._streamlink_output_secrets = {}
+        self._segment_completion_tasks = {}
         self.ASYNC_DELAYS = ASYNC_DELAYS
         self.config_manager = config_manager
         self.post_processing_callback = post_processing_callback  # Injected dependency
@@ -139,6 +142,38 @@ class ProcessManager:
 
         ProcessManager._initialized = True
         logger.debug("ProcessManager singleton initialized")
+
+    def _get_streamlink_output_secrets(self, process) -> tuple[str, ...]:
+        return getattr(self, "_streamlink_output_secrets", {}).get(process, ())
+
+    def _remember_streamlink_output_secrets(self, process, command: list) -> None:
+        contexts = getattr(self, "_streamlink_output_secrets", None)
+        if contexts is None:
+            contexts = self._streamlink_output_secrets = {}
+        contexts[process] = get_streamlink_command_secret_values(command)
+
+    def _release_streamlink_output_secrets(self, process) -> None:
+        contexts = getattr(self, "_streamlink_output_secrets", None)
+        if contexts is not None:
+            contexts.pop(process, None)
+
+    def _track_segment_completion(self, process) -> asyncio.Task:
+        tasks = getattr(self, "_segment_completion_tasks", None)
+        if tasks is None:
+            tasks = self._segment_completion_tasks = {}
+        existing_task = tasks.get(process)
+        if existing_task is not None:
+            return existing_task
+
+        task = asyncio.create_task(self.monitor_process(process))
+        tasks[process] = task
+
+        def release_task(completed_task):
+            if tasks.get(process) is completed_task:
+                tasks.pop(process, None)
+
+        task.add_done_callback(release_task)
+        return task
 
     async def start_recording_process(
         self,
@@ -248,6 +283,7 @@ class ProcessManager:
                         if self.long_stream_processes.get(process_id) is segment_info:
                             del self.long_stream_processes[process_id]
                 if cleanup_complete:
+                    self._release_streamlink_output_secrets(owned_process)
                     await self.upstream_coordinator.release(
                         channel_key=reservation.channel_key,
                         generation=segment_info.get(
@@ -579,6 +615,7 @@ class ProcessManager:
                 stderr=asyncio.subprocess.PIPE,
                 start_new_session=True,
             )
+            self._remember_streamlink_output_secrets(process, cmd)
 
             # Publish ownership before any cancellable post-creation work.
             process_id = f"stream_{stream.id}"
@@ -664,6 +701,7 @@ class ProcessManager:
             if process.returncode is not None:
                 # Process already ended, capture output
                 stdout, stderr = await process.communicate()
+                known_secrets = self._get_streamlink_output_secrets(process)
                 async with self.lock:
                     if self.active_processes.get(process_id) is process:
                         del self.active_processes[process_id]
@@ -676,6 +714,13 @@ class ProcessManager:
 
                 # Log to structured logging service
                 if self.logging_service:
+                    self.logging_service.log_streamlink_output(
+                        streamer_name,
+                        stdout,
+                        stderr,
+                        process.returncode,
+                        known_secrets=known_secrets,
+                    )
                     streamer_logger = logging.getLogger(f"streamlink.{streamer_name}")
                     try:
                         streamer_logger.error(
@@ -684,6 +729,7 @@ class ProcessManager:
                     except Exception as e:
                         logger.warning(f"Could not write to streamlink log file: {e}")
 
+                self._release_streamlink_output_secrets(process)
                 raise ProcessError("Streamlink process failed immediately")
 
             # Add segment to the list
@@ -694,6 +740,7 @@ class ProcessManager:
                     "process_pid": process.pid,
                 }
             )
+            self._track_segment_completion(process)
 
             # Register process with ProcessMonitor - temporarily disabled
             # if process_monitor and ProcessType:
@@ -926,7 +973,6 @@ class ProcessManager:
                     if self.active_processes.get(process_id) is not captured_process:
                         return False
                     del self.active_processes[process_id]
-
                 segment_info["segment_count"] += 1
                 base_path = Path(segment_info["base_output_path"])
                 segment_filename = f"{base_path.stem}{self.SEGMENT_PART_IDENTIFIER}{segment_info['segment_count']:03d}.ts"
@@ -1086,6 +1132,8 @@ class ProcessManager:
         except (OSError, ProcessLookupError, KeyError, AttributeError, PermissionError):
             return
         if cleanup_complete:
+            if process is not None:
+                self._release_streamlink_output_secrets(process)
             await self.upstream_coordinator.release(
                 channel_key=channel_key,
                 generation=generation,
@@ -1102,6 +1150,7 @@ class ProcessManager:
         Returns:
             Exit code of the process (0 if segmented recording completed successfully)
         """
+        known_secrets = self._get_streamlink_output_secrets(process)
         try:
             # Find if this is a segmented recording
             process_id = None
@@ -1116,8 +1165,16 @@ class ProcessManager:
             if process_id and process_id in self.long_stream_processes:
                 segment_info = self.long_stream_processes[process_id]
 
-            # Wait for the process to complete
-            await process.wait()
+            stdout, stderr = await process.communicate()
+            logging_service = getattr(self, "logging_service", None)
+            if logging_service:
+                logging_service.log_streamlink_output(
+                    process_id or "unknown",
+                    stdout,
+                    stderr,
+                    process.returncode,
+                    known_secrets=known_secrets,
+                )
 
             # Handle segmented vs normal recording completion
             if segment_info:
@@ -1156,8 +1213,6 @@ class ProcessManager:
                                 del self.long_stream_processes[process_id]
             else:
                 # Normal single-file recording
-                stdout, stderr = await process.communicate()
-
                 # CRITICAL: Detect recording failure and update database
                 if process.returncode != 0:
                     logger.error(
@@ -1712,6 +1767,7 @@ class ProcessManager:
 
     async def _cleanup_process(self, process: asyncio.subprocess.Process):
         """Clean up process from tracking"""
+        self._release_streamlink_output_secrets(process)
         async with self.lock:
             # Remove from active processes
             for process_id, active_process in list(self.active_processes.items()):
@@ -1786,6 +1842,7 @@ class ProcessManager:
                     process.terminate()
                     await asyncio.wait_for(process.wait(), timeout=timeout)
                 logger.info(f"Process {process_id} terminated gracefully")
+                self._release_streamlink_output_secrets(process)
 
                 # Finalize segmented recording if needed
                 if segment_info:
@@ -1804,6 +1861,7 @@ class ProcessManager:
                 process.kill()
                 await process.wait()
                 logger.warning(f"Process {process_id} killed after timeout")
+                self._release_streamlink_output_secrets(process)
 
                 # Still try to finalize if it was segmented
                 if process_id in self.long_stream_processes:
@@ -1814,6 +1872,8 @@ class ProcessManager:
             except Exception as e:
                 if process.returncode is None:
                     self.active_processes[process_id] = process
+                else:
+                    self._release_streamlink_output_secrets(process)
                 logger.error(f"Failed to terminate process {process_id}: {e}")
                 return False
 

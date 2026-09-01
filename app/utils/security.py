@@ -7,15 +7,18 @@ like path traversal, SQL injection, and input validation bypasses.
 CRITICAL: All user input must be validated using these functions.
 """
 
-import os
-import re
+import codecs
 import html
 import json
 import logging
+import os
+import re
+import unicodedata
 from typing import Optional
 from pathlib import Path
 from datetime import datetime
 from fastapi import HTTPException
+from urllib.parse import parse_qsl, unquote, unquote_plus, urlsplit
 
 logger = logging.getLogger("streamvault.security")
 
@@ -640,6 +643,256 @@ def sanitize_proxy_url_for_logging(proxy_url: str) -> str:
 
     except (TypeError, ValueError):
         return "[REDACTED_PROXY_URL]"
+
+
+def _streamlink_secret_forms(secret: object) -> set[str]:
+    if not isinstance(secret, (str, bytes)):
+        return set()
+
+    value = (
+        secret.decode("utf-8", errors="replace")
+        if isinstance(secret, bytes)
+        else secret
+    )
+    forms = {value}
+    for _ in range(2):
+        forms.update({unquote(item) for item in forms})
+        forms.update({unquote_plus(item) for item in forms})
+        forms.update({unicodedata.normalize("NFKC", item) for item in forms})
+    return {item for item in forms if len(item.strip()) >= 4}
+
+
+def _redact_line_fragmented_secret_forms(value: str, forms: tuple[str, ...]) -> str:
+    """Redact known values even when child output inserts CR/LF separators."""
+    if not value or not forms:
+        return value
+
+    positions = []
+    collapsed = []
+    for index, character in enumerate(value):
+        if character not in "\r\n":
+            positions.append(index)
+            collapsed.append(character)
+    collapsed_value = "".join(collapsed)
+    intervals = []
+    for form in forms:
+        collapsed_form = form.replace("\r", "").replace("\n", "")
+        if not collapsed_form:
+            continue
+        start = collapsed_value.find(collapsed_form)
+        while start != -1:
+            intervals.append(
+                (positions[start], positions[start + len(collapsed_form) - 1] + 1)
+            )
+            start = collapsed_value.find(collapsed_form, start + 1)
+
+    if not intervals:
+        return value
+
+    merged = []
+    for start, end in sorted(intervals):
+        if merged and start <= merged[-1][1]:
+            merged[-1] = (merged[-1][0], max(merged[-1][1], end))
+        else:
+            merged.append((start, end))
+
+    output = []
+    previous_end = 0
+    for start, end in merged:
+        output.extend((value[previous_end:start], "[REDACTED]"))
+        previous_end = end
+    output.append(value[previous_end:])
+    return "".join(output)
+
+
+def _redact_streamlink_url(match: re.Match) -> str:
+    value = match.group(0)
+    try:
+        parsed = urlsplit(value)
+        host = parsed.hostname
+        port = parsed.port
+    except ValueError:
+        return "[REDACTED_URL]"
+
+    if not host:
+        return "[REDACTED_URL]"
+    if ":" in host:
+        host = f"[{host}]"
+    authority = f"{host}:{port}" if port is not None else host
+    return f"{parsed.scheme}://{authority}/[REDACTED]"
+
+
+def sanitize_streamlink_output(
+    output: str | bytes, known_secrets: tuple | list | set = ()
+) -> str:
+    """Redact Streamlink child output before it reaches diagnostics or storage."""
+    if isinstance(output, bytes):
+        sanitized = output.decode("utf-8", errors="replace")
+    elif isinstance(output, str):
+        sanitized = output
+    else:
+        sanitized = str(output)
+
+    secret_forms = tuple(
+        sorted(
+            {
+                form
+                for secret in known_secrets
+                for form in _streamlink_secret_forms(secret)
+            },
+            key=len,
+            reverse=True,
+        )
+    )
+    sanitized = _redact_line_fragmented_secret_forms(sanitized, secret_forms)
+
+    sanitized = re.sub(r"(?i)(--(?:http|https)-proxy=)\S+", r"\1[REDACTED]", sanitized)
+    sanitized = re.sub(
+        r"(?im)(--(?:twitch-api-header|http-header|password|token|api-key|"
+        r"secret|access-token)=[^\r\n]*)",
+        lambda match: f"{match.group(1).split('=', 1)[0]}=[REDACTED]",
+        sanitized,
+    )
+    sanitized = re.sub(
+        r"(?i)(authorization\s*[:=]\s*(?:oauth|bearer)\s+)\S+",
+        r"\1[REDACTED]",
+        sanitized,
+    )
+    sanitized = re.sub(r"(?i)https?%3a%2f%2f[^\s'\"<>]+", "[REDACTED_URL]", sanitized)
+    sanitized = re.sub(r"https?://[^\s'\"<>]+", _redact_streamlink_url, sanitized)
+    return re.sub(
+        r"(?i)\b(token|oauth|signature|sig|expires|key)=([^\s&#,]+)",
+        r"\1=[REDACTED]",
+        sanitized,
+    )
+
+
+class StreamingStreamlinkOutputSanitizer:
+    """Sanitize chunks while retaining only possible known-secret suffixes."""
+
+    MAX_UNTERMINATED_OUTPUT = 64 * 1024
+    MAX_SECRET_FORM_LENGTH = 4 * 1024
+
+    def __init__(self, known_secrets: tuple | list | set = ()):
+        self._known_secrets = tuple(known_secrets)
+        self._fail_closed = any(
+            len(secret) > self.MAX_SECRET_FORM_LENGTH
+            for secret in self._known_secrets
+            if isinstance(secret, (str, bytes))
+        )
+        self._secret_forms = (
+            ()
+            if self._fail_closed
+            else tuple(
+                {
+                    form
+                    for secret in self._known_secrets
+                    for form in _streamlink_secret_forms(secret)
+                }
+            )
+        )
+        self._fail_closed = self._fail_closed or any(
+            len(form) > self.MAX_SECRET_FORM_LENGTH for form in self._secret_forms
+        )
+        if self._fail_closed:
+            self._secret_forms = ()
+        self._max_buffer_size = self.MAX_UNTERMINATED_OUTPUT
+        self._buffer = ""
+        self._decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
+        self._redaction_emitted = False
+
+    def _pending_secret_start(self) -> int:
+        positions = []
+        collapsed = []
+        for index, character in enumerate(self._buffer):
+            if character not in "\r\n":
+                positions.append(index)
+                collapsed.append(character)
+        collapsed_value = "".join(collapsed)
+        pending_start = len(self._buffer)
+        for form in self._secret_forms:
+            collapsed_form = form.replace("\r", "").replace("\n", "")
+            tail = collapsed_value[-(len(collapsed_form) - 1) :]
+            for offset in range(len(tail)):
+                candidate = tail[offset:]
+                if collapsed_form.startswith(candidate):
+                    pending_start = min(
+                        pending_start,
+                        positions[len(collapsed_value) - len(candidate)],
+                    )
+                    break
+        return pending_start
+
+    def _closed_output(self) -> str:
+        self._buffer = ""
+        if self._redaction_emitted:
+            return ""
+        self._redaction_emitted = True
+        return "[REDACTED]"
+
+    def feed(self, output: str | bytes) -> str:
+        decoded = (
+            self._decoder.decode(output) if isinstance(output, bytes) else str(output)
+        )
+        if self._fail_closed:
+            return self._closed_output() if decoded else ""
+
+        self._buffer += decoded
+        split_at = self._pending_secret_start()
+        safe_output, self._buffer = self._buffer[:split_at], self._buffer[split_at:]
+        if len(self._buffer) > self._max_buffer_size:
+            self._fail_closed = True
+            return (
+                sanitize_streamlink_output(safe_output, self._known_secrets)
+                + self._closed_output()
+            )
+        return sanitize_streamlink_output(safe_output, self._known_secrets)
+
+    def flush(self) -> str:
+        decoded = self._decoder.decode(b"", final=True)
+        if self._fail_closed:
+            return self._closed_output() if decoded else ""
+        self._buffer += decoded
+        output, self._buffer = self._buffer, ""
+        return sanitize_streamlink_output(output, self._known_secrets)
+
+
+def _get_proxy_secret_values(proxy_url: str) -> tuple[str, ...]:
+    try:
+        parsed = urlsplit(proxy_url)
+    except (TypeError, ValueError):
+        return ()
+
+    values = [parsed.username, parsed.password]
+    values.extend(part for part in parsed.path.split("/") if part)
+    values.extend(
+        value for _name, value in parse_qsl(parsed.query, keep_blank_values=False)
+    )
+    if parsed.fragment:
+        fragment_values = [
+            value
+            for _name, value in parse_qsl(parsed.fragment, keep_blank_values=False)
+        ]
+        values.extend(fragment_values or [parsed.fragment])
+    return tuple(value for value in values if value)
+
+
+def get_streamlink_command_secret_values(command: list) -> tuple[str, ...]:
+    """Return secret values from a Streamlink command without retaining URLs."""
+    values = []
+    for argument in command:
+        if not isinstance(argument, str):
+            continue
+        if argument.startswith("--twitch-api-header="):
+            header = argument.split("=", 1)[1]
+            match = re.search(r"(?i)authorization=oauth\s+(.+)", header)
+            if match:
+                values.append(match.group(1).strip())
+        elif re.match(r"--(?:http|https)-proxy=", argument):
+            values.extend(_get_proxy_secret_values(argument.split("=", 1)[1]))
+        elif re.match(r"--(?:password|token|api-key|secret|access-token)=", argument):
+            values.append(argument.split("=", 1)[1])
+    return tuple(dict.fromkeys(value for value in values if len(value) >= 4))
 
 
 def sanitize_command_for_logging(cmd: list) -> str:

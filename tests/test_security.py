@@ -10,7 +10,12 @@ import os
 from pathlib import Path
 from fastapi import HTTPException
 
-from app.utils.security import validate_path_security, validate_filename, validate_streamer_name, validate_file_type
+from app.utils.security import (
+    validate_path_security,
+    validate_filename,
+    validate_streamer_name,
+    validate_file_type,
+)
 
 
 class TestPathTraversalPrevention:
@@ -62,7 +67,11 @@ class TestPathTraversalPrevention:
     def test_path_traversal_with_encoded_paths_blocked(self):
         """Test that encoded path traversal attempts are blocked"""
         # URL-encoded ../ is %2e%2e%2f
-        evil_paths = ["..%2F..%2F..%2Fetc%2Fpasswd", "....//....//....//etc/passwd", "..;/..;/..;/etc/passwd"]
+        evil_paths = [
+            "..%2F..%2F..%2Fetc%2Fpasswd",
+            "....//....//....//etc/passwd",
+            "..;/..;/..;/etc/passwd",
+        ]
 
         for evil_path in evil_paths:
             # Note: os.path.realpath will normalize these, so they should be blocked
@@ -332,9 +341,9 @@ class TestSecurityIntegration:
 
                 # If we get here, verify result is still safe
                 resolved = os.path.realpath(file_path)
-                assert resolved.startswith(
-                    os.path.realpath(self.temp_dir)
-                ), f"Attack vector '{description}' bypassed security!"
+                assert resolved.startswith(os.path.realpath(self.temp_dir)), (
+                    f"Attack vector '{description}' bypassed security!"
+                )
 
             except (HTTPException, ValueError):
                 # Expected: attack blocked
@@ -383,13 +392,19 @@ class TestURLRedirectValidation:
 
         for url in malicious_urls:
             result = validate_redirect_url(url, "/")
-            assert result == "/", f"Absolute URL {url} should be blocked and return default"
+            assert result == "/", (
+                f"Absolute URL {url} should be blocked and return default"
+            )
 
     def test_protocol_relative_urls_blocked(self):
         """Test that protocol-relative URLs are blocked"""
         from app.utils.security import validate_redirect_url
 
-        malicious_urls = ["//evil.com", "//evil.com/phishing", "//attacker.com?state=/settings"]
+        malicious_urls = [
+            "//evil.com",
+            "//evil.com/phishing",
+            "//attacker.com?state=/settings",
+        ]
 
         for url in malicious_urls:
             result = validate_redirect_url(url, "/")
@@ -447,13 +462,19 @@ class TestURLRedirectValidation:
         assert validate_redirect_url("/add-streamer", "/") == "/add-streamer"
 
         # Attacker trying to redirect to external site
-        assert validate_redirect_url("https://evil.com", "/add-streamer") == "/add-streamer"
+        assert (
+            validate_redirect_url("https://evil.com", "/add-streamer")
+            == "/add-streamer"
+        )
 
         # Attacker trying protocol-relative URL
         assert validate_redirect_url("//evil.com", "/add-streamer") == "/add-streamer"
 
         # Attacker trying to access admin panel
-        assert validate_redirect_url("/admin/delete-all", "/add-streamer") == "/add-streamer"
+        assert (
+            validate_redirect_url("/admin/delete-all", "/add-streamer")
+            == "/add-streamer"
+        )
 
 
 class TestProxyURLSanitization:
@@ -601,7 +622,14 @@ class TestCommandSanitization:
         """Test that multiple sensitive arguments are all redacted"""
         from app.utils.security import sanitize_command_for_logging
 
-        cmd = ["streamlink", "--password=secret123", "--token=token456", "--api-key=key789", "url", "best"]
+        cmd = [
+            "streamlink",
+            "--password=secret123",
+            "--token=token456",
+            "--api-key=key789",
+            "url",
+            "best",
+        ]
 
         result = sanitize_command_for_logging(cmd)
         assert "secret123" not in result
@@ -664,6 +692,203 @@ class TestCommandSanitization:
         assert "--output=/recordings/streamer/stream.mp4" in result
         assert "--force" in result
         assert "best" in result
+
+
+class TestStreamlinkOutputSanitization:
+    def test_output_boundary_redacts_child_diagnostics_idempotently(self):
+        from app.utils.security import sanitize_streamlink_output
+
+        proxy_url = "https://" + ":".join(("viewer", "fixture-pass"))
+        proxy_url += "@relay.example:8443"
+        raw_output = (
+            "exit code 23 via relay.example:8443 ",
+            f"{proxy_url}/private?token=fixture-token#fragment ",
+            f"--http-proxy={proxy_url} Authorization=OAuth fixture-auth-value-807 ",
+            "https%3A%2F%2Fviewer%3Afixture-pass%40relay.example%3A8443%2Fpath",
+        )
+        raw_output = "".join(raw_output)
+
+        sanitized = sanitize_streamlink_output(
+            raw_output.encode(), known_secrets=("fixture-auth-value-807",)
+        )
+
+        assert sanitized == sanitize_streamlink_output(
+            sanitized, known_secrets=("fixture-auth-value-807",)
+        )
+        assert "exit code 23" in sanitized
+        assert "relay.example:8443" in sanitized
+        for value in ("viewer", "fixture-pass", "fixture-token", "fragment"):
+            assert value not in sanitized
+        assert "fixture-auth-value-807" not in sanitized
+
+    def test_known_secret_forms_do_not_corrupt_short_diagnostics(self):
+        from app.utils.security import sanitize_streamlink_output
+
+        diagnostic = "exit 7 on localhost:8123"
+        proxy_url = "https://" + ":".join(("viewer", "fixture-pass"))
+        proxy_url += "@relay.example:8443"
+
+        assert (
+            sanitize_streamlink_output(diagnostic, known_secrets=("", "x", "  "))
+            == diagnostic
+        )
+        assert "fixture-pass" not in sanitize_streamlink_output(
+            f"{proxy_url}/path",
+            known_secrets=("fixture-pass",),
+        )
+
+    def test_streaming_boundary_redacts_every_secret_split_and_flushes_eof(self):
+        from app.utils.security import StreamingStreamlinkOutputSanitizer
+
+        secret = "fixture-auth-value-807"
+        for split_at in range(1, len(secret)):
+            sanitizer = StreamingStreamlinkOutputSanitizer((secret,))
+            output = [sanitizer.feed(f"diagnostic {secret[:split_at]}")]
+            output.append(sanitizer.feed(f"{secret[split_at:]} complete"))
+            output.append(sanitizer.flush())
+            sanitized = "".join(output)
+
+            assert sanitized == "diagnostic [REDACTED] complete"
+            assert secret not in sanitized
+
+        sanitizer = StreamingStreamlinkOutputSanitizer((secret,))
+        output = sanitizer.feed("ordinary diagnostic at eof") + sanitizer.flush()
+        assert output == "ordinary diagnostic at eof"
+
+        sanitizer = StreamingStreamlinkOutputSanitizer((secret,))
+        unterminated = "x" * (sanitizer.MAX_UNTERMINATED_OUTPUT + 1)
+        streamed = sanitizer.feed(unterminated)
+        assert streamed
+        assert streamed + sanitizer.flush() == unterminated
+
+    def test_streaming_boundary_redacts_newline_at_every_secret_split(self):
+        from app.utils.security import StreamingStreamlinkOutputSanitizer
+
+        secret = "QZXproxyCredential807"
+        for split_at in range(1, len(secret)):
+            sanitizer = StreamingStreamlinkOutputSanitizer((secret,))
+            records = [sanitizer.feed(f"diagnostic {secret[:split_at]}\n")]
+            records.append(sanitizer.feed(f"{secret[split_at:]} complete\n"))
+            records.append(sanitizer.flush())
+            reconstructible = "".join(records).replace("\r", "").replace("\n", "")
+
+            assert reconstructible == "diagnostic [REDACTED] complete"
+            assert secret not in reconstructible
+
+    def test_oversized_known_secret_uses_fixed_pending_cap_and_fails_closed(self):
+        from app.utils.security import StreamingStreamlinkOutputSanitizer
+
+        secret = "oversized-secret-start-" + "x" * (3 * 1024 * 1024)
+        sanitizer = StreamingStreamlinkOutputSanitizer((secret,))
+        midpoint = len(secret) // 2
+
+        output = sanitizer.feed(secret[:midpoint])
+        assert len(sanitizer._buffer) <= sanitizer.MAX_UNTERMINATED_OUTPUT
+        output += sanitizer.feed(secret[midpoint:])
+        assert len(sanitizer._buffer) <= sanitizer.MAX_UNTERMINATED_OUTPUT
+        output += sanitizer.flush()
+
+        assert sanitizer._max_buffer_size == sanitizer.MAX_UNTERMINATED_OUTPUT
+        assert secret[:1024] not in output
+        assert secret[-1024:] not in output
+
+    def test_proxy_components_are_bound_without_retaining_full_url(self):
+        from app.utils.security import get_streamlink_command_secret_values
+
+        proxy_url = (
+            "https://proxy-user-807:proxy-password-807@relay.example:8443/"
+            "private-path-807?session=query-secret-807#fragment-secret-807"
+        )
+        values = get_streamlink_command_secret_values(
+            ["streamlink", f"--http-proxy={proxy_url}"]
+        )
+
+        assert proxy_url not in values
+        for value in (
+            "proxy-user-807",
+            "proxy-password-807",
+            "private-path-807",
+            "query-secret-807",
+            "fragment-secret-807",
+        ):
+            assert value in values
+
+    def test_proxy_component_only_echoes_are_redacted_from_all_log_sinks(
+        self, tmp_path, caplog
+    ):
+        from app.services.system.logging_service import LoggingService
+        from app.utils.security import get_streamlink_command_secret_values
+
+        proxy_url = (
+            "https://proxy-user-807:proxy-password-807@relay.example:8443/"
+            "private-path-807?session=query-secret-807#fragment-secret-807"
+        )
+        known_secrets = get_streamlink_command_secret_values(
+            ["streamlink", f"--https-proxy={proxy_url}"]
+        )
+        service = LoggingService(logs_base_dir=str(tmp_path))
+        log_path = tmp_path / "proxy-component-child.log"
+
+        with caplog.at_level("INFO"):
+            service.log_streamlink_output(
+                "local-test",
+                b"proxy-user-807",
+                b"proxy-password-807",
+                23,
+                str(log_path),
+                known_secrets=known_secrets,
+            )
+            service.log_streamlink_error(
+                "local-test",
+                b"query-secret-807 fragment-secret-807 private-path-807",
+                str(log_path),
+                known_secrets=known_secrets,
+            )
+
+        persisted = log_path.read_text()
+        for value in (
+            "proxy-user-807",
+            "proxy-password-807",
+            "private-path-807",
+            "query-secret-807",
+            "fragment-secret-807",
+        ):
+            assert value not in persisted
+            assert value not in caplog.text
+
+    def test_logging_service_persists_only_sanitized_child_output(
+        self, tmp_path, caplog
+    ):
+        from app.services.system.logging_service import LoggingService
+
+        service = LoggingService(logs_base_dir=str(tmp_path))
+        log_path = tmp_path / "streamlink-child.log"
+        proxy_url = "https://" + ":".join(("viewer", "fixture-pass"))
+        proxy_url += "@relay.example:8443"
+        raw_output = f"proxy {proxy_url}/path".encode()
+        raw_error = "Authorization=OAuth fixture-auth-value-807"
+
+        service.log_streamlink_output(
+            "local-test",
+            raw_output,
+            f"--https-proxy={proxy_url}".encode(),
+            23,
+            str(log_path),
+            known_secrets=("fixture-auth-value-807",),
+        )
+        service.log_streamlink_error(
+            "local-test",
+            raw_error,
+            str(log_path),
+            known_secrets=("fixture-auth-value-807",),
+        )
+
+        persisted = log_path.read_text()
+        for value in ("viewer", "fixture-pass", "fixture-auth-value-807"):
+            assert value not in persisted
+            assert value not in caplog.text
+        assert "exit code: 23" in persisted
+        assert "relay.example:8443" in persisted
 
 
 if __name__ == "__main__":
