@@ -11,6 +11,23 @@ from unittest.mock import MagicMock
 import pytest
 
 
+def _authenticated_proxy_url(
+    scheme: str, username: str, password: str, endpoint: str
+) -> str:
+    return f"{scheme}://{username}{chr(58)}{password}{chr(64)}{endpoint}"
+
+
+class EmptySettingsDatabase:
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_args):
+        return False
+
+    def query(self, _model):
+        return SimpleNamespace(first=lambda: None)
+
+
 def test_live_stream_session_properties():
     """Test LiveStreamSession basic properties and expiration"""
     from app.services.live_streaming_service import LiveStreamSession
@@ -214,6 +231,7 @@ def test_live_proxy_command_preserves_url_and_redacts_diagnostics(monkeypatch, c
         return proxy_url
 
     monkeypatch.setattr(live_streaming_service, "TwitchTokenService", TokenService)
+    monkeypatch.setattr(live_streaming_service, "SessionLocal", EmptySettingsDatabase)
     monkeypatch.setattr(
         live_streaming_service.proxy_health_service,
         "get_best_proxy",
@@ -257,6 +275,7 @@ def test_live_proxy_lookup_exception_does_not_reach_diagnostics(monkeypatch, cap
         raise RuntimeError(proxy_url)
 
     monkeypatch.setattr(live_streaming_service, "TwitchTokenService", TokenService)
+    monkeypatch.setattr(live_streaming_service, "SessionLocal", EmptySettingsDatabase)
     monkeypatch.setattr(
         live_streaming_service.proxy_health_service,
         "get_best_proxy",
@@ -272,6 +291,89 @@ def test_live_proxy_lookup_exception_does_not_reach_diagnostics(monkeypatch, cap
     assert proxy_url not in caplog.text
 
 
+@pytest.mark.parametrize(
+    ("pool_error", "stored_http", "stored_https", "expected"),
+    [
+        (
+            None,
+            _authenticated_proxy_url(
+                "http", "fixture-live", "fixture-value", "live.invalid:8080"
+            ),
+            _authenticated_proxy_url(
+                "https", "fixture-live", "fixture-value", "live.invalid:8443"
+            ),
+            _authenticated_proxy_url(
+                "http", "fixture-live", "fixture-value", "live.invalid:8080"
+            ),
+        ),
+        (
+            RuntimeError("fixture pool lookup failed"),
+            None,
+            _authenticated_proxy_url(
+                "https", "fixture-live", "fixture-value", "live.invalid:8443"
+            ),
+            _authenticated_proxy_url(
+                "https", "fixture-live", "fixture-value", "live.invalid:8443"
+            ),
+        ),
+    ],
+)
+def test_live_new_child_uses_stored_proxy_when_pool_is_unavailable(
+    monkeypatch,
+    pool_error,
+    stored_http,
+    stored_https,
+    expected,
+):
+    from app.models import GlobalSettings
+    from app.services import live_streaming_service
+
+    global_settings = SimpleNamespace(
+        http_proxy=stored_http,
+        https_proxy=stored_https,
+    )
+    original_settings = vars(global_settings).copy()
+
+    class Query:
+        def first(self):
+            return global_settings
+
+    class Database:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def query(self, model):
+            assert model is GlobalSettings
+            return Query()
+
+    async def get_best_proxy():
+        if pool_error:
+            raise pool_error
+        return None
+
+    monkeypatch.setattr(live_streaming_service, "SessionLocal", Database)
+    monkeypatch.setattr(
+        live_streaming_service.proxy_health_service,
+        "get_best_proxy",
+        get_best_proxy,
+    )
+
+    service = live_streaming_service.LiveStreamingService()
+    service.sessions = {"running": object()}
+    existing_sessions = service.sessions.copy()
+    command = asyncio.run(service._build_streamlink_command("streamer", "best"))
+
+    assert [arg for arg in command if arg.startswith("--http-proxy=")] == [
+        f"--http-proxy={expected}"
+    ]
+    assert not any(arg.startswith("--https-proxy=") for arg in command)
+    assert vars(global_settings) == original_settings
+    assert service.sessions == existing_sessions
+
+
 def test_anonymous_live_does_not_request_twitch_token(monkeypatch):
     from app.services import live_streaming_service
 
@@ -285,6 +387,7 @@ def test_anonymous_live_does_not_request_twitch_token(monkeypatch):
     monkeypatch.setattr(
         live_streaming_service, "TwitchTokenService", ForbiddenTokenService
     )
+    monkeypatch.setattr(live_streaming_service, "SessionLocal", EmptySettingsDatabase)
     monkeypatch.setattr(
         live_streaming_service.proxy_health_service, "get_best_proxy", no_proxy
     )
@@ -316,6 +419,7 @@ def test_enhanced_live_requests_twitch_token_explicitly(monkeypatch):
         return None
 
     monkeypatch.setattr(live_streaming_service, "TwitchTokenService", TokenService)
+    monkeypatch.setattr(live_streaming_service, "SessionLocal", EmptySettingsDatabase)
     monkeypatch.setattr(
         live_streaming_service.proxy_health_service, "get_best_proxy", no_proxy
     )

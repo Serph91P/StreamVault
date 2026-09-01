@@ -12,8 +12,6 @@ import logging
 from pathlib import Path
 from typing import Optional
 
-from app.utils.security import sanitize_proxy_url_for_logging
-
 logger = logging.getLogger("streamvault")
 
 
@@ -57,15 +55,14 @@ class StreamlinkConfigService:
         This config contains static Streamlink options that don't change per-recording:
         - Codec preferences (h265, av1, h264)
         - Ad blocking settings
-        - OAuth authentication header (if token provided)
-        - Proxy settings (if configured)
 
-        Dynamic settings (quality, output path) are passed via command-line.
+        Credentials, proxy settings, quality, and output paths are passed via
+        command-line for each new process.
 
         Args:
-            oauth_token: Twitch OAuth token for H.265/1440p access
-            http_proxy: HTTP proxy URL
-            https_proxy: HTTPS proxy URL
+            oauth_token: Twitch OAuth token availability indicator
+            http_proxy: Ignored; proxies are passed to each new process
+            https_proxy: Ignored; proxies are passed to each new process
             supported_codecs: Comma-separated codec list (default: av1,h265,h264)
 
         Returns:
@@ -101,20 +98,6 @@ class StreamlinkConfigService:
             else:
                 logger.warning("⚠️ No OAuth token - H.265/1440p quality unavailable")
                 logger.warning("⚠️ No OAuth token - recordings limited to 1080p60 H.264")
-
-            proxy_url = (http_proxy or "").strip() or (https_proxy or "").strip()
-            if proxy_url:
-                config_lines.extend(
-                    [
-                        "# HTTP Proxy",
-                        f"http-proxy={proxy_url}",
-                        "",
-                    ]
-                )
-                logger.info(
-                    "🔧 HTTP proxy configured: %s",
-                    sanitize_proxy_url_for_logging(proxy_url),
-                )
 
             # Add static Streamlink options (from get_streamlink_command)
             config_lines.extend(

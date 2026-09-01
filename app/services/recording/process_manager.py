@@ -434,6 +434,7 @@ class ProcessManager:
             # CRITICAL: This prevents recording failures when proxies go down
             # Uses health checks and automatic failover to select best proxy
             proxy_settings = None
+            use_stored_proxy = False
 
             from app.database import SessionLocal
             from app.models import RecordingSettings
@@ -485,9 +486,10 @@ class ProcessManager:
                                 "No healthy proxies available. Please check proxy settings or enable fallback to direct connection."
                             )
                 else:
-                    # Proxy system disabled - use direct connection
-                    logger.info("ℹ️ Proxy system disabled - using direct connection")
-                    proxy_settings = None
+                    logger.info(
+                        "ℹ️ Proxy system disabled - checking stored proxy settings"
+                    )
+                    use_stored_proxy = True
 
             # Get codec preferences (H.265/AV1 support - Streamlink 8.0.0+)
             # Priority: Streamer-specific > Global default
@@ -515,6 +517,14 @@ class ProcessManager:
                     logger.warning("Failed to get OAuth token (%s)", type(e).__name__)
                     oauth_token = None
 
+                global_settings = db.query(GlobalSettings).first()
+                if use_stored_proxy and global_settings:
+                    stored_proxy = (global_settings.http_proxy or "").strip() or (
+                        global_settings.https_proxy or ""
+                    ).strip()
+                    if stored_proxy:
+                        proxy_settings = {"http": stored_proxy}
+
                 # === STEP 2: Get codec preferences ===
                 # Try to get per-streamer codec preference first
                 streamer_settings = (
@@ -531,7 +541,6 @@ class ProcessManager:
                     )
                 else:
                     # Fallback to global default
-                    global_settings = db.query(GlobalSettings).first()
                     if global_settings and hasattr(global_settings, "supported_codecs"):
                         supported_codecs = global_settings.supported_codecs
                         logger.debug(
@@ -547,8 +556,8 @@ class ProcessManager:
             )
 
             # Generate streamlink command for this segment
-            # Note: Global settings (OAuth, default proxy/codecs) are in config.twitch
-            # CLI parameters here override config for per-streamer customization
+            # Credentials and proxy selection stay process-local on the CLI.
+            # Codec CLI parameters override the static config for this streamer.
             cmd = get_streamlink_command(
                 streamer_name=streamer_name,
                 quality=quality,
