@@ -14,6 +14,8 @@ FIX: Now sends:
 """
 
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+import asyncio
+import importlib
 import logging
 from pathlib import Path
 import subprocess
@@ -95,6 +97,91 @@ def test_proxy_format():
     # Verify format
     assert http_proxy_arg == "--http-proxy=https://user:pass@proxy.example.com:8443"
     assert not any(arg.startswith("--https-proxy=") for arg in cmd)
+
+
+@pytest.mark.parametrize(
+    ("factory", "kwargs"),
+    [
+        (
+            get_streamlink_command,
+            {
+                "streamer_name": "test_streamer",
+                "quality": "best",
+                "output_path": "/tmp/recording.ts",
+            },
+        ),
+        (
+            get_streamlink_vod_command,
+            {
+                "video_id": "123456",
+                "quality": "best",
+                "output_path": "/tmp/vod.ts",
+            },
+        ),
+        (
+            get_streamlink_clip_command,
+            {
+                "clip_url": "https://clips.twitch.tv/FixtureClip",
+                "quality": "best",
+                "output_path": "/tmp/clip.ts",
+            },
+        ),
+    ],
+)
+def test_new_child_commands_use_one_effective_http_proxy(factory, kwargs):
+    proxy_url = "http://fixture-child:fixture-value@child.invalid:8080"
+
+    command = factory(proxy_settings={"http": proxy_url}, **kwargs)
+
+    assert [arg for arg in command if arg.startswith("--http-proxy=")] == [
+        f"--http-proxy={proxy_url}"
+    ]
+    assert "--http-proxy" not in command
+    assert not any(
+        arg == "--https-proxy" or arg.startswith("--https-proxy=")
+        for arg in command
+    )
+
+
+def test_add_proxy_settings_replaces_existing_proxy_idempotently():
+    command = [
+        "streamlink",
+        "--http-proxy",
+        "http://fixture-old:fixture-value@old.invalid:8080",
+        "--https-proxy=https://fixture-old:fixture-value@old.invalid:8443",
+        "--stream-timeout",
+        "42",
+    ]
+    proxy_settings = {
+        "http": "http://fixture-new:fixture-value@new.invalid:8080",
+        "https": "https://fixture-fallback:fixture-value@fallback.invalid:8443",
+    }
+
+    for _ in range(2):
+        command = streamlink_utils._add_proxy_settings(
+            command, proxy_settings, force_mode=False
+        )
+
+    assert [arg for arg in command if arg.startswith("--http-proxy=")] == [
+        "--http-proxy=http://fixture-new:fixture-value@new.invalid:8080"
+    ]
+    assert "--http-proxy" not in command
+    assert not any(
+        arg == "--https-proxy" or arg.startswith("--https-proxy=")
+        for arg in command
+    )
+    timeout_index = command.index("--stream-timeout")
+    assert command[timeout_index + 1] == "42"
+    for option in (
+        "--stream-segment-timeout",
+        "--stream-timeout",
+        "--stream-segmented-queue-deadline",
+        "--stream-segment-attempts",
+        "--ringbuffer-size",
+        "--hls-segment-stream-data",
+        "--hls-playlist-reload-time",
+    ):
+        assert command.count(option) == 1
 
 
 @pytest.mark.parametrize(
@@ -225,6 +312,161 @@ def test_proxy_request_profile_uses_one_bounded_block(force_mode: bool):
     assert cmd[attempts_index + 1] == "5"
     assert "--hls-live-edge" not in cmd
     assert "--stream-segment-threads" not in cmd
+
+
+@pytest.mark.parametrize(
+    ("recording_settings", "pool_proxy", "stored_http", "stored_https", "expected"),
+    [
+        (
+            SimpleNamespace(enable_proxy=True, fallback_to_direct_connection=True),
+            "http://fixture-pool:fixture-value@pool.invalid:8080",
+            "http://fixture-stored:fixture-value@stored.invalid:8080",
+            "https://fixture-stored:fixture-value@stored.invalid:8443",
+            "http://fixture-pool:fixture-value@pool.invalid:8080",
+        ),
+        (
+            SimpleNamespace(enable_proxy=True, fallback_to_direct_connection=True),
+            None,
+            "http://fixture-stored:fixture-value@stored.invalid:8080",
+            "https://fixture-stored:fixture-value@stored.invalid:8443",
+            None,
+        ),
+        (
+            SimpleNamespace(enable_proxy=False, fallback_to_direct_connection=True),
+            None,
+            "http://fixture-stored:fixture-value@stored.invalid:8080",
+            "https://fixture-stored:fixture-value@stored.invalid:8443",
+            "http://fixture-stored:fixture-value@stored.invalid:8080",
+        ),
+        (
+            None,
+            None,
+            None,
+            "https://fixture-stored:fixture-value@stored.invalid:8443",
+            "https://fixture-stored:fixture-value@stored.invalid:8443",
+        ),
+    ],
+)
+def test_recording_new_child_selects_pool_or_stored_proxy(
+    monkeypatch,
+    recording_settings,
+    pool_proxy,
+    stored_http,
+    stored_https,
+    expected,
+):
+    from app import database
+    from app.models import GlobalSettings, RecordingSettings, StreamerRecordingSettings
+    from app.services.notifications import external_notification_service
+    from app.services.proxy import proxy_health_service as proxy_health_module
+    from app.services.system import twitch_token_service
+
+    process_manager_module = importlib.import_module(
+        "app.services.recording.process_manager"
+    )
+    global_settings = SimpleNamespace(
+        http_proxy=stored_http,
+        https_proxy=stored_https,
+        supported_codecs="h264",
+    )
+    original_settings = vars(global_settings).copy()
+
+    class Query:
+        def __init__(self, model):
+            self.model = model
+
+        def filter(self, *_args):
+            return self
+
+        def first(self):
+            if self.model is RecordingSettings:
+                return recording_settings
+            if self.model is GlobalSettings:
+                return global_settings
+            if self.model is StreamerRecordingSettings:
+                return None
+            raise AssertionError(f"Unexpected model query: {self.model}")
+
+    class Database:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def query(self, model):
+            return Query(model)
+
+    class TokenService:
+        def __init__(self, _db):
+            pass
+
+        async def get_valid_access_token(self):
+            return None
+
+    class NotificationService:
+        async def send_recording_notification(self, **_kwargs):
+            return None
+
+    class Process:
+        returncode = None
+        pid = 123
+
+    pool_calls = 0
+
+    async def get_best_proxy():
+        nonlocal pool_calls
+        pool_calls += 1
+        return pool_proxy
+
+    commands = []
+
+    async def create_subprocess_exec(*command, **_kwargs):
+        commands.append(list(command))
+        return Process()
+
+    async def immediate_sleep(_delay):
+        return None
+
+    monkeypatch.setattr(database, "SessionLocal", Database)
+    monkeypatch.setattr(twitch_token_service, "TwitchTokenService", TokenService)
+    monkeypatch.setattr(proxy_health_module, "get_best_proxy", get_best_proxy)
+    monkeypatch.setattr(
+        external_notification_service,
+        "ExternalNotificationService",
+        NotificationService,
+    )
+    monkeypatch.setattr(
+        process_manager_module.asyncio,
+        "create_subprocess_exec",
+        create_subprocess_exec,
+    )
+    monkeypatch.setattr(process_manager_module.asyncio, "sleep", immediate_sleep)
+
+    manager = object.__new__(process_manager_module.ProcessManager)
+    manager.logging_service = None
+    manager.active_processes = {}
+    manager.long_stream_processes = {}
+    manager.lock = asyncio.Lock()
+    manager._track_segment_completion = lambda _process: None
+    stream = SimpleNamespace(
+        id=7,
+        streamer_id=11,
+        streamer=SimpleNamespace(username="streamer"),
+        title="fixture title",
+        category_name="fixture category",
+    )
+    segment_info = {"segment_count": 1, "total_segments": []}
+
+    asyncio.run(manager._start_segment(stream, "/tmp/segment.ts", "best", segment_info))
+
+    proxy_args = [arg for arg in commands[0] if arg.startswith("--http-proxy=")]
+    assert proxy_args == ([f"--http-proxy={expected}"] if expected else [])
+    assert not any(arg.startswith("--https-proxy=") for arg in commands[0])
+    assert pool_calls == (
+        1 if recording_settings and recording_settings.enable_proxy else 0
+    )
+    assert vars(global_settings) == original_settings
 
 
 def test_streamlink_840_segment_attempts_cap_http_requests(monkeypatch):
@@ -414,26 +656,8 @@ def test_generated_config_uses_bounded_central_request_profile(tmp_path: Path):
     } <= config_lines
 
 
-@pytest.mark.parametrize(
-    ("http_proxy", "https_proxy", "expected_proxy"),
-    [
-        (
-            "http://preferred.example.com:8080",
-            "https://fallback.example.com:8443",
-            "http-proxy=http://preferred.example.com:8080",
-        ),
-        (
-            None,
-            "https://fallback.example.com:8443",
-            "http-proxy=https://fallback.example.com:8443",
-        ),
-    ],
-)
-def test_generated_config_selects_one_http_proxy(
+def test_generated_config_replaces_legacy_credentials_with_static_options(
     tmp_path: Path,
-    http_proxy: str | None,
-    https_proxy: str,
-    expected_proxy: str,
 ):
     with patch("pathlib.Path.exists", return_value=True):
         from app.services.system.streamlink_config_service import (
@@ -443,18 +667,26 @@ def test_generated_config_selects_one_http_proxy(
     service = StreamlinkConfigService.__new__(StreamlinkConfigService)
     service.config_dir = tmp_path
     service.twitch_config_path = tmp_path / "config.twitch"
-
-    assert service.generate_twitch_config(
-        http_proxy=http_proxy,
-        https_proxy=https_proxy,
+    service.twitch_config_path.write_text(
+        "http-proxy=http://fixture-old:fixture-old-value@proxy.invalid:8080\n"
+        "https-proxy=https://fixture-old:fixture-old-value@proxy.invalid:8443\n"
+        "twitch-api-header=Authorization=OAuth fixture-old-oauth\n"
     )
 
-    proxy_lines = [
-        line
-        for line in service.twitch_config_path.read_text().splitlines()
-        if line.startswith(("http-proxy=", "https-proxy="))
-    ]
-    assert proxy_lines == [expected_proxy]
+    assert service.generate_twitch_config(
+        oauth_token="fixture-current-oauth",
+        http_proxy="http://fixture-current:fixture-value@proxy.invalid:8080/path",
+        https_proxy="https://fixture-fallback:fixture-value@proxy.invalid:8443",
+    )
+
+    config = service.twitch_config_path.read_text()
+    assert "http-proxy" not in config
+    assert "https-proxy" not in config
+    assert "twitch-api-header=" not in config
+    assert "fixture-old" not in config
+    assert "fixture-current" not in config
+    assert "fixture-fallback" not in config
+    assert "fixture-value" not in config
 
 
 def test_no_space_in_critical_arguments():
