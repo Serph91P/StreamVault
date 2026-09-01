@@ -335,6 +335,41 @@ def test_enhanced_live_requests_twitch_token_explicitly(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_live_streamlink_stderr_is_sanitized_and_context_is_released(caplog):
+    from app.services.live_streaming_service import LiveStreamingService
+
+    proxy_url = "https://" + ":".join(("viewer", "fixture-pass"))
+    proxy_url += "@relay.example:8443"
+
+    class Stderr:
+        def __init__(self):
+            self.lines = [
+                b"Authorization=OAuth fixture-auth-value-807 ",
+                (proxy_url + "/path\n").encode(),
+                b"",
+            ]
+
+        async def readline(self):
+            return self.lines.pop(0)
+
+    class Process:
+        def __init__(self):
+            self.stderr = Stderr()
+
+    process = Process()
+    service = LiveStreamingService()
+    service._streamlink_output_secrets[process] = ("fixture-auth-value-807",)
+
+    with caplog.at_level(logging.DEBUG, logger="streamvault"):
+        await service._log_stderr(process, "streamlink-local")
+
+    assert process not in service._streamlink_output_secrets
+    assert "relay.example:8443" in caplog.text
+    for value in ("viewer", "fixture-pass", "fixture-auth-value-807"):
+        assert value not in caplog.text
+
+
+@pytest.mark.asyncio
 async def test_live_reserves_before_children_and_releases_on_cancellation(
     monkeypatch, tmp_path
 ):

@@ -11,7 +11,6 @@ import logging
 import subprocess
 import json
 from typing import List, Optional, Dict, Any, Tuple
-from pathlib import Path
 from urllib.parse import urlparse
 
 from app.models import GlobalSettings
@@ -250,13 +249,6 @@ def get_streamlink_command(
     else:
         ts_output_path = output_path
 
-    # Use the streamlink log path for this recording session if not provided
-    if not log_path:
-        # Lazy import to avoid circular dependencies and import-time side effects
-        from app.services.system.logging_service import logging_service
-
-        log_path = logging_service.get_streamlink_log_path(streamer_name)
-
     # Core streamlink command
     # Note: Most options are in /app/config/streamlink/config.twitch (auto-generated)
     # We MUST specify --config to load our custom config location
@@ -268,8 +260,6 @@ def get_streamlink_command(
         quality,
         "-o",
         ts_output_path,
-        "--logfile",
-        log_path,
     ]
 
     # Note: These settings are now in config.twitch (auto-generated from settings):
@@ -451,10 +441,7 @@ def get_streamlink_vod_command(
         quality,
     ]
 
-    # Add logging level
-    log_dir = Path(output_path).parent
-    log_file = os.path.join(log_dir, f"streamlink_vod_{normalized_video_id}.log")
-    cmd.extend(["--loglevel", "debug", "--logfile", log_file])
+    cmd.extend(["--loglevel", "debug"])
 
     # Add proxy settings if provided
     if proxy_settings:
@@ -500,18 +487,7 @@ def get_streamlink_clip_command(
         quality,
     ]
 
-    # Add logging level
-    cmd.extend(
-        [
-            "--loglevel",
-            "debug",
-            "--logfile",
-            os.path.join(
-                Path(output_path).parent,
-                f"streamlink_clip_{Path(output_path).stem}.log",
-            ),
-        ]
-    )
+    cmd.extend(["--loglevel", "debug"])
 
     # Add proxy settings if provided
     if proxy_settings:

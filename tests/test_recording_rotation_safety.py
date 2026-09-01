@@ -30,6 +30,8 @@ class FakeProcess:
         terminate_error: BaseException | None = None,
         release_on_terminate: bool = True,
         release_on_kill: bool = True,
+        stdout: bytes = b"",
+        stderr: bytes = b"harmless local failure",
     ) -> None:
         self.returncode = returncode
         self.terminate_error = terminate_error
@@ -41,6 +43,8 @@ class FakeProcess:
         self.communicate_calls = 0
         self.wait_started = asyncio.Event()
         self.release = asyncio.Event()
+        self.stdout = stdout
+        self.stderr = stderr
         if returncode is not None:
             self.release.set()
 
@@ -67,7 +71,7 @@ class FakeProcess:
 
     async def communicate(self) -> tuple[bytes, bytes]:
         self.communicate_calls += 1
-        return b"", b"harmless local failure"
+        return self.stdout, self.stderr
 
 
 def make_manager(process: FakeProcess, stream_id: int = 7) -> ProcessManager:
@@ -690,6 +694,51 @@ async def test_start_recording_cleans_up_immediately_exited_child(
     assert failed_process.communicate_calls == 1
     assert (manager.active_processes, manager.long_stream_processes) == ({}, {})
     assert monitor_coroutines == []
+
+
+@pytest.mark.asyncio
+async def test_immediate_exit_uses_child_bound_sanitization_context(
+    monkeypatch, tmp_path, caplog
+) -> None:
+    failed_process = FakeProcess(
+        returncode=1,
+        stderr=b"Authorization=OAuth fixture-auth-value-807",
+    )
+    failed_process.pid = 1234
+    manager, stream, _monitor_coroutines = install_immediate_exit_start(
+        monkeypatch, failed_process
+    )
+    calls = []
+
+    class LoggingService:
+        def get_streamlink_log_path(self, streamer_name):
+            return str(tmp_path / "streamlink-child.log")
+
+        def log_streamlink_output(self, *args, **kwargs):
+            calls.append((args, kwargs))
+
+    manager.logging_service = LoggingService()
+    process_manager_module = importlib.import_module(
+        "app.services.recording.process_manager"
+    )
+    monkeypatch.setattr(
+        process_manager_module,
+        "get_streamlink_command",
+        lambda **kwargs: [
+            "streamlink",
+            "--twitch-api-header=Authorization=OAuth fixture-auth-value-807",
+        ],
+    )
+
+    with pytest.raises(ProcessError):
+        await manager.start_recording_process(
+            stream, str(tmp_path / "recording.ts"), "best"
+        )
+
+    assert calls
+    assert calls[0][1]["known_secrets"] == ("fixture-auth-value-807",)
+    assert "fixture-auth-value-807" not in caplog.text
+    assert failed_process not in manager._streamlink_output_secrets
 
 
 @pytest.mark.asyncio

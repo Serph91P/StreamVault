@@ -38,9 +38,9 @@ class TestStreamlinkUtils:
         assert "-o" in cmd
         assert "/tmp/output.ts" in cmd  # Should convert to .ts
 
-        # Check log settings
-        assert "--logfile" in cmd
-        assert "/tmp/streamlink.log" in cmd
+        # Child-owned logfile output must not bypass the application boundary.
+        assert "--logfile" not in cmd
+        assert "/tmp/streamlink.log" not in cmd
 
     def test_get_streamlink_command_with_proxy(self):
         """Test streamlink command with proxy settings.
