@@ -2,21 +2,44 @@
 Migration service for StreamVault database migrations.
 
 This service handles database migrations using separate migration files.
+
+Foundations (Phase 2):
+- The tracking table is created via SQLAlchemy inspection/create so fresh
+  SQLite databases (and PostgreSQL) work without PostgreSQL-only
+  ``information_schema`` queries.
+- Migration execution is serialized (PostgreSQL advisory lock) and
+  idempotent: only successful migrations are recorded. A failed migration is
+  never marked applied and stays pending for the next run.
+- Transactions are owned explicitly: the tracking-table writes use
+  ``engine.begin()`` and nothing commits on behalf of a migration script.
 """
 
 import os
 import glob
 import logging
 import importlib.util
-import importlib
+import inspect as py_inspect
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterator, List, Tuple
-from sqlalchemy import text
 
-from app.database import engine, SessionLocal
+from sqlalchemy import (
+    Boolean,
+    Column,
+    DateTime,
+    Integer,
+    MetaData,
+    String,
+    Table,
+    inspect as sa_inspect,
+    text,
+)
+
+from app.database import engine
 
 logger = logging.getLogger("streamvault")
+
+_MIGRATIONS_SAFE_NAME = "migrations"
 
 
 class MigrationService:
@@ -46,80 +69,80 @@ class MigrationService:
                 )
                 logger.info("PostgreSQL migration orchestration lock released")
 
+    @classmethod
+    def _migrations_table_definition(cls) -> Table:
+        """Return the Core Table definition for the tracking table."""
+        metadata = MetaData()
+        return Table(
+            _MIGRATIONS_SAFE_NAME,
+            metadata,
+            Column("id", Integer, primary_key=True, autoincrement=True),
+            Column("script_name", String(255), nullable=False, unique=True),
+            Column(
+                "applied_at",
+                DateTime(timezone=True),
+                server_default=text("CURRENT_TIMESTAMP"),
+            ),
+            Column("success", Boolean, nullable=False, server_default=text("TRUE")),
+        )
+
     @staticmethod
     def ensure_migrations_table():
-        """Create the migrations table if it doesn't exist"""
+        """Create the migrations table if it doesn't exist (dialect-agnostic).
+
+        Uses SQLAlchemy inspection instead of PostgreSQL-only
+        ``information_schema`` queries so SQLite startup works. The legacy
+        ``name``/missing-column fixups are preserved.
+        """
         try:
             with engine.connect() as connection:
-                # Check if table exists and what columns it has
-                result = connection.execute(
-                    text(
-                        """
-                    SELECT column_name
-                    FROM information_schema.columns
-                    WHERE table_name = 'migrations'
-                    AND table_schema = 'public'
-                """
-                    )
-                ).fetchall()
-
-                existing_columns = [row[0] for row in result]
-
-                if not existing_columns:
-                    # Table doesn't exist, create it
+                inspector = sa_inspect(connection)
+                if not inspector.has_table(_MIGRATIONS_SAFE_NAME):
                     logger.info("Creating migrations table...")
-                    connection.execute(
-                        text(
-                            """
-                        CREATE TABLE migrations (
-                            id SERIAL PRIMARY KEY,
-                            script_name VARCHAR(255) NOT NULL UNIQUE,
-                            applied_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-                            success BOOLEAN DEFAULT TRUE
-                        )
-                    """
-                        )
-                    )
-                    connection.commit()
+                    table = MigrationService._migrations_table_definition()
+                    with engine.begin() as setup_connection:
+                        table.create(setup_connection, checkfirst=True)
                     logger.info("✅ Migrations table created")
-                elif "script_name" not in existing_columns:
-                    # Table exists but has old schema, fix it
+                    return
+
+                columns = {
+                    column["name"]
+                    for column in inspector.get_columns(_MIGRATIONS_SAFE_NAME)
+                }
+                if "script_name" not in columns:
                     logger.info("Updating migrations table schema...")
-                    if "name" in existing_columns:
-                        # Rename old column
-                        connection.execute(
-                            text(
-                                "ALTER TABLE migrations RENAME COLUMN name TO script_name"
+                    with engine.begin() as setup_connection:
+                        if "name" in columns:
+                            setup_connection.execute(
+                                text(
+                                    "ALTER TABLE migrations RENAME COLUMN name TO script_name"
+                                )
                             )
-                        )
-                        connection.commit()
-                        logger.info("✅ Renamed 'name' column to 'script_name'")
-                    else:
-                        # Add new column
-                        connection.execute(
-                            text(
-                                "ALTER TABLE migrations ADD COLUMN script_name VARCHAR(255)"
+                            logger.info("✅ Renamed 'name' column to 'script_name'")
+                        else:
+                            setup_connection.execute(
+                                text(
+                                    "ALTER TABLE migrations ADD COLUMN script_name VARCHAR(255)"
+                                )
                             )
-                        )
-                        connection.commit()
-                        logger.info("✅ Added 'script_name' column")
+                            logger.info("✅ Added 'script_name' column")
                 else:
                     logger.info(
                         "✅ Migrations table already exists with correct schema"
                     )
-
         except Exception as e:
             logger.error(f"❌ Failed to ensure migrations table: {e}")
             raise
 
     @staticmethod
     def is_migration_applied(migration_name: str) -> bool:
-        """Check if a migration has been applied"""
+        """Check if a migration has been applied (successfully)."""
         try:
-            with SessionLocal() as db:
-                result = db.execute(
+            with engine.connect() as connection:
+                result = connection.execute(
                     text(
-                        "SELECT COUNT(*) FROM migrations WHERE script_name = :name AND success = TRUE"
+                        "SELECT COUNT(*) FROM migrations "
+                        "WHERE script_name = :name AND success = TRUE"
                     ),
                     {"name": migration_name},
                 ).scalar()
@@ -130,21 +153,32 @@ class MigrationService:
 
     @staticmethod
     def mark_migration_applied(migration_name: str, success: bool = True):
-        """Mark a migration as applied"""
+        """Record a successful migration only.
+
+        A failed migration is never recorded (``success=False`` is a no-op) so
+        it stays pending and is retried on the next run. The write is an
+        explicit transaction owned by ``engine.begin()``.
+        """
+        if not success:
+            logger.warning(
+                f"Skipping failure record for migration {migration_name} "
+                "(only successful migrations are recorded)"
+            )
+            return
         try:
-            with SessionLocal() as db:
-                db.execute(
+            with engine.begin() as connection:
+                connection.execute(
                     text(
                         """
                         INSERT INTO migrations (script_name, applied_at, success)
-                        VALUES (:name, NOW(), :success)
+                        VALUES (:name, CURRENT_TIMESTAMP, TRUE)
                         ON CONFLICT (script_name) DO UPDATE SET
-                        applied_at = NOW(), success = :success
-                    """
+                            applied_at = CURRENT_TIMESTAMP,
+                            success = TRUE
+                        """
                     ),
-                    {"name": migration_name, "success": success},
+                    {"name": migration_name},
                 )
-                db.commit()
         except Exception as e:
             logger.error(f"Error marking migration as applied: {e}")
             raise
@@ -251,10 +285,37 @@ class MigrationService:
         return migration_scripts
 
     @staticmethod
-    def run_migration_script(script_path: str) -> Tuple[bool, str]:
-        """Run a single migration script"""
+    def _invoke(migration_function, target_engine):
+        """Invoke a migration function, injecting the engine when it accepts one.
+
+        Migrations exposing ``upgrade(target_engine=None)`` (e.g. 039/040/041)
+        receive the engine explicitly so they can be tested against isolated
+        databases; plain ``upgrade()``/``run_migration()`` scripts keep working
+        unchanged.
+        """
         try:
-            script_name = os.path.basename(script_path)
+            signature = py_inspect.signature(migration_function)
+            parameters = list(signature.parameters.values())
+        except (TypeError, ValueError):
+            parameters = None
+
+        if parameters:
+            first = parameters[0].name
+            if first == "target_engine":
+                return migration_function(target_engine=target_engine)
+            if first == "engine":
+                return migration_function(engine=target_engine)
+        return migration_function()
+
+    @staticmethod
+    def run_migration_script(script_path: str) -> Tuple[bool, str]:
+        """Run a single migration script.
+
+        Only successful migrations are recorded; a raised exception leaves no
+        record so the migration remains pending.
+        """
+        script_name = os.path.basename(script_path)
+        try:
             logger.info(f"Running migration: {script_name}")
 
             # Check if this migration was already applied
@@ -272,26 +333,31 @@ class MigrationService:
 
             # For simple Alembic-style migrations, we'll use direct SQLAlchemy
             if hasattr(migration_module, "upgrade"):
-                migration_module.upgrade()
-                MigrationService.mark_migration_applied(script_name, True)
-                logger.info(f"✅ Successfully applied migration: {script_name}")
-                return True, "Migration completed successfully"
+                MigrationService._invoke(
+                    migration_module.upgrade, MigrationService._engine()
+                )
             elif hasattr(migration_module, "run_migration"):
-                migration_module.run_migration()
-                MigrationService.mark_migration_applied(script_name, True)
-                logger.info(f"✅ Successfully applied migration: {script_name}")
-                return True, "Migration completed successfully"
+                MigrationService._invoke(
+                    migration_module.run_migration, MigrationService._engine()
+                )
             else:
                 return False, "Migration has no upgrade() or run_migration() function"
+
+            MigrationService.mark_migration_applied(script_name)
+            logger.info(f"✅ Successfully applied migration: {script_name}")
+            return True, "Migration completed successfully"
 
         except Exception as e:
             logger.error(
                 f"Error running migration {script_path}: {str(e)}", exc_info=True
             )
-            MigrationService.mark_migration_applied(
-                os.path.basename(script_path), False
-            )
+            # Intentionally no record: a failed migration must not be marked applied.
             return False, str(e)
+
+    @staticmethod
+    def _engine():
+        """Return the active engine used for migration orchestration."""
+        return engine
 
     @classmethod
     def run_all_migrations(cls) -> List[Tuple[str, bool, str]]:
@@ -317,17 +383,18 @@ class MigrationService:
 
     @classmethod
     def record_migration(cls, script_name: str, success: bool) -> None:
-        """Record that a migration has been run"""
+        """Record a migration run; only successes are persisted."""
         cls.mark_migration_applied(script_name, success)
 
     @classmethod
     def get_applied_migrations(cls) -> List[str]:
         """Get list of migration scripts that have already been applied"""
         try:
-            with SessionLocal() as session:
-                result = session.execute(
+            with engine.connect() as connection:
+                result = connection.execute(
                     text(
-                        "SELECT script_name FROM migrations WHERE success = TRUE ORDER BY applied_at"
+                        "SELECT script_name FROM migrations WHERE success = TRUE "
+                        "ORDER BY applied_at, id"
                     )
                 ).fetchall()
                 return [row[0] for row in result]

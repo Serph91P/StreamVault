@@ -1,22 +1,20 @@
 """
-Async database utilities for StreamVault
+Async database utilities for StreamVault.
+
+The async engine and sessionmaker are owned by ``app.database.DatabaseLifecycle``
+and therefore lazily constructed; these helpers are a thin compatibility
+layer over that lifecycle.
 """
 
 import asyncio
-from typing import List, Any
+from typing import Any, List
 from sqlalchemy import select, desc
 from sqlalchemy.orm import selectinload
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-from app.database import get_database_url
+from app.database import database_lifecycle
 from app.models import Stream, Streamer
-from urllib.parse import urlparse, urlunparse
 import logging
 
 logger = logging.getLogger("streamvault")
-
-# Create async engine and session maker
-_async_engine = None
-_async_session_maker = None
 
 
 async def get_recent_streams(limit: int = 10) -> List[Stream]:
@@ -51,44 +49,13 @@ async def get_recent_streams(limit: int = 10) -> List[Stream]:
 
 
 def get_async_engine():
-    """Get or create async database engine"""
-    global _async_engine
-    if _async_engine is None:
-        database_url = get_database_url()
-        # Parse the database URL
-        parsed_url = urlparse(database_url)
-
-        # Update the scheme for async support
-        if parsed_url.scheme == "sqlite":
-            async_scheme = "sqlite+aiosqlite"
-        elif parsed_url.scheme in ("postgresql", "postgresql+psycopg"):
-            # Handle both postgresql and postgresql+psycopg schemes
-            # Use psycopg async adapter instead of asyncpg since we're using psycopg3
-            async_scheme = "postgresql+psycopg"
-        else:
-            raise ValueError(f"Unsupported database scheme: {parsed_url.scheme}")
-
-        # Reconstruct the URL with the updated scheme
-        async_url = urlunparse(parsed_url._replace(scheme=async_scheme))
-
-        logger.debug(
-            f"Creating async engine with scheme: {async_scheme}, database: {parsed_url.path}"
-        )
-        logger.debug(
-            f"Original URL scheme: {parsed_url.scheme} -> Async scheme: {async_scheme}"
-        )
-        _async_engine = create_async_engine(async_url, echo=False)
-    return _async_engine
+    """Get the lifecycle-owned async database engine (created lazily)"""
+    return database_lifecycle.async_engine
 
 
 def get_async_session_maker():
-    """Get or create async session maker"""
-    global _async_session_maker
-    if _async_session_maker is None:
-        _async_session_maker = async_sessionmaker(
-            bind=get_async_engine(), class_=AsyncSession, expire_on_commit=False
-        )
-    return _async_session_maker
+    """Get the lifecycle-owned async session maker (created lazily)"""
+    return database_lifecycle.async_session_factory
 
 
 def get_async_session():
@@ -99,16 +66,18 @@ def get_async_session():
 
 async def get_all_streamers() -> List[Streamer]:
     """
-    Get all streamers using async database session.
+    Get all streamers using the async repository.
 
     Returns:
         List of all Streamer objects
     """
+    from app.services.core.async_repositories import AsyncStreamerRepository
+
     async_session = get_async_session_maker()
     async with async_session() as session:
         try:
-            result = await session.execute(select(Streamer))
-            streamers = result.scalars().all()
+            repository = AsyncStreamerRepository(session)
+            streamers = await repository.get_all(include_test_data=True)
             return list(streamers)
         except Exception as e:
             logger.error(f"Error fetching streamers: {e}")

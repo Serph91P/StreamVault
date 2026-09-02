@@ -48,7 +48,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from typing import Dict, Optional, Tuple
 
-from app.database import engine, SessionLocal
+from app.database import database_lifecycle, SessionLocal
 from app.services.core.auth_service import AuthService
 import app.models as models
 from app.dependencies import websocket_manager, get_event_registry, get_current_user
@@ -153,7 +153,7 @@ async def lifespan(app: FastAPI):
         # Create any remaining tables from models (after migrations)
         logger.info("🔄 Creating remaining tables from models...")
         try:
-            models.Base.metadata.create_all(bind=engine)
+            models.Base.metadata.create_all(bind=database_lifecycle.sync_engine)
             logger.info("✅ All model tables ensured")
         except Exception as e:
             logger.error(f"❌ Error creating model tables: {e}")
@@ -479,12 +479,7 @@ async def lifespan(app: FastAPI):
 
     # Close database connections
     try:
-        from sqlalchemy.ext.asyncio import AsyncEngine
-
-        if isinstance(engine, AsyncEngine):
-            await engine.dispose()
-        else:
-            engine.dispose()
+        await database_lifecycle.adispose()
         logger.info("✅ Database connections closed")
     except Exception as e:
         logger.error(f"❌ Error disposing database engine: {e}")

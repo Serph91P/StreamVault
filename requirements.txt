@@ -6,6 +6,7 @@ uvicorn[standard]==0.52.4
 SQLAlchemy[postgresql]==2.0.52
 psycopg[binary]==3.3.4
 psycopg-pool==3.3.1
+aiosqlite==0.22.1
 alembic==1.19.1
 greenlet==3.5.5
 
