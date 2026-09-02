@@ -1,5 +1,6 @@
 import logging
 from dataclasses import dataclass
+from collections.abc import Callable
 from typing import Generator
 
 from fastapi import Depends, HTTPException, Request
@@ -131,13 +132,54 @@ def get_streamer_service(
     )
 
 
-def get_settings_service() -> Generator[SettingsService, None, None]:
-    db = SessionLocal()
-    try:
-        yield SettingsService(db)
-    finally:
-        db.close()
+def get_settings_service(
+    db: Session = Depends(get_db),
+) -> SettingsService:
+    """Yield an overrideable `SettingsService` bound to the DI session.
+
+    The session comes from ``get_db`` (an overrideable seam), so both the
+    settings service and its session can be replaced in tests. No direct
+    ``SessionLocal()`` construction happens inside the settings router.
+    """
+    return SettingsService(db)
 
 
 def get_notification_service() -> NotificationService:
     return NotificationService(websocket_manager=websocket_manager)
+
+
+def get_notification_service_factory() -> Callable[[], NotificationService]:
+    """Expose notification construction as a lazy, overrideable adapter seam."""
+    return get_notification_service
+
+
+def get_websocket_manager() -> ConnectionManager:
+    """Overrideable adapter for the shared WebSocket manager."""
+    return websocket_manager
+
+
+def get_image_service():
+    """Overrideable adapter for the unified image service.
+
+    This is the compatibility facade (``app.services.unified_image_service``).
+    Tests may override this dependency to provide a fake adapter so no real
+    HTTP/download or filesystem work happens.
+    """
+    from app.services.unified_image_service import unified_image_service
+
+    return unified_image_service
+
+
+def get_category_service(db: Session = Depends(get_db)):
+    """Overrideable provider for the category domain service."""
+    from app.services.categories.category_service import CategoryService
+    from app.services.categories.category_service import CategoryRepository
+
+    return CategoryService(CategoryRepository(db))
+
+
+def get_video_catalog_service(db: Session = Depends(get_db)):
+    """Overrideable provider for the media/video catalog service."""
+    from app.services.media.video_catalog_service import VideoCatalogService
+
+    return VideoCatalogService(db=db)
