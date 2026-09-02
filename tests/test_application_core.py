@@ -116,7 +116,7 @@ def test_create_app_preserves_the_compatibility_asgi_export():
     assert create_app() is app
     assert app.openapi_url == "/api/openapi.json"
     assert "/api/health/live" in app.openapi()["paths"]
-    assert any(getattr(route, "path", None) == "/" for route in app.routes)
+    assert "/" in app.openapi()["paths"]
 
     lifespan_source = inspect.getsource(lifespan)
     assert lifespan_source.index("run_safe_migrations") < lifespan_source.index(
