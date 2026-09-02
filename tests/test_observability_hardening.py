@@ -46,9 +46,9 @@ def test_redaction_covers_header_query_and_structured_sensitive_values() -> None
         pathname=__file__,
         lineno=1,
         msg=(
-            "authorization=Bearer top-secret cookie=session-value "
-            "https_proxy=http://proxy-user:proxy-pass@example.test "
-            "TWITCH_APP_SECRET=twitch-secret body={'password': 'body-secret'}"
+            "authorization=Bearer fixture-value-a cookie=session-value "
+            "https_proxy=http://proxy-user:fixture-value-b@example.test "
+            "TWITCH_APP_SECRET=fixture-value-c body={'password': 'fixture-value-d'}"
         ),
         args=(),
         exc_info=None,
@@ -57,11 +57,11 @@ def test_redaction_covers_header_query_and_structured_sensitive_values() -> None
     payload = RedactingFormatter("%(message)s").format(record)
 
     for secret in (
-        "top-secret",
+        "fixture-value-a",
         "session-value",
-        "proxy-pass",
-        "twitch-secret",
-        "body-secret",
+        "fixture-value-b",
+        "fixture-value-c",
+        "fixture-value-d",
     ):
         assert secret not in payload
 
@@ -69,7 +69,7 @@ def test_redaction_covers_header_query_and_structured_sensitive_values() -> None
 def test_redaction_covers_child_process_arguments_and_environment_values() -> None:
     from app.config.logging_config import RedactingFormatter
 
-    child_token = "child-process-token"
+    child_token = "fixture-value-e"
     record = logging.LogRecord(
         name="streamvault",
         level=logging.ERROR,
@@ -77,8 +77,8 @@ def test_redaction_covers_child_process_arguments_and_environment_values() -> No
         lineno=1,
         msg=(
             "streamlink --twitch-api-header=Authorization=OAuth "
-            f"{child_token} --http-proxy=https://proxy-user:proxy-pass@example.test "
-            "env={'TWITCH_OAUTH_TOKEN': 'environment-token'}"
+            f"{child_token} --http-proxy=https://proxy-user:fixture-value-b@example.test "
+            "env={'TWITCH_OAUTH_TOKEN': 'fixture-value-f'}"
         ),
         args=(),
         exc_info=None,
@@ -86,7 +86,7 @@ def test_redaction_covers_child_process_arguments_and_environment_values() -> No
 
     payload = RedactingFormatter("%(message)s").format(record)
 
-    for secret in (child_token, "proxy-pass", "environment-token"):
+    for secret in (child_token, "fixture-value-b", "fixture-value-f"):
         assert secret not in payload
 
 
@@ -95,7 +95,7 @@ def test_production_origin_and_host_policy_is_explicit_and_fail_closed() -> None
 
     settings = Settings(
         TWITCH_APP_ID="test-id",
-        TWITCH_APP_SECRET="test-secret",
+        TWITCH_APP_SECRET="fixture-value",
         BASE_URL="https://streamvault.example.test",
         ENVIRONMENT="production",
     )
@@ -118,7 +118,7 @@ def test_comma_separated_deployment_lists_are_accepted_from_the_environment(
 
     settings = Settings(
         TWITCH_APP_ID="test-id",
-        TWITCH_APP_SECRET="test-secret",
+        TWITCH_APP_SECRET="fixture-value",
         BASE_URL="https://streamvault.example.test",
     )
 
@@ -430,14 +430,14 @@ def test_metrics_endpoint_is_opt_in_and_requires_its_deployment_token(
     from app.routes import health
 
     monkeypatch.setattr(health.settings, "METRICS_ENABLED", True)
-    monkeypatch.setattr(health.settings, "METRICS_AUTH_TOKEN", "metrics-test-token")
+    monkeypatch.setattr(health.settings, "METRICS_AUTH_TOKEN", "metrics-fixture-value")
     monkeypatch.setattr(health.settings, "METRICS_ALLOW_UNAUTHENTICATED", False)
     app = FastAPI()
     app.include_router(health.router)
     with TestClient(app) as client:
         rejected = client.get("/api/metrics")
         accepted = client.get(
-            "/api/metrics", headers={"Authorization": "Bearer metrics-test-token"}
+            "/api/metrics", headers={"Authorization": "Bearer metrics-fixture-value"}
         )
 
     assert rejected.status_code == 404
@@ -456,7 +456,7 @@ def test_metrics_token_policy_is_reachable_through_auth_middleware(monkeypatch) 
 
     monkeypatch.setattr(auth_middleware, "SessionLocal", database_must_not_be_opened)
     monkeypatch.setattr(health.settings, "METRICS_ENABLED", True)
-    monkeypatch.setattr(health.settings, "METRICS_AUTH_TOKEN", "metrics-test-token")
+    monkeypatch.setattr(health.settings, "METRICS_AUTH_TOKEN", "metrics-fixture-value")
     monkeypatch.setattr(health.settings, "METRICS_ALLOW_UNAUTHENTICATED", False)
     app = FastAPI()
     app.include_router(health.router)
@@ -466,7 +466,7 @@ def test_metrics_token_policy_is_reachable_through_auth_middleware(monkeypatch) 
         rejected = client.get("/api/metrics", follow_redirects=False)
         accepted = client.get(
             "/api/metrics",
-            headers={"Authorization": "Bearer metrics-test-token"},
+            headers={"Authorization": "Bearer metrics-fixture-value"},
             follow_redirects=False,
         )
 
