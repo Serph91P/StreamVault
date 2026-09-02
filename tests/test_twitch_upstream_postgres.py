@@ -133,6 +133,7 @@ async def test_postgres_lease_contention_renewal_expiry_and_takeover(
     assert takeover.state == "RECOVERING"
     with Session() as db:
         lease = db.query(TwitchUpstreamLease).one()
+        assert db.query(TwitchUpstreamCoordinationState).count() == 1
         assert (lease.generation, lease.state) == (
             takeover.generation,
             "RECOVERING",
