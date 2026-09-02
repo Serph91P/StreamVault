@@ -53,8 +53,11 @@ def get_current_identity(
         try:
             claims = service.decode_access_token(token)
             return AuthIdentity(
-                subject=claims["sub"], roles=frozenset(claims.get("roles", [])),
-                scopes=frozenset(claims.get("scp", [])), auth_method="jwt", interactive=True,
+                subject=claims["sub"],
+                roles=frozenset(claims.get("roles", [])),
+                scopes=frozenset(claims.get("scp", [])),
+                auth_method="jwt",
+                interactive=True,
             )
         except AuthTokenError:
             pass
@@ -62,27 +65,43 @@ def get_current_identity(
     if legacy:
         user = service.resolve_legacy_session(legacy)
         if user:
-            return AuthIdentity(str(user.id), frozenset({"admin"}) if user.is_admin else frozenset(),
-                service._user_scopes(user), "legacy-session", True)
+            return AuthIdentity(
+                str(user.id),
+                frozenset({"admin"}) if user.is_admin else frozenset(),
+                service._user_scopes(user),
+                "legacy-session",
+                True,
+            )
     raise HTTPException(status_code=401, detail="Authentication required")
 
 
 def require_scopes(*required: str):
-    def dependency(identity: AuthIdentity = Depends(get_current_identity)) -> AuthIdentity:
+    def dependency(
+        identity: AuthIdentity = Depends(get_current_identity),
+    ) -> AuthIdentity:
         if not set(required).issubset(identity.scopes):
             raise HTTPException(status_code=403, detail="Insufficient scope")
         return identity
+
     return dependency
 
 
-def require_interactive_identity(identity: AuthIdentity = Depends(get_current_identity)) -> AuthIdentity:
+def require_interactive_identity(
+    identity: AuthIdentity = Depends(get_current_identity),
+) -> AuthIdentity:
     if not identity.interactive:
-        raise HTTPException(status_code=403, detail="Interactive authentication required")
+        raise HTTPException(
+            status_code=403, detail="Interactive authentication required"
+        )
     return identity
 
 
-def get_current_user(identity: AuthIdentity = Depends(get_current_identity), db: Session = Depends(get_db)):
+def get_current_user(
+    identity: AuthIdentity = Depends(get_current_identity),
+    db: Session = Depends(get_db),
+):
     from app.models import User
+
     user = db.query(User).filter_by(id=int(identity.subject), is_active=True).first()
     if not user:
         raise HTTPException(status_code=403, detail="Access denied")
@@ -94,14 +113,22 @@ async def get_event_registry():
     if not event_registry:
         from app.config.settings import get_settings
         from app.events.handler_registry import EventHandlerRegistry
-        event_registry = EventHandlerRegistry(connection_manager=websocket_manager, settings=get_settings())
+
+        event_registry = EventHandlerRegistry(
+            connection_manager=websocket_manager, settings=get_settings()
+        )
         await event_registry.initialize_eventsub()
     return event_registry
 
 
-def get_streamer_service(db: Session = Depends(get_db), event_registry=Depends(get_event_registry)):
+def get_streamer_service(
+    db: Session = Depends(get_db), event_registry=Depends(get_event_registry)
+):
     from app.services.streamer_service import StreamerService
-    return StreamerService(db=db, websocket_manager=websocket_manager, event_registry=event_registry)
+
+    return StreamerService(
+        db=db, websocket_manager=websocket_manager, event_registry=event_registry
+    )
 
 
 def get_settings_service() -> Generator[SettingsService, None, None]:

@@ -48,9 +48,13 @@ def db_session():
 
 
 @pytest.mark.asyncio
-async def test_login_success_failure_and_disabled_user_are_explicit(db_session, auth_settings):
+async def test_login_success_failure_and_disabled_user_are_explicit(
+    db_session, auth_settings
+):
     service = AuthService(db_session, settings=auth_settings)
-    user = User(username="admin", password=service.hash_password("correct horse"), is_admin=True)
+    user = User(
+        username="admin", password=service.hash_password("correct horse"), is_admin=True
+    )
     disabled = User(
         username="disabled",
         password=service.hash_password("correct horse"),
@@ -89,7 +93,9 @@ async def test_access_tokens_enforce_type_temporal_issuer_audience_and_algorithm
     db_session, auth_settings
 ):
     service = AuthService(db_session, settings=auth_settings)
-    user = User(username="admin", password=service.hash_password("password"), is_admin=True)
+    user = User(
+        username="admin", password=service.hash_password("password"), is_admin=True
+    )
     db_session.add(user)
     db_session.commit()
 
@@ -124,15 +130,21 @@ async def test_access_tokens_enforce_type_temporal_issuer_audience_and_algorithm
         with pytest.raises(AuthTokenError):
             service.decode_access_token(token)
 
-    unsigned = jwt.encode(invalid_claims | {"typ": "access"}, key=None, algorithm="none")
+    unsigned = jwt.encode(
+        invalid_claims | {"typ": "access"}, key=None, algorithm="none"
+    )
     with pytest.raises(AuthTokenError):
         service.decode_access_token(unsigned)
 
 
 @pytest.mark.asyncio
-async def test_refresh_rotation_replay_revokes_the_entire_family(db_session, auth_settings):
+async def test_refresh_rotation_replay_revokes_the_entire_family(
+    db_session, auth_settings
+):
     service = AuthService(db_session, settings=auth_settings)
-    user = User(username="admin", password=service.hash_password("password"), is_admin=True)
+    user = User(
+        username="admin", password=service.hash_password("password"), is_admin=True
+    )
     db_session.add(user)
     db_session.commit()
 
@@ -154,7 +166,9 @@ async def test_logout_revokes_refresh_family_and_api_keys_are_not_interactive_se
     db_session, auth_settings
 ):
     service = AuthService(db_session, settings=auth_settings)
-    user = User(username="admin", password=service.hash_password("password"), is_admin=True)
+    user = User(
+        username="admin", password=service.hash_password("password"), is_admin=True
+    )
     db_session.add(user)
     db_session.commit()
 
@@ -172,15 +186,21 @@ def test_scope_dependency_denies_missing_scope_and_supports_override():
         return {"subject": identity.subject}
 
     app.dependency_overrides[get_current_identity] = lambda: AuthIdentity(
-        subject="1", roles=frozenset({"admin"}), scopes=frozenset({"settings:read"}),
-        auth_method="session", interactive=True,
+        subject="1",
+        roles=frozenset({"admin"}),
+        scopes=frozenset({"settings:read"}),
+        auth_method="session",
+        interactive=True,
     )
     with TestClient(app) as client:
         assert client.get("/settings").status_code == 403
 
     app.dependency_overrides[get_current_identity] = lambda: AuthIdentity(
-        subject="1", roles=frozenset({"admin"}), scopes=frozenset({"settings:write"}),
-        auth_method="session", interactive=True,
+        subject="1",
+        roles=frozenset({"admin"}),
+        scopes=frozenset({"settings:write"}),
+        auth_method="session",
+        interactive=True,
     )
     with TestClient(app) as client:
         assert client.get("/settings").json() == {"subject": "1"}

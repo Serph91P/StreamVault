@@ -58,7 +58,11 @@ def _hash_token(token: str) -> str:
 
 
 def _as_utc(value: datetime) -> datetime:
-    return value.replace(tzinfo=timezone.utc) if value.tzinfo is None else value.astimezone(timezone.utc)
+    return (
+        value.replace(tzinfo=timezone.utc)
+        if value.tzinfo is None
+        else value.astimezone(timezone.utc)
+    )
 
 
 class AuthService:
@@ -131,11 +135,15 @@ class AuthService:
         audience = getattr(self.settings, "AUTH_JWT_AUDIENCE", "streamvault-api")
         access_minutes = getattr(self.settings, "AUTH_ACCESS_TOKEN_MINUTES", 15)
         if not isinstance(secret, str) or len(secret) < 32:
-            raise AuthConfigurationError("AUTH_JWT_SECRET must be at least 32 characters")
+            raise AuthConfigurationError(
+                "AUTH_JWT_SECRET must be at least 32 characters"
+            )
         if algorithm != "HS256":
             raise AuthConfigurationError("AUTH_JWT_ALGORITHM must be HS256")
         if not issuer or not audience or access_minutes < 1:
-            raise AuthConfigurationError("JWT issuer, audience, and lifetime are required")
+            raise AuthConfigurationError(
+                "JWT issuer, audience, and lifetime are required"
+            )
         return secret, algorithm, issuer, audience, access_minutes
 
     @staticmethod
@@ -193,7 +201,9 @@ class AuthService:
     ) -> tuple[RefreshToken, str]:
         now = datetime.now(timezone.utc)
         expires_at, new_family_expiry = self._refresh_expiry(now)
-        family_expires_at = _as_utc(family_expires_at) if family_expires_at else new_family_expiry
+        family_expires_at = (
+            _as_utc(family_expires_at) if family_expires_at else new_family_expiry
+        )
         if family_expires_at <= now:
             raise AuthTokenError("Refresh family expired")
         raw_token = f"svr_{secrets.token_urlsafe(32)}"
@@ -224,7 +234,9 @@ class AuthService:
         now = datetime.now(timezone.utc)
         count = (
             self.db.query(RefreshToken)
-            .filter(RefreshToken.family_id == family_id, RefreshToken.revoked_at.is_(None))
+            .filter(
+                RefreshToken.family_id == family_id, RefreshToken.revoked_at.is_(None)
+            )
             .update({RefreshToken.revoked_at: now}, synchronize_session=False)
         )
         self.db.commit()
@@ -239,7 +251,10 @@ class AuthService:
         if refresh.used_at is not None or refresh.revoked_at is not None:
             self.revoke_refresh_family(refresh.family_id)
             raise RefreshTokenReplayError("Refresh token replay detected")
-        if _as_utc(refresh.expires_at) < now or _as_utc(refresh.family_expires_at) < now:
+        if (
+            _as_utc(refresh.expires_at) < now
+            or _as_utc(refresh.family_expires_at) < now
+        ):
             self.revoke_refresh_family(refresh.family_id)
             raise AuthTokenError("Refresh token expired")
         user = self.db.query(User).filter_by(id=refresh.user_id).first()
@@ -275,7 +290,9 @@ class AuthService:
         session = self.db.query(Session).filter_by(token=_hash_token(token)).first()
         if not session:
             return None
-        cutoff = datetime.now(timezone.utc) - timedelta(hours=self.session_timeout_hours)
+        cutoff = datetime.now(timezone.utc) - timedelta(
+            hours=self.session_timeout_hours
+        )
         if session.created_at < cutoff:
             self.db.delete(session)
             self.db.commit()
@@ -287,7 +304,9 @@ class AuthService:
         return self.resolve_legacy_session(token) is not None
 
     async def cleanup_expired_sessions(self) -> int:
-        cutoff = datetime.now(timezone.utc) - timedelta(hours=self.session_timeout_hours)
+        cutoff = datetime.now(timezone.utc) - timedelta(
+            hours=self.session_timeout_hours
+        )
         expired = self.db.query(Session).filter(Session.created_at < cutoff).all()
         for session in expired:
             self.db.delete(session)

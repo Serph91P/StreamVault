@@ -5,7 +5,11 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse, RedirectResponse, FileResponse
 from sqlalchemy.orm import Session
-from app.services.core.auth_service import AuthService, AuthTokenError, RefreshTokenReplayError
+from app.services.core.auth_service import (
+    AuthService,
+    AuthTokenError,
+    RefreshTokenReplayError,
+)
 from app.dependencies import get_auth_service, get_current_user, get_db
 from app.schemas.auth import UserCreate
 from app.config.settings import get_settings
@@ -166,8 +170,13 @@ async def login(
             max_age=15 * 60,
         )
         response.set_cookie(
-            key="refresh_token", value=tokens.refresh_token, httponly=True,
-            secure=settings.USE_SECURE_COOKIES, samesite="lax", path="/auth", max_age=60 * 60 * 24,
+            key="refresh_token",
+            value=tokens.refresh_token,
+            httponly=True,
+            secure=settings.USE_SECURE_COOKIES,
+            samesite="lax",
+            path="/auth",
+            max_age=60 * 60 * 24,
         )
         logger.info(f"Successful login for user: {request.username}")
         return response
@@ -241,7 +250,9 @@ async def check_auth(
 
 
 @router.post("/refresh")
-async def refresh_access_token(request: Request, auth_service: AuthService = Depends(get_auth_service)):
+async def refresh_access_token(
+    request: Request, auth_service: AuthService = Depends(get_auth_service)
+):
     raw_token = request.cookies.get("refresh_token")
     if not raw_token:
         raise HTTPException(status_code=401, detail="Refresh token required")
@@ -253,8 +264,24 @@ async def refresh_access_token(request: Request, auth_service: AuthService = Dep
         raise HTTPException(status_code=401, detail="Invalid refresh token")
     settings = get_settings()
     response = JSONResponse(content={"success": True})
-    response.set_cookie(key="access_token", value=tokens.access_token, httponly=True, secure=settings.USE_SECURE_COOKIES, samesite="lax", path="/", max_age=15 * 60)
-    response.set_cookie(key="refresh_token", value=tokens.refresh_token, httponly=True, secure=settings.USE_SECURE_COOKIES, samesite="lax", path="/auth", max_age=60 * 60 * 24)
+    response.set_cookie(
+        key="access_token",
+        value=tokens.access_token,
+        httponly=True,
+        secure=settings.USE_SECURE_COOKIES,
+        samesite="lax",
+        path="/",
+        max_age=15 * 60,
+    )
+    response.set_cookie(
+        key="refresh_token",
+        value=tokens.refresh_token,
+        httponly=True,
+        secure=settings.USE_SECURE_COOKIES,
+        samesite="lax",
+        path="/auth",
+        max_age=60 * 60 * 24,
+    )
     return response
 
 
