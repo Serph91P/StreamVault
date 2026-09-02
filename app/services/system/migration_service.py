@@ -357,7 +357,8 @@ class MigrationService:
     @staticmethod
     def _engine():
         """Return the active engine used for migration orchestration."""
-        return engine
+        lifecycle = getattr(engine, "_lifecycle", None)
+        return lifecycle.sync_engine if lifecycle is not None else engine
 
     @classmethod
     def run_all_migrations(cls) -> List[Tuple[str, bool, str]]:
