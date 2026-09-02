@@ -12,6 +12,7 @@ from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from app.config.settings import settings
 from app.config.logging_config import request_context
 from app.middleware.logging import logging_middleware
+from app.observability import service_metrics
 
 import logging
 
@@ -40,6 +41,7 @@ class AdaptiveLimiter:
         self.default_capacity = settings.RATE_LIMIT_CAPACITY
         self.default_refill = settings.RATE_LIMIT_REFILL_PER_SEC
         self.max_wait_ms = settings.RATE_LIMIT_MAX_WAIT_MS
+        self.max_buckets = max(1, settings.RATE_LIMIT_MAX_BUCKETS)
         self._buckets: Dict[str, _TokenBucket] = {}
         self._lock = asyncio.Lock()
 
@@ -73,6 +75,14 @@ class AdaptiveLimiter:
         async with self._lock:
             bucket = self._buckets.get(key)
             if bucket is None:
+                if len(self._buckets) >= self.max_buckets:
+                    # Bound attacker-controlled key growth. The oldest bucket is
+                    # safe to evict because limiter state is best-effort only.
+                    oldest_key = min(
+                        self._buckets,
+                        key=lambda bucket_key: self._buckets[bucket_key].last_refill,
+                    )
+                    self._buckets.pop(oldest_key, None)
                 bucket = _TokenBucket(
                     capacity, refill, float(capacity), time.time(), asyncio.Lock()
                 )
@@ -201,7 +211,14 @@ async def add_security_headers(request: Request, call_next):
 
 
 async def add_request_id(request: Request, call_next):
-    request_id = str(uuid.uuid4())
+    supplied_request_id = request.headers.get("X-Request-ID")
+    try:
+        request_id = (
+            str(uuid.UUID(supplied_request_id)) if supplied_request_id else None
+        )
+    except (ValueError, AttributeError):
+        request_id = None
+    request_id = request_id or str(uuid.uuid4())
     request.state.request_id = request_id
     request_token = request_context.set(request_id)
 
@@ -218,11 +235,19 @@ async def add_request_id(request: Request, call_next):
         # Log at debug level for background queue endpoints
         logger.debug(f"Request {request_id}: {request.method} {request.url.path}")
 
+    started_at = time.monotonic()
+    response = None
     try:
         response = await call_next(request)
         response.headers["X-Request-ID"] = request_id
         return response
     finally:
+        service_metrics.record_request(
+            method=request.method,
+            route=request.url.path,
+            status_code=response.status_code if response is not None else 500,
+            duration_seconds=time.monotonic() - started_at,
+        )
         request_context.reset(request_token)
 
 
@@ -231,7 +256,8 @@ async def rate_limit_middleware(request: Request, call_next):
 
     # Skip rate limiting for health checks, static files, and internal API calls
     if (
-        request.url.path in ["/health", "/favicon.ico"]
+        request.url.path
+        in ["/health", "/api/health", "/api/health/ready", "/favicon.ico"]
         or request.url.path.startswith("/assets/")
         or request.url.path.startswith("/api/images/")  # Skip for image API calls
         or request.url.path.startswith(
@@ -242,10 +268,7 @@ async def rate_limit_middleware(request: Request, call_next):
     ):
         return await call_next(request)
 
-    # Get client IP (respect reverse proxy)
-    client_ip = request.client.host
-    if request.headers.get("X-Forwarded-For"):
-        client_ip = request.headers["X-Forwarded-For"].split(",")[0].strip()
+    client_ip = client_ip_for_request(request)
 
     # Skip for localhost/internal
     if client_ip in ["127.0.0.1", "localhost", "::1"]:
@@ -279,6 +302,15 @@ async def rate_limit_middleware(request: Request, call_next):
     return response
 
 
+def client_ip_for_request(request: Request) -> str:
+    """Use forwarded client identity only when the direct peer is trusted."""
+    client_ip = request.client.host if request.client else "unknown"
+    forwarded_for = request.headers.get("X-Forwarded-For")
+    if settings.is_trusted_proxy(client_ip) and forwarded_for:
+        return forwarded_for.split(",", 1)[0].strip()
+    return client_ip
+
+
 def install_http_middleware(app: FastAPI) -> None:
     """Install all HTTP middleware in the same order as the legacy main module.
 
@@ -292,11 +324,7 @@ def install_http_middleware(app: FastAPI) -> None:
         # Only allow requests to our configured domain in production
         app.add_middleware(
             TrustedHostMiddleware,
-            allowed_hosts=[
-                settings.domain,
-                f"www.{settings.domain}",
-                "localhost",  # For health checks
-            ],
+            allowed_hosts=settings.trusted_hosts,
         )
 
     # Add CORS middleware with secure configuration

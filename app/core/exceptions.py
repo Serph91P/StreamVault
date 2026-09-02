@@ -50,7 +50,11 @@ async def domain_error_handler(_: Request, exc: DomainError) -> JSONResponse:
 
 async def unhandled_error_handler(request: Request, exc: Exception) -> JSONResponse:
     request_id = getattr(request.state, "request_id", None)
-    logger.exception("Unhandled request error", extra={"request_id": request_id})
+    try:
+        logger.exception("Unhandled request error", extra={"request_id": request_id})
+    except Exception:  # nosec B110
+        # Error reporting must not suppress the stable API error envelope.
+        pass
     return JSONResponse(
         status_code=500,
         content=_error_payload(

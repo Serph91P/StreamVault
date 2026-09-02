@@ -115,6 +115,8 @@ class AuthMiddleware:
             "/auth/keepalive",
             # Infrastructure
             "/api/health",  # Docker/K8s health probes (internal network only)
+            # The metrics route owns its separate opt-in token policy.
+            "/api/metrics",
             # Twitch integration (server-to-server & OAuth redirect)
             "/eventsub",
             "/api/twitch/callback",

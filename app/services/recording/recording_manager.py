@@ -9,9 +9,11 @@ subprocess, rotation, recovery, and post-processing behavior to
 from __future__ import annotations
 
 import asyncio
+import time
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
+from app.observability import service_metrics
 from app.services.twitch_upstream_coordinator import twitch_upstream_coordinator
 
 if TYPE_CHECKING:
@@ -61,6 +63,7 @@ class RecordingManager:
         self._lifecycle_lock = asyncio.Lock()
         self._stopped_recording_ids: set[int] = set()
         self._stopped_streamer_ids: set[int] = set()
+        self._recording_started_at: dict[int, float] = {}
 
     @property
     def recording_service(self) -> RecordingService:
@@ -94,6 +97,11 @@ class RecordingManager:
             if recording_id is not None:
                 self._stopped_recording_ids.discard(recording_id)
                 self._stopped_streamer_ids.discard(streamer_id)
+                self._recording_started_at[recording_id] = time.monotonic()
+                service_metrics.recording_started()
+            else:
+                service_metrics.recording_failed()
+            self._refresh_active_recordings_metric()
             return recording_id
 
     async def stop_recording(self, recording_id: int, reason: str = "manual") -> bool:
@@ -104,6 +112,15 @@ class RecordingManager:
             stopped = await self._service.stop_recording(recording_id, reason)
             if stopped:
                 self._stopped_recording_ids.add(recording_id)
+                started_at = self._recording_started_at.pop(recording_id, None)
+                service_metrics.recording_stopped(
+                    duration_seconds=time.monotonic() - started_at
+                    if started_at is not None
+                    else None
+                )
+            else:
+                service_metrics.recording_failed()
+            self._refresh_active_recordings_metric()
             return stopped
 
     async def force_start_recording(self, streamer_id: int) -> int | None:
@@ -119,6 +136,11 @@ class RecordingManager:
             if recording_id is not None:
                 self._stopped_recording_ids.discard(recording_id)
                 self._stopped_streamer_ids.discard(streamer_id)
+                self._recording_started_at[recording_id] = time.monotonic()
+                service_metrics.recording_started()
+            else:
+                service_metrics.recording_failed()
+            self._refresh_active_recordings_metric()
             return recording_id
 
     async def stop_recording_manual(self, streamer_id: int) -> bool:
@@ -129,6 +151,10 @@ class RecordingManager:
             stopped = await self._service.stop_recording_manual(streamer_id)
             if stopped:
                 self._stopped_streamer_ids.add(streamer_id)
+                service_metrics.recording_stopped()
+            else:
+                service_metrics.recording_failed()
+            self._refresh_active_recordings_metric()
             return stopped
 
     def is_stream_active(self, stream_id: int) -> bool:
@@ -171,7 +197,9 @@ class RecordingManager:
 
     async def reconcile_leases(self) -> int:
         """Release only stale durable leases before queue-backed recovery begins."""
-        return await self._upstream_coordinator.reconcile()
+        reconciled = await self._upstream_coordinator.reconcile()
+        service_metrics.record_lease_recovery(reconciled)
+        return reconciled
 
     async def renew_leases(self) -> int:
         """Renew leases for locally tracked process owners only.
@@ -208,4 +236,9 @@ class RecordingManager:
             streamer_id=recording.get("streamer_id"),
             file_path=recording.get("file_path"),
             status=str(recording.get("status", "unknown")),
+        )
+
+    def _refresh_active_recordings_metric(self) -> None:
+        service_metrics.set_active_recordings(
+            len(self._service.get_active_recordings())
         )

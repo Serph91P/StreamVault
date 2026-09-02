@@ -16,6 +16,7 @@ from app.models import (
     TwitchUpstreamCoordinationState,
     TwitchUpstreamLease,
 )
+from app.observability import service_metrics
 
 AUTHENTICATED_TWITCH_ACCOUNT = "streamvault-global-twitch-account"
 ACTIVE_STATES = ("STARTING", "ACTIVE", "ROTATING", "RECOVERING")
@@ -800,6 +801,7 @@ class TwitchUpstreamCoordinator:
 
     @staticmethod
     def _conflict(code, reason, channel_key):
+        service_metrics.record_lease_contention()
         raise TwitchUpstreamConflict(code, reason, channel_key)
 
 

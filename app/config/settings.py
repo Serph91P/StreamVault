@@ -1,9 +1,11 @@
-from pydantic_settings import BaseSettings, SettingsConfigDict
-from typing import Optional
+from pydantic import field_validator
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
+from typing import Annotated, Optional
 import secrets
 from typing import List
 import logging
 import base64
+import ipaddress
 from functools import lru_cache
 from pathlib import Path
 from cryptography.hazmat.primitives import serialization
@@ -193,6 +195,10 @@ class Settings(BaseSettings):
 
     # Additional allowed origins (comma-separated in env)
     CORS_ADDITIONAL_ORIGINS: str = ""
+    # Explicit host/proxy controls. Empty proxy configuration means forwarded
+    # headers are ignored instead of trusting arbitrary clients.
+    TRUSTED_HOSTS: Annotated[List[str], NoDecode] = []
+    TRUSTED_PROXY_CIDRS: Annotated[List[str], NoDecode] = []
 
     # Security settings
     SECURE_HEADERS_ENABLED: bool = True
@@ -204,6 +210,32 @@ class Settings(BaseSettings):
     RATE_LIMIT_CAPACITY: int = 300
     RATE_LIMIT_REFILL_PER_SEC: float = 5.0
     RATE_LIMIT_MAX_WAIT_MS: int = 500
+    RATE_LIMIT_MAX_BUCKETS: int = 10000
+
+    # Observability endpoints are opt-in and, outside development, require a
+    # dedicated bearer token so they are not an unauthenticated inventory API.
+    METRICS_ENABLED: bool = False
+    METRICS_AUTH_TOKEN: Optional[str] = None
+    METRICS_ALLOW_UNAUTHENTICATED: bool = False
+    READINESS_TIMEOUT_SECONDS: float = 3.0
+    READINESS_REQUIRED_COMPONENTS: Annotated[List[str], NoDecode] = [
+        "database",
+        "ffmpeg",
+        "streamlink",
+    ]
+
+    @field_validator(
+        "TRUSTED_HOSTS",
+        "TRUSTED_PROXY_CIDRS",
+        "READINESS_REQUIRED_COMPONENTS",
+        mode="before",
+    )
+    @classmethod
+    def _split_list_settings(cls, value):
+        """Accept documented comma-separated deployment settings as typed lists."""
+        if isinstance(value, str):
+            return [item.strip() for item in value.split(",") if item.strip()]
+        return value
 
     @property
     def allowed_origins(self) -> List[str]:
@@ -218,18 +250,6 @@ class Settings(BaseSettings):
             parsed_url = urlparse(self.BASE_URL)
             origin = f"{parsed_url.scheme}://{parsed_url.netloc}"
             origins.add(origin)
-
-            # Also add without port if standard ports
-            if parsed_url.port in (80, 443, None):
-                origins.add(f"{parsed_url.scheme}://{parsed_url.hostname}")
-
-            # Add www variant if not present
-            if parsed_url.hostname and not parsed_url.hostname.startswith("www."):
-                origins.add(f"{parsed_url.scheme}://www.{parsed_url.hostname}")
-                if parsed_url.port:
-                    origins.add(
-                        f"{parsed_url.scheme}://www.{parsed_url.hostname}:{parsed_url.port}"
-                    )
 
         except Exception as e:
             logger.warning(f"Could not parse BASE_URL for CORS: {e}")
@@ -256,6 +276,26 @@ class Settings(BaseSettings):
 
         # Convert to sorted list for consistent ordering
         return sorted(list(origins))
+
+    @property
+    def trusted_hosts(self) -> List[str]:
+        """Return explicit hosts, with local-only development conveniences."""
+        if self.TRUSTED_HOSTS:
+            return sorted(set(self.TRUSTED_HOSTS))
+        if self.environment_is_development:
+            return sorted({self.domain, "localhost", "127.0.0.1", "testserver"})
+        return [self.domain]
+
+    def is_trusted_proxy(self, client_ip: str) -> bool:
+        """Only configured proxy networks may supply forwarded client headers."""
+        try:
+            address = ipaddress.ip_address(client_ip)
+            return any(
+                address in ipaddress.ip_network(network, strict=False)
+                for network in self.TRUSTED_PROXY_CIDRS
+            )
+        except ValueError:
+            return False
 
     @property
     def environment_is_development(self) -> bool:
