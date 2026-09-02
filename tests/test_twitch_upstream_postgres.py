@@ -82,6 +82,35 @@ def postgres_coordinator():
 
 
 @pytest.mark.asyncio
+async def test_postgres_fresh_guard_serializes_distinct_channels(
+    postgres_coordinator,
+) -> None:
+    """A fresh guard must not turn independent first leases into conflicts."""
+    Session, _clock, coordinator = postgres_coordinator
+    with Session() as db:
+        db.add(GlobalSettings(id=1, twitch_max_concurrent_upstreams=12))
+        db.commit()
+
+    reservations = await asyncio.gather(
+        *(
+            coordinator.reserve(
+                channel_key=f"postgres-bootstrap-{index}",
+                auth_key=None,
+                purpose="RECORDING",
+            )
+            for index in range(12)
+        )
+    )
+
+    assert {reservation.channel_key for reservation in reservations} == {
+        f"postgres-bootstrap-{index}" for index in range(12)
+    }
+    with Session() as db:
+        assert db.query(TwitchUpstreamCoordinationState).count() == 1
+        assert db.query(TwitchUpstreamLease).count() == 12
+
+
+@pytest.mark.asyncio
 async def test_postgres_lease_contention_renewal_expiry_and_takeover(
     postgres_coordinator,
 ) -> None:
@@ -101,7 +130,6 @@ async def test_postgres_lease_contention_renewal_expiry_and_takeover(
                 channel_key="postgres-channel",
                 auth_key=None,
                 purpose="RECORDING",
-                recording_id=index + 1,
             )
         except TwitchUpstreamConflict as conflict:
             return conflict.code
