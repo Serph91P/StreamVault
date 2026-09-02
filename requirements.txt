@@ -14,7 +14,7 @@ greenlet==3.5.5
 python-dotenv==1.2.3
 argon2-cffi==25.1.0
 cryptography==50.0.1
-PyJWT==2.10.1
+PyJWT==2.13.0
 bcrypt==4.3.0
 
 # API and data handling
