@@ -171,6 +171,13 @@ class Settings(BaseSettings):
     SECURE_COOKIES: bool = True  # Set to False for development or when behind reverse proxy without SSL termination
     # Override with environment variable for reverse proxy setups
     USE_SECURE_COOKIES: bool = True  # Can be set to False for reverse proxy setups
+    AUTH_JWT_SECRET: str = ""
+    AUTH_JWT_ALGORITHM: str = "HS256"
+    AUTH_JWT_ISSUER: str = "streamvault"
+    AUTH_JWT_AUDIENCE: str = "streamvault-api"
+    AUTH_ACCESS_TOKEN_MINUTES: int = 15
+    AUTH_REFRESH_TOKEN_HOURS: int = 24
+    AUTH_REFRESH_FAMILY_MAX_HOURS: int = 168
 
     # CORS settings
     CORS_ALLOW_CREDENTIALS: bool = True

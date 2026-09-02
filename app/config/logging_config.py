@@ -13,6 +13,8 @@ request_context: ContextVar[str | None] = ContextVar("request_id", default=None)
 def _redact(message: str) -> str:
     """Remove credential-like URL, query, and header values from log output."""
     message = re.sub(r"(://[^:/\s]+:)[^@\s]+(@)", r"\1***\2", message)
+    message = re.sub(r"(?i)(authorization)\s*:\s*bearer\s+[^\s;]+", r"\1: ***", message)
+    message = re.sub(r"(?i)(cookie|set-cookie|x-api-key)\s*:\s*[^\s;]+", r"\1: ***", message)
     message = re.sub(
         r"(?i)(token|secret|password|authorization|api[_-]?key)=([^&\s]+)",
         r"\1=***",

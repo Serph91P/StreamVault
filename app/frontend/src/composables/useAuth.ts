@@ -28,22 +28,15 @@ export function useAuth() {
       return
     }
 
-    const storedToken = appStorage.sessionToken
-    
+
     // Check current path to determine if we're on a protected page
     const currentPath = window.location.pathname
     const isAuthPage = currentPath.startsWith('/auth/') || currentPath === '/welcome' || currentPath === '/setup'
     
-    if (storedToken) {
-      sessionToken.value = storedToken
-      
-      try {
+    try {
         const response = await fetch('/auth/check', {
           method: 'GET',
-          credentials: 'include',
-          headers: {
-            'Authorization': `Bearer ${storedToken}`
-          }
+          credentials: 'include'
         })
         
         if (response.ok) {
@@ -72,20 +65,10 @@ export function useAuth() {
             }
           }
         }
-      } catch (error) {
-        console.error('Auth check failed:', error)
-        clearAuth()
-        // Don't redirect on network errors - might be temporary
-      }
-    } else {
-      // No stored token and on protected page - redirect to login
-      if (!isAuthPage) {
-        console.warn('No session token found, redirecting to login...')
-        if (!isAuthRedirecting) {
-          isAuthRedirecting = true
-          router.push('/auth/login').finally(() => { isAuthRedirecting = false })
-        }
-      }
+    } catch (error) {
+      console.error('Auth check failed:', error)
+      clearAuth()
+      // Don't redirect on network errors - might be temporary
     }
   }
   
@@ -112,14 +95,6 @@ export function useAuth() {
         const data = await response.json()
         isAuthenticated.value = true
         
-        // For PWA: Store token in localStorage as backup
-        const cookies = document.cookie.split(';')
-        const sessionCookie = cookies.find(c => c.trim().startsWith('session='))
-        if (sessionCookie) {
-          const token = sessionCookie.split('=')[1]
-          sessionToken.value = token
-          appStorage.setSessionToken(token)
-        }
 
         // Eagerly trigger the WebSocket connection so realtime events start
         // flowing as soon as the user lands on a protected route. Without
