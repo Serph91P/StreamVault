@@ -26,17 +26,11 @@
             ]
         },
         "allowJs": true,
-        "outDir": "./dist",
         "lib": [
             "ESNext",
             "DOM",
             "DOM.Iterable",
             "WebWorker"
         ]
-    },
-    "references": [
-        {
-            "path": "./tsconfig.node.json"
-        }
-    ]
+    }
 }

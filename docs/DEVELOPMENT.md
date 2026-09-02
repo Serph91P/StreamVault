@@ -6,32 +6,55 @@ Develop the UI without running any backend or Docker:
 
 ```bash
 cd app/frontend
-npm install        # first time only
+npm ci             # first time only
 npm run dev:mock   # starts with mock data → http://localhost:5173
 ```
 
-That's it. All pages work — login is auto-bypassed, mock data populates every view.
+That's it. All pages work - login is auto-bypassed, mock data populates every view.
 
 ## Dev Scripts
 
 | Command | Description |
 |---------|-------------|
-| `npm run dev` | Start dev server (uses `.env.development` — mock mode by default) |
+| `npm run dev` | Start dev server (uses `.env.development` - mock mode by default) |
 | `npm run dev:mock` | Start with mock data (explicit, no backend needed) |
 | `npm run dev:live` | Start connected to real backend at `localhost:8000` |
-| `npm run build` | Production build (type-check + bundle) |
+| `npm run build` | Sequential production build (type-check, then bundle) |
 | `npm run preview` | Preview production build locally |
-| `npm run type-check` | TypeScript type checking only |
+| `npm run type-check` | Non-emitting Vue and Node TypeScript checks |
 | `npm run lint` | ESLint + auto-fix |
+| `npm run lint:check` | Read-only ESLint check capped at the accepted warning baseline |
+| `npm run lint:tokens` | Check design-token usage |
+| `npm run test:unit` | Run Vitest component tests in jsdom |
+| `npm run test:build-output` | Verify two deterministic mock-mode production builds |
+| `npx playwright install --with-deps chromium` | Install the Chromium browser and system dependencies for browser tests |
+| `npx playwright test` | Run mock-mode production browser tests at desktop and mobile viewports |
+
+## Verification
+
+Run the automated frontend gates from `app/frontend`:
+
+```bash
+npm run type-check
+npm run lint:check
+npm run lint:tokens
+npm run test:unit
+npm run build
+npm run test:build-output
+npx playwright install --with-deps chromium
+npx playwright test
+```
+
+`type-check` never writes JavaScript output. The production build runs type checking before Vite. The build-output check compares stable relative-path and file-hash manifests from two clean mock-mode builds.
 
 ## Mock Mode
 
 When `VITE_USE_MOCK_DATA=true` (default in development):
 
-- **Auth bypassed** — automatically logged in as "demo" user, all routes accessible
-- **All API calls return mock data** — no network requests to backend
-- **WebSocket disabled** — no connection attempts
-- **Status data populated** — dashboard shows realistic streamer/recording status
+- **Auth bypassed** - automatically logged in as "demo" user, all routes accessible
+- **All API calls return mock data** - no network requests to backend
+- **WebSocket disabled** - no connection attempts
+- **Status data populated** - dashboard shows realistic streamer/recording status
 
 ### What Mock Data Provides
 
@@ -46,8 +69,8 @@ When `VITE_USE_MOCK_DATA=true` (default in development):
 ### Verify Mock Mode
 
 Browser console on page load shows:
-- `🎭 Using MOCK API for all endpoints` — mock mode active
-- `🌐 Using REAL API for all endpoints` — live mode (needs backend)
+- `🎭 Using MOCK API for all endpoints` - mock mode active
+- `🌐 Using REAL API for all endpoints` - live mode (needs backend)
 
 ### Toggle at Runtime
 
@@ -95,7 +118,7 @@ src/
 
 ### API Architecture
 
-Components import from `services/api.ts` — never directly from `api-real.ts` or mock files.
+Components import from `services/api.ts` - never directly from `api-real.ts` or mock files.
 
 ```
 Component → api.ts → (VITE_USE_MOCK_DATA=true)  → inline mock implementations
@@ -122,10 +145,10 @@ Backend URLs in live mode:
 
 ## Troubleshooting
 
-**Changes not showing** — Hard refresh `Ctrl+Shift+R`, or restart dev server.
+**Changes not showing** - Hard refresh `Ctrl+Shift+R`, or restart dev server.
 
-**Module not found** — `rm -rf node_modules && npm install`
+**Module not found** - `rm -rf node_modules && npm install`
 
-**Mock mode not working** — Check console for `🎭` emoji. Restart dev server after `.env` changes.
+**Mock mode not working** - Check console for `🎭` emoji. Restart dev server after `.env` changes.
 
-**Build fails with ENOTEMPTY** — `rm -rf dist/ && npm run build`
+**Build fails with ENOTEMPTY** - `rm -rf dist/ && npm run build`
