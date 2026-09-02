@@ -1113,15 +1113,14 @@ async def cleanup_process_orphaned_recordings(dry_run: bool = True) -> Dict[str,
     try:
         from app.database import SessionLocal
         from app.models import Recording, Stream
-        from app.services.recording.recording_service import RecordingService
+        from app.dependencies import get_recording_manager
         from datetime import datetime
 
         results = {"checked": 0, "cleaned": 0, "errors": 0, "details": []}
 
         with SessionLocal() as db:
-            # Get recording service to access process_manager
-            recording_service = RecordingService()
-            process_manager = recording_service.process_manager
+            # Process state is local; ownership itself remains lease-backed.
+            process_manager = get_recording_manager().process_manager
 
             # Find all recordings that are still marked as "recording" with eager loading
             recording_status_recordings = (

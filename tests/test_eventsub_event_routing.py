@@ -27,7 +27,7 @@ from app.models import Recording, Stream, Streamer, StreamEvent
 def _make_registry():
     """Build an EventHandlerRegistry with all heavy dependencies mocked."""
     with (
-        patch("app.events.handler_registry.RecordingService"),
+        patch("app.events.handler_registry.get_recording_manager"),
         patch("app.events.handler_registry.ConfigManager"),
         patch("app.events.handler_registry.NotificationService"),
     ):

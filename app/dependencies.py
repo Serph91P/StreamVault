@@ -15,6 +15,7 @@ from app.services.notification_service import NotificationService
 logger = logging.getLogger("streamvault")
 websocket_manager = ConnectionManager()
 event_registry = None
+recording_manager = None
 
 
 @dataclass(frozen=True)
@@ -120,6 +121,20 @@ async def get_event_registry():
         )
         await event_registry.initialize_eventsub()
     return event_registry
+
+
+def get_recording_manager():
+    """Return the process-scoped recording lifecycle facade.
+
+    The manager owns one compatible recording service instance. Its process
+    dictionaries are local caches; durable ownership stays in the coordinator.
+    """
+    global recording_manager
+    if recording_manager is None:
+        from app.services.recording.recording_manager import RecordingManager
+
+        recording_manager = RecordingManager()
+    return recording_manager
 
 
 def get_streamer_service(

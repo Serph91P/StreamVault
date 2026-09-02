@@ -124,6 +124,6 @@ def test_create_app_preserves_the_compatibility_asgi_export():
     )
     assert (
         lifespan_source.index("yield")
-        < lifespan_source.index("recording_service.graceful_shutdown")
+        < lifespan_source.index("recording_manager.shutdown")
         < lifespan_source.index("database_lifecycle.adispose")
     )

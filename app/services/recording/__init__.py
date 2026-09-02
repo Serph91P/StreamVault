@@ -24,6 +24,11 @@ Main entry point:
 
 # Main service (backward compatibility wrapper)
 from .recording_service import RecordingService
+from .recording_manager import (
+    RecordingManager,
+    RecordingReconciliation,
+    RecordingStatus,
+)
 
 # Refactored services (new architecture)
 from .recording_orchestrator import RecordingOrchestrator
@@ -43,6 +48,9 @@ from .stream_info_manager import StreamInfoManager
 __all__ = [
     # Main service
     "RecordingService",
+    "RecordingManager",
+    "RecordingReconciliation",
+    "RecordingStatus",
     # Refactored services
     "RecordingOrchestrator",
     "RecordingStateManager",

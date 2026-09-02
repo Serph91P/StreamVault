@@ -111,13 +111,15 @@ def recovery_database(tmp_path):
 async def test_unified_failed_resume_preserves_recoverable_recording(
     monkeypatch, recovery_database, tmp_path
 ):
-    from app.services.recording import recording_service as recording_service_module
     from app.services.recording import unified_recovery_service
 
     Session, values = recovery_database
     calls = []
 
     class RecordingService:
+        def is_stream_active(self, stream_id):
+            return False
+
         async def start_recording(self, stream_id, streamer_id, **kwargs):
             with Session() as db:
                 prior = db.get(Recording, values["recording_id"])
@@ -128,7 +130,9 @@ async def test_unified_failed_resume_preserves_recoverable_recording(
             return None
 
     monkeypatch.setattr(unified_recovery_service, "SessionLocal", Session)
-    monkeypatch.setattr(recording_service_module, "RecordingService", RecordingService)
+    monkeypatch.setattr(
+        unified_recovery_service, "get_recording_manager", lambda: RecordingService()
+    )
 
     service = unified_recovery_service.UnifiedRecoveryService()
     resumed = await service._resume_live_recording(
@@ -157,7 +161,6 @@ async def test_unified_failed_resume_preserves_recoverable_recording(
 async def test_unified_success_stops_prior_only_after_fenced_resume(
     monkeypatch, recovery_database, tmp_path
 ):
-    from app.services.recording import recording_service as recording_service_module
     from app.services.recording import unified_recovery_service
 
     Session, values = recovery_database
@@ -172,7 +175,9 @@ async def test_unified_success_stops_prior_only_after_fenced_resume(
             return 99
 
     monkeypatch.setattr(unified_recovery_service, "SessionLocal", Session)
-    monkeypatch.setattr(recording_service_module, "RecordingService", RecordingService)
+    monkeypatch.setattr(
+        unified_recovery_service, "get_recording_manager", lambda: RecordingService()
+    )
     monkeypatch.setattr(
         unified_recovery_service.logging_service,
         "log_post_processing_activity",
@@ -196,7 +201,6 @@ async def test_unified_success_stops_prior_only_after_fenced_resume(
 async def test_unified_recovery_rejects_lease_for_other_recording(
     monkeypatch, recovery_database, tmp_path
 ):
-    from app.services.recording import recording_service as recording_service_module
     from app.services.recording import unified_recovery_service
 
     Session, values = recovery_database
@@ -210,7 +214,9 @@ async def test_unified_recovery_rejects_lease_for_other_recording(
             raise AssertionError("recovery bypassed the persisted recording owner")
 
     monkeypatch.setattr(unified_recovery_service, "SessionLocal", Session)
-    monkeypatch.setattr(recording_service_module, "RecordingService", RecordingService)
+    monkeypatch.setattr(
+        unified_recovery_service, "get_recording_manager", lambda: RecordingService()
+    )
 
     service = unified_recovery_service.UnifiedRecoveryService()
     resumed = await service._resume_live_recording(
@@ -233,7 +239,6 @@ async def test_startup_failed_resume_preserves_recoverable_recording(
     import app.database
     from app.services import streamer_service as streamer_service_module
     from app.events import handler_registry
-    from app.services.recording import recording_service as recording_service_module
 
     startup_init = importlib.import_module("app.services.init.startup_init")
 
@@ -248,6 +253,9 @@ async def test_startup_failed_resume_preserves_recoverable_recording(
             return True
 
     class RecordingService:
+        def is_stream_active(self, stream_id):
+            return False
+
         async def start_recording(self, stream_id, streamer_id, **kwargs):
             with Session() as db:
                 prior = db.get(Recording, values["recording_id"])
@@ -263,7 +271,9 @@ async def test_startup_failed_resume_preserves_recoverable_recording(
 
     monkeypatch.setattr(app.database, "SessionLocal", Session)
     monkeypatch.setattr(streamer_service_module, "StreamerService", StreamerService)
-    monkeypatch.setattr(recording_service_module, "RecordingService", RecordingService)
+    monkeypatch.setattr(
+        startup_init, "get_recording_manager", lambda: RecordingService()
+    )
     monkeypatch.setattr(handler_registry, "EventHandlerRegistry", EventHandlerRegistry)
 
     await startup_init.cleanup_zombie_recordings()

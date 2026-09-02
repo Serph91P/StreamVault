@@ -13,9 +13,7 @@ from app.schemas.recording import (
     ActiveRecordingSchema,
 )
 from app.schemas.recording import CleanupPolicySchema, StorageUsageSchema
-from app.services.recording.recording_service import (
-    RecordingService,
-)  # Changed import path
+from app.dependencies import get_recording_manager
 from app.services.recording.config_manager import (
     FILENAME_PRESETS,
 )  # Import FILENAME_PRESETS from config_manager
@@ -34,15 +32,10 @@ logger = logging.getLogger("streamvault")
 
 router = APIRouter(prefix="/api/recording", tags=["recording"])
 
-recording_service = None
-
 
 def get_recording_service():
-    """Lazy initialization of recording service"""
-    global recording_service
-    if recording_service is None:
-        recording_service = RecordingService()
-    return recording_service
+    """Compatibility alias for the process-scoped recording manager."""
+    return get_recording_manager()
 
 
 @router.get("/settings", response_model=RecordingSettingsSchema)

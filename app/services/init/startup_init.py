@@ -6,6 +6,7 @@ import asyncio
 import logging
 from app.services.init.background_queue_init import shutdown_background_queue
 from app.config.constants import ASYNC_DELAYS
+from app.dependencies import get_recording_manager
 
 logger = logging.getLogger("streamvault")
 
@@ -527,7 +528,6 @@ async def cleanup_zombie_recordings():
         from app.database import SessionLocal
         from app.models import Recording, Stream, TwitchUpstreamLease
         from app.services.streamer_service import StreamerService
-        from app.services.recording.recording_service import RecordingService
         from app.services.communication.websocket_manager import websocket_manager
         from app.events.handler_registry import EventHandlerRegistry
         from app.config.settings import settings
@@ -544,7 +544,7 @@ async def cleanup_zombie_recordings():
             streamer_service = StreamerService(
                 db, websocket_manager, event_handler_registry
             )
-            recording_service = RecordingService()
+            recording_manager = get_recording_manager()
             # Find all recordings with 'recording' status (eager load relationships)
             zombie_recordings = (
                 db.query(Recording)
@@ -644,8 +644,15 @@ async def cleanup_zombie_recordings():
                                 )
 
                         try:
-                            # Resume recording through RecordingService
+                            # Resume recording through the process-scoped manager.
                             # Pass resume_segments_dir to continue in the same segments folder
+                            if recording_manager.is_stream_active(stream.id):
+                                logger.info(
+                                    "Recording for stream %s is already locally active; "
+                                    "preserving its database state",
+                                    stream.id,
+                                )
+                                continue
                             recovery_generation = (
                                 db.query(TwitchUpstreamLease.generation)
                                 .filter(
@@ -663,7 +670,7 @@ async def cleanup_zombie_recordings():
                                 )
                                 continue
                             resumed_recording_id = (
-                                await recording_service.start_recording(
+                                await recording_manager.start_recording(
                                     stream_id=stream.id,
                                     streamer_id=streamer.id,
                                     force_mode=True,
@@ -777,13 +784,9 @@ async def recover_active_recordings():
         # First, clean up zombie recordings from previous session
         await cleanup_zombie_recordings()
 
-        from app.services.recording.recording_service import RecordingService
+        recording_manager = get_recording_manager()
 
-        # Get singleton instance
-        recording_service = RecordingService()
-
-        # Recover active recordings
-        await recording_service.recover_active_recordings_from_persistence()
+        await recording_manager.startup_reconcile()
 
         logger.info("Active recordings recovery completed")
 

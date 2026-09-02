@@ -11,22 +11,17 @@ import logging
 
 from app.database import get_db, SessionLocal
 from app.models import Recording, Streamer, Stream
-from app.services.recording.recording_service import RecordingService
+from app.dependencies import get_recording_manager
 from app.services.system.logging_service import logging_service
 from app.services.communication.websocket_manager import websocket_manager
 
 router = APIRouter(prefix="/recordings", tags=["recordings"])
 logger = logging.getLogger("streamvault")
 
-recording_service = None
-
 
 def get_recording_service():
-    """Lazy initialization of recording service"""
-    global recording_service
-    if recording_service is None:
-        recording_service = RecordingService()
-    return recording_service
+    """Compatibility alias for the process-scoped recording manager."""
+    return get_recording_manager()
 
 
 @router.get("/latest")

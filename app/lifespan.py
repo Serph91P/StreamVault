@@ -9,7 +9,7 @@ from app.services.system.development_test_runner import run_development_tests
 from app.database import database_lifecycle, SessionLocal
 from app.services.core.auth_service import AuthService
 import app.models as models
-from app.dependencies import get_event_registry
+from app.dependencies import get_event_registry, get_recording_manager
 from app.services.images.image_sync_service import image_sync_service
 from app.tasks.websocket_broadcast_task import websocket_broadcast_task
 
@@ -25,7 +25,7 @@ async def lifespan(app: FastAPI):
     event_registry = None
     cleanup_task = None
     log_cleanup_task = None
-    recording_service = None
+    recording_manager = None
     background_services_task = None
 
     # Database migrations are the only fatal startup task in this best-effort block.
@@ -115,27 +115,20 @@ async def lifespan(app: FastAPI):
                 "⚠️ Application will continue but may have limited functionality"
             )
 
-        from app.services.twitch_upstream_coordinator import (
-            twitch_upstream_coordinator,
+        recording_manager = get_recording_manager()
+        app.state.recording_manager = recording_manager
+        reconciled_leases = await recording_manager.reconcile_leases()
+        logger.info(
+            "Reconciled %s stale Twitch upstream leases before queue-backed recovery",
+            reconciled_leases,
         )
-
-        reconciled_leases = await twitch_upstream_coordinator.reconcile()
-        logger.info("Reconciled %s stale Twitch upstream leases", reconciled_leases)
 
         # Initialize EventSub
         event_registry = await get_event_registry()
         await event_registry.initialize_eventsub()
         logger.info("EventSub initialized successfully")
 
-        # Get recording service reference for graceful shutdown
-        try:
-            recording_service = getattr(event_registry, "recording_service", None)
-            if recording_service:
-                logger.info(
-                    "Recording service reference obtained for graceful shutdown"
-                )
-        except Exception as e:
-            logger.warning(f"Could not get recording service reference: {e}")
+        logger.info("Recording manager initialized for graceful shutdown")
 
         # Start log cleanup service
         try:
@@ -304,16 +297,14 @@ async def lifespan(app: FastAPI):
     # Shutdown
     logger.info("🛑 Starting application shutdown...")
 
-    # Gracefully shutdown recording service first (most critical)
-    if recording_service:
+    # Gracefully shutdown recording manager first (most critical)
+    if recording_manager:
         try:
-            logger.info("🔄 Gracefully shutting down recording service...")
-            await recording_service.graceful_shutdown(
-                timeout=TIMEOUTS.GRACEFUL_SHUTDOWN
-            )
-            logger.info("✅ Recording service shutdown completed")
+            logger.info("🔄 Gracefully shutting down recording manager...")
+            await recording_manager.shutdown(timeout=TIMEOUTS.GRACEFUL_SHUTDOWN)
+            logger.info("✅ Recording manager shutdown completed")
         except Exception as e:
-            logger.error(f"❌ Error during recording service shutdown: {e}")
+            logger.error(f"❌ Error during recording manager shutdown: {e}")
 
     # Shutdown live streaming service
     try:
