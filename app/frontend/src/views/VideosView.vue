@@ -66,45 +66,47 @@
           placeholder="Search videos by title or streamer..."
           class="search-input"
         />
-        <button
+        <BaseIconButton
           v-if="searchQuery"
           @click="searchQuery = ''"
           class="clear-btn"
-          aria-label="Clear video search"
+          label="Clear video search"
           title="Clear video search"
         >
           <svg class="icon">
             <use href="#icon-x" />
           </svg>
-        </button>
+        </BaseIconButton>
       </div>
 
       <!-- View Toggle -->
       <div class="view-toggle">
-        <button
+        <BaseIconButton
           @click="viewMode = 'grid'"
           :class="{ active: viewMode === 'grid' }"
           class="toggle-btn"
-          aria-label="Show videos as grid"
+          label="Show videos as grid"
+          :aria-pressed="viewMode === 'grid'"
           title="Show videos as grid"
           v-ripple
         >
           <svg class="icon">
             <use href="#icon-grid" />
           </svg>
-        </button>
-        <button
+        </BaseIconButton>
+        <BaseIconButton
           @click="viewMode = 'list'"
           :class="{ active: viewMode === 'list' }"
           class="toggle-btn"
-          aria-label="Show videos as list"
+          label="Show videos as list"
+          :aria-pressed="viewMode === 'list'"
           title="Show videos as list"
           v-ripple
         >
           <svg class="icon">
             <use href="#icon-list" />
           </svg>
-        </button>
+        </BaseIconButton>
       </div>
 
       <!-- Filters Button -->
@@ -183,18 +185,36 @@
 
     <!-- Filter Chips -->
     <div v-if="!isLoading && !fetchError && activeFiltersCount > 0" class="filter-chips">
-      <span v-if="filterStreamer" class="chip" @click="filterStreamer = ''">
+      <button
+        v-if="filterStreamer"
+        type="button"
+        class="chip"
+        :aria-label="`Remove ${filterStreamer} filter`"
+        @click="filterStreamer = ''"
+      >
         {{ filterStreamer }}
         <svg class="icon"><use href="#icon-x" /></svg>
-      </span>
-      <span v-if="filterDate !== 'all'" class="chip" @click="filterDate = 'all'">
+      </button>
+      <button
+        v-if="filterDate !== 'all'"
+        type="button"
+        class="chip"
+        :aria-label="`Remove ${filterDateLabel} filter`"
+        @click="filterDate = 'all'"
+      >
         {{ filterDateLabel }}
         <svg class="icon"><use href="#icon-x" /></svg>
-      </span>
-      <span v-if="filterDuration" class="chip" @click="filterDuration = ''">
+      </button>
+      <button
+        v-if="filterDuration"
+        type="button"
+        class="chip"
+        :aria-label="`Remove ${durationLabel} filter`"
+        @click="filterDuration = ''"
+      >
         {{ durationLabel }}
         <svg class="icon"><use href="#icon-x" /></svg>
-      </span>
+      </button>
     </div>
 
     <!-- Results Count + Summary -->
@@ -311,6 +331,7 @@ import { appStorage } from '@/services/storage'
 import { useRouter } from 'vue-router'
 import { videoApi } from '@/services/api'
 import BaseButton from '@/components/base/BaseButton.vue'
+import BaseIconButton from '@/components/base/BaseIconButton.vue'
 import LoadingSkeleton from '@/components/LoadingSkeleton.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import VideoCard from '@/components/cards/VideoCard.vue'
@@ -670,7 +691,7 @@ onMounted(() => {
 
   dt {
     margin: 0;
-    color: var(--text-tertiary);
+    color: var(--text-secondary);
     font-size: var(--text-xs);
     font-weight: v.$font-semibold;
     text-transform: uppercase;
@@ -812,8 +833,6 @@ onMounted(() => {
     right: var(--spacing-2);
     top: 50%;
     transform: translateY(-50%);
-    width: 28px;
-    height: 28px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -821,7 +840,9 @@ onMounted(() => {
     border: none;
     border-radius: var(--radius-md);
     cursor: pointer;
-    transition: all v.$duration-200 v.$ease-out;
+    transition:
+      background-color v.$duration-200 v.$ease-out,
+      color v.$duration-200 v.$ease-out;
 
     .icon {
       width: 16px;
@@ -851,9 +872,6 @@ onMounted(() => {
 }
 
 .toggle-btn {
-  width: 40px;
-  min-width: 40px;
-  min-height: 36px;
   padding: var(--spacing-2);
   background: transparent;
   border: none;
@@ -861,7 +879,9 @@ onMounted(() => {
   // Nested radius = container radius minus its padding, so the inner pill
   // follows the container corner instead of looking rounder than it
   border-radius: calc(var(--radius-lg) - var(--spacing-1));
-  transition: all v.$duration-200 v.$ease-out;
+  transition:
+    background-color v.$duration-200 v.$ease-out,
+    color v.$duration-200 v.$ease-out;
 
   .icon {
     width: 20px;
@@ -1097,7 +1117,12 @@ onMounted(() => {
     font-weight: v.$font-medium;
     color: var(--text-primary);
     cursor: pointer;
-    transition: all v.$duration-200 v.$ease-out;
+    min-height: var(--control-target-min);
+    font-family: inherit;
+    transition:
+      color v.$duration-200 v.$ease-out,
+      background-color v.$duration-200 v.$ease-out,
+      border-color v.$duration-200 v.$ease-out;
 
     .icon {
       width: 14px;
@@ -1110,6 +1135,11 @@ onMounted(() => {
       background: rgba(var(--danger-500-rgb), 0.12);
       border-color: rgba(var(--danger-500-rgb), 0.35);
       color: var(--danger-color);
+    }
+
+    &:focus-visible {
+      outline: var(--focus-ring);
+      outline-offset: 2px;
     }
   }
 }

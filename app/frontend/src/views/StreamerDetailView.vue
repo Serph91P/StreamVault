@@ -1158,7 +1158,7 @@ onUnmounted(() => {
 
 .safe-action-note {
   margin: calc(var(--spacing-1) * -1) 0 0;
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   font-size: var(--text-xs);
   line-height: 1.4;
 }
@@ -1279,7 +1279,7 @@ onUnmounted(() => {
   }
 
   &.active {
-    background: var(--primary-color-dark);
+    background: v.$primary-800;
     color: white;
     box-shadow: 0 8px 22px rgba(var(--primary-500-rgb), 0.25);
   }
