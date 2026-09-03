@@ -812,21 +812,26 @@ async function handleSaveConfig() {
 // Toggle Switch
 .toggle-switch {
   position: relative;
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
   width: 48px;
-  height: 26px;
+  min-height: 44px;
   flex-shrink: 0;
 
   input {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
     opacity: 0;
-    width: 0;
-    height: 0;
+    width: 100%;
+    height: 100%;
+    cursor: pointer;
   }
 
   .toggle-slider {
     position: absolute;
     cursor: pointer;
-    inset: 0;
+    inset: 9px 0;
     background-color: var(--background-darker);
     border: 1px solid var(--border-color);
     border-radius: 26px;
@@ -853,6 +858,11 @@ async function handleSaveConfig() {
       transform: translateX(22px);
       background-color: white;
     }
+  }
+
+  input:focus-visible + .toggle-slider {
+    outline: var(--focus-ring);
+    outline-offset: 2px;
   }
 }
 
@@ -958,6 +968,7 @@ async function handleSaveConfig() {
   align-items: center;
   gap: v.$spacing-3;
   cursor: pointer;
+  min-height: 44px;
 
   input[type="checkbox"] {
     width: 18px;

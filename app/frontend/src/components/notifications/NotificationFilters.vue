@@ -174,7 +174,7 @@ function updateFilter(value: NotificationFilter) {
   display: inline-flex;
   align-items: center;
   gap: var(--spacing-2);
-  min-height: 2.25rem;
+  min-height: 44px;
   padding: 0 var(--spacing-3);
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-full);
@@ -209,7 +209,7 @@ function updateFilter(value: NotificationFilter) {
 }
 
 .filter-chip.compact {
-  min-height: 2rem;
+  min-height: 44px;
   font-size: var(--text-xs);
 }
 
@@ -219,7 +219,7 @@ function updateFilter(value: NotificationFilter) {
   gap: var(--spacing-2);
   min-width: 0;
   width: auto;
-  min-height: 2.25rem;
+  min-height: 44px;
   padding: 0 var(--spacing-3);
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-full);

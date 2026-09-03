@@ -67,7 +67,7 @@
 
     <Teleport to="body">
       <Transition name="fade">
-        <div v-if="showNotifications" class="glass-popup-backdrop" aria-hidden="true" @click="closeNotificationPanel"></div>
+        <div v-if="showNotifications" class="glass-popup-backdrop" aria-hidden="true" @click="closeNotificationPanel()"></div>
       </Transition>
       <Transition name="slide-up">
         <div
@@ -79,8 +79,6 @@
           aria-modal="true"
           aria-labelledby="notification-panel-title"
           tabindex="-1"
-          @keydown.esc="handleNotificationPanelEscape"
-          @keydown.tab="handlePanelTab"
         >
           <div class="glass-popup-header notification-panel-header">
             <div class="notification-title-stack">
@@ -106,7 +104,7 @@
               >
                 Clear all
               </button>
-              <button class="glass-btn-icon" aria-label="Close notifications" @click="closeNotificationPanel">
+              <button class="glass-btn-icon" aria-label="Close notifications" @click="closeNotificationPanel()">
                 <svg><use href="#icon-x" /></svg>
               </button>
             </div>
@@ -130,7 +128,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useAuth } from '@/composables/useAuth'
 import { usePWA } from '@/composables/usePWA'
 import { useWebSocket } from '@/composables/useWebSocket'
@@ -139,6 +137,7 @@ import BackgroundQueueMonitor from '@/components/BackgroundQueueMonitor.vue'
 import NotificationFeed from '@/components/NotificationFeed.vue'
 import ThemeToggle from '@/components/ThemeToggle.vue'
 import NavigationWrapper from '@/components/navigation/NavigationWrapper.vue'
+import { useModal } from '@/composables/useModal'
 
 const props = withDefaults(defineProps<{
   showShell?: boolean
@@ -213,9 +212,13 @@ const canReconnectNow = computed(() => {
     connectionStatus.value === 'disconnected'
   )
 })
-const showNotifications = ref(false)
 const notificationBellRef = ref<HTMLElement | null>(null)
 const notificationPanelRef = ref<HTMLElement | null>(null)
+const {
+  isOpen: showNotifications,
+  open: openNotificationPanel,
+  close: closeNotificationPanel,
+} = useModal(notificationPanelRef)
 
 async function logout() {
   if (confirm('Are you sure you want to logout?')) {
@@ -223,19 +226,9 @@ async function logout() {
   }
 }
 
-function setNotificationPanelOpen(open: boolean, restoreFocus = true) {
-  showNotifications.value = open
-  document.body.style.overflow = open ? 'hidden' : ''
-
-  if (open) {
-    nextTick(() => notificationPanelRef.value?.focus?.())
-  } else if (restoreFocus) {
-    notificationBellRef.value?.focus?.()
-  }
-}
-
 function toggleNotifications() {
-  setNotificationPanelOpen(!showNotifications.value)
+  if (showNotifications.value) closeNotificationPanel()
+  else openNotificationPanel()
 }
 
 async function clearAllNotifications() {
@@ -247,85 +240,9 @@ function markAsRead() {
   notificationStore.markAllRead()
 }
 
-function closeNotificationPanel() {
-  if (showNotifications.value) {
-    setNotificationPanelOpen(false)
-  }
-}
-
-function handleNotificationPanelEscape(event: KeyboardEvent) {
-  if (!showNotifications.value || event.key !== 'Escape') return
-
-  event.preventDefault()
-  event.stopPropagation()
-  closeNotificationPanel()
-}
-
-function handlePanelTab(event: KeyboardEvent) {
-  if (!showNotifications.value || event.key !== 'Tab') return
-
-  const panel = notificationPanelRef.value
-  if (!panel) return
-
-  const focusable = Array.from(
-    panel.querySelectorAll<HTMLElement>(
-      'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
-    )
-  )
-
-  if (!focusable.length) {
-    event.preventDefault()
-    panel.focus()
-    return
-  }
-
-  const activeElement = document.activeElement as HTMLElement | null
-  const activeIndex = activeElement ? focusable.indexOf(activeElement) : -1
-  const fallbackIndex = event.shiftKey ? focusable.length - 1 : 0
-  const nextIndex = activeIndex === -1
-    ? fallbackIndex
-    : (activeIndex + (event.shiftKey ? -1 : 1) + focusable.length) % focusable.length
-
-  event.preventDefault()
-  focusable[nextIndex]?.focus()
-}
-
-function handleNotificationPanelKeydown(event: KeyboardEvent) {
-  if (event.key === 'Escape') {
-    handleNotificationPanelEscape(event)
-  } else if (event.key === 'Tab') {
-    handlePanelTab(event)
-  }
-}
-
-function handleClickOutside(event: MouseEvent) {
-  if (!showNotifications.value) return
-
-  const bell = notificationBellRef.value
-  const panel = notificationPanelRef.value
-
-  if (bell && bell.contains(event.target as Node)) return
-  if (panel && panel.contains(event.target as Node)) return
-
-  closeNotificationPanel()
-}
-
 watch(() => props.showShell, (showShell) => {
   if (!showShell) {
     closeNotificationPanel()
-  }
-})
-
-onMounted(() => {
-  document.addEventListener('click', handleClickOutside)
-  document.addEventListener('keydown', handleNotificationPanelKeydown, true)
-})
-
-onUnmounted(() => {
-  document.removeEventListener('click', handleClickOutside)
-  document.removeEventListener('keydown', handleNotificationPanelKeydown, true)
-  if (showNotifications.value) {
-    document.body.style.overflow = ''
   }
 })
 </script>
@@ -524,14 +441,14 @@ onUnmounted(() => {
     gap: var(--spacing-2);
 
     .glass-btn-icon {
-      min-width: 40px;
-      min-height: 40px;
+      min-width: 44px;
+      min-height: 44px;
     }
   }
 
   .mark-read-btn,
   .clear-all-btn {
-    min-height: 40px;
+    min-height: 44px;
     background: transparent;
     border: 1px solid var(--glass-border-hover);
     color: var(--text-secondary);

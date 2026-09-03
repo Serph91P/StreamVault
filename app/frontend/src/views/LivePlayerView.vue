@@ -777,7 +777,6 @@ onUnmounted(() => {
 
   @include m.respond-below('sm') {
     padding: var(--spacing-2) var(--spacing-2);
-    padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px));
   }
 
   // Theater mode: full-bleed black stage that fills exactly the viewport
@@ -804,7 +803,7 @@ onUnmounted(() => {
     }
 
     .back-button {
-      min-height: 36px;
+      min-height: 44px;
       padding: var(--spacing-1) var(--spacing-3);
       font-size: var(--text-xs);
     }

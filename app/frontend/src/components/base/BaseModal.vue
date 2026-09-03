@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, ref, toRef, watch } from 'vue'
+import { useModal } from '@/composables/useModal'
 
 interface Props {
   modelValue: boolean
@@ -33,54 +34,24 @@ const emit = defineEmits<{
 }>()
 
 const dialogRef = ref<HTMLElement | null>(null)
-const previouslyFocused = ref<HTMLElement | null>(null)
 
-function close() {
+function emitClose() {
   emit('update:modelValue', false)
   emit('close')
+}
+
+const modal = useModal(dialogRef, {
+  closeOnEscape: toRef(props, 'closeOnEsc'),
+  onClose: emitClose,
+})
+
+function close() {
+  modal.close()
 }
 
 function onBackdropClick(ev: MouseEvent) {
   if (!props.closeOnBackdrop) return
   if (ev.target === ev.currentTarget) close()
-}
-
-function onKeydown(ev: KeyboardEvent) {
-  if (ev.key === 'Escape' && props.closeOnEsc) {
-    ev.stopPropagation()
-    close()
-    return
-  }
-  if (ev.key === 'Tab') {
-    trapTabFocus(ev)
-  }
-}
-
-function trapTabFocus(event: KeyboardEvent) {
-  const panel = dialogRef.value
-  if (!panel) return
-  const focusable = getFocusableElements(panel)
-  if (!focusable.length) {
-    event.preventDefault()
-    return
-  }
-  const first = focusable[0]
-  const last = focusable[focusable.length - 1]
-  if (event.shiftKey && document.activeElement === first) {
-    event.preventDefault()
-    last.focus()
-  } else if (!event.shiftKey && document.activeElement === last) {
-    event.preventDefault()
-    first.focus()
-  }
-}
-
-function getFocusableElements(container: HTMLElement): HTMLElement[] {
-  return Array.from(
-    container.querySelectorAll<HTMLElement>(
-      'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
-    )
-  )
 }
 
 const modalClasses = computed(() => [
@@ -92,23 +63,12 @@ const modalClasses = computed(() => [
 
 watch(
   () => props.modelValue,
-  async (open) => {
-    if (open) {
-      previouslyFocused.value = (document.activeElement as HTMLElement) || null
-      document.body.style.overflow = 'hidden'
-      await nextTick()
-      dialogRef.value?.focus()
-    } else {
-      document.body.style.overflow = ''
-      previouslyFocused.value?.focus?.()
-    }
+  (open) => {
+    if (open) modal.open()
+    else modal.close(false)
   },
   { immediate: true },
 )
-
-onBeforeUnmount(() => {
-  document.body.style.overflow = ''
-})
 </script>
 
 <template>
@@ -119,7 +79,6 @@ onBeforeUnmount(() => {
         class="modal-overlay"
         role="presentation"
         @click="onBackdropClick"
-        @keydown="onKeydown"
       >
         <div
           ref="dialogRef"

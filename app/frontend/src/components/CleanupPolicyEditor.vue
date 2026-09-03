@@ -731,8 +731,8 @@ select.form-control option {
   color: var(--text-secondary);
   cursor: pointer;
   padding: 0;
-  width: 24px;
-  height: 24px;
+  width: 44px;
+  height: 44px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -785,8 +785,8 @@ select.form-control option {
 
 .modal-header .close-btn {
   font-size: 24px;
-  width: 30px;
-  height: 30px;
+  width: 44px;
+  height: 44px;
 }
 
 .modal-body {

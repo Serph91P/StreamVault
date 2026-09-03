@@ -119,16 +119,19 @@
               Chapters ({{ chapterData.chapters.length }})
             </h3>
             <div class="chapters-list">
-              <div
+              <button
                 v-for="(chapter, index) in chapterData.chapters"
                 :key="index"
+                type="button"
                 class="chapter-item"
                 :class="{ 'active': currentChapterIndex === index }"
+                :aria-label="chapterAccessibleName(chapter)"
+                :aria-current="currentChapterIndex === index ? 'true' : undefined"
                 @click="seekToChapter(chapter)"
               >
                 <span class="chapter-time">{{ chapter.start_time }}</span>
                 <span class="chapter-title">{{ chapter.title }}</span>
-              </div>
+              </button>
             </div>
           </GlassCard>
 
@@ -334,6 +337,9 @@ const loadChapterData = async () => {
 const retryLoad = () => {
   loadChapterData()
 }
+
+const chapterAccessibleName = (chapter: ChapterData['chapters'][number]) =>
+  `Seek to ${chapter.title} at ${chapter.start_time}`
 
 const goBack = () => {
   router.back()
@@ -765,7 +771,7 @@ onUnmounted(() => {
   cursor: pointer;
   transition: all v.$duration-200 v.$ease-out;
   flex-shrink: 0;
-  min-height: 36px;
+  min-height: 44px;
 
   .icon {
     width: 14px;
@@ -1003,6 +1009,11 @@ onUnmounted(() => {
   transition: all v.$duration-150 v.$ease-out;
   min-width: 0;
   max-width: 100%;
+  width: 100%;
+  min-height: 44px;
+  border: 0;
+  color: inherit;
+  text-align: left;
 
   &:hover {
     background: rgba(var(--primary-500-rgb), 0.15);
@@ -1074,6 +1085,7 @@ onUnmounted(() => {
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
+  min-height: 44px;
 
   .action-icon {
     width: 16px;
@@ -1161,6 +1173,7 @@ onUnmounted(() => {
   cursor: pointer;
   transition: var(--transition-base);
   white-space: nowrap;
+  min-height: 44px;
 
   .copy-icon {
     width: 14px;
