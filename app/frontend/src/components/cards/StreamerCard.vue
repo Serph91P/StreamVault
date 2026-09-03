@@ -6,17 +6,6 @@
     :class="{ 'actions-open': showActions, 'is-live': isLive, 'is-recording': streamer.is_recording, 'list-mode': viewMode === 'list' }"
   >
     <div class="streamer-card-content">
-      <router-link
-        class="streamer-card-body-link"
-        :to="streamerRoute"
-        :aria-label="`View details for ${streamer.display_name || streamer.username}`"
-        @click="handleCardLinkClick"
-        @contextmenu="handleContextMenu"
-        @touchstart.passive="handleTouchStart"
-        @touchmove.passive="handleTouchMove"
-        @touchend.passive="handleTouchEnd"
-        @touchcancel.passive="handleTouchEnd"
-      />
       <!-- Avatar/Thumbnail - CENTERED -->
       <div class="streamer-avatar-container">
         <div class="streamer-avatar" :class="{ 'is-live': isLive }">
@@ -43,6 +32,7 @@
         rel="noopener noreferrer"
         class="streamer-name-link"
         @click.stop
+        @keydown.enter.stop
         :title="`Open ${streamer.display_name || streamer.username} on Twitch`"
       >
         <h2 class="streamer-name">
@@ -131,6 +121,15 @@
 
       </div>
 
+      <router-link
+        class="view-details-link"
+        :to="streamerRoute"
+        aria-label="View details"
+        @keydown.enter.stop
+      >
+        View details
+      </router-link>
+
       <!-- Actions Dropdown - TOP RIGHT CORNER -->
       <div class="streamer-actions">
         <button
@@ -141,7 +140,12 @@
           :aria-label="`Actions for ${streamer.display_name || streamer.username}`"
           aria-haspopup="menu"
           :aria-expanded="showActions"
+          :aria-controls="actionsMenuId"
           title="More actions"
+          type="button"
+          @keydown.enter.stop
+          @keydown.space.stop
+          @keydown.esc.stop.prevent="closeActions(true)"
         >
           <svg class="icon">
             <use href="#icon-more-vertical" />
@@ -152,35 +156,33 @@
         <Teleport to="body">
           <div
             v-if="showActions"
+            :id="actionsMenuId"
             class="actions-dropdown"
             :style="dropdownStyle"
+            role="menu"
+            :aria-label="`Actions for ${streamer.display_name || streamer.username}`"
             @click.stop
+            @keydown.esc.stop.prevent="closeActions(true)"
           >
-            <button v-if="isLive" @click="handleWatchInternal" class="action-item action-primary">
+            <button v-if="isLive" @click="handleWatchInternal" class="action-item action-primary" role="menuitem">
               <svg class="icon">
                 <use href="#icon-play" />
               </svg>
               Watch Live
             </button>
-            <button v-if="isLive" @click="handleWatchExternal" class="action-item">
+            <button v-if="isLive" @click="handleWatchExternal" class="action-item" role="menuitem">
               <svg class="icon">
                 <use href="#icon-external-link" />
               </svg>
               Watch on Twitch
             </button>
-            <button v-if="!streamer.is_recording" @click="handleForceRecord" class="action-item">
+            <button v-if="!streamer.is_recording" @click="handleForceRecord" class="action-item" role="menuitem">
               <svg class="icon">
                 <use href="#icon-video" />
               </svg>
               Force Record
             </button>
-            <button @click="handleViewDetails" class="action-item">
-              <svg class="icon">
-                <use href="#icon-eye" />
-              </svg>
-              View Details
-            </button>
-            <button @click="handleDelete" class="action-item action-danger">
+            <button @click="handleDelete" class="action-item action-danger" role="menuitem">
               <svg class="icon">
                 <use href="#icon-trash" />
               </svg>
@@ -194,7 +196,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch, onMounted, onUnmounted } from 'vue'
+import { computed, ref, useId, watch, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import StatusBadge, { type StatusBadgeTone } from '@/components/base/StatusBadge.vue'
 import GlassCard from './GlassCard.vue'
@@ -244,6 +246,7 @@ const router = useRouter()
 const showActions = ref(false)
 const imageError = ref(false)
 const moreButtonRef = ref<HTMLButtonElement | null>(null)
+const actionsMenuId = useId()
 
 const isLive = computed(() => props.streamer.is_live || false)
 const statusSummary = computed(() => {
@@ -279,22 +282,7 @@ const displayCategory = computed(() => {
   return null
 })
 
-// Calculate dropdown position: at the finger for long-press, otherwise
-// relative to the trigger button
 const dropdownStyle = computed(() => {
-  if (longPressPoint.value) {
-    const menuWidth = 220
-    const menuHeight = 280
-    const left = Math.min(Math.max(8, longPressPoint.value.x - menuWidth / 2), window.innerWidth - menuWidth - 8)
-    const top = Math.min(longPressPoint.value.y + 12, window.innerHeight - menuHeight - 8)
-    return {
-      position: 'fixed' as const,
-      top: `${Math.max(8, top)}px`,
-      left: `${left}px`,
-      zIndex: 10000
-    }
-  }
-
   if (!moreButtonRef.value) {
     // Fallback positioning if button ref not available
     return {
@@ -353,116 +341,23 @@ watch(
   },
 )
 
-// Once the menu closes, the next open (via the ⋮ button) anchors to the
-// button again instead of the stale finger position
-watch(showActions, (open) => {
-  if (!open) longPressPoint.value = null
-})
-
 const _truncateText = (text: string, maxLength: number) => {
   if (!text || text.length <= maxLength) return text
   return text.substring(0, maxLength) + '...'
-}
-
-const handleCardLinkClick = (event: MouseEvent) => {
-  // A finished long-press must not also navigate to the detail page
-  if (suppressNextClick.value) {
-    suppressNextClick.value = false
-    event.preventDefault()
-    return
-  }
-  if (isTouchScrolling.value) {
-    isTouchScrolling.value = false
-    event.preventDefault()
-  }
-}
-
-// Touch scroll detection to prevent accidental clicks when swiping
-const isTouchScrolling = ref(false)
-const touchStartY = ref(0)
-const touchStartX = ref(0)
-const SCROLL_THRESHOLD = 10 // pixels of movement before considering it a scroll
-
-// Long-press opens the actions menu at the finger position - the ⋮ button is
-// a small target on mobile, holding the card is the natural gesture there.
-const LONG_PRESS_MS = 500
-const longPressTimer = ref<number | null>(null)
-const longPressPoint = ref<{ x: number; y: number } | null>(null)
-const suppressNextClick = ref(false)
-
-const cancelLongPress = () => {
-  if (longPressTimer.value !== null) {
-    clearTimeout(longPressTimer.value)
-    longPressTimer.value = null
-  }
-}
-
-// Lifting the finger after a long-press emits a synthetic click at that
-// position - which would instantly hit the menu item that just appeared
-// under it. Swallow exactly that one click in the capture phase.
-const armClickSuppression = () => {
-  const swallow = (e: MouseEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    document.removeEventListener('click', swallow, true)
-  }
-  document.addEventListener('click', swallow, true)
-  setTimeout(() => document.removeEventListener('click', swallow, true), 700)
-}
-
-const handleTouchStart = (e: TouchEvent) => {
-  touchStartY.value = e.touches[0].clientY
-  touchStartX.value = e.touches[0].clientX
-  isTouchScrolling.value = false
-
-  cancelLongPress()
-  longPressTimer.value = window.setTimeout(() => {
-    longPressTimer.value = null
-    longPressPoint.value = { x: touchStartX.value, y: touchStartY.value }
-    suppressNextClick.value = true
-    armClickSuppression()
-    showActions.value = true
-    if ('vibrate' in navigator) navigator.vibrate(15)
-  }, LONG_PRESS_MS)
-}
-
-const handleTouchMove = (e: TouchEvent) => {
-  const deltaY = Math.abs(e.touches[0].clientY - touchStartY.value)
-  const deltaX = Math.abs(e.touches[0].clientX - touchStartX.value)
-  if (deltaY > SCROLL_THRESHOLD || deltaX > SCROLL_THRESHOLD) {
-    isTouchScrolling.value = true
-    cancelLongPress()
-  }
-}
-
-const handleTouchEnd = () => {
-  cancelLongPress()
-}
-
-// While the long-press menu is open (or just fired), swallow the native
-// context menu some browsers raise for the same gesture
-const handleContextMenu = (event: MouseEvent) => {
-  if (showActions.value || suppressNextClick.value) {
-    event.preventDefault()
-  }
 }
 
 const toggleActions = () => {
   showActions.value = !showActions.value
 }
 
+const closeActions = (restoreFocus = false) => {
+  showActions.value = false
+  if (restoreFocus) moreButtonRef.value?.focus()
+}
+
 const handleForceRecord = () => {
   showActions.value = false
   emit('force-record', props.streamer)  // CRITICAL FIX: Use kebab-case event name
-}
-
-const handleViewDetails = () => {
-  showActions.value = false
-  // Use nextTick to ensure dropdown is closed before navigation
-  // This prevents the card click handler from interfering
-  setTimeout(() => {
-    router.push(`/streamers/${props.streamer.id}`)
-  }, 50)
 }
 
 const handleDelete = () => {
@@ -510,6 +405,7 @@ onUnmounted(() => {
 @use '@/styles/mixins' as m;
 .streamer-card {
   overflow: visible;
+  touch-action: pan-y;
 
   // Grid mode: fill the (row-stretched) wrapper so cards in a row are equal
   // height; clamped title/description absorb varying text lengths.
@@ -556,27 +452,7 @@ onUnmounted(() => {
   flex: 1;
   min-height: 0;
   position: relative;
-  cursor: pointer;
-}
-
-.streamer-card-body-link {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  border-radius: var(--radius-xl);
-  color: inherit;
-  text-decoration: none;
-  // Long-press opens our actions menu - suppress the native link preview /
-  // text-selection callout the OS would show for the same gesture
-  -webkit-touch-callout: none;
-  -webkit-user-select: none;
-  user-select: none;
-
-  &:focus-visible {
-    outline: 2px solid var(--primary-color);
-    outline-offset: 3px;
-    box-shadow: var(--shadow-primary);
-  }
+  touch-action: pan-y;
 }
 
 /* Avatar Container - CENTERED */
@@ -634,7 +510,7 @@ onUnmounted(() => {
   display: block;
   width: 100%;  /* Full width */
   text-align: center;  /* Centered */
-  transition: all v.$duration-200 v.$ease-out;
+  transition: color v.$duration-200 v.$ease-out;
 
   &:hover {
     color: var(--primary-color);
@@ -711,7 +587,6 @@ onUnmounted(() => {
 
   &.no-description {
     font-style: italic;
-    opacity: 0.6;
   }
 }
 
@@ -755,7 +630,6 @@ onUnmounted(() => {
   flex-direction: column;
   gap: var(--spacing-1);
   width: 100%;
-  opacity: 0.6;  /* Grayed out to show it's not current */
 }
 
 .last-stream-title {
@@ -780,7 +654,7 @@ onUnmounted(() => {
 
 .last-stream-category {
   font-size: var(--text-xs);
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   margin: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -797,6 +671,34 @@ onUnmounted(() => {
   margin-top: auto;
   padding-top: var(--spacing-2);
   width: 100%;
+}
+
+.view-details-link {
+  position: relative;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: var(--spacing-2) var(--spacing-3);
+  border-radius: var(--radius-md);
+  color: var(--primary-color);
+  font-size: var(--text-sm);
+  font-weight: v.$font-semibold;
+  text-decoration: none;
+
+  &:hover {
+    background: rgba(var(--primary-500-rgb), 0.1);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
+  }
+}
+
+[data-theme="light"] .view-details-link {
+  color: v.$primary-800;
 }
 
 .stat {
@@ -816,7 +718,7 @@ onUnmounted(() => {
 
 /* LIVE stats - More prominent */
 .stat-viewers {
-  color: var(--danger-color);
+  color: var(--danger-text-color);
   font-weight: v.$font-semibold;
 }
 
@@ -835,9 +737,16 @@ onUnmounted(() => {
   color: var(--primary-color);
 }
 
+[data-theme="light"] .stat-vods {
+  color: v.$primary-800;
+}
+
+[data-theme="light"] .status-row :deep(.status-badge-offline) {
+  color: var(--text-primary);
+}
+
 .stat-time {
   color: var(--text-secondary);
-  opacity: 0.8;
 }
 
 .stat-live {
@@ -860,8 +769,8 @@ onUnmounted(() => {
 }
 
 .btn-action {
-  width: 44px;
-  height: 44px;
+  width: 48px;
+  height: 48px;
   padding: 0;
 
   background: transparent;
@@ -873,7 +782,10 @@ onUnmounted(() => {
   justify-content: center;
 
   cursor: pointer;
-  transition: all v.$duration-200 v.$ease-out;
+  transition:
+    background-color v.$duration-200 v.$ease-out,
+    box-shadow v.$duration-200 v.$ease-out,
+    transform v.$duration-200 v.$ease-out;
 
   .icon {
     width: 20px;
@@ -1015,15 +927,14 @@ onUnmounted(() => {
 
   .streamer-card-content {
     display: grid;
-    grid-template-columns: auto 1fr auto auto;
+    grid-template-columns: auto 1fr auto auto auto;
     grid-template-rows: auto auto;
     align-items: center;
     gap: var(--spacing-1) var(--spacing-4);
     width: 100%;
     min-height: 80px;
-    // Right padding must clear the absolutely-positioned ⋮ button:
-    // 8px offset + 44px button + 12px breathing room
-    padding: var(--spacing-3) 64px var(--spacing-3) var(--spacing-3);
+    // Right padding clears the absolutely-positioned 48px overflow button.
+    padding: var(--spacing-3) 68px var(--spacing-3) var(--spacing-3);
   }
 
   .streamer-avatar-container {
@@ -1115,6 +1026,11 @@ onUnmounted(() => {
     }
   }
 
+  .view-details-link {
+    grid-row: 1 / 3;
+    grid-column: 5;
+  }
+
   .streamer-actions {
     position: absolute;
     top: 50%;
@@ -1134,9 +1050,9 @@ onUnmounted(() => {
       grid-template-rows: auto;
       gap: var(--spacing-1) var(--spacing-3);
       padding: var(--spacing-3);
-      // Room for the ⋮ button in the top-right corner (8px offset + 44px
+      // Room for the overflow button in the top-right corner (8px offset + 48px
       // button + breathing room), so long names never slide under it
-      padding-right: 60px;
+      padding-right: 64px;
     }
 
     .streamer-avatar-container {
@@ -1169,6 +1085,12 @@ onUnmounted(() => {
       align-items: center;
       justify-content: flex-start;
       gap: var(--spacing-1) var(--spacing-3);
+    }
+
+    .view-details-link {
+      grid-row: 5;
+      grid-column: 1 / -1;
+      justify-self: start;
     }
 
     // Corner position instead of vertically centered - centered, the button

@@ -210,7 +210,7 @@ pytest tests/test_recording_service.py
 cd app/frontend
 
 # Run unit tests
-npm run test
+npm run test:unit
 
 # Run e2e tests
 npm run test:e2e
