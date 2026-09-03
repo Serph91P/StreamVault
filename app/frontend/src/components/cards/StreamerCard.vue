@@ -510,7 +510,7 @@ onUnmounted(() => {
   display: block;
   width: 100%;  /* Full width */
   text-align: center;  /* Centered */
-  transition: all v.$duration-200 v.$ease-out;
+  transition: color v.$duration-200 v.$ease-out;
 
   &:hover {
     color: var(--primary-color);
@@ -587,7 +587,6 @@ onUnmounted(() => {
 
   &.no-description {
     font-style: italic;
-    opacity: 0.6;
   }
 }
 
@@ -631,7 +630,6 @@ onUnmounted(() => {
   flex-direction: column;
   gap: var(--spacing-1);
   width: 100%;
-  opacity: 0.6;  /* Grayed out to show it's not current */
 }
 
 .last-stream-title {
@@ -656,7 +654,7 @@ onUnmounted(() => {
 
 .last-stream-category {
   font-size: var(--text-xs);
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   margin: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -699,6 +697,10 @@ onUnmounted(() => {
   }
 }
 
+[data-theme="light"] .view-details-link {
+  color: v.$primary-800;
+}
+
 .stat {
   display: flex;
   align-items: center;
@@ -716,7 +718,7 @@ onUnmounted(() => {
 
 /* LIVE stats - More prominent */
 .stat-viewers {
-  color: var(--danger-color);
+  color: var(--danger-text-color);
   font-weight: v.$font-semibold;
 }
 
@@ -735,9 +737,16 @@ onUnmounted(() => {
   color: var(--primary-color);
 }
 
+[data-theme="light"] .stat-vods {
+  color: v.$primary-800;
+}
+
+[data-theme="light"] .status-row :deep(.status-badge-offline) {
+  color: var(--text-primary);
+}
+
 .stat-time {
   color: var(--text-secondary);
-  opacity: 0.8;
 }
 
 .stat-live {
@@ -773,7 +782,10 @@ onUnmounted(() => {
   justify-content: center;
 
   cursor: pointer;
-  transition: all v.$duration-200 v.$ease-out;
+  transition:
+    background-color v.$duration-200 v.$ease-out,
+    box-shadow v.$duration-200 v.$ease-out,
+    transform v.$duration-200 v.$ease-out;
 
   .icon {
     width: 20px;

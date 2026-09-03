@@ -50,6 +50,7 @@ const emit = defineEmits<{
 
 const classes = computed(() => [
   'btn',
+  'base-button-target',
   `btn-${props.variant}`,
   props.size === 'sm' && 'btn-sm',
   props.size === 'lg' && 'btn-lg',
@@ -89,8 +90,33 @@ function onClick(ev: MouseEvent) {
 </template>
 
 <style scoped lang="scss">
+@use '@/styles/mixins' as m;
+
 // All visual styles come from src/styles/_components.scss .btn
 // Only layout helpers that don't exist there live here.
+.base-button-target {
+  min-height: var(--control-target-min);
+  min-inline-size: var(--control-target-min);
+  transition:
+    color var(--transition-fast),
+    background-color var(--transition-fast),
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast),
+    transform var(--transition-fast);
+
+  &:focus-visible {
+    outline: var(--focus-ring);
+    outline-offset: 2px;
+  }
+
+  @include m.respond-below('md') {
+    &.btn-primary {
+      min-height: var(--control-target-mobile);
+      min-inline-size: var(--control-target-mobile);
+    }
+  }
+}
+
 .btn-block {
   width: 100%;
 }

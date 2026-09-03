@@ -28,6 +28,20 @@ const GLASS_TOKEN_FILE = path.join(ROOT, 'styles', '_glass-system.scss');
 const TOKEN_ALLOWLIST = require('./design-token-allowlist.json');
 const APP_TOKEN_ALLOWLIST = new Set(TOKEN_ALLOWLIST.appTokens);
 const GLASS_TOKEN_ALLOWLIST = new Set(TOKEN_ALLOWLIST.glassTokens);
+const REQUIRED_APP_TOKENS = [
+  '--control-target-min',
+  '--control-target-mobile',
+  '--focus-ring',
+  '--interactive-gap',
+  '--row-density',
+];
+REQUIRED_APP_TOKENS.forEach((token) => APP_TOKEN_ALLOWLIST.add(token));
+
+const DEBT_BASELINES = {
+  transitionAll: 112,
+  hardcodedMaxWidthMedia: 31,
+  nonsemanticClickSurface: 8,
+};
 
 const HEX_RE = /#[0-9a-fA-F]{3,8}\b/;
 const MIN_WIDTH_RE = /@media[^{]*\bmin-width\s*:\s*\d+px/;
@@ -43,7 +57,7 @@ const ALLOWED_MEDIA = [
 ];
 
 function* walkVueFiles(dir) {
-  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
     const p = path.join(dir, entry.name);
     if (entry.isDirectory()) yield* walkVueFiles(p);
     else if (entry.isFile() && p.endsWith('.vue')) yield p;
@@ -51,7 +65,7 @@ function* walkVueFiles(dir) {
 }
 
 function* walkStyleSources(dir) {
-  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
     const p = path.join(dir, entry.name);
     if (entry.isDirectory()) yield* walkStyleSources(p);
     else if (entry.isFile() && /\.(vue|scss|css)$/.test(p)) yield p;
@@ -81,6 +95,44 @@ function lineAllowed(line, kind) {
 function isCommented(line) {
   const trimmed = line.trim();
   return trimmed.startsWith('//') || trimmed.startsWith('/*') || trimmed.startsWith('*');
+}
+
+function stripComments(src) {
+  return src
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/(^|[^:])\/\/.*$/gm, '$1');
+}
+
+function countMatches(src, pattern) {
+  return [...src.matchAll(pattern)].length;
+}
+
+function countNonsemanticClickSurfaces(src) {
+  const templateMatch = src.match(/<template\b[^>]*>([\s\S]*?)<\/template>/);
+  const template = stripComments(templateMatch?.[1] || '');
+  const matches = template.match(/<(?:div|span)\b[^>]*@click(?:\.[^=\s]+)*\s*=/g) || [];
+  return matches.filter((match) => {
+    if (/\brole\s*=/.test(match)) return false;
+    return !/\bclass\s*=\s*["'][^"']*(?:glass-popup-backdrop|video-modal-overlay|sheet-backdrop|modal-overlay)/.test(match);
+  }).length;
+}
+
+const debtCounts = {
+  transitionAll: 0,
+  hardcodedMaxWidthMedia: 0,
+  nonsemanticClickSurface: 0,
+};
+
+for (const file of walkStyleSources(ROOT)) {
+  const src = stripComments(fs.readFileSync(file, 'utf8'));
+  debtCounts.transitionAll += countMatches(
+    src,
+    /\btransition\s*:\s*(?:all\b|(?:v\.)?\$transition-all\b|var\(\s*--transition-all\s*\))/g,
+  );
+  debtCounts.hardcodedMaxWidthMedia += countMatches(src, /@media[^\n{]*\bmax-width\s*:/g);
+  if (file.endsWith('.vue')) {
+    debtCounts.nonsemanticClickSurface += countNonsemanticClickSurfaces(src);
+  }
 }
 
 const violations = [];
@@ -164,8 +216,15 @@ for (const file of walkVueFiles(ROOT)) {
   }
 }
 
-if (violations.length === 0) {
-  console.log('✅ design-token lint: no violations');
+const debtViolations = Object.entries(debtCounts)
+  .filter(([kind, count]) => count > DEBT_BASELINES[kind])
+  .map(([kind, count]) => ({ kind, count, baseline: DEBT_BASELINES[kind] }));
+
+if (violations.length === 0 && debtViolations.length === 0) {
+  console.log('design-token lint: no violations');
+  console.log(`transition-all debt: ${debtCounts.transitionAll}/${DEBT_BASELINES.transitionAll}`);
+  console.log(`hard-coded max-width media debt: ${debtCounts.hardcodedMaxWidthMedia}/${DEBT_BASELINES.hardcodedMaxWidthMedia}`);
+  console.log(`nonsemantic click-surface debt: ${debtCounts.nonsemanticClickSurface}/${DEBT_BASELINES.nonsemanticClickSurface}`);
   process.exit(0);
 }
 
@@ -185,7 +244,7 @@ const HINTS = {
   'unexpected-glass-token': 'New glass token names must be intentional: document the glass group and update scripts/design-token-allowlist.json.',
 };
 
-console.error('❌ design-token lint failed\n');
+console.error('design-token lint failed\n');
 for (const [kind, list] of Object.entries(byKind)) {
   console.error(`  ${kind} (${list.length}):`);
   console.error(`    hint: ${HINTS[kind]}`);
@@ -195,5 +254,9 @@ for (const [kind, list] of Object.entries(byKind)) {
   if (list.length > 30) console.error(`    ... and ${list.length - 30} more`);
   console.error('');
 }
-console.error(`total violations: ${violations.length}`);
+for (const debt of debtViolations) {
+  console.error(`  ${debt.kind}: ${debt.count} exceeds baseline ${debt.baseline}`);
+}
+console.error(`total token violations: ${violations.length}`);
+console.error(`total debt-gate violations: ${debtViolations.length}`);
 process.exit(1);
