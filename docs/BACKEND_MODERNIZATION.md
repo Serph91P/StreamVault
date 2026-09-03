@@ -160,7 +160,9 @@ the metrics-token policy, and removes only the containers and network it created
 ## Security gate policy
 
 Bandit high-severity/high-confidence findings, `pip-audit`, `npm audit` at high
-severity, Gitleaks, Trivy high/critical findings and Dockerfile lint are CI gates.
+severity, Gitleaks, Trivy high/critical findings and Hadolint error-level
+Dockerfile findings are CI gates. Informational and warning-level Dockerfile
+findings remain a documented historical baseline rather than a silent bypass.
 The previously accepted GitGuardian finding on an old test-only `token=ABC`
 fixture is a documented external false positive; no credential value is present
 in the current source and published history was not rewritten.

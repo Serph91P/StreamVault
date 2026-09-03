@@ -233,6 +233,7 @@ jobs:
           dockerfile: docker/Dockerfile
           format: sarif
           output-file: hadolint-results.sarif
+          failure-threshold: error
 
       - name: Upload Hadolint SARIF
         if: always()
