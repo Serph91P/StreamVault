@@ -1,7 +1,7 @@
 <template>
   <GlassCard
+    tag="article"
     variant="subtle"
-    hoverable
     class="stream-card"
     :class="{
       'is-expanded': isExpanded,
@@ -10,7 +10,7 @@
   >
     <div class="stream-card-content">
       <!-- Compact View (Always Visible) -->
-      <div class="stream-compact" @click="toggleExpand">
+      <div class="stream-compact">
         <!-- Stream Title -->
         <h3 class="stream-title">
           {{ stream.title || 'Untitled Stream' }}
@@ -42,7 +42,12 @@
           class="expand-btn"
           :class="{ rotated: isExpanded }"
           :aria-label="isExpanded ? 'Collapse stream details' : 'Expand stream details'"
-          @click.stop="toggleExpand"
+          :aria-expanded="isExpanded"
+          :aria-controls="detailsId"
+          type="button"
+          @click="toggleExpand"
+          @keydown.enter.stop
+          @keydown.space.stop
         >
           <svg class="icon">
             <use href="#icon-chevron-down" />
@@ -52,7 +57,13 @@
 
       <!-- Expanded View (Collapsible) -->
       <transition name="expand">
-        <div v-if="isExpanded" class="stream-expanded">
+        <div
+          v-if="isExpanded"
+          :id="detailsId"
+          class="stream-expanded"
+          role="region"
+          :aria-label="`Details for ${stream.title || 'Untitled Stream'}`"
+        >
           <!-- Stream Information Panel -->
           <div class="info-panel">
             <h4 class="panel-title">Stream Information</h4>
@@ -166,7 +177,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, useId } from 'vue'
 import StatusBadge from '@/components/base/StatusBadge.vue'
 import GlassCard from './GlassCard.vue'
 
@@ -208,6 +219,7 @@ const emit = defineEmits<{
 }>()
 
 const isExpanded = ref(false)
+const detailsId = useId()
 
 const isRecording = computed(() => props.stream.is_recording || false)
 const isLive = computed(() => props.stream.is_live || false)
@@ -304,6 +316,8 @@ function handleDelete() {
 @use '@/styles/mixins' as m;
 
 .stream-card {
+  touch-action: pan-y;
+
   :deep(.glass-card-content) {
     padding: 0;
     overflow: hidden;
@@ -331,6 +345,7 @@ function handleDelete() {
   display: flex;
   flex-direction: column;
   position: relative;
+  touch-action: pan-y;
 }
 
 /* Compact View */
@@ -340,12 +355,7 @@ function handleDelete() {
   grid-template-columns: minmax(0, 1fr) auto auto auto;
   align-items: center;
   gap: var(--spacing-3);
-  cursor: pointer;
-  transition: background v.$duration-200 v.$ease-out;
-
-  &:hover {
-    background: rgba(var(--primary-500-rgb), 0.05);
-  }
+  touch-action: pan-y;
 }
 
 .stream-title {
@@ -383,8 +393,8 @@ function handleDelete() {
 }
 
 .expand-btn {
-  width: 32px;
-  height: 32px;
+  width: 44px;
+  height: 44px;
   padding: 0;
   background: transparent;
   border: 1px solid var(--border-color);
@@ -677,47 +687,16 @@ function handleDelete() {
 /* Mobile Responsive */
 @include m.respond-below('sm') {
   .stream-compact {
-    flex-wrap: wrap;
-    cursor: pointer;  /* Make entire area tappable */
-    transition: background-color v.$duration-200 v.$ease-out;
-    border-radius: var(--radius-md);
-    margin: calc(-1 * var(--spacing-2));
-    padding: var(--spacing-2);
-
-    /* Add subtle indicator that card is expandable */
-    &::after {
-      content: 'Tap to expand';
-      display: block;
-      flex-basis: 100%;
-      font-size: var(--text-xs);
-      color: var(--text-muted);
-      text-align: center;
-      margin-top: var(--spacing-2);
-      opacity: 0.6;
-    }
-
-    /* Visual feedback on touch - shows user it's tappable */
-    &:active {
-      background: rgba(var(--primary-500-rgb), 0.15);
-    }
-  }
-
-  /* Hide hint when expanded */
-  .stream-card.is-expanded .stream-compact::after {
-    display: none;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    padding: var(--spacing-3);
   }
 
   .stream-title {
-    flex-basis: 100%;
+    grid-column: 1 / -1;
   }
 
   .info-grid {
     grid-template-columns: 1fr;
-  }
-
-  /* Hide expand button on mobile - card tap expands instead */
-  .expand-btn {
-    display: none;
   }
 }
 </style>
