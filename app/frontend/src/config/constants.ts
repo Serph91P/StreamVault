@@ -52,11 +52,6 @@ export const UI = {
   AUTO_HIDE_ERROR_MS: 5000,
   
   /**
-   * Swipe gesture initialization delay (ms)
-   */
-  SWIPE_INIT_DELAY_MS: 100,
-  
-  /**
    * PWA debug initialization delay (ms)
    */
   PWA_DEBUG_DELAY_MS: 1000,

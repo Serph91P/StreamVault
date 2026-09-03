@@ -21,18 +21,11 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue'
 import BottomNav from './BottomNav.vue'
 import SidebarNav from './SidebarNav.vue'
 import { useNavigation } from '@/composables/useNavigation'
-import { useSwipeNavigation } from '@/composables/useSwipeNavigation'
 
 const { isMobile, isDesktop, sidebarExpanded } = useNavigation()
-const { initSwipe } = useSwipeNavigation()
-
-onMounted(() => {
-  initSwipe()
-})
 </script>
 
 <style scoped lang="scss">
