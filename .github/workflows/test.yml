@@ -90,9 +90,9 @@ jobs:
         working-directory: app/frontend
         run: npm ci --prefer-offline
 
-      - name: Lint TypeScript/Vue code
+      - name: Check TypeScript/Vue code lint
         working-directory: app/frontend
-        run: npm run lint
+        run: npm run lint:check
 
       - name: Lint design tokens (no hardcoded hex/breakpoints/transitions)
         working-directory: app/frontend
@@ -102,11 +102,27 @@ jobs:
         working-directory: app/frontend
         run: npm run type-check
 
+      - name: Run frontend unit tests
+        working-directory: app/frontend
+        run: npm run test:unit
+
       - name: Build frontend (production)
         working-directory: app/frontend
         run: |
           rm -rf dist || true
           npm run build
+
+      - name: Check deterministic frontend build output
+        working-directory: app/frontend
+        run: npm run test:build-output
+
+      - name: Install Playwright Chromium
+        working-directory: app/frontend
+        run: npx playwright install --with-deps chromium
+
+      - name: Run frontend browser tests
+        working-directory: app/frontend
+        run: npx playwright test
 
   # ──────────────────────────────────────────────
   # Python Lint & Type Check
