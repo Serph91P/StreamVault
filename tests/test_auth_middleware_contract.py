@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import hashlib
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
@@ -19,6 +18,7 @@ from starlette.websockets import WebSocketDisconnect
 from app.database import Base
 from app.models import ApiKey, RefreshToken, Session, User
 from app.services.core.auth_service import AuthService
+from app.services.core.api_key_service import ApiKeyService
 from app.dependencies import get_auth_service, get_current_user, get_db, require_scopes
 from app.middleware.auth import AuthMiddleware
 from app.routes import auth as auth_routes
@@ -64,16 +64,7 @@ def auth_stack(monkeypatch):
         db.commit()
         user_id = user.id
         legacy_token = asyncio.run(service.create_session(user.id))
-        api_key = "svapi_middleware_contract"
-        db.add(
-            ApiKey(
-                user_id=user.id,
-                name="middleware contract",
-                key_hash=hashlib.sha256(api_key.encode("utf-8")).hexdigest(),
-                key_prefix=api_key[:12],
-            )
-        )
-        db.commit()
+        _, api_key = ApiKeyService(db).create(user.id, "middleware contract")
 
     def get_test_db():
         db = SessionFactory()
@@ -242,7 +233,14 @@ def test_legacy_session_and_api_key_remain_compatible(auth_stack):
     with TestClient(app) as client:
         api_key_response = client.get(
             "/api/api-key-compatible",
-            headers={"X-API-Key": api_key},
+            headers={"accept": "application/json", "X-API-Key": api_key},
+        )
+        invalid_api_key_response = client.get(
+            "/api/api-key-compatible",
+            headers={
+                "accept": "application/json",
+                "X-API-Key": "sv_invalid_middleware_contract",
+            },
         )
 
     assert legacy.status_code == 200
@@ -250,6 +248,12 @@ def test_legacy_session_and_api_key_remain_compatible(auth_stack):
     assert legacy_bearer.status_code == 200
     assert legacy_bearer.json() == {"user_id": user_id}
     assert api_key_response.status_code == 200
+    assert api_key_response.json() == {"ok": True}
+    assert invalid_api_key_response.status_code == 401
+    assert invalid_api_key_response.json() == {
+        "error": "Authentication required",
+        "redirect": "/auth/login",
+    }
 
 
 def test_websocket_accepts_access_cookie_or_bearer_and_rejects_invalid_jwt(auth_stack):
