@@ -184,6 +184,36 @@ class AuthService:
             raise AuthTokenError("Wrong token type")
         return claims
 
+    def resolve_access_token(self, token: str) -> tuple[User, dict[str, Any]]:
+        """Decode an access token and bind its policy to the current user state."""
+        claims = self.decode_access_token(token)
+        try:
+            user_id = int(claims["sub"])
+        except (KeyError, TypeError, ValueError) as error:
+            raise AuthTokenError("Invalid access token subject") from error
+
+        user = self.db.query(User).filter_by(id=user_id, is_active=True).first()
+        if not user:
+            raise AuthTokenError("Access token user unavailable")
+
+        token_scopes = claims.get("scp", [])
+        token_roles = claims.get("roles", [])
+        if not isinstance(token_scopes, list) or not isinstance(token_roles, list):
+            raise AuthTokenError("Invalid access token policy")
+        if not all(isinstance(scope, str) for scope in token_scopes) or not all(
+            isinstance(role, str) for role in token_roles
+        ):
+            raise AuthTokenError("Invalid access token policy")
+
+        current_scopes = self._user_scopes(user)
+        current_roles = frozenset({"admin"}) if user.is_admin else frozenset({"user"})
+        if (
+            not frozenset(token_scopes).issubset(current_scopes)
+            or frozenset(token_roles) != current_roles
+        ):
+            raise AuthTokenError("Access token policy no longer applies")
+        return user, claims
+
     def _refresh_expiry(self, now: datetime) -> tuple[datetime, datetime]:
         refresh_hours = getattr(self.settings, "AUTH_REFRESH_TOKEN_HOURS", 24)
         family_hours = getattr(self.settings, "AUTH_REFRESH_FAMILY_MAX_HOURS", 168)
@@ -230,14 +260,20 @@ class AuthService:
             family_id=refresh.family_id,
         )
 
-    def revoke_refresh_family(self, family_id: str) -> int:
-        now = datetime.now(timezone.utc)
-        count = (
+    def _revoke_refresh_family_in_transaction(
+        self, family_id: str, now: datetime
+    ) -> int:
+        return (
             self.db.query(RefreshToken)
             .filter(
                 RefreshToken.family_id == family_id, RefreshToken.revoked_at.is_(None)
             )
             .update({RefreshToken.revoked_at: now}, synchronize_session=False)
+        )
+
+    def revoke_refresh_family(self, family_id: str) -> int:
+        count = self._revoke_refresh_family_in_transaction(
+            family_id, datetime.now(timezone.utc)
         )
         self.db.commit()
         return count
@@ -249,29 +285,51 @@ class AuthService:
         if not refresh:
             raise AuthTokenError("Invalid refresh token")
         if refresh.used_at is not None or refresh.revoked_at is not None:
-            self.revoke_refresh_family(refresh.family_id)
+            self._revoke_refresh_family_in_transaction(refresh.family_id, now)
+            self.db.commit()
             raise RefreshTokenReplayError("Refresh token replay detected")
         if (
             _as_utc(refresh.expires_at) < now
             or _as_utc(refresh.family_expires_at) < now
         ):
-            self.revoke_refresh_family(refresh.family_id)
+            self._revoke_refresh_family_in_transaction(refresh.family_id, now)
+            self.db.commit()
             raise AuthTokenError("Refresh token expired")
         user = self.db.query(User).filter_by(id=refresh.user_id).first()
         if not user or not getattr(user, "is_active", True):
-            self.revoke_refresh_family(refresh.family_id)
+            self._revoke_refresh_family_in_transaction(refresh.family_id, now)
+            self.db.commit()
             raise AuthTokenError("Refresh token user unavailable")
 
-        refresh.used_at = now
-        replacement, raw_replacement = self._new_refresh_token(
-            user,
-            family_id=refresh.family_id,
-            family_expires_at=refresh.family_expires_at,
-            parent_token_hash=refresh.token_hash,
-        )
-        self.db.commit()
+        access_token = self.create_access_token(user)
+        try:
+            consumed = (
+                self.db.query(RefreshToken)
+                .filter(
+                    RefreshToken.token_hash == token_hash,
+                    RefreshToken.used_at.is_(None),
+                    RefreshToken.revoked_at.is_(None),
+                )
+                .update({RefreshToken.used_at: now}, synchronize_session=False)
+            )
+            if consumed != 1:
+                self._revoke_refresh_family_in_transaction(refresh.family_id, now)
+                self.db.commit()
+                raise RefreshTokenReplayError("Refresh token replay detected")
+            replacement, raw_replacement = self._new_refresh_token(
+                user,
+                family_id=refresh.family_id,
+                family_expires_at=refresh.family_expires_at,
+                parent_token_hash=refresh.token_hash,
+            )
+            self.db.commit()
+        except RefreshTokenReplayError:
+            raise
+        except Exception:
+            self.db.rollback()
+            raise
         return TokenPair(
-            access_token=self.create_access_token(user),
+            access_token=access_token,
             refresh_token=raw_replacement,
             family_id=replacement.family_id,
         )

@@ -239,7 +239,7 @@ async def check_auth(
     token = request.cookies.get("access_token")
     if token:
         try:
-            auth_service.decode_access_token(token)
+            auth_service.resolve_access_token(token)
             return JSONResponse(content={"authenticated": True})
         except AuthTokenError:
             pass

@@ -27,8 +27,8 @@ def _extract_api_key(request_or_headers) -> str | None:
     """Extract a long-lived API key from the request.
 
     Accepts either:
-      - X-API-Key: sv_<token>
-      - Authorization: ApiKey sv_<token>
+      - X-API-Key: ***
+      - Authorization: ApiKey ***
 
     Cookies/Bearer session tokens are handled separately and take precedence.
     """
@@ -52,6 +52,16 @@ def _extract_api_key(request_or_headers) -> str | None:
     return None
 
 
+def _is_valid_access_token(auth_service: AuthService, token: str | None) -> bool:
+    if not token:
+        return False
+    try:
+        auth_service.resolve_access_token(token)
+        return True
+    except Exception:
+        return False
+
+
 class AuthMiddleware:
     def __init__(self, app):
         self.app = app
@@ -60,18 +70,19 @@ class AuthMiddleware:
         if scope["type"] not in ("http", "websocket"):
             return await self.app(scope, receive, send)
 
-        # SECURITY: Validate WebSocket connections with session cookie
+        # SECURITY: Validate WebSocket connections with access JWT or legacy session.
         if scope["type"] == "websocket":
             from starlette.websockets import WebSocket as StarletteWebSocket
 
             ws = StarletteWebSocket(scope, receive, send)
-            session_token = ws.cookies.get("session")
+            bearer_token = _extract_bearer_token(scope.get("headers", []))
+            access_token = ws.cookies.get("access_token") or bearer_token
+            # A Bearer credential may be either a current JWT or a legacy opaque
+            # session token. Validate it as JWT first, then use the established
+            # legacy-session fallback when no JWT can be resolved.
+            session_token = ws.cookies.get("session") or bearer_token
 
-            # PWA fallback: check Authorization header if no cookie
-            if not session_token:
-                session_token = _extract_bearer_token(scope.get("headers", []))
-
-            if not session_token:
+            if not access_token and not session_token:
                 logger.warning(
                     "WebSocket connection rejected: no session cookie or Bearer token"
                 )
@@ -82,8 +93,12 @@ class AuthMiddleware:
             db = SessionLocal()
             try:
                 auth_service = AuthService(db=db)
-                if not await auth_service.validate_session(session_token):
-                    logger.warning("WebSocket connection rejected: invalid session")
+                if not _is_valid_access_token(auth_service, access_token) and not (
+                    session_token and await auth_service.validate_session(session_token)
+                ):
+                    logger.warning(
+                        "WebSocket connection rejected: invalid authentication"
+                    )
                     await ws.accept()
                     await ws.close(code=4001, reason="Invalid session")
                     return
@@ -111,6 +126,9 @@ class AuthMiddleware:
             "/auth/login",
             "/auth/setup",
             "/auth/check",
+            # Refresh exchanges the HttpOnly refresh cookie and must remain
+            # reachable after the short-lived access token expires.
+            "/auth/refresh",
             "/auth/logout",
             "/auth/keepalive",
             # Infrastructure
@@ -162,20 +180,17 @@ class AuthMiddleware:
                         scope, receive, send
                     )
 
-            session_token = request.cookies.get("session")
+            bearer_token = _extract_bearer_token(scope.get("headers", []))
+            access_token = request.cookies.get("access_token") or bearer_token
+            # Keep the same JWT-first, legacy-session fallback as dependencies.
+            session_token = request.cookies.get("session") or bearer_token
 
-            # PWA fallback: check Authorization header if no cookie
-            if not session_token:
-                auth_header = request.headers.get("authorization", "")
-                if auth_header.startswith("Bearer "):
-                    session_token = auth_header[7:]
-
-            # API-key fallback (X-API-Key or "Authorization: ApiKey <token>").
+            # API-key fallback (X-API-Key or "Authorization: ApiKey ***").
             # Sessions/cookies always take precedence. The /api/api-keys
             # management endpoints intentionally REJECT API-key auth because those
             # routes re-validate that an interactive session exists, so a
             # stolen key cannot be used to mint or revoke more keys.
-            if not session_token:
+            if not access_token and not session_token:
                 api_key = _extract_api_key(request)
                 if api_key:
                     # SECURITY: Never allow API-key auth on the management
@@ -198,7 +213,7 @@ class AuthMiddleware:
                                 f"Rejected invalid API key for {request.url.path}"
                             )
 
-            if not session_token:
+            if not access_token and not session_token:
                 logger.debug(
                     f"No session cookie or Bearer token for {request.url.path}"
                 )
@@ -214,8 +229,10 @@ class AuthMiddleware:
                     return await RedirectResponse(url="/auth/login", status_code=307)(
                         scope, receive, send
                     )
-            elif not await auth_service.validate_session(session_token):
-                logger.debug(f"Invalid session token for {request.url.path}")
+            elif not _is_valid_access_token(auth_service, access_token) and not (
+                session_token and await auth_service.validate_session(session_token)
+            ):
+                logger.debug(f"Invalid authentication for {request.url.path}")
                 if not request.url.path.startswith("/auth/login"):
                     if is_json_request:
                         return await JSONResponse(

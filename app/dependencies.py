@@ -53,7 +53,7 @@ def get_current_identity(
     token = request.cookies.get("access_token") or _bearer(request)
     if token:
         try:
-            claims = service.decode_access_token(token)
+            _user, claims = service.resolve_access_token(token)
             return AuthIdentity(
                 subject=claims["sub"],
                 roles=frozenset(claims.get("roles", [])),
