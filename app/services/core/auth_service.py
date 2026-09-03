@@ -293,7 +293,10 @@ class AuthService:
         cutoff = datetime.now(timezone.utc) - timedelta(
             hours=self.session_timeout_hours
         )
-        if session.created_at < cutoff:
+        created_at = session.created_at
+        if created_at.tzinfo is None:
+            created_at = created_at.replace(tzinfo=timezone.utc)
+        if created_at < cutoff:
             self.db.delete(session)
             self.db.commit()
             return None
@@ -307,7 +310,13 @@ class AuthService:
         cutoff = datetime.now(timezone.utc) - timedelta(
             hours=self.session_timeout_hours
         )
-        expired = self.db.query(Session).filter(Session.created_at < cutoff).all()
+        expired = []
+        for session in self.db.query(Session).all():
+            created_at = session.created_at
+            if created_at.tzinfo is None:
+                created_at = created_at.replace(tzinfo=timezone.utc)
+            if created_at < cutoff:
+                expired.append(session)
         for session in expired:
             self.db.delete(session)
         if expired:

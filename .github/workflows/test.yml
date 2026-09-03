@@ -47,8 +47,11 @@ jobs:
             --cov-report=term-missing \
             --tb=short
 
-      - name: Check migrations
-        run: python -m app.migrations_init
+      - name: Check migration orchestration
+        run: >
+          pytest -v --tb=short
+          tests/test_migration_foundation.py
+          tests/test_migration_service_orchestration.py
 
       - name: Upload coverage to Codecov
         if: always() && hashFiles('coverage.xml') != ''
@@ -138,7 +141,12 @@ jobs:
         run: ruff format --check app/
 
       - name: Type check Python code
-        run: mypy app/ --ignore-missing-imports || true
+        # The modernized surface is a bounded real gate. Legacy modules remain
+        # outside this target until their SQLAlchemy typing migration lands.
+        run: >
+          mypy --follow-imports=skip --ignore-missing-imports
+          app/config/settings.py app/core/exceptions.py
+          app/middleware/logging.py app/observability.py app/routes/health.py
 
   # ──────────────────────────────────────────────
   # Integration Tests (Docker)
@@ -167,54 +175,8 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Test fresh PostgreSQL migrations and restart
+      - name: Test fresh PostgreSQL migrations, restart, and HTTP surface
         run: bash tests/run_fresh_postgres_proxy_migrations.sh streamvault:test
-
-      - name: Run integration tests
-        run: |
-          # Run container in background
-          docker run -d --name streamvault-test \
-            -p 7000:7000 \
-            -e DATABASE_URL=sqlite:///./test.db \
-            -e TWITCH_APP_ID=ci_test_placeholder \
-            -e TWITCH_APP_SECRET=ci_test_placeholder \
-            -e BASE_URL=http://localhost:7000 \
-            streamvault:test
-
-          # Wait for container to be healthy with retries
-          echo "Waiting for container to be ready..."
-          for i in {1..30}; do
-            if curl -sf http://localhost:7000/api/health/live > /dev/null 2>&1; then
-              echo "✅ StreamVault is ready!"
-              break
-            fi
-            echo "Attempt $i/30 - waiting..."
-            sleep 2
-          done
-
-          # Show container logs for debugging
-          echo "=== Container logs ==="
-          docker logs streamvault-test 2>&1 | tail -50
-          echo "======================"
-
-          # Test health endpoint
-          echo "🔍 Testing health endpoint..."
-          curl -f http://localhost:7000/api/health/live || echo "⚠️ Health endpoint not responding"
-
-          # Test frontend serves correctly
-          echo "🔍 Testing frontend..."
-          curl -sf http://localhost:7000/ > /dev/null && echo "✅ Frontend is serving" || echo "⚠️ Frontend not serving"
-
-          # Clean up
-          docker stop streamvault-test
-          docker rm streamvault-test
-
-      - name: Clean up
-        if: always()
-        run: |
-          docker stop streamvault-test 2>/dev/null || true
-          docker rm streamvault-test 2>/dev/null || true
-          docker rmi streamvault:test 2>/dev/null || true
 
   # ──────────────────────────────────────────────
   # Quick Security Scan (inline, for fast feedback)
@@ -247,8 +209,7 @@ jobs:
           format: 'sarif'
           output: 'trivy-results.sarif'
           severity: 'CRITICAL,HIGH'
-          exit-code: '0'
-        continue-on-error: true
+          exit-code: '1'
 
       - name: Upload Trivy scan results
         uses: github/codeql-action/upload-sarif@v4.37.9
@@ -261,15 +222,15 @@ jobs:
       - name: Python dependency security check
         run: |
           python -m pip install --upgrade pip
-          pip install safety bandit
+          pip install pip-audit bandit
 
-          echo "🔍 Running safety check on dependencies..."
-          safety check -r requirements.txt || true
+          echo "🔍 Running dependency audit..."
+          pip-audit -r requirements.txt
 
           echo "🔍 Running bandit static analysis..."
-          bandit -r app/ -ll --exclude app/__pycache__,app/frontend || true
+          bandit -r app/ -ll -iii --exclude app/__pycache__,app/frontend
 
       - name: Node dependency audit
         working-directory: app/frontend
         run: |
-          npm audit --audit-level high || true
+          npm audit --audit-level high

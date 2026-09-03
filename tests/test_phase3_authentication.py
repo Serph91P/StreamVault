@@ -11,8 +11,10 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
-from app.models import RefreshToken, User
+from app.models import RefreshToken, Session, User
+from app.schemas.auth import UserCreate
 from app.services.core.auth_service import (
+    AuthConfigurationError,
     AuthService,
     AuthTokenError,
     RefreshTokenReplayError,
@@ -36,14 +38,18 @@ def auth_settings():
 @pytest.fixture
 def db_session():
     engine = create_engine("sqlite://")
-    Base.metadata.create_all(engine, tables=[User.__table__, RefreshToken.__table__])
+    Base.metadata.create_all(
+        engine, tables=[User.__table__, RefreshToken.__table__, Session.__table__]
+    )
     factory = sessionmaker(bind=engine)
     session = factory()
     try:
         yield session
     finally:
         session.close()
-        Base.metadata.drop_all(engine, tables=[RefreshToken.__table__, User.__table__])
+        Base.metadata.drop_all(
+            engine, tables=[Session.__table__, RefreshToken.__table__, User.__table__]
+        )
         engine.dispose()
 
 
@@ -68,6 +74,70 @@ async def test_login_success_failure_and_disabled_user_are_explicit(
     assert await service.validate_login("admin", "wrong") is None
     assert await service.validate_login("missing", "correct horse") is None
     assert await service.validate_login("disabled", "correct horse") is None
+
+
+@pytest.mark.asyncio
+async def test_admin_creation_and_legacy_sessions_keep_the_compatibility_contract(
+    db_session, auth_settings
+):
+    service = AuthService(db_session, settings=auth_settings)
+
+    assert not await service.admin_exists()
+    created = await service.create_admin(
+        UserCreate(username="created-admin", password="correct horse")
+    )
+    assert created.username == "created-admin"
+    assert await service.admin_exists()
+
+    raw_session = await service.create_session(created.id)
+    assert await service.validate_session(raw_session)
+    legacy_row = db_session.query(Session).filter_by(user_id=created.id).one()
+    assert legacy_row.user_id == created.id
+    assert await service.refresh_session(raw_session)
+    assert await service.delete_session(raw_session)
+    assert not await service.validate_session(raw_session)
+
+    expired_session = await service.create_session(created.id)
+    expired_row = db_session.query(Session).filter_by(user_id=created.id).one()
+    expired_row.created_at = datetime.now() - timedelta(
+        hours=service.session_timeout_hours + 1
+    )
+    db_session.commit()
+    assert not await service.validate_session(expired_session)
+    assert db_session.query(Session).filter_by(user_id=created.id).first() is None
+
+    await service.create_session(created.id)
+    cleanup_row = db_session.query(Session).filter_by(user_id=created.id).one()
+    cleanup_row.created_at = datetime.now() - timedelta(
+        hours=service.session_timeout_hours + 1
+    )
+    db_session.commit()
+    assert await service.cleanup_expired_sessions() == 1
+    assert db_session.query(Session).filter_by(user_id=created.id).first() is None
+
+
+def test_jwt_configuration_and_inactive_user_fail_closed(db_session, auth_settings):
+    invalid_settings = SimpleNamespace(
+        **(vars(auth_settings) | {"AUTH_JWT_SECRET": "short"})
+    )
+    invalid_service = AuthService(db_session, settings=invalid_settings)
+    with pytest.raises(AuthConfigurationError):
+        invalid_service._jwt_config()
+
+    service = AuthService(db_session, settings=auth_settings)
+    inactive = User(
+        username="inactive-token-user",
+        password=service.hash_password("password"),
+        is_admin=False,
+        is_active=False,
+    )
+    db_session.add(inactive)
+    db_session.commit()
+
+    with pytest.raises(AuthTokenError):
+        service.issue_token_pair(inactive)
+    with pytest.raises(AuthTokenError):
+        service.rotate_refresh_token("missing-refresh-token")
 
 
 @pytest.mark.asyncio

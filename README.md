@@ -6,7 +6,7 @@
 
 StreamVault records Twitch streams automatically, keeps the recordings organized with metadata and artwork, and provides a modern web app for watching, managing, and sharing your archive.
 
-[![Python](https://img.shields.io/badge/Python-3.12+-3776ab?style=flat-square&logo=python&logoColor=white)](https://python.org)
+[![Python](https://img.shields.io/badge/Python-3.14+-3776ab?style=flat-square&logo=python&logoColor=white)](https://python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
 [![Vue](https://img.shields.io/badge/Vue-3.5-4FC08D?style=flat-square&logo=vue.js&logoColor=white)](https://vuejs.org)
 [![Docker](https://img.shields.io/badge/Docker-ready-2496ED?style=flat-square&logo=docker&logoColor=white)](https://docker.com)
@@ -46,7 +46,8 @@ StreamVault records Twitch streams automatically, keeps the recordings organized
 ### Operations
 
 - Docker Compose deployment with PostgreSQL and persistent volumes.
-- Session based authentication and API key support for automation.
+- HttpOnly JWT cookie authentication, legacy-session migration support, and API
+  key support for automation.
 - Notifications through Apprise plus web push notifications.
 - Cleanup policies by age, size, count, and per streamer overrides.
 - GitHub Actions for tests, security scanning, and Docker image builds.
@@ -76,17 +77,22 @@ TWITCH_APP_ID=your_twitch_client_id
 TWITCH_APP_SECRET=your_twitch_client_secret
 BASE_URL=https://streamvault.example.com
 EVENTSUB_SECRET=replace_with_a_random_secret
+AUTH_JWT_SECRET=replace_with_a_32_byte_minimum_secret
 POSTGRES_USER=streamvault
 POSTGRES_PASSWORD=replace_with_a_strong_password
 POSTGRES_DB=streamvault
 TZ=Europe/Berlin
 ```
 
-Generate a webhook secret with:
+Generate the EventSub and JWT secrets with separate random values:
 
 ```bash
 openssl rand -hex 32
 ```
+
+`AUTH_JWT_SECRET` is required for production login. JWT issuance fails closed
+when it is unset or shorter than 32 characters. Never put generated secrets in
+Git, screenshots, shell history shared with others, or support logs.
 
 ### 3. Start StreamVault
 
@@ -137,6 +143,7 @@ Repository docs:
 - [User guide](docs/USER_GUIDE.md)
 - [Browser token setup](docs/BROWSER_TOKEN_SETUP.md)
 - [Development guide](docs/DEVELOPMENT.md)
+- [Backend modernization operations guide](docs/BACKEND_MODERNIZATION.md)
 - [Wiki source](docs/wiki/Home.md)
 
 Wiki pages prepared in this repository:
@@ -153,8 +160,8 @@ Wiki pages prepared in this repository:
 
 Interactive API documentation is available from a running instance:
 
-- Swagger UI: `/docs`
-- OpenAPI schema: `/openapi.json`
+- Swagger UI: `/api/docs`
+- OpenAPI schema: `/api/openapi.json`
 
 Common API groups include:
 
@@ -166,7 +173,7 @@ Common API groups include:
 | Live playback | `/api/live/start/{streamer}`, `/api/live/{session_id}/playlist.m3u8` |
 | Settings | `/api/settings` |
 | Twitch auth | `/api/twitch-auth` |
-| Admin and health | `/health`, `/api/admin/test/health` |
+| Admin and health | `/api/health`, `/api/health/live`, `/api/health/ready` |
 
 ## Development
 
@@ -176,7 +183,7 @@ Backend:
 python -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+uvicorn app.main:app --reload --host 0.0.0.0 --port 7000
 ```
 
 Frontend:
