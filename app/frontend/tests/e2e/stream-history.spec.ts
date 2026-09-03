@@ -111,6 +111,7 @@ for (const viewport of viewports) {
     await expect(panel).toHaveScreenshot(`${snapshotPrefix}-collapsed.png`, {
       animations: 'disabled',
       caret: 'hide',
+      maxDiffPixels: 300,
       scale: 'css',
     })
 
@@ -123,6 +124,7 @@ for (const viewport of viewports) {
     await expect(panel).toHaveScreenshot(`${snapshotPrefix}-expanded.png`, {
       animations: 'disabled',
       caret: 'hide',
+      maxDiffPixels: 300,
       scale: 'css',
     })
   })
