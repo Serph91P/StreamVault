@@ -38,9 +38,9 @@ const REQUIRED_APP_TOKENS = [
 REQUIRED_APP_TOKENS.forEach((token) => APP_TOKEN_ALLOWLIST.add(token));
 
 const DEBT_BASELINES = {
-  transitionAll: 116,
+  transitionAll: 112,
   hardcodedMaxWidthMedia: 31,
-  nonsemanticClickSurface: 11,
+  nonsemanticClickSurface: 8,
 };
 
 const HEX_RE = /#[0-9a-fA-F]{3,8}\b/;
