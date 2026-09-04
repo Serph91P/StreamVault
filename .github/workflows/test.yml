@@ -249,4 +249,4 @@ jobs:
       - name: Node dependency audit
         working-directory: app/frontend
         run: |
-          npm audit --audit-level high
+          bash ../../scripts/ci/npm-audit-with-retry.sh
