@@ -8,6 +8,7 @@ persisted (mirrors the session token strategy in AuthService).
 import hashlib
 import logging
 import secrets
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import List, Optional
 
@@ -22,6 +23,14 @@ logger = logging.getLogger("streamvault")
 _KEY_PREFIX = "sv_"
 _KEY_RANDOM_BYTES = 32  # token_urlsafe(32) -> 43 chars
 _PREFIX_DISPLAY_LEN = 10  # Number of chars stored for UI display (e.g. "sv_abcdef…")
+
+
+@dataclass(frozen=True)
+class ResolvedApiKey:
+    """A validated API key bound to its currently authorized owner."""
+
+    record: ApiKey
+    owner: User
 
 
 def hash_api_key(raw_key: str) -> str:
@@ -101,22 +110,35 @@ class ApiKeyService:
         logger.info(f"API key revoked (id={record.id}, name={record.name!r})")
         return True
 
-    def validate(self, raw_key: str) -> Optional[ApiKey]:
-        """Validate a raw API key. Returns the active ApiKey record or None.
+    def resolve_active_owner(self, raw_key: str) -> Optional[ResolvedApiKey]:
+        """Resolve a key and its current active owner through one policy seam.
 
-        Touches `last_used_at` on success. Validation is constant-time-safe
-        because the lookup is by SHA-256 hash (no string comparison on secret).
+        A key is usable only while its record is active and its owner remains
+        active. The owner lookup is intentionally coupled to key validation so
+        middleware cannot accidentally bypass current role or account policy.
         """
         if not raw_key or not raw_key.startswith(_KEY_PREFIX):
             return None
         try:
-            record = (
-                self.db.query(ApiKey)
+            resolved = (
+                self.db.query(ApiKey, User)
+                .join(User, ApiKey.user_id == User.id)
                 .filter(ApiKey.key_hash == hash_api_key(raw_key))
+                .filter(ApiKey.revoked_at.is_(None), User.is_active.is_(True))
                 .first()
             )
-            if not record or record.revoked_at is not None:
+            if not resolved:
                 return None
+            record, owner = resolved
+            expires_at = record.expires_at
+            if expires_at is not None:
+                expires_at = (
+                    expires_at.replace(tzinfo=timezone.utc)
+                    if expires_at.tzinfo is None
+                    else expires_at.astimezone(timezone.utc)
+                )
+                if expires_at <= datetime.now(timezone.utc):
+                    return None
             # Best-effort touch; failure must not block the request.
             try:
                 record.last_used_at = datetime.now(timezone.utc)
@@ -125,13 +147,16 @@ class ApiKeyService:
             except Exception as touch_err:
                 logger.debug(f"Could not update last_used_at: {touch_err}")
                 self.db.rollback()
-            return record
+            return ResolvedApiKey(record=record, owner=owner)
         except Exception as e:
-            logger.error(f"Error validating API key: {e}")
+            logger.error(f"Error resolving API key: {e}")
             return None
 
+    def validate(self, raw_key: str) -> Optional[ApiKey]:
+        """Return an API-key record only when current owner policy permits it."""
+        resolved = self.resolve_active_owner(raw_key)
+        return resolved.record if resolved else None
+
     def get_user_for_key(self, raw_key: str) -> Optional[User]:
-        record = self.validate(raw_key)
-        if not record:
-            return None
-        return self.db.query(User).filter(User.id == record.user_id).first()
+        resolved = self.resolve_active_owner(raw_key)
+        return resolved.owner if resolved else None

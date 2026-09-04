@@ -8,6 +8,8 @@ success record).
 """
 
 import importlib
+import importlib.util
+from pathlib import Path
 
 import pytest
 from sqlalchemy import create_engine, inspect, text
@@ -156,3 +158,40 @@ def test_migration_invoker_uses_target_engine_for_compatible_scripts(
     assert success is True, message
     inspector = inspect(migration_engine)
     assert "target_engine_table" in inspector.get_table_names()
+
+
+def test_api_key_expiry_migration_is_idempotent_and_preserves_existing_rows(
+    migration_engine,
+):
+    path = Path("migrations/042_add_api_key_expiry.py")
+    spec = importlib.util.spec_from_file_location("api_key_expiry", path)
+    assert spec and spec.loader
+    migration = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(migration)
+
+    with migration_engine.begin() as connection:
+        connection.execute(
+            text(
+                "CREATE TABLE users (id INTEGER PRIMARY KEY, username VARCHAR NOT NULL)"
+            )
+        )
+        connection.execute(
+            text(
+                "CREATE TABLE api_keys (id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL)"
+            )
+        )
+        connection.execute(text("INSERT INTO api_keys (id, user_id) VALUES (1, 1)"))
+
+    migration.upgrade(migration_engine)
+    migration.upgrade(migration_engine)
+
+    columns = {
+        column["name"] for column in inspect(migration_engine).get_columns("api_keys")
+    }
+    with migration_engine.connect() as connection:
+        row = connection.execute(
+            text("SELECT id, user_id, expires_at FROM api_keys WHERE id = 1")
+        ).one()
+
+    assert "expires_at" in columns
+    assert row == (1, 1, None)

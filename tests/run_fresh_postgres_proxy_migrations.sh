@@ -84,19 +84,38 @@ assert_clean_startup_logs() {
     fi
 }
 
+assert_openapi_surface() {
+    local app_container="$1"
+    local headers
+    local body
+    local status
+
+    headers="$(docker exec "${app_container}" curl -sS -D - -o /dev/null -w '\n__STATUS__%{http_code}' "${base_url}/api/openapi.json")"
+    status="${headers##*__STATUS__}"
+    headers="${headers%__STATUS__*}"
+    body="$(docker exec "${app_container}" curl -sS "${base_url}/api/openapi.json")"
+
+    if [[ "${status}" != "200" || "${headers,,}" != *"content-type:"*"application/json"* || "${headers,,}" == *"location:"* || "${body}" != *'"openapi"'* || "${body}" != *'"paths"'* ]]; then
+        printf '%s\n' "OpenAPI contract must be direct JSON without redirects" >&2
+        return 1
+    fi
+}
+
 assert_http_surface() {
     local app_container="$1"
     local endpoint
     local status
     local headers
 
-    for endpoint in /api/health/live /api/health/ready /api/openapi.json /; do
-        status="$(docker exec "${app_container}" curl -sS -L -o /dev/null -w '%{http_code}' "${base_url}${endpoint}")"
+    for endpoint in /api/health/live /api/health/ready /; do
+        status="$(docker exec "${app_container}" curl -sS -o /dev/null -w '%{http_code}' "${base_url}${endpoint}")"
         if [[ "${status}" != "200" ]]; then
             printf '%s\n' "HTTP smoke failed for ${endpoint}: expected 200, got ${status}" >&2
             return 1
         fi
     done
+
+    assert_openapi_surface "${app_container}"
 
     headers="$(docker exec "${app_container}" curl -sS -D - -o /dev/null "${base_url}/api/health/live")"
     if [[ "${headers,,}" != *"x-request-id:"* ]]; then
@@ -172,7 +191,7 @@ applied_migrations="$(docker exec "${db_container}" psql -U "${db_user}" -d "${d
 failed_migrations="$(docker exec "${db_container}" psql -U "${db_user}" -d "${db_name}" -Atqc \
     "SELECT COUNT(*) FROM migrations WHERE success IS NOT TRUE")"
 final_migration_count="$(docker exec "${db_container}" psql -U "${db_user}" -d "${db_name}" -Atqc \
-    "SELECT COUNT(*) FROM migrations WHERE script_name = '041_encrypt_proxy_credentials_after_schema.py' AND success IS TRUE")"
+    "SELECT COUNT(*) FROM migrations WHERE script_name = '042_add_api_key_expiry.py' AND success IS TRUE")"
 
 assert_migration_sequence "${expected_migrations}" "${total_migrations}" "${distinct_migrations}" "${applied_migrations}" "${failed_migrations}"
 [[ "${final_migration_count}" == "1" ]]

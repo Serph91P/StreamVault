@@ -11,6 +11,7 @@ from app.dependencies import (
     get_notification_service_factory,
     get_settings_service,
     get_websocket_manager,
+    require_scopes,
 )
 from app.services.core.settings_service import SettingsService
 from app.services.notification_service import NotificationService
@@ -53,6 +54,7 @@ async def update_streamer_settings(
     settings_data: StreamerNotificationSettingsUpdateSchema,
     settings_service: SettingsService = Depends(get_settings_service),
     image_service=Depends(get_image_service),
+    _identity=Depends(require_scopes("admin")),
 ):
     logger.debug(f"Updating settings for streamer {streamer_id}: {settings_data}")
     try:
@@ -82,6 +84,7 @@ async def test_notification(
         get_notification_service_factory
     ),
     websocket_manager=Depends(get_websocket_manager),
+    _identity=Depends(require_scopes("admin")),
 ):
     try:
         settings = settings_service.get_global_settings_row()
@@ -138,6 +141,7 @@ async def test_notification(
 @router.post("/test-websocket-notification")
 async def test_websocket_notification(
     websocket_manager=Depends(get_websocket_manager),
+    _identity=Depends(require_scopes("admin")),
 ):
     """Test WebSocket notification delivery to frontend"""
     try:
@@ -193,6 +197,7 @@ async def update_settings(
     notification_service_factory: Callable[[], NotificationService] = Depends(
         get_notification_service_factory
     ),
+    _identity=Depends(require_scopes("admin")),
 ):
     try:
         if settings_data.notification_url and not settings_service.validate_apprise_url(

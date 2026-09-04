@@ -19,9 +19,16 @@ from app.database import Base
 from app.models import ApiKey, RefreshToken, Session, User
 from app.services.core.auth_service import AuthService
 from app.services.core.api_key_service import ApiKeyService
-from app.dependencies import get_auth_service, get_current_user, get_db, require_scopes
+from app.dependencies import (
+    get_auth_service,
+    get_current_user,
+    get_db,
+    get_websocket_manager,
+    require_scopes,
+)
 from app.middleware.auth import AuthMiddleware
 from app.routes import auth as auth_routes
+from app.routes import settings as settings_routes
 
 
 @pytest.fixture
@@ -86,7 +93,7 @@ def auth_stack(monkeypatch):
     )
     monkeypatch.setattr(auth_routes, "get_settings", lambda: settings)
 
-    app = FastAPI()
+    app = FastAPI(openapi_url="/api/openapi.json")
     app.include_router(auth_routes.router, prefix="/auth")
 
     @app.get("/api/settings")
@@ -106,8 +113,12 @@ def auth_stack(monkeypatch):
         await websocket.send_json({"ok": True})
         await websocket.close()
 
+    app.include_router(settings_routes.router)
     app.dependency_overrides[get_db] = get_test_db
     app.dependency_overrides[get_auth_service] = get_test_auth_service
+    app.dependency_overrides[get_websocket_manager] = lambda: SimpleNamespace(
+        send_notification=lambda _notification: asyncio.sleep(0)
+    )
     app.add_middleware(AuthMiddleware)
 
     try:
@@ -254,6 +265,79 @@ def test_legacy_session_and_api_key_remain_compatible(auth_stack):
         "error": "Authentication required",
         "redirect": "/auth/login",
     }
+
+
+def test_api_keys_bind_current_owner_policy_for_sensitive_settings_routes(auth_stack):
+    app, _settings, SessionFactory, user_id, _legacy_token, admin_key = auth_stack
+
+    with SessionFactory() as db:
+        service = AuthService(
+            db,
+            settings=SimpleNamespace(
+                AUTH_JWT_SECRET="middleware-test-secret-which-is-long-enough-to-be-secure-123456",
+                AUTH_JWT_ALGORITHM="HS256",
+                AUTH_JWT_ISSUER="streamvault-test",
+                AUTH_JWT_AUDIENCE="streamvault-test-api",
+                AUTH_ACCESS_TOKEN_MINUTES=15,
+            ),
+        )
+        standard_user = User(
+            username="middleware-user",
+            password=service.hash_password("correct horse"),
+            is_admin=False,
+            is_active=True,
+        )
+        db.add(standard_user)
+        db.commit()
+        _, standard_key = ApiKeyService(db).create(standard_user.id, "standard key")
+
+    headers = {"accept": "application/json"}
+    with TestClient(app) as client:
+        admin = client.post(
+            "/api/settings/test-websocket-notification",
+            headers=headers | {"X-API-Key": admin_key},
+        )
+        non_admin = client.post(
+            "/api/settings/test-websocket-notification",
+            headers=headers | {"X-API-Key": standard_key},
+        )
+
+    with SessionFactory() as db:
+        db.query(User).filter_by(id=user_id).update({User.is_active: False})
+        db.commit()
+
+    with TestClient(app) as client:
+        disabled_owner = client.post(
+            "/api/settings/test-websocket-notification",
+            headers=headers | {"X-API-Key": admin_key},
+        )
+
+    assert admin.status_code == 200
+    assert non_admin.status_code == 403
+    assert disabled_owner.status_code == 401
+
+
+def test_api_key_service_rejects_expired_records(auth_stack):
+    _app, _settings, SessionFactory, user_id, _legacy_token, _api_key = auth_stack
+
+    with SessionFactory() as db:
+        record, expired_key = ApiKeyService(db).create(user_id, "expired key")
+        record.expires_at = datetime.now(timezone.utc) - timedelta(seconds=1)
+        db.commit()
+
+        assert ApiKeyService(db).validate(expired_key) is None
+
+
+def test_openapi_is_public_json_without_a_login_redirect(auth_stack):
+    app, _settings, _SessionFactory, _user_id, _legacy_token, _api_key = auth_stack
+
+    with TestClient(app) as client:
+        response = client.get("/api/openapi.json", follow_redirects=False)
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/json")
+    assert "location" not in response.headers
+    assert "openapi" in response.json()
 
 
 def test_websocket_accepts_access_cookie_or_bearer_and_rejects_invalid_jwt(auth_stack):

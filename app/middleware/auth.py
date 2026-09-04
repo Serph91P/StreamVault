@@ -133,6 +133,9 @@ class AuthMiddleware:
             "/auth/keepalive",
             # Infrastructure
             "/api/health",  # Docker/K8s health probes (internal network only)
+            # The machine-readable contract is intentionally public. Keep this
+            # exact so no other /api path inherits anonymous access.
+            "/api/openapi.json",
             # The metrics route owns its separate opt-in token policy.
             "/api/metrics",
             # Twitch integration (server-to-server & OAuth redirect)
@@ -202,10 +205,24 @@ class AuthMiddleware:
                         )
                     else:
                         api_key_service = ApiKeyService(db=db)
-                        record = api_key_service.validate(api_key)
-                        if record:
+                        resolved = api_key_service.resolve_active_owner(api_key)
+                        if resolved:
+                            from app.dependencies import AuthIdentity
+
+                            owner = resolved.owner
+                            scope.setdefault("state", {})["auth_identity"] = (
+                                AuthIdentity(
+                                    subject=str(owner.id),
+                                    roles=frozenset({"admin"})
+                                    if owner.is_admin
+                                    else frozenset({"user"}),
+                                    scopes=auth_service._user_scopes(owner),
+                                    auth_method="api-key",
+                                    interactive=False,
+                                )
+                            )
                             logger.debug(
-                                f"Authenticated via API key id={record.id} for {request.url.path}"
+                                f"Authenticated API key id={resolved.record.id} for {request.url.path}"
                             )
                             return await self.app(scope, receive, send)
                         else:
