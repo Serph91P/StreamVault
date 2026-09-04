@@ -23,6 +23,8 @@ def test_compose_uses_the_configured_postgres_password_and_live_healthcheck():
     assert '"content-type:"*"application/json"' in runtime_smoke
     assert '"openapi"' in runtime_smoke
     assert "curl -sS -L" not in runtime_smoke
-    assert "Unauthenticated frontend root must redirect to an auth route" in runtime_smoke
+    assert (
+        "Unauthenticated frontend root must redirect to an auth route" in runtime_smoke
+    )
     assert '"${status}" != "307"' in runtime_smoke
     assert '"location: /auth/"' in runtime_smoke
