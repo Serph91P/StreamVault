@@ -290,6 +290,9 @@ async def logout(
     request: Request, auth_service: AuthService = Depends(get_auth_service)
 ):
     try:
+        refresh_token = request.cookies.get("refresh_token")
+        if refresh_token:
+            auth_service.revoke_refresh_token(refresh_token)
         session_token = request.cookies.get("session")
         if session_token:
             await auth_service.delete_session(session_token)
@@ -298,6 +301,8 @@ async def logout(
         response = JSONResponse(
             content={"message": "Logout successful", "success": True}
         )
+        response.delete_cookie(key="access_token", path="/")
+        response.delete_cookie(key="refresh_token", path="/auth")
         response.delete_cookie(key="session", path="/")
         return response
     except Exception as e:
@@ -305,6 +310,8 @@ async def logout(
         response = JSONResponse(
             content={"message": "Logout completed", "success": True}
         )
+        response.delete_cookie(key="access_token", path="/")
+        response.delete_cookie(key="refresh_token", path="/auth")
         response.delete_cookie(key="session", path="/")
         return response
 

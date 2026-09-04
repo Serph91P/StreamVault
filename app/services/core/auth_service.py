@@ -278,6 +278,22 @@ class AuthService:
         self.db.commit()
         return count
 
+    def revoke_refresh_token(self, raw_token: str | None) -> int:
+        if not raw_token:
+            return 0
+        refresh = (
+            self.db.query(RefreshToken)
+            .filter_by(token_hash=_hash_token(raw_token))
+            .first()
+        )
+        if not refresh:
+            return 0
+        count = self._revoke_refresh_family_in_transaction(
+            refresh.family_id, datetime.now(timezone.utc)
+        )
+        self.db.commit()
+        return count
+
     def rotate_refresh_token(self, raw_token: str) -> TokenPair:
         token_hash = _hash_token(raw_token)
         refresh = self.db.query(RefreshToken).filter_by(token_hash=token_hash).first()
