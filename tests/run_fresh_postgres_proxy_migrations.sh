@@ -107,7 +107,7 @@ assert_http_surface() {
     local status
     local headers
 
-    for endpoint in /api/health/live /api/health/ready /; do
+    for endpoint in /api/health/live /api/health/ready; do
         status="$(docker exec "${app_container}" curl -sS -o /dev/null -w '%{http_code}' "${base_url}${endpoint}")"
         if [[ "${status}" != "200" ]]; then
             printf '%s\n' "HTTP smoke failed for ${endpoint}: expected 200, got ${status}" >&2
@@ -116,6 +116,14 @@ assert_http_surface() {
     done
 
     assert_openapi_surface "${app_container}"
+
+    headers="$(docker exec "${app_container}" curl -sS -D - -o /dev/null -w '\n__STATUS__%{http_code}' "${base_url}/")"
+    status="${headers##*__STATUS__}"
+    headers="${headers%__STATUS__*}"
+    if [[ "${status}" != "307" || "${headers,,}" != *"location: /auth/"* ]]; then
+        printf '%s\n' "Unauthenticated frontend root must redirect to an auth route" >&2
+        return 1
+    fi
 
     headers="$(docker exec "${app_container}" curl -sS -D - -o /dev/null "${base_url}/api/health/live")"
     if [[ "${headers,,}" != *"x-request-id:"* ]]; then
