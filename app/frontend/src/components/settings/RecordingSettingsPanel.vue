@@ -21,7 +21,7 @@
             </div>
 
             <div class="form-group">
-              <label>
+              <label class="checkbox-target">
                 <input type="checkbox" v-model="data.enabled" />
                 Enable Recording
               </label>
@@ -79,7 +79,7 @@
             </div>
 
             <div class="form-group">
-              <label>
+              <label class="checkbox-target">
                 <input type="checkbox" v-model="data.use_chapters" />
                 Create Chapters From Stream Events
               </label>
@@ -89,7 +89,7 @@
             </div>
 
             <div class="form-group">
-              <label>
+              <label class="checkbox-target">
                 <input type="checkbox" v-model="data.use_category_as_chapter_title" />
                 Use Category as Chapter Title
               </label>
@@ -259,6 +259,7 @@
                 </td>
                 <td data-label="Record">
                   <input type="checkbox" v-model="streamer.enabled"
+                    :aria-label="`Record ${streamer.username || 'streamer'}`"
                     @change="updateStreamerSetting(streamer.streamer_id, { enabled: streamer.enabled })" />
                 </td>
                 <td data-label="Quality">
@@ -691,6 +692,20 @@ const handleStreamerPolicySaved = (_policy: any) => {
       font-weight: v.$font-medium;
     }
   }
+}
+
+.checkbox-target {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  min-height: 44px;
+  cursor: pointer;
+}
+
+.data-table td > input[type="checkbox"] {
+  width: 44px;
+  height: 44px;
+  cursor: pointer;
 }
 
 // ============================================================================

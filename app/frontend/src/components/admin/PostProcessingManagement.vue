@@ -468,7 +468,7 @@ onMounted(() => {
 
 .streamer-list {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(250px, 100%), 1fr));
   gap: var(--spacing-3);
   margin-top: var(--spacing-3);
 }
@@ -647,8 +647,8 @@ onMounted(() => {
   color: var(--text-secondary);
 }
 
-.text-success { color: var(--success-color) !important; }
-.text-danger { color: var(--danger-color) !important; }
+.text-success,
+.text-danger { color: var(--text-primary) !important; }
 
 .result-summary {
   margin-bottom: var(--spacing-5);
@@ -663,13 +663,13 @@ onMounted(() => {
 
 .result-message.success {
   background: var(--success-bg-color);
-  color: var(--success-color);
+  color: var(--text-primary);
   border: 1px solid var(--success-border-color);
 }
 
 .result-message.error {
   background: var(--danger-bg-color);
-  color: var(--danger-color);
+  color: var(--text-primary);
   border: 1px solid var(--danger-border-color);
 }
 
@@ -688,7 +688,7 @@ onMounted(() => {
 }
 
 .errors-list li {
-  color: var(--danger-color);
+  color: var(--text-primary);
   margin-bottom: var(--spacing-1);
 }
 
@@ -718,16 +718,16 @@ onMounted(() => {
 }
 
 .detail-status.success {
-  color: var(--success-color);
+  color: var(--text-primary);
 }
 
 .detail-status.error {
-  color: var(--danger-color);
+  color: var(--text-primary);
 }
 
 .detail-error {
   font-size: var(--text-xs);
-  color: var(--danger-color);
+  color: var(--text-primary);
 }
 
 .loading {

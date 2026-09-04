@@ -13,13 +13,13 @@
  *
  *   <div ref="dialogRef" v-if="isOpen" role="dialog" aria-modal="true">...</div>
  */
-import { ref, watch, onBeforeUnmount, type Ref } from 'vue'
+import { ref, unref, watch, onBeforeUnmount, type Ref } from 'vue'
 
 export interface UseModalOptions {
   /** Called when the modal should close (ESC, programmatic close, etc.) */
   onClose?: () => void
   /** Disable the ESC-to-close handler. */
-  closeOnEscape?: boolean
+  closeOnEscape?: boolean | Ref<boolean>
   /** Focus the first focusable element on open. */
   autoFocus?: boolean
 }
@@ -27,6 +27,11 @@ export interface UseModalOptions {
 let lockCount = 0
 let savedScrollY = 0
 let savedBodyStyles: { overflow: string; position: string; top: string; width: string } | null = null
+interface ModalStackEntry {
+  restoreTarget: HTMLElement | null
+}
+
+const modalStack: ModalStackEntry[] = []
 
 function lockBody() {
   lockCount += 1
@@ -77,12 +82,14 @@ export function useModal(
 ) {
   const { onClose, closeOnEscape = true, autoFocus = true } = options
   const isOpen = ref(false)
-  let previouslyFocused: HTMLElement | null = null
+  const stackEntry: ModalStackEntry = { restoreTarget: null }
+
+  const isTopmost = () => modalStack[modalStack.length - 1] === stackEntry
 
   const handleKeydown = (event: KeyboardEvent) => {
-    if (!isOpen.value) return
+    if (!isOpen.value || !isTopmost()) return
 
-    if (event.key === 'Escape' && closeOnEscape) {
+    if (event.key === 'Escape' && unref(closeOnEscape)) {
       event.preventDefault()
       close()
       return
@@ -113,21 +120,33 @@ export function useModal(
   const open = () => {
     if (isOpen.value) return
     isOpen.value = true
-    previouslyFocused = document.activeElement as HTMLElement | null
+    stackEntry.restoreTarget = document.activeElement as HTMLElement | null
+    modalStack.push(stackEntry)
     lockBody()
     document.addEventListener('keydown', handleKeydown)
   }
 
-  const close = () => {
+  const close = (notify = true) => {
     if (!isOpen.value) return
     isOpen.value = false
     document.removeEventListener('keydown', handleKeydown)
-    unlockBody()
-    if (previouslyFocused && typeof previouslyFocused.focus === 'function') {
-      previouslyFocused.focus()
+    const stackIndex = modalStack.lastIndexOf(stackEntry)
+    const wasTopmost = stackIndex !== -1 && stackIndex === modalStack.length - 1
+    const nextModal = stackIndex === -1 ? undefined : modalStack[stackIndex + 1]
+    if (
+      nextModal
+      && nextModal.restoreTarget
+      && containerRef.value?.contains(nextModal.restoreTarget)
+    ) {
+      nextModal.restoreTarget = stackEntry.restoreTarget
     }
-    previouslyFocused = null
-    onClose?.()
+    if (stackIndex !== -1) modalStack.splice(stackIndex, 1)
+    unlockBody()
+    if (wasTopmost && stackEntry.restoreTarget?.isConnected) {
+      stackEntry.restoreTarget.focus()
+    }
+    stackEntry.restoreTarget = null
+    if (notify) onClose?.()
   }
 
   if (autoFocus) {
@@ -148,8 +167,7 @@ export function useModal(
 
   onBeforeUnmount(() => {
     if (isOpen.value) {
-      document.removeEventListener('keydown', handleKeydown)
-      unlockBody()
+      close(false)
     }
   })
 

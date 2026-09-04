@@ -28,7 +28,7 @@ const diagStatusLabel = 'Admin tools'
 @use '@/styles/mixins' as m;
 
 .admin-view {
-  min-height: 100vh;
+  min-height: 0;
   background: var(--color-background);
   color: var(--color-text);
 }
@@ -57,7 +57,7 @@ const diagStatusLabel = 'Admin tools'
 }
 
 .status-healthy {
-  color: var(--success-color);
+  color: var(--text-primary);
   border-color: var(--success-color);
 
   .diag-dot {
@@ -66,7 +66,7 @@ const diagStatusLabel = 'Admin tools'
 }
 
 .status-warning {
-  color: var(--warning-color);
+  color: var(--text-primary);
   border-color: var(--warning-color);
 
   .diag-dot {

@@ -965,6 +965,10 @@ defineExpose({ seekToChapter })
   gap: var(--spacing-4);  /* 16px */
 }
 
+.error-overlay {
+  z-index: 30;
+}
+
 .spinner {
   width: 48px;
   height: 48px;
@@ -1362,6 +1366,9 @@ defineExpose({ seekToChapter })
   margin-bottom: var(--spacing-3);  /* 12px */
   padding: var(--spacing-2) 0;  /* Extended tap area */
   cursor: pointer;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
 }
 
 .progress-bar-track {
@@ -1494,9 +1501,8 @@ defineExpose({ seekToChapter })
   padding: 0;
   transition: all var(--duration-200) var(--ease-out);
 
-  /* Desktop: 40px (standard size) */
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
 
   @include m.respond-below('md') {  // < 768px (mobile)
     /* Mobile: 48px (touch-friendly) */

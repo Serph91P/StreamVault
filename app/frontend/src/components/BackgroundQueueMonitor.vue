@@ -7,7 +7,7 @@
       :aria-label="`Open background queue, ${combinedActiveTasks.length} active ${combinedActiveTasks.length === 1 ? 'job' : 'jobs'}`"
       aria-haspopup="dialog"
       :aria-expanded="showPanel"
-      aria-controls="background-queue-panel"
+      :aria-controls="panelId"
       @click.stop="togglePanel"
     >
       <svg class="queue-icon" aria-hidden="true">
@@ -36,18 +36,18 @@
     <Transition name="slide-down">
       <div
         v-if="showPanel"
-        id="background-queue-panel"
+        :id="panelId"
+        ref="panelRef"
         class="glass-popup-panel queue-panel"
         role="dialog"
         aria-modal="true"
-        aria-labelledby="background-queue-title"
+        :aria-labelledby="titleId"
         tabindex="-1"
         @click.stop
-        @keydown.esc="closePanel"
       >
       <div class="glass-popup-header">
-        <h3 id="background-queue-title">Background Queue</h3>
-        <button @click="closePanel" class="glass-btn-icon" aria-label="Close background queue">
+        <h3 :id="titleId">Background Queue</h3>
+        <button @click="closePanel()" class="glass-btn-icon" aria-label="Close background queue">
           <svg><use href="#icon-x" /></svg>
         </button>
       </div>
@@ -143,9 +143,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { computed, ref, useId } from 'vue'
 import { useBackgroundQueue } from '@/composables/useBackgroundQueue'
 import { useSystemAndRecordingStatus } from '@/composables/useSystemAndRecordingStatus'
+import { useModal } from '@/composables/useModal'
 
 // Constants
 // INCREASED: 24 hours to support long streams (marathons, etc.)
@@ -167,7 +168,11 @@ const {
 const { activeRecordings } = useSystemAndRecordingStatus()
 
 // UI State
-const showPanel = ref(false)
+const panelRef = ref<HTMLElement | null>(null)
+const instanceId = useId().replace(/:/g, '')
+const panelId = `background-queue-panel-${instanceId}`
+const titleId = `background-queue-title-${instanceId}`
+const { isOpen: showPanel, open: openPanel, close: closePanel } = useModal(panelRef)
 
 // Additional computed properties
 // Helper to decide if a task should be treated as "active" in the UI
@@ -254,19 +259,11 @@ const _statusIconClass = computed(() => {
   return 'status-idle'
 })
 
-const closePanel = () => {
-  showPanel.value = false
-  document.body.style.overflow = ''
-}
-
 const togglePanel = () => {
-  showPanel.value = !showPanel.value
-
-  // Lock/unlock body scroll when panel is open on mobile
-  document.body.style.overflow = showPanel.value ? 'hidden' : ''
-
-  // Refresh data when panel is opened
   if (showPanel.value) {
+    closePanel()
+  } else {
+    openPanel()
     forceRefreshFromAPI() // Force refresh via API fallback
   }
 }

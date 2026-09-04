@@ -133,7 +133,7 @@
         <button
           v-for="tab in cockpitTabs"
           :key="tab.id"
-          @click="activeCockpitTab = tab.id"
+          @click="selectCockpitTab(tab.id)"
           :class="['cockpit-tab', { active: activeCockpitTab === tab.id }]"
           :id="`streamer-detail-tab-${tab.id}`"
           :aria-selected="activeCockpitTab === tab.id"
@@ -261,10 +261,11 @@
           <h2 class="section-title">Stream History</h2>
           <div class="view-controls">
             <div class="select-wrapper">
+              <label for="stream-history-sort" class="sort-label">Sort streams</label>
               <svg class="select-icon">
                 <use href="#icon-filter" />
               </svg>
-              <select v-model="sortBy" class="sort-select">
+              <select id="stream-history-sort" v-model="sortBy" class="sort-select">
                 <option value="newest">Newest First</option>
                 <option value="oldest">Oldest First</option>
                 <option value="duration-desc">Longest Duration</option>
@@ -294,15 +295,44 @@
             <template v-if="recordedStreamsCount > 0"> &middot; {{ recordedStreamsCount }} recorded</template>
             <template v-else-if="sortedStreams.length > 0"> &middot; No recordings</template>
           </div>
-          <StreamCard
-            v-for="stream in sortedStreams"
-            :key="stream.id"
-            :stream="stream"
-            @watch-live="handleWatchLive"
-            @force-record="handleForceRecord"
-            @watch="handleWatchRecording"
-            @delete="handleDeleteStream"
-          />
+          <section
+            v-if="inProgressStreams.length > 0"
+            id="streamer-detail-in-progress"
+            class="stream-history-group"
+            aria-labelledby="in-progress-heading"
+          >
+            <h3 id="in-progress-heading" class="stream-group-title">In progress</h3>
+            <div class="stream-list">
+              <StreamCard
+                v-for="stream in inProgressStreams"
+                :key="stream.id"
+                :stream="stream"
+                @watch-live="handleWatchLive"
+                @force-record="handleForceRecord"
+                @watch="handleWatchRecording"
+                @delete="handleDeleteStream"
+              />
+            </div>
+          </section>
+          <section
+            id="streamer-detail-previous-streams"
+            class="stream-history-group"
+            aria-labelledby="previous-streams-heading"
+          >
+            <h3 id="previous-streams-heading" class="stream-group-title">Previous streams</h3>
+            <div v-if="previousStreams.length > 0" class="stream-list">
+              <StreamCard
+                v-for="stream in previousStreams"
+                :key="stream.id"
+                :stream="stream"
+                @watch-live="handleWatchLive"
+                @force-record="handleForceRecord"
+                @watch="handleWatchRecording"
+                @delete="handleDeleteStream"
+              />
+            </div>
+            <p v-else class="stream-group-empty">No previous streams yet.</p>
+          </section>
         </div>
       </div>
 
@@ -468,17 +498,37 @@ const deletingAll = ref(false)
 const { forceRecordingStreamerId, forceStartRecording } = useForceRecording()
 
 // Cockpit tabs
-const activeCockpitTab = ref('overview')
 const cockpitTabs = [
   { id: 'overview', label: 'Overview', icon: '#icon-activity' },
   { id: 'videos', label: 'Videos', icon: '#icon-film' },
   { id: 'settings', label: 'Settings', icon: '#icon-settings' },
   { id: 'events', label: 'Events', icon: '#icon-clock' },
-]
+] as const
+type CockpitTab = (typeof cockpitTabs)[number]['id']
 
-const focusActiveCockpitTab = async () => {
+const queryTab = (): CockpitTab => {
+  const tab = route.query.tab
+  return typeof tab === 'string' && cockpitTabs.some(item => item.id === tab)
+    ? tab as CockpitTab
+    : 'overview'
+}
+
+const activeCockpitTab = ref<CockpitTab>(queryTab())
+
+const revealActiveCockpitTab = async (focus = false) => {
   await nextTick()
-  document.getElementById(`streamer-detail-tab-${activeCockpitTab.value}`)?.focus()
+  const activeTab = document.getElementById(`streamer-detail-tab-${activeCockpitTab.value}`)
+  activeTab?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+  if (focus) activeTab?.focus()
+}
+
+const selectCockpitTab = async (tab: CockpitTab, focus = false) => {
+  activeCockpitTab.value = tab
+  const query = { ...route.query }
+  if (tab === 'overview') delete query.tab
+  else query.tab = tab
+  await router.replace({ query })
+  await revealActiveCockpitTab(focus)
 }
 
 const handleCockpitTabKeydown = async (event: KeyboardEvent) => {
@@ -498,9 +548,13 @@ const handleCockpitTabKeydown = async (event: KeyboardEvent) => {
   }
 
   event.preventDefault()
-  activeCockpitTab.value = cockpitTabs[nextIndex].id
-  await focusActiveCockpitTab()
+  await selectCockpitTab(cockpitTabs[nextIndex].id, true)
 }
+
+watch(() => route.query.tab, () => {
+  activeCockpitTab.value = queryTab()
+  void revealActiveCockpitTab()
+})
 
 // Settings inline - schema-driven
 const savingSettings = ref(false)
@@ -740,6 +794,9 @@ const sortedStreams = computed(() => {
   }
 })
 
+const inProgressStreams = computed(() => sortedStreams.value.filter(stream => stream.ended_at == null))
+const previousStreams = computed(() => sortedStreams.value.filter(stream => stream.ended_at != null))
+
 // Format helpers
 const formatDateShort = (dateStr?: string): string => {
   if (!dateStr) return '-'
@@ -863,6 +920,7 @@ onMounted(async () => {
     fetchStreamer(),
     fetchStreams()
   ])
+  await revealActiveCockpitTab()
 
   // Subscribe to real-time events
   realtimeCleanups.push(
@@ -1235,6 +1293,7 @@ onUnmounted(() => {
   scrollbar-width: thin;
   scrollbar-color: var(--primary-color) transparent;
   scroll-padding-inline: var(--spacing-2);
+  scroll-snap-type: x proximity;
 
   &::-webkit-scrollbar {
     height: 6px;
@@ -1438,15 +1497,25 @@ onUnmounted(() => {
 
 .select-wrapper {
   position: relative;
-  display: inline-flex;
+  display: grid;
+  grid-template-columns: auto minmax(160px, 1fr);
   align-items: center;
+  gap: var(--spacing-2);
+}
+
+.sort-label {
+  grid-column: 1;
+  grid-row: 1;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  font-weight: v.$font-medium;
 }
 
 .select-icon {
-  position: absolute;
-  left: 12px;
-  top: 50%;
-  transform: translateY(-50%);
+  grid-column: 2;
+  grid-row: 1;
+  justify-self: start;
+  margin-left: 12px;
   width: 16px;
   height: 16px;
   stroke: var(--text-secondary);
@@ -1457,6 +1526,8 @@ onUnmounted(() => {
 }
 
 .sort-select {
+  grid-column: 2;
+  grid-row: 1;
   padding: var(--spacing-2) var(--spacing-4);
   padding-left: 38px;
   background: var(--background-card);
@@ -1489,6 +1560,41 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-3);
+}
+
+.stream-history-group {
+  display: grid;
+  gap: var(--spacing-2);
+}
+
+.stream-history-group + .stream-history-group {
+  margin-top: var(--spacing-3);
+  padding-top: var(--spacing-4);
+  border-top: 1px solid var(--border-color);
+}
+
+.stream-group-title {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  font-weight: v.$font-semibold;
+  letter-spacing: 0.02em;
+}
+
+.stream-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+}
+
+.stream-group-empty {
+  margin: 0;
+  padding: var(--spacing-3);
+  color: var(--text-secondary);
+  background: var(--background-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  font-size: var(--text-sm);
 }
 
 .streams-summary {
@@ -1726,6 +1832,20 @@ onUnmounted(() => {
 
   .sort-select {
     width: 100%;
+  }
+
+  .select-wrapper {
+    grid-template-columns: 1fr;
+  }
+
+  .select-icon {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .sort-select {
+    grid-column: 1;
+    grid-row: 2;
   }
 
   .stats-section {

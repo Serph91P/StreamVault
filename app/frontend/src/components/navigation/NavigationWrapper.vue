@@ -73,13 +73,15 @@ const { isMobile, isDesktop, sidebarExpanded } = useNavigation()
 
   // Mobile with bottom navigation
   &.with-bottom-nav {
-    padding-bottom: calc(68px + env(safe-area-inset-bottom, 0px));
+    // Reserve the nav plus its optional 44px connectivity pill and an 8px
+    // content gap. Keeping this here gives every routed view one owner.
+    padding-bottom: calc(128px + env(safe-area-inset-bottom, 0px));
     margin-left: 0;
     width: 100%;
     // Subtract bottom-nav height from min-height too so the page exactly
     // fills the visible area without forcing a scroll.
-    min-height: calc(100vh - var(--app-header-height, 56px) - env(safe-area-inset-top, 0px) - 68px - env(safe-area-inset-bottom, 0px));
-    min-height: calc(100dvh - var(--app-header-height, 56px) - env(safe-area-inset-top, 0px) - 68px - env(safe-area-inset-bottom, 0px));
+    min-height: calc(100vh - var(--app-header-height, 56px) - env(safe-area-inset-top, 0px) - 128px - env(safe-area-inset-bottom, 0px));
+    min-height: calc(100dvh - var(--app-header-height, 56px) - env(safe-area-inset-top, 0px) - 128px - env(safe-area-inset-bottom, 0px));
   }
 }
 </style>
