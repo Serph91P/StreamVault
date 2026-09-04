@@ -1,17 +1,12 @@
 import { fileURLToPath, URL } from 'node:url'
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
-import vueDevTools from 'vite-plugin-vue-devtools'
 import { VitePWA } from 'vite-plugin-pwa'
 
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [
     vue(),
-    // Opt-in: the floating DevTools toolbar overlaps the mobile bottom nav
-    // and its anchor extends past the viewport (phantom page scroll in dev).
-    // Enable with VITE_DEVTOOLS=true when you actually want it.
-    ...(process.env.VITE_DEVTOOLS === 'true' ? [vueDevTools()] : []),
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'maskable-icon-*.png', 'android-icon-*.png'],
