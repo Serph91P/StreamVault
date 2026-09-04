@@ -27,6 +27,7 @@ from app.dependencies import (
     require_scopes,
 )
 from app.middleware.auth import AuthMiddleware
+from app.routes import admin as admin_routes
 from app.routes import auth as auth_routes
 from app.routes import settings as settings_routes
 
@@ -107,6 +108,10 @@ def auth_stack(monkeypatch):
     async def api_key_compatible_endpoint():
         return {"ok": True}
 
+    @app.get("/api/openapi.json-suffix")
+    async def protected_openapi_lookalike():
+        return {"protected": True}
+
     @app.websocket("/ws")
     async def websocket_endpoint(websocket: WebSocket):
         await websocket.accept()
@@ -114,6 +119,7 @@ def auth_stack(monkeypatch):
         await websocket.close()
 
     app.include_router(settings_routes.router)
+    app.include_router(admin_routes.router)
     app.dependency_overrides[get_db] = get_test_db
     app.dependency_overrides[get_auth_service] = get_test_auth_service
     app.dependency_overrides[get_websocket_manager] = lambda: SimpleNamespace(
@@ -338,6 +344,75 @@ def test_openapi_is_public_json_without_a_login_redirect(auth_stack):
     assert response.headers["content-type"].startswith("application/json")
     assert "location" not in response.headers
     assert "openapi" in response.json()
+
+
+def test_only_the_exact_openapi_document_path_is_public(auth_stack):
+    app, _settings, _SessionFactory, _user_id, _legacy_token, _api_key = auth_stack
+
+    with TestClient(app) as client:
+        response = client.get(
+            "/api/openapi.json-suffix",
+            headers={"accept": "application/json"},
+            follow_redirects=False,
+        )
+
+    assert response.status_code == 401
+    assert response.json() == {
+        "error": "Authentication required",
+        "redirect": "/auth/login",
+    }
+
+
+def test_api_key_admin_routes_require_an_active_admin_owner(auth_stack):
+    app, _settings, SessionFactory, user_id, _legacy_token, admin_key = auth_stack
+
+    with SessionFactory() as db:
+        service = AuthService(
+            db,
+            settings=SimpleNamespace(
+                AUTH_JWT_SECRET="middleware-test-secret-which-is-long-enough-to-be-secure-123456",
+                AUTH_JWT_ALGORITHM="HS256",
+                AUTH_JWT_ISSUER="streamvault-test",
+                AUTH_JWT_AUDIENCE="streamvault-test-api",
+                AUTH_ACCESS_TOKEN_MINUTES=15,
+            ),
+        )
+        standard_user = User(
+            username="middleware-admin-route-user",
+            password=service.hash_password("correct horse"),
+            is_admin=False,
+            is_active=True,
+        )
+        db.add(standard_user)
+        db.commit()
+        _, standard_key = ApiKeyService(db).create(
+            standard_user.id, "standard admin key"
+        )
+
+    headers = {"accept": "application/json"}
+    with TestClient(app) as client:
+        admin = client.get(
+            "/api/admin/tests/available",
+            headers=headers | {"X-API-Key": admin_key},
+        )
+        non_admin = client.get(
+            "/api/admin/tests/available",
+            headers=headers | {"X-API-Key": standard_key},
+        )
+
+    with SessionFactory() as db:
+        db.query(User).filter_by(id=user_id).update({User.is_active: False})
+        db.commit()
+
+    with TestClient(app) as client:
+        disabled_owner = client.get(
+            "/api/admin/tests/available",
+            headers=headers | {"X-API-Key": admin_key},
+        )
+
+    assert admin.status_code == 200
+    assert non_admin.status_code == 403
+    assert disabled_owner.status_code == 401
 
 
 def test_websocket_accepts_access_cookie_or_bearer_and_rejects_invalid_jwt(auth_stack):

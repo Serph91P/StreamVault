@@ -7,6 +7,42 @@ import logging
 
 logger = logging.getLogger("streamvault")
 
+_EXACT_PUBLIC_PATHS = frozenset({"/api/openapi.json"})
+_PUBLIC_PATH_PREFIXES = (
+    "/auth/login",
+    "/auth/setup",
+    "/auth/check",
+    "/auth/refresh",
+    "/auth/logout",
+    "/auth/keepalive",
+    "/api/health",
+    "/api/metrics",
+    "/eventsub",
+    "/api/twitch/callback",
+    "/api/twitch/auth-url",
+    "/api/videos/public/",
+    "/api/live/stream/",
+    "/assets/",
+    "/registerSW.js",
+    "/sw.js",
+    "/pwa",
+    "/workbox-",
+    "/manifest.json",
+    "/manifest.webmanifest",
+    "/favicon",
+    "/android-icon-",
+    "/apple-icon",
+    "/ms-icon-",
+)
+
+
+def _is_public_path(path: str) -> bool:
+    return path in _EXACT_PUBLIC_PATHS or path.startswith(_PUBLIC_PATH_PREFIXES)
+
+
+def _is_admin_path(path: str) -> bool:
+    return path == "/api/admin" or path.startswith("/api/admin/")
+
 
 def _extract_bearer_token(headers: list) -> str | None:
     """Extract Bearer token from Authorization header (PWA fallback).
@@ -121,48 +157,7 @@ class AuthMiddleware:
         # SECURITY: Only paths that MUST work without a session belong here.
         # All data/media paths require auth to prevent unauthenticated access
         # to images, sync/cleanup POST endpoints, and system info.
-        public_paths = [
-            # Auth flow (must be public or login is impossible)
-            "/auth/login",
-            "/auth/setup",
-            "/auth/check",
-            # Refresh exchanges the HttpOnly refresh cookie and must remain
-            # reachable after the short-lived access token expires.
-            "/auth/refresh",
-            "/auth/logout",
-            "/auth/keepalive",
-            # Infrastructure
-            "/api/health",  # Docker/K8s health probes (internal network only)
-            # The machine-readable contract is intentionally public. Keep this
-            # exact so no other /api path inherits anonymous access.
-            "/api/openapi.json",
-            # The metrics route owns its separate opt-in token policy.
-            "/api/metrics",
-            # Twitch integration (server-to-server & OAuth redirect)
-            "/eventsub",
-            "/api/twitch/callback",
-            "/api/twitch/auth-url",
-            # Public video sharing (share-token authenticated)
-            "/api/videos/public/",
-            # Live HLS playback uses per-session playback tokens in the route.
-            # Native video/HLS requests cannot reliably attach Authorization headers.
-            "/api/live/stream/",
-            # PWA assets (must load before login screen renders)
-            "/assets/",
-            "/registerSW.js",
-            "/sw.js",
-            "/pwa",
-            "/workbox-",
-            "/manifest.json",
-            "/manifest.webmanifest",
-            # Browser/PWA icons
-            "/favicon",
-            "/android-icon-",
-            "/apple-icon",
-            "/ms-icon-",
-        ]
-
-        if any(request.url.path.startswith(path) for path in public_paths):
+        if _is_public_path(request.url.path):
             return await self.app(scope, receive, send)
 
         # Create per-request services
@@ -210,17 +205,22 @@ class AuthMiddleware:
                             from app.dependencies import AuthIdentity
 
                             owner = resolved.owner
-                            scope.setdefault("state", {})["auth_identity"] = (
-                                AuthIdentity(
-                                    subject=str(owner.id),
-                                    roles=frozenset({"admin"})
-                                    if owner.is_admin
-                                    else frozenset({"user"}),
-                                    scopes=auth_service._user_scopes(owner),
-                                    auth_method="api-key",
-                                    interactive=False,
-                                )
+                            identity = AuthIdentity(
+                                subject=str(owner.id),
+                                roles=frozenset({"admin"})
+                                if owner.is_admin
+                                else frozenset({"user"}),
+                                scopes=auth_service._user_scopes(owner),
+                                auth_method="api-key",
+                                interactive=False,
                             )
+                            scope.setdefault("state", {})["auth_identity"] = identity
+                            if _is_admin_path(request.url.path) and not (
+                                "admin" in identity.roles and "admin" in identity.scopes
+                            ):
+                                return await JSONResponse(
+                                    {"error": "Admin access required"}, status_code=403
+                                )(scope, receive, send)
                             logger.debug(
                                 f"Authenticated API key id={resolved.record.id} for {request.url.path}"
                             )
