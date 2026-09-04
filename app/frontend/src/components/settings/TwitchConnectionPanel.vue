@@ -609,8 +609,8 @@ div.card-content {
 }
 
 .setup-icon {
-  width: 32px;
-  height: 32px;
+  width: 44px;
+  height: 44px;
   color: var(--success-color);
   flex-shrink: 0;
 }
@@ -828,8 +828,8 @@ div.card-content {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 44px;
+  height: 44px;
   padding: 0;
   background: var(--background-card);
   border: 1px solid var(--border-color);

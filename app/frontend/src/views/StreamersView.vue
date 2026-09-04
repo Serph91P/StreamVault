@@ -702,7 +702,7 @@ onUnmounted(() => {
   margin-bottom: var(--spacing-4);
 }
 
-$ctrl-h: 40px;
+$ctrl-h: 44px;
 
 .search-box {
   grid-column: 1 / -1;
@@ -748,8 +748,8 @@ $ctrl-h: 40px;
     right: var(--spacing-2);
     top: 50%;
     transform: translateY(-50%);
-    width: 28px;
-    height: 28px;
+    width: 44px;
+    height: 44px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -976,9 +976,11 @@ $ctrl-h: 40px;
 
 .refresh-btn {
   display: flex;
+  flex: 0 0 $ctrl-h;
   align-items: center;
   justify-content: center;
   width: $ctrl-h;
+  min-width: $ctrl-h;
   min-height: $ctrl-h;
   padding: 0;
   background: transparent;
@@ -1141,8 +1143,8 @@ $ctrl-h: 40px;
     }
 
     .clear-btn {
-      width: 32px;  // Larger touch target
-      height: 32px;
+      width: 44px;
+      height: 44px;
 
       .icon {
         width: 18px;

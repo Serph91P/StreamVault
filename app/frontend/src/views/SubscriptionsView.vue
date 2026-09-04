@@ -600,8 +600,8 @@ onMounted(loadSubscriptions)
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
   background: var(--background-secondary);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);

@@ -1059,6 +1059,7 @@ onMounted(() => {
   font-size: var(--text-sm);
   cursor: pointer;
   transition: all v.$duration-200 v.$ease-out;
+  min-height: 44px;
 
   &:hover {
     border-color: var(--primary-color);
@@ -1123,6 +1124,9 @@ onMounted(() => {
       color v.$duration-200 v.$ease-out,
       background-color v.$duration-200 v.$ease-out,
       border-color v.$duration-200 v.$ease-out;
+    max-width: 100%;
+    white-space: normal;
+    overflow-wrap: anywhere;
 
     .icon {
       width: 14px;

@@ -1225,7 +1225,7 @@ onMounted(() => {
 
 .health-checks {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(250px, 100%), 1fr));
   gap: var(--spacing-3);  /* 12px */
 }
 
@@ -1270,7 +1270,7 @@ onMounted(() => {
 /* System Info */
 .system-info-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr));
   gap: var(--spacing-5);  /* 20px */
 }
 
@@ -1317,6 +1317,7 @@ onMounted(() => {
   padding: var(--spacing-5);
   border-radius: var(--radius-md);
   border: 1px solid var(--border-color);
+  min-width: 0;
 }
 
 .channel-header {
@@ -1351,13 +1352,13 @@ onMounted(() => {
 .test-result.success {
   background: rgba(39, 174, 96, 0.15);
   border: 1px solid var(--success-color);
-  color: var(--success-color);
+  color: var(--text-primary);
 }
 
 .test-result.error {
   background: rgba(231, 76, 60, 0.15);
   border: 1px solid var(--danger-color);
-  color: var(--danger-color);
+  color: var(--text-primary);
 }
 
 .section-description {
@@ -1684,14 +1685,14 @@ onMounted(() => {
 }
 
 /* Utility classes */
-.text-green { color: var(--success-color); font-weight: var(--font-semibold); }
-.text-yellow { color: var(--warning-color); }
-.text-red { color: var(--danger-color); font-weight: var(--font-semibold); }
+.text-green,
+.text-yellow,
+.text-red { color: var(--text-primary); font-weight: var(--font-semibold); }
 .text-gray { color: var(--text-secondary); }
 
 .error {
   background: rgba(220, 38, 38, 0.1);
-  color: var(--danger-color);
+  color: var(--text-primary);
   padding: var(--spacing-4);  /* 16px */
   border-radius: var(--radius-md);  /* 10px */
   border: 1px solid var(--danger-color);
@@ -1705,6 +1706,10 @@ onMounted(() => {
 @include m.respond-below('md') {  // < 768px
   .admin-panel {
     padding: var(--spacing-3);  /* 12px */
+  }
+
+  .diagnostic-channels {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .summary-stats {

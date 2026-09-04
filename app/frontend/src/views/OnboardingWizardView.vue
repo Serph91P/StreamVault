@@ -687,7 +687,7 @@ onMounted(() => {
 }
 
 .step-pill.is-done {
-  color: var(--color-success);
+  color: var(--success-text-color);
   border-color: rgba(16, 185, 129, 0.4);
 }
 
@@ -754,7 +754,7 @@ onMounted(() => {
 
 .form-hint {
   margin: -0.25rem 0 0;
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   font-size: 0.8rem;
 }
 

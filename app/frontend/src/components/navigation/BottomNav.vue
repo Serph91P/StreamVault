@@ -147,7 +147,7 @@ const handleTabClick = (route: string) => {
   align-items: center;
   justify-content: center;
   gap: v.$spacing-2;
-  min-height: 40px;
+  min-height: 44px;
   padding: v.$spacing-2 v.$spacing-3;
   border: 1px solid var(--glass-border-hover);
   border-radius: var(--radius-full);
@@ -198,7 +198,8 @@ const handleTabClick = (route: string) => {
 }
 
 .mobile-connectivity-pill__action {
-  min-height: 32px;
+  min-width: 44px;
+  min-height: 44px;
   padding: 0 v.$spacing-2;
   border: 1px solid var(--glass-border-hover);
   border-radius: var(--radius-full);

@@ -173,6 +173,13 @@ textarea {
   }
 }
 
+@include m.respond-below('md') {
+  input[type="checkbox"],
+  input[type="radio"] {
+    font-size: 16px;
+  }
+}
+
 // Buttons - Touch Targets & Consistent Styling
 button:not(.unstyled),
 .btn {
@@ -186,6 +193,7 @@ button:not(.unstyled),
   align-items: center;
   justify-content: center;
   gap: v.$spacing-2;
+  min-height: var(--control-target-min);
 
   // Icon sizing inside buttons
   svg, .icon {
@@ -207,7 +215,7 @@ button:not(.unstyled),
 
   // Desktop
   @include m.respond-to('md') {  // >= 768px
-    min-height: 36px;
+    min-height: var(--control-target-min);
     padding: calc(v.$spacing-sm - 2px) v.$spacing-md;
   }
 
@@ -430,7 +438,8 @@ button:not(.unstyled),
   align-items: center;
   justify-content: center;
   padding: v.$spacing-sm;
-  min-width: 40px;
+  min-width: var(--control-target-min);
+  min-height: var(--control-target-min);
 
   @include m.respond-below('md') {
     min-width: 44px;  // Touch target
@@ -464,10 +473,10 @@ button:not(.unstyled),
 .btn-sm {
   padding: v.$spacing-xs v.$spacing-sm;
   font-size: v.$text-sm;
-  min-height: 32px;
+  min-height: var(--control-target-min);
 
   @include m.respond-below('md') {
-    min-height: 40px;  // Still touch-friendly
+    min-height: var(--control-target-min);
   }
 }
 

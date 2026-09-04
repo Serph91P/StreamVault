@@ -170,6 +170,7 @@
               </td>              <td data-label="Online">
                 <input
                   type="checkbox"
+                  :aria-label="`Notify when ${streamer.username || 'streamer'} goes online`"
                   v-model="streamer.notify_online"
                   @change="updateStreamerSettings(streamer.streamer_id, { notify_online: streamer.notify_online })"
                 />
@@ -177,6 +178,7 @@
               <td data-label="Offline">
                 <input
                   type="checkbox"
+                  :aria-label="`Notify when ${streamer.username || 'streamer'} goes offline`"
                   v-model="streamer.notify_offline"
                   @change="updateStreamerSettings(streamer.streamer_id, { notify_offline: streamer.notify_offline })"
                 />
@@ -184,6 +186,7 @@
               <td data-label="Updates">
                 <input
                   type="checkbox"
+                  :aria-label="`Notify about ${streamer.username || 'streamer'} updates`"
                   v-model="streamer.notify_update"
                   @change="updateStreamerSettings(streamer.streamer_id, { notify_update: streamer.notify_update })"
                 />
@@ -191,6 +194,7 @@
               <td data-label="Favorites">
                 <input
                   type="checkbox"
+                  :aria-label="`Notify about ${streamer.username || 'streamer'} favorite categories`"
                   v-model="streamer.notify_favorite_category"
                   @change="updateStreamerSettings(streamer.streamer_id, { notify_favorite_category: streamer.notify_favorite_category })"
                 />
@@ -532,6 +536,20 @@ const toggleAllStreamers = (enabled: boolean) => {
   }
 }
 
+.form-check label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  min-height: 44px;
+  cursor: pointer;
+}
+
+.data-table td > input[type="checkbox"] {
+  width: 44px;
+  height: 44px;
+  cursor: pointer;
+}
+
 // ============================================================================
 // FORM ACTIONS - Better button alignment
 // ============================================================================
@@ -591,7 +609,7 @@ const toggleAllStreamers = (enabled: boolean) => {
   background: var(--background-darker);
 
   .btn {
-    min-height: 30px;
+    min-height: 44px;
     min-width: 44px;
     padding: 0 var(--spacing-2);
     border-radius: var(--radius-full);

@@ -1187,10 +1187,6 @@ onMounted(() => {
     display: none;
   }
 
-  // Ensure content is not hidden behind fixed BottomNav (64px + safe area)
-  .settings-content {
-    padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px) + v.$spacing-6);
-  }
 }
 
 @include m.respond-below('sm') {  // < 640px
@@ -1239,7 +1235,7 @@ onMounted(() => {
 .nav-group-header {
   font-size: var(--text-xs);
   font-weight: v.$font-semibold;
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.08em;
   padding: var(--spacing-3) var(--spacing-3) var(--spacing-1);
@@ -1271,7 +1267,7 @@ onMounted(() => {
 
   &.badge-advanced {
     background: rgba(var(--accent-500-rgb), 0.15);
-    color: var(--accent-color);
+    color: var(--text-primary);
   }
 
   &.badge-safety {
@@ -1286,8 +1282,13 @@ onMounted(() => {
 
   &.badge-danger {
     background: rgba(var(--danger-500-rgb), 0.15);
-    color: var(--danger-color);
+    color: var(--text-primary);
   }
+}
+
+.nav-item.active .nav-badge {
+  background: var(--background-card);
+  color: var(--text-primary) !important;
 }
 
 </style>

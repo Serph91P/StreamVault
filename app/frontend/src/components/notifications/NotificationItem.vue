@@ -161,7 +161,7 @@ function openNotification() {
     <div class="notification-content">
       <div class="notification-title-row">
         <div class="title-stack">
-          <span v-if="!notification.read" class="unread-dot" aria-label="Unread notification"></span>
+          <span v-if="!notification.read" class="unread-dot" role="img" aria-label="Unread notification"></span>
           <h3>{{ displayTitle }}</h3>
         </div>
         <time :datetime="notification.timestamp">{{ formatTime(notification.timestamp) }}</time>

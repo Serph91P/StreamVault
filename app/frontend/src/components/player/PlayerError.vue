@@ -34,8 +34,9 @@ const emit = defineEmits<{ action: [] }>()
   margin: 0 auto;
   padding: var(--spacing-6);
 
+  :deep(.empty-title),
   :deep(.empty-description) {
-    color: var(--text-primary);
+    color: white;
   }
 }
 </style>

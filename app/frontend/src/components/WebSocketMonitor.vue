@@ -116,8 +116,8 @@ onMounted(() => {
 
 .refresh-btn {
   padding: var(--spacing-2) var(--spacing-4);
-  background: var(--success-color-dark);
-  color: white;
+  background: rgba(var(--success-color-rgb), 0.15);
+  color: var(--text-primary);
   border: none;
   border-radius: var(--radius-sm);
   cursor: pointer;
@@ -125,7 +125,7 @@ onMounted(() => {
 }
 
 .refresh-btn:hover:not(:disabled) {
-  background: var(--success-color-dark);
+  background: rgba(var(--success-color-rgb), 0.25);
 }
 
 .refresh-btn:disabled {
