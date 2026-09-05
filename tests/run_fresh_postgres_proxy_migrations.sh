@@ -14,6 +14,7 @@ db_auth_component="$(python -c 'import uuid; print(uuid.uuid4().hex)')"
 database_scheme="postgresql"
 database_url="${database_scheme}://${db_user}:${db_auth_component}@${db_container}:5432/${db_name}"
 base_url="http://localhost:7000"
+metrics_token="metrics-${run_id}"
 
 cleanup() {
     docker rm -f "${app_container_a}" "${app_container_b}" "${db_container}" >/dev/null 2>&1 || true
@@ -75,9 +76,70 @@ assert_clean_startup_logs() {
             if [[ "${line}" =~ ${forbidden_pattern} ]]; then
                 sanitized_line="${line//${database_url}/[REDACTED_DATABASE_URL]}"
                 sanitized_line="${sanitized_line//${db_auth_component}/[REDACTED]}"
+                sanitized_line="${sanitized_line//${metrics_token}/[REDACTED]}"
                 printf '%s\n' "${sanitized_line}" >&2
             fi
         done <<< "${logs}"
+        return 1
+    fi
+}
+
+assert_openapi_surface() {
+    local app_container="$1"
+    local headers
+    local body
+    local status
+
+    headers="$(docker exec "${app_container}" curl -sS -D - -o /dev/null -w '\n__STATUS__%{http_code}' "${base_url}/api/openapi.json")"
+    status="${headers##*__STATUS__}"
+    headers="${headers%__STATUS__*}"
+    body="$(docker exec "${app_container}" curl -sS "${base_url}/api/openapi.json")"
+
+    if [[ "${status}" != "200" || "${headers,,}" != *"content-type:"*"application/json"* || "${headers,,}" == *"location:"* || "${body}" != *'"openapi"'* || "${body}" != *'"paths"'* ]]; then
+        printf '%s\n' "OpenAPI contract must be direct JSON without redirects" >&2
+        return 1
+    fi
+}
+
+assert_http_surface() {
+    local app_container="$1"
+    local endpoint
+    local status
+    local headers
+
+    for endpoint in /api/health/live /api/health/ready; do
+        status="$(docker exec "${app_container}" curl -sS -o /dev/null -w '%{http_code}' "${base_url}${endpoint}")"
+        if [[ "${status}" != "200" ]]; then
+            printf '%s\n' "HTTP smoke failed for ${endpoint}: expected 200, got ${status}" >&2
+            return 1
+        fi
+    done
+
+    assert_openapi_surface "${app_container}"
+
+    headers="$(docker exec "${app_container}" curl -sS -D - -o /dev/null -w '\n__STATUS__%{http_code}' "${base_url}/")"
+    status="${headers##*__STATUS__}"
+    headers="${headers%__STATUS__*}"
+    if [[ "${status}" != "307" || "${headers,,}" != *"location: /auth/"* ]]; then
+        printf '%s\n' "Unauthenticated frontend root must redirect to an auth route" >&2
+        return 1
+    fi
+
+    headers="$(docker exec "${app_container}" curl -sS -D - -o /dev/null "${base_url}/api/health/live")"
+    if [[ "${headers,,}" != *"x-request-id:"* ]]; then
+        printf '%s\n' "Liveness response did not include X-Request-ID" >&2
+        return 1
+    fi
+
+    status="$(docker exec "${app_container}" curl -sS -o /dev/null -w '%{http_code}' "${base_url}/api/metrics")"
+    if [[ "${status}" != "404" ]]; then
+        printf '%s\n' "Unauthenticated metrics response must be 404, got ${status}" >&2
+        return 1
+    fi
+
+    status="$(docker exec "${app_container}" curl -sS -o /dev/null -w '%{http_code}' -H "Authorization: Bearer ${metrics_token}" "${base_url}/api/metrics")"
+    if [[ "${status}" != "200" ]]; then
+        printf '%s\n' "Authenticated metrics response must be 200, got ${status}" >&2
         return 1
     fi
 }
@@ -100,6 +162,8 @@ docker create \
     -e TWITCH_APP_SECRET="secret-${run_id}-${RANDOM}" \
     -e BASE_URL="${base_url}" \
     -e EVENTSUB_SECRET="event-${run_id}-${RANDOM}" \
+    -e METRICS_ENABLED=true \
+    -e METRICS_AUTH_TOKEN="${metrics_token}" \
     -e ENVIRONMENT=production \
     -e LOG_LEVEL=INFO \
     "${image}" >/dev/null
@@ -111,12 +175,15 @@ docker create \
     -e TWITCH_APP_SECRET="secret-${run_id}-${RANDOM}" \
     -e BASE_URL="${base_url}" \
     -e EVENTSUB_SECRET="event-${run_id}-${RANDOM}" \
+    -e METRICS_ENABLED=true \
+    -e METRICS_AUTH_TOKEN="${metrics_token}" \
     -e ENVIRONMENT=production \
     -e LOG_LEVEL=INFO \
     "${image}" >/dev/null
 docker start "${app_container_a}" "${app_container_b}" >/dev/null
 wait_for_app "${app_container_a}" "StreamVault application A"
 wait_for_app "${app_container_b}" "StreamVault application B"
+assert_http_surface "${app_container_a}"
 
 first_boot_logs_a="$(docker logs "${app_container_a}" 2>&1)"
 first_boot_logs_b="$(docker logs "${app_container_b}" 2>&1)"
@@ -132,7 +199,7 @@ applied_migrations="$(docker exec "${db_container}" psql -U "${db_user}" -d "${d
 failed_migrations="$(docker exec "${db_container}" psql -U "${db_user}" -d "${db_name}" -Atqc \
     "SELECT COUNT(*) FROM migrations WHERE success IS NOT TRUE")"
 final_migration_count="$(docker exec "${db_container}" psql -U "${db_user}" -d "${db_name}" -Atqc \
-    "SELECT COUNT(*) FROM migrations WHERE script_name = '041_encrypt_proxy_credentials_after_schema.py' AND success IS TRUE")"
+    "SELECT COUNT(*) FROM migrations WHERE script_name = '042_add_api_key_expiry.py' AND success IS TRUE")"
 
 assert_migration_sequence "${expected_migrations}" "${total_migrations}" "${distinct_migrations}" "${applied_migrations}" "${failed_migrations}"
 [[ "${final_migration_count}" == "1" ]]
@@ -147,6 +214,8 @@ key_count="$(docker exec "${db_container}" psql -U "${db_user}" -d "${db_name}" 
 [[ "${key_count}" == "1" ]]
 [[ "${first_boot_logs_a}" != *"${first_key}"* ]]
 [[ "${first_boot_logs_b}" != *"${first_key}"* ]]
+[[ "${first_boot_logs_a}" != *"${metrics_token}"* ]]
+[[ "${first_boot_logs_b}" != *"${metrics_token}"* ]]
 key_status="$(printf '%s' "${first_key}" | docker exec -i "${app_container_a}" python -c \
     'import sys; from cryptography.fernet import Fernet; Fernet(sys.stdin.buffer.read()); print("valid")')"
 [[ "${key_status}" == "valid" ]]
@@ -154,6 +223,7 @@ key_status="$(printf '%s' "${first_key}" | docker exec -i "${app_container_a}" p
 restart_started="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 docker restart "${app_container_a}" >/dev/null
 wait_for_app "${app_container_a}" "Restarted StreamVault application A"
+assert_http_surface "${app_container_a}"
 restart_logs="$(docker logs --since "${restart_started}" "${app_container_a}" 2>&1)"
 assert_clean_startup_logs "Restart" "${restart_logs}"
 
@@ -161,8 +231,10 @@ restart_key="$(docker exec "${db_container}" psql -U "${db_user}" -d "${db_name}
     "SELECT proxy_encryption_key FROM global_settings ORDER BY id LIMIT 1")"
 [[ "${restart_key}" == "${first_key}" ]]
 [[ "${restart_logs}" != *"${restart_key}"* ]]
+[[ "${restart_logs}" != *"${metrics_token}"* ]]
 
 printf '%s\n' "Concurrent fresh PostgreSQL first boot: both applications database healthy"
 printf '%s\n' "Migration sequence: ${total_migrations}/${expected_migrations} total and ${distinct_migrations} distinct, ${applied_migrations} successful, ${failed_migrations} failed"
 printf '%s\n' "Persisted proxy key: valid and unchanged after immediate restart"
+printf '%s\n' "HTTP surface: liveness, readiness, OpenAPI, frontend, request ID, and metrics token policy verified"
 printf '%s\n' "Both first-boot logs and restart log: no ERROR, CRITICAL, or Traceback markers"

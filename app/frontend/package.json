@@ -15,7 +15,7 @@
     "test:build-output": "node scripts/check-build-output.mjs",
     "test:unit": "vitest run",
     "test:e2e": "playwright test",
-    "lint": "eslint . --fix",
+    "lint": "npm run lint:check",
     "lint:tokens": "node scripts/check-design-tokens.cjs",
     "format": "prettier --write src/",
     "update-browsers": "npx update-browserslist-db@latest"

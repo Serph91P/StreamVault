@@ -115,3 +115,21 @@ def test_release_notes_match_the_published_platform():
     assert "linux/amd64, linux/arm64" not in workflow
     assert "linux/amd64 Docker image" in release_job_text
     assert "| Architectures | linux/amd64 |" in release_job_text
+
+
+def test_all_trivy_action_references_are_immutable_release_pins():
+    workflows = sorted((REPO_ROOT / ".github" / "workflows").glob("*.yml"))
+    references = []
+    for workflow in workflows:
+        document = yaml.safe_load(workflow.read_text(encoding="utf-8"))
+        for job in document["jobs"].values():
+            for step in job.get("steps", []):
+                uses = step.get("uses", "")
+                if uses.startswith("aquasecurity/trivy-action@"):
+                    references.append((workflow.name, uses))
+
+    assert references
+    assert all(
+        re.fullmatch(r"aquasecurity/trivy-action@[0-9a-f]{40}", uses)
+        for _workflow, uses in references
+    )

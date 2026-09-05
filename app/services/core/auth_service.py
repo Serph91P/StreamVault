@@ -1,157 +1,406 @@
-from sqlalchemy.orm import Session as DBSession
-from app.models import User, Session
-from argon2 import PasswordHasher
-from argon2.exceptions import VerifyMismatchError
+"""Authentication seam for passwords, legacy sessions, JWTs, and refresh rotation."""
+
 import hashlib
-import secrets
 import logging
-from typing import Optional
-from app.schemas.auth import UserCreate, UserResponse
+import secrets
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+from typing import Any, Optional
+from uuid import uuid4
+
+import bcrypt
+import jwt
+from argon2 import PasswordHasher
+from argon2.exceptions import InvalidHashError, VerifyMismatchError
+from jwt import InvalidTokenError
+from sqlalchemy.orm import Session as DBSession
+
+from app.models import RefreshToken, Session, User
+from app.schemas.auth import UserCreate, UserResponse
 
 logger = logging.getLogger("streamvault")
 
-ph = PasswordHasher()
+_DEFAULT_SCOPES = frozenset(
+    {
+        "admin",
+        "settings:read",
+        "settings:write",
+        "recording:read",
+        "recording:write",
+        "api-keys:manage",
+        "realtime:connect",
+    }
+)
+
+
+class AuthConfigurationError(RuntimeError):
+    """Raised when required authentication key material is absent or unsafe."""
+
+
+class AuthTokenError(ValueError):
+    """Raised when a bearer/access/refresh token cannot be accepted."""
+
+
+class RefreshTokenReplayError(AuthTokenError):
+    """Raised after a rotated refresh token is used again."""
+
+
+@dataclass(frozen=True)
+class TokenPair:
+    access_token: str
+    refresh_token: str
+    family_id: str
 
 
 def _hash_token(token: str) -> str:
-    """SECURITY: Hash session token with SHA-256 before DB storage.
-
-    If the database is compromised, attackers cannot hijack sessions
-    because only hashes are stored, not the raw tokens (CWE-312).
-    """
+    """Return the stable one-way lookup verifier for high-entropy tokens."""
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
+def _as_utc(value: datetime) -> datetime:
+    return (
+        value.replace(tzinfo=timezone.utc)
+        if value.tzinfo is None
+        else value.astimezone(timezone.utc)
+    )
+
+
 class AuthService:
-    def __init__(self, db: DBSession):
+    """Own identity issuance and verification behind a narrow database-backed seam."""
+
+    def __init__(self, db: DBSession, settings: Any | None = None):
         self.db = db
-        self.session_timeout_hours = 24  # 24 hour session timeout for production
+        if settings is None:
+            from app.config.settings import get_settings
+
+            settings = get_settings()
+        self.settings = settings
+        self.session_timeout_hours = 24
+
+    @staticmethod
+    def password_hasher(**overrides: Any) -> PasswordHasher:
+        return PasswordHasher(**overrides)
+
+    @property
+    def _password_hasher(self) -> PasswordHasher:
+        return self.password_hasher()
+
+    def hash_password(self, password: str) -> str:
+        return self._password_hasher.hash(password)
 
     async def admin_exists(self) -> bool:
         return bool(self.db.query(User).filter_by(is_admin=True).first())
 
     async def create_admin(self, user_data: UserCreate) -> UserResponse:
-        hashed_password = ph.hash(user_data.password)
         admin = User(
-            username=user_data.username, password=hashed_password, is_admin=True
+            username=user_data.username,
+            password=self.hash_password(user_data.password),
+            is_admin=True,
+            is_active=True,
         )
         self.db.add(admin)
         self.db.commit()
+        self.db.refresh(admin)
         return UserResponse.model_validate(admin)
 
     async def validate_login(self, username: str, password: str) -> Optional[User]:
         user = self.db.query(User).filter_by(username=username).first()
-        if user:
-            try:
-                ph.verify(user.password, password)
-                return user
-            except VerifyMismatchError:
-                return None
-        return None
+        if not user or not getattr(user, "is_active", True):
+            return None
+
+        try:
+            if user.password.startswith("$2"):
+                valid = bcrypt.checkpw(
+                    password.encode("utf-8"), user.password.encode("utf-8")
+                )
+                needs_rehash = valid
+            else:
+                valid = self._password_hasher.verify(user.password, password)
+                needs_rehash = self._password_hasher.check_needs_rehash(user.password)
+        except (InvalidHashError, VerifyMismatchError, ValueError):
+            return None
+
+        if not valid:
+            return None
+        if needs_rehash:
+            user.password = self.hash_password(password)
+            self.db.add(user)
+            self.db.commit()
+        return user
+
+    def _jwt_config(self) -> tuple[str, str, str, str, int]:
+        secret = getattr(self.settings, "AUTH_JWT_SECRET", None)
+        algorithm = getattr(self.settings, "AUTH_JWT_ALGORITHM", "HS256")
+        issuer = getattr(self.settings, "AUTH_JWT_ISSUER", "streamvault")
+        audience = getattr(self.settings, "AUTH_JWT_AUDIENCE", "streamvault-api")
+        access_minutes = getattr(self.settings, "AUTH_ACCESS_TOKEN_MINUTES", 15)
+        if not isinstance(secret, str) or len(secret) < 32:
+            raise AuthConfigurationError(
+                "AUTH_JWT_SECRET must be at least 32 characters"
+            )
+        if algorithm != "HS256":
+            raise AuthConfigurationError("AUTH_JWT_ALGORITHM must be HS256")
+        if not issuer or not audience or access_minutes < 1:
+            raise AuthConfigurationError(
+                "JWT issuer, audience, and lifetime are required"
+            )
+        return secret, algorithm, issuer, audience, access_minutes
+
+    @staticmethod
+    def _user_scopes(user: User) -> frozenset[str]:
+        return _DEFAULT_SCOPES if user.is_admin else frozenset({"recording:read"})
+
+    def create_access_token(self, user: User) -> str:
+        secret, algorithm, issuer, audience, access_minutes = self._jwt_config()
+        now = datetime.now(timezone.utc)
+        payload = {
+            "sub": str(user.id),
+            "typ": "access",
+            "jti": uuid4().hex,
+            "iat": now,
+            "nbf": now,
+            "exp": now + timedelta(minutes=access_minutes),
+            "iss": issuer,
+            "aud": audience,
+            "roles": ["admin"] if user.is_admin else ["user"],
+            "scp": sorted(self._user_scopes(user)),
+        }
+        return jwt.encode(payload, secret, algorithm=algorithm)
+
+    def decode_access_token(self, token: str) -> dict[str, Any]:
+        secret, algorithm, issuer, audience, _ = self._jwt_config()
+        try:
+            claims = jwt.decode(
+                token,
+                secret,
+                algorithms=[algorithm],
+                audience=audience,
+                issuer=issuer,
+                options={"require": ["sub", "typ", "iat", "nbf", "exp", "iss", "aud"]},
+            )
+        except InvalidTokenError as error:
+            raise AuthTokenError("Invalid access token") from error
+        if claims.get("typ") != "access":
+            raise AuthTokenError("Wrong token type")
+        return claims
+
+    def resolve_access_token(self, token: str) -> tuple[User, dict[str, Any]]:
+        """Decode an access token and bind its policy to the current user state."""
+        claims = self.decode_access_token(token)
+        try:
+            user_id = int(claims["sub"])
+        except (KeyError, TypeError, ValueError) as error:
+            raise AuthTokenError("Invalid access token subject") from error
+
+        user = self.db.query(User).filter_by(id=user_id, is_active=True).first()
+        if not user:
+            raise AuthTokenError("Access token user unavailable")
+
+        token_scopes = claims.get("scp", [])
+        token_roles = claims.get("roles", [])
+        if not isinstance(token_scopes, list) or not isinstance(token_roles, list):
+            raise AuthTokenError("Invalid access token policy")
+        if not all(isinstance(scope, str) for scope in token_scopes) or not all(
+            isinstance(role, str) for role in token_roles
+        ):
+            raise AuthTokenError("Invalid access token policy")
+
+        current_scopes = self._user_scopes(user)
+        current_roles = frozenset({"admin"}) if user.is_admin else frozenset({"user"})
+        if (
+            not frozenset(token_scopes).issubset(current_scopes)
+            or frozenset(token_roles) != current_roles
+        ):
+            raise AuthTokenError("Access token policy no longer applies")
+        return user, claims
+
+    def _refresh_expiry(self, now: datetime) -> tuple[datetime, datetime]:
+        refresh_hours = getattr(self.settings, "AUTH_REFRESH_TOKEN_HOURS", 24)
+        family_hours = getattr(self.settings, "AUTH_REFRESH_FAMILY_MAX_HOURS", 168)
+        if refresh_hours < 1 or family_hours < refresh_hours:
+            raise AuthConfigurationError("Refresh token lifetimes are invalid")
+        return now + timedelta(hours=refresh_hours), now + timedelta(hours=family_hours)
+
+    def _new_refresh_token(
+        self,
+        user: User,
+        *,
+        family_id: str | None = None,
+        family_expires_at: datetime | None = None,
+        parent_token_hash: str | None = None,
+    ) -> tuple[RefreshToken, str]:
+        now = datetime.now(timezone.utc)
+        expires_at, new_family_expiry = self._refresh_expiry(now)
+        family_expires_at = (
+            _as_utc(family_expires_at) if family_expires_at else new_family_expiry
+        )
+        if family_expires_at <= now:
+            raise AuthTokenError("Refresh family expired")
+        raw_token = f"svr_{secrets.token_urlsafe(32)}"
+        record = RefreshToken(
+            user_id=user.id,
+            family_id=family_id or uuid4().hex,
+            token_hash=_hash_token(raw_token),
+            expires_at=min(expires_at, family_expires_at),
+            family_expires_at=family_expires_at,
+            parent_token_hash=parent_token_hash,
+        )
+        self.db.add(record)
+        self.db.flush()
+        return record, raw_token
+
+    def issue_token_pair(self, user: User) -> TokenPair:
+        if not getattr(user, "is_active", True):
+            raise AuthTokenError("Inactive user")
+        refresh, raw_refresh = self._new_refresh_token(user)
+        self.db.commit()
+        return TokenPair(
+            access_token=self.create_access_token(user),
+            refresh_token=raw_refresh,
+            family_id=refresh.family_id,
+        )
+
+    def _revoke_refresh_family_in_transaction(
+        self, family_id: str, now: datetime
+    ) -> int:
+        return (
+            self.db.query(RefreshToken)
+            .filter(
+                RefreshToken.family_id == family_id, RefreshToken.revoked_at.is_(None)
+            )
+            .update({RefreshToken.revoked_at: now}, synchronize_session=False)
+        )
+
+    def revoke_refresh_family(self, family_id: str) -> int:
+        count = self._revoke_refresh_family_in_transaction(
+            family_id, datetime.now(timezone.utc)
+        )
+        self.db.commit()
+        return count
+
+    def revoke_refresh_token(self, raw_token: str | None) -> int:
+        if not raw_token:
+            return 0
+        refresh = (
+            self.db.query(RefreshToken)
+            .filter_by(token_hash=_hash_token(raw_token))
+            .first()
+        )
+        if not refresh:
+            return 0
+        count = self._revoke_refresh_family_in_transaction(
+            refresh.family_id, datetime.now(timezone.utc)
+        )
+        self.db.commit()
+        return count
+
+    def rotate_refresh_token(self, raw_token: str) -> TokenPair:
+        token_hash = _hash_token(raw_token)
+        refresh = self.db.query(RefreshToken).filter_by(token_hash=token_hash).first()
+        now = datetime.now(timezone.utc)
+        if not refresh:
+            raise AuthTokenError("Invalid refresh token")
+        if refresh.used_at is not None or refresh.revoked_at is not None:
+            self._revoke_refresh_family_in_transaction(refresh.family_id, now)
+            self.db.commit()
+            raise RefreshTokenReplayError("Refresh token replay detected")
+        if (
+            _as_utc(refresh.expires_at) < now
+            or _as_utc(refresh.family_expires_at) < now
+        ):
+            self._revoke_refresh_family_in_transaction(refresh.family_id, now)
+            self.db.commit()
+            raise AuthTokenError("Refresh token expired")
+        user = self.db.query(User).filter_by(id=refresh.user_id).first()
+        if not user or not getattr(user, "is_active", True):
+            self._revoke_refresh_family_in_transaction(refresh.family_id, now)
+            self.db.commit()
+            raise AuthTokenError("Refresh token user unavailable")
+
+        access_token = self.create_access_token(user)
+        try:
+            consumed = (
+                self.db.query(RefreshToken)
+                .filter(
+                    RefreshToken.token_hash == token_hash,
+                    RefreshToken.used_at.is_(None),
+                    RefreshToken.revoked_at.is_(None),
+                )
+                .update({RefreshToken.used_at: now}, synchronize_session=False)
+            )
+            if consumed != 1:
+                self._revoke_refresh_family_in_transaction(refresh.family_id, now)
+                self.db.commit()
+                raise RefreshTokenReplayError("Refresh token replay detected")
+            replacement, raw_replacement = self._new_refresh_token(
+                user,
+                family_id=refresh.family_id,
+                family_expires_at=refresh.family_expires_at,
+                parent_token_hash=refresh.token_hash,
+            )
+            self.db.commit()
+        except RefreshTokenReplayError:
+            raise
+        except Exception:
+            self.db.rollback()
+            raise
+        return TokenPair(
+            access_token=access_token,
+            refresh_token=raw_replacement,
+            family_id=replacement.family_id,
+        )
 
     async def create_session(self, user_id: int) -> str:
+        """Create the temporary legacy opaque session during the JWT migration."""
         token = secrets.token_urlsafe(32)
-        # SECURITY: Store SHA-256 hash of token, not the raw token
-        token_hash = _hash_token(token)
-        session = Session(user_id=user_id, token=token_hash)
-        self.db.add(session)
+        self.db.add(Session(user_id=user_id, token=_hash_token(token)))
         self.db.commit()
-        # Return raw token to client (sent via cookie)
         return token
 
     async def validate_session(self, token: str) -> bool:
-        """Validate session with automatic cleanup of expired sessions"""
-        try:
-            token_hash = _hash_token(token)
-            session = self.db.query(Session).filter_by(token=token_hash).first()
-            if not session:
-                return False
+        return self.resolve_legacy_session(token) is not None
 
-            # Check if session is expired (production fix for multi-user auth issues)
-            cutoff_time = datetime.now(timezone.utc) - timedelta(
-                hours=self.session_timeout_hours
-            )
-            if session.created_at < cutoff_time:
-                # Session is expired, delete it immediately
-                self.db.delete(session)
-                self.db.commit()
-                logger.debug("Removed expired session")
-                return False
-
-            return True
-
-        except Exception as e:
-            logger.error(f"Error validating session: {e}")
-            return False
+    def resolve_legacy_session(self, token: str) -> Optional[User]:
+        session = self.db.query(Session).filter_by(token=_hash_token(token)).first()
+        if not session:
+            return None
+        cutoff = datetime.now(timezone.utc) - timedelta(
+            hours=self.session_timeout_hours
+        )
+        created_at = session.created_at
+        if created_at.tzinfo is None:
+            created_at = created_at.replace(tzinfo=timezone.utc)
+        if created_at < cutoff:
+            self.db.delete(session)
+            self.db.commit()
+            return None
+        user = self.db.query(User).filter_by(id=session.user_id).first()
+        return user if user and getattr(user, "is_active", True) else None
 
     async def refresh_session(self, token: str) -> bool:
-        """Refresh a valid session by updating its created_at to now (sliding expiration)."""
-        try:
-            token_hash = _hash_token(token)
-            session = self.db.query(Session).filter_by(token=token_hash).first()
-            if not session:
-                return False
-
-            cutoff_time = datetime.now(timezone.utc) - timedelta(
-                hours=self.session_timeout_hours
-            )
-            if session.created_at < cutoff_time:
-                # Expired - remove and reject
-                self.db.delete(session)
-                self.db.commit()
-                logger.debug("Tried to refresh expired session; deleted")
-                return False
-
-            # Refresh timestamp to extend session
-            session.created_at = datetime.now(timezone.utc)
-            self.db.add(session)
-            self.db.commit()
-            return True
-        except Exception as e:
-            logger.error(f"Error refreshing session: {e}")
-            self.db.rollback()
-            return False
+        return self.resolve_legacy_session(token) is not None
 
     async def cleanup_expired_sessions(self) -> int:
-        """Clean up expired sessions (can be called periodically)"""
-        try:
-            cutoff_time = datetime.now(timezone.utc) - timedelta(
-                hours=self.session_timeout_hours
-            )
-
-            expired_sessions = (
-                self.db.query(Session).filter(Session.created_at < cutoff_time).all()
-            )
-
-            expired_count = len(expired_sessions)
-
-            if expired_count > 0:
-                for session in expired_sessions:
-                    self.db.delete(session)
-
-                self.db.commit()
-                logger.info(f"Cleaned up {expired_count} expired sessions")
-
-            return expired_count
-
-        except Exception as e:
-            logger.error(f"Error cleaning up expired sessions: {e}")
-            self.db.rollback()
-            return 0
+        cutoff = datetime.now(timezone.utc) - timedelta(
+            hours=self.session_timeout_hours
+        )
+        expired = []
+        for session in self.db.query(Session).all():
+            created_at = session.created_at
+            if created_at.tzinfo is None:
+                created_at = created_at.replace(tzinfo=timezone.utc)
+            if created_at < cutoff:
+                expired.append(session)
+        for session in expired:
+            self.db.delete(session)
+        if expired:
+            self.db.commit()
+        return len(expired)
 
     async def delete_session(self, token: str) -> bool:
-        """Delete a specific session token"""
-        try:
-            token_hash = _hash_token(token)
-            session = self.db.query(Session).filter_by(token=token_hash).first()
-            if session:
-                self.db.delete(session)
-                self.db.commit()
-                logger.debug("Deleted session")
-                return True
+        session = self.db.query(Session).filter_by(token=_hash_token(token)).first()
+        if not session:
             return False
-        except Exception as e:
-            logger.error(f"Error deleting session: {e}")
-            self.db.rollback()
-            return False
+        self.db.delete(session)
+        self.db.commit()
+        return True

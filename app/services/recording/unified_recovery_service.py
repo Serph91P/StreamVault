@@ -20,6 +20,7 @@ from dataclasses import dataclass
 from sqlalchemy.orm import joinedload
 
 from app.database import SessionLocal
+from app.dependencies import get_recording_manager
 from app.models import Recording, Stream, Streamer
 from app.services.system.logging_service import logging_service
 from app.services.init.background_queue_init import enqueue_recording_post_processing
@@ -1184,14 +1185,11 @@ class UnifiedRecoveryService:
                     )
                     return True
 
-                # Also check via RecordingService for in-memory active recordings
+                # Query the process-scoped manager's local cache. The durable
+                # lease remains the cross-instance ownership authority.
                 try:
-                    from app.services.recording.recording_service import (
-                        RecordingService,
-                    )
-
-                    recording_service = RecordingService()
-                    active_recordings = recording_service.get_active_recordings()
+                    recording_manager = get_recording_manager()
+                    active_recordings = recording_manager.get_active_recordings()
 
                     for rec_id, rec_data in active_recordings.items():
                         if (
@@ -1217,10 +1215,7 @@ class UnifiedRecoveryService:
     ) -> bool:
         """Resume a live recording that was interrupted"""
         try:
-            # Get recording service to resume recording
-            from app.services.recording.recording_service import RecordingService
-
-            recording_service = RecordingService()
+            recording_manager = get_recording_manager()
 
             # Resume the recording (this will create a new segment in the same directory)
             logger.info(
@@ -1266,7 +1261,7 @@ class UnifiedRecoveryService:
                     return False
 
             # Start recording - this will automatically handle segment continuation
-            resumed_recording_id = await recording_service.start_recording(
+            resumed_recording_id = await recording_manager.start_recording(
                 stream_id,
                 streamer_id,
                 resume_segments_dir=str(segments_dir),
@@ -1315,22 +1310,19 @@ class UnifiedRecoveryService:
         try:
             # Get active recordings from the recording service with robust error handling
             try:
-                from app.services.recording.recording_service import RecordingService
-
-                recording_service = RecordingService()
-
-                active_recordings = recording_service.get_active_recordings()
+                recording_manager = get_recording_manager()
+                active_recordings = recording_manager.get_active_recordings()
                 for recording_data in active_recordings.values():
                     if "file_path" in recording_data and recording_data["file_path"]:
                         active_paths.add(recording_data["file_path"])
 
                 logger.debug(
-                    f"Retrieved {len(active_recordings)} active recordings from RecordingService"
+                    f"Retrieved {len(active_recordings)} active recordings from RecordingManager"
                 )
 
             except Exception as e:
                 logger.error(
-                    f"❌ CRITICAL: Failed to get active recordings from RecordingService: {e}"
+                    f"❌ CRITICAL: Failed to get active recordings from RecordingManager: {e}"
                 )
                 # This is a critical error - we cannot safely proceed without knowing active recordings
                 # Raise the exception to abort the recovery process

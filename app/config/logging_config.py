@@ -1,11 +1,48 @@
 import logging
 import logging.handlers
 import sys
-import os
 import json
+import re
+from contextvars import ContextVar
 from datetime import datetime
 from pathlib import Path
-from app.config.settings import settings
+
+request_context: ContextVar[str | None] = ContextVar("request_id", default=None)
+
+
+def _redact(message: str) -> str:
+    """Remove sensitive values before a record leaves the process.
+
+    This accepts arbitrary exception and library text, so it intentionally
+    redacts common header, URL, query and structured-field spellings instead
+    of assuming callers used the application's logging helpers.
+    """
+    message = str(message)[:4096]
+    message = re.sub(r"(://[^:/\s]+:)[^@\s]+(@)", r"\1***\2", message)
+    message = re.sub(
+        r"(?i)(authorization)\s*=\s*(?:bearer|oauth)\s+[^\s,;]+",
+        r"\1=***",
+        message,
+    )
+    sensitive = r"(?:authorization|cookie|set-cookie|x-api-key|api[_-]?key|token|secret|password|https?_proxy|twitch_[a-z_]+)"
+    message = re.sub(
+        rf"(?i)({sensitive})\s*[:=]\s*(?:bearer\s+)?[^\s,;]+",
+        r"\1=***",
+        message,
+    )
+    message = re.sub(
+        rf"(?i)(['\"]{sensitive}['\"]\s*:\s*['\"])[^'\"]+",
+        r"\1***",
+        message,
+    )
+    return message
+
+
+class RedactingFormatter(logging.Formatter):
+    """Apply the same redaction policy to the standard text log format."""
+
+    def format(self, record):
+        return _redact(super().format(record))
 
 
 class JSONFormatter(logging.Formatter):
@@ -16,15 +53,18 @@ class JSONFormatter(logging.Formatter):
             "timestamp": datetime.fromtimestamp(record.created).isoformat(),
             "level": record.levelname,
             "logger": record.name,
-            "message": record.getMessage(),
+            "message": _redact(record.getMessage()),
             "module": record.module,
             "function": record.funcName,
             "line": record.lineno,
         }
+        request_id = getattr(record, "request_id", None) or request_context.get()
+        if request_id:
+            log_entry["request_id"] = request_id
 
         # Add exception info if present
         if record.exc_info:
-            log_entry["exception"] = self.formatException(record.exc_info)
+            log_entry["exception"] = _redact(self.formatException(record.exc_info))
 
         # Add extra fields if present
         if hasattr(record, "streamer_name"):
@@ -41,30 +81,38 @@ class JSONFormatter(logging.Formatter):
         return json.dumps(log_entry)
 
 
-def setup_logging():
+def setup_logging(app_settings=None):
     """Setup logging with daily rotating files"""
+    if app_settings is None:
+        from app.config.settings import get_settings
+
+        app_settings = get_settings()
+
     logger = logging.getLogger("streamvault")
-    logger.setLevel(settings.LOG_LEVEL)
+    logger.setLevel(app_settings.LOG_LEVEL)
+    logger.propagate = False
 
     # Choose formatter based on environment
-    use_json = getattr(settings, "LOG_FORMAT", "text").lower() == "json"
+    use_json = app_settings.LOG_FORMAT.lower() == "json"
 
     if use_json:
         formatter = JSONFormatter()
     else:
-        formatter = logging.Formatter(
+        formatter = RedactingFormatter(
             "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
         )
 
     # Console handler
-    console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setFormatter(formatter)
-    logger.addHandler(console_handler)
+    if not any(
+        getattr(handler, "_streamvault_console", False) for handler in logger.handlers
+    ):
+        console_handler = logging.StreamHandler(sys.stdout)
+        console_handler._streamvault_console = True
+        console_handler.setFormatter(formatter)
+        logger.addHandler(console_handler)
 
     # Ensure log directories exist - use environment variable or fallback
-    logs_base = (
-        os.environ.get("LOGS_BASE_DIR") or os.environ.get("LOG_DIR") or "/app/logs"
-    )
+    logs_base = app_settings.LOGS_BASE_DIR or app_settings.LOG_DIR or "/app/logs"
     logs_dir = Path(logs_base)
     app_logs_dir = logs_dir / "app"
     app_logs_dir.mkdir(parents=True, exist_ok=True)
@@ -87,54 +135,20 @@ def setup_logging():
         # Set the suffix for rotated files (will be streamvault.log.2025-09-17)
         rotating_handler.suffix = "%Y-%m-%d"
 
-        logger.addHandler(rotating_handler)
+        if not any(
+            getattr(handler, "baseFilename", None) == log_file_path
+            for handler in logger.handlers
+        ):
+            logger.addHandler(rotating_handler)
 
         # Verify handler was added successfully
         logger.info(f"📝 TimedRotatingFileHandler configured for: {log_file_path}")
 
     except Exception as e:
         # If handler creation fails, log to console only
-        console_handler.setFormatter(formatter)
-        logger.addHandler(console_handler)
         logger.error(
             f"❌ Failed to create TimedRotatingFileHandler for {log_file_path}: {e}"
         )
         logger.error("Logs will only be written to Docker stdout, not to file!")
-
-    # Initialize the structured logging service
-    try:
-        from app.services.system.logging_service import logging_service
-
-        logger.info("Structured logging service initialized")
-
-        # Schedule periodic cleanup of old logs
-        import threading
-
-        def start_cleanup_scheduler():
-            """Start the log cleanup scheduler in a separate thread"""
-            import time
-
-            def cleanup_scheduler():
-                """Schedule periodic log cleanup"""
-                while True:
-                    time.sleep(24 * 3600)  # Run every 24 hours
-                    try:
-                        logging_service.cleanup_old_logs()
-                    except Exception as e:
-                        logger.error(f"Error during scheduled log cleanup: {e}")
-
-            try:
-                cleanup_scheduler()
-            except KeyboardInterrupt:
-                logger.info("Log cleanup scheduler stopped")
-            except Exception as e:
-                logger.error(f"Log cleanup scheduler error: {e}")
-
-        # Start the cleanup scheduler in a daemon thread
-        cleanup_thread = threading.Thread(target=start_cleanup_scheduler, daemon=True)
-        cleanup_thread.start()
-
-    except Exception as e:
-        logger.warning(f"Could not initialize structured logging service: {e}")
 
     return logger

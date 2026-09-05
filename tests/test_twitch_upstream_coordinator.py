@@ -1,4 +1,5 @@
 import asyncio
+import os
 import socket
 from datetime import datetime, timedelta, timezone
 
@@ -14,6 +15,7 @@ from app.models import (
 )
 from app.services.twitch_upstream_coordinator import (
     AUTHENTICATED_TWITCH_ACCOUNT,
+    ProcessInspector,
     TwitchUpstreamConflict,
     TwitchUpstreamCoordinator,
 )
@@ -47,6 +49,23 @@ class FakeProcessInspector:
 
     def is_exact_process_alive(self, **identity) -> bool:
         return identity.get("process_start_fingerprint") in self.alive_fingerprints
+
+
+def test_process_inspector_binds_liveness_to_the_exact_process_identity() -> None:
+    inspector = ProcessInspector()
+    identity = inspector.inspect(os.getpid())
+
+    assert inspector.is_exact_process_alive(
+        process_pid=identity.pid,
+        process_group_id=identity.process_group_id,
+        process_start_fingerprint=identity.fingerprint,
+    )
+    assert not inspector.is_exact_process_alive(
+        process_pid=identity.pid,
+        process_group_id=identity.process_group_id,
+        process_start_fingerprint="different-process-birth",
+    )
+    assert not inspector.is_exact_process_alive(process_pid=identity.pid)
 
 
 def make_coordinator(tmp_path, name="coordinator.db"):

@@ -1,10 +1,12 @@
-from pydantic_settings import BaseSettings, SettingsConfigDict
-from typing import Optional
+from pydantic import field_validator
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
+from typing import Annotated, Optional
 import secrets
 from typing import List
 import logging
 import base64
-import os
+import ipaddress
+from functools import lru_cache
 from pathlib import Path
 from cryptography.hazmat.primitives import serialization
 from urllib.parse import urlparse
@@ -132,11 +134,15 @@ class Settings(BaseSettings):
     TWITCH_APP_ID: str
     TWITCH_APP_SECRET: str
     BASE_URL: str
+    ENVIRONMENT: str = "production"
     WEBHOOK_URL: Optional[str] = None
     DATABASE_URL: Optional[str] = None
     # Base directory for the application
     BASE_DIR: str = str(Path(__file__).parent.parent.parent.absolute())
     LOG_LEVEL: str = "INFO"
+    LOG_FORMAT: str = "text"
+    LOGS_BASE_DIR: Optional[str] = None
+    LOG_DIR: Optional[str] = None
     POSTGRES_USER: Optional[str] = None
     POSTGRES_PASSWORD: Optional[str] = None
     POSTGRES_DB: Optional[str] = None
@@ -167,6 +173,13 @@ class Settings(BaseSettings):
     SECURE_COOKIES: bool = True  # Set to False for development or when behind reverse proxy without SSL termination
     # Override with environment variable for reverse proxy setups
     USE_SECURE_COOKIES: bool = True  # Can be set to False for reverse proxy setups
+    AUTH_JWT_SECRET: str = ""
+    AUTH_JWT_ALGORITHM: str = "HS256"
+    AUTH_JWT_ISSUER: str = "streamvault"
+    AUTH_JWT_AUDIENCE: str = "streamvault-api"
+    AUTH_ACCESS_TOKEN_MINUTES: int = 15
+    AUTH_REFRESH_TOKEN_HOURS: int = 24
+    AUTH_REFRESH_FAMILY_MAX_HOURS: int = 168
 
     # CORS settings
     CORS_ALLOW_CREDENTIALS: bool = True
@@ -182,11 +195,47 @@ class Settings(BaseSettings):
 
     # Additional allowed origins (comma-separated in env)
     CORS_ADDITIONAL_ORIGINS: str = ""
+    # Explicit host/proxy controls. Empty proxy configuration means forwarded
+    # headers are ignored instead of trusting arbitrary clients.
+    TRUSTED_HOSTS: Annotated[List[str], NoDecode] = []
+    TRUSTED_PROXY_CIDRS: Annotated[List[str], NoDecode] = []
 
     # Security settings
     SECURE_HEADERS_ENABLED: bool = True
     HSTS_MAX_AGE: int = 31536000  # 1 year
     CONTENT_SECURITY_POLICY: Optional[str] = None
+
+    # Request rate limiting remains opt-out compatible with the existing names.
+    RATE_LIMIT_ENABLED: bool = True
+    RATE_LIMIT_CAPACITY: int = 300
+    RATE_LIMIT_REFILL_PER_SEC: float = 5.0
+    RATE_LIMIT_MAX_WAIT_MS: int = 500
+    RATE_LIMIT_MAX_BUCKETS: int = 10000
+
+    # Observability endpoints are opt-in and, outside development, require a
+    # dedicated bearer token so they are not an unauthenticated inventory API.
+    METRICS_ENABLED: bool = False
+    METRICS_AUTH_TOKEN: Optional[str] = None
+    METRICS_ALLOW_UNAUTHENTICATED: bool = False
+    READINESS_TIMEOUT_SECONDS: float = 3.0
+    READINESS_REQUIRED_COMPONENTS: Annotated[List[str], NoDecode] = [
+        "database",
+        "ffmpeg",
+        "streamlink",
+    ]
+
+    @field_validator(
+        "TRUSTED_HOSTS",
+        "TRUSTED_PROXY_CIDRS",
+        "READINESS_REQUIRED_COMPONENTS",
+        mode="before",
+    )
+    @classmethod
+    def _split_list_settings(cls, value):
+        """Accept documented comma-separated deployment settings as typed lists."""
+        if isinstance(value, str):
+            return [item.strip() for item in value.split(",") if item.strip()]
+        return value
 
     @property
     def allowed_origins(self) -> List[str]:
@@ -202,23 +251,11 @@ class Settings(BaseSettings):
             origin = f"{parsed_url.scheme}://{parsed_url.netloc}"
             origins.add(origin)
 
-            # Also add without port if standard ports
-            if parsed_url.port in (80, 443, None):
-                origins.add(f"{parsed_url.scheme}://{parsed_url.hostname}")
-
-            # Add www variant if not present
-            if parsed_url.hostname and not parsed_url.hostname.startswith("www."):
-                origins.add(f"{parsed_url.scheme}://www.{parsed_url.hostname}")
-                if parsed_url.port:
-                    origins.add(
-                        f"{parsed_url.scheme}://www.{parsed_url.hostname}:{parsed_url.port}"
-                    )
-
         except Exception as e:
             logger.warning(f"Could not parse BASE_URL for CORS: {e}")
 
         # Add localhost origins for development
-        if os.getenv("ENVIRONMENT") == "development":
+        if self.environment_is_development:
             origins.update(
                 [
                     "http://localhost:5173",  # Vite dev server
@@ -239,6 +276,30 @@ class Settings(BaseSettings):
 
         # Convert to sorted list for consistent ordering
         return sorted(list(origins))
+
+    @property
+    def trusted_hosts(self) -> List[str]:
+        """Return explicit hosts, with local-only development conveniences."""
+        if self.TRUSTED_HOSTS:
+            return sorted(set(self.TRUSTED_HOSTS))
+        if self.environment_is_development:
+            return sorted({self.domain, "localhost", "127.0.0.1", "testserver"})
+        return [self.domain]
+
+    def is_trusted_proxy(self, client_ip: str) -> bool:
+        """Only configured proxy networks may supply forwarded client headers."""
+        try:
+            address = ipaddress.ip_address(client_ip)
+            return any(
+                address in ipaddress.ip_network(network, strict=False)
+                for network in self.TRUSTED_PROXY_CIDRS
+            )
+        except ValueError:
+            return False
+
+    @property
+    def environment_is_development(self) -> bool:
+        return self.ENVIRONMENT.lower() == "development"
 
     @property
     def has_push_notifications_configured(self) -> bool:
@@ -424,12 +485,15 @@ class Settings(BaseSettings):
             # Default to secure for safety
             self.USE_SECURE_COOKIES = True
 
-    model_config = SettingsConfigDict(env_file=".env")
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 
-settings = Settings()
-
-
+@lru_cache
 def get_settings() -> Settings:
-    """Get the global settings instance"""
-    return settings
+    """Return the process-scoped typed settings object."""
+    return Settings()
+
+
+# Compatibility export for existing callers. New call sites should depend on
+# get_settings so tests can clear the cache and inject explicit values.
+settings = get_settings()

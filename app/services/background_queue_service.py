@@ -15,6 +15,7 @@ import warnings
 from typing import Dict, Any, Optional, Callable
 from .queues import TaskQueueManager
 from .queues.task_progress_tracker import QueueTask, TaskStatus, TaskPriority
+from app.observability import service_metrics
 
 logger = logging.getLogger("streamvault")
 
@@ -160,6 +161,7 @@ class BackgroundQueueService:
     def get_queue_statistics(self) -> Dict[str, Any]:
         """Get comprehensive queue statistics"""
         queue_stats = self.queue_manager.get_queue_statistics()
+        service_metrics.set_queue_depth(int(queue_stats.get("queue_size", 0)))
 
         # Add process monitor statistics
         if process_monitor:

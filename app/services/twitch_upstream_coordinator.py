@@ -8,6 +8,7 @@ from typing import Callable, Optional
 
 import psutil
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.exc import IntegrityError
 
 from app.models import (
@@ -15,6 +16,7 @@ from app.models import (
     TwitchUpstreamCoordinationState,
     TwitchUpstreamLease,
 )
+from app.observability import service_metrics
 
 AUTHENTICATED_TWITCH_ACCOUNT = "streamvault-global-twitch-account"
 ACTIVE_STATES = ("STARTING", "ACTIVE", "ROTATING", "RECOVERING")
@@ -702,6 +704,15 @@ class TwitchUpstreamCoordinator:
             TwitchUpstreamCoordinationState.id == 1
         )
         if db.get_bind().dialect.name == "postgresql":
+            # Migrations normally seed this row, but a fresh schema must not
+            # turn concurrent first use into spurious lease conflicts. The
+            # PostgreSQL upsert waits for an in-flight singleton insert, then
+            # the row lock serializes every budget and lease transition.
+            db.execute(
+                postgresql_insert(TwitchUpstreamCoordinationState)
+                .values(id=1, lock_version=0, updated_at=now)
+                .on_conflict_do_nothing(index_elements=["id"])
+            )
             query = query.with_for_update()
         guard = db.execute(query).scalar_one_or_none()
         if guard is None:
@@ -790,6 +801,7 @@ class TwitchUpstreamCoordinator:
 
     @staticmethod
     def _conflict(code, reason, channel_key):
+        service_metrics.record_lease_contention()
         raise TwitchUpstreamConflict(code, reason, channel_key)
 
 

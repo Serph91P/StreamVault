@@ -187,7 +187,7 @@ class RecordingStateManager:
             if state_data:
                 logger.info(f"Loaded {len(state_data)} recordings from persistence")
                 # Convert List[ActiveRecordingState] to Dict format expected by recovery logic
-                return {recording.stream_id: recording for recording in state_data}
+                return {recording.recording_id: recording for recording in state_data}
 
             return {}
 

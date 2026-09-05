@@ -4,14 +4,13 @@ import os
 from fastapi import APIRouter, Depends, HTTPException, Body
 from fastapi.responses import JSONResponse
 from app.services.streamer_service import StreamerService
-from app.services.unified_image_service import unified_image_service
 from app.services.communication.websocket_manager import (
     websocket_manager,
     emit_toast,
     emit_event,
 )
 from app.events.handler_registry import EventHandlerRegistry
-from app.dependencies import get_streamer_service, get_event_registry
+from app.dependencies import get_streamer_service, get_event_registry, get_image_service
 from app.database import get_db
 from app.models import (
     Stream,
@@ -240,6 +239,7 @@ def collect_stream_files_for_deletion(
 @router.get("")
 async def get_streamers(
     streamer_service: StreamerService = Depends(get_streamer_service),
+    image_service=Depends(get_image_service),
 ):
     """Get all streamers with their current status
 
@@ -270,7 +270,7 @@ async def get_streamers(
                 "last_updated": streamer.last_updated.isoformat()
                 if streamer.last_updated
                 else None,
-                "profile_image_url": unified_image_service.get_profile_image_url(
+                "profile_image_url": image_service.get_profile_image_url(
                     streamer.id, streamer.profile_image_url
                 ),
                 "original_profile_image_url": streamer.original_profile_image_url,
@@ -512,6 +512,7 @@ async def add_streamer(
     data: Dict[str, Any] = Body(...),
     streamer_service: StreamerService = Depends(get_streamer_service),
     db: Session = Depends(get_db),
+    image_service=Depends(get_image_service),
 ):
     """Add a new streamer with optional recording settings"""
     try:
@@ -570,7 +571,7 @@ async def add_streamer(
             "id": new_streamer.id,
             "username": new_streamer.username,
             "twitch_id": new_streamer.twitch_id,
-            "profile_image_url": unified_image_service.get_profile_image_url(
+            "profile_image_url": image_service.get_profile_image_url(
                 new_streamer.id, new_streamer.profile_image_url
             ),
             "is_live": new_streamer.is_live,
@@ -860,6 +861,7 @@ async def get_streamer(
     streamer_id: str,
     streamer_service: StreamerService = Depends(get_streamer_service),
     db: Session = Depends(get_db),
+    image_service=Depends(get_image_service),
 ):
     """Get detailed information about a specific streamer"""
     # Get streamer from database first (exclude test data)
@@ -875,7 +877,7 @@ async def get_streamer(
         raise HTTPException(status_code=404, detail="Streamer not found")
 
     # Get cached profile image URL
-    profile_image_url = unified_image_service.get_profile_image_url(
+    profile_image_url = image_service.get_profile_image_url(
         streamer.id, streamer.profile_image_url
     )
 
@@ -1165,7 +1167,11 @@ async def delete_subscription(
 
 
 @router.get("/{streamer_id}/streams", response_model=dict)
-async def get_streams_by_streamer_id(streamer_id: int, db: Session = Depends(get_db)):
+async def get_streams_by_streamer_id(
+    streamer_id: int,
+    db: Session = Depends(get_db),
+    image_service=Depends(get_image_service),
+):
     """Get all streams for a streamer by their ID with category history"""
     try:
         # Überprüfen, ob der Streamer existiert (exclude test data)
@@ -1238,7 +1244,7 @@ async def get_streams_by_streamer_id(streamer_id: int, db: Session = Depends(get
             "streamer": {
                 "id": streamer.id,
                 "username": streamer.username,
-                "profile_image_url": unified_image_service.get_profile_image_url(
+                "profile_image_url": image_service.get_profile_image_url(
                     streamer.id, streamer.profile_image_url
                 ),
             },
@@ -1350,7 +1356,9 @@ async def delete_stream(
 
 @router.get("/validate/{username}")
 async def validate_streamer(
-    username: str, streamer_service: StreamerService = Depends(get_streamer_service)
+    username: str,
+    streamer_service: StreamerService = Depends(get_streamer_service),
+    image_service=Depends(get_image_service),
 ):
     """Überprüft, ob ein Twitch-Benutzername gültig ist"""
     try:
@@ -1365,7 +1373,7 @@ async def validate_streamer(
                     "twitch_id": existing_streamer.twitch_id,
                     "username": existing_streamer.username,
                     "display_name": existing_streamer.username,
-                    "profile_image_url": unified_image_service.get_profile_image_url(
+                    "profile_image_url": image_service.get_profile_image_url(
                         existing_streamer.id, existing_streamer.profile_image_url
                     ),
                     "description": "This streamer is already in your list",

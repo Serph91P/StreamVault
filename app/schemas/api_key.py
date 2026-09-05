@@ -21,6 +21,7 @@ class ApiKeyResponse(BaseModel):
     created_at: datetime
     last_used_at: Optional[datetime] = None
     revoked_at: Optional[datetime] = None
+    expires_at: Optional[datetime] = None
 
 
 class ApiKeyCreated(ApiKeyResponse):

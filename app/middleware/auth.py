@@ -7,6 +7,42 @@ import logging
 
 logger = logging.getLogger("streamvault")
 
+_EXACT_PUBLIC_PATHS = frozenset({"/api/openapi.json"})
+_PUBLIC_PATH_PREFIXES = (
+    "/auth/login",
+    "/auth/setup",
+    "/auth/check",
+    "/auth/refresh",
+    "/auth/logout",
+    "/auth/keepalive",
+    "/api/health",
+    "/api/metrics",
+    "/eventsub",
+    "/api/twitch/callback",
+    "/api/twitch/auth-url",
+    "/api/videos/public/",
+    "/api/live/stream/",
+    "/assets/",
+    "/registerSW.js",
+    "/sw.js",
+    "/pwa",
+    "/workbox-",
+    "/manifest.json",
+    "/manifest.webmanifest",
+    "/favicon",
+    "/android-icon-",
+    "/apple-icon",
+    "/ms-icon-",
+)
+
+
+def _is_public_path(path: str) -> bool:
+    return path in _EXACT_PUBLIC_PATHS or path.startswith(_PUBLIC_PATH_PREFIXES)
+
+
+def _is_admin_path(path: str) -> bool:
+    return path == "/api/admin" or path.startswith("/api/admin/")
+
 
 def _extract_bearer_token(headers: list) -> str | None:
     """Extract Bearer token from Authorization header (PWA fallback).
@@ -27,8 +63,8 @@ def _extract_api_key(request_or_headers) -> str | None:
     """Extract a long-lived API key from the request.
 
     Accepts either:
-      - X-API-Key: sv_<token>
-      - Authorization: ApiKey sv_<token>
+      - X-API-Key: ***
+      - Authorization: ApiKey ***
 
     Cookies/Bearer session tokens are handled separately and take precedence.
     """
@@ -52,6 +88,16 @@ def _extract_api_key(request_or_headers) -> str | None:
     return None
 
 
+def _is_valid_access_token(auth_service: AuthService, token: str | None) -> bool:
+    if not token:
+        return False
+    try:
+        auth_service.resolve_access_token(token)
+        return True
+    except Exception:
+        return False
+
+
 class AuthMiddleware:
     def __init__(self, app):
         self.app = app
@@ -60,18 +106,19 @@ class AuthMiddleware:
         if scope["type"] not in ("http", "websocket"):
             return await self.app(scope, receive, send)
 
-        # SECURITY: Validate WebSocket connections with session cookie
+        # SECURITY: Validate WebSocket connections with access JWT or legacy session.
         if scope["type"] == "websocket":
             from starlette.websockets import WebSocket as StarletteWebSocket
 
             ws = StarletteWebSocket(scope, receive, send)
-            session_token = ws.cookies.get("session")
+            bearer_token = _extract_bearer_token(scope.get("headers", []))
+            access_token = ws.cookies.get("access_token") or bearer_token
+            # A Bearer credential may be either a current JWT or a legacy opaque
+            # session token. Validate it as JWT first, then use the established
+            # legacy-session fallback when no JWT can be resolved.
+            session_token = ws.cookies.get("session") or bearer_token
 
-            # PWA fallback: check Authorization header if no cookie
-            if not session_token:
-                session_token = _extract_bearer_token(scope.get("headers", []))
-
-            if not session_token:
+            if not access_token and not session_token:
                 logger.warning(
                     "WebSocket connection rejected: no session cookie or Bearer token"
                 )
@@ -82,8 +129,12 @@ class AuthMiddleware:
             db = SessionLocal()
             try:
                 auth_service = AuthService(db=db)
-                if not await auth_service.validate_session(session_token):
-                    logger.warning("WebSocket connection rejected: invalid session")
+                if not _is_valid_access_token(auth_service, access_token) and not (
+                    session_token and await auth_service.validate_session(session_token)
+                ):
+                    logger.warning(
+                        "WebSocket connection rejected: invalid authentication"
+                    )
                     await ws.accept()
                     await ws.close(code=4001, reason="Invalid session")
                     return
@@ -106,40 +157,7 @@ class AuthMiddleware:
         # SECURITY: Only paths that MUST work without a session belong here.
         # All data/media paths require auth to prevent unauthenticated access
         # to images, sync/cleanup POST endpoints, and system info.
-        public_paths = [
-            # Auth flow (must be public or login is impossible)
-            "/auth/login",
-            "/auth/setup",
-            "/auth/check",
-            "/auth/logout",
-            "/auth/keepalive",
-            # Infrastructure
-            "/api/health",  # Docker/K8s health probes (internal network only)
-            # Twitch integration (server-to-server & OAuth redirect)
-            "/eventsub",
-            "/api/twitch/callback",
-            "/api/twitch/auth-url",
-            # Public video sharing (share-token authenticated)
-            "/api/videos/public/",
-            # Live HLS playback uses per-session playback tokens in the route.
-            # Native video/HLS requests cannot reliably attach Authorization headers.
-            "/api/live/stream/",
-            # PWA assets (must load before login screen renders)
-            "/assets/",
-            "/registerSW.js",
-            "/sw.js",
-            "/pwa",
-            "/workbox-",
-            "/manifest.json",
-            "/manifest.webmanifest",
-            # Browser/PWA icons
-            "/favicon",
-            "/android-icon-",
-            "/apple-icon",
-            "/ms-icon-",
-        ]
-
-        if any(request.url.path.startswith(path) for path in public_paths):
+        if _is_public_path(request.url.path):
             return await self.app(scope, receive, send)
 
         # Create per-request services
@@ -160,20 +178,17 @@ class AuthMiddleware:
                         scope, receive, send
                     )
 
-            session_token = request.cookies.get("session")
+            bearer_token = _extract_bearer_token(scope.get("headers", []))
+            access_token = request.cookies.get("access_token") or bearer_token
+            # Keep the same JWT-first, legacy-session fallback as dependencies.
+            session_token = request.cookies.get("session") or bearer_token
 
-            # PWA fallback: check Authorization header if no cookie
-            if not session_token:
-                auth_header = request.headers.get("authorization", "")
-                if auth_header.startswith("Bearer "):
-                    session_token = auth_header[7:]
-
-            # API-key fallback (X-API-Key or "Authorization: ApiKey <token>").
+            # API-key fallback (X-API-Key or "Authorization: ApiKey ***").
             # Sessions/cookies always take precedence. The /api/api-keys
             # management endpoints intentionally REJECT API-key auth because those
             # routes re-validate that an interactive session exists, so a
             # stolen key cannot be used to mint or revoke more keys.
-            if not session_token:
+            if not access_token and not session_token:
                 api_key = _extract_api_key(request)
                 if api_key:
                     # SECURITY: Never allow API-key auth on the management
@@ -185,10 +200,29 @@ class AuthMiddleware:
                         )
                     else:
                         api_key_service = ApiKeyService(db=db)
-                        record = api_key_service.validate(api_key)
-                        if record:
+                        resolved = api_key_service.resolve_active_owner(api_key)
+                        if resolved:
+                            from app.dependencies import AuthIdentity
+
+                            owner = resolved.owner
+                            identity = AuthIdentity(
+                                subject=str(owner.id),
+                                roles=frozenset({"admin"})
+                                if owner.is_admin
+                                else frozenset({"user"}),
+                                scopes=auth_service._user_scopes(owner),
+                                auth_method="api-key",
+                                interactive=False,
+                            )
+                            scope.setdefault("state", {})["auth_identity"] = identity
+                            if _is_admin_path(request.url.path) and not (
+                                "admin" in identity.roles and "admin" in identity.scopes
+                            ):
+                                return await JSONResponse(
+                                    {"error": "Admin access required"}, status_code=403
+                                )(scope, receive, send)
                             logger.debug(
-                                f"Authenticated via API key id={record.id} for {request.url.path}"
+                                f"Authenticated API key id={resolved.record.id} for {request.url.path}"
                             )
                             return await self.app(scope, receive, send)
                         else:
@@ -196,7 +230,7 @@ class AuthMiddleware:
                                 f"Rejected invalid API key for {request.url.path}"
                             )
 
-            if not session_token:
+            if not access_token and not session_token:
                 logger.debug(
                     f"No session cookie or Bearer token for {request.url.path}"
                 )
@@ -212,8 +246,10 @@ class AuthMiddleware:
                     return await RedirectResponse(url="/auth/login", status_code=307)(
                         scope, receive, send
                     )
-            elif not await auth_service.validate_session(session_token):
-                logger.debug(f"Invalid session token for {request.url.path}")
+            elif not _is_valid_access_token(auth_service, access_token) and not (
+                session_token and await auth_service.validate_session(session_token)
+            ):
+                logger.debug(f"Invalid authentication for {request.url.path}")
                 if not request.url.path.startswith("/auth/login"):
                     if is_json_request:
                         return await JSONResponse(

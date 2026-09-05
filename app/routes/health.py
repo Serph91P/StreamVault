@@ -1,117 +1,143 @@
-"""
-Health check endpoint for monitoring and load balancers
-"""
+"""Bounded liveness, readiness and protected metrics endpoints."""
 
-from fastapi import APIRouter, HTTPException
-from typing import Dict, Any
-import logging
-from datetime import datetime
+from __future__ import annotations
 
-logger = logging.getLogger("streamvault")
+import asyncio
+import secrets
+from typing import Awaitable, Callable
+
+from fastapi import APIRouter, Request
+from fastapi.responses import JSONResponse, PlainTextResponse, Response
+from sqlalchemy import text
+
+from app.config.settings import settings
+from app.database import SessionLocal
+from app.observability import service_metrics
 
 router = APIRouter(prefix="/api", tags=["health"])
 
+_ReadinessCheck = Callable[[], Awaitable[bool]]
+
+
+async def _check_database() -> bool:
+    def probe() -> bool:
+        with SessionLocal() as db:
+            db.execute(text("SELECT 1"))
+        return True
+
+    try:
+        return await asyncio.to_thread(probe)
+    except Exception:
+        return False
+
+
+async def _check_command(command: str, version_flag: str = "--version") -> bool:
+    process: asyncio.subprocess.Process | None = None
+    try:
+        process = await asyncio.create_subprocess_exec(
+            command,
+            version_flag,
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.DEVNULL,
+        )
+        return await process.wait() == 0
+    except asyncio.CancelledError:
+        if process is not None and process.returncode is None:
+            process.kill()
+            await process.wait()
+        raise
+    except OSError:
+        return False
+
+
+async def _check_ffmpeg() -> bool:
+    return await _check_command("ffmpeg", "-version")
+
+
+async def _check_streamlink() -> bool:
+    return await _check_command("streamlink")
+
+
+def _readiness_checks() -> dict[str, _ReadinessCheck]:
+    return {
+        "database": _check_database,
+        "ffmpeg": _check_ffmpeg,
+        "streamlink": _check_streamlink,
+    }
+
 
 @router.get("/health")
-async def health_check() -> Dict[str, Any]:
-    """
-    Basic health check endpoint for load balancers and monitoring
-    Returns 200 OK if application is running
-    """
+async def health_check() -> dict[str, object]:
+    """Compatibility endpoint reporting bounded database availability."""
     try:
-        from app.database import SessionLocal
-        from sqlalchemy import text
-
-        # Test database connection
-        db_healthy = False
-        try:
-            with SessionLocal() as db:
-                db.execute(text("SELECT 1"))
-            db_healthy = True
-        except Exception as db_error:
-            logger.error(f"Health check - database failed: {db_error}")
-
-        # Application is healthy if it responds
-        status = "healthy" if db_healthy else "degraded"
-
-        return {
-            "status": status,
-            "timestamp": datetime.now().isoformat(),
-            "checks": {
-                "application": "healthy",
-                "database": "healthy" if db_healthy else "unhealthy",
-            },
-        }
-
-    except Exception as e:
-        logger.error(f"Health check failed: {e}")
-        raise HTTPException(status_code=503, detail="Service unavailable")
+        database_ok = await asyncio.wait_for(
+            _check_database(), timeout=settings.READINESS_TIMEOUT_SECONDS
+        )
+    except Exception:
+        database_ok = False
+    return {
+        "status": "healthy" if database_ok else "degraded",
+        "checks": {
+            "application": "healthy",
+            "database": "healthy" if database_ok else "unavailable",
+        },
+    }
 
 
 @router.get("/health/ready")
-async def readiness_check() -> Dict[str, Any]:
-    """
-    Readiness check - returns 200 only if all critical systems are ready
-    Used by Kubernetes/Docker to know when service is ready to accept traffic
-    """
-    try:
-        from app.database import SessionLocal
-        from sqlalchemy import text
-        import subprocess
+async def readiness_check() -> Response:
+    """Return readiness for explicitly required dependencies only."""
+    available_checks = _readiness_checks()
+    required = tuple(settings.READINESS_REQUIRED_COMPONENTS)
 
-        checks = {"database": False, "ffmpeg": False, "streamlink": False}
-
-        # Database check
+    async def check_component(component: str) -> tuple[str, str]:
+        check = available_checks.get(component)
+        if check is None:
+            return component, "unavailable"
         try:
-            with SessionLocal() as db:
-                db.execute(text("SELECT 1"))
-            checks["database"] = True
-        except Exception:
-            pass
-
-        # FFmpeg check
-        try:
-            result = subprocess.run(
-                ["ffmpeg", "-version"], capture_output=True, timeout=5
+            ready = await asyncio.wait_for(
+                check(), timeout=settings.READINESS_TIMEOUT_SECONDS
             )
-            checks["ffmpeg"] = result.returncode == 0
-        except Exception:
-            pass
+        except (asyncio.TimeoutError, Exception):
+            ready = False
+        return component, "ready" if ready else "unavailable"
 
-        # Streamlink check
-        try:
-            result = subprocess.run(
-                ["streamlink", "--version"], capture_output=True, timeout=5
-            )
-            checks["streamlink"] = result.returncode == 0
-        except Exception:
-            pass
-
-        # Service is ready if all critical checks pass
-        all_ready = all(checks.values())
-
-        if all_ready:
-            return {
-                "status": "ready",
-                "timestamp": datetime.now().isoformat(),
-                "checks": checks,
-            }
-        else:
-            raise HTTPException(
-                status_code=503, detail={"status": "not_ready", "checks": checks}
-            )
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Readiness check failed: {e}")
-        raise HTTPException(status_code=503, detail="Service not ready")
+    results = await asyncio.gather(
+        *(check_component(component) for component in required)
+    )
+    checks = dict(results)
+    payload = {
+        "status": "ready"
+        if all(value == "ready" for value in checks.values())
+        else "not_ready",
+        "checks": checks,
+    }
+    return JSONResponse(
+        status_code=200 if payload["status"] == "ready" else 503, content=payload
+    )
 
 
 @router.get("/health/live")
-async def liveness_check() -> Dict[str, str]:
-    """
-    Liveness check - returns 200 if application process is alive
-    Used by Kubernetes/Docker to restart crashed containers
-    """
-    return {"status": "alive", "timestamp": datetime.now().isoformat()}
+async def liveness_check() -> dict[str, str]:
+    """Liveness intentionally checks only that this ASGI event loop responds."""
+    return {"status": "alive"}
+
+
+@router.get("/metrics", include_in_schema=False)
+async def metrics(request: Request) -> Response:
+    """Expose metrics only when deployment policy explicitly enables them."""
+    if not settings.METRICS_ENABLED:
+        return Response(status_code=404)
+    token = settings.METRICS_AUTH_TOKEN
+    supplied = request.headers.get("Authorization", "").removeprefix("Bearer ")
+    allow_without_token = (
+        settings.environment_is_development and settings.METRICS_ALLOW_UNAUTHENTICATED
+    )
+    if not allow_without_token and (
+        not token or not secrets.compare_digest(supplied, token)
+    ):
+        return Response(status_code=404)
+    return PlainTextResponse(
+        service_metrics.render_prometheus(),
+        media_type="text/plain; version=0.0.4; charset=utf-8",
+    )

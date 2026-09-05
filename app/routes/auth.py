@@ -5,7 +5,11 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse, RedirectResponse, FileResponse
 from sqlalchemy.orm import Session
-from app.services.core.auth_service import AuthService
+from app.services.core.auth_service import (
+    AuthService,
+    AuthTokenError,
+    RefreshTokenReplayError,
+)
 from app.dependencies import get_auth_service, get_current_user, get_db
 from app.schemas.auth import UserCreate
 from app.config.settings import get_settings
@@ -149,7 +153,7 @@ async def login(
             logger.warning(f"Failed login attempt for username: {request.username}")
             raise HTTPException(status_code=401, detail="Invalid credentials")
 
-        token = await auth_service.create_session(user.id)
+        tokens = auth_service.issue_token_pair(user)
         response = JSONResponse(
             content={"message": "Login successful", "success": True}
         )
@@ -157,12 +161,21 @@ async def login(
         settings = get_settings()
         # Siehe Kommentar oben: Pfad & max_age setzen
         response.set_cookie(
-            key="session",
-            value=token,
+            key="access_token",
+            value=tokens.access_token,
             httponly=True,
             secure=settings.USE_SECURE_COOKIES,
             samesite="lax",
             path="/",
+            max_age=15 * 60,
+        )
+        response.set_cookie(
+            key="refresh_token",
+            value=tokens.refresh_token,
+            httponly=True,
+            secure=settings.USE_SECURE_COOKIES,
+            samesite="lax",
+            path="/auth",
             max_age=60 * 60 * 24,
         )
         logger.info(f"Successful login for user: {request.username}")
@@ -223,10 +236,53 @@ async def check_auth(
     if not admin_exists:
         return JSONResponse(content={"setup_required": True})
 
+    token = request.cookies.get("access_token")
+    if token:
+        try:
+            auth_service.resolve_access_token(token)
+            return JSONResponse(content={"authenticated": True})
+        except AuthTokenError:
+            pass
     session_token = request.cookies.get("session")
     if not session_token or not await auth_service.validate_session(session_token):
         return JSONResponse(content={"authenticated": False})
     return JSONResponse(content={"authenticated": True})
+
+
+@router.post("/refresh")
+async def refresh_access_token(
+    request: Request, auth_service: AuthService = Depends(get_auth_service)
+):
+    raw_token = request.cookies.get("refresh_token")
+    if not raw_token:
+        raise HTTPException(status_code=401, detail="Refresh token required")
+    try:
+        tokens = auth_service.rotate_refresh_token(raw_token)
+    except RefreshTokenReplayError:
+        raise HTTPException(status_code=401, detail="Refresh token replay detected")
+    except AuthTokenError:
+        raise HTTPException(status_code=401, detail="Invalid refresh token")
+    settings = get_settings()
+    response = JSONResponse(content={"success": True})
+    response.set_cookie(
+        key="access_token",
+        value=tokens.access_token,
+        httponly=True,
+        secure=settings.USE_SECURE_COOKIES,
+        samesite="lax",
+        path="/",
+        max_age=15 * 60,
+    )
+    response.set_cookie(
+        key="refresh_token",
+        value=tokens.refresh_token,
+        httponly=True,
+        secure=settings.USE_SECURE_COOKIES,
+        samesite="lax",
+        path="/auth",
+        max_age=60 * 60 * 24,
+    )
+    return response
 
 
 @router.post("/logout")
@@ -234,6 +290,9 @@ async def logout(
     request: Request, auth_service: AuthService = Depends(get_auth_service)
 ):
     try:
+        refresh_token = request.cookies.get("refresh_token")
+        if refresh_token:
+            auth_service.revoke_refresh_token(refresh_token)
         session_token = request.cookies.get("session")
         if session_token:
             await auth_service.delete_session(session_token)
@@ -242,6 +301,8 @@ async def logout(
         response = JSONResponse(
             content={"message": "Logout successful", "success": True}
         )
+        response.delete_cookie(key="access_token", path="/")
+        response.delete_cookie(key="refresh_token", path="/auth")
         response.delete_cookie(key="session", path="/")
         return response
     except Exception as e:
@@ -249,6 +310,8 @@ async def logout(
         response = JSONResponse(
             content={"message": "Logout completed", "success": True}
         )
+        response.delete_cookie(key="access_token", path="/")
+        response.delete_cookie(key="refresh_token", path="/auth")
         response.delete_cookie(key="session", path="/")
         return response
 

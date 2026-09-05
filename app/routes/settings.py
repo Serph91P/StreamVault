@@ -1,18 +1,24 @@
-from fastapi import APIRouter, HTTPException
-from app.database import SessionLocal
-from app.models import GlobalSettings, NotificationSettings, Streamer
+from fastapi import APIRouter, HTTPException, Depends
+from sqlalchemy.orm import Session
 from app.schemas.settings import (
     GlobalSettingsSchema,
     StreamerNotificationSettingsSchema,
     StreamerNotificationSettingsUpdateSchema,
 )
-from apprise import Apprise
-from sqlalchemy.orm import joinedload
+from app.dependencies import (
+    get_db,
+    get_image_service,
+    get_notification_service_factory,
+    get_settings_service,
+    get_websocket_manager,
+    require_scopes,
+)
+from app.services.core.settings_service import SettingsService
+from app.services.notification_service import NotificationService
 import logging
 from datetime import datetime, timezone
+from collections.abc import Callable
 from typing import List
-from app.services.notification_service import NotificationService
-from app.services.unified_image_service import unified_image_service
 
 logger = logging.getLogger("streamvault")
 
@@ -21,102 +27,20 @@ router = APIRouter(
 )  # This is the correct prefix
 
 
-def validate_apprise_url(url: str) -> bool:
-    try:
-        apobj = Apprise()
-        return apobj.add(url)
-    except Exception:
-        return False
-
-
-def validate_proxy_url(url: str) -> bool:
-    """Validate proxy URL format"""
-    if not url or not url.strip():
-        return True  # Empty URLs are valid (no proxy)
-
-    url = url.strip()
-    # Check if URL starts with required protocol
-    if not url.startswith(("http://", "https://")):
-        return False
-
-    return True
-
-
 @router.get("", response_model=GlobalSettingsSchema)
-async def get_settings():
-    with SessionLocal() as db:
-        settings = db.query(GlobalSettings).first()
-        if not settings:
-            settings = GlobalSettings()
-            db.add(settings)
-            db.commit()
-        return GlobalSettingsSchema(
-            notification_url=settings.notification_url,
-            notifications_enabled=settings.notifications_enabled,
-            notify_online_global=settings.notify_online_global,
-            notify_offline_global=settings.notify_offline_global,
-            notify_update_global=settings.notify_update_global,
-            notify_favorite_category_global=settings.notify_favorite_category_global,
-            # System notification settings (Migration 028)
-            notify_recording_started=(
-                settings.notify_recording_started
-                if hasattr(settings, "notify_recording_started")
-                else False
-            ),
-            notify_recording_failed=(
-                settings.notify_recording_failed
-                if hasattr(settings, "notify_recording_failed")
-                else True
-            ),
-            notify_recording_completed=(
-                settings.notify_recording_completed
-                if hasattr(settings, "notify_recording_completed")
-                else False
-            ),
-            # Codec preferences (Migration 024)
-            supported_codecs=settings.supported_codecs
-            if hasattr(settings, "supported_codecs")
-            else "h264,h265",
-            prefer_higher_quality=(
-                settings.prefer_higher_quality
-                if hasattr(settings, "prefer_higher_quality")
-                else True
-            ),
-            twitch_max_concurrent_upstreams=(
-                settings.twitch_max_concurrent_upstreams
-                if hasattr(settings, "twitch_max_concurrent_upstreams")
-                else 5
-            ),
-            http_proxy=settings.http_proxy,
-            https_proxy=settings.https_proxy,
-            apprise_docs_url="https://github.com/caronc/apprise/wiki",
-        )
+async def get_settings(
+    settings_service: SettingsService = Depends(get_settings_service),
+):
+    return settings_service.get_global_settings_schema()
 
 
 @router.get("/streamer", response_model=List[StreamerNotificationSettingsSchema])
-async def get_all_streamer_settings():
+async def get_all_streamer_settings(
+    settings_service: SettingsService = Depends(get_settings_service),
+    image_service=Depends(get_image_service),
+):
     try:
-        with SessionLocal() as db:
-            settings = (
-                db.query(NotificationSettings)
-                .join(Streamer)
-                .options(joinedload(NotificationSettings.streamer))
-                .all()
-            )
-            return [
-                StreamerNotificationSettingsSchema(
-                    streamer_id=s.streamer_id,
-                    username=s.streamer.username,
-                    profile_image_url=unified_image_service.get_profile_image_url(
-                        s.streamer.id, s.streamer.profile_image_url
-                    ),
-                    notify_online=s.notify_online,
-                    notify_offline=s.notify_offline,
-                    notify_update=s.notify_update,
-                    notify_favorite_category=s.notify_favorite_category,
-                )
-                for s in settings
-            ]
+        return settings_service.get_all_streamer_notification_settings(image_service)
     except Exception as e:
         logger.error(f"Error processing request: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
@@ -126,93 +50,53 @@ async def get_all_streamer_settings():
     "/streamer/{streamer_id}", response_model=StreamerNotificationSettingsSchema
 )
 async def update_streamer_settings(
-    streamer_id: int, settings_data: StreamerNotificationSettingsUpdateSchema
+    streamer_id: int,
+    settings_data: StreamerNotificationSettingsUpdateSchema,
+    settings_service: SettingsService = Depends(get_settings_service),
+    image_service=Depends(get_image_service),
+    _identity=Depends(require_scopes("admin")),
 ):
     logger.debug(f"Updating settings for streamer {streamer_id}: {settings_data}")
     try:
-        with SessionLocal() as db:
-            settings = (
-                db.query(NotificationSettings)
-                .filter_by(streamer_id=streamer_id)
-                .first()
-            )
-            if not settings:
-                settings = NotificationSettings(streamer_id=streamer_id)
-                db.add(settings)
-
-            if settings_data.notify_online is not None:
-                settings.notify_online = settings_data.notify_online
-            if settings_data.notify_offline is not None:
-                settings.notify_offline = settings_data.notify_offline
-            if settings_data.notify_update is not None:
-                settings.notify_update = settings_data.notify_update
-            if settings_data.notify_favorite_category is not None:
-                settings.notify_favorite_category = (
-                    settings_data.notify_favorite_category
-                )
-
-            db.commit()
-
-            streamer = db.query(Streamer).get(streamer_id)
-
-            return StreamerNotificationSettingsSchema(
-                streamer_id=settings.streamer_id,
-                username=streamer.username if streamer else None,
-                profile_image_url=(
-                    unified_image_service.get_profile_image_url(
-                        streamer.id, streamer.profile_image_url
-                    )
-                    if streamer
-                    else None
-                ),
-                notify_online=settings.notify_online,
-                notify_offline=settings.notify_offline,
-                notify_update=settings.notify_update,
-                notify_favorite_category=settings.notify_favorite_category,
-            )
+        return settings_service.update_streamer_notification_settings(
+            streamer_id, settings_data, image_service
+        )
     except Exception as e:
         logger.error(f"Error updating streamer settings: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/streamers")
-async def get_streamer_settings():
+async def get_streamer_settings(
+    settings_service: SettingsService = Depends(get_settings_service),
+):
     try:
-        with SessionLocal() as db:
-            settings = db.query(NotificationSettings).all()
-            return [
-                {
-                    "streamer_id": s.streamer_id,
-                    "notify_online": s.notify_online,
-                    "notify_offline": s.notify_offline,
-                    "notify_update": s.notify_update,
-                    "notify_favorite_category": s.notify_favorite_category,
-                }
-                for s in settings
-            ]
+        return settings_service.get_streamer_settings_flat()
     except Exception as e:
         logger.error(f"Error fetching streamer settings: {e}")
         raise HTTPException(status_code=500, detail="Failed to fetch streamer settings")
 
 
 @router.post("/test-notification")
-async def test_notification():
+async def test_notification(
+    settings_service: SettingsService = Depends(get_settings_service),
+    notification_service_factory: Callable[[], NotificationService] = Depends(
+        get_notification_service_factory
+    ),
+    websocket_manager=Depends(get_websocket_manager),
+    _identity=Depends(require_scopes("admin")),
+):
     try:
-        with SessionLocal() as db:
-            settings = db.query(GlobalSettings).first()
-            if not settings:
-                raise HTTPException(status_code=400, detail="No settings configured")
-            if not settings.notifications_enabled:
-                raise HTTPException(
-                    status_code=400, detail="Notifications are disabled"
-                )
-            if not settings.notification_url:
-                raise HTTPException(
-                    status_code=400, detail="No notification URL configured"
-                )
+        settings = settings_service.get_global_settings_row()
+        if not settings:
+            raise HTTPException(status_code=400, detail="No settings configured")
+        if not settings.notifications_enabled:
+            raise HTTPException(status_code=400, detail="Notifications are disabled")
+        if not settings.notification_url:
+            raise HTTPException(
+                status_code=400, detail="No notification URL configured"
+            )
 
-        from app.services.notification_service import NotificationService
-        from app.dependencies import websocket_manager
         import uuid
 
         # Generate a unique test ID to track this notification
@@ -235,7 +119,7 @@ async def test_notification():
         )
 
         # Then send external notification via apprise
-        notification_service = NotificationService()
+        notification_service = notification_service_factory()
         success = await notification_service.send_test_notification()
 
         if success:
@@ -255,10 +139,12 @@ async def test_notification():
 
 
 @router.post("/test-websocket-notification")
-async def test_websocket_notification():
+async def test_websocket_notification(
+    websocket_manager=Depends(get_websocket_manager),
+    _identity=Depends(require_scopes("admin")),
+):
     """Test WebSocket notification delivery to frontend"""
     try:
-        from app.dependencies import websocket_manager
         import time
         import uuid
 
@@ -305,110 +191,84 @@ async def test_websocket_notification():
 
 
 @router.post("", response_model=GlobalSettingsSchema)
-async def update_settings(settings_data: GlobalSettingsSchema):
+async def update_settings(
+    settings_data: GlobalSettingsSchema,
+    settings_service: SettingsService = Depends(get_settings_service),
+    notification_service_factory: Callable[[], NotificationService] = Depends(
+        get_notification_service_factory
+    ),
+    _identity=Depends(require_scopes("admin")),
+):
     try:
-        with SessionLocal() as db:
-            if settings_data.notification_url and not validate_apprise_url(
-                settings_data.notification_url
-            ):
-                raise HTTPException(
-                    status_code=400, detail="Invalid notification URL format"
-                )
-
-            # Validate proxy URLs
-            if settings_data.http_proxy and not validate_proxy_url(
-                settings_data.http_proxy
-            ):
-                raise HTTPException(
-                    status_code=400,
-                    detail="HTTP proxy URL must start with 'http://' or 'https://'",
-                )
-
-            if settings_data.https_proxy and not validate_proxy_url(
-                settings_data.https_proxy
-            ):
-                raise HTTPException(
-                    status_code=400,
-                    detail="HTTPS proxy URL must start with 'http://' or 'https://'",
-                )
-
-            settings = db.query(GlobalSettings).first()
-            if not settings:
-                settings = GlobalSettings()
-                db.add(settings)
-
-            settings.notification_url = settings_data.notification_url or ""
-            settings.notifications_enabled = settings_data.notifications_enabled
-            settings.notify_online_global = settings_data.notify_online_global
-            settings.notify_offline_global = settings_data.notify_offline_global
-            settings.notify_update_global = settings_data.notify_update_global
-            settings.notify_favorite_category_global = (
-                settings_data.notify_favorite_category_global
+        if settings_data.notification_url and not settings_service.validate_apprise_url(
+            settings_data.notification_url
+        ):
+            raise HTTPException(
+                status_code=400, detail="Invalid notification URL format"
             )
-            # System notification settings (Migration 028)
-            settings.notify_recording_started = settings_data.notify_recording_started
-            settings.notify_recording_failed = settings_data.notify_recording_failed
-            settings.notify_recording_completed = (
-                settings_data.notify_recording_completed
+
+        # Validate proxy URLs
+        if settings_data.http_proxy and not settings_service.validate_proxy_url(
+            settings_data.http_proxy
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail="HTTP proxy URL must start with 'http://' or 'https://'",
             )
-            # Codec preferences (Migration 024)
-            if hasattr(settings_data, "supported_codecs"):
-                settings.supported_codecs = (
-                    settings_data.supported_codecs or "h264,h265"
-                )
-            if hasattr(settings_data, "prefer_higher_quality"):
-                settings.prefer_higher_quality = settings_data.prefer_higher_quality
-            settings.twitch_max_concurrent_upstreams = (
-                settings_data.twitch_max_concurrent_upstreams
+
+        if settings_data.https_proxy and not settings_service.validate_proxy_url(
+            settings_data.https_proxy
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail="HTTPS proxy URL must start with 'http://' or 'https://'",
             )
-            settings.http_proxy = settings_data.http_proxy or ""
-            settings.https_proxy = settings_data.https_proxy or ""
 
-            db.commit()
+        settings = settings_service.get_global_settings_row()
 
-            notification_service = NotificationService()
-            notification_service._initialize_apprise()
+        proxy_changed = (
+            settings_data.http_proxy != settings.http_proxy
+            or settings_data.https_proxy != settings.https_proxy
+        )
+        codec_changed = (
+            hasattr(settings_data, "supported_codecs")
+            and settings_data.supported_codecs != settings.supported_codecs
+        )
+        updated_settings = settings_service.update_global_settings(settings_data)
 
-            # Regenerate Streamlink config if proxy or codec settings changed
-            try:
-                from app.services.system.streamlink_config_service import (
-                    streamlink_config_service,
+        notification_service = notification_service_factory()
+        notification_service._initialize_apprise()
+
+        # Regenerate Streamlink config after the updated settings are committed.
+        try:
+            from app.services.system.streamlink_config_service import (
+                streamlink_config_service,
+            )
+
+            if proxy_changed or codec_changed:
+                logger.info(
+                    "🔄 Proxy or codec settings changed - regenerating Streamlink config..."
                 )
+                config_updated = await streamlink_config_service.regenerate_config()
 
-                # Check if settings that affect Streamlink were changed
-                proxy_changed = (
-                    settings_data.http_proxy != settings.http_proxy
-                    or settings_data.https_proxy != settings.https_proxy
-                )
-                codec_changed = (
-                    hasattr(settings_data, "supported_codecs")
-                    and settings_data.supported_codecs != settings.supported_codecs
-                )
-
-                if proxy_changed or codec_changed:
-                    logger.info(
-                        "🔄 Proxy or codec settings changed - regenerating Streamlink config..."
+                if config_updated:
+                    logger.info("✅ Streamlink config updated with new settings")
+                else:
+                    logger.warning(
+                        "⚠️ Failed to update Streamlink config - recordings may use old settings"
                     )
-                    config_updated = await streamlink_config_service.regenerate_config()
+        except Exception as config_error:
+            logger.error(f"❌ Error regenerating Streamlink config: {config_error}")
+            # Don't fail the whole settings update if config regeneration fails
 
-                    if config_updated:
-                        logger.info("✅ Streamlink config updated with new settings")
-                    else:
-                        logger.warning(
-                            "⚠️ Failed to update Streamlink config - recordings may use old settings"
-                        )
-            except Exception as config_error:
-                logger.error(f"❌ Error regenerating Streamlink config: {config_error}")
-                # Don't fail the whole settings update if config regeneration fails
-
-            return GlobalSettingsSchema.model_validate(settings)
+        return updated_settings
     except Exception as e:
         logger.error(f"Error updating settings: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/quality-options")
-async def get_quality_options():
+async def get_quality_options(db: Session = Depends(get_db)):
     """
     Get available quality options based on OAuth token configuration.
 
@@ -417,15 +277,13 @@ async def get_quality_options():
     OAuth authentication.
     """
     try:
-        from app.database import SessionLocal
         from app.services.system.streamlink_config_service import (
             streamlink_config_service,
         )
         from app.services.system.twitch_token_service import TwitchTokenService
 
-        with SessionLocal() as db:
-            token_service = TwitchTokenService(db)
-            has_oauth = bool(await token_service.get_valid_access_token())
+        token_service = TwitchTokenService(db)
+        has_oauth = bool(await token_service.get_valid_access_token())
 
         # Get quality options with availability info
         qualities = streamlink_config_service.get_available_qualities(has_oauth)
@@ -443,7 +301,7 @@ async def get_quality_options():
 
 
 @router.get("/codec-options")
-async def get_codec_options():
+async def get_codec_options(db: Session = Depends(get_db)):
     """
     Get available codec options with OAuth authentication requirements.
 
@@ -451,12 +309,10 @@ async def get_codec_options():
     H.265/HEVC and AV1 require OAuth authentication on Twitch.
     """
     try:
-        from app.database import SessionLocal
         from app.services.system.twitch_token_service import TwitchTokenService
 
-        with SessionLocal() as db:
-            token_service = TwitchTokenService(db)
-            has_oauth = bool(await token_service.get_valid_access_token())
+        token_service = TwitchTokenService(db)
+        has_oauth = bool(await token_service.get_valid_access_token())
 
         codecs = [
             {
