@@ -6,9 +6,14 @@ import asyncio
 import logging
 from app.services.init.background_queue_init import shutdown_background_queue
 from app.config.constants import ASYNC_DELAYS
-from app.dependencies import get_recording_manager
 
 logger = logging.getLogger("streamvault")
+
+
+def get_recording_manager():
+    from app.dependencies import get_recording_manager as resolve_recording_manager
+
+    return resolve_recording_manager()
 
 
 async def initialize_background_queue_with_fixes():

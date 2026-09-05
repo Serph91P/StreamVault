@@ -28,6 +28,7 @@ from app.dependencies import (
 )
 from app.middleware.auth import AuthMiddleware
 from app.routes import admin as admin_routes
+from app.routes import api_keys as api_key_routes
 from app.routes import auth as auth_routes
 from app.routes import settings as settings_routes
 
@@ -96,6 +97,7 @@ def auth_stack(monkeypatch):
 
     app = FastAPI(openapi_url="/api/openapi.json")
     app.include_router(auth_routes.router, prefix="/auth")
+    app.include_router(api_key_routes.router)
 
     @app.get("/api/settings")
     async def settings_endpoint(
@@ -160,6 +162,139 @@ def _access_token(settings, user_id: int, *, expires_at: datetime | None = None)
         settings.AUTH_JWT_SECRET,
         algorithm="HS256",
     )
+
+
+def _set_jwt_auth(client: TestClient, settings, user_id: int, mode: str) -> dict:
+    token = _access_token(settings, user_id)
+    if mode == "cookie":
+        client.cookies.set("access_token", token)
+        return {"accept": "application/json"}
+    return {
+        "accept": "application/json",
+        "Authorization": f"Bearer {token}",
+    }
+
+
+@pytest.mark.parametrize("mode", ["cookie", "bearer"])
+def test_jwt_can_list_api_keys(auth_stack, mode):
+    app, settings, _SessionFactory, user_id, _legacy_token, _api_key = auth_stack
+
+    with TestClient(app) as client:
+        response = client.get(
+            "/api/api-keys", headers=_set_jwt_auth(client, settings, user_id, mode)
+        )
+
+    assert response.status_code == 200
+    assert [record["name"] for record in response.json()] == ["middleware contract"]
+    assert all("key" not in record for record in response.json())
+
+
+@pytest.mark.parametrize("mode", ["cookie", "bearer"])
+def test_jwt_can_create_api_key_without_leaking_it_in_list(auth_stack, mode):
+    app, settings, _SessionFactory, user_id, _legacy_token, _api_key = auth_stack
+
+    with TestClient(app) as client:
+        headers = _set_jwt_auth(client, settings, user_id, mode)
+        created = client.post(
+            "/api/api-keys", headers=headers, json={"name": "new contract key"}
+        )
+        listed = client.get("/api/api-keys", headers=headers)
+
+    assert created.status_code == 201
+    raw_key = created.json()["key"]
+    assert raw_key.startswith("sv_")
+    assert "key_hash" not in created.json()
+    assert listed.status_code == 200
+    assert all("key" not in record for record in listed.json())
+    assert raw_key not in listed.text
+
+
+@pytest.mark.parametrize("mode", ["cookie", "bearer"])
+def test_jwt_owner_can_revoke_api_key(auth_stack, mode):
+    app, settings, SessionFactory, user_id, _legacy_token, _api_key = auth_stack
+    with SessionFactory() as db:
+        key_id = db.query(ApiKey.id).filter_by(user_id=user_id).scalar()
+
+    with TestClient(app) as client:
+        response = client.delete(
+            f"/api/api-keys/{key_id}",
+            headers=_set_jwt_auth(client, settings, user_id, mode),
+        )
+
+    assert response.status_code == 204
+    with SessionFactory() as db:
+        assert db.query(ApiKey).filter_by(id=key_id).one().revoked_at is not None
+
+
+@pytest.mark.parametrize(
+    ("header_name", "header_prefix", "revoked"),
+    [
+        ("X-API-Key", "", False),
+        ("Authorization", "ApiKey ", False),
+        ("X-API-Key", "", True),
+        ("Authorization", "ApiKey ", True),
+    ],
+)
+def test_api_key_credentials_cannot_manage_api_keys(
+    auth_stack, header_name, header_prefix, revoked
+):
+    app, _settings, SessionFactory, user_id, _legacy_token, active_key = auth_stack
+    presented_key = active_key
+    if revoked:
+        with SessionFactory() as db:
+            record, presented_key = ApiKeyService(db).create(user_id, "revoked key")
+            assert ApiKeyService(db).revoke(record.id, user_id=user_id)
+
+    with TestClient(app) as client:
+        response = client.get(
+            "/api/api-keys",
+            headers={
+                "accept": "application/json",
+                header_name: f"{header_prefix}{presented_key}",
+            },
+        )
+
+    assert response.status_code == 401
+
+
+def test_disabled_jwt_owner_cannot_manage_api_keys(auth_stack):
+    app, settings, SessionFactory, user_id, _legacy_token, _api_key = auth_stack
+    with SessionFactory() as db:
+        db.query(User).filter_by(id=user_id).update({User.is_active: False})
+        db.commit()
+
+    with TestClient(app) as client:
+        response = client.get(
+            "/api/api-keys",
+            headers=_set_jwt_auth(client, settings, user_id, "bearer"),
+        )
+
+    assert response.status_code == 401
+
+
+def test_jwt_owner_cannot_revoke_another_users_api_key(auth_stack):
+    app, settings, SessionFactory, user_id, _legacy_token, _api_key = auth_stack
+    with SessionFactory() as db:
+        other_user = User(
+            username="other-api-key-owner",
+            password="not-used",
+            is_admin=False,
+            is_active=True,
+        )
+        db.add(other_user)
+        db.commit()
+        other_key, _raw_key = ApiKeyService(db).create(other_user.id, "other key")
+        other_key_id = other_key.id
+
+    with TestClient(app) as client:
+        response = client.delete(
+            f"/api/api-keys/{other_key_id}",
+            headers=_set_jwt_auth(client, settings, user_id, "bearer"),
+        )
+
+    assert response.status_code == 404
+    with SessionFactory() as db:
+        assert db.query(ApiKey).filter_by(id=other_key_id).one().revoked_at is None
 
 
 def test_login_access_cookie_and_bearer_jwt_reach_protected_settings(auth_stack):
@@ -237,10 +372,20 @@ def test_legacy_session_and_api_key_remain_compatible(auth_stack):
     with TestClient(app) as client:
         client.cookies.set("session", legacy_token)
         legacy = client.get("/api/settings", headers={"accept": "application/json"})
+        legacy_management = client.get(
+            "/api/api-keys", headers={"accept": "application/json"}
+        )
 
     with TestClient(app) as client:
         legacy_bearer = client.get(
             "/api/settings",
+            headers={
+                "accept": "application/json",
+                "Authorization": f"Bearer {legacy_token}",
+            },
+        )
+        legacy_bearer_management = client.get(
+            "/api/api-keys",
             headers={
                 "accept": "application/json",
                 "Authorization": f"Bearer {legacy_token}",
@@ -262,8 +407,10 @@ def test_legacy_session_and_api_key_remain_compatible(auth_stack):
 
     assert legacy.status_code == 200
     assert legacy.json() == {"user_id": user_id}
+    assert legacy_management.status_code == 200
     assert legacy_bearer.status_code == 200
     assert legacy_bearer.json() == {"user_id": user_id}
+    assert legacy_bearer_management.status_code == 200
     assert api_key_response.status_code == 200
     assert api_key_response.json() == {"ok": True}
     assert invalid_api_key_response.status_code == 401

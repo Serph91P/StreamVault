@@ -10,7 +10,6 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 from app.services.communication.websocket_manager import ConnectionManager
 from app.services.notification_service import NotificationService
-from app.dependencies import get_recording_manager
 from app.services.recording.config_manager import ConfigManager
 from app.services.api.twitch_api import twitch_api
 from app.models import (
@@ -27,6 +26,12 @@ from app.config.settings import settings as app_settings
 from app.config.constants import CACHE_CONFIG, ASYNC_DELAYS
 
 logger = logging.getLogger("streamvault")
+
+
+def get_recording_manager():
+    from app.dependencies import get_recording_manager as resolve_recording_manager
+
+    return resolve_recording_manager()
 
 
 class EventHandlerRegistry:
