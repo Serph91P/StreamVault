@@ -236,6 +236,7 @@ jobs:
           labels: ${{ needs.prepare.outputs.docker_labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          no-cache-filters: base,runtime
           build-args: |
             VERSION=${{ needs.prepare.outputs.version }}
             COMMIT_SHA=${{ github.sha }}

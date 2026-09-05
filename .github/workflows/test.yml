@@ -190,6 +190,7 @@ jobs:
           tags: streamvault:test
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          no-cache-filters: base,runtime
 
       - name: Test fresh PostgreSQL migrations, restart, and HTTP surface
         run: bash tests/run_fresh_postgres_proxy_migrations.sh streamvault:test
