@@ -32,15 +32,16 @@ jobs:
           python-version: '3.14'
           cache: 'pip'
 
-      - name: Install dependencies
+      - name: Install locked test dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install pytest pytest-asyncio pytest-cov httpx
+          python -m pip install uv==0.11.6
+          uv lock --check
+          uv sync --locked --all-groups
 
       - name: Run backend tests with coverage
         run: |
-          pytest tests/ -v \
+          uv run pytest tests/ -v \
             --cov=app \
             --cov-report=xml:coverage.xml \
             --cov-report=html:htmlcov \
@@ -49,7 +50,7 @@ jobs:
 
       - name: Check migration orchestration
         run: >
-          pytest -v --tb=short
+          uv run pytest -v --tb=short
           tests/test_migration_foundation.py
           tests/test_migration_service_orchestration.py
 
@@ -153,25 +154,23 @@ jobs:
           python-version: '3.14'
           cache: 'pip'
 
-      - name: Install dependencies
+      - name: Install locked typing dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install ruff mypy
+          python -m pip install uv==0.11.6
+          uv lock --check
+          uv sync --locked --all-groups
 
       - name: Lint Python code
-        run: ruff check app/
+        run: uv run ruff check app/
 
       - name: Check Python formatting
-        run: ruff format --check app/
+        run: uv run ruff format --check app/
 
       - name: Type check Python code
         # The modernized surface is a bounded real gate. Legacy modules remain
         # outside this target until their SQLAlchemy typing migration lands.
-        run: >
-          mypy --follow-imports=skip --ignore-missing-imports
-          app/config/settings.py app/core/exceptions.py
-          app/middleware/logging.py app/observability.py app/routes/health.py
+        run: uv run mypy
 
   # ──────────────────────────────────────────────
   # Integration Tests (Docker)
@@ -248,13 +247,15 @@ jobs:
       - name: Python dependency security check
         run: |
           python -m pip install --upgrade pip
-          pip install pip-audit bandit
+          python -m pip install uv==0.11.6
+          uv lock --check
+          uv sync --locked --all-groups
 
-          echo "🔍 Running dependency audit..."
-          pip-audit -r requirements.txt
+          echo "Running dependency audit..."
+          uv run pip-audit -r requirements.txt
 
-          echo "🔍 Running bandit static analysis..."
-          bandit -r app/ -ll -iii --exclude app/__pycache__,app/frontend
+          echo "Running bandit static analysis..."
+          uv run bandit -r app/ -ll -iii --exclude app/__pycache__,app/frontend
 
       - name: Node dependency audit
         working-directory: app/frontend
