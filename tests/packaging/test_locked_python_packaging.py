@@ -246,8 +246,13 @@ def test_bandit_runs_on_the_supported_python_314_runtime(tmp_path: Path) -> None
 
 
 def test_no_environment_secret_file_is_tracked() -> None:
+    git = shutil.which("git")
+    if git is None:
+        assert not (ROOT / ".env").exists()
+        return
+
     tracked = subprocess.run(
-        ["git", "ls-files", "--error-unmatch", ".env"],
+        [git, "ls-files", "--error-unmatch", ".env"],
         cwd=ROOT,
         capture_output=True,
         text=True,
