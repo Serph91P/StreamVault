@@ -15,7 +15,7 @@ The P1 baseline test groups the full matrix on Chromium and runs representative 
 
 ## Rendered audit design
 
-For every visible actionable semantic/native candidate the harness records dimensions, overlap and center-point `document.elementFromPoint()` outcomes. It checks document overflow. It excludes disabled, display-none, hidden, inert, aria-hidden and closed-details content. It does not use force clicks, retries or arbitrary waits. A violation remains a failure unless one exception explicitly names selector, route, reason, owner and expiry/follow-up.
+For every visible actionable semantic/native candidate the harness records dimensions, overlap and center-point `document.elementFromPoint()` outcomes. It checks document overflow. It excludes disabled, display-none, hidden, inert and closed-details content, while retaining visually exposed `aria-hidden` controls as geometry and semantic debt. It does not use force clicks, retries or arbitrary waits. A violation remains a failure unless one exception explicitly names selector, route, reason, owner and expiry/follow-up.
 
 ## Mobile ledger
 

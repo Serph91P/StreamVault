@@ -10,7 +10,7 @@ WCAG 2.2 AA is the minimum. Automated axe is necessary but cannot establish keyb
 - The source inventory records native dialogs, `v-html`, non-semantic click targets, direct DOM mutations, target-size candidates and every relevant route/component path.
 - Focus, overlay and native confirmation hotspots include AppShell, BaseModal, BaseSheet, VideoModal, Notifications, Streamers, Videos and subscription components.
 - The initial touch-audit helper was independently shown to miss closed-details summary, visually exposed aria-hidden and role-slider controls. P1 RED tests now preserve these categories; the three new tests passed after the implementation correction. Semantic hiding is an accessibility finding, not a reason to omit a visible hit target from geometry audit.
-- Chromium collection exercised the same serialized helper on all 17 source-derived router scenarios across the required matrix and both themes. It recorded 777 hit-test, 617 overlap and 278 undersized findings in 748 observations. Four representative axe/tree/keyboard observations recorded three serious or critical axe results. These are recorded findings, not waived acceptance.
+- Chromium collection exercised the same serialized helper on all 17 source-derived router scenarios across the required matrix and both themes. It recorded 1168 hit-test, 608 overlap and 270 undersized findings in 748 observations. Four representative axe/tree/keyboard observations recorded four serious or critical axe results. These are recorded findings, not waived acceptance.
 
 ## Harness coverage
 
