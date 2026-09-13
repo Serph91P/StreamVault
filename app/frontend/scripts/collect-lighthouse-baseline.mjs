@@ -8,18 +8,19 @@ import { chromium } from 'playwright'
 import { summarizeLighthouseReport } from './lighthouseSummary.mjs'
 import { validateLighthouseChromePath } from './lighthouseChromePath.mjs'
 import { collectWithIsolatedBrowsers } from './lighthouseLifecycle.mjs'
+import { validateLighthouseScenario } from './lighthouseScenarioValidation.mjs'
 
 const baseUrl = process.env.LIGHTHOUSE_BASE_URL ?? 'http://127.0.0.1:4180'
 const outputDir = resolve(process.env.LIGHTHOUSE_OUTPUT_DIR ?? 'test-results/lighthouse')
 const chromePath = await validateLighthouseChromePath(process.env.LIGHTHOUSE_CHROME_PATH ?? chromium.executablePath())
 
 const scenarios = [
-  { id: 'mobile-streamers', route: '/streamers', formFactor: 'mobile', viewport: { width: 390, height: 844 } },
-  { id: 'desktop-home', route: '/', formFactor: 'desktop', viewport: { width: 1440, height: 900 } },
+  { id: 'mobile-streamers', route: '/streamers', readinessSelector: '.streamers-view', formFactor: 'mobile', viewport: { width: 390, height: 844 } },
+  { id: 'desktop-home', route: '/', readinessSelector: '.home-view', formFactor: 'desktop', viewport: { width: 1440, height: 900 } },
 ]
 
 function startPreviewServer() {
-  return spawn(process.execPath, ['node_modules/vite/bin/vite.js', 'preview', '--host', '127.0.0.1', '--port', '4180'], {
+  return spawn(process.execPath, ['scripts/serve-static-baseline.mjs'], {
     env: { ...process.env },
     stdio: ['ignore', 'pipe', 'pipe'],
   })
@@ -74,10 +75,9 @@ function lighthouseFlags(port, scenario, cacheMode) {
     throttling: isMobile
       ? { rttMs: 150, throughputKbps: 1_638.4, requestLatencyMs: 150, downloadThroughputKbps: 1_638.4, uploadThroughputKbps: 750, cpuSlowdownMultiplier: 4 }
       : { rttMs: 40, throughputKbps: 10_240, requestLatencyMs: 40, downloadThroughputKbps: 10_240, uploadThroughputKbps: 3_000, cpuSlowdownMultiplier: 1 },
-    disableStorageReset: true,
+    disableStorageReset: cacheMode === 'warm',
     maxWaitForLoad: 45_000,
-    settings: { onlyCategories: ['performance'], disableStorageReset: true },
-    cacheMode,
+    settings: { onlyCategories: ['performance'], disableStorageReset: cacheMode === 'warm' },
   }
 }
 
@@ -92,6 +92,25 @@ async function launchIsolatedChrome(userDataDir) {
     async kill() {
       await chrome.kill()
     },
+  }
+}
+
+async function verifyRenderedRoute(port, scenario) {
+  const browser = await chromium.connectOverCDP(`http://127.0.0.1:${port}`)
+  const context = browser.contexts()[0]
+  if (!context) throw new Error('Lighthouse Chrome has no persistent browser context')
+  const page = await context.newPage()
+  try {
+    await page.setViewportSize(scenario.viewport)
+    await page.goto(new URL(scenario.route, baseUrl).toString(), { waitUntil: 'domcontentloaded' })
+    const selectorCount = await page.locator(scenario.readinessSelector).count()
+    return {
+      finalUrl: page.url(),
+      selector: scenario.readinessSelector,
+      selectorCount,
+    }
+  } finally {
+    await page.close()
   }
 }
 
@@ -113,16 +132,19 @@ async function collectScenario(scenario) {
   const userDataDir = await mkdtemp(join(tmpdir(), 'streamvault-lighthouse-'))
   try {
     const reports = await collectWithIsolatedBrowsers(['cold', 'warm'], () => launchIsolatedChrome(userDataDir), async (chrome, cacheMode) => {
+      const routeIdentity = await verifyRenderedRoute(chrome.port, scenario)
       const result = await withMeasurementTimeout(
         lighthouse(`${baseUrl}${scenario.route}`, lighthouseFlags(chrome.port, scenario, cacheMode)),
         `${scenario.id} ${cacheMode}`,
       )
       if (!result?.lhr) throw new Error(`Lighthouse returned no LHR for ${scenario.id} ${cacheMode}`)
+      const validatedRouteIdentity = validateLighthouseScenario(result.lhr, scenario, baseUrl, routeIdentity)
       const filename = `${scenario.id}-${cacheMode}.lhr.json`
       await writeFile(join(outputDir, filename), `${JSON.stringify(result.lhr, null, 2)}\n`)
       return {
         file: filename,
         cacheMode,
+        routeIdentity: validatedRouteIdentity,
         ...summarizeLighthouseReport(result.lhr),
       }
     })
