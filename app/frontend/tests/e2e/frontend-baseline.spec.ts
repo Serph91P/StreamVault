@@ -6,6 +6,8 @@ import axe from 'axe-core'
 import { requiredViewportMatrix } from '../../playwright.config'
 import { auditVisibleActions } from '../audit/interactionAudit'
 import type { InteractionAuditReport } from '../audit/interactionAudit'
+import { formatBaselineStageFailure } from '../audit/baselineObservation'
+import type { BaselineCollectionStage } from '../audit/baselineObservation'
 import { frontendBaselineScenarios } from '../fixtures/frontend-baseline-routes'
 
 type Theme = 'dark' | 'light'
@@ -129,31 +131,45 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 
       let keyboardFocusCount: number | null = null
       let ariaSnapshot: string | null = null
       let seriousOrCriticalAxeViolations: unknown[] = []
+      let stage: BaselineCollectionStage = 'viewport'
+      const writeObservation = () => writeFile(testInfo.outputPath('a11y-baseline.json'), `${JSON.stringify({
+        schemaVersion: 1,
+        source: 'deterministic VITE_USE_MOCK_DATA=true Playwright collection',
+        browserProject: testInfo.project.name,
+        observations: [{ theme, viewport, stage, keyboardFocusCount, ariaSnapshot, seriousOrCriticalAxeViolations, collectionErrors }],
+      }, null, 2)}\n`)
       try {
+        stage = 'viewport'
+        await writeObservation()
         await page.setViewportSize(viewport)
+        stage = 'navigation'
+        await writeObservation()
         await page.goto('/', { waitUntil: 'domcontentloaded' })
         await prepare(page, theme)
         await page.goto('/streamers', { waitUntil: 'domcontentloaded' })
+        stage = 'readiness'
+        await writeObservation()
         const streamerViewCount = await page.locator('.streamers-view').count()
         if (streamerViewCount !== 1) {
           throw new Error(`expected one source-derived .streamers-view root, found ${streamerViewCount}`)
         }
+        stage = 'keyboard'
+        await writeObservation()
         await page.keyboard.press('Tab')
         await expect(page.locator(':focus-visible')).toHaveCount(1)
         keyboardFocusCount = await page.locator(':focus-visible').count()
+        stage = 'accessibility-tree'
+        await writeObservation()
         ariaSnapshot = await page.locator('body').ariaSnapshot()
+        stage = 'axe'
+        await writeObservation()
         await page.addScriptTag({ content: axe.source })
         const result = await page.evaluate(async () => (window as typeof window & { axe: typeof axe }).axe.run(document))
         seriousOrCriticalAxeViolations = result.violations.filter(violation => violation.impact === 'serious' || violation.impact === 'critical')
       } catch (error) {
-        collectionErrors.push(error instanceof Error ? error.message : String(error))
+        collectionErrors.push(formatBaselineStageFailure(stage, error))
       }
-      await writeFile(testInfo.outputPath('a11y-baseline.json'), `${JSON.stringify({
-        schemaVersion: 1,
-        source: 'deterministic VITE_USE_MOCK_DATA=true Playwright collection',
-        browserProject: testInfo.project.name,
-        observations: [{ theme, viewport, keyboardFocusCount, ariaSnapshot, seriousOrCriticalAxeViolations, collectionErrors }],
-      }, null, 2)}\n`)
+      await writeObservation()
     })
   }
 }

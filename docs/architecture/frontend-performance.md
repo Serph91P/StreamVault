@@ -18,9 +18,17 @@ The following came from a fresh Node 24 production mock build at base `c679a1b57
 
 Vite warned that some chunks exceed 500 kB. This is a measured baseline defect B-02, not proof of an end-user performance outcome.
 
+## Reproducible Lighthouse collection
+
+`npm run test:performance` creates a production mock build and writes raw Lighthouse LHR JSON plus `summary.json` to `test-results/lighthouse` (or `LIGHTHOUSE_OUTPUT_DIR`). The runner measures the mobile Streamers route at 390 by 844 and the desktop home route at 1440 by 900. Each route is collected first cold and then warm using Lighthouse's simulated mobile Slow 4G and CPU profile or its desktop profile. `summary.json` records the Lighthouse version, score, LCP, CLS, TBT, DOM nodes, request count, byte weight, viewport, cache mode and runner conditions.
+
+The run uses `VITE_USE_MOCK_DATA=true` and a loopback Vite preview server. It does not require a backend or external network. The caller must provide an executable Chromium or Chrome. The default is the Playwright Chromium executable; set `LIGHTHOUSE_CHROME_PATH` when the browser is installed elsewhere. The runner fails before launching Lighthouse with the resolved path and the required override when that browser is unavailable.
+
+The current workflow measures the application-default theme. A dedicated dark/light Lighthouse bootstrap and installed-PWA pass remain separate baseline work; neither has been represented as a completed measurement.
+
 ## Unmeasured or blocked metrics
 
-Lighthouse, LCP, CLS, TBT, browser request counts, DOM nodes, parsed/transferred payloads, CPU throttling, slow-4G, warm/cold cache, route transition time, realtime update cost, player startup and memory were not collected in this run. Browser baseline initially could not launch due a missing exact Playwright browser revision. Native device performance is not available on this host.
+No Lighthouse LCP, CLS, TBT, browser request-count, DOM-node or byte-weight measurements are recorded in this baseline yet. The host used for this evidence has no executable at its configured Playwright Chromium path, so the collection exits with an actionable missing-browser error rather than emitting fabricated metrics. Native-device metrics, route-transition time, realtime-update cost, player startup and memory are also not available on this host.
 
 ## Performance ledger
 
