@@ -19,8 +19,28 @@
     "summary.json": "09e137b0eb8d6b6385a2da28f2fe250bc7a34315211800a3e0ad5b44eb028624"
   },
   "browserEvidence": {
-    "chromium": "four current candidate representative a11y, keyboard, accessibility-tree and axe observations passed at dark/light 390x844 and 1440x900",
-    "firefox": "four current candidate representative a11y, keyboard, accessibility-tree and axe observations passed at dark/light 390x844 and 1440x900",
+    "historicalInvalidCandidateEvidence": "Native attachment #17 remains historical evidence only: reviewer 209 established that its Chromium/Firefox reports could not have been emitted by harness blob 34481127bb33b26e5adb61ea02b36d1695ac6f84 because every report lacks observations[0].stage. It is not used for current Chromium/Firefox pass claims.",
+    "run210CurrentHarness": {
+      "sourceCommit": "10c62772d7defabbceb1520257a48523deef614d",
+      "sourceTestBlob": "34481127bb33b26e5adb61ea02b36d1695ac6f84",
+      "sourceFilesSha256": {
+        "tests/e2e/frontend-baseline.spec.ts": "1af1d45006e2939671fe49471847e8613668b6ca3867a48c5521f368c5a01438",
+        "playwright.config.ts": "246a87ea571fb7cead3ebab511970e81e25cc5ad51e0fcfa0cdfef931e7e2075",
+        "package-lock.json": "9006ee31af4d5f6b2525d616e22853d4afa9f1214b81f6fa8f7e2f3aab49813c"
+      },
+      "firstInvocation": "Chromium and Firefox, eight selected states, two workers, exit 1: six tests passed while both Firefox 390x844 tests crashed before their bodies with thread/PID resource errors.",
+      "completionInvocation": "Firefox 390x844 only, one worker, exit 0: two tests passed. This changed no source, timeout, selector or assertion.",
+      "observations": {
+        "chromium-dark-390x844": { "stage": "axe", "keyboardFocusCount": 1, "axeSeriousOrCritical": 0, "collectionErrors": [], "sha256": "c266ab8a2478baa185a8e23f8f88a20a042b6685a790209b9666df7c9b9df120" },
+        "chromium-light-390x844": { "stage": "axe", "keyboardFocusCount": 1, "axeSeriousOrCritical": 0, "collectionErrors": [], "sha256": "eb971827936d307fb131a14a63636c6553960efccad1865f2fcd6cc6d0fafdf4" },
+        "chromium-dark-1440x900": { "stage": "navigation", "keyboardFocusCount": null, "axeSeriousOrCritical": 0, "collectionErrors": ["navigation: page.evaluate: Target crashed"], "sha256": "50d2033f17fee7094878fd8c6cc732de2a8b116ba5eeb247250d5c246d5bcb01" },
+        "chromium-light-1440x900": { "stage": "axe", "keyboardFocusCount": 1, "axeSeriousOrCritical": 0, "collectionErrors": [], "sha256": "7b9f3de9cc58d9033ac8d996f84afb6da0c73507b6617b022f1760d04a0f396e" },
+        "firefox-dark-390x844": { "stage": "axe", "keyboardFocusCount": 0, "axeSeriousOrCritical": 0, "collectionErrors": [], "classification": "failed focus baseline observation", "sha256": "c4d1206f69296ca626aec6058b7799f895fe43580953e242e08c982b657d1912" },
+        "firefox-light-390x844": { "stage": "axe", "keyboardFocusCount": 1, "axeSeriousOrCritical": 1, "collectionErrors": [], "sha256": "c556fee4b4add25cdc831cbe43ae8309f008f86d174e402d5182d2fedd7ccc5d" },
+        "firefox-dark-1440x900": { "stage": "axe", "keyboardFocusCount": 1, "axeSeriousOrCritical": 0, "collectionErrors": [], "sha256": "7e2f0f095c2744a19feb0ab153b72e226bc6ec1fe7d89ab1dce58a72cf95cf68" },
+        "firefox-light-1440x900": { "stage": "axe", "keyboardFocusCount": 1, "axeSeriousOrCritical": 1, "collectionErrors": [], "sha256": "673c3796cc88c92f7668b4bed8236c716345359cc230ed3627574613da2f340a" }
+      }
+    },
     "webkit": "run 205 persisted four current candidate observations at stage=readiness (dark/light 390x844 and 1440x900); each exhausted the 60-second test budget during locator.count before keyboard, accessibility-tree or axe, and its report plus trace is retained as a baseline failure",
     "fullChromiumMatrix": "retained unchanged route-audit evidence contains 748 observations across 17 routes, 22 viewport rows and both themes, plus representative screenshots"
   },
