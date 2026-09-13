@@ -23,7 +23,9 @@ Raw command logs are task-local at `/opt/data/profiles/rudr9-builder/work/stream
 
 With `VITE_USE_MOCK_DATA=true`, task-owned Chromium 151 collected 748 route and viewport observations: all 17 router entries, all 22 required viewport rows, both themes and the source-derived readiness selector for each route. The collector persisted a partial JSON report after every observation, then a final report and 170 representative screenshots under Playwright's ignored `test-results/` output. No route collection error or horizontal-overflow observation was recorded in this Chromium mock run.
 
-The same run recorded 777 hit-test, 617 overlap and 278 undersized-target findings. These are baseline defects captured by `tests/audit/interactionAudit.ts`, not accepted interaction results. The empty exception document did not suppress them. Chromium also collected four representative a11y observations at 390x844 and 1440x900 across both themes; axe reported three serious/critical rule records. Detailed JSON is task evidence, not a committed screenshot baseline.
+The approved digest-pinned Playwright 1.62.1 Noble container was also exercised with no network, mounts or published ports, `pwuser`, dropped capabilities and `no-new-privileges`. It used the task-owned Node 24.20.0 binary and a disposable tracked frontend snapshot with copied locked dependencies. Chromium completed the full matrix; Firefox completed four representative a11y, keyboard, accessibility-tree and axe observations. WebKit launched in the same container, but all four representative observations timed out at 60 seconds while checking the source-derived `.streamers-view` root after navigation; their Playwright traces are retained as WebKit baseline failures, not reported as browser or axe passes.
+
+The final Chromium matrix recorded 1168 hit-test, 608 overlap and 270 undersized-target findings. These are baseline defects captured by `tests/audit/interactionAudit.ts`, not accepted interaction results. The empty exception document did not suppress them. Chromium and Firefox each collected four representative a11y observations at 390x844 and 1440x900 across both themes, with rendered accessibility trees, keyboard focus evidence and axe output. Chromium recorded four serious/critical axe records. Detailed JSON and WebKit timeout traces are task evidence, not a committed screenshot baseline.
 
 ## Existing gate baseline
 
@@ -50,7 +52,7 @@ The build emitted a 589.38 kB live-player JavaScript chunk, gzip 183.89 kB, and 
 
 ## Runtime evidence not yet available
 
-No claim is made for Android, iOS/iPadOS, Windows, macOS, native browsers, real backend, real authentication, push, production providers or standalone PWA. Playwright emulation is browser automation only, not native platform proof. The source-audited integration prerequisites and local HLS evidence are recorded in `frontend-migration-plan.md`.
+No claim is made for Android, iOS/iPadOS, Windows, macOS, real backend, real authentication, push, production providers or standalone PWA. Playwright browser automation, including the containerized Chromium, Firefox and WebKit launches, is not native platform proof. The source-audited integration prerequisites and local HLS evidence are recorded in `frontend-migration-plan.md`.
 
 ## Baseline defect register
 
@@ -61,8 +63,9 @@ No claim is made for Android, iOS/iPadOS, Windows, macOS, native browsers, real 
 | B-03 | portrait-only manifest setting | source finding | PWA consolidation |
 | B-04 | native confirmations/alerts remain | inventory finding | overlay migration |
 | B-05 | fresh JWT login versus stored-video legacy session cookie mismatch | source risk, not runtime reproduced | real-backend contract gate |
-| B-06 | Chromium matrix: 777 hit-test, 617 overlap and 278 undersized-target findings across 748 observations | captured baseline defect | responsive and shared UI owners |
-| B-07 | Chromium axe: 3 serious/critical records across four representative observations | captured baseline defect | accessibility hardening |
-| B-08 | Firefox and WebKit launch remain unavailable due host libraries; local runtime extraction is externally approval-blocked | capability blocker | browser runtime setup |
+| B-06 | final Chromium matrix: 1168 hit-test, 608 overlap and 270 undersized-target findings across 748 observations | captured baseline defect | responsive and shared UI owners |
+| B-07 | final Chromium axe: 4 serious/critical records across four representative observations | captured baseline defect | accessibility hardening |
+| B-08 | Host libraries do not run Firefox/WebKit directly, but the approved isolated container launches both engines | host capability resolved for container automation only | browser runtime setup |
+| B-09 | WebKit source-derived `.streamers-view` locator inspection does not return after navigation in all four representative theme/viewport states and exhausts the 60-second observation budget; Playwright traces retained | captured baseline failure | WebKit investigation and accessibility hardening |
 
 Known failures remain visible; no assertion or broad exemption converts them to a passing acceptance result.

@@ -23,7 +23,7 @@ This branch delivers P0 inventory, measured build/gate baseline and executable r
 | 101-180 compatibility | API/router/WS source inventory | contracts not fully exercised | API/integration | API/WS media tests | pending |
 | 186-235 quality/touch policy | new helper and matrix declared | route results | P1/hardening | JSON geometry reports | pending |
 | 238-328 phase 0 | generated JSON, six docs, gate logs, Chromium artifact reports | Firefox/WebKit and native capture remain blocked | P0/P1 | baseline reports | captured with open defects |
-| 331-403 viewport matrix | exact config values and Chromium 17-route/22-row/both-theme collection | run Firefox/WebKit after approved runtime setup | P1 | Playwright artifacts | partial: Chromium only |
+| 331-403 viewport matrix | exact config values, Chromium 17-route/22-row/both-theme collection, and actual Firefox/WebKit container launches | Firefox representative a11y is collected; WebKit source-derived readiness inspection times out in all four representative states before keyboard/tree/axe collection | P1 | Playwright JSON/traces | partial: Chromium full matrix, Firefox a11y, WebKit failure evidence |
 | 405-448 staged delivery | commit plan | later production slices | owners | phase commits | pending |
 | 451-571 architecture/TS | source finding/target contract | migration | architecture | unit/type suite | pending |
 | 574-715 tokens/responsive | owner decision source | generator not materialized | responsive | parity/boundary tests | pending |
@@ -56,7 +56,7 @@ The local fixture at `/opt/data/profiles/developer/work/streamvault-frontend-mod
 
 The source audit at `/opt/data/profiles/developer/work/streamvault-frontend-modernization/integration-prerequisites.md` records that real app startup has migration, image, EventSub and cleanup effects; test startup must isolate environment explicitly. Stored playback is Range-served MP4/file and demands legacy `session`; normal login supplies access/refresh cookies. Preserve a fresh-login stored-media regression rather than masking it with a seeded legacy session. Live HLS playlist and segments require actual playback-token tests. Current mock stored video points to a public Google sample and must be replaced by local fixture use before hermetic player acceptance.
 
-Browser install is not browser acceptance. Chromium can launch in the owner probe, but Firefox needs `libgtk-3-0t64` and WebKit needs GTK4/GStreamer-related libraries. The full engine matrix remains pending until task-owned dependencies or a matching verified container are available. Native Android/iOS/Windows/macOS evidence is a separate manual gate.
+Browser install is not browser acceptance. The approved digest-pinned Playwright container launches Chromium, Firefox and WebKit without host-library installation; Chromium completed the full mock matrix and Firefox completed representative a11y collection. WebKit's source-derived `.streamers-view` locator inspection does not complete within the bounded representative-observation budget, so its traces remain a failing baseline artifact before keyboard/tree/axe collection. Native Android/iOS/Windows/macOS evidence is a separate manual gate.
 
 ## Final PR 30-item checklist
 

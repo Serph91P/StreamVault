@@ -119,49 +119,41 @@ test('collects deterministic mock baseline across the complete viewport matrix a
   }, null, 2)}\n`)
 })
 
-test('collects cross-engine a11y tree, keyboard and axe evidence at representative phone and desktop viewports', async ({ page }, testInfo) => {
-  test.skip(!projectIsBaseline(testInfo.project.name), 'baseline harness projects only')
-  test.setTimeout(90_000)
-  await page.goto('/', { waitUntil: 'domcontentloaded' })
+for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 }]) {
+  for (const theme of ['dark', 'light'] as const) {
+    test(`collects cross-engine a11y tree, keyboard and axe evidence at ${theme} ${viewport.width}x${viewport.height}`, async ({ page }, testInfo) => {
+      test.skip(!projectIsBaseline(testInfo.project.name), 'baseline harness projects only')
+      test.setTimeout(60_000)
 
-  const report: Array<{
-    theme: Theme
-    viewport: { width: number; height: number }
-    keyboardFocusCount: number
-    ariaSnapshot: string
-    seriousOrCriticalAxeViolations: unknown[]
-  }> = []
-
-  for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 }]) {
-    await page.setViewportSize(viewport)
-    for (const theme of ['dark', 'light'] as const) {
-      await prepare(page, theme)
-      await page.goto('/streamers')
-      await expect(page.getByRole('heading', { name: 'Streamers', exact: true })).toBeVisible()
-      await page.keyboard.press('Tab')
-      await expect(page.locator(':focus-visible')).toHaveCount(1)
-      await page.addScriptTag({ content: axe.source })
-      const result = await page.evaluate(async () => (window as typeof window & { axe: typeof axe }).axe.run(document))
-      const severe = result.violations.filter(violation => violation.impact === 'serious' || violation.impact === 'critical')
-      report.push({
-        theme,
-        viewport,
-        keyboardFocusCount: await page.locator(':focus-visible').count(),
-        ariaSnapshot: await page.locator('body').ariaSnapshot(),
-        seriousOrCriticalAxeViolations: severe,
-      })
-      await page.screenshot({
-        path: testInfo.outputPath('screenshots', `a11y-${testInfo.project.name}-${theme}-${viewport.width}x${viewport.height}.png`),
-        fullPage: true,
-        animations: 'disabled',
-      })
-    }
+      const collectionErrors: string[] = []
+      let keyboardFocusCount: number | null = null
+      let ariaSnapshot: string | null = null
+      let seriousOrCriticalAxeViolations: unknown[] = []
+      try {
+        await page.setViewportSize(viewport)
+        await page.goto('/', { waitUntil: 'domcontentloaded' })
+        await prepare(page, theme)
+        await page.goto('/streamers', { waitUntil: 'domcontentloaded' })
+        const streamerViewCount = await page.locator('.streamers-view').count()
+        if (streamerViewCount !== 1) {
+          throw new Error(`expected one source-derived .streamers-view root, found ${streamerViewCount}`)
+        }
+        await page.keyboard.press('Tab')
+        await expect(page.locator(':focus-visible')).toHaveCount(1)
+        keyboardFocusCount = await page.locator(':focus-visible').count()
+        ariaSnapshot = await page.locator('body').ariaSnapshot()
+        await page.addScriptTag({ content: axe.source })
+        const result = await page.evaluate(async () => (window as typeof window & { axe: typeof axe }).axe.run(document))
+        seriousOrCriticalAxeViolations = result.violations.filter(violation => violation.impact === 'serious' || violation.impact === 'critical')
+      } catch (error) {
+        collectionErrors.push(error instanceof Error ? error.message : String(error))
+      }
+      await writeFile(testInfo.outputPath('a11y-baseline.json'), `${JSON.stringify({
+        schemaVersion: 1,
+        source: 'deterministic VITE_USE_MOCK_DATA=true Playwright collection',
+        browserProject: testInfo.project.name,
+        observations: [{ theme, viewport, keyboardFocusCount, ariaSnapshot, seriousOrCriticalAxeViolations, collectionErrors }],
+      }, null, 2)}\n`)
+    })
   }
-
-  await writeFile(testInfo.outputPath('a11y-baseline.json'), `${JSON.stringify({
-    schemaVersion: 1,
-    source: 'deterministic VITE_USE_MOCK_DATA=true Playwright collection',
-    browserProject: testInfo.project.name,
-    observations: report,
-  }, null, 2)}\n`)
-})
+}
