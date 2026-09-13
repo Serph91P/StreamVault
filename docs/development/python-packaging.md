@@ -6,7 +6,7 @@
 
 ```text
 uv lock --check
-uv sync --locked --all-groups
+uv sync --locked --all-groups --reinstall-package streamvault
 uv run pytest tests/ -q
 uv export --locked --no-dev --no-emit-project --no-hashes --output-file requirements.txt
 ```
@@ -15,7 +15,7 @@ uv export --locked --no-dev --no-emit-project --no-hashes --output-file requirem
 
 ## Version metadata
 
-Build metadata uses setuptools-scm and Git tags without importing `app` or `Settings`. Untagged build metadata falls back to `0.0.0.dev0`. Runtime `STREAMVAULT_VERSION`, `STREAMVAULT_BRANCH`, `STREAMVAULT_BUILD_DATE`, and `STREAMVAULT_COMMIT_SHA` variables remain owned by the existing runtime API.
+Build metadata uses setuptools-scm and Git tags without importing `app` or `Settings`. Untagged build metadata falls back to `0.0.0.dev0`. `uv sync` can retain old editable VCS metadata in a reused environment, so local and CI verification reinstall the project (`--reinstall-package streamvault`) before comparing installed metadata with a wheel built from the same Git checkout. Runtime `STREAMVAULT_VERSION`, `STREAMVAULT_BRANCH`, `STREAMVAULT_BUILD_DATE`, and `STREAMVAULT_COMMIT_SHA` variables remain owned by the existing runtime API.
 
 ## Typing boundary
 

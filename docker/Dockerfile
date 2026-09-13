@@ -67,8 +67,10 @@ COPY pyproject.toml uv.lock ./
 # interpreter. uv is removed before this stage is copied into the runtime image.
 RUN --mount=type=cache,target=/root/.cache/uv \
     python -m pip install --no-cache-dir uv==0.11.6 && \
-    uv export --locked --no-dev --no-emit-project --no-hashes | \
-      uv pip install --system --no-cache -r - && \
+    uv export --locked --no-dev --no-emit-project --no-hashes \
+      --output-file /tmp/requirements.txt && \
+    uv pip install --system --no-cache -r /tmp/requirements.txt && \
+    rm /tmp/requirements.txt && \
     python -m pip uninstall --yes uv
 
 # =============================================================================

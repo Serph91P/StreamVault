@@ -37,7 +37,7 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install uv==0.11.6
           uv lock --check
-          uv sync --locked --all-groups
+          uv sync --locked --all-groups --reinstall-package streamvault
 
       - name: Run backend tests with coverage
         run: |
@@ -159,7 +159,7 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install uv==0.11.6
           uv lock --check
-          uv sync --locked --all-groups
+          uv sync --locked --all-groups --reinstall-package streamvault
 
       - name: Lint Python code
         run: uv run ruff check app/
@@ -249,7 +249,7 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install uv==0.11.6
           uv lock --check
-          uv sync --locked --all-groups
+          uv sync --locked --all-groups --reinstall-package streamvault
 
           echo "Running dependency audit..."
           uv run pip-audit -r requirements.txt

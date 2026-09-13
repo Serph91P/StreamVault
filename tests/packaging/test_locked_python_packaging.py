@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import json
+import shutil
 import subprocess
 import tomllib
+import zipfile
 from pathlib import Path
 from typing import cast
 
@@ -36,6 +39,7 @@ def test_project_metadata_declares_supported_runtime_and_locked_groups() -> None
 
     assert {"dev", "test", "typing", "security"} <= set(groups)
     assert "ruff==0.15.1" in groups["dev"]
+    assert "bandit[toml]==1.9.4" in groups["security"]
     production = set(dependencies)
     tooling = {dependency for group in groups.values() for dependency in group}
     assert not production & tooling
@@ -65,14 +69,67 @@ def test_requirements_export_is_locked_uv_production_export() -> None:
     ) == _non_comment_lines(completed.stdout)
 
 
+def test_production_export_excludes_nonproduction_dependency_groups() -> None:
+    exported_distributions = {
+        line.split("==", maxsplit=1)[0].split("[", maxsplit=1)[0].lower()
+        for line in _non_comment_lines(REQUIREMENTS.read_text(encoding="utf-8"))
+    }
+    assert (
+        not {"bandit", "mypy", "pip-audit", "pytest", "ruff"} & exported_distributions
+    )
+
+
+def test_tampered_lock_is_rejected_before_install(tmp_path: Path) -> None:
+    shutil.copy2(PYPROJECT, tmp_path / "pyproject.toml")
+    tampered_lock = tmp_path / "uv.lock"
+    shutil.copy2(ROOT / "uv.lock", tampered_lock)
+    tampered_lock.write_text(
+        f"{tampered_lock.read_text(encoding='utf-8')}\ninvalid-toml = [\n",
+        encoding="utf-8",
+    )
+
+    completed = subprocess.run(
+        ["uv", "lock", "--check"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+    )
+    assert completed.returncode != 0
+
+    export = subprocess.run(
+        [
+            "uv",
+            "export",
+            "--locked",
+            "--no-dev",
+            "--no-emit-project",
+            "--no-hashes",
+            "--output-file",
+            str(tmp_path / "requirements.txt"),
+        ],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+    )
+    assert export.returncode != 0
+    assert not (tmp_path / "requirements.txt").exists()
+
+
 def test_lock_and_runtime_consumers_are_canonical() -> None:
     assert (ROOT / "uv.lock").is_file()
 
     dockerfile = (ROOT / "docker" / "Dockerfile").read_text(encoding="utf-8")
     workflow = (ROOT / ".github" / "workflows" / "test.yml").read_text(encoding="utf-8")
-    assert "uv export --locked --no-dev" in dockerfile
+    assert (
+        "uv export --locked --no-dev --no-emit-project --no-hashes \\\n      --output-file /tmp/requirements.txt"
+        in dockerfile
+    )
+    assert "uv pip install --system --no-cache -r /tmp/requirements.txt" in dockerfile
+    assert (
+        "uv export --locked --no-dev --no-emit-project --no-hashes |" not in dockerfile
+    )
     assert "uv lock --check" in workflow
-    assert "uv sync --locked --all-groups" in workflow
+    assert "uv sync --locked --all-groups --reinstall-package streamvault" in workflow
 
 
 def test_wheel_build_uses_metadata_without_importing_application(
@@ -97,6 +154,95 @@ def test_locked_environment_exposes_ruff_without_host_fallback() -> None:
         text=True,
     )
     assert completed.stdout.startswith("ruff 0.15.1")
+
+
+def _wheel_version(wheel: Path) -> str:
+    with zipfile.ZipFile(wheel) as archive:
+        metadata_path = next(
+            entry
+            for entry in archive.namelist()
+            if entry.endswith(".dist-info/METADATA")
+        )
+        for line in archive.read(metadata_path).decode("utf-8").splitlines():
+            if line.startswith("Version: "):
+                return line.removeprefix("Version: ")
+    raise AssertionError("wheel metadata did not contain a version")
+
+
+def test_reinstalled_project_metadata_matches_same_head_wheel(tmp_path: Path) -> None:
+    subprocess.run(
+        [
+            "uv",
+            "sync",
+            "--locked",
+            "--all-groups",
+            "--reinstall-package",
+            "streamvault",
+        ],
+        cwd=ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    subprocess.run(
+        ["uv", "build", "--wheel", "--out-dir", str(tmp_path), "--quiet"],
+        cwd=ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    installed = subprocess.run(
+        [
+            "uv",
+            "run",
+            "--locked",
+            "python",
+            "-I",
+            "-c",
+            "from importlib.metadata import version; print(version('streamvault'))",
+        ],
+        cwd=ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+
+    wheel = next(tmp_path.glob("streamvault-*.whl"))
+    assert installed == _wheel_version(wheel)
+
+
+def test_bandit_runs_on_the_supported_python_314_runtime(tmp_path: Path) -> None:
+    sample = tmp_path / "scan_only_canary.py"
+    report = tmp_path / "bandit-report.json"
+    sample.write_text(
+        "import subprocess\n\ndef scan_only_canary(untrusted_argument):\n    subprocess.run(untrusted_argument, shell=True)\n",
+        encoding="utf-8",
+    )
+
+    completed = subprocess.run(
+        [
+            "uv",
+            "run",
+            "bandit",
+            "-r",
+            str(tmp_path),
+            "-f",
+            "json",
+            "-o",
+            str(report),
+        ],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+    )
+    parsed = json.loads(report.read_text(encoding="utf-8"))
+
+    assert completed.returncode == 1
+    assert parsed["errors"] == []
+    assert any(
+        result["test_id"] == "B602" and result["issue_severity"] == "HIGH"
+        for result in parsed["results"]
+    )
 
 
 def test_no_environment_secret_file_is_tracked() -> None:
