@@ -1,7 +1,8 @@
 {
   "schemaVersion": 1,
   "frozenBase": "c679a1b577e04ccbca1c19689ab19d92f5a214d1",
-  "harnessEvidenceHead": "a540691eba7e6cc425fd2e263f72549413f02fe6",
+  "routeAuditEvidenceHead": "a540691eba7e6cc425fd2e263f72549413f02fe6",
+  "lighthouseSourceCommit": "5ba0fe4cdc5c7550d3dd7dea5ec2f55f0e221a3e",
   "promptSha256": "4c296278fd5560edb6d31e04091115386f38dfa274d986c56fe763c8654e6b2f",
   "environment": {
     "node": "24.20.0",
@@ -11,16 +12,16 @@
     "isolation": "network none, no mounts, no published ports, pwuser, cap-drop ALL, no-new-privileges, 2 GiB memory, 2 CPUs, 256 PIDs, 512 MiB shm"
   },
   "lighthouse": {
-    "mobile-streamers-cold.lhr.json": "395893a5e31bad17d1a90b62fc514053ac0dca05edf740b93edc4c9a96422d14",
-    "mobile-streamers-warm.lhr.json": "4d32bc65af942bf885d08f7dbfd8fe65a9315a8bf95fb1719bc7b75065e792d6",
-    "desktop-home-cold.lhr.json": "b10d986ea12cb8b6fc05e6fd04537c6edf716313ca51fa54141bc255f3625b11",
-    "desktop-home-warm.lhr.json": "7db81998bb410480604124e62ebe4cf7d0ca68deb1747912140b4eb168eca829",
-    "summary.json": "861d91f97d157694e6a045aca775196fc4ae5d98bace9e0c519bf4d60a3bc0fa"
+    "mobile-streamers-cold.lhr.json": "ccb15e9eceb390d42ae9196a3c45d19052f64a3ba40f3993ad9cf202391da0b8",
+    "mobile-streamers-warm.lhr.json": "b2cb747abd11b570b9ce5cf0ad10666187fb782045a143f5964aefba37aa364f",
+    "desktop-home-cold.lhr.json": "1c3f7fe4086b5d601092feb44a43218e62ec9f0cfd41e762b5c6327db3f401bf",
+    "desktop-home-warm.lhr.json": "891fc3092453b6050f59e7593ecdced27bf925f1d835bec668f03a80432abe60",
+    "summary.json": "09e137b0eb8d6b6385a2da28f2fe250bc7a34315211800a3e0ad5b44eb028624"
   },
   "browserEvidence": {
     "chromium": "four current candidate representative a11y, keyboard, accessibility-tree and axe observations passed at dark/light 390x844 and 1440x900",
     "firefox": "four current candidate representative a11y, keyboard, accessibility-tree and axe observations passed at dark/light 390x844 and 1440x900",
-    "webkit": "four current candidate observations persisted stage=readiness and exhausted the 60-second budget before keyboard, accessibility-tree or axe; reports and traces are retained as baseline failures",
+    "webkit": "run 205 persisted four current candidate observations at stage=readiness (dark/light 390x844 and 1440x900); each exhausted the 60-second test budget during locator.count before keyboard, accessibility-tree or axe, and its report plus trace is retained as a baseline failure",
     "fullChromiumMatrix": "retained unchanged route-audit evidence contains 748 observations across 17 routes, 22 viewport rows and both themes, plus representative screenshots"
   },
   "limitations": [

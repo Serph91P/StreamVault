@@ -4,7 +4,7 @@
 
 The Playwright configuration declares every required viewport exactly: small phones 320x568, 360x640, 375x667; modern phones 390x844, 393x873, 412x915, 430x932; landscape 568x320, 667x375, 844x390, 915x412, 932x430; tablets 600x960, 768x1024, 820x1180, 1024x768, 1180x820; desktops 1024x768, 1280x720, 1366x768, 1440x900, 1920x1080.
 
-The P1 baseline test groups the full matrix on Chromium and runs representative phone and desktop assertions in Chromium, Firefox and WebKit. The complete Chromium route matrix was captured across dark and light themes. The current candidate reran the four representative Chromium and Firefox a11y, keyboard, tree and axe states successfully. WebKit recorded all four current states as `readiness` failures with raw stage reports and traces, not as successful coverage. Browser automation remains distinct from native platform acceptance.
+The P1 baseline test groups the full matrix on Chromium and runs representative phone and desktop assertions in Chromium, Firefox and WebKit. The complete Chromium route matrix was captured across dark and light themes. The current candidate reran the four representative Chromium and Firefox a11y, keyboard, tree and axe states successfully. Run 205 retained four separate nonempty WebKit traces and reports, one for each dark/light 390x844 and 1440x900 state; every report stopped at `readiness` with `locator.count` timing out at 60000 ms before keyboard/tree/axe. They are stage-classified baseline failures, not successful coverage. Browser automation remains distinct from native platform acceptance.
 
 ## Observed source baseline
 

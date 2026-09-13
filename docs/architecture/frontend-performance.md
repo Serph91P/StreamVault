@@ -22,14 +22,16 @@ Vite warned that some chunks exceed 500 kB. This is a measured baseline defect B
 
 `npm run test:performance` creates a production mock build and writes raw Lighthouse LHR JSON plus `summary.json` to `test-results/lighthouse` (or `LIGHTHOUSE_OUTPUT_DIR`). The runner measures the mobile Streamers route at 390 by 844 and the desktop home route at 1440 by 900. Each route is collected cold and then warm using an isolated Chrome process while retaining the scenario profile for the warm pass. `summary.json` records the Lighthouse version, score, LCP, CLS, TBT, DOM nodes, request count, byte weight, viewport and cache mode.
 
-The candidate harness was run in the approved digest-pinned Playwright 1.62.1 Noble container with no network, mounts or published ports, `pwuser`, dropped capabilities, `no-new-privileges`, 2 GiB memory, 2 CPUs, 256 PIDs and 512 MiB shared memory. It used Node 24.20.0, Chrome for Testing 151.0.7922.34 at `/ms-playwright/chromium-1234/chrome-linux64/chrome`, Lighthouse 13.4.1 and a loopback Vite preview with `VITE_USE_MOCK_DATA=true`. The raw candidate-bound LHRs and summary are retained in the final evidence archive.
+The route-validation harness source commit `5ba0fe4cdc5c7550d3dd7dea5ec2f55f0e221a3e` was run in the approved digest-pinned Playwright 1.62.1 Noble container with no network, mounts or published ports, `pwuser`, dropped capabilities, `no-new-privileges`, 2 GiB memory, 2 CPUs, 256 PIDs and 512 MiB shared memory. It used Node 24.20.0, Chrome for Testing 151.0.7922.34 at `/ms-playwright/chromium-1234/chrome-linux64/chrome`, Lighthouse 13.4.1 and a loopback static mock server with `VITE_USE_MOCK_DATA=true`. Each raw LHR has `runtimeError: null`, its requested and final URL are the intended route, and the summary records exactly one matching rendered `.streamers-view` or `.home-view` root before the LHR is accepted.
 
 | Scenario | Cache | Score | LCP ms | CLS | TBT ms | DOM nodes | Requests | Bytes |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| Streamers 390x844 | cold | 0.96 | 2640.36 | 0 | 17 | 357 | 40 | 201304 |
-| Streamers 390x844 | warm | 0.99 | 1058.93 | 0 | 106 | 347 | 39 | 18784 |
-| Home 1440x900 | cold | 1.00 | 657.94 | 0 | 0 | 401 | 40 | 201304 |
-| Home 1440x900 | warm | 1.00 | 291.40 | 0 | 0 | 391 | 39 | 18784 |
+| Streamers 390x844 | cold | 0.71 | 5102.22 | 0.000164 | 101.5 | 542 | 28 | 697770 |
+| Streamers 390x844 | warm | 1.00 | 683.47 | 0.000541 | 30.5 | 542 | 27 | 3393 |
+| Home 1440x900 | cold | 0.98 | 1001.29 | 0.000146 | 4 | 711 | 28 | 716903 |
+| Home 1440x900 | warm | 1.00 | 168.68 | 0.000141 | 0 | 711 | 27 | 3393 |
+
+The slower 5102.22 ms mobile cold LCP is retained as an actual baseline finding. It must not be replaced by the earlier route-redirected login-page figures.
 
 These are deterministic mock, loopback lab measurements, not native-device, real-backend, installed-PWA, player or realtime claims. The application-default theme was measured; dedicated dark/light Lighthouse bootstrapping remains separate work.
 

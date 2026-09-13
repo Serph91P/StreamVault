@@ -38,7 +38,7 @@ The owner-decision source specifies generated `responsive.json`, `responsive.gen
 
 ## Regression-harness contract
 
-`tests/audit/interactionAudit.ts` is pure DOM audit logic with RED/GREEN unit proof for undersize, overlap, hit-test obstruction and hidden/disabled exclusions. `tests/e2e/frontend-baseline.spec.ts` uses the same policy against rendered browser pages and persists stage records before each a11y step. Current Chromium and Firefox representative artifacts pass, while current WebKit reports are retained as `readiness` failures with null later-stage values and traces. The exception document is intentionally empty and has the narrow schema selector, route, reason, owner and expiry-followup. Broad exclusions are forbidden.
+`tests/audit/interactionAudit.ts` is pure DOM audit logic with RED/GREEN unit proof for undersize, overlap, hit-test obstruction and hidden/disabled exclusions. `tests/e2e/frontend-baseline.spec.ts` uses the same policy against rendered browser pages and persists stage records before each a11y step. Lighthouse additionally rejects an LHR unless its final route and exactly one source-derived rendered root match the scenario; route redirects and missing, mismatched, zero or duplicate roots have regression coverage. Current Chromium and Firefox representative artifacts pass, while run-205 WebKit reports are retained as four `readiness` failures with null later-stage values and individual traces. The exception document is intentionally empty and has the narrow schema selector, route, reason, owner and expiry-followup. Broad exclusions are forbidden.
 
 ## Requirement ledger
 
