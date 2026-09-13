@@ -7,6 +7,7 @@ import { launch } from 'chrome-launcher'
 import { chromium } from 'playwright'
 import { summarizeLighthouseReport } from './lighthouseSummary.mjs'
 import { validateLighthouseChromePath } from './lighthouseChromePath.mjs'
+import { collectWithIsolatedBrowsers } from './lighthouseLifecycle.mjs'
 
 const baseUrl = process.env.LIGHTHOUSE_BASE_URL ?? 'http://127.0.0.1:4180'
 const outputDir = resolve(process.env.LIGHTHOUSE_OUTPUT_DIR ?? 'test-results/lighthouse')
@@ -80,26 +81,51 @@ function lighthouseFlags(port, scenario, cacheMode) {
   }
 }
 
-async function collectScenario(scenario) {
-  const userDataDir = await mkdtemp(join(tmpdir(), 'streamvault-lighthouse-'))
+async function launchIsolatedChrome(userDataDir) {
   const chrome = await launch({
     chromePath,
     userDataDir,
     chromeFlags: ['--headless=new', '--no-sandbox', '--disable-dev-shm-usage'],
   })
+  return {
+    port: chrome.port,
+    async kill() {
+      await chrome.kill()
+    },
+  }
+}
+
+async function withMeasurementTimeout(promise, description) {
+  let timeout
   try {
-    const reports = []
-    for (const cacheMode of ['cold', 'warm']) {
-      const result = await lighthouse(`${baseUrl}${scenario.route}`, lighthouseFlags(chrome.port, scenario, cacheMode))
+    return await Promise.race([
+      promise,
+      new Promise((_, reject) => {
+        timeout = setTimeout(() => reject(new Error(`Lighthouse timed out after 75 seconds for ${description}`)), 75_000)
+      }),
+    ])
+  } finally {
+    clearTimeout(timeout)
+  }
+}
+
+async function collectScenario(scenario) {
+  const userDataDir = await mkdtemp(join(tmpdir(), 'streamvault-lighthouse-'))
+  try {
+    const reports = await collectWithIsolatedBrowsers(['cold', 'warm'], () => launchIsolatedChrome(userDataDir), async (chrome, cacheMode) => {
+      const result = await withMeasurementTimeout(
+        lighthouse(`${baseUrl}${scenario.route}`, lighthouseFlags(chrome.port, scenario, cacheMode)),
+        `${scenario.id} ${cacheMode}`,
+      )
       if (!result?.lhr) throw new Error(`Lighthouse returned no LHR for ${scenario.id} ${cacheMode}`)
       const filename = `${scenario.id}-${cacheMode}.lhr.json`
       await writeFile(join(outputDir, filename), `${JSON.stringify(result.lhr, null, 2)}\n`)
-      reports.push({
+      return {
         file: filename,
         cacheMode,
         ...summarizeLighthouseReport(result.lhr),
-      })
-    }
+      }
+    })
     return {
       scenario: scenario.id,
       route: scenario.route,
@@ -109,7 +135,6 @@ async function collectScenario(scenario) {
       reports,
     }
   } finally {
-    await chrome.kill()
     await rm(userDataDir, { recursive: true, force: true })
   }
 }

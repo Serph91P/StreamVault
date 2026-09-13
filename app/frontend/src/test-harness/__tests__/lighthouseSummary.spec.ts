@@ -26,4 +26,17 @@ describe('summarizeLighthouseReport', () => {
       totalByteWeight: 2048,
     })
   })
+
+  it('supports Lighthouse 13 DOM and network audit shapes', () => {
+    const summary = summarizeLighthouseReport({
+      categories: { performance: { score: 1 } },
+      audits: {
+        'dom-size-insight': { numericValue: 347 },
+        'network-requests': { details: { items: [{}, {}, {}] } },
+      },
+    })
+
+    expect(summary.domNodes).toBe(347)
+    expect(summary.networkRequests).toBe(3)
+  })
 })
