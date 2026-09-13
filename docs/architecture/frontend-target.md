@@ -38,7 +38,7 @@ The owner-decision source specifies generated `responsive.json`, `responsive.gen
 
 ## Regression-harness contract
 
-`tests/audit/interactionAudit.ts` is pure DOM audit logic with RED/GREEN unit proof for undersize, overlap, hit-test obstruction and hidden/disabled exclusions. `tests/e2e/frontend-baseline.spec.ts` uses the same policy against rendered browser pages and stores Playwright artifacts on failure. The exception document is intentionally empty and has the narrow schema selector, route, reason, owner and expiry-followup. Broad exclusions are forbidden.
+`tests/audit/interactionAudit.ts` is pure DOM audit logic with RED/GREEN unit proof for undersize, overlap, hit-test obstruction and hidden/disabled exclusions. `tests/e2e/frontend-baseline.spec.ts` uses the same policy against rendered browser pages and persists stage records before each a11y step. Current Chromium and Firefox representative artifacts pass, while current WebKit reports are retained as `readiness` failures with null later-stage values and traces. The exception document is intentionally empty and has the narrow schema selector, route, reason, owner and expiry-followup. Broad exclusions are forbidden.
 
 ## Requirement ledger
 

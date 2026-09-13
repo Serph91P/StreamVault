@@ -4,14 +4,14 @@
 
 The Playwright configuration declares every required viewport exactly: small phones 320x568, 360x640, 375x667; modern phones 390x844, 393x873, 412x915, 430x932; landscape 568x320, 667x375, 844x390, 915x412, 932x430; tablets 600x960, 768x1024, 820x1180, 1024x768, 1180x820; desktops 1024x768, 1280x720, 1366x768, 1440x900, 1920x1080.
 
-The P1 baseline test groups the full matrix on Chromium and runs representative phone and desktop assertions in Chromium, Firefox and WebKit. Every listed main mock route receives small phone, modern phone, landscape, tablet and desktop coverage in dark and light themes. This is automation design, not a claim that the matrix has run successfully.
+The P1 baseline test groups the full matrix on Chromium and runs representative phone and desktop assertions in Chromium, Firefox and WebKit. The complete Chromium route matrix was captured across dark and light themes. The current candidate reran the four representative Chromium and Firefox a11y, keyboard, tree and axe states successfully. WebKit recorded all four current states as `readiness` failures with raw stage reports and traces, not as successful coverage. Browser automation remains distinct from native platform acceptance.
 
 ## Observed source baseline
 
 - `useNavigation.ts` has observed shell behavior around 1024 px. Player presentation has existing 768 px behavior. These boundaries are preserved until the one-source responsive migration.
 - Raw `100vh`, `transition: all`, hardcoded control dimensions and breakpoint declarations are machine-enumerated in `frontend-inventory.json`.
 - `BottomNav.vue`, `AppShell.vue`, player views, streamer/detail/list views, Videos, Settings and onboarding are hotspot paths.
-- Existing mock routes and UI standards cover a subset of routes. The baseline browser suite was blocked before browser launch, so no screenshot, DOM geometry, or axe result is represented as collected evidence.
+- The full Chromium matrix captured 748 route/viewport observations with screenshots, DOM geometry and overflow metrics. It found 1168 hit-test, 608 overlap and 270 undersized-target baseline defects. Current Chromium and Firefox representative a11y evidence passed; current WebKit reports all four representative states as bounded readiness failures. These results are retained in the final task evidence and are not a mobile acceptance claim.
 
 ## Rendered audit design
 
