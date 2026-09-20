@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { summarizeLighthouseReport } from '../../../scripts/lighthouseSummary.mjs'
+import { summarizeLighthouseReport } from '../../scripts/lighthouseSummary.mjs'
 
 describe('summarizeLighthouseReport', () => {
   it('extracts representative runtime metrics without inventing absent audits', () => {

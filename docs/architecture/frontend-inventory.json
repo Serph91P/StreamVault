@@ -141,12 +141,6 @@
     "app/frontend/src/styles/_variables.scss",
     "app/frontend/src/styles/_views.scss",
     "app/frontend/src/styles/main.scss",
-    "app/frontend/src/test-harness/__tests__/baselineObservation.spec.ts",
-    "app/frontend/src/test-harness/__tests__/interactionAudit.spec.ts",
-    "app/frontend/src/test-harness/__tests__/lighthouseChromePath.spec.ts",
-    "app/frontend/src/test-harness/__tests__/lighthouseLifecycle.spec.ts",
-    "app/frontend/src/test-harness/__tests__/lighthouseScenarioValidation.spec.ts",
-    "app/frontend/src/test-harness/__tests__/lighthouseSummary.spec.ts",
     "app/frontend/src/types/events.ts",
     "app/frontend/src/types/proxy.ts",
     "app/frontend/src/types/recording.ts",
@@ -182,6 +176,12 @@
     "app/frontend/tests/e2e/ui-standards.spec.ts",
     "app/frontend/tests/fixtures/frontend-baseline-routes.ts",
     "app/frontend/tests/fixtures/interaction-audit-exceptions.json",
+    "app/frontend/tests/unit/baselineObservation.spec.ts",
+    "app/frontend/tests/unit/interactionAudit.spec.ts",
+    "app/frontend/tests/unit/lighthouseChromePath.spec.ts",
+    "app/frontend/tests/unit/lighthouseLifecycle.spec.ts",
+    "app/frontend/tests/unit/lighthouseScenarioValidation.spec.ts",
+    "app/frontend/tests/unit/lighthouseSummary.spec.ts",
     "app/frontend/tsconfig.app.json",
     "app/frontend/tsconfig.json",
     "app/frontend/tsconfig.node.json",
@@ -2263,8 +2263,6 @@
     "app/frontend/src/styles/_utilities.scss",
     "app/frontend/src/styles/_variables.scss",
     "app/frontend/src/styles/_views.scss",
-    "app/frontend/src/test-harness/__tests__/baselineObservation.spec.ts",
-    "app/frontend/src/test-harness/__tests__/lighthouseChromePath.spec.ts",
     "app/frontend/src/types/events.ts",
     "app/frontend/src/types/proxy.ts",
     "app/frontend/src/types/settings.ts",
@@ -2287,6 +2285,8 @@
     "app/frontend/tests/e2e/frontend-baseline.spec.ts",
     "app/frontend/tests/e2e/touch-gestures.spec.ts",
     "app/frontend/tests/e2e/ui-standards.spec.ts",
+    "app/frontend/tests/unit/baselineObservation.spec.ts",
+    "app/frontend/tests/unit/lighthouseChromePath.spec.ts",
     "app/frontend/vite.config.ts"
   ],
   "players": [
@@ -2336,7 +2336,6 @@
     "app/frontend/src/stores/notifications.ts",
     "app/frontend/src/stores/recordings.ts",
     "app/frontend/src/styles/_layout.scss",
-    "app/frontend/src/test-harness/__tests__/lighthouseLifecycle.spec.ts",
     "app/frontend/src/types/events.ts",
     "app/frontend/src/utils/pwaDebug.ts",
     "app/frontend/src/views/AddStreamerView.vue",
@@ -2353,6 +2352,7 @@
     "app/frontend/tests/e2e/frontend-baseline.spec.ts",
     "app/frontend/tests/e2e/touch-gestures.spec.ts",
     "app/frontend/tests/e2e/ui-standards.spec.ts",
+    "app/frontend/tests/unit/lighthouseLifecycle.spec.ts",
     "app/frontend/vite.config.ts"
   ],
   "breakpoints": [
@@ -3184,101 +3184,6 @@
       "match": "document.body"
     },
     {
-      "file": "app/frontend/src/test-harness/__tests__/interactionAudit.spec.ts",
-      "line": 23,
-      "match": "document.body"
-    },
-    {
-      "file": "app/frontend/src/test-harness/__tests__/interactionAudit.spec.ts",
-      "line": 28,
-      "match": "document.createElement"
-    },
-    {
-      "file": "app/frontend/src/test-harness/__tests__/interactionAudit.spec.ts",
-      "line": 30,
-      "match": "document.body"
-    },
-    {
-      "file": "app/frontend/src/test-harness/__tests__/interactionAudit.spec.ts",
-      "line": 43,
-      "match": "document.createElement"
-    },
-    {
-      "file": "app/frontend/src/test-harness/__tests__/interactionAudit.spec.ts",
-      "line": 44,
-      "match": "document.createElement"
-    },
-    {
-      "file": "app/frontend/src/test-harness/__tests__/interactionAudit.spec.ts",
-      "line": 45,
-      "match": "document.body"
-    },
-    {
-      "file": "app/frontend/src/test-harness/__tests__/interactionAudit.spec.ts",
-      "line": 55,
-      "match": "document.createElement"
-    },
-    {
-      "file": "app/frontend/src/test-harness/__tests__/interactionAudit.spec.ts",
-      "line": 56,
-      "match": "document.createElement"
-    },
-    {
-      "file": "app/frontend/src/test-harness/__tests__/interactionAudit.spec.ts",
-      "line": 57,
-      "match": "document.body"
-    },
-    {
-      "file": "app/frontend/src/test-harness/__tests__/interactionAudit.spec.ts",
-      "line": 67,
-      "match": "document.createElement"
-    },
-    {
-      "file": "app/frontend/src/test-harness/__tests__/interactionAudit.spec.ts",
-      "line": 69,
-      "match": "document.createElement"
-    },
-    {
-      "file": "app/frontend/src/test-harness/__tests__/interactionAudit.spec.ts",
-      "line": 71,
-      "match": "document.body"
-    },
-    {
-      "file": "app/frontend/src/test-harness/__tests__/interactionAudit.spec.ts",
-      "line": 82,
-      "match": "document.createElement"
-    },
-    {
-      "file": "app/frontend/src/test-harness/__tests__/interactionAudit.spec.ts",
-      "line": 83,
-      "match": "document.createElement"
-    },
-    {
-      "file": "app/frontend/src/test-harness/__tests__/interactionAudit.spec.ts",
-      "line": 86,
-      "match": "document.body"
-    },
-    {
-      "file": "app/frontend/src/test-harness/__tests__/interactionAudit.spec.ts",
-      "line": 96,
-      "match": "document.createElement"
-    },
-    {
-      "file": "app/frontend/src/test-harness/__tests__/interactionAudit.spec.ts",
-      "line": 98,
-      "match": "document.body"
-    },
-    {
-      "file": "app/frontend/src/test-harness/__tests__/interactionAudit.spec.ts",
-      "line": 108,
-      "match": "document.createElement"
-    },
-    {
-      "file": "app/frontend/src/test-harness/__tests__/interactionAudit.spec.ts",
-      "line": 110,
-      "match": "document.body"
-    },
-    {
       "file": "app/frontend/src/views/LivePlayerView.vue",
       "line": 369,
       "match": "document.createElement"
@@ -3467,6 +3372,101 @@
       "file": "app/frontend/tests/e2e/ui-standards.spec.ts",
       "line": 113,
       "match": "document.documentElement"
+    },
+    {
+      "file": "app/frontend/tests/unit/interactionAudit.spec.ts",
+      "line": 23,
+      "match": "document.body"
+    },
+    {
+      "file": "app/frontend/tests/unit/interactionAudit.spec.ts",
+      "line": 28,
+      "match": "document.createElement"
+    },
+    {
+      "file": "app/frontend/tests/unit/interactionAudit.spec.ts",
+      "line": 30,
+      "match": "document.body"
+    },
+    {
+      "file": "app/frontend/tests/unit/interactionAudit.spec.ts",
+      "line": 43,
+      "match": "document.createElement"
+    },
+    {
+      "file": "app/frontend/tests/unit/interactionAudit.spec.ts",
+      "line": 44,
+      "match": "document.createElement"
+    },
+    {
+      "file": "app/frontend/tests/unit/interactionAudit.spec.ts",
+      "line": 45,
+      "match": "document.body"
+    },
+    {
+      "file": "app/frontend/tests/unit/interactionAudit.spec.ts",
+      "line": 55,
+      "match": "document.createElement"
+    },
+    {
+      "file": "app/frontend/tests/unit/interactionAudit.spec.ts",
+      "line": 56,
+      "match": "document.createElement"
+    },
+    {
+      "file": "app/frontend/tests/unit/interactionAudit.spec.ts",
+      "line": 57,
+      "match": "document.body"
+    },
+    {
+      "file": "app/frontend/tests/unit/interactionAudit.spec.ts",
+      "line": 67,
+      "match": "document.createElement"
+    },
+    {
+      "file": "app/frontend/tests/unit/interactionAudit.spec.ts",
+      "line": 69,
+      "match": "document.createElement"
+    },
+    {
+      "file": "app/frontend/tests/unit/interactionAudit.spec.ts",
+      "line": 71,
+      "match": "document.body"
+    },
+    {
+      "file": "app/frontend/tests/unit/interactionAudit.spec.ts",
+      "line": 82,
+      "match": "document.createElement"
+    },
+    {
+      "file": "app/frontend/tests/unit/interactionAudit.spec.ts",
+      "line": 83,
+      "match": "document.createElement"
+    },
+    {
+      "file": "app/frontend/tests/unit/interactionAudit.spec.ts",
+      "line": 86,
+      "match": "document.body"
+    },
+    {
+      "file": "app/frontend/tests/unit/interactionAudit.spec.ts",
+      "line": 96,
+      "match": "document.createElement"
+    },
+    {
+      "file": "app/frontend/tests/unit/interactionAudit.spec.ts",
+      "line": 98,
+      "match": "document.body"
+    },
+    {
+      "file": "app/frontend/tests/unit/interactionAudit.spec.ts",
+      "line": 108,
+      "match": "document.createElement"
+    },
+    {
+      "file": "app/frontend/tests/unit/interactionAudit.spec.ts",
+      "line": 110,
+      "match": "document.body"
     }
   ],
   "moduleScopeMutableState": [

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { validateLighthouseChromePath } from '../../../scripts/lighthouseChromePath.mjs'
+import { validateLighthouseChromePath } from '../../scripts/lighthouseChromePath.mjs'
 
 describe('validateLighthouseChromePath', () => {
   it('explains how to supply a browser when the resolved executable is unavailable', async () => {

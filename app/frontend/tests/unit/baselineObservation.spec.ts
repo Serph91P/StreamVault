@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatBaselineStageFailure } from '../../../tests/audit/baselineObservation'
+import { formatBaselineStageFailure } from '../audit/baselineObservation'
 
 describe('formatBaselineStageFailure', () => {
   it('preserves the failing collection stage and error message', () => {

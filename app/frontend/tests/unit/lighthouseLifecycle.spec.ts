@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { collectWithIsolatedBrowsers } from '../../../scripts/lighthouseLifecycle.mjs'
+import { collectWithIsolatedBrowsers } from '../../scripts/lighthouseLifecycle.mjs'
 
 type Browser = {
   id: string

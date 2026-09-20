@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { auditVisibleActions } from '../../../tests/audit/interactionAudit'
+import { auditVisibleActions } from '../audit/interactionAudit'
 
 function setRect(element: HTMLElement, rect: Partial<DOMRect>) {
   Object.defineProperty(element, 'getBoundingClientRect', {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { validateLighthouseScenario } from '../../../scripts/lighthouseScenarioValidation.mjs'
+import { validateLighthouseScenario } from '../../scripts/lighthouseScenarioValidation.mjs'
 
 describe('validateLighthouseScenario', () => {
   const scenario = {
