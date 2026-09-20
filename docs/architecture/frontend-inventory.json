@@ -3068,7 +3068,7 @@
     {
       "file": "app/frontend/src/composables/__tests__/useModal.spec.ts",
       "line": 73,
-      "match": "document.createElement"
+      "match": "document.body"
     },
     {
       "file": "app/frontend/src/composables/__tests__/useModal.spec.ts",
@@ -3077,37 +3077,32 @@
     },
     {
       "file": "app/frontend/src/composables/__tests__/useModal.spec.ts",
-      "line": 76,
+      "line": 84,
       "match": "document.body"
     },
     {
       "file": "app/frontend/src/composables/__tests__/useModal.spec.ts",
-      "line": 77,
+      "line": 97,
+      "match": "document.createElement"
+    },
+    {
+      "file": "app/frontend/src/composables/__tests__/useModal.spec.ts",
+      "line": 98,
       "match": "document.body"
     },
     {
       "file": "app/frontend/src/composables/__tests__/useModal.spec.ts",
-      "line": 93,
+      "line": 100,
       "match": "document.body"
     },
     {
-      "file": "app/frontend/src/composables/useModal.ts",
-      "line": 41,
+      "file": "app/frontend/src/composables/__tests__/useModal.spec.ts",
+      "line": 101,
       "match": "document.body"
     },
     {
-      "file": "app/frontend/src/composables/useModal.ts",
-      "line": 42,
-      "match": "document.body"
-    },
-    {
-      "file": "app/frontend/src/composables/useModal.ts",
-      "line": 43,
-      "match": "document.body"
-    },
-    {
-      "file": "app/frontend/src/composables/useModal.ts",
-      "line": 44,
+      "file": "app/frontend/src/composables/__tests__/useModal.spec.ts",
+      "line": 117,
       "match": "document.body"
     },
     {
@@ -3132,22 +3127,42 @@
     },
     {
       "file": "app/frontend/src/composables/useModal.ts",
-      "line": 56,
+      "line": 51,
       "match": "document.body"
     },
     {
       "file": "app/frontend/src/composables/useModal.ts",
-      "line": 57,
+      "line": 52,
       "match": "document.body"
     },
     {
       "file": "app/frontend/src/composables/useModal.ts",
-      "line": 58,
+      "line": 53,
       "match": "document.body"
     },
     {
       "file": "app/frontend/src/composables/useModal.ts",
-      "line": 59,
+      "line": 54,
+      "match": "document.body"
+    },
+    {
+      "file": "app/frontend/src/composables/useModal.ts",
+      "line": 61,
+      "match": "document.body"
+    },
+    {
+      "file": "app/frontend/src/composables/useModal.ts",
+      "line": 62,
+      "match": "document.body"
+    },
+    {
+      "file": "app/frontend/src/composables/useModal.ts",
+      "line": 63,
+      "match": "document.body"
+    },
+    {
+      "file": "app/frontend/src/composables/useModal.ts",
+      "line": 64,
       "match": "document.body"
     },
     {
@@ -3549,7 +3564,7 @@
     },
     {
       "file": "app/frontend/src/composables/useModal.ts",
-      "line": 65,
+      "line": 70,
       "match": "const FOCUSABLE_SELECTOR = ["
     },
     {
@@ -3946,12 +3961,12 @@
     },
     {
       "file": "app/frontend/src/composables/useModal.ts",
-      "line": 126,
+      "line": 134,
       "match": "addEventListener("
     },
     {
       "file": "app/frontend/src/composables/useModal.ts",
-      "line": 132,
+      "line": 152,
       "match": "removeEventListener("
     },
     {
@@ -10870,7 +10885,7 @@
     "players": 8,
     "pwa": 54,
     "breakpoints": 95,
-    "directDomMutations": 127,
+    "directDomMutations": 130,
     "moduleScopeMutableState": 55,
     "listenersAndTimers": 113,
     "anyTypes": 125,

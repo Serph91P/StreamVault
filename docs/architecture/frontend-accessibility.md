@@ -22,6 +22,8 @@ WCAG 2.2 AA is the minimum. Automated axe is necessary but cannot establish keyb
 
 The browser audit targets buttons, links, form controls, summary, relevant ARIA roles including slider, tabindex candidates and rendered geometry. It deliberately neither force-clicks nor accepts broad selector exclusions.
 
+The focused `useModal` unit suite also proves the shared overlay lifecycle: nested overlays retain the body lock until the final close, Escape reaches only the topmost entry and focus restores through the stack, while exactly one document keydown listener is installed and removed for the complete stack lifecycle. This is unit evidence only, not browser or native-platform acceptance.
+
 ## Accessibility requirement ledger
 
 | Prompt section/lines | Current evidence | Required phase/test | Status |

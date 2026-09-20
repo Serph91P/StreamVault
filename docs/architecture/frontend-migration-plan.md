@@ -10,6 +10,10 @@ This branch delivers P0 inventory, measured build/gate baseline and executable r
 2. Responsive/token owner: one generated responsive source, parity tests, behavior-preserving aliases.
 3. Shared UI owner: evolve useModal and primitives with one overlay manager and focus/lock invariants.
 
+### Phase 3 overlay lifecycle owner (implemented)
+
+`useModal` remains the compatibility surface for existing modal consumers. Its module-level stack now owns one document `keydown` listener for all active overlays: only the top entry receives Escape/Tab handling, and the listener, body lock and saved focus lifecycle end only after the final entry closes or unmounts. Existing `open`, `close` and `isOpen` behavior remains unchanged; BaseModal needs no parallel manager.
+
 ### Phase 2 responsive/token foundation (implemented)
 
 `app/frontend/src/styles/responsive.tokens.json` is the sole responsive owner. `npm run generate:responsive` deterministically emits the Sass breakpoint map (`src/styles/_responsive.generated.scss`) and typed runtime queries (`src/composables/layoutQueries.generated.ts`); `npm run check:responsive` fails when either generated output is stale. `_variables.scss` retains `$breakpoints` only as a behavior-preserving alias for existing Sass consumers.

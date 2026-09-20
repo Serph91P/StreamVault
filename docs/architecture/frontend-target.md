@@ -21,7 +21,7 @@ Views compose features. Shared primitives do not import API clients, stores or r
 | --- | --- | --- |
 | PWA manifest and registration | VitePWA | generated manifest and worker output are authoritative |
 | responsive values | `responsive.json` then generated TS/Sass | retain current 768 player and 1024 shell behavior while migrating aliases |
-| overlays | one app-provided overlay manager evolving `useModal` | preserve existing nested lock/Escape tests, no parallel stack |
+| overlays | one app-provided overlay manager evolving `useModal` | one document keydown owner for the stack; preserve nested lock, Escape and focus restoration semantics without a parallel stack |
 | realtime/session | one WebSocket/session authority | normalize legacy forms at the boundary |
 | shell navigation | app shell | shared UI does not depend on router |
 | touch contract | rendered audit plus tokens | actual target and hit testing, not CSS literal replacement |

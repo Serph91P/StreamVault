@@ -29,9 +29,14 @@ let savedScrollY = 0
 let savedBodyStyles: { overflow: string; position: string; top: string; width: string } | null = null
 interface ModalStackEntry {
   restoreTarget: HTMLElement | null
+  onKeydown?: (event: KeyboardEvent) => void
 }
 
 const modalStack: ModalStackEntry[] = []
+
+function handleOverlayKeydown(event: KeyboardEvent) {
+  modalStack[modalStack.length - 1]?.onKeydown?.(event)
+}
 
 function lockBody() {
   lockCount += 1
@@ -117,19 +122,21 @@ export function useModal(
     }
   }
 
+  stackEntry.onKeydown = handleKeydown
+
   const open = () => {
     if (isOpen.value) return
     isOpen.value = true
     stackEntry.restoreTarget = document.activeElement as HTMLElement | null
+    const isFirstOverlay = modalStack.length === 0
     modalStack.push(stackEntry)
     lockBody()
-    document.addEventListener('keydown', handleKeydown)
+    if (isFirstOverlay) document.addEventListener('keydown', handleOverlayKeydown)
   }
 
   const close = (notify = true) => {
     if (!isOpen.value) return
     isOpen.value = false
-    document.removeEventListener('keydown', handleKeydown)
     const stackIndex = modalStack.lastIndexOf(stackEntry)
     const wasTopmost = stackIndex !== -1 && stackIndex === modalStack.length - 1
     const nextModal = stackIndex === -1 ? undefined : modalStack[stackIndex + 1]
@@ -142,6 +149,7 @@ export function useModal(
     }
     if (stackIndex !== -1) modalStack.splice(stackIndex, 1)
     unlockBody()
+    if (modalStack.length === 0) document.removeEventListener('keydown', handleOverlayKeydown)
     if (wasTopmost && stackEntry.restoreTarget?.isConnected) {
       stackEntry.restoreTarget.focus()
     }

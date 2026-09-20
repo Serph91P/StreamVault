@@ -69,6 +69,30 @@ describe('useModal', () => {
     second.unmount()
   })
 
+  it('owns one document listener for the full overlay stack lifecycle', () => {
+    const first = mount(ModalHarness, { props: { name: 'first' }, attachTo: document.body })
+    const second = mount(ModalHarness, { props: { name: 'second' }, attachTo: document.body })
+    const firstVm = first.vm as unknown as ModalHarnessVm
+    const secondVm = second.vm as unknown as ModalHarnessVm
+    const addListener = vi.spyOn(document, 'addEventListener')
+    const removeListener = vi.spyOn(document, 'removeEventListener')
+
+    firstVm.open()
+    secondVm.open()
+    secondVm.close()
+
+    expect(document.body.style.overflow).toBe('hidden')
+    expect(removeListener).not.toHaveBeenCalled()
+
+    firstVm.close()
+    expect(addListener).toHaveBeenCalledTimes(1)
+    expect(addListener).toHaveBeenCalledWith('keydown', expect.any(Function))
+    expect(removeListener).toHaveBeenCalledTimes(1)
+    expect(removeListener).toHaveBeenCalledWith('keydown', expect.any(Function))
+    first.unmount()
+    second.unmount()
+  })
+
   it('lets Escape close only the topmost modal and restores focus in stack order', async () => {
     const trigger = document.createElement('button')
     document.body.append(trigger)
