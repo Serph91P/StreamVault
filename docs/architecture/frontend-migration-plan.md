@@ -9,6 +9,12 @@ This branch delivers P0 inventory, measured build/gate baseline and executable r
 1. P0/P1: inventory, baseline reports, deterministic mock harness, rendered target audit, narrow exception schema.
 2. Responsive/token owner: one generated responsive source, parity tests, behavior-preserving aliases.
 3. Shared UI owner: evolve useModal and primitives with one overlay manager and focus/lock invariants.
+
+### Phase 2 responsive/token foundation (implemented)
+
+`app/frontend/src/styles/responsive.tokens.json` is the sole responsive owner. `npm run generate:responsive` deterministically emits the Sass breakpoint map (`src/styles/_responsive.generated.scss`) and typed runtime queries (`src/composables/layoutQueries.generated.ts`); `npm run check:responsive` fails when either generated output is stale. `_variables.scss` retains `$breakpoints` only as a behavior-preserving alias for existing Sass consumers.
+
+`useLayoutQuery(name)` exposes the generated, typed query names and unsubscribes with its Vue scope. The migrated shell owner preserves the existing `(max-width: 1023.98px)` navigation boundary, and the player query encodes the existing `(max-width: 767px)` boundary. Existing route/component media queries, visual/layout migration, token consolidation beyond safe aliases, browser/native acceptance and API/PWA work remain untouched by this foundation.
 4. Shell/forms/data owners: route-specific mobile layouts, safe areas, responsive data views and validation.
 5. API/realtime/PWA owner: typed compatibility boundary, lifecycle ownership, manifest/worker consolidation.
 6. Player owner: local media fixture, cleanup/error/keyboard landscape contracts.

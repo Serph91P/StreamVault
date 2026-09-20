@@ -1,0 +1,15 @@
+{
+  "breakpoints": {
+    "xs": 375,
+    "sm": 640,
+    "md": 768,
+    "lg": 1024,
+    "xl": 1200,
+    "2xl": 1440,
+    "3xl": 1920
+  },
+  "queries": {
+    "player": "(max-width: 767px)",
+    "shell": "(max-width: 1023.98px)"
+  }
+}
