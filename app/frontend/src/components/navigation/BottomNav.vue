@@ -1,5 +1,5 @@
 <template>
-  <nav v-show="isMobile" class="bottom-nav" aria-label="Primary mobile navigation">
+  <nav v-if="isMobile" class="bottom-nav" aria-label="Primary mobile navigation">
     <div
       v-if="showMobileConnectivityStatus"
       class="mobile-connectivity-pill"

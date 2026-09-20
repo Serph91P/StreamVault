@@ -79,6 +79,7 @@
     "app/frontend/src/components/navigation/BottomNav.vue",
     "app/frontend/src/components/navigation/NavigationWrapper.vue",
     "app/frontend/src/components/navigation/SidebarNav.vue",
+    "app/frontend/src/components/navigation/__tests__/NavigationWrapper.responsive.spec.ts",
     "app/frontend/src/components/navigation/__tests__/NavigationWrapper.spec.ts",
     "app/frontend/src/components/notifications/NotificationFilters.vue",
     "app/frontend/src/components/notifications/NotificationItem.vue",
@@ -2078,6 +2079,7 @@
     "app/frontend/src/components/cards/VideoCard.vue",
     "app/frontend/src/components/cards/__tests__/StreamerCard.spec.ts",
     "app/frontend/src/components/icons/IconSprite.vue",
+    "app/frontend/src/components/navigation/__tests__/NavigationWrapper.responsive.spec.ts",
     "app/frontend/src/components/notifications/NotificationFilters.vue",
     "app/frontend/src/components/settings/FavoritesSettingsPanel.vue",
     "app/frontend/src/components/settings/LoggingPanel.vue",
@@ -2153,6 +2155,7 @@
     "app/frontend/src/components/cards/VideoCard.vue",
     "app/frontend/src/components/cards/__tests__/StreamCard.spec.ts",
     "app/frontend/src/components/navigation/BottomNav.vue",
+    "app/frontend/src/components/navigation/__tests__/NavigationWrapper.responsive.spec.ts",
     "app/frontend/src/components/notifications/NotificationItem.vue",
     "app/frontend/src/components/settings/ApiKeysPanel.vue",
     "app/frontend/src/components/settings/FavoritesSettingsPanel.vue",
@@ -2220,6 +2223,7 @@
     "app/frontend/src/components/icons/IconSprite.vue",
     "app/frontend/src/components/navigation/BottomNav.vue",
     "app/frontend/src/components/navigation/NavigationWrapper.vue",
+    "app/frontend/src/components/navigation/__tests__/NavigationWrapper.responsive.spec.ts",
     "app/frontend/src/components/notifications/NotificationFilters.vue",
     "app/frontend/src/components/notifications/NotificationItem.vue",
     "app/frontend/src/components/notifications/NotificationState.vue",
@@ -2326,6 +2330,7 @@
     "app/frontend/src/components/cards/StreamerCard.vue",
     "app/frontend/src/components/cards/__tests__/StreamerCard.spec.ts",
     "app/frontend/src/components/navigation/NavigationWrapper.vue",
+    "app/frontend/src/components/navigation/__tests__/NavigationWrapper.responsive.spec.ts",
     "app/frontend/src/components/settings/NotificationSettingsPanel.vue",
     "app/frontend/src/components/settings/PWAPanel.vue",
     "app/frontend/src/components/settings/TwitchConnectionPanel.vue",
@@ -3003,6 +3008,46 @@
     {
       "file": "app/frontend/src/components/cards/__tests__/StreamerCard.spec.ts",
       "line": 135,
+      "match": "document.body"
+    },
+    {
+      "file": "app/frontend/src/components/navigation/__tests__/NavigationWrapper.responsive.spec.ts",
+      "line": 74,
+      "match": "document.body"
+    },
+    {
+      "file": "app/frontend/src/components/navigation/__tests__/NavigationWrapper.responsive.spec.ts",
+      "line": 95,
+      "match": "document.body"
+    },
+    {
+      "file": "app/frontend/src/components/navigation/__tests__/NavigationWrapper.responsive.spec.ts",
+      "line": 96,
+      "match": "document.body"
+    },
+    {
+      "file": "app/frontend/src/components/navigation/__tests__/NavigationWrapper.responsive.spec.ts",
+      "line": 136,
+      "match": "document.createElement"
+    },
+    {
+      "file": "app/frontend/src/components/navigation/__tests__/NavigationWrapper.responsive.spec.ts",
+      "line": 138,
+      "match": "document.body"
+    },
+    {
+      "file": "app/frontend/src/components/navigation/__tests__/NavigationWrapper.responsive.spec.ts",
+      "line": 141,
+      "match": "document.body"
+    },
+    {
+      "file": "app/frontend/src/components/navigation/__tests__/NavigationWrapper.responsive.spec.ts",
+      "line": 146,
+      "match": "document.body"
+    },
+    {
+      "file": "app/frontend/src/components/navigation/__tests__/NavigationWrapper.responsive.spec.ts",
+      "line": 155,
       "match": "document.body"
     },
     {
@@ -10871,21 +10916,21 @@
     "schemaVersion": 1,
     "generatedBy": "app/frontend/scripts/inventory-frontend.mjs",
     "sourceRoot": "app/frontend",
-    "frontendFiles": 190,
+    "frontendFiles": 191,
     "routes": 17,
     "navigationDestinations": 4,
     "apiCalls": 206,
     "websocketConsumers": 11,
     "storage": 2,
-    "overlays": 52,
+    "overlays": 53,
     "forms": 7,
     "tables": 6,
-    "destructiveActions": 50,
-    "states": 116,
+    "destructiveActions": 51,
+    "states": 117,
     "players": 8,
-    "pwa": 54,
+    "pwa": 55,
     "breakpoints": 95,
-    "directDomMutations": 130,
+    "directDomMutations": 138,
     "moduleScopeMutableState": 55,
     "listenersAndTimers": 113,
     "anyTypes": 125,
