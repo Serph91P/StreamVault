@@ -19,10 +19,11 @@
       </button>
     </div>
 
-    <button
+    <BaseLink
       v-for="tab in navigationTabs"
       :key="tab.route"
-      @click="handleTabClick(tab.route)"
+      :to="tab.route"
+      target-size="icon"
       :class="{ active: isActiveRoute(tab.route) }"
       class="nav-tab focus-ring-primary"
       :aria-label="tab.label"
@@ -38,7 +39,7 @@
 
       <!-- Badge (notifications, live count, etc.) -->
       <span v-if="tab.badge" class="nav-badge">{{ tab.badge }}</span>
-    </button>
+    </BaseLink>
   </nav>
 </template>
 
@@ -46,12 +47,12 @@
 import { computed } from 'vue'
 import { useNavigation } from '@/composables/useNavigation'
 import { useWebSocket } from '@/composables/useWebSocket'
+import BaseLink from '@/components/base/BaseLink.vue'
 
 const {
   navigationTabs,
   isMobile,
-  isActiveRoute,
-  navigateToTab
+  isActiveRoute
 } = useNavigation()
 const {
   connectionStatus,
@@ -88,14 +89,6 @@ const mobileConnectivityLabel = computed(() => {
   return 'Live updates paused'
 })
 
-const handleTabClick = (route: string) => {
-  // Haptic feedback
-  if ('vibrate' in navigator) {
-    navigator.vibrate(10)
-  }
-
-  navigateToTab(route)
-}
 </script>
 
 <style scoped lang="scss">

@@ -49,6 +49,7 @@
     "app/frontend/src/components/base/BaseDropdown.vue",
     "app/frontend/src/components/base/BaseIconButton.vue",
     "app/frontend/src/components/base/BaseInput.vue",
+    "app/frontend/src/components/base/BaseLink.vue",
     "app/frontend/src/components/base/BaseList.vue",
     "app/frontend/src/components/base/BaseModal.vue",
     "app/frontend/src/components/base/BasePanel.vue",
@@ -58,6 +59,7 @@
     "app/frontend/src/components/base/PageHeader.vue",
     "app/frontend/src/components/base/StatusBadge.vue",
     "app/frontend/src/components/base/__tests__/BaseButton.spec.ts",
+    "app/frontend/src/components/base/__tests__/BaseLink.spec.ts",
     "app/frontend/src/components/base/__tests__/BaseModal.spec.ts",
     "app/frontend/src/components/base/index.ts",
     "app/frontend/src/components/cards/GlassCard.vue",
@@ -79,6 +81,7 @@
     "app/frontend/src/components/navigation/BottomNav.vue",
     "app/frontend/src/components/navigation/NavigationWrapper.vue",
     "app/frontend/src/components/navigation/SidebarNav.vue",
+    "app/frontend/src/components/navigation/__tests__/BottomNav.spec.ts",
     "app/frontend/src/components/navigation/__tests__/NavigationWrapper.responsive.spec.ts",
     "app/frontend/src/components/navigation/__tests__/NavigationWrapper.spec.ts",
     "app/frontend/src/components/notifications/NotificationFilters.vue",
@@ -301,6 +304,7 @@
   ],
   "navigationDestinations": [
     "/streamers",
+    "to",
     "/",
     "/auth/login",
     "/add-streamer"
@@ -2147,7 +2151,6 @@
     "app/frontend/src/components/admin/AdminPanel.vue",
     "app/frontend/src/components/admin/BackgroundQueueAdmin.vue",
     "app/frontend/src/components/admin/PostProcessingManagement.vue",
-    "app/frontend/src/components/base/BaseButton.vue",
     "app/frontend/src/components/base/BaseSheet.vue",
     "app/frontend/src/components/cards/StatusCard.vue",
     "app/frontend/src/components/cards/StreamCard.vue",
@@ -2223,6 +2226,7 @@
     "app/frontend/src/components/icons/IconSprite.vue",
     "app/frontend/src/components/navigation/BottomNav.vue",
     "app/frontend/src/components/navigation/NavigationWrapper.vue",
+    "app/frontend/src/components/navigation/__tests__/BottomNav.spec.ts",
     "app/frontend/src/components/navigation/__tests__/NavigationWrapper.responsive.spec.ts",
     "app/frontend/src/components/notifications/NotificationFilters.vue",
     "app/frontend/src/components/notifications/NotificationItem.vue",
@@ -5711,11 +5715,6 @@
       "match": "@click="
     },
     {
-      "file": "app/frontend/src/components/base/BaseButton.vue",
-      "line": 81,
-      "match": "@click="
-    },
-    {
       "file": "app/frontend/src/components/base/BaseIconButton.vue",
       "line": 24,
       "match": "@click="
@@ -5819,11 +5818,6 @@
       "file": "app/frontend/src/components/navigation/BottomNav.vue",
       "line": 16,
       "match": "@click.stop="
-    },
-    {
-      "file": "app/frontend/src/components/navigation/BottomNav.vue",
-      "line": 25,
-      "match": "@click="
     },
     {
       "file": "app/frontend/src/components/navigation/SidebarNav.vue",
@@ -6782,7 +6776,7 @@
     },
     {
       "file": "app/frontend/src/components/navigation/BottomNav.vue",
-      "line": 231,
+      "line": 224,
       "match": "transition: all"
     },
     {
@@ -8051,32 +8045,32 @@
     },
     {
       "file": "app/frontend/src/components/navigation/BottomNav.vue",
-      "line": 166,
+      "line": 159,
       "match": "width: 8px"
     },
     {
       "file": "app/frontend/src/components/navigation/BottomNav.vue",
-      "line": 167,
+      "line": 160,
       "match": "height: 8px"
     },
     {
       "file": "app/frontend/src/components/navigation/BottomNav.vue",
-      "line": 256,
+      "line": 249,
       "match": "width: 22px"
     },
     {
       "file": "app/frontend/src/components/navigation/BottomNav.vue",
-      "line": 257,
+      "line": 250,
       "match": "height: 22px"
     },
     {
       "file": "app/frontend/src/components/navigation/BottomNav.vue",
-      "line": 279,
+      "line": 272,
       "match": "min-width: 18px"
     },
     {
       "file": "app/frontend/src/components/navigation/BottomNav.vue",
-      "line": 280,
+      "line": 273,
       "match": "height: 18px"
     },
     {
@@ -10916,17 +10910,17 @@
     "schemaVersion": 1,
     "generatedBy": "app/frontend/scripts/inventory-frontend.mjs",
     "sourceRoot": "app/frontend",
-    "frontendFiles": 191,
+    "frontendFiles": 194,
     "routes": 17,
-    "navigationDestinations": 4,
+    "navigationDestinations": 5,
     "apiCalls": 206,
     "websocketConsumers": 11,
     "storage": 2,
     "overlays": 53,
     "forms": 7,
     "tables": 6,
-    "destructiveActions": 51,
-    "states": 117,
+    "destructiveActions": 50,
+    "states": 118,
     "players": 8,
     "pwa": 55,
     "breakpoints": 95,
@@ -10935,7 +10929,7 @@
     "listenersAndTimers": 113,
     "anyTypes": 125,
     "nonsemanticActions": 19,
-    "clickSemantics": 262,
+    "clickSemantics": 260,
     "nativeDialogs": 52,
     "vHtml": 0,
     "transitionAll": 90,
