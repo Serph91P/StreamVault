@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from collections.abc import Callable
 from typing import Generator
 
-from fastapi import Depends, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from app.database import SessionLocal
@@ -16,6 +16,11 @@ logger = logging.getLogger("streamvault")
 websocket_manager = ConnectionManager()
 event_registry = None
 recording_manager = None
+
+
+def get_lifespan_service(app: FastAPI, provider: Callable):
+    """Resolve a factory-provided service without invoking it eagerly."""
+    return app.dependency_overrides.get(provider, provider)
 
 
 @dataclass(frozen=True)

@@ -1,3 +1,7 @@
+import asyncio
+import sys
+from types import SimpleNamespace
+
 import pytest
 
 
@@ -16,3 +20,149 @@ async def test_lifespan_fails_startup_when_database_migrations_fail(monkeypatch)
         RuntimeError, match="Database migrations did not complete successfully"
     ):
         await lifespan(None).__aenter__()
+
+
+@pytest.mark.asyncio
+async def test_lifespan_uses_factory_service_overrides_for_startup_and_shutdown(
+    monkeypatch,
+):
+    from app import dependencies
+    from app import lifespan as lifespan_module
+    from app.services.system.migration_service import MigrationService
+
+    calls = []
+
+    class RecordingManager:
+        async def reconcile_leases(self):
+            calls.append("reconcile")
+            return 0
+
+        async def shutdown(self, timeout):
+            calls.append(("recording-shutdown", timeout))
+
+    class EventRegistry:
+        eventsub = None
+
+        async def initialize_eventsub(self):
+            calls.append("eventsub-initialize")
+
+    async def record(name):
+        calls.append(name)
+
+    class CompletedTask:
+        def done(self):
+            return True
+
+        def cancel(self):
+            calls.append("task-cancel")
+
+        def __await__(self):
+            return asyncio.sleep(0).__await__()
+
+    async def no_sleep(_):
+        return None
+
+    def complete_task(coroutine):
+        coroutine.close()
+        return CompletedTask()
+
+    async def event_registry_override():
+        return EventRegistry()
+
+    monkeypatch.setattr(
+        MigrationService, "run_safe_migrations", staticmethod(lambda: True)
+    )
+    monkeypatch.setattr(lifespan_module.asyncio, "sleep", no_sleep)
+    monkeypatch.setattr(lifespan_module.asyncio, "create_task", complete_task)
+    monkeypatch.setattr(
+        lifespan_module,
+        "image_sync_service",
+        SimpleNamespace(
+            start_sync_worker=lambda: record("image-sync-start"),
+            stop_sync_worker=lambda: record("image-sync-stop"),
+        ),
+    )
+    monkeypatch.setattr(
+        lifespan_module,
+        "websocket_broadcast_task",
+        SimpleNamespace(
+            start=lambda: record("websocket-start"),
+            stop=lambda: record("websocket-stop"),
+        ),
+    )
+    monkeypatch.setattr(
+        lifespan_module,
+        "database_lifecycle",
+        SimpleNamespace(
+            sync_engine=object(),
+            adispose=lambda: record("database-dispose"),
+        ),
+    )
+    monkeypatch.setattr(
+        lifespan_module.models.Base.metadata,
+        "create_all",
+        lambda bind: calls.append(("create-all", bind)),
+    )
+    monkeypatch.setattr(
+        lifespan_module, "run_development_tests", lambda: record("dev-tests")
+    )
+
+    async def config_update():
+        return True
+
+    module_overrides = {
+        "app.services.migration.image_migration_service": SimpleNamespace(
+            image_migration_service=SimpleNamespace(
+                old_images_dir=SimpleNamespace(exists=lambda: False),
+                old_artwork_dir=SimpleNamespace(exists=lambda: False),
+            )
+        ),
+        "app.services.system.streamlink_config_service": SimpleNamespace(
+            streamlink_config_service=SimpleNamespace(
+                update_config_from_settings=config_update
+            )
+        ),
+        "app.services.images.image_refresh_service": SimpleNamespace(
+            image_refresh_service=SimpleNamespace(
+                check_and_refresh_missing_images=lambda: record("image-refresh")
+            )
+        ),
+        "app.services.system.logging_service": SimpleNamespace(
+            logging_service=SimpleNamespace(
+                _schedule_cleanup=lambda interval_hours: record("log-cleanup")
+            )
+        ),
+        "app.services.init.startup_init": SimpleNamespace(
+            initialize_background_services=lambda: record("background-init")
+        ),
+        "app.services.proxy.proxy_health_service": SimpleNamespace(
+            proxy_health_service=SimpleNamespace(
+                start=lambda: record("proxy-start"), stop=lambda: record("proxy-stop")
+            )
+        ),
+        "app.services.live_streaming_service": SimpleNamespace(
+            live_streaming_service=SimpleNamespace(stop=lambda: record("live-stop"))
+        ),
+        "app.services.background_queue_service": SimpleNamespace(
+            background_queue_service=SimpleNamespace(stop=lambda: record("queue-stop"))
+        ),
+    }
+    for module_name, module in module_overrides.items():
+        monkeypatch.setitem(sys.modules, module_name, module)
+
+    app = SimpleNamespace(
+        state=SimpleNamespace(),
+        dependency_overrides={
+            dependencies.get_recording_manager: RecordingManager,
+            dependencies.get_event_registry: event_registry_override,
+        },
+    )
+
+    async with lifespan_module.lifespan(app):
+        assert app.state.recording_manager.__class__ is RecordingManager
+
+    assert calls.index("reconcile") < calls.index("eventsub-initialize")
+    assert calls.index("websocket-stop") < calls.index("database-dispose")
+    assert any(
+        call[0] == "recording-shutdown" for call in calls if isinstance(call, tuple)
+    )
