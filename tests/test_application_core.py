@@ -185,7 +185,11 @@ def test_factory_keeps_router_and_middleware_order_of_asgi_export():
 
     def route_signature(application):
         return [
-            (type(route).__name__, getattr(route, "path", None), getattr(route, "name", None))
+            (
+                type(route).__name__,
+                getattr(route, "path", None),
+                getattr(route, "name", None),
+            )
             for route in application.routes
         ]
 
