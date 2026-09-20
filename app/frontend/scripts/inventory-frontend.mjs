@@ -57,6 +57,7 @@ const inventory = {
   listenersAndTimers: [],
   anyTypes: [],
   nonsemanticActions: [],
+  clickSemantics: [],
   nativeDialogs: [],
   vHtml: [],
   transitionAll: [],
@@ -92,6 +93,7 @@ for (const [path, content] of source) {
   locations(path, content, /(?:addEventListener|removeEventListener|setInterval|setTimeout|clearInterval|clearTimeout)\s*\(/g, inventory.listenersAndTimers)
   locations(path, content, /:\s*any(?:\[\])?\b|as\s+any\b/g, inventory.anyTypes)
   locations(path, content, /<(?:div|span|li)[^>]*@click/g, inventory.nonsemanticActions)
+  locations(path, content, /@click(?:\.[A-Za-z-]+)*\s*=/g, inventory.clickSemantics)
   locations(path, content, /\b(?:alert|confirm|prompt)\s*\(/g, inventory.nativeDialogs)
   locations(path, content, /v-html\s*=/g, inventory.vHtml)
   locations(path, content, /transition\s*:\s*all\b/g, inventory.transitionAll)

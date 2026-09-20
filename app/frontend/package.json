@@ -13,6 +13,7 @@
     "type-check": "vue-tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json",
     "lint:check": "eslint . --max-warnings 167",
     "test:build-output": "node scripts/check-build-output.mjs",
+    "inventory": "node scripts/inventory-frontend.mjs",
     "test:unit": "vitest run",
     "test:e2e": "playwright test",
     "test:baseline": "playwright test tests/e2e/frontend-baseline.spec.ts",
