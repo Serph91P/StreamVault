@@ -44,13 +44,13 @@ async function expectDialogLifecycle(page: Page, trigger: Locator) {
   expect(await page.evaluate(() => document.body.style.overflow)).toBe('hidden')
 
   const controls = dialog.locator('button:not([disabled]):visible, a[href]:visible, input:not([disabled]):visible, select:not([disabled]):visible, textarea:not([disabled]):visible')
-  const count = await controls.count()
+  // Keep the boundary locator live: notification controls can appear while the panel hydrates.
   await controls.last().focus()
   await page.keyboard.press('Tab')
   await expect(controls.first()).toBeFocused()
   await controls.first().focus()
   await page.keyboard.press('Shift+Tab')
-  await expect(controls.nth(count - 1)).toBeFocused()
+  await expect(controls.last()).toBeFocused()
 
   await page.keyboard.press('Escape')
   await expect(dialog).toBeHidden()
