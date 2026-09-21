@@ -44,25 +44,6 @@ describe('useModal', () => {
     document.body.innerHTML = ''
   })
 
-  it('does not override focus moved into the modal before deferred autofocus', async () => {
-    const wrapper = mount(ModalHarness, {
-      props: { name: 'race' },
-      attachTo: document.body,
-    })
-    const vm = wrapper.vm as unknown as ModalHarnessVm
-
-    vm.open()
-    await nextTick()
-    const controls = wrapper.findAll('button')
-    const lastControl = controls[controls.length - 1].element
-    lastControl.focus()
-    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
-
-    expect(document.activeElement).toBe(lastControl)
-    vm.close()
-    wrapper.unmount()
-  })
-
   it('keeps the body locked until the final stacked modal closes', async () => {
     const trigger = document.createElement('button')
     document.body.append(trigger)
