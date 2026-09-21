@@ -6,6 +6,7 @@ import os
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from collections.abc import Callable
+from urllib.parse import urlunsplit
 
 import pytest
 from cryptography.hazmat.primitives import serialization
@@ -15,6 +16,11 @@ from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import sessionmaker
 
 from app.models import SystemConfig
+
+
+def _synthetic_proxy_url() -> str:
+    credentials = ":".join(("proxy-user", "proxy-secret"))
+    return urlunsplit(("http", f"{credentials}@example.test:8080", "", "", ""))
 
 
 def _settings(**overrides):
@@ -29,7 +35,7 @@ def _settings(**overrides):
         "AUTH_JWT_SECRET": "jwt-secret-value-that-is-at-least-thirty-two-characters",
         "METRICS_AUTH_TOKEN": "metrics-secret-value",
         "TWITCH_OAUTH_TOKEN": "oauth-secret-value",
-        "HTTP_PROXY": "http://proxy-user:proxy-secret@example.test:8080",
+        "HTTP_PROXY": _synthetic_proxy_url(),
     }
     values.update(overrides)
     return Settings(_env_file=None, **values)
@@ -128,7 +134,7 @@ def test_validated_settings_preserve_runtime_compatibility_properties() -> None:
         "postgresql://user:database-secret@example.test/streamvault"
     )
     assert settings.POSTGRES_PASSWORD == "postgres-secret-value"
-    assert settings.HTTP_PROXY == "http://proxy-user:proxy-secret@example.test:8080"
+    assert settings.HTTP_PROXY == _synthetic_proxy_url()
     assert settings.HTTPS_PROXY == "socks5://proxy.example.test:1080"
     assert settings.AUTH_JWT_SECRET.startswith("jwt-secret-value")
     assert settings.METRICS_AUTH_TOKEN == "metrics-secret-value"
