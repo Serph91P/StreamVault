@@ -346,6 +346,224 @@ async def test_idempotency_policy_and_global_budgets(tmp_path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_recording_auth_priority_queues_fenced_handoff_instead_of_failing(
+    tmp_path,
+) -> None:
+    engine, Session, clock, inspector, coordinator = make_coordinator(
+        tmp_path, "auth-priority-handoff.db"
+    )
+    owner = await coordinator.reserve(
+        channel_key="low-priority-owner",
+        auth_key=AUTHENTICATED_TWITCH_ACCOUNT,
+        purpose="RECORDING",
+        recording_id=10,
+        auth_priority=0,
+        anonymous_available=True,
+        prefer_authenticated=True,
+    )
+    owner = await coordinator.activate(
+        channel_key=owner.channel_key,
+        generation=owner.generation,
+        process_pid=301,
+        process_group_id=301,
+        process_started_at=clock.utcnow(),
+        process_start_fingerprint="birth-301",
+    )
+    inspector.alive_fingerprints.add("birth-301")
+
+    preferred = await coordinator.reserve(
+        channel_key="high-priority-requester",
+        auth_key=AUTHENTICATED_TWITCH_ACCOUNT,
+        purpose="RECORDING",
+        recording_id=11,
+        auth_priority=100,
+        anonymous_available=True,
+        prefer_authenticated=True,
+    )
+
+    assert preferred.auth_key is None
+    assert preferred.auth_requested is True
+    assert preferred.handoff_reason == "awaiting_higher_priority_handoff"
+    preferred = await coordinator.activate(
+        channel_key=preferred.channel_key,
+        generation=preferred.generation,
+        process_pid=303,
+        process_group_id=303,
+        process_started_at=clock.utcnow(),
+        process_start_fingerprint="birth-303-anonymous",
+    )
+    inspector.alive_fingerprints.add("birth-303-anonymous")
+    with Session() as db:
+        persisted_owner = (
+            db.query(TwitchUpstreamLease).filter_by(channel_key=owner.channel_key).one()
+        )
+        assert persisted_owner.handoff_target_channel == preferred.channel_key
+        assert persisted_owner.handoff_reason == "higher_priority_recording"
+
+    second_instance = TwitchUpstreamCoordinator(
+        Session,
+        utc_clock=clock.utcnow,
+        monotonic_clock=clock.monotonic,
+        process_inspector=inspector,
+    )
+    transition = await second_instance.begin_auth_transition(
+        channel_key=owner.channel_key,
+        generation=owner.generation,
+    )
+    assert transition.action == "demote"
+    assert transition.reservation.generation == owner.generation + 1
+    demoted = await second_instance.handoff_rotation(
+        channel_key=owner.channel_key,
+        generation=transition.reservation.generation,
+        process_pid=302,
+        process_group_id=302,
+        process_started_at=clock.utcnow(),
+        process_start_fingerprint="birth-302",
+        auth_key=None,
+    )
+    assert demoted.auth_key is None
+
+    promotion = await second_instance.begin_auth_transition(
+        channel_key=preferred.channel_key,
+        generation=preferred.generation,
+    )
+    assert promotion.action == "promote"
+    promoted = await second_instance.handoff_rotation(
+        channel_key=preferred.channel_key,
+        generation=promotion.reservation.generation,
+        process_pid=303,
+        process_group_id=303,
+        process_started_at=clock.utcnow(),
+        process_start_fingerprint="birth-303",
+        auth_key=AUTHENTICATED_TWITCH_ACCOUNT,
+    )
+    assert promoted.auth_key == AUTHENTICATED_TWITCH_ACCOUNT
+    assert promoted.auth_requested is False
+
+    with pytest.raises(PermissionError):
+        await coordinator.begin_auth_transition(
+            channel_key=owner.channel_key,
+            generation=owner.generation,
+        )
+    engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_equal_or_lower_priority_starts_anonymous_without_owner_churn(
+    tmp_path,
+) -> None:
+    engine, Session, clock, inspector, coordinator = make_coordinator(
+        tmp_path, "auth-priority-stable.db"
+    )
+    owner = await coordinator.reserve(
+        channel_key="stable-owner",
+        auth_key=AUTHENTICATED_TWITCH_ACCOUNT,
+        purpose="RECORDING",
+        recording_id=20,
+        auth_priority=50,
+        anonymous_available=True,
+        prefer_authenticated=True,
+    )
+    owner = await coordinator.activate(
+        channel_key=owner.channel_key,
+        generation=owner.generation,
+        process_pid=401,
+        process_group_id=401,
+        process_started_at=clock.utcnow(),
+        process_start_fingerprint="birth-401",
+    )
+    inspector.alive_fingerprints.add("birth-401")
+
+    newcomer = await coordinator.reserve(
+        channel_key="equal-newcomer",
+        auth_key=AUTHENTICATED_TWITCH_ACCOUNT,
+        purpose="RECORDING",
+        recording_id=21,
+        auth_priority=50,
+        anonymous_available=True,
+        prefer_authenticated=True,
+    )
+
+    assert newcomer.auth_key is None
+    assert newcomer.handoff_reason == "authenticated_owner_stable"
+    newcomer = await coordinator.activate(
+        channel_key=newcomer.channel_key,
+        generation=newcomer.generation,
+        process_pid=402,
+        process_group_id=402,
+        process_started_at=clock.utcnow(),
+        process_start_fingerprint="birth-402",
+    )
+    inspector.alive_fingerprints.add("birth-402")
+    with Session() as db:
+        persisted_owner = (
+            db.query(TwitchUpstreamLease).filter_by(channel_key=owner.channel_key).one()
+        )
+        assert persisted_owner.handoff_target_channel is None
+    with pytest.raises(LookupError):
+        await coordinator.begin_auth_transition(
+            channel_key=newcomer.channel_key,
+            generation=newcomer.generation,
+        )
+    engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_priority_edit_requeues_active_anonymous_recording(tmp_path) -> None:
+    engine, Session, clock, inspector, coordinator = make_coordinator(
+        tmp_path, "auth-priority-edit.db"
+    )
+    owner = await coordinator.reserve(
+        channel_key="edit-owner",
+        auth_key=AUTHENTICATED_TWITCH_ACCOUNT,
+        purpose="RECORDING",
+        recording_id=30,
+        auth_priority=50,
+        anonymous_available=True,
+        prefer_authenticated=True,
+    )
+    owner = await coordinator.activate(
+        channel_key=owner.channel_key,
+        generation=owner.generation,
+        process_pid=501,
+        process_group_id=501,
+        process_started_at=clock.utcnow(),
+        process_start_fingerprint="birth-501",
+    )
+    inspector.alive_fingerprints.add("birth-501")
+    waiting = await coordinator.reserve(
+        channel_key="edit-waiting",
+        auth_key=AUTHENTICATED_TWITCH_ACCOUNT,
+        purpose="RECORDING",
+        recording_id=31,
+        auth_priority=0,
+        anonymous_available=True,
+        prefer_authenticated=True,
+    )
+    waiting = await coordinator.activate(
+        channel_key=waiting.channel_key,
+        generation=waiting.generation,
+        process_pid=502,
+        process_group_id=502,
+        process_started_at=clock.utcnow(),
+        process_start_fingerprint="birth-502",
+    )
+
+    await coordinator.update_auth_priority(
+        channel_key=waiting.channel_key,
+        generation=waiting.generation,
+        priority=100,
+    )
+
+    with Session() as db:
+        persisted_owner = (
+            db.query(TwitchUpstreamLease).filter_by(channel_key=owner.channel_key).one()
+        )
+        assert persisted_owner.handoff_target_channel == waiting.channel_key
+    engine.dispose()
+
+
+@pytest.mark.asyncio
 async def test_recording_and_live_collide_on_stable_channel(tmp_path) -> None:
     engine, _Session, _clock, _inspector, coordinator = make_coordinator(
         tmp_path, "mixed.db"

@@ -222,6 +222,70 @@ async def test_rotation_terminates_and_waits_before_starting_replacement() -> No
 
 
 @pytest.mark.asyncio
+async def test_auth_demotion_is_fenced_reaped_then_started_anonymously() -> None:
+    old_process = FakeProcess()
+    old_process.pid = 501
+    replacement = FakeProcess()
+    replacement.pid = 502
+    manager = make_manager(old_process)
+    segment_info = make_segment_info()
+    segment_info.update(
+        upstream_channel_key="owner-channel",
+        upstream_generation=1,
+        upstream_process_group_id=501,
+        upstream_process_start_fingerprint="birth-501",
+        auth_fallback_to_anonymous=False,
+    )
+    manager.long_stream_processes["stream_7"] = segment_info
+    events = []
+
+    class Coordinator:
+        async def assert_stop_authorized(self, **values):
+            events.append(("fenced", values["generation"]))
+
+        async def handoff_rotation(self, **values):
+            events.append(("handoff", values["auth_key"]))
+            return SimpleNamespace(
+                generation=values["generation"],
+                process_group_id=values["process_group_id"],
+                process_start_fingerprint="birth-502",
+            )
+
+    async def terminate(*_args, **_kwargs):
+        events.append(("reaped", old_process.pid))
+        old_process.returncode = -15
+        return True
+
+    async def start(_stream, _path, _quality, info):
+        events.append(("started", info["auth_fallback_to_anonymous"]))
+        manager.active_processes["stream_7"] = replacement
+        return replacement
+
+    manager.upstream_coordinator = Coordinator()
+    manager._terminate_process_group = terminate
+    manager._start_segment = start
+    transition = SimpleNamespace(
+        action="demote",
+        reservation=SimpleNamespace(generation=2),
+    )
+
+    assert await manager._rotate_segment(
+        SimpleNamespace(id=7),
+        segment_info,
+        "best",
+        auth_transition=transition,
+    )
+    assert events == [
+        ("fenced", 2),
+        ("reaped", 501),
+        ("started", True),
+        ("handoff", None),
+    ]
+    assert manager.active_processes["stream_7"] is replacement
+    assert segment_info["upstream_generation"] == 2
+
+
+@pytest.mark.asyncio
 async def test_rotation_kills_and_waits_after_graceful_timeout(monkeypatch) -> None:
     old_process = FakeProcess(release_on_terminate=False)
     manager = make_manager(old_process)

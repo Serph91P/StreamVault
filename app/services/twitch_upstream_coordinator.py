@@ -4,7 +4,7 @@ import os
 import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from typing import Callable, Optional
+from typing import Any, Callable, Optional
 
 import psutil
 from sqlalchemy import select
@@ -45,6 +45,19 @@ class TwitchUpstreamReservation:
     process_group_id: Optional[int] = None
     process_started_at: Optional[datetime] = None
     process_start_fingerprint: Optional[str] = None
+    auth_priority: int = 0
+    anonymous_available: bool = True
+    auth_requested: bool = False
+    handoff_target_channel: Optional[str] = None
+    handoff_action: Optional[str] = None
+    handoff_reason: Optional[str] = None
+    partial_recording_warning: bool = False
+
+
+@dataclass(frozen=True)
+class TwitchAuthTransition:
+    action: str
+    reservation: TwitchUpstreamReservation
 
 
 class TwitchUpstreamConflict(RuntimeError):
@@ -122,6 +135,9 @@ class TwitchUpstreamCoordinator:
         recording_id: Optional[int] = None,
         live_session_id: Optional[str] = None,
         expected_generation: Optional[int] = None,
+        auth_priority: int = 0,
+        anonymous_available: bool = True,
+        prefer_authenticated: bool = False,
     ) -> TwitchUpstreamReservation:
         return await asyncio.to_thread(
             self._reserve,
@@ -132,6 +148,9 @@ class TwitchUpstreamCoordinator:
             recording_id,
             live_session_id,
             expected_generation,
+            auth_priority,
+            anonymous_available,
+            prefer_authenticated,
         )
 
     async def activate(
@@ -172,6 +191,7 @@ class TwitchUpstreamCoordinator:
         process_started_at: Optional[datetime] = None,
         process_start_fingerprint: Optional[str] = None,
         purpose: str = "RECORDING",
+        auth_key: Any = Ellipsis,
     ) -> TwitchUpstreamReservation:
         return await asyncio.to_thread(
             self._handoff_rotation,
@@ -182,6 +202,21 @@ class TwitchUpstreamCoordinator:
             process_started_at,
             process_start_fingerprint,
             purpose,
+            auth_key,
+        )
+
+    async def begin_auth_transition(
+        self, *, channel_key: str, generation: int
+    ) -> TwitchAuthTransition:
+        return await asyncio.to_thread(
+            self._begin_auth_transition, channel_key, generation
+        )
+
+    async def update_auth_priority(
+        self, *, channel_key: str, generation: int, priority: int
+    ) -> TwitchUpstreamReservation:
+        return await asyncio.to_thread(
+            self._update_auth_priority, channel_key, generation, priority
         )
 
     async def release(
@@ -274,6 +309,9 @@ class TwitchUpstreamCoordinator:
         recording_id,
         live_session_id,
         expected_generation,
+        auth_priority,
+        anonymous_available,
+        prefer_authenticated,
     ):
         if not channel_key or len(channel_key) > 255:
             raise ValueError("channel_key must be a non-empty Twitch channel ID")
@@ -356,6 +394,8 @@ class TwitchUpstreamCoordinator:
                 .filter(TwitchUpstreamLease.state.in_(ACTIVE_STATES))
                 .count()
             )
+            handoff_reason = None
+            auth_requested = False
             if auth_key is not None:
                 authenticated_count = (
                     db.query(TwitchUpstreamLease)
@@ -366,11 +406,55 @@ class TwitchUpstreamCoordinator:
                     .count()
                 )
                 if authenticated_count >= self._authenticated_budget:
-                    self._conflict(
-                        "twitch_upstream_authenticated_budget_exhausted",
-                        "authenticated_budget_exhausted",
-                        channel_key,
-                    )
+                    if purpose in ("RECORDING", "RECOVERY") and prefer_authenticated:
+                        owner = (
+                            db.query(TwitchUpstreamLease)
+                            .filter(
+                                TwitchUpstreamLease.auth_key.is_not(None),
+                                TwitchUpstreamLease.state.in_(ACTIVE_STATES),
+                            )
+                            .order_by(TwitchUpstreamLease.id)
+                            .first()
+                        )
+                        auth_requested = True
+                        auth_key = None
+                        if (
+                            owner
+                            and owner.purpose in ("RECORDING", "RECOVERY")
+                            and owner.anonymous_available
+                            and auth_priority > owner.auth_priority
+                        ):
+                            current_target = None
+                            if owner.handoff_target_channel:
+                                current_target = (
+                                    db.query(TwitchUpstreamLease)
+                                    .filter(
+                                        TwitchUpstreamLease.channel_key
+                                        == owner.handoff_target_channel,
+                                        TwitchUpstreamLease.state.in_(ACTIVE_STATES),
+                                    )
+                                    .first()
+                                )
+                            if (
+                                current_target is None
+                                or auth_priority > current_target.auth_priority
+                            ):
+                                owner.handoff_target_channel = channel_key
+                                owner.handoff_reason = "higher_priority_recording"
+                                owner.handoff_requested_at = now
+                            handoff_reason = "awaiting_higher_priority_handoff"
+                        elif owner and owner.purpose == "LIVE":
+                            handoff_reason = "live_playback_owner_not_preemptible"
+                        elif owner and not owner.anonymous_available:
+                            handoff_reason = "owner_anonymous_unavailable"
+                        else:
+                            handoff_reason = "authenticated_owner_stable"
+                    else:
+                        self._conflict(
+                            "twitch_upstream_authenticated_budget_exhausted",
+                            "authenticated_budget_exhausted",
+                            channel_key,
+                        )
 
             settings = db.query(GlobalSettings).first()
             total_budget = settings.twitch_max_concurrent_upstreams if settings else 5
@@ -405,6 +489,14 @@ class TwitchUpstreamCoordinator:
                 lease.purpose = purpose
                 lease.state = state
                 lease.generation = generation
+            lease.auth_priority = auth_priority
+            lease.anonymous_available = anonymous_available
+            lease.auth_requested = auth_requested
+            lease.handoff_target_channel = None
+            lease.handoff_action = None
+            lease.handoff_reason = handoff_reason
+            lease.handoff_requested_at = now if handoff_reason else None
+            lease.partial_recording_warning = False
             lease.process_pid = None
             lease.process_group_id = None
             lease.process_started_at = None
@@ -523,6 +615,7 @@ class TwitchUpstreamCoordinator:
         process_started_at,
         process_start_fingerprint,
         purpose,
+        auth_key,
     ):
         if purpose not in ("RECORDING", "LIVE"):
             raise ValueError("rotation handoff purpose must be RECORDING or LIVE")
@@ -541,7 +634,118 @@ class TwitchUpstreamCoordinator:
             if lease.state != "ROTATING":
                 raise PermissionError("lease is not rotating")
             lease.purpose = purpose
+            if auth_key is not Ellipsis:
+                lease.auth_key = auth_key
+                if auth_key is not None:
+                    lease.auth_requested = False
+                lease.partial_recording_warning = True
+            lease.handoff_target_channel = None
+            lease.handoff_action = None
+            lease.handoff_reason = None
+            lease.handoff_requested_at = None
             self._set_active_identity(lease, identity, now)
+            db.commit()
+            return self._snapshot(lease)
+        except BaseException:
+            db.rollback()
+            raise
+        finally:
+            db.close()
+
+    def _begin_auth_transition(self, channel_key, generation):
+        now = self._utcnow()
+        db = self._session_factory()
+        try:
+            self._begin_guarded_transaction(db)
+            self._lock_guard(db, now)
+            lease = self._lease_for_generation(db, channel_key, generation)
+            if lease.state != "ACTIVE":
+                raise PermissionError("only an active lease may change authentication")
+            if lease.auth_key is not None and lease.handoff_target_channel:
+                action = "demote"
+            elif lease.auth_key is None and lease.auth_requested:
+                authenticated_count = (
+                    db.query(TwitchUpstreamLease)
+                    .filter(
+                        TwitchUpstreamLease.auth_key.is_not(None),
+                        TwitchUpstreamLease.state.in_(ACTIVE_STATES),
+                    )
+                    .count()
+                )
+                if authenticated_count >= self._authenticated_budget:
+                    raise LookupError("authenticated slot is not ready")
+                action = "promote"
+            else:
+                raise LookupError("no authentication transition is pending")
+            lease.generation += 1
+            lease.purpose = "ROTATION"
+            lease.state = "ROTATING"
+            lease.handoff_action = action
+            lease.heartbeat_at = now
+            lease.expires_at = now + self._lease_ttl
+            lease.updated_at = now
+            result = TwitchAuthTransition(action, self._snapshot(lease))
+            db.commit()
+            return result
+        except BaseException:
+            db.rollback()
+            raise
+        finally:
+            db.close()
+
+    def _update_auth_priority(self, channel_key, generation, priority):
+        if not -1000 <= priority <= 1000:
+            raise ValueError("auth priority must be between -1000 and 1000")
+        now = self._utcnow()
+        db = self._session_factory()
+        try:
+            self._begin_guarded_transaction(db)
+            self._lock_guard(db, now)
+            lease = self._lease_for_generation(db, channel_key, generation)
+            if lease.state not in ACTIVE_STATES:
+                raise PermissionError("lease is not active")
+            lease.auth_priority = priority
+            owner = (
+                db.query(TwitchUpstreamLease)
+                .filter(
+                    TwitchUpstreamLease.auth_key.is_not(None),
+                    TwitchUpstreamLease.state.in_(ACTIVE_STATES),
+                )
+                .order_by(TwitchUpstreamLease.id)
+                .first()
+            )
+            contenders = (
+                db.query(TwitchUpstreamLease)
+                .filter(
+                    TwitchUpstreamLease.auth_requested.is_(True),
+                    TwitchUpstreamLease.state.in_(ACTIVE_STATES),
+                )
+                .order_by(
+                    TwitchUpstreamLease.auth_priority.desc(),
+                    TwitchUpstreamLease.reserved_at,
+                    TwitchUpstreamLease.recording_id,
+                    TwitchUpstreamLease.channel_key,
+                )
+                .all()
+            )
+            requested = contenders[0] if contenders else None
+            if owner and requested:
+                if (
+                    owner.purpose in ("RECORDING", "RECOVERY")
+                    and owner.anonymous_available
+                    and requested.auth_priority > owner.auth_priority
+                ):
+                    owner.handoff_target_channel = requested.channel_key
+                    owner.handoff_reason = "higher_priority_recording"
+                    owner.handoff_requested_at = now
+                    requested.handoff_reason = "awaiting_higher_priority_handoff"
+                    requested.handoff_requested_at = now
+                elif owner.handoff_target_channel == requested.channel_key:
+                    owner.handoff_target_channel = None
+                    owner.handoff_reason = None
+                    owner.handoff_requested_at = None
+                    requested.handoff_reason = "authenticated_owner_stable"
+            lease.updated_at = now
             db.commit()
             return self._snapshot(lease)
         except BaseException:
@@ -566,6 +770,18 @@ class TwitchUpstreamCoordinator:
             if not lease:
                 db.rollback()
                 return False
+            stale_requesters = (
+                db.query(TwitchUpstreamLease)
+                .filter(
+                    TwitchUpstreamLease.handoff_target_channel == channel_key,
+                    TwitchUpstreamLease.state.in_(ACTIVE_STATES),
+                )
+                .all()
+            )
+            for requester_owner in stale_requesters:
+                requester_owner.handoff_target_channel = None
+                requester_owner.handoff_reason = None
+                requester_owner.handoff_requested_at = None
             self._mark_released(lease, now, reason)
             db.commit()
             return True
@@ -797,6 +1013,13 @@ class TwitchUpstreamCoordinator:
             process_group_id=lease.process_group_id,
             process_started_at=lease.process_started_at,
             process_start_fingerprint=lease.process_start_fingerprint,
+            auth_priority=lease.auth_priority,
+            anonymous_available=lease.anonymous_available,
+            auth_requested=lease.auth_requested,
+            handoff_target_channel=lease.handoff_target_channel,
+            handoff_action=lease.handoff_action,
+            handoff_reason=lease.handoff_reason,
+            partial_recording_warning=lease.partial_recording_warning,
         )
 
     @staticmethod

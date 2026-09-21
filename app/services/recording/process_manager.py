@@ -180,6 +180,27 @@ class ProcessManager:
             return None
 
     @staticmethod
+    def _recording_auth_options(stream: Stream) -> tuple[int, bool]:
+        """Load credential-free arbitration inputs for one recording."""
+        from app.database import SessionLocal
+        from app.models import StreamerRecordingSettings
+
+        streamer_id = getattr(stream, "streamer_id", None)
+        if streamer_id is None:
+            return 0, True
+        with SessionLocal() as db:
+            settings = (
+                db.query(StreamerRecordingSettings)
+                .filter(StreamerRecordingSettings.streamer_id == streamer_id)
+                .first()
+            )
+            if settings is None:
+                return 0, True
+            priority = int(getattr(settings, "twitch_auth_priority", 0) or 0)
+            codecs = (getattr(settings, "supported_codecs", None) or "").lower()
+            return priority, not codecs or "h264" in codecs
+
+    @staticmethod
     def _segment_has_recording_data(segment_path: str) -> bool:
         try:
             path = Path(segment_path)
@@ -227,6 +248,8 @@ class ProcessManager:
                 auth_key=None,
                 purpose="RECORDING",
                 recording_id=segment_info.get("recording_id"),
+                auth_priority=segment_info.get("twitch_auth_priority", 0),
+                anonymous_available=True,
             )
         )
         try:
@@ -279,6 +302,7 @@ class ProcessManager:
         reservation = None
         try:
             initial_token_resolution = await self._resolve_recording_token()
+            auth_priority, anonymous_available = self._recording_auth_options(stream)
             streamer = getattr(stream, "streamer", None)
             channel_key = getattr(streamer, "twitch_id", None)
             if channel_key:
@@ -294,13 +318,24 @@ class ProcessManager:
                     else "RECORDING",
                     recording_id=recording_id,
                     expected_generation=recovery_generation,
+                    auth_priority=auth_priority,
+                    anonymous_available=anonymous_available,
+                    prefer_authenticated=bool(
+                        getattr(initial_token_resolution, "token", None)
+                    ),
                 )
             # Initialize segmented recording for long streams
             segment_info = await self._initialize_segmented_recording(
                 stream, output_path, quality, recording_id, resume_segments_dir
             )
             segment_info["auth_fallback_to_anonymous"] = not bool(
-                getattr(initial_token_resolution, "token", None)
+                reservation.auth_key
+                if reservation is not None
+                else getattr(initial_token_resolution, "token", None)
+            )
+            segment_info["twitch_auth_priority"] = auth_priority
+            segment_info["auth_handoff_reason"] = (
+                reservation.handoff_reason if reservation is not None else None
             )
             if reservation:
                 segment_info["upstream_channel_key"] = reservation.channel_key
@@ -1100,6 +1135,41 @@ class ProcessManager:
                             stream.id,
                         )
                         break
+                    current_priority, _anonymous_available = (
+                        self._recording_auth_options(stream)
+                    )
+                    if current_priority != segment_info.get("twitch_auth_priority", 0):
+                        updated = await self.upstream_coordinator.update_auth_priority(
+                            channel_key=segment_info["upstream_channel_key"],
+                            generation=segment_info["upstream_generation"],
+                            priority=current_priority,
+                        )
+                        segment_info["twitch_auth_priority"] = updated.auth_priority
+                        segment_info["auth_handoff_reason"] = updated.handoff_reason
+                    try:
+                        auth_transition = (
+                            await self.upstream_coordinator.begin_auth_transition(
+                                channel_key=segment_info["upstream_channel_key"],
+                                generation=segment_info["upstream_generation"],
+                            )
+                        )
+                    except LookupError:
+                        auth_transition = None
+                    except PermissionError:
+                        auth_transition = None
+                    if auth_transition is not None:
+                        rotated = await self._rotate_segment(
+                            stream,
+                            segment_info,
+                            quality,
+                            auth_transition=auth_transition,
+                        )
+                        if not rotated:
+                            logger.error(
+                                "Authentication handoff failed for stream %s",
+                                stream.id,
+                            )
+                        continue
 
                 # Check if we need to start a new segment
                 should_rotate = await self._should_rotate_segment(segment_info)
@@ -1147,7 +1217,12 @@ class ProcessManager:
             return False
 
     async def _rotate_segment(
-        self, stream: Stream, segment_info: Dict, quality: str
+        self,
+        stream: Stream,
+        segment_info: Dict,
+        quality: str,
+        *,
+        auth_transition=None,
     ) -> bool:
         """Rotate to a new segment file"""
         process_id = f"stream_{stream.id}"
@@ -1169,25 +1244,31 @@ class ProcessManager:
             replacement_process = None
             rotation_succeeded = False
             failure_reason = "rotation_failed"
+            previous_anonymous = segment_info.get("auth_fallback_to_anonymous", False)
             try:
                 if upstream_channel_key:
                     try:
-                        begin_task = asyncio.create_task(
-                            self.upstream_coordinator.begin_rotation(
-                                channel_key=upstream_channel_key,
-                                generation=segment_info["upstream_generation"],
+                        if auth_transition is None:
+                            begin_task = asyncio.create_task(
+                                self.upstream_coordinator.begin_rotation(
+                                    channel_key=upstream_channel_key,
+                                    generation=segment_info["upstream_generation"],
+                                )
                             )
-                        )
-                        try:
-                            rotation = await asyncio.shield(begin_task)
-                        except asyncio.CancelledError:
-                            rotation = await begin_task
-                            rotation_generation = rotation.generation
-                            segment_info["upstream_generation"] = rotation.generation
-                            segment_info["upstream_rotation_generation"] = (
-                                rotation.generation
-                            )
-                            raise
+                            try:
+                                rotation = await asyncio.shield(begin_task)
+                            except asyncio.CancelledError:
+                                rotation = await begin_task
+                                rotation_generation = rotation.generation
+                                segment_info["upstream_generation"] = (
+                                    rotation.generation
+                                )
+                                segment_info["upstream_rotation_generation"] = (
+                                    rotation.generation
+                                )
+                                raise
+                        else:
+                            rotation = auth_transition.reservation
                         rotation_generation = rotation.generation
                         segment_info["upstream_generation"] = rotation.generation
                         segment_info["upstream_rotation_generation"] = (
@@ -1258,6 +1339,10 @@ class ProcessManager:
                 next_segment_path = Path(segment_info["segment_dir"]) / segment_filename
                 segment_info["current_segment_path"] = str(next_segment_path)
                 segment_info["segment_start_time"] = datetime.now()
+                if auth_transition is not None:
+                    segment_info["auth_fallback_to_anonymous"] = (
+                        auth_transition.action == "demote"
+                    )
 
                 failure_reason = "rotation_start_failed"
                 try:
@@ -1280,14 +1365,21 @@ class ProcessManager:
                 if upstream_channel_key:
                     failure_reason = "rotation_handoff_failed"
                     try:
-                        handoff_task = asyncio.create_task(
-                            self.upstream_coordinator.handoff_rotation(
-                                channel_key=upstream_channel_key,
-                                generation=segment_info["upstream_generation"],
-                                process_pid=replacement_process.pid,
-                                process_group_id=replacement_process.pid,
-                                purpose="RECORDING",
+                        handoff_kwargs = {
+                            "channel_key": upstream_channel_key,
+                            "generation": segment_info["upstream_generation"],
+                            "process_pid": replacement_process.pid,
+                            "process_group_id": replacement_process.pid,
+                            "purpose": "RECORDING",
+                        }
+                        if auth_transition is not None:
+                            handoff_kwargs["auth_key"] = (
+                                None
+                                if auth_transition.action == "demote"
+                                else AUTHENTICATED_TWITCH_ACCOUNT
                             )
+                        handoff_task = asyncio.create_task(
+                            self.upstream_coordinator.handoff_rotation(**handoff_kwargs)
                         )
                         try:
                             handoff = await asyncio.shield(handoff_task)
@@ -1337,14 +1429,98 @@ class ProcessManager:
                 return False
             finally:
                 if rotation_generation is not None and not rotation_succeeded:
-                    await self._cleanup_failed_rotation(
-                        process_id,
-                        captured_process,
-                        replacement_process,
-                        segment_info,
-                        failure_reason,
-                        wait_timeout=ASYNC_DELAYS.RECORDING_ERROR_RECOVERY,
-                    )
+                    segment_info["auth_fallback_to_anonymous"] = previous_anonymous
+                    rolled_back = False
+                    if auth_transition is not None:
+                        rollback_task = asyncio.create_task(
+                            self._rollback_failed_auth_transition(
+                                stream,
+                                quality,
+                                process_id,
+                                replacement_process,
+                                segment_info,
+                                previous_anonymous,
+                            )
+                        )
+                        try:
+                            rolled_back = await asyncio.shield(rollback_task)
+                        except asyncio.CancelledError:
+                            rolled_back = await rollback_task
+                    if not rolled_back:
+                        await self._cleanup_failed_rotation(
+                            process_id,
+                            captured_process,
+                            replacement_process,
+                            segment_info,
+                            failure_reason,
+                            wait_timeout=ASYNC_DELAYS.RECORDING_ERROR_RECOVERY,
+                        )
+
+    async def _rollback_failed_auth_transition(
+        self,
+        stream,
+        quality,
+        process_id,
+        replacement_process,
+        segment_info,
+        previous_anonymous,
+    ) -> bool:
+        """Restore the prior mode after a failed fenced auth handoff."""
+        try:
+            if (
+                replacement_process is not None
+                and replacement_process.returncode is None
+            ):
+                identity = await self.upstream_coordinator.inspect_process_identity(
+                    replacement_process.pid
+                )
+                stopped = await self._terminate_process_group(
+                    replacement_process,
+                    identity.process_group_id,
+                    ASYNC_DELAYS.RECORDING_ERROR_RECOVERY,
+                    identity.fingerprint,
+                )
+                if not stopped:
+                    return False
+            async with self.lock:
+                if self.active_processes.get(process_id) is replacement_process:
+                    self.active_processes.pop(process_id, None)
+            segment_info["auth_fallback_to_anonymous"] = previous_anonymous
+            rollback_process = await self._start_segment(
+                stream,
+                segment_info["current_segment_path"],
+                quality,
+                segment_info,
+            )
+            if rollback_process is None:
+                return False
+            identity = await self.upstream_coordinator.inspect_process_identity(
+                rollback_process.pid
+            )
+            restored = await self.upstream_coordinator.handoff_rotation(
+                channel_key=segment_info["upstream_channel_key"],
+                generation=segment_info["upstream_generation"],
+                process_pid=rollback_process.pid,
+                process_group_id=identity.process_group_id,
+                process_started_at=identity.started_at,
+                process_start_fingerprint=identity.fingerprint,
+                purpose="RECORDING",
+                auth_key=(None if previous_anonymous else AUTHENTICATED_TWITCH_ACCOUNT),
+            )
+            segment_info["upstream_generation"] = restored.generation
+            segment_info["upstream_process_group_id"] = restored.process_group_id
+            segment_info["upstream_process_start_fingerprint"] = (
+                restored.process_start_fingerprint
+            )
+            segment_info.pop("upstream_rotation_generation", None)
+            return True
+        except Exception as rollback_error:
+            logger.error(
+                "Authentication handoff rollback failed for stream %s (%s)",
+                stream.id,
+                type(rollback_error).__name__,
+            )
+            return False
 
     async def _cleanup_failed_rotation(
         self,

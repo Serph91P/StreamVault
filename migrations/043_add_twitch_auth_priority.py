@@ -19,7 +19,10 @@ def upgrade(target_engine=None):
         logger.info("Migration 043 skipped: streamer_recording_settings is absent")
         return
 
-    columns = {column["name"] for column in inspector.get_columns("streamer_recording_settings")}
+    columns = {
+        column["name"]
+        for column in inspector.get_columns("streamer_recording_settings")
+    }
     if COLUMN not in columns:
         with target.begin() as connection:
             connection.execute(
@@ -54,7 +57,10 @@ def downgrade(target_engine=None):
     inspector = inspect(target)
     if "streamer_recording_settings" not in inspector.get_table_names():
         return
-    columns = {column["name"] for column in inspector.get_columns("streamer_recording_settings")}
+    columns = {
+        column["name"]
+        for column in inspector.get_columns("streamer_recording_settings")
+    }
     if COLUMN not in columns:
         return
     with target.begin() as connection:

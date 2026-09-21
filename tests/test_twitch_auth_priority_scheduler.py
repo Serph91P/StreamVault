@@ -18,9 +18,8 @@ from app.services.recording.twitch_auth_scheduler import (
     TwitchAuthScheduler,
 )
 
-migration_043_auth_priority = import_module(
-    "migrations.043_add_twitch_auth_priority"
-)
+migration_043_auth_priority = import_module("migrations.043_add_twitch_auth_priority")
+migration_044_handoff_state = import_module("migrations.044_twitch_auth_handoff_state")
 
 
 NOW = datetime(2026, 9, 21, 12, 0, tzinfo=timezone.utc)
@@ -50,7 +49,9 @@ def candidate(
 
 
 class TwitchAuthPrioritySchedulerTests(unittest.TestCase):
-    def test_priority_schema_accepts_documented_range_and_defaults_to_zero(self) -> None:
+    def test_priority_schema_accepts_documented_range_and_defaults_to_zero(
+        self,
+    ) -> None:
         self.assertEqual(
             StreamerRecordingSettingsSchema(streamer_id=1).twitch_auth_priority, 0
         )
@@ -73,7 +74,9 @@ class TwitchAuthPrioritySchedulerTests(unittest.TestCase):
                     streamer_id=1, twitch_auth_priority=invalid
                 )
 
-    def test_no_owner_selects_highest_priority_then_oldest_then_recording_id(self) -> None:
+    def test_no_owner_selects_highest_priority_then_oldest_then_recording_id(
+        self,
+    ) -> None:
         decision = TwitchAuthScheduler().decide(
             [
                 candidate("newer", 10, recording_id=30, age_seconds=10),
@@ -103,7 +106,9 @@ class TwitchAuthPrioritySchedulerTests(unittest.TestCase):
         self.assertEqual(decision.owner_channel_key, "owner")
         self.assertFalse(decision.pending_handoff)
 
-    def test_higher_priority_preempts_only_anonymously_continuable_recording(self) -> None:
+    def test_higher_priority_preempts_only_anonymously_continuable_recording(
+        self,
+    ) -> None:
         decision = TwitchAuthScheduler().decide(
             [
                 candidate(
@@ -215,6 +220,41 @@ class TwitchAuthPrioritySchedulerTests(unittest.TestCase):
 
             self.assertIn("twitch_auth_priority", columns)
             self.assertEqual(priority, 0)
+            engine.dispose()
+
+    def test_handoff_state_migration_is_idempotent_and_defaults_are_safe(self) -> None:
+        with TemporaryDirectory() as directory:
+            engine = create_engine(f"sqlite:///{Path(directory) / 'handoff.db'}")
+            with engine.begin() as connection:
+                connection.execute(
+                    text(
+                        "CREATE TABLE twitch_upstream_leases "
+                        "(id INTEGER PRIMARY KEY, channel_key VARCHAR(255) NOT NULL)"
+                    )
+                )
+                connection.execute(
+                    text(
+                        "INSERT INTO twitch_upstream_leases (id, channel_key) "
+                        "VALUES (1, 'existing')"
+                    )
+                )
+
+            migration_044_handoff_state.upgrade(engine)
+            migration_044_handoff_state.upgrade(engine)
+
+            columns = {
+                column["name"]
+                for column in inspect(engine).get_columns("twitch_upstream_leases")
+            }
+            with engine.connect() as connection:
+                row = connection.execute(
+                    text(
+                        "SELECT auth_priority, anonymous_available, auth_requested, "
+                        "partial_recording_warning FROM twitch_upstream_leases WHERE id = 1"
+                    )
+                ).one()
+            self.assertTrue(set(migration_044_handoff_state.COLUMNS) <= columns)
+            self.assertEqual(tuple(row), (0, 1, 0, 0))
             engine.dispose()
 
 

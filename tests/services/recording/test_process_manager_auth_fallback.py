@@ -234,6 +234,55 @@ async def test_initial_anonymous_resolution_emits_token_free_fallback_event(
 
 
 @pytest.mark.asyncio
+async def test_reserved_lease_is_released_when_segment_initialization_fails() -> None:
+    manager = object.__new__(ProcessManager)
+    manager.active_processes = {}
+    manager.long_stream_processes = {}
+    manager.lock = asyncio.Lock()
+    manager._streamlink_output_secrets = {}
+    released = []
+
+    async def resolve():
+        return SimpleNamespace(token="validated-secret")
+
+    async def initialize(*_args, **_kwargs):
+        raise OSError("recording directory unavailable")
+
+    class Coordinator:
+        async def reserve(self, **_values):
+            return SimpleNamespace(
+                channel_key="channel-id",
+                generation=7,
+                auth_key="authenticated",
+                handoff_reason=None,
+            )
+
+        async def release(self, **values):
+            released.append(values)
+            return True
+
+    manager._resolve_recording_token = resolve
+    manager._initialize_segmented_recording = initialize
+    manager.upstream_coordinator = Coordinator()
+    stream = SimpleNamespace(
+        id=7,
+        streamer=SimpleNamespace(twitch_id="channel-id"),
+    )
+
+    with pytest.raises(ProcessError) as error:
+        await manager.start_recording_process(stream, "/tmp/output.ts", "best")
+
+    assert isinstance(error.value.__cause__, OSError)
+    assert released == [
+        {
+            "channel_key": "channel-id",
+            "generation": 7,
+            "reason": "recording_start_failed",
+        }
+    ]
+
+
+@pytest.mark.asyncio
 async def test_authenticated_startup_auth_rejection_retries_once_anonymously(
     monkeypatch, tmp_path, caplog
 ):
@@ -436,6 +485,8 @@ async def test_fallback_activates_upstream_lease_only_for_replacement(
             "auth_key": None,
             "purpose": "RECORDING",
             "recording_id": None,
+            "auth_priority": 0,
+            "anonymous_available": True,
         }
     ]
     assert [values["process_pid"] for values in activated] == [102]

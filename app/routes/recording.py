@@ -389,18 +389,23 @@ async def get_active_recordings():
                                     else "unknown"
                                 ),
                                 pending_handoff=(
-                                    upstream_lease.state == "ROTATING"
+                                    bool(upstream_lease.handoff_reason)
+                                    or upstream_lease.state == "ROTATING"
                                     if upstream_lease
                                     else False
                                 ),
                                 handoff_reason=(
-                                    "segment_boundary_transition"
+                                    upstream_lease.handoff_reason
+                                    or (
+                                        "segment_boundary_transition"
+                                        if upstream_lease.state == "ROTATING"
+                                        else None
+                                    )
                                     if upstream_lease
-                                    and upstream_lease.state == "ROTATING"
                                     else None
                                 ),
                                 partial_recording_warning=(
-                                    upstream_lease.state == "ROTATING"
+                                    upstream_lease.partial_recording_warning
                                     if upstream_lease
                                     else False
                                 ),
