@@ -564,6 +564,136 @@ async def test_priority_edit_requeues_active_anonymous_recording(tmp_path) -> No
 
 
 @pytest.mark.asyncio
+async def test_failed_demotion_stops_retry_churn_and_reports_target_failure(
+    tmp_path,
+) -> None:
+    engine, Session, clock, inspector, coordinator = make_coordinator(
+        tmp_path, "auth-transition-failure.db"
+    )
+    owner = await coordinator.reserve(
+        channel_key="failure-owner",
+        auth_key=AUTHENTICATED_TWITCH_ACCOUNT,
+        purpose="RECORDING",
+        recording_id=40,
+        auth_priority=0,
+        anonymous_available=True,
+        prefer_authenticated=True,
+    )
+    owner = await coordinator.activate(
+        channel_key=owner.channel_key,
+        generation=owner.generation,
+        process_pid=601,
+        process_group_id=601,
+        process_started_at=clock.utcnow(),
+        process_start_fingerprint="birth-601",
+    )
+    inspector.alive_fingerprints.add("birth-601")
+    target = await coordinator.reserve(
+        channel_key="failure-target",
+        auth_key=AUTHENTICATED_TWITCH_ACCOUNT,
+        purpose="RECORDING",
+        recording_id=41,
+        auth_priority=100,
+        anonymous_available=True,
+        prefer_authenticated=True,
+    )
+    target = await coordinator.activate(
+        channel_key=target.channel_key,
+        generation=target.generation,
+        process_pid=602,
+        process_group_id=602,
+        process_started_at=clock.utcnow(),
+        process_start_fingerprint="birth-602",
+    )
+    transition = await coordinator.begin_auth_transition(
+        channel_key=owner.channel_key,
+        generation=owner.generation,
+    )
+
+    restored = await coordinator.handoff_rotation(
+        channel_key=owner.channel_key,
+        generation=transition.reservation.generation,
+        process_pid=603,
+        process_group_id=603,
+        process_started_at=clock.utcnow(),
+        process_start_fingerprint="birth-603",
+        auth_key=AUTHENTICATED_TWITCH_ACCOUNT,
+        transition_failure_reason="auth_handoff_failed",
+    )
+
+    assert restored.handoff_reason == "auth_handoff_failed"
+    with Session() as db:
+        failed_target = (
+            db.query(TwitchUpstreamLease)
+            .filter_by(channel_key=target.channel_key)
+            .one()
+        )
+        assert failed_target.auth_requested is False
+        assert failed_target.handoff_reason == "auth_handoff_failed"
+    with pytest.raises(LookupError):
+        await coordinator.begin_auth_transition(
+            channel_key=target.channel_key,
+            generation=target.generation,
+        )
+    engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_pending_auth_handoff_survives_ordinary_segment_rotation(
+    tmp_path,
+) -> None:
+    engine, _Session, clock, inspector, coordinator = make_coordinator(
+        tmp_path, "handoff-during-rotation.db"
+    )
+    owner = await coordinator.reserve(
+        channel_key="rotating-owner",
+        auth_key=AUTHENTICATED_TWITCH_ACCOUNT,
+        purpose="RECORDING",
+        recording_id=50,
+        auth_priority=0,
+        anonymous_available=True,
+        prefer_authenticated=True,
+    )
+    owner = await coordinator.activate(
+        channel_key=owner.channel_key,
+        generation=owner.generation,
+        process_pid=701,
+        process_group_id=701,
+        process_started_at=clock.utcnow(),
+        process_start_fingerprint="birth-701",
+    )
+    rotating = await coordinator.begin_rotation(
+        channel_key=owner.channel_key,
+        generation=owner.generation,
+    )
+    await coordinator.reserve(
+        channel_key="rotation-contender",
+        auth_key=AUTHENTICATED_TWITCH_ACCOUNT,
+        purpose="RECORDING",
+        recording_id=51,
+        auth_priority=100,
+        anonymous_available=True,
+        prefer_authenticated=True,
+    )
+    rotated = await coordinator.handoff_rotation(
+        channel_key=owner.channel_key,
+        generation=rotating.generation,
+        process_pid=702,
+        process_group_id=702,
+        process_started_at=clock.utcnow(),
+        process_start_fingerprint="birth-702",
+    )
+
+    assert rotated.handoff_target_channel == "rotation-contender"
+    transition = await coordinator.begin_auth_transition(
+        channel_key=owner.channel_key,
+        generation=rotated.generation,
+    )
+    assert transition.action == "demote"
+    engine.dispose()
+
+
+@pytest.mark.asyncio
 async def test_recording_and_live_collide_on_stable_channel(tmp_path) -> None:
     engine, _Session, _clock, _inspector, coordinator = make_coordinator(
         tmp_path, "mixed.db"

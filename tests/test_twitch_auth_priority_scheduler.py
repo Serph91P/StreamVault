@@ -3,6 +3,7 @@ from datetime import datetime, timedelta, timezone
 from importlib import import_module
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from types import SimpleNamespace
 
 from pydantic import ValidationError
 from sqlalchemy import create_engine, inspect, text
@@ -10,7 +11,10 @@ from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
 from app.models import Streamer, StreamerRecordingSettings
-from app.routes.recording import update_streamer_recording_settings
+from app.routes.recording import (
+    _is_pending_auth_handoff,
+    update_streamer_recording_settings,
+)
 from app.schemas.recording import StreamerRecordingSettingsSchema
 from app.services.recording.twitch_auth_scheduler import (
     AuthCandidate,
@@ -157,6 +161,40 @@ class TwitchAuthPrioritySchedulerTests(unittest.TestCase):
                 self.assertEqual(decision.requested_channel_key, "preferred")
                 self.assertFalse(decision.pending_handoff)
                 self.assertEqual(decision.reason, reason)
+
+    def test_only_queued_or_rotating_transitions_are_reported_as_pending(self) -> None:
+        blocked = SimpleNamespace(
+            auth_requested=True,
+            handoff_target_channel=None,
+            handoff_reason="live_playback_owner_not_preemptible",
+            state="ACTIVE",
+        )
+        queued = SimpleNamespace(
+            auth_requested=True,
+            handoff_target_channel=None,
+            handoff_reason="awaiting_higher_priority_handoff",
+            state="ACTIVE",
+        )
+        owner = SimpleNamespace(
+            auth_requested=False,
+            handoff_target_channel="preferred",
+            handoff_reason="higher_priority_recording",
+            state="ACTIVE",
+        )
+
+        self.assertFalse(_is_pending_auth_handoff(blocked))
+        self.assertTrue(_is_pending_auth_handoff(queued))
+        self.assertTrue(_is_pending_auth_handoff(owner))
+        self.assertTrue(
+            _is_pending_auth_handoff(
+                SimpleNamespace(
+                    auth_requested=False,
+                    handoff_target_channel=None,
+                    handoff_reason=None,
+                    state="ROTATING",
+                )
+            )
+        )
 
     def test_recording_settings_api_round_trips_priority(self) -> None:
         with TemporaryDirectory() as directory:

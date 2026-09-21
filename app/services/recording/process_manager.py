@@ -1506,12 +1506,14 @@ class ProcessManager:
                 process_start_fingerprint=identity.fingerprint,
                 purpose="RECORDING",
                 auth_key=(None if previous_anonymous else AUTHENTICATED_TWITCH_ACCOUNT),
+                transition_failure_reason="auth_handoff_failed",
             )
             segment_info["upstream_generation"] = restored.generation
             segment_info["upstream_process_group_id"] = restored.process_group_id
             segment_info["upstream_process_start_fingerprint"] = (
                 restored.process_start_fingerprint
             )
+            segment_info["auth_handoff_reason"] = restored.handoff_reason
             segment_info.pop("upstream_rotation_generation", None)
             return True
         except Exception as rollback_error:

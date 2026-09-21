@@ -280,6 +280,15 @@ async def get_all_streamer_recording_settings():
 #         raise HTTPException(status_code=500, detail="Internal server error")
 
 
+def _is_pending_auth_handoff(upstream_lease) -> bool:
+    """Distinguish queued transitions from durable blocked/failure reasons."""
+    return bool(
+        upstream_lease.state == "ROTATING"
+        or upstream_lease.handoff_target_channel
+        or upstream_lease.handoff_reason == "awaiting_higher_priority_handoff"
+    )
+
+
 @router.get("/active", response_model=List[ActiveRecordingSchema])
 async def get_active_recordings():
     """Get all active recordings"""
@@ -389,8 +398,7 @@ async def get_active_recordings():
                                     else "unknown"
                                 ),
                                 pending_handoff=(
-                                    bool(upstream_lease.handoff_reason)
-                                    or upstream_lease.state == "ROTATING"
+                                    _is_pending_auth_handoff(upstream_lease)
                                     if upstream_lease
                                     else False
                                 ),

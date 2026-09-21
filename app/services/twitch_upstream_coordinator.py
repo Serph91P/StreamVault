@@ -192,6 +192,7 @@ class TwitchUpstreamCoordinator:
         process_start_fingerprint: Optional[str] = None,
         purpose: str = "RECORDING",
         auth_key: Any = Ellipsis,
+        transition_failure_reason: Optional[str] = None,
     ) -> TwitchUpstreamReservation:
         return await asyncio.to_thread(
             self._handoff_rotation,
@@ -203,6 +204,7 @@ class TwitchUpstreamCoordinator:
             process_start_fingerprint,
             purpose,
             auth_key,
+            transition_failure_reason,
         )
 
     async def begin_auth_transition(
@@ -420,7 +422,7 @@ class TwitchUpstreamCoordinator:
                         auth_key = None
                         if (
                             owner
-                            and owner.purpose in ("RECORDING", "RECOVERY")
+                            and owner.purpose in ("RECORDING", "RECOVERY", "ROTATION")
                             and owner.anonymous_available
                             and auth_priority > owner.auth_priority
                         ):
@@ -616,6 +618,7 @@ class TwitchUpstreamCoordinator:
         process_start_fingerprint,
         purpose,
         auth_key,
+        transition_failure_reason,
     ):
         if purpose not in ("RECORDING", "LIVE"):
             raise ValueError("rotation handoff purpose must be RECORDING or LIVE")
@@ -633,16 +636,37 @@ class TwitchUpstreamCoordinator:
             lease = self._lease_for_generation(db, channel_key, generation)
             if lease.state != "ROTATING":
                 raise PermissionError("lease is not rotating")
+            transition_action = lease.handoff_action
+            transition_target = lease.handoff_target_channel
             lease.purpose = purpose
             if auth_key is not Ellipsis:
                 lease.auth_key = auth_key
-                if auth_key is not None:
+                if auth_key is not None or transition_failure_reason:
                     lease.auth_requested = False
                 lease.partial_recording_warning = True
-            lease.handoff_target_channel = None
-            lease.handoff_action = None
-            lease.handoff_reason = None
-            lease.handoff_requested_at = None
+            if (
+                transition_failure_reason
+                and transition_action == "demote"
+                and transition_target
+            ):
+                target = (
+                    db.query(TwitchUpstreamLease)
+                    .filter(
+                        TwitchUpstreamLease.channel_key == transition_target,
+                        TwitchUpstreamLease.state.in_(ACTIVE_STATES),
+                    )
+                    .first()
+                )
+                if target is not None:
+                    target.auth_requested = False
+                    target.handoff_reason = transition_failure_reason
+                    target.handoff_requested_at = None
+                    target.updated_at = now
+            if transition_action is not None:
+                lease.handoff_target_channel = None
+                lease.handoff_action = None
+                lease.handoff_reason = transition_failure_reason
+                lease.handoff_requested_at = None
             self._set_active_identity(lease, identity, now)
             db.commit()
             return self._snapshot(lease)
@@ -731,7 +755,7 @@ class TwitchUpstreamCoordinator:
             requested = contenders[0] if contenders else None
             if owner and requested:
                 if (
-                    owner.purpose in ("RECORDING", "RECOVERY")
+                    owner.purpose in ("RECORDING", "RECOVERY", "ROTATION")
                     and owner.anonymous_available
                     and requested.auth_priority > owner.auth_priority
                 ):

@@ -286,6 +286,61 @@ async def test_auth_demotion_is_fenced_reaped_then_started_anonymously() -> None
 
 
 @pytest.mark.asyncio
+async def test_auth_transition_rollback_records_bounded_failure_reason() -> None:
+    previous = FakeProcess(returncode=0)
+    previous.pid = 510
+    rollback = FakeProcess()
+    rollback.pid = 511
+    manager = make_manager(previous)
+    segment_info = make_segment_info()
+    segment_info.update(
+        upstream_channel_key="owner-channel",
+        upstream_generation=2,
+        upstream_process_group_id=510,
+        upstream_process_start_fingerprint="birth-510",
+        auth_fallback_to_anonymous=False,
+    )
+    calls = []
+
+    class Coordinator:
+        async def inspect_process_identity(self, process_pid):
+            return ProcessIdentity(
+                process_pid,
+                process_pid,
+                datetime.now(timezone.utc),
+                f"birth-{process_pid}",
+            )
+
+        async def handoff_rotation(self, **values):
+            calls.append(values)
+            return SimpleNamespace(
+                generation=values["generation"],
+                process_group_id=values["process_group_id"],
+                process_start_fingerprint=f"birth-{values['process_pid']}",
+                handoff_reason=values["transition_failure_reason"],
+            )
+
+    async def start(_stream, _path, _quality, _info):
+        manager.active_processes["stream_7"] = rollback
+        return rollback
+
+    manager.upstream_coordinator = Coordinator()
+    manager._start_segment = start
+
+    assert await manager._rollback_failed_auth_transition(
+        SimpleNamespace(id=7),
+        "best",
+        "stream_7",
+        previous,
+        segment_info,
+        False,
+    )
+    assert calls[0]["transition_failure_reason"] == "auth_handoff_failed"
+    assert segment_info["auth_handoff_reason"] == "auth_handoff_failed"
+    assert manager.active_processes["stream_7"] is rollback
+
+
+@pytest.mark.asyncio
 async def test_rotation_kills_and_waits_after_graceful_timeout(monkeypatch) -> None:
     old_process = FakeProcess(release_on_terminate=False)
     manager = make_manager(old_process)
