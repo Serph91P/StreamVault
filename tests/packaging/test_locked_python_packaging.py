@@ -122,6 +122,9 @@ def test_lock_and_runtime_consumers_are_canonical() -> None:
 
     dockerfile = (ROOT / "docker" / "Dockerfile").read_text(encoding="utf-8")
     workflow = (ROOT / ".github" / "workflows" / "test.yml").read_text(encoding="utf-8")
+    docker_workflow = (ROOT / ".github" / "workflows" / "docker-build.yml").read_text(
+        encoding="utf-8"
+    )
     assert (
         "uv export --locked --no-dev --no-emit-project --no-hashes \\\n      --output-file /tmp/requirements.txt"
         in dockerfile
@@ -132,6 +135,19 @@ def test_lock_and_runtime_consumers_are_canonical() -> None:
     )
     assert "uv lock --check" in workflow
     assert "uv sync --locked --all-groups --reinstall-package streamvault" in workflow
+    assert "- 'pyproject.toml'" in docker_workflow
+    assert "- 'uv.lock'" in docker_workflow
+    assert docker_workflow.count("uv lock --check") == 2
+    assert (
+        docker_workflow.count(
+            "uv sync --locked --all-groups --reinstall-package streamvault"
+        )
+        == 2
+    )
+    assert "run: uv run pytest tests/ -v --tb=short" in docker_workflow
+    assert "run: uv run python -m app.migrations_init" in docker_workflow
+    assert "uv run pip-audit -r requirements.txt" in docker_workflow
+    assert "uv run bandit -r app/" in docker_workflow
 
 
 def test_wheel_build_uses_metadata_without_importing_application(

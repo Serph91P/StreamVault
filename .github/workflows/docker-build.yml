@@ -11,6 +11,8 @@ on:
       - 'app/**'
       - 'migrations/**'
       - 'docker/Dockerfile'
+      - 'pyproject.toml'
+      - 'uv.lock'
       - 'requirements.txt'
       - '.github/workflows/*.yml'
 
@@ -35,17 +37,18 @@ jobs:
           python-version: '3.14'
           cache: 'pip'
           
-      - name: Install dependencies
+      - name: Install locked test dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install pytest pytest-asyncio httpx
+          python -m pip install uv==0.11.6
+          uv lock --check
+          uv sync --locked --all-groups --reinstall-package streamvault
 
       - name: Run pytest
-        run: pytest tests/ -v --tb=short
+        run: uv run pytest tests/ -v --tb=short
           
       - name: Check migrations
-        run: python -m app.migrations_init
+        run: uv run python -m app.migrations_init
 
   # Build Docker image (no push) to validate it builds correctly
   build:
@@ -128,8 +131,10 @@ jobs:
       - name: Python dependency security check
         run: |
           python -m pip install --upgrade pip
-          pip install pip-audit bandit
+          python -m pip install uv==0.11.6
+          uv lock --check
+          uv sync --locked --all-groups --reinstall-package streamvault
           echo "🔍 Running dependency audit..."
-          pip-audit -r requirements.txt
+          uv run pip-audit -r requirements.txt
           echo "🔍 Running bandit analysis..."
-          bandit -r app/ -ll -iii --exclude app/__pycache__,app/frontend
+          uv run bandit -r app/ -ll -iii --exclude app/__pycache__,app/frontend
