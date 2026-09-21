@@ -33,12 +33,16 @@ jobs:
         with:
           python-version: '3.14'
 
-      - name: Install Bandit
-        run: pip install bandit[toml]
+      - name: Install locked security dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install uv==0.11.6
+          uv lock --check
+          uv sync --locked --group security --reinstall-package streamvault
 
       - name: Run Bandit scan
         run: |
-          bandit -r app/ \
+          uv run bandit -r app/ \
             -f json \
             -o bandit-results.json \
             --severity-level high \
@@ -74,12 +78,16 @@ jobs:
         with:
           python-version: '3.14'
 
-      - name: Install pip-audit
-        run: pip install pip-audit
+      - name: Install locked security dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install uv==0.11.6
+          uv lock --check
+          uv sync --locked --group security --reinstall-package streamvault
 
       - name: Run pip-audit
         run: |
-          pip-audit \
+          uv run pip-audit \
             -r requirements.txt \
             --format json \
             --output pip-audit-results.json

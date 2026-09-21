@@ -33,17 +33,22 @@ jobs:
           python-version: '3.14'
           cache: 'pip'
           
-      - name: Install dependencies
+      - name: Install locked test dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install pytest pytest-asyncio httpx
+          python -m pip install uv==0.11.6
+          uv lock --check
+          uv sync --locked --all-groups --reinstall-package streamvault
 
       - name: Run pytest
-        run: pytest tests/ -v --tb=short
+        run: uv run pytest tests/ -v --tb=short
           
       - name: Check migrations
-        run: python -m app.migrations_init
+        run: uv run python -m app.migrations_init
+        env:
+          TWITCH_APP_ID: ci-placeholder
+          TWITCH_APP_SECRET: ci-placeholder
+          BASE_URL: http://localhost:7000
 
   prepare:
     needs: [test]
