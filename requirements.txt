@@ -1,20 +1,20 @@
 # Core FastAPI and server dependencies
 fastapi==0.141.1
-uvicorn[standard]==0.52.4
+uvicorn[standard]==0.53.0
 
 # Database dependencies
-SQLAlchemy[postgresql]==2.0.52
+SQLAlchemy[postgresql]==2.0.54
 psycopg[binary]==3.3.5
 psycopg-pool==3.3.1
 aiosqlite==0.22.1
-alembic==1.19.2
-greenlet==3.5.5
+alembic==1.20.0
+greenlet==3.5.6
 
 # Security dependencies - updated to latest secure versions
 python-dotenv==1.2.3
 argon2-cffi==25.1.0
 cryptography==50.0.1
-PyJWT==2.13.0
+PyJWT==2.14.0
 bcrypt==5.0.0
 
 # API and data handling
@@ -35,4 +35,4 @@ py-vapid==1.9.4
 psutil==7.2.2
 
 # Caching utilities
-cachetools==7.1.8
+cachetools==7.2.0
