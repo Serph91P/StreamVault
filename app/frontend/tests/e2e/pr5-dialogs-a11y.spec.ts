@@ -43,14 +43,21 @@ async function expectDialogLifecycle(page: Page, trigger: Locator) {
   expect(await dialog.evaluate(element => element.contains(document.activeElement))).toBe(true)
   expect(await page.evaluate(() => document.body.style.overflow)).toBe('hidden')
 
-  const controls = dialog.locator('button:not([disabled]):visible, a[href]:visible, input:not([disabled]):visible, select:not([disabled]):visible, textarea:not([disabled]):visible')
-  const count = await controls.count()
-  await controls.last().focus()
+  const controls = dialog.locator('a[href]:visible, button:not([disabled]):visible, input:not([disabled]):not([type="hidden"]):visible, select:not([disabled]):visible, textarea:not([disabled]):visible, [tabindex]:not([tabindex="-1"]):visible')
+  const controlCount = await controls.count()
+  expect(controlCount).toBeGreaterThan(0)
+
+  const firstControl = controls.first()
+  const lastControl = controls.last()
+  await lastControl.focus()
   await page.keyboard.press('Tab')
-  await expect(controls.first()).toBeFocused()
-  await controls.first().focus()
+  await expect(firstControl).toBeFocused()
+  expect(await dialog.evaluate(element => element.contains(document.activeElement))).toBe(true)
+
+  await firstControl.focus()
   await page.keyboard.press('Shift+Tab')
-  await expect(controls.nth(count - 1)).toBeFocused()
+  await expect(lastControl).toBeFocused()
+  expect(await dialog.evaluate(element => element.contains(document.activeElement))).toBe(true)
 
   await page.keyboard.press('Escape')
   await expect(dialog).toBeHidden()
