@@ -571,6 +571,9 @@ class StreamerRecordingSettings(Base):
     # "h265,h264" = prefer H.265, fallback to H.264 (requires OAuth for H.265)
     # "av1,h265,h264" = prefer AV1, then H.265, then H.264 (requires OAuth)
     supported_codecs = Column(String, nullable=True)
+    # Higher values win the single authenticated Twitch recording slot.
+    # The bounded range keeps API/UI validation and database storage portable.
+    twitch_auth_priority = Column(Integer, nullable=False, default=0, server_default="0")
 
     streamer = relationship("Streamer", back_populates="recording_settings")
 

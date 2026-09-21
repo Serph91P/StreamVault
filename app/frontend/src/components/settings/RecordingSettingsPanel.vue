@@ -169,6 +169,14 @@
             <div><strong>Started:</strong> {{ formatDate(recording.started_at) }}</div>
             <div><strong>Duration:</strong> {{ formatDuration(recording.duration) }}</div>
             <div><strong>Status:</strong> {{ recording.status }}</div>
+            <div><strong>Twitch mode:</strong> {{ recording.effective_auth_mode || 'unknown' }}</div>
+            <div><strong>Auth priority:</strong> {{ recording.twitch_auth_priority ?? 0 }}</div>
+            <div v-if="recording.pending_handoff" class="warning-message">
+              Auth handoff pending<span v-if="recording.handoff_reason">: {{ recording.handoff_reason }}</span>
+            </div>
+            <div v-if="recording.partial_recording_warning" class="warning-message">
+              Recording may contain a short segment-boundary gap after the auth handoff.
+            </div>
             <div class="output-path"><strong>Output:</strong> {{ recording.file_path || recording.output_path }}</div>
           </div>
           <button @click="stopRecording(recording.streamer_id)" class="btn btn-danger" :disabled="isLoading">
@@ -223,6 +231,17 @@
                 </th>
                 <th>
                   <span class="th-content">
+                    Auth priority
+                    <span class="th-tooltip-wrapper">
+                      <svg class="info-icon"><use href="#icon-info" /></svg>
+                      <span class="tooltip-wrapper">
+                        <span class="tooltip">Higher values win the authenticated Twitch slot. Range: -1000 to 1000; equal priority keeps the current owner.</span>
+                      </span>
+                    </span>
+                  </span>
+                </th>
+                <th>
+                  <span class="th-content">
                     Custom Filename
                     <span class="th-tooltip-wrapper">
                       <svg class="info-icon">
@@ -271,6 +290,19 @@
                       {{ option.label }}
                     </option>
                   </select>
+                </td>
+                <td data-label="Auth priority">
+                  <input
+                    type="number"
+                    v-model.number="streamer.twitch_auth_priority"
+                    min="-1000"
+                    max="1000"
+                    step="1"
+                    class="form-control form-control-sm"
+                    :aria-label="`Twitch authentication priority for ${streamer.username || 'streamer'}`"
+                    @change="updateStreamerSetting(streamer.streamer_id, { twitch_auth_priority: streamer.twitch_auth_priority })"
+                  />
+                  <small>-1000 to 1000</small>
                 </td>
                 <td data-label="Custom Filename">
                   <input type="text" v-model="streamer.custom_filename"
