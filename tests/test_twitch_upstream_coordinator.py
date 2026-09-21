@@ -694,6 +694,96 @@ async def test_pending_auth_handoff_survives_ordinary_segment_rotation(
 
 
 @pytest.mark.asyncio
+async def test_owner_release_only_allows_highest_priority_waiter_to_promote(
+    tmp_path,
+) -> None:
+    engine, Session, clock, inspector, coordinator = make_coordinator(
+        tmp_path, "auth-priority-owner-release.db"
+    )
+    owner = await coordinator.reserve(
+        channel_key="released-owner",
+        auth_key=AUTHENTICATED_TWITCH_ACCOUNT,
+        purpose="RECORDING",
+        recording_id=60,
+        auth_priority=0,
+        anonymous_available=True,
+        prefer_authenticated=True,
+    )
+    owner = await coordinator.activate(
+        channel_key=owner.channel_key,
+        generation=owner.generation,
+        process_pid=801,
+        process_group_id=801,
+        process_started_at=clock.utcnow(),
+        process_start_fingerprint="birth-owner",
+    )
+    inspector.alive_fingerprints.add("birth-owner")
+
+    waiters = []
+    for channel_key, recording_id, priority in (
+        ("lower-waiter", 61, 10),
+        ("higher-waiter", 62, 100),
+    ):
+        waiter = await coordinator.reserve(
+            channel_key=channel_key,
+            auth_key=AUTHENTICATED_TWITCH_ACCOUNT,
+            purpose="RECORDING",
+            recording_id=recording_id,
+            auth_priority=priority,
+            anonymous_available=True,
+            prefer_authenticated=True,
+        )
+        waiter = await coordinator.activate(
+            channel_key=waiter.channel_key,
+            generation=waiter.generation,
+            process_pid=800 + recording_id,
+            process_group_id=800 + recording_id,
+            process_started_at=clock.utcnow(),
+            process_start_fingerprint=f"birth-{channel_key}",
+        )
+        waiters.append(waiter)
+
+    assert await coordinator.release(
+        channel_key=owner.channel_key,
+        generation=owner.generation,
+        reason="recording_completed",
+    )
+
+    lower, higher = waiters
+    with pytest.raises(LookupError, match="highest-priority"):
+        await coordinator.begin_auth_transition(
+            channel_key=lower.channel_key,
+            generation=lower.generation,
+        )
+
+    second_instance = TwitchUpstreamCoordinator(
+        Session,
+        utc_clock=clock.utcnow,
+        monotonic_clock=clock.monotonic,
+        process_inspector=inspector,
+    )
+    promotion = await second_instance.begin_auth_transition(
+        channel_key=higher.channel_key,
+        generation=higher.generation,
+    )
+
+    assert promotion.action == "promote"
+    assert promotion.reservation.channel_key == "higher-waiter"
+    with Session() as db:
+        persisted_lower = (
+            db.query(TwitchUpstreamLease).filter_by(channel_key="lower-waiter").one()
+        )
+        persisted_higher = (
+            db.query(TwitchUpstreamLease).filter_by(channel_key="higher-waiter").one()
+        )
+        assert persisted_lower.state == "ACTIVE"
+        assert persisted_lower.generation == lower.generation
+        assert persisted_higher.state == "ROTATING"
+        assert persisted_higher.generation == higher.generation + 1
+    engine.dispose()
+
+
+@pytest.mark.asyncio
 async def test_recording_and_live_collide_on_stable_channel(tmp_path) -> None:
     engine, _Session, _clock, _inspector, coordinator = make_coordinator(
         tmp_path, "mixed.db"

@@ -698,6 +698,11 @@ class TwitchUpstreamCoordinator:
                 )
                 if authenticated_count >= self._authenticated_budget:
                     raise LookupError("authenticated slot is not ready")
+                winner = self._highest_priority_auth_requester(db)
+                if winner is None or winner.id != lease.id:
+                    raise LookupError(
+                        "authenticated slot is reserved for the highest-priority requester"
+                    )
                 action = "promote"
             else:
                 raise LookupError("no authentication transition is pending")
@@ -1014,6 +1019,23 @@ class TwitchUpstreamCoordinator:
         if lease is None:
             raise PermissionError("stale lease generation")
         return lease
+
+    @staticmethod
+    def _highest_priority_auth_requester(db):
+        return (
+            db.query(TwitchUpstreamLease)
+            .filter(
+                TwitchUpstreamLease.auth_requested.is_(True),
+                TwitchUpstreamLease.state.in_(ACTIVE_STATES),
+            )
+            .order_by(
+                TwitchUpstreamLease.auth_priority.desc(),
+                TwitchUpstreamLease.reserved_at,
+                TwitchUpstreamLease.recording_id,
+                TwitchUpstreamLease.channel_key,
+            )
+            .first()
+        )
 
     @staticmethod
     def _mark_released(lease, now, reason):
