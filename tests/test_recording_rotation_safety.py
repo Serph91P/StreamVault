@@ -828,6 +828,91 @@ async def test_rotation_failed_handoff_reaps_only_authorized_replacement() -> No
 
 
 @pytest.mark.asyncio
+async def test_failed_auth_rollback_reaps_the_rollback_child_before_release() -> None:
+    old_process = FakeProcess(returncode=0)
+    old_process.pid = 501
+    replacement = FakeProcess()
+    replacement.pid = 502
+    rollback = FakeProcess()
+    rollback.pid = 503
+    manager = make_manager(old_process)
+    segment_info = make_segment_info()
+    segment_info.update(
+        {
+            "upstream_channel_key": "auth-owner",
+            "upstream_generation": 1,
+            "upstream_process_group_id": 501,
+            "upstream_process_start_fingerprint": "birth-501",
+            "auth_fallback_to_anonymous": False,
+        }
+    )
+    calls = []
+    started = [replacement, rollback]
+
+    class Coordinator:
+        async def assert_stop_authorized(self, **values):
+            calls.append(("authorize", values["process_pid"]))
+            if values["process_pid"] == rollback.pid:
+                raise PermissionError("rollback is not the persisted owner yet")
+
+        async def handoff_rotation(self, **values):
+            calls.append(("handoff", values["process_pid"]))
+            raise RuntimeError("persisted handoff unavailable")
+
+        async def inspect_process_identity(self, process_pid):
+            return ProcessIdentity(
+                process_pid,
+                process_pid,
+                datetime.now(timezone.utc),
+                f"birth-{process_pid}",
+            )
+
+        async def assert_rotation_replacement_cleanup_authorized(self, **values):
+            calls.append(("cleanup-authorized", values["process_pid"]))
+
+        async def release(self, **values):
+            calls.append(("release", values["generation"]))
+            return True
+
+    async def start_segment(stream, segment_path, quality, info):
+        process = started.pop(0)
+        manager.active_processes[f"stream_{stream.id}"] = process
+        return process
+
+    terminated = []
+
+    async def terminate_process_group(
+        process, process_group_id, timeout, process_start_fingerprint=None
+    ):
+        terminated.append(process.pid)
+        process.returncode = -15
+        process.release.set()
+        await process.wait()
+        return True
+
+    manager.upstream_coordinator = Coordinator()
+    manager._start_segment = start_segment
+    manager._terminate_process_group = terminate_process_group
+    transition = SimpleNamespace(
+        action="demote",
+        reservation=SimpleNamespace(generation=2),
+    )
+
+    assert (
+        await manager._rotate_segment(
+            SimpleNamespace(id=7),
+            segment_info,
+            "best",
+            auth_transition=transition,
+        )
+        is False
+    )
+    assert terminated == [replacement.pid, rollback.pid]
+    assert manager.active_processes == {}
+    assert calls[-2:] == [("cleanup-authorized", rollback.pid), ("release", 2)]
+
+
+@pytest.mark.asyncio
 async def test_start_recording_cleans_up_immediately_exited_child(
     monkeypatch,
     tmp_path,

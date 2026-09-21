@@ -1537,7 +1537,18 @@ class ProcessManager:
         cleanup_complete = False
         try:
             tracked_process = self.active_processes.get(process_id)
-            process = replacement_process or tracked_process
+            # A failed auth rollback can replace the first failed replacement
+            # before its own fenced handoff fails. Always clean up the currently
+            # tracked child in that case; otherwise the rollback child survives
+            # after the rotating lease is released.
+            if tracked_process not in (
+                None,
+                captured_process,
+                replacement_process,
+            ):
+                process = tracked_process
+            else:
+                process = replacement_process or tracked_process
             if process is not None and process.returncode is None:
                 if process is captured_process:
                     process_group_id = segment_info["upstream_process_group_id"]
