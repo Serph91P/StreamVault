@@ -7,6 +7,8 @@ import shutil
 import subprocess
 import tomllib
 import zipfile
+
+import pytest
 from pathlib import Path
 from typing import cast
 
@@ -251,10 +253,83 @@ def test_no_environment_secret_file_is_tracked() -> None:
         assert not (ROOT / ".env").exists()
         return
 
+    worktree = subprocess.run(
+        [git, "rev-parse", "--show-toplevel"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+    )
+    if (
+        worktree.returncode != 0
+        or Path(worktree.stdout.strip()).resolve() != ROOT.resolve()
+    ):
+        assert not (ROOT / ".env").exists()
+        return
+
     tracked = subprocess.run(
         [git, "ls-files", "--error-unmatch", ".env"],
         cwd=ROOT,
         capture_output=True,
         text=True,
     )
-    assert tracked.returncode != 0
+    assert tracked.returncode == 1
+
+
+def test_no_environment_secret_file_is_detected_in_a_non_git_source_archive(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    archive_root = tmp_path / "archive"
+    archive_root.mkdir()
+    (archive_root / ".env").touch()
+    monkeypatch.setitem(globals(), "ROOT", archive_root)
+
+    with pytest.raises(AssertionError):
+        test_no_environment_secret_file_is_tracked()
+
+
+def test_no_environment_secret_file_is_detected_in_nested_git_parent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    git = shutil.which("git")
+    assert git is not None
+
+    parent = tmp_path / "parent"
+    parent.mkdir()
+    subprocess.run([git, "init", str(parent)], check=True, capture_output=True)
+    archive_root = parent / "archive"
+    archive_root.mkdir()
+    (archive_root / ".env").touch()
+    monkeypatch.setitem(globals(), "ROOT", archive_root)
+
+    with pytest.raises(AssertionError):
+        test_no_environment_secret_file_is_tracked()
+
+
+def test_no_environment_secret_file_rejects_unexpected_git_index_errors(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    git = shutil.which("git")
+    assert git is not None
+
+    checkout = tmp_path / "checkout"
+    checkout.mkdir()
+    subprocess.run([git, "init", str(checkout)], check=True, capture_output=True)
+    (checkout / ".git" / "index").write_bytes(b"not a Git index")
+    (checkout / ".env").touch()
+    monkeypatch.setitem(globals(), "ROOT", checkout)
+
+    with pytest.raises(AssertionError):
+        test_no_environment_secret_file_is_tracked()
+
+
+def test_no_environment_secret_file_is_detected_when_git_is_unavailable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    archive_root = tmp_path / "archive"
+    archive_root.mkdir()
+    (archive_root / ".env").touch()
+    monkeypatch.setitem(globals(), "ROOT", archive_root)
+    monkeypatch.setattr(shutil, "which", lambda _: None)
+
+    with pytest.raises(AssertionError):
+        test_no_environment_secret_file_is_tracked()
