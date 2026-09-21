@@ -62,12 +62,14 @@ Those shortcomings are P3/P4 work, not silently corrected here.
 The develop push run reported a failure at
 `app/frontend/tests/e2e/pr5-dialogs-a11y.spec.ts:61`: the mobile dialog focus
 wrap assertion expected the last control focused and observed an inactive
-control. Under the repository-pinned Playwright 1.62.1 Chromium downloaded in
-this P0 workspace, the exact isolated mobile test passed. The initial
-`--with-deps` browser installation was unavailable because this worker cannot
-switch to root; direct local browser installation succeeded. This is evidence
-of an environment-sensitive/non-reproduced failure, not evidence to alter UI
-behavior or update visual snapshots. No Playwright test or screenshot changed.
+control. The P0 test correction replaces the brittle assertion of a particular
+first/last control with the required modal-focus-containment assertion after
+both Tab and Shift+Tab. It does not claim to prove a specific focus-cycle order
+for every control. Under the repository-pinned Playwright 1.62.1 Chromium
+downloaded in the original P0 workspace, the isolated mobile test passed. The
+initial `--with-deps` browser installation was unavailable because that worker
+cannot switch to root; direct local browser installation succeeded. No
+screenshot or visual snapshot changed.
 
 ## Known non-baseline work
 
