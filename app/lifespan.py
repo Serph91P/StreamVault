@@ -9,7 +9,11 @@ from app.services.system.development_test_runner import run_development_tests
 from app.database import database_lifecycle, SessionLocal
 from app.services.core.auth_service import AuthService
 import app.models as models
-from app.dependencies import get_event_registry, get_recording_manager
+from app.dependencies import (
+    get_event_registry,
+    get_lifespan_service,
+    get_recording_manager,
+)
 from app.services.images.image_sync_service import image_sync_service
 from app.tasks.websocket_broadcast_task import websocket_broadcast_task
 
@@ -115,7 +119,7 @@ async def lifespan(app: FastAPI):
                 "⚠️ Application will continue but may have limited functionality"
             )
 
-        recording_manager = get_recording_manager()
+        recording_manager = get_lifespan_service(app, get_recording_manager)()
         app.state.recording_manager = recording_manager
         reconciled_leases = await recording_manager.reconcile_leases()
         logger.info(
@@ -124,7 +128,7 @@ async def lifespan(app: FastAPI):
         )
 
         # Initialize EventSub
-        event_registry = await get_event_registry()
+        event_registry = await get_lifespan_service(app, get_event_registry)()
         await event_registry.initialize_eventsub()
         logger.info("EventSub initialized successfully")
 

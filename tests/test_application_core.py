@@ -127,3 +127,75 @@ def test_create_app_preserves_the_compatibility_asgi_export():
         < lifespan_source.index("recording_manager.shutdown")
         < lifespan_source.index("database_lifecycle.adispose")
     )
+
+
+def test_create_app_injects_settings_and_service_overrides_without_eager_calls():
+    from app import dependencies
+    from app.main import create_app
+
+    settings = object()
+    calls = []
+
+    def recording_manager_override():
+        calls.append("recording-manager")
+        return object()
+
+    factory_app = create_app(
+        settings=settings,
+        service_overrides={
+            dependencies.get_recording_manager: recording_manager_override,
+        },
+    )
+
+    assert factory_app.state.settings is settings
+    assert (
+        factory_app.dependency_overrides[dependencies.get_recording_manager]
+        is recording_manager_override
+    )
+    assert calls == []
+
+
+def test_lifespan_resolves_factory_service_overrides_without_calling_them():
+    from fastapi import FastAPI
+
+    from app import dependencies
+
+    application = FastAPI()
+    calls = []
+
+    def recording_manager_override():
+        calls.append("recording-manager")
+        return object()
+
+    application.dependency_overrides[dependencies.get_recording_manager] = (
+        recording_manager_override
+    )
+
+    assert (
+        dependencies.get_lifespan_service(
+            application, dependencies.get_recording_manager
+        )
+        is recording_manager_override
+    )
+    assert calls == []
+
+
+def test_factory_keeps_router_and_middleware_order_of_asgi_export():
+    from app.main import app, create_app
+
+    def route_signature(application):
+        return [
+            (
+                type(route).__name__,
+                getattr(route, "path", None),
+                getattr(route, "name", None),
+            )
+            for route in application.routes
+        ]
+
+    factory_app = create_app(settings=object())
+
+    assert route_signature(factory_app) == route_signature(app)
+    assert [middleware.cls for middleware in factory_app.user_middleware] == [
+        middleware.cls for middleware in app.user_middleware
+    ]
