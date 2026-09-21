@@ -1,228 +1,121 @@
-from pydantic import field_validator
-from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
-from typing import Annotated, Optional
-import secrets
-from typing import List
-import logging
-import base64
+from __future__ import annotations
+
 import ipaddress
 from functools import lru_cache
 from pathlib import Path
-from cryptography.hazmat.primitives import serialization
+from typing import Annotated, Any, cast
 from urllib.parse import urlparse
 
-logger = logging.getLogger("streamvault")
+from pydantic import Field, SecretStr, field_validator, model_validator
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
-def generate_vapid_keys():
-    """Generate VAPID keys automatically if not provided"""
-    try:
-        # First try using py_vapid
-        from py_vapid import Vapid
+def _secret_value(value: SecretStr | None) -> str | None:
+    return cast(str, value.get_secret_value()) if value is not None else None
 
-        vapid = Vapid()
-        vapid.generate_keys()
 
-        # Different versions of py_vapid have different APIs
-        try:
-            # Try newer API first
-            private_key_der = vapid.private_key_bytes()
-            public_key_uncompressed = vapid.public_key_bytes()
-        except AttributeError:
-            # Try older API - access the actual cryptography keys
-            private_key_der = vapid.private_key.private_bytes(
-                encoding=serialization.Encoding.DER,
-                format=serialization.PrivateFormat.PKCS8,
-                encryption_algorithm=serialization.NoEncryption(),
-            )
-            public_key_uncompressed = vapid.private_key.public_key().public_bytes(
-                encoding=serialization.Encoding.X962,
-                format=serialization.PublicFormat.UncompressedPoint,
-            )
-            # Convert to base64url format for storage and the frontend API
-        try:
-            from py_vapid.utils import b64urlencode
-
-            if isinstance(public_key_uncompressed, str):
-                # If it's already a string, assume it's already encoded
-                public_key_b64url = public_key_uncompressed
-            else:
-                public_key_b64url = b64urlencode(public_key_uncompressed).decode(
-                    "utf-8"
-                )
-        except ImportError:
-            # Fallback if b64urlencode is not available
-            if isinstance(public_key_uncompressed, str):
-                public_key_b64url = public_key_uncompressed
-            else:
-                public_key_b64url = (
-                    base64.urlsafe_b64encode(public_key_uncompressed)
-                    .decode("utf-8")
-                    .rstrip("=")
-                )
-
-        # Store the private key as base64 for database storage
-        private_key_b64 = base64.b64encode(private_key_der).decode("utf-8")
-
-        logger.info("✅ VAPID keys auto-generated successfully using py_vapid")
-        logger.debug(f"Public key (b64url): {public_key_b64url[:20]}...")
-        logger.debug(f"Private key stored as base64 (length: {len(private_key_b64)})")
-
-        return public_key_b64url, private_key_b64
-
-    except ImportError:
-        logger.warning(
-            "⚠️ py_vapid library not available, trying direct cryptography approach"
+def _validate_http_url(value: str, *, setting: str, origin_only: bool = False) -> str:
+    parsed = urlparse(value)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise ValueError(f"{setting} must be an absolute http(s) URL")
+    if parsed.username or parsed.password:
+        raise ValueError(f"{setting} must not contain credentials")
+    if origin_only and (
+        parsed.path not in {"", "/"} or parsed.query or parsed.fragment
+    ):
+        raise ValueError(
+            f"{setting} must contain an origin without path, query, or fragment"
         )
-        return _generate_vapid_keys_direct()
-    except Exception as e:
-        logger.warning(f"⚠️ py_vapid failed, trying direct cryptography approach: {e}")
-        return _generate_vapid_keys_direct()
-
-
-def _generate_vapid_keys_direct():
-    """Generate VAPID keys directly using cryptography library"""
-    try:
-        from cryptography.hazmat.primitives.asymmetric import ec
-
-        # Generate P-256 private key (SECP256R1)
-        private_key = ec.generate_private_key(ec.SECP256R1())
-
-        # Get private key in DER format
-        private_key_der = private_key.private_bytes(
-            encoding=serialization.Encoding.DER,
-            format=serialization.PrivateFormat.PKCS8,
-            encryption_algorithm=serialization.NoEncryption(),
-        )
-
-        # Get public key in uncompressed format
-        public_key_uncompressed = private_key.public_key().public_bytes(
-            encoding=serialization.Encoding.X962,
-            format=serialization.PublicFormat.UncompressedPoint,
-        )
-        # Convert to base64url format for frontend
-        if isinstance(public_key_uncompressed, str):
-            public_key_b64url = public_key_uncompressed
-        else:
-            public_key_b64url = (
-                base64.urlsafe_b64encode(public_key_uncompressed)
-                .decode("utf-8")
-                .rstrip("=")
-            )
-
-        # Store the private key as base64 for database storage
-        if isinstance(private_key_der, str):
-            private_key_b64 = private_key_der
-        else:
-            private_key_b64 = base64.b64encode(private_key_der).decode("utf-8")
-
-        logger.info(
-            "✅ VAPID keys auto-generated successfully using direct cryptography"
-        )
-        logger.debug(f"Public key (b64url): {public_key_b64url[:20]}...")
-        logger.debug(f"Private key stored as base64 (length: {len(private_key_b64)})")
-
-        return public_key_b64url, private_key_b64
-
-    except Exception as e:
-        logger.error(f"❌ Failed to generate VAPID keys directly: {e}")
-        logger.info("💡 Push notifications will not be available")
-        return None, None
+    return value.rstrip("/")
 
 
 class Settings(BaseSettings):
+    """Validated environment configuration without runtime I/O or key generation.
+
+    Upper-case aliases preserve the existing deployment contract. Sensitive values
+    are stored as ``SecretStr`` fields and are only unwrapped by explicit compatibility
+    properties used by the service layer.
+    """
+
     TWITCH_APP_ID: str
-    TWITCH_APP_SECRET: str
+    twitch_app_secret: SecretStr = Field(alias="TWITCH_APP_SECRET")
     BASE_URL: str
     ENVIRONMENT: str = "production"
-    WEBHOOK_URL: Optional[str] = None
-    DATABASE_URL: Optional[str] = None
-    # Base directory for the application
+    WEBHOOK_URL: str | None = None
+    database_url: SecretStr | None = Field(default=None, alias="DATABASE_URL")
+
     BASE_DIR: str = str(Path(__file__).parent.parent.parent.absolute())
     LOG_LEVEL: str = "INFO"
     LOG_FORMAT: str = "text"
-    LOGS_BASE_DIR: Optional[str] = None
-    LOG_DIR: Optional[str] = None
-    POSTGRES_USER: Optional[str] = None
-    POSTGRES_PASSWORD: Optional[str] = None
-    POSTGRES_DB: Optional[str] = None
-    EVENTSUB_PORT: int = 8080
-    EVENTSUB_SECRET: str = secrets.token_urlsafe(32)
-    APPRISE_URLS: List[str] = []
+    LOGS_BASE_DIR: str | None = None
+    LOG_DIR: str | None = None
+    POSTGRES_USER: str | None = None
+    postgres_password: SecretStr | None = Field(default=None, alias="POSTGRES_PASSWORD")
+    POSTGRES_DB: str | None = None
+    EVENTSUB_PORT: int = Field(default=8080, ge=1, le=65535)
+    eventsub_secret: SecretStr | None = Field(default=None, alias="EVENTSUB_SECRET")
+    APPRISE_URLS: list[str] = Field(default_factory=list)
 
-    # Proxy settings for Streamlink
-    HTTP_PROXY: Optional[str] = None
-    HTTPS_PROXY: Optional[str] = None
+    http_proxy: SecretStr | None = Field(default=None, alias="HTTP_PROXY")
+    https_proxy: SecretStr | None = Field(default=None, alias="HTTPS_PROXY")
+    twitch_oauth_token: SecretStr | None = Field(
+        default=None, alias="TWITCH_OAUTH_TOKEN"
+    )
 
-    # Twitch OAuth token for authenticated API access (enables H.265/1440p streams)
-    # Get from: document.cookie.split("; ").find(item=>item.startsWith("auth-token="))?.split("=")[1]
-    TWITCH_OAUTH_TOKEN: Optional[str] = None
-
-    # Recording directory (Docker default: /recordings)
     RECORDING_DIRECTORY: str = "/recordings"
-
-    # Artwork and metadata directory (within recordings directory)
     ARTWORK_BASE_PATH: str = "/recordings/.artwork"
 
-    # PWA and Push Notification settings (server-global, not per-user)
-    VAPID_PUBLIC_KEY: Optional[str] = None
-    VAPID_PRIVATE_KEY: Optional[str] = None
+    VAPID_PUBLIC_KEY: str | None = None
+    vapid_private_key: SecretStr | None = Field(default=None, alias="VAPID_PRIVATE_KEY")
     VAPID_CLAIMS_SUB: str = "mailto:admin@streamvault.local"
 
-    # Security Configuration
-    SECURE_COOKIES: bool = True  # Set to False for development or when behind reverse proxy without SSL termination
-    # Override with environment variable for reverse proxy setups
-    USE_SECURE_COOKIES: bool = True  # Can be set to False for reverse proxy setups
-    AUTH_JWT_SECRET: str = ""
+    SECURE_COOKIES: bool = True
+    USE_SECURE_COOKIES: bool = True
+    auth_jwt_secret: SecretStr = Field(default=SecretStr(""), alias="AUTH_JWT_SECRET")
     AUTH_JWT_ALGORITHM: str = "HS256"
     AUTH_JWT_ISSUER: str = "streamvault"
     AUTH_JWT_AUDIENCE: str = "streamvault-api"
-    AUTH_ACCESS_TOKEN_MINUTES: int = 15
-    AUTH_REFRESH_TOKEN_HOURS: int = 24
-    AUTH_REFRESH_FAMILY_MAX_HOURS: int = 168
+    AUTH_ACCESS_TOKEN_MINUTES: int = Field(default=15, ge=1)
+    AUTH_REFRESH_TOKEN_HOURS: int = Field(default=24, ge=1)
+    AUTH_REFRESH_FAMILY_MAX_HOURS: int = Field(default=168, ge=1)
 
-    # CORS settings
     CORS_ALLOW_CREDENTIALS: bool = True
-    CORS_ALLOW_METHODS: List[str] = ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"]
-    CORS_ALLOW_HEADERS: List[str] = [
-        "Content-Type",
-        "Authorization",
-        "X-Requested-With",
-        "Accept",
-        "Origin",
-    ]
-    CORS_MAX_AGE: int = 86400  # 24 hours
-
-    # Additional allowed origins (comma-separated in env)
+    CORS_ALLOW_METHODS: list[str] = Field(
+        default_factory=lambda: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"]
+    )
+    CORS_ALLOW_HEADERS: list[str] = Field(
+        default_factory=lambda: [
+            "Content-Type",
+            "Authorization",
+            "X-Requested-With",
+            "Accept",
+            "Origin",
+        ]
+    )
+    CORS_MAX_AGE: int = Field(default=86400, ge=0)
     CORS_ADDITIONAL_ORIGINS: str = ""
-    # Explicit host/proxy controls. Empty proxy configuration means forwarded
-    # headers are ignored instead of trusting arbitrary clients.
-    TRUSTED_HOSTS: Annotated[List[str], NoDecode] = []
-    TRUSTED_PROXY_CIDRS: Annotated[List[str], NoDecode] = []
+    TRUSTED_HOSTS: Annotated[list[str], NoDecode] = Field(default_factory=list)
+    TRUSTED_PROXY_CIDRS: Annotated[list[str], NoDecode] = Field(default_factory=list)
 
-    # Security settings
     SECURE_HEADERS_ENABLED: bool = True
-    HSTS_MAX_AGE: int = 31536000  # 1 year
-    CONTENT_SECURITY_POLICY: Optional[str] = None
+    HSTS_MAX_AGE: int = Field(default=31536000, ge=0)
+    CONTENT_SECURITY_POLICY: str | None = None
 
-    # Request rate limiting remains opt-out compatible with the existing names.
     RATE_LIMIT_ENABLED: bool = True
-    RATE_LIMIT_CAPACITY: int = 300
-    RATE_LIMIT_REFILL_PER_SEC: float = 5.0
-    RATE_LIMIT_MAX_WAIT_MS: int = 500
-    RATE_LIMIT_MAX_BUCKETS: int = 10000
+    RATE_LIMIT_CAPACITY: int = Field(default=300, ge=1)
+    RATE_LIMIT_REFILL_PER_SEC: float = Field(default=5.0, gt=0)
+    RATE_LIMIT_MAX_WAIT_MS: int = Field(default=500, ge=0)
+    RATE_LIMIT_MAX_BUCKETS: int = Field(default=10000, ge=1)
 
-    # Observability endpoints are opt-in and, outside development, require a
-    # dedicated bearer token so they are not an unauthenticated inventory API.
     METRICS_ENABLED: bool = False
-    METRICS_AUTH_TOKEN: Optional[str] = None
+    metrics_auth_token: SecretStr | None = Field(
+        default=None, alias="METRICS_AUTH_TOKEN"
+    )
     METRICS_ALLOW_UNAUTHENTICATED: bool = False
-    READINESS_TIMEOUT_SECONDS: float = 3.0
-    READINESS_REQUIRED_COMPONENTS: Annotated[List[str], NoDecode] = [
-        "database",
-        "ffmpeg",
-        "streamlink",
-    ]
+    READINESS_TIMEOUT_SECONDS: float = Field(default=3.0, gt=0)
+    READINESS_REQUIRED_COMPONENTS: Annotated[list[str], NoDecode] = Field(
+        default_factory=lambda: ["database", "ffmpeg", "streamlink"]
+    )
 
     @field_validator(
         "TRUSTED_HOSTS",
@@ -231,55 +124,107 @@ class Settings(BaseSettings):
         mode="before",
     )
     @classmethod
-    def _split_list_settings(cls, value):
-        """Accept documented comma-separated deployment settings as typed lists."""
+    def _split_list_settings(cls, value: Any) -> Any:
         if isinstance(value, str):
             return [item.strip() for item in value.split(",") if item.strip()]
         return value
 
+    @field_validator("BASE_URL")
+    @classmethod
+    def _validate_base_url(cls, value: str) -> str:
+        return _validate_http_url(value, setting="BASE_URL")
+
+    @field_validator("WEBHOOK_URL")
+    @classmethod
+    def _validate_webhook_url(cls, value: str | None) -> str | None:
+        return (
+            _validate_http_url(value, setting="WEBHOOK_URL")
+            if value is not None
+            else None
+        )
+
+    @field_validator("RECORDING_DIRECTORY", "ARTWORK_BASE_PATH", "BASE_DIR")
+    @classmethod
+    def _validate_absolute_directory(cls, value: str, info) -> str:
+        if not Path(value).is_absolute():
+            raise ValueError(f"{info.field_name} must be an absolute path")
+        return value
+
+    @field_validator("CORS_ADDITIONAL_ORIGINS")
+    @classmethod
+    def _validate_additional_origins(cls, value: str) -> str:
+        for origin in (item.strip() for item in value.split(",") if item.strip()):
+            _validate_http_url(
+                origin, setting="CORS_ADDITIONAL_ORIGINS", origin_only=True
+            )
+        return value
+
+    @field_validator("TRUSTED_PROXY_CIDRS")
+    @classmethod
+    def _validate_proxy_networks(cls, value: list[str]) -> list[str]:
+        for network in value:
+            try:
+                ipaddress.ip_network(network, strict=False)
+            except ValueError as error:
+                raise ValueError(
+                    f"TRUSTED_PROXY_CIDRS contains invalid network: {network}"
+                ) from error
+        return value
+
+    @field_validator("http_proxy", "https_proxy")
+    @classmethod
+    def _validate_proxy_url(cls, value: SecretStr | None) -> SecretStr | None:
+        if value is None:
+            return None
+        raw = value.get_secret_value()
+        parsed = urlparse(raw)
+        if (
+            parsed.scheme not in {"http", "https", "socks4", "socks5"}
+            or not parsed.hostname
+        ):
+            raise ValueError("proxy URL must use http, https, socks4, or socks5")
+        return value
+
+    @model_validator(mode="after")
+    def _validate_related_settings(self) -> Settings:
+        if self.WEBHOOK_URL is None:
+            object.__setattr__(self, "WEBHOOK_URL", self.BASE_URL)
+        if bool(self.VAPID_PUBLIC_KEY) != bool(self.vapid_private_key):
+            raise ValueError(
+                "VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY must be configured together"
+            )
+        if self.AUTH_REFRESH_FAMILY_MAX_HOURS < self.AUTH_REFRESH_TOKEN_HOURS:
+            raise ValueError(
+                "AUTH_REFRESH_FAMILY_MAX_HOURS must be at least AUTH_REFRESH_TOKEN_HOURS"
+            )
+        if self.AUTH_JWT_ALGORITHM != "HS256":
+            raise ValueError("AUTH_JWT_ALGORITHM must be HS256")
+        return self
+
     @property
-    def allowed_origins(self) -> List[str]:
-        """
-        Generate allowed origins based on BASE_URL and additional configured origins.
-        This ensures the app works correctly with the configured domain.
-        """
-        origins = set()
-
-        # Always allow the BASE_URL origin
-        try:
-            parsed_url = urlparse(self.BASE_URL)
-            origin = f"{parsed_url.scheme}://{parsed_url.netloc}"
-            origins.add(origin)
-
-        except Exception as e:
-            logger.warning(f"Could not parse BASE_URL for CORS: {e}")
-
-        # Add localhost origins for development
+    def allowed_origins(self) -> list[str]:
+        parsed_url = urlparse(self.BASE_URL)
+        origins = {f"{parsed_url.scheme}://{parsed_url.netloc}"}
         if self.environment_is_development:
             origins.update(
-                [
-                    "http://localhost:5173",  # Vite dev server
-                    "http://localhost:3000",  # Alternative dev server
-                    "http://localhost:7000",  # Production port locally
+                {
+                    "http://localhost:5173",
+                    "http://localhost:3000",
+                    "http://localhost:7000",
                     "http://127.0.0.1:5173",
                     "http://127.0.0.1:3000",
                     "http://127.0.0.1:7000",
-                ]
+                }
             )
-
-        # Add any additional origins from environment
-        if self.CORS_ADDITIONAL_ORIGINS:
-            additional = [
-                o.strip() for o in self.CORS_ADDITIONAL_ORIGINS.split(",") if o.strip()
-            ]
-            origins.update(additional)
-
-        # Convert to sorted list for consistent ordering
-        return sorted(list(origins))
+        origins.update(
+            origin.strip()
+            for origin in self.CORS_ADDITIONAL_ORIGINS.split(",")
+            if origin.strip()
+        )
+        return sorted(origins)
 
     @property
-    def trusted_hosts(self) -> List[str]:
-        """Return explicit hosts, with local-only development conveniences."""
+    def trusted_hosts(self) -> list[str]:
         if self.TRUSTED_HOSTS:
             return sorted(set(self.TRUSTED_HOSTS))
         if self.environment_is_development:
@@ -287,7 +232,6 @@ class Settings(BaseSettings):
         return [self.domain]
 
     def is_trusted_proxy(self, client_ip: str) -> bool:
-        """Only configured proxy networks may supply forwarded client headers."""
         try:
             address = ipaddress.ip_address(client_ip)
             return any(
@@ -303,197 +247,97 @@ class Settings(BaseSettings):
 
     @property
     def has_push_notifications_configured(self) -> bool:
-        """Check if push notifications are properly configured"""
-        return bool(self.VAPID_PUBLIC_KEY and self.VAPID_PRIVATE_KEY)
+        return bool(self.VAPID_PUBLIC_KEY and self.vapid_private_key)
 
     @property
     def is_secure(self) -> bool:
-        """Check if running in secure (HTTPS) mode"""
         return self.BASE_URL.startswith("https://")
 
     @property
     def domain(self) -> str:
-        """Extract domain from BASE_URL"""
-        try:
-            parsed = urlparse(self.BASE_URL)
-            return parsed.hostname or "localhost"
-        except (ValueError, AttributeError):
-            return "localhost"
+        return urlparse(self.BASE_URL).hostname or "localhost"
 
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        if not self.WEBHOOK_URL:
-            base = self.BASE_URL.rstrip("/")
-            self.WEBHOOK_URL = base
-
-        # VAPID keys will be loaded lazily when first accessed
-
-        # Configure cookie security based on environment
-        self._configure_cookie_security()
-
-        # Log CORS configuration
-        logger.info(
-            f"🌐 CORS configured for origins: {', '.join(self.allowed_origins)}"
-        )
-        logger.info(f"🔒 Secure mode: {'Yes' if self.is_secure else 'No'}")
-        logger.info(f"🍪 Secure cookies: {'Yes' if self.USE_SECURE_COOKIES else 'No'}")
-
-    def get_vapid_keys(self):
-        """Get VAPID keys, loading/generating them if needed"""
-        if not self.VAPID_PUBLIC_KEY or not self.VAPID_PRIVATE_KEY:
-            self._load_or_generate_vapid_keys()
+    def get_vapid_keys(self) -> dict[str, str | None]:
+        """Return already-bootstrapped key material without performing I/O."""
         return {
             "public_key": self.VAPID_PUBLIC_KEY,
             "private_key": self.VAPID_PRIVATE_KEY,
             "claims_sub": self.VAPID_CLAIMS_SUB,
         }
 
-    def _load_or_generate_vapid_keys(self):
-        """Load VAPID keys from database or auto-generate if not found"""
-        try:
-            # Only try to load from database if not provided via environment
-            if not self.VAPID_PUBLIC_KEY or not self.VAPID_PRIVATE_KEY:
-                # Import here to avoid circular imports and check if database is ready
-                try:
-                    from app.services.system.system_config_service import (
-                        system_config_service,
-                    )
+    def apply_persistent_keys(
+        self, *, eventsub_secret: str, vapid_public_key: str, vapid_private_key: str
+    ) -> None:
+        """Apply material resolved by the explicit post-migration bootstrap."""
+        object.__setattr__(self, "eventsub_secret", SecretStr(eventsub_secret))
+        object.__setattr__(self, "VAPID_PUBLIC_KEY", vapid_public_key)
+        object.__setattr__(self, "vapid_private_key", SecretStr(vapid_private_key))
 
-                    # Try to load from database
-                    stored_keys = system_config_service.get_vapid_keys()
+    @property
+    def TWITCH_APP_SECRET(self) -> str:
+        return cast(str, self.twitch_app_secret.get_secret_value())
 
-                    if stored_keys["public_key"] and stored_keys["private_key"]:
-                        logger.info("🔑 Loading VAPID keys from database")
-                        self.VAPID_PUBLIC_KEY = stored_keys["public_key"]
-                        self.VAPID_PRIVATE_KEY = stored_keys["private_key"]
-                        if stored_keys["claims_sub"]:
-                            self.VAPID_CLAIMS_SUB = stored_keys["claims_sub"]
-                        return  # Successfully loaded from database
-                except Exception as db_error:
-                    logger.warning(
-                        f"⚠️ Database not ready or system_config table missing: {db_error}"
-                    )
-                    logger.info(
-                        "💡 Will skip database loading and use generated keys for now..."
-                    )
-                    # Don't try to auto-generate if database isn't ready, just use basic keys
-                    if not self.VAPID_PUBLIC_KEY or not self.VAPID_PRIVATE_KEY:
-                        logger.info(
-                            "🔑 Generating temporary VAPID keys (will be persisted once database is ready)"
-                        )
-                        self._generate_temp_vapid_keys()
-                    return
+    @property
+    def DATABASE_URL(self) -> str | None:
+        return _secret_value(self.database_url)
 
-                # Generate new keys and store them (only if database is ready)
-                self._auto_generate_and_store_vapid_keys()
+    @property
+    def POSTGRES_PASSWORD(self) -> str | None:
+        return _secret_value(self.postgres_password)
 
-        except Exception as e:
-            logger.warning(f"⚠️ Could not load VAPID keys from database: {e}")
-            logger.info("💡 Will try to auto-generate keys...")
-            self._generate_temp_vapid_keys()
+    @property
+    def EVENTSUB_SECRET(self) -> str | None:
+        return _secret_value(self.eventsub_secret)
 
-    def _generate_temp_vapid_keys(self):
-        """Generate temporary VAPID keys without database storage"""
-        try:
-            logger.info("🔑 Generating temporary VAPID keys...")
+    @property
+    def HTTP_PROXY(self) -> str | None:
+        return _secret_value(self.http_proxy)
 
-            public_key, private_key = generate_vapid_keys()
-            if public_key and private_key:
-                self.VAPID_PUBLIC_KEY = public_key
-                self.VAPID_PRIVATE_KEY = private_key
-                logger.info("✅ Temporary VAPID keys generated successfully!")
-                logger.info(
-                    "💡 Keys will be persisted to database once migrations complete"
-                )
-            else:
-                logger.error("❌ Failed to generate temporary VAPID keys")
+    @property
+    def HTTPS_PROXY(self) -> str | None:
+        return _secret_value(self.https_proxy)
 
-        except Exception as e:
-            logger.error(f"❌ Error generating temporary VAPID keys: {e}")
-            logger.info("💡 Push notifications will be disabled")
+    @property
+    def TWITCH_OAUTH_TOKEN(self) -> str | None:
+        return _secret_value(self.twitch_oauth_token)
 
-    def _auto_generate_and_store_vapid_keys(self):
-        """Auto-generate VAPID keys and store them in database"""
-        try:
-            logger.info("🔑 Generating new VAPID keys...")
+    @TWITCH_OAUTH_TOKEN.setter
+    def TWITCH_OAUTH_TOKEN(self, value: str | None) -> None:
+        object.__setattr__(
+            self, "twitch_oauth_token", SecretStr(value) if value is not None else None
+        )
 
-            public_key, private_key = generate_vapid_keys()
-            if public_key and private_key:
-                self.VAPID_PUBLIC_KEY = public_key
-                self.VAPID_PRIVATE_KEY = private_key
+    @property
+    def VAPID_PRIVATE_KEY(self) -> str | None:
+        return _secret_value(self.vapid_private_key)
 
-                # Store in database for persistence
-                try:
-                    from app.services.system.system_config_service import (
-                        system_config_service,
-                    )
+    @property
+    def AUTH_JWT_SECRET(self) -> str:
+        return cast(str, self.auth_jwt_secret.get_secret_value())
 
-                    system_config_service.set_vapid_keys(
-                        public_key, private_key, self.VAPID_CLAIMS_SUB
-                    )
-                    logger.info("✅ VAPID keys generated and stored in database!")
-                    logger.info("� Keys will persist across container restarts")
+    @property
+    def METRICS_AUTH_TOKEN(self) -> str | None:
+        return _secret_value(self.metrics_auth_token)
 
-                except Exception as db_error:
-                    logger.warning(
-                        f"⚠️ Generated VAPID keys but could not store in database: {db_error}"
-                    )
-                    logger.info("🔑 Keys will work for this session but won't persist")
-            else:
-                logger.warning("⚠️ Could not auto-generate VAPID keys")
-                logger.info("💡 Push notifications will not be available")
+    @METRICS_AUTH_TOKEN.setter
+    def METRICS_AUTH_TOKEN(self, value: str | None) -> None:
+        object.__setattr__(
+            self, "metrics_auth_token", SecretStr(value) if value is not None else None
+        )
 
-        except Exception as e:
-            logger.warning(f"⚠️ VAPID key auto-generation failed: {e}")
-
-    def _configure_cookie_security(self):
-        """Configure cookie security based on deployment environment"""
-        try:
-            from app.config.reverse_proxy import ReverseProxyDetector
-
-            # Use the reverse proxy detector
-            self.USE_SECURE_COOKIES = ReverseProxyDetector.should_use_secure_cookies(
-                self.SECURE_COOKIES
-            )
-
-            # Log detailed proxy information
-            proxy_info = ReverseProxyDetector.get_proxy_info()
-
-            if proxy_info["is_behind_proxy"]:
-                if proxy_info["is_https_terminated"]:
-                    logger.info(
-                        "🔒 Detected HTTPS reverse proxy - enabling secure cookies"
-                    )
-                    logger.debug(
-                        f"🔍 Proxy details: proto={proxy_info['x_forwarded_proto']}, ssl={proxy_info['x_forwarded_ssl']}"
-                    )
-                else:
-                    logger.warning(
-                        "⚠️ Detected reverse proxy without HTTPS - disabling secure cookies"
-                    )
-                    logger.warning(
-                        "⚠️ For production, ensure your reverse proxy terminates SSL/TLS"
-                    )
-                    logger.debug(f"🔍 Proxy details: {proxy_info}")
-            else:
-                logger.info(
-                    f"🍪 Direct access mode - secure cookies: {'enabled' if self.USE_SECURE_COOKIES else 'disabled'}"
-                )
-
-        except Exception as e:
-            logger.error(f"Error configuring cookie security: {e}")
-            # Default to secure for safety
-            self.USE_SECURE_COOKIES = True
-
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        extra="ignore",
+        populate_by_name=True,
+        hide_input_in_errors=True,
+    )
 
 
 @lru_cache
 def get_settings() -> Settings:
-    """Return the process-scoped typed settings object."""
     return Settings()
 
 
-# Compatibility export for existing callers. New call sites should depend on
-# get_settings so tests can clear the cache and inject explicit values.
+# Compatibility export. Construction now only validates configuration; persistent
+# identities are resolved explicitly by the post-migration bootstrap service.
 settings = get_settings()

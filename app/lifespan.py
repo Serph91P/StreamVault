@@ -41,6 +41,14 @@ async def lifespan(app: FastAPI):
         raise RuntimeError("Database migrations did not complete successfully")
     logger.info("✅ All database migrations completed successfully")
 
+    # Security identities are loaded/generated only after the schema is current.
+    # Failure is fatal: continuing with ephemeral keys would invalidate webhooks
+    # and push subscriptions after every restart.
+    from app.services.system.persistent_key_service import bootstrap_persistent_keys
+
+    bootstrap_persistent_keys()
+    logger.info("Persistent EventSub and VAPID identities are ready")
+
     try:
         # Image migration check and execution
         logger.info("🖼️ Checking image migration status...")
