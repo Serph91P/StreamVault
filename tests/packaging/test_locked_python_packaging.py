@@ -190,6 +190,32 @@ def test_locked_environment_exposes_ruff_without_host_fallback() -> None:
     assert completed.stdout.startswith("ruff 0.15.1")
 
 
+def test_locked_ruff_format_gate_preserves_existing_application_format() -> None:
+    workflow = (ROOT / ".github" / "workflows" / "test.yml").read_text(encoding="utf-8")
+    command = "uv run ruff format --check --target-version py313 app/"
+
+    assert f"run: {command}" in workflow
+
+    completed = subprocess.run(
+        [
+            "uv",
+            "run",
+            "--locked",
+            "ruff",
+            "format",
+            "--check",
+            "--target-version",
+            "py313",
+            "app/",
+        ],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+
+
 def _wheel_version(wheel: Path) -> str:
     with zipfile.ZipFile(wheel) as archive:
         metadata_path = next(

@@ -165,7 +165,9 @@ jobs:
         run: uv run ruff check app/
 
       - name: Check Python formatting
-        run: uv run ruff format --check app/
+        # Keep the untouched legacy application on its existing formatter
+        # contract until its own modernization phase; packaging code targets 3.14.
+        run: uv run ruff format --check --target-version py313 app/
 
       - name: Type check Python code
         # The modernized surface is a bounded real gate. Legacy modules remain
