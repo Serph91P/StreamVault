@@ -156,6 +156,9 @@ export function useModal(
         if (!open || !el) return
         // wait a tick so the v-if rendered children are in the DOM
         requestAnimationFrame(() => {
+          if (!isOpen.value || !isTopmost()) return
+          const active = document.activeElement
+          if (active instanceof Node && el.contains(active)) return
           const focusable = getFocusable(el)
           if (focusable.length > 0) focusable[0].focus()
           else el.focus?.()
