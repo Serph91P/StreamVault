@@ -77,6 +77,15 @@ class StreamerRecordingSettingsSchema(BaseModel):
     supported_codecs: Optional[str] = (
         None  # Per-streamer codec preference (NULL = use global)
     )
+    twitch_auth_priority: int = Field(
+        default=0,
+        ge=-1000,
+        le=1000,
+        description=(
+            "Authenticated Twitch slot priority; higher values win. "
+            "Equal priority keeps the current owner."
+        ),
+    )
 
 
 class ActiveRecordingSchema(BaseModel):
@@ -89,6 +98,11 @@ class ActiveRecordingSchema(BaseModel):
     file_path: str
     status: str
     duration: int
+    twitch_auth_priority: int = 0
+    effective_auth_mode: str = "unknown"
+    pending_handoff: bool = False
+    handoff_reason: Optional[str] = None
+    partial_recording_warning: bool = False
 
 
 class StorageUsageSchema(BaseModel):

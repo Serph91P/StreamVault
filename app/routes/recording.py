@@ -6,6 +6,7 @@ from app.models import (
     Streamer,
     Stream,
     Recording,
+    TwitchUpstreamLease,
 )
 from app.schemas.recording import (
     RecordingSettingsSchema,
@@ -232,6 +233,7 @@ async def get_all_streamer_recording_settings():
                         quality=settings.quality,
                         custom_filename=settings.custom_filename,
                         max_streams=settings.max_streams,
+                        twitch_auth_priority=settings.twitch_auth_priority,
                         cleanup_policy=cleanup_policy,
                     )
                 )
@@ -276,6 +278,15 @@ async def get_all_streamer_recording_settings():
 #     except Exception as e:
 #         logger.error(f"Error updating streamer recording settings: {e}")
 #         raise HTTPException(status_code=500, detail="Internal server error")
+
+
+def _is_pending_auth_handoff(upstream_lease) -> bool:
+    """Distinguish queued transitions from durable blocked/failure reasons."""
+    return bool(
+        upstream_lease.state == "ROTATING"
+        or upstream_lease.handoff_target_channel
+        or upstream_lease.handoff_reason == "awaiting_higher_priority_handoff"
+    )
 
 
 @router.get("/active", response_model=List[ActiveRecordingSchema])
@@ -333,6 +344,24 @@ async def get_active_recordings():
                         # Stream and streamer info already loaded via joinedload
                         stream = recording.stream
                         if stream and stream.streamer:
+                            streamer_settings = (
+                                db.query(StreamerRecordingSettings)
+                                .filter(
+                                    StreamerRecordingSettings.streamer_id
+                                    == stream.streamer_id
+                                )
+                                .first()
+                            )
+                            upstream_lease = (
+                                db.query(TwitchUpstreamLease)
+                                .filter(
+                                    TwitchUpstreamLease.recording_id == recording.id,
+                                    TwitchUpstreamLease.state.in_(
+                                        ("STARTING", "ACTIVE", "ROTATING", "RECOVERING")
+                                    ),
+                                )
+                                .first()
+                            )
                             # Calculate duration
                             duration = 0
                             if recording.start_time:
@@ -356,6 +385,38 @@ async def get_active_recordings():
                                 file_path=recording.path or "",
                                 status=recording.status,
                                 duration=duration,
+                                twitch_auth_priority=(
+                                    streamer_settings.twitch_auth_priority
+                                    if streamer_settings
+                                    else 0
+                                ),
+                                effective_auth_mode=(
+                                    "authenticated"
+                                    if upstream_lease and upstream_lease.auth_key
+                                    else "anonymous"
+                                    if upstream_lease
+                                    else "unknown"
+                                ),
+                                pending_handoff=(
+                                    _is_pending_auth_handoff(upstream_lease)
+                                    if upstream_lease
+                                    else False
+                                ),
+                                handoff_reason=(
+                                    upstream_lease.handoff_reason
+                                    or (
+                                        "segment_boundary_transition"
+                                        if upstream_lease.state == "ROTATING"
+                                        else None
+                                    )
+                                    if upstream_lease
+                                    else None
+                                ),
+                                partial_recording_warning=(
+                                    upstream_lease.partial_recording_warning
+                                    if upstream_lease
+                                    else False
+                                ),
                             )
                             result.append(active_recording)
                     except Exception as e:
@@ -529,6 +590,16 @@ async def update_streamer_recording_settings(
                     streamer_id,
                 )
 
+        old_priority = streamer_settings.twitch_auth_priority
+        streamer_settings.twitch_auth_priority = settings.twitch_auth_priority
+        if old_priority != settings.twitch_auth_priority:
+            logging_service.log_configuration_change(
+                "twitch_auth_priority",
+                str(old_priority),
+                str(settings.twitch_auth_priority),
+                streamer_id,
+            )
+
         # Log the enabled/disabled change
         if old_enabled != settings.enabled:
             logging_service.log_configuration_change(
@@ -570,6 +641,7 @@ async def update_streamer_recording_settings(
             quality=streamer_settings.quality,
             custom_filename=streamer_settings.custom_filename,
             max_streams=streamer_settings.max_streams,
+            twitch_auth_priority=streamer_settings.twitch_auth_priority,
             cleanup_policy=cleanup_policy,
         )
     except HTTPException:

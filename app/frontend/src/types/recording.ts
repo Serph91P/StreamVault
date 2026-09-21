@@ -21,6 +21,8 @@ export interface StreamerRecordingSettings {
   max_streams?: number; // Maximum number of streams to keep for this streamer
   cleanup_policy?: CleanupPolicy; // New property for streamer-specific cleanup policy
   use_global_cleanup_policy?: boolean; // Use global cleanup policy or streamer-specific (default: true)
+  /** Authenticated Twitch slot priority. Higher wins; supported range -1000..1000. */
+  twitch_auth_priority: number;
 }
 
 // New type for advanced cleanup policies
@@ -59,6 +61,11 @@ export interface ActiveRecording {
   file_path: string;
   status: string;
   duration: number;
+  twitch_auth_priority?: number;
+  effective_auth_mode?: 'authenticated' | 'anonymous' | 'unknown';
+  pending_handoff?: boolean;
+  handoff_reason?: string;
+  partial_recording_warning?: boolean;
   // Legacy fields for backwards compatibility
   output_path?: string;
   quality?: string;

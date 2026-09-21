@@ -349,6 +349,18 @@ class TwitchUpstreamLease(Base):
     expires_at = Column(DateTime(timezone=True), nullable=False)
     released_at = Column(DateTime(timezone=True), nullable=True)
     release_reason = Column(String(64), nullable=True)
+    auth_priority = Column(Integer, nullable=False, default=0, server_default="0")
+    anonymous_available = Column(
+        Boolean, nullable=False, default=True, server_default="1"
+    )
+    auth_requested = Column(Boolean, nullable=False, default=False, server_default="0")
+    handoff_target_channel = Column(String(255), nullable=True)
+    handoff_action = Column(String(16), nullable=True)
+    handoff_reason = Column(String(64), nullable=True)
+    handoff_requested_at = Column(DateTime(timezone=True), nullable=True)
+    partial_recording_warning = Column(
+        Boolean, nullable=False, default=False, server_default="0"
+    )
     created_at = Column(DateTime(timezone=True), nullable=False)
     updated_at = Column(DateTime(timezone=True), nullable=False)
 
@@ -571,6 +583,11 @@ class StreamerRecordingSettings(Base):
     # "h265,h264" = prefer H.265, fallback to H.264 (requires OAuth for H.265)
     # "av1,h265,h264" = prefer AV1, then H.265, then H.264 (requires OAuth)
     supported_codecs = Column(String, nullable=True)
+    # Higher values win the single authenticated Twitch recording slot.
+    # The bounded range keeps API/UI validation and database storage portable.
+    twitch_auth_priority = Column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
 
     streamer = relationship("Streamer", back_populates="recording_settings")
 
