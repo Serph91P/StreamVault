@@ -49,6 +49,10 @@ jobs:
           
       - name: Check migrations
         run: uv run python -m app.migrations_init
+        env:
+          TWITCH_APP_ID: ci-placeholder
+          TWITCH_APP_SECRET: ci-placeholder
+          BASE_URL: http://localhost:7000
 
   # Build Docker image (no push) to validate it builds correctly
   build:

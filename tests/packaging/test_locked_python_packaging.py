@@ -125,6 +125,9 @@ def test_lock_and_runtime_consumers_are_canonical() -> None:
     docker_workflow = (ROOT / ".github" / "workflows" / "docker-build.yml").read_text(
         encoding="utf-8"
     )
+    release_workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(
+        encoding="utf-8"
+    )
     assert (
         "uv export --locked --no-dev --no-emit-project --no-hashes \\\n      --output-file /tmp/requirements.txt"
         in dockerfile
@@ -146,8 +149,21 @@ def test_lock_and_runtime_consumers_are_canonical() -> None:
     )
     assert "run: uv run pytest tests/ -v --tb=short" in docker_workflow
     assert "run: uv run python -m app.migrations_init" in docker_workflow
+    assert "TWITCH_APP_ID: ci-placeholder" in docker_workflow
+    assert "TWITCH_APP_SECRET: ci-placeholder" in docker_workflow
+    assert "BASE_URL: http://localhost:7000" in docker_workflow
     assert "uv run pip-audit -r requirements.txt" in docker_workflow
     assert "uv run bandit -r app/" in docker_workflow
+    assert "uv lock --check" in release_workflow
+    assert (
+        "uv sync --locked --all-groups --reinstall-package streamvault"
+        in release_workflow
+    )
+    assert "run: uv run pytest tests/ -v --tb=short" in release_workflow
+    assert "run: uv run python -m app.migrations_init" in release_workflow
+    assert "TWITCH_APP_ID: ci-placeholder" in release_workflow
+    assert "TWITCH_APP_SECRET: ci-placeholder" in release_workflow
+    assert "BASE_URL: http://localhost:7000" in release_workflow
 
 
 def test_wheel_build_uses_metadata_without_importing_application(
