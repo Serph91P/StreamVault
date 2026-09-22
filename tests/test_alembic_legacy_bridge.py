@@ -60,6 +60,22 @@ def test_historical_migrations_do_not_import_current_orm_models():
     assert offenders == []
 
 
+def test_executable_legacy_migrations_do_not_call_create_all():
+    offenders = []
+    for identity in MigrationService.LEGACY_MIGRATION_IDENTITIES:
+        path = Path("migrations") / identity
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        for node in ast.walk(tree):
+            if (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute)
+                and node.func.attr == "create_all"
+            ):
+                offenders.append(f"{path}:{node.lineno}")
+
+    assert offenders == []
+
+
 @pytest.fixture
 def bridge_engine(tmp_path, monkeypatch):
     target = create_engine(f"sqlite:///{tmp_path / 'bridge.db'}", future=True)
