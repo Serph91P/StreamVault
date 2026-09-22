@@ -35,6 +35,7 @@ from app.database import SessionLocal
 from app.models import GlobalSettings
 from app.services.proxy.proxy_health_service import proxy_health_service
 from app.services.system.twitch_token_service import TwitchTokenService
+from app.services.system.supervisor import TaskSupervisor
 from app.services.twitch_upstream_coordinator import (
     AUTHENTICATED_TWITCH_ACCOUNT,
     TwitchUpstreamConflict,
@@ -135,7 +136,7 @@ class LiveStreamingService:
     # Playlist window size (number of segments)
     HLS_LIST_SIZE = 10
 
-    def __init__(self, coordinator=None, output_root=None):
+    def __init__(self, coordinator=None, output_root=None, supervisor=None):
         self.sessions: Dict[str, LiveStreamSession] = {}
         self.user_sessions: Dict[str, Set[str]] = {}  # user_id -> set of session_ids
         self._cleanup_task: Optional[asyncio.Task] = None
@@ -144,22 +145,20 @@ class LiveStreamingService:
         self._output_root = Path(output_root or "/tmp/streamvault-live")
         self._pending_starts: Dict[tuple, asyncio.Future] = {}
         self._streamlink_output_secrets = {}
+        self._supervisor = supervisor or TaskSupervisor("live-streaming")
 
     async def start(self):
         """Start the background cleanup task"""
         if self._cleanup_task is None or self._cleanup_task.done():
-            self._cleanup_task = asyncio.create_task(self._cleanup_loop())
+            if self._supervisor.closed:
+                self._supervisor = TaskSupervisor("live-streaming")
+            self._cleanup_task = self._supervisor.create_task(
+                "cleanup-loop", self._cleanup_loop()
+            )
             logger.info("Live streaming cleanup task started")
 
     async def stop(self):
         """Stop all active streams and cleanup task"""
-        if self._cleanup_task and not self._cleanup_task.done():
-            self._cleanup_task.cancel()
-            try:
-                await self._cleanup_task
-            except asyncio.CancelledError:
-                pass
-
         # Stop all active sessions
         async with self._lock:
             session_ids = list(self.sessions.keys())
@@ -171,6 +170,8 @@ class LiveStreamingService:
                 logger.warning(
                     "[LIVE] Session %s was fenced during shutdown", session_id
                 )
+
+        await self._supervisor.shutdown()
 
         logger.info("Live streaming service stopped")
 
@@ -360,16 +361,19 @@ class LiveStreamingService:
                 raise
 
             # Start background stderr loggers so we can diagnose failures
-            asyncio.create_task(
-                self._log_stderr(streamlink_process, f"streamlink-{session_id}")
+            self._supervisor.create_task(
+                f"{session_id}:streamlink-stderr",
+                self._log_stderr(streamlink_process, f"streamlink-{session_id}"),
             )
-            asyncio.create_task(
-                self._log_stderr(ffmpeg_process, f"ffmpeg-{session_id}")
+            self._supervisor.create_task(
+                f"{session_id}:ffmpeg-stderr",
+                self._log_stderr(ffmpeg_process, f"ffmpeg-{session_id}"),
             )
 
             # Start piping data from streamlink stdout -> ffmpeg stdin
-            asyncio.create_task(
-                self._pipe_streamlink_to_ffmpeg(streamlink_process, ffmpeg_process)
+            self._supervisor.create_task(
+                f"{session_id}:media-pipe",
+                self._pipe_streamlink_to_ffmpeg(streamlink_process, ffmpeg_process),
             )
 
             # Wait for the HLS playlist to appear (with timeout)
@@ -429,7 +433,9 @@ class LiveStreamingService:
                     self.user_sessions[user_id].add(session_id)
 
             # Start background monitoring
-            asyncio.create_task(self._monitor_session(session_id))
+            self._supervisor.create_task(
+                f"{session_id}:monitor", self._monitor_session(session_id)
+            )
 
             logger.info(f"[LIVE] Session {session_id} started successfully")
             return LiveStreamStartResult(session_id, False)

@@ -526,13 +526,18 @@ class LoggingService:
         stderr: bytes,
         exit_code: int,
         streamer_name: str,
+        known_secrets: tuple | list | set = (),
     ):
         """Log FFmpeg process output to per-streamer files only (not app logs)
 
         FFmpeg stdout/stderr is written ONLY to /app/logs/ffmpeg/{streamer_name}/
         App logs only get a summary at DEBUG level to avoid cluttering main logs.
         """
+        from app.utils.security import sanitize_streamlink_output
+
         prefix = f"[{operation}_{streamer_name}]"
+        safe_stdout = sanitize_streamlink_output(stdout, known_secrets)
+        safe_stderr = sanitize_streamlink_output(stderr, known_secrets)
 
         # Write to per-streamer log file (PRIMARY destination for FFmpeg output)
         log_path = self.get_ffmpeg_log_path(operation, streamer_name)
@@ -543,12 +548,8 @@ class LoggingService:
                     f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {operation} operation completed with exit code: {exit_code}\n"
                 )
 
-                if stdout:
-                    stdout_text = (
-                        stdout.decode("utf-8", errors="ignore")
-                        if isinstance(stdout, bytes)
-                        else stdout
-                    )
+                if safe_stdout:
+                    stdout_text = safe_stdout
                     f.write(
                         f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] STDOUT:\n{stdout_text}\n"
                     )
@@ -557,12 +558,8 @@ class LoggingService:
                         f"{prefix} STDOUT written to {log_path} ({len(stdout_text)} chars)"
                     )
 
-                if stderr:
-                    stderr_text = (
-                        stderr.decode("utf-8", errors="ignore")
-                        if isinstance(stderr, bytes)
-                        else stderr
-                    )
+                if safe_stderr:
+                    stderr_text = safe_stderr
                     f.write(
                         f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] STDERR:\n{stderr_text}\n"
                     )

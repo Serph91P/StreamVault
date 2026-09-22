@@ -641,7 +641,7 @@ def sanitize_proxy_url_for_logging(proxy_url: str) -> str:
 
         return f"{host}:{port}" if port is not None else host
 
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return "[REDACTED_PROXY_URL]"
 
 
@@ -860,7 +860,7 @@ class StreamingStreamlinkOutputSanitizer:
 def _get_proxy_secret_values(proxy_url: str) -> tuple[str, ...]:
     try:
         parsed = urlsplit(proxy_url)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return ()
 
     values = [parsed.username, parsed.password]
@@ -896,57 +896,72 @@ def get_streamlink_command_secret_values(command: list) -> tuple[str, ...]:
 
 
 def sanitize_command_for_logging(cmd: list) -> str:
-    """
-    Sanitize command arguments for logging to prevent sensitive data exposure
-
-    This function prevents logging of sensitive information (CWE-532) by masking
-    OAuth tokens, API keys, and other credentials in command arguments.
-
-    Args:
-        cmd: List of command arguments
-
-    Returns:
-        str: Sanitized command string safe for logging
-
-    Example:
-        >>> cmd = ["streamlink", "--twitch-api-header=Authorization=OAuth abc123", "url", "best"]
-        >>> sanitize_command_for_logging(cmd)
-        "streamlink --twitch-api-header=Authorization=OAuth [REDACTED] url best"
-    """
+    """Render Streamlink/FFmpeg argv without credential-bearing values."""
     if not cmd or not isinstance(cmd, list):
         return ""
 
+    # FFmpeg commonly carries HTTP credentials in the argument *after* one of
+    # these switches. Treat the complete value as opaque rather than trying to
+    # parse a possibly multi-line header block.
+    sensitive_value_options = {
+        "-headers",
+        "-cookies",
+        "-http_proxy",
+        "-password",
+        "-auth",
+        "--http-header",
+        "--twitch-api-header",
+        "--http-proxy",
+        "--https-proxy",
+        "--password",
+        "--token",
+        "--api-key",
+        "--secret",
+        "--access-token",
+    }
+    sensitive_assignment = re.compile(
+        r"(?i)^(--?(?:http-header|twitch-api-header|https?-proxy|password|auth|"
+        r"token|api-key|secret|access-token))="
+    )
+
     sanitized_parts = []
+    redact_next = False
+    for raw_argument in cmd:
+        argument = raw_argument if isinstance(raw_argument, str) else str(raw_argument)
+        if redact_next:
+            sanitized_parts.append("[REDACTED]")
+            redact_next = False
+            continue
+        if argument in sensitive_value_options:
+            sanitized_parts.append(argument)
+            redact_next = True
+            continue
+        assignment = sensitive_assignment.match(argument)
+        if assignment:
+            sanitized_parts.append(f"{assignment.group(1)}=[REDACTED]")
+            continue
 
-    for arg in cmd:
-        if not isinstance(arg, str):
-            arg = str(arg)
-
-        # Patterns that indicate sensitive data
-        sensitive_patterns = [
-            ("--twitch-api-header=", "OAuth"),  # Twitch OAuth tokens
-            ("Authorization=OAuth", None),  # OAuth in headers
-            ("--http-proxy=", "://"),  # Proxy URLs with credentials
-            ("--https-proxy=", "://"),  # Proxy URLs with credentials
-            ("--password=", None),  # Generic password flags
-            ("--token=", None),  # Generic token flags
-            ("--api-key=", None),  # API keys
-            ("--secret=", None),  # Secrets
-        ]
-
-        sanitized_arg = arg
-        for pattern, additional_check in sensitive_patterns:
-            if pattern in arg:
-                # Check additional condition if specified
-                if additional_check is None or additional_check in arg:
-                    # Redact the value part
-                    parts = arg.split("=", 1)
-                    if len(parts) == 2:
-                        sanitized_arg = f"{parts[0]}=[REDACTED]"
-                    else:
-                        sanitized_arg = "[REDACTED]"
-                    break
-
-        sanitized_parts.append(sanitized_arg)
+        parsed = urlsplit(argument)
+        sensitive_url = bool(
+            parsed.scheme in {"http", "https"}
+            and (
+                parsed.username
+                or parsed.password
+                or any(
+                    name.casefold()
+                    in {"token", "oauth", "signature", "sig", "key", "api_key"}
+                    for name, _value in parse_qsl(parsed.query, keep_blank_values=True)
+                )
+            )
+        )
+        sensitive_text = re.search(
+            r"(?i)(authorization|cookie|password|token|secret|api[_-]?key)\s*[:=]",
+            argument,
+        )
+        sanitized_parts.append(
+            sanitize_streamlink_output(argument)
+            if sensitive_url or sensitive_text
+            else argument
+        )
 
     return " ".join(sanitized_parts)

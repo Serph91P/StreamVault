@@ -6,8 +6,10 @@ import asyncio
 import logging
 from app.services.init.background_queue_init import shutdown_background_queue
 from app.config.constants import ASYNC_DELAYS
+from app.services.system.supervisor import TaskSupervisor
 
 logger = logging.getLogger("streamvault")
+_background_supervisor: TaskSupervisor | None = None
 
 
 def get_recording_manager():
@@ -51,7 +53,7 @@ async def initialize_background_queue_with_fixes():
         raise
 
 
-async def start_session_cleanup_service():
+async def start_session_cleanup_service(supervisor: TaskSupervisor):
     """Start session cleanup service for production authentication reliability"""
     try:
         logger.info("Starting session cleanup service...")
@@ -92,8 +94,7 @@ async def start_session_cleanup_service():
                 except Exception as e:
                     logger.error(f"Error in periodic session cleanup: {e}")
 
-        # Start cleanup task
-        asyncio.create_task(periodic_session_cleanup())
+        supervisor.create_task("periodic-session-cleanup", periodic_session_cleanup())
 
     except Exception as e:
         logger.error(f"❌ Failed to start session cleanup service: {e}")
@@ -102,7 +103,7 @@ async def start_session_cleanup_service():
         )
 
 
-async def start_zombie_recording_cleanup_service():
+async def start_zombie_recording_cleanup_service(supervisor: TaskSupervisor):
     """Start periodic zombie recording cleanup service.
 
     This service runs every 5 minutes to detect and clean up recordings that are
@@ -142,8 +143,7 @@ async def start_zombie_recording_cleanup_service():
                 except Exception as e:
                     logger.error(f"Error in periodic zombie cleanup: {e}")
 
-        # Start cleanup task
-        asyncio.create_task(periodic_zombie_cleanup())
+        supervisor.create_task("periodic-zombie-cleanup", periodic_zombie_cleanup())
 
     except Exception as e:
         logger.error(f"❌ Failed to start zombie recording cleanup service: {e}")
@@ -348,8 +348,14 @@ async def initialize_vapid_keys():
         logger.warning("Push notifications will be disabled for this session")
 
 
-async def initialize_background_services():
+async def initialize_background_services(
+    supervisor: TaskSupervisor | None = None,
+):
     """Initialize all background services at startup with production fixes"""
+    global _background_supervisor
+    if supervisor is None:
+        supervisor = TaskSupervisor("background-services")
+    _background_supervisor = supervisor
     try:
         logger.info("Initializing background services with production fixes...")
 
@@ -359,11 +365,7 @@ async def initialize_background_services():
         # Initialize background queue with production fixes
         await initialize_background_queue_with_fixes()
 
-        # CRITICAL: Wait for queue workers to be fully ready before recovery
-        logger.info("⏳ Waiting for background queue workers to be fully ready...")
-        await asyncio.sleep(ASYNC_DELAYS.QUEUE_WORKER_START_DELAY)
-
-        # Verify queue is responsive before proceeding
+        # Verify queue readiness directly; do not hide startup ordering behind a delay.
         queue_ready = await verify_queue_readiness()
         if not queue_ready:
             logger.warning("⚠️ Background queue not ready - skipping recovery for now")
@@ -383,10 +385,10 @@ async def initialize_background_services():
         await initialize_image_sync_service()
 
         # Start session cleanup service for production auth reliability
-        await start_session_cleanup_service()
+        await start_session_cleanup_service(supervisor)
 
         # Start periodic zombie recording cleanup service
-        await start_zombie_recording_cleanup_service()
+        await start_zombie_recording_cleanup_service(supervisor)
 
         logger.info("Background services initialized successfully")
 
@@ -833,6 +835,11 @@ async def shutdown_background_services():
     """Shutdown all background services"""
     try:
         logger.info("Shutting down background services...")
+
+        global _background_supervisor
+        if _background_supervisor is not None:
+            await _background_supervisor.shutdown()
+            _background_supervisor = None
 
         # Shutdown image sync service
         from app.services.images.auto_image_sync_service import auto_image_sync_service

@@ -49,6 +49,7 @@ from app.services.twitch_upstream_coordinator import (
     AUTHENTICATED_TWITCH_ACCOUNT,
     twitch_upstream_coordinator,
 )
+from app.services.system.supervisor import TaskSupervisor
 
 logger = logging.getLogger("streamvault")
 _UNRESOLVED_RECORDING_TOKEN = object()
@@ -114,6 +115,7 @@ class ProcessManager:
         self.rotation_locks = {}
         self._streamlink_output_secrets = {}
         self._segment_completion_tasks = {}
+        self._task_supervisor = TaskSupervisor("recording-processes")
         self.ASYNC_DELAYS = ASYNC_DELAYS
         self.config_manager = config_manager
         self.post_processing_callback = post_processing_callback  # Injected dependency
@@ -152,6 +154,12 @@ class ProcessManager:
 
     def _get_streamlink_output_secrets(self, process) -> tuple[str, ...]:
         return getattr(self, "_streamlink_output_secrets", {}).get(process, ())
+
+    def _get_task_supervisor(self) -> TaskSupervisor:
+        supervisor = getattr(self, "_task_supervisor", None)
+        if supervisor is None or supervisor.closed:
+            supervisor = self._task_supervisor = TaskSupervisor("recording-processes")
+        return supervisor
 
     def _remember_streamlink_output_secrets(self, process, command: list) -> None:
         contexts = getattr(self, "_streamlink_output_secrets", None)
@@ -268,7 +276,9 @@ class ProcessManager:
         if existing_task is not None:
             return existing_task
 
-        task = asyncio.create_task(self.monitor_process(process))
+        task = self._get_task_supervisor().create_task(
+            f"process-{process.pid}:completion", self.monitor_process(process)
+        )
         tasks[process] = task
 
         def release_task(completed_task):
@@ -352,8 +362,9 @@ class ProcessManager:
 
             if process:
                 # Start monitoring task for long stream management
-                monitor_task = asyncio.create_task(
-                    self._monitor_long_stream(stream, segment_info, quality)
+                monitor_task = self._get_task_supervisor().create_task(
+                    f"stream-{stream.id}:rotation-monitor",
+                    self._monitor_long_stream(stream, segment_info, quality),
                 )
                 segment_info["monitor_task"] = monitor_task
 
@@ -386,7 +397,7 @@ class ProcessManager:
                             ],
                         )
                         stop_authorized = True
-                    except (KeyError, PermissionError):
+                    except KeyError, PermissionError:
                         pass
                 cleanup_complete = (
                     owned_process is None or owned_process.returncode is not None
@@ -1597,7 +1608,7 @@ class ProcessManager:
                 cleanup_complete = True
             else:
                 cleanup_complete = True
-        except (OSError, ProcessLookupError, KeyError, AttributeError, PermissionError):
+        except OSError, ProcessLookupError, KeyError, AttributeError, PermissionError:
             return
         if cleanup_complete:
             if process is not None:
@@ -2528,11 +2539,10 @@ class ProcessManager:
 
             if active_process_count == 0 and segmented_process_count == 0:
                 logger.info("No active processes to shutdown")
-                return
-
-            logger.info(
-                f"⏳ Terminating {active_process_count} active processes and {segmented_process_count} segmented processes..."
-            )
+            else:
+                logger.info(
+                    f"⏳ Terminating {active_process_count} active processes and {segmented_process_count} segmented processes..."
+                )
 
             # Terminate all active processes gracefully
             termination_tasks = []
@@ -2545,6 +2555,10 @@ class ProcessManager:
             # Wait for all terminations to complete
             if termination_tasks:
                 await asyncio.gather(*termination_tasks, return_exceptions=True)
+
+            # Completion and rotation monitors are process-manager-owned. They
+            # must never survive process shutdown or become unobserved tasks.
+            await self._get_task_supervisor().shutdown(process_timeout=timeout)
 
             logger.info(
                 "Process Manager shutdown completed with %s fenced owners retained",
