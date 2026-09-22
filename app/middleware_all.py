@@ -15,6 +15,7 @@ from app.config.settings import settings
 from app.config.logging_config import request_context
 from app.middleware.logging import logging_middleware
 from app.observability import service_metrics
+from app.utils.client_ip import get_real_client_ip
 
 import logging
 
@@ -338,12 +339,8 @@ async def rate_limit_middleware(request: Request, call_next):
 
 
 def client_ip_for_request(request: Request) -> str:
-    """Use forwarded client identity only when the direct peer is trusted."""
-    client_ip = request.client.host if request.client else "unknown"
-    forwarded_for = request.headers.get("X-Forwarded-For")
-    if settings.is_trusted_proxy(client_ip) and forwarded_for:
-        return forwarded_for.split(",", 1)[0].strip()
-    return client_ip
+    """Resolve the validated HTTP identity shared with WebSocket callers."""
+    return get_real_client_ip(request)
 
 
 def install_http_middleware(app: FastAPI) -> None:

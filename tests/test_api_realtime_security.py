@@ -8,7 +8,7 @@ from fastapi import FastAPI, Request, WebSocket
 from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketState
 
-from app.middleware.auth import _cookie_mutation_has_csrf_violation
+from app.middleware.auth import AuthMiddleware, _cookie_mutation_has_csrf_violation
 from app.middleware_all import AdaptiveLimiter, rate_limit_middleware
 from app.services.communication.websocket_manager import ConnectionManager
 from app.utils.client_ip import get_client_info, get_real_client_ip
@@ -101,7 +101,7 @@ def _mutation_request(
     )
 
 
-def test_cookie_mutation_csrf_matrix_preserves_explicit_api_credentials():
+def test_cookie_mutation_csrf_matrix_uses_selected_cookie_credentials():
     assert _cookie_mutation_has_csrf_violation(
         _mutation_request(origin="https://attacker.test")
     )
@@ -111,17 +111,56 @@ def test_cookie_mutation_csrf_matrix_preserves_explicit_api_credentials():
     assert _cookie_mutation_has_csrf_violation(
         _mutation_request(origin=None, fetch_site="cross-site")
     )
-    assert not _cookie_mutation_has_csrf_violation(
+    assert _cookie_mutation_has_csrf_violation(
         _mutation_request(
             origin="https://attacker.test", authorization="Bearer explicit-token"
         )
     )
-    assert not _cookie_mutation_has_csrf_violation(
+    assert _cookie_mutation_has_csrf_violation(
         _mutation_request(origin="https://attacker.test", api_key="sv_explicit")
+    )
+    assert _cookie_mutation_has_csrf_violation(
+        _mutation_request(
+            origin="https://attacker.test", authorization="Basic irrelevant"
+        )
     )
     assert not _cookie_mutation_has_csrf_violation(
         _mutation_request(origin="https://attacker.test", cookie=None)
     )
+    assert not _cookie_mutation_has_csrf_violation(
+        _mutation_request(
+            origin="https://attacker.test",
+            cookie=None,
+            authorization="Bearer explicit-token",
+        )
+    )
+    assert not _cookie_mutation_has_csrf_violation(
+        _mutation_request(
+            origin="https://attacker.test", cookie=None, api_key="sv_explicit"
+        )
+    )
+
+
+def test_auth_middleware_blocks_cookie_csrf_with_irrelevant_authorization_header():
+    app = FastAPI()
+    app.add_middleware(AuthMiddleware)
+
+    @app.post("/api/settings")
+    async def mutate_settings():
+        return {"ok": True}
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/settings",
+            cookies={"access_token": "ambient-cookie"},
+            headers={
+                "Authorization": "Basic irrelevant",
+                "Origin": "https://attacker.test",
+            },
+        )
+
+    assert response.status_code == 403
+    assert response.json() == {"error": "CSRF validation failed"}
 
 
 def test_http_and_websocket_forwarded_identity_have_trusted_proxy_parity(monkeypatch):
@@ -135,6 +174,43 @@ def test_http_and_websocket_forwarded_identity_have_trusted_proxy_parity(monkeyp
     assert get_client_info(trusted)["is_reverse_proxied"] is True
     assert get_real_client_ip(spoofed) == "198.51.100.4"
     assert get_client_info(spoofed)["is_reverse_proxied"] is False
+
+
+def test_rate_limit_middleware_validates_forwarded_identity_like_websocket(monkeypatch):
+    from app.config.settings import settings
+
+    monkeypatch.setattr(settings, "TRUSTED_PROXY_CIDRS", ["10.0.0.0/8"])
+
+    class CapturingLimiter:
+        def __init__(self) -> None:
+            self.client_ips: list[str] = []
+
+        async def acquire(self, **kwargs):
+            self.client_ips.append(kwargs["client_ip"])
+            return True, 0, 99, 100
+
+    def captured_ip(peer: str, forwarded_for: str) -> str:
+        app = FastAPI()
+
+        @app.get("/api/probe")
+        async def probe():
+            return {"ok": True}
+
+        limiter = CapturingLimiter()
+        app.state.rate_limiter = limiter
+        app.middleware("http")(rate_limit_middleware)
+        with TestClient(app, client=(peer, 50000)) as client:
+            assert (
+                client.get(
+                    "/api/probe", headers={"X-Forwarded-For": forwarded_for}
+                ).status_code
+                == 200
+            )
+        return limiter.client_ips[-1]
+
+    assert captured_ip("10.1.2.3", "203.0.113.9, 10.2.3.4") == "203.0.113.9"
+    assert captured_ip("10.1.2.3", "not-an-ip") == "10.1.2.3"
+    assert captured_ip("198.51.100.4", "203.0.113.9") == "198.51.100.4"
 
 
 def test_rate_limiter_uses_monotonic_fake_clock_and_distinct_api_key_identities(

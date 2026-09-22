@@ -51,8 +51,11 @@ def _cookie_mutation_has_csrf_violation(request: Request) -> bool:
         return False
     if not (request.cookies.get("access_token") or request.cookies.get("session")):
         return False
-    if request.headers.get("authorization") or request.headers.get("x-api-key"):
-        return False
+
+    # HTTP authentication gives ambient session cookies precedence over Bearer
+    # and API-key headers. Therefore a request carrying a session cookie remains
+    # cookie-authenticated and must pass CSRF checks even when an unrelated or
+    # invalid explicit credential is also present.
 
     fetch_site = request.headers.get("sec-fetch-site", "").lower()
     if fetch_site == "cross-site":
