@@ -1,4 +1,3 @@
-import asyncio
 import sys
 from types import SimpleNamespace
 
@@ -49,31 +48,13 @@ async def test_lifespan_uses_factory_service_overrides_for_startup_and_shutdown(
     async def record(name):
         calls.append(name)
 
-    class CompletedTask:
-        def done(self):
-            return True
-
-        def cancel(self):
-            calls.append("task-cancel")
-
-        def __await__(self):
-            return asyncio.sleep(0).__await__()
-
-    async def no_sleep(_):
-        return None
-
-    def complete_task(coroutine):
-        coroutine.close()
-        return CompletedTask()
-
     async def event_registry_override():
         return EventRegistry()
 
     monkeypatch.setattr(
         MigrationService, "run_safe_migrations", staticmethod(lambda: True)
     )
-    monkeypatch.setattr(lifespan_module.asyncio, "sleep", no_sleep)
-    monkeypatch.setattr(lifespan_module.asyncio, "create_task", complete_task)
+
     monkeypatch.setattr(
         lifespan_module,
         "image_sync_service",
@@ -94,23 +75,17 @@ async def test_lifespan_uses_factory_service_overrides_for_startup_and_shutdown(
         lifespan_module,
         "database_lifecycle",
         SimpleNamespace(
-            sync_engine=object(),
             adispose=lambda: record("database-dispose"),
         ),
-    )
-    monkeypatch.setattr(
-        lifespan_module.models.Base.metadata,
-        "create_all",
-        lambda bind: calls.append(("create-all", bind)),
-    )
-    monkeypatch.setattr(
-        lifespan_module, "run_development_tests", lambda: record("dev-tests")
     )
 
     async def config_update():
         return True
 
     module_overrides = {
+        "app.services.system.persistent_key_service": SimpleNamespace(
+            bootstrap_persistent_keys=lambda: calls.append("keys-bootstrap")
+        ),
         "app.services.migration.image_migration_service": SimpleNamespace(
             image_migration_service=SimpleNamespace(
                 old_images_dir=SimpleNamespace(exists=lambda: False),
@@ -133,7 +108,8 @@ async def test_lifespan_uses_factory_service_overrides_for_startup_and_shutdown(
             )
         ),
         "app.services.init.startup_init": SimpleNamespace(
-            initialize_background_services=lambda: record("background-init")
+            initialize_background_services=lambda supervisor: record("background-init"),
+            shutdown_background_services=lambda: record("background-stop"),
         ),
         "app.services.proxy.proxy_health_service": SimpleNamespace(
             proxy_health_service=SimpleNamespace(
@@ -160,9 +136,28 @@ async def test_lifespan_uses_factory_service_overrides_for_startup_and_shutdown(
 
     async with lifespan_module.lifespan(app):
         assert app.state.recording_manager.__class__ is RecordingManager
+        assert app.state.startup_phases == [
+            "migrations",
+            "persistent-identities",
+            "optional-preparation",
+            "core-services",
+            "background-services",
+            "ready",
+        ]
 
     assert calls.index("reconcile") < calls.index("eventsub-initialize")
-    assert calls.index("websocket-stop") < calls.index("database-dispose")
+    shutdown_calls = [
+        "proxy-stop",
+        "websocket-stop",
+        "image-sync-stop",
+        "background-stop",
+        "live-stop",
+        ("recording-shutdown", lifespan_module.TIMEOUTS.GRACEFUL_SHUTDOWN),
+        "database-dispose",
+    ]
+    assert [calls.index(call) for call in shutdown_calls] == sorted(
+        calls.index(call) for call in shutdown_calls
+    )
     assert any(
         call[0] == "recording-shutdown" for call in calls if isinstance(call, tuple)
     )
