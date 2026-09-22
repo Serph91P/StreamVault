@@ -176,6 +176,14 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 
         await page.keyboard.press('Tab')
         const keyboardFocus = page.locator(':focus')
         await expect(keyboardFocus).toHaveCount(1)
+        await expect(keyboardFocus).toBeVisible()
+        const keyboardFocusEvidence = await keyboardFocus.evaluate((element) => ({
+          isDocumentFallback: element === document.body || element === document.documentElement,
+          meetsFocusableContract: element.tabIndex >= 0 && element.matches('a[href], area[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), summary, iframe, object, embed, audio[controls], video[controls], [contenteditable]:not([contenteditable="false"]), [tabindex]'),
+        }))
+        if (keyboardFocusEvidence.isDocumentFallback || !keyboardFocusEvidence.meetsFocusableContract) {
+          throw new Error(`keyboard focus must target a visible, focusable element instead of the document fallback: ${JSON.stringify(keyboardFocusEvidence)}`)
+        }
         keyboardFocusCount = await keyboardFocus.count()
         stage = 'accessibility-tree'
         await writeObservation()
