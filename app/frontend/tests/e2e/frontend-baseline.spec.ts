@@ -119,6 +119,22 @@ test('collects deterministic mock baseline across the complete viewport matrix a
     exceptionsApplied: exceptions,
     observations: report,
   }, null, 2)}\n`)
+
+  expect(
+    report.filter(observation => observation.collectionErrors.length > 0),
+    'every viewport observation must contain genuine route evidence',
+  ).toEqual([])
+})
+
+test('keeps the WebKit baseline protocol responsive across PWA navigations', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'baseline-webkit', 'WebKit regression coverage only')
+  test.setTimeout(20_000)
+
+  await page.goto('/', { waitUntil: 'domcontentloaded' })
+  await page.goto('/streamers', { waitUntil: 'domcontentloaded' })
+
+  await expect(page.locator('.streamers-view')).toHaveCount(1)
+  expect(testInfo.project.use.serviceWorkers).toBe('block')
 })
 
 for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 }]) {
@@ -170,6 +186,9 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 
         collectionErrors.push(formatBaselineStageFailure(stage, error))
       }
       await writeObservation()
+      expect(collectionErrors, 'cross-engine evidence collection must complete without errors').toEqual([])
+      expect(keyboardFocusCount, 'keyboard evidence must be present').not.toBeNull()
+      expect(ariaSnapshot, 'accessibility-tree evidence must be present').not.toBeNull()
     })
   }
 }

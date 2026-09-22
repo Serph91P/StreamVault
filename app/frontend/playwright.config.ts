@@ -21,9 +21,9 @@ export default defineConfig({
   projects: [
     { name: 'desktop', testIgnore: /frontend-baseline\.spec\.ts/, use: { viewport: { width: 1440, height: 900 } } },
     { name: 'mobile', testIgnore: /frontend-baseline\.spec\.ts/, use: { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true } },
-    { name: 'baseline-chromium', testMatch: /frontend-baseline\.spec\.ts/, use: { ...devices['Desktop Chrome'] } },
-    { name: 'baseline-firefox', testMatch: /frontend-baseline\.spec\.ts/, use: { ...devices['Desktop Firefox'] } },
-    { name: 'baseline-webkit', testMatch: /frontend-baseline\.spec\.ts/, use: { ...devices['Desktop Safari'] } },
+    { name: 'baseline-chromium', testMatch: /frontend-baseline\.spec\.ts/, use: { ...devices['Desktop Chrome'], serviceWorkers: 'block' } },
+    { name: 'baseline-firefox', testMatch: /frontend-baseline\.spec\.ts/, use: { ...devices['Desktop Firefox'], serviceWorkers: 'block' } },
+    { name: 'baseline-webkit', testMatch: /frontend-baseline\.spec\.ts/, use: { ...devices['Desktop Safari'], serviceWorkers: 'block' } },
   ],
   webServer: {
     command: 'VITE_USE_MOCK_DATA=true npm run build && VITE_USE_MOCK_DATA=true npm run preview -- --host 127.0.0.1 --port 4180',
