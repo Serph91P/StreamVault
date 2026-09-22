@@ -12,14 +12,26 @@ logger = logging.getLogger("streamvault")
 
 
 class ConnectionManager:
-    def __init__(self, event_log_size: int = 500):
-        self.active_connections: Dict[int, WebSocket] = {}  # Use dict instead of list
+    def __init__(
+        self,
+        event_log_size: int = 500,
+        *,
+        queue_size: int = 100,
+        max_connections: int = 500,
+        max_connections_per_client: int = 10,
+    ):
+        self.active_connections: Dict[int, WebSocket] = {}
         self._lock = asyncio.Lock()
+        self._queue_size = max(1, queue_size)
+        self._max_connections = max(1, max_connections)
+        self._max_connections_per_client = max(1, max_connections_per_client)
+        self._outbound_queues: Dict[int, asyncio.Queue] = {}
+        self._sender_tasks: Dict[int, asyncio.Task] = {}
         self._event_log_size = event_log_size
         self._event_log = deque(maxlen=event_log_size)
         self._next_event_id = 0
 
-    async def connect(self, websocket: WebSocket):
+    async def connect(self, websocket: WebSocket) -> bool:
         await websocket.accept()
 
         # Get real client information including IP behind reverse proxy
@@ -44,16 +56,24 @@ class ConnectionManager:
             # Check for existing connections from same client
             existing_from_client = sum(
                 1
-                for ws_id, ws in self.active_connections.items()
+                for ws in self.active_connections.values()
                 if hasattr(ws, "_client_identifier")
                 and ws._client_identifier == client_identifier
             )
+
+            if (
+                len(self.active_connections) >= self._max_connections
+                or existing_from_client >= self._max_connections_per_client
+            ):
+                await websocket.close(code=1013, reason="Connection limit reached")
+                return False
 
             # Store client identifier in websocket for tracking
             websocket._client_identifier = client_identifier
             websocket._real_ip = real_ip
 
             self.active_connections[connection_id] = websocket
+            self._start_sender(websocket)
 
         connection_count = len(self.active_connections)
         proxy_info = f" (via proxy {proxy_ip})" if is_proxied else ""
@@ -81,29 +101,62 @@ class ConnectionManager:
                 },
             },
         )
+        return True
+
+    def _start_sender(self, websocket: WebSocket) -> None:
+        connection_id = id(websocket)
+        if connection_id in self._sender_tasks:
+            return
+        queue: asyncio.Queue = asyncio.Queue(maxsize=self._queue_size)
+        self._outbound_queues[connection_id] = queue
+        self._sender_tasks[connection_id] = asyncio.create_task(
+            self._sender(websocket, queue),
+            name=f"websocket-sender-{connection_id}",
+        )
+
+    async def _sender(self, websocket: WebSocket, queue: asyncio.Queue) -> None:
+        try:
+            while True:
+                message = await queue.get()
+                try:
+                    await websocket.send_json(message)
+                finally:
+                    queue.task_done()
+        except asyncio.CancelledError:
+            raise
+        except Exception as error:
+            logger.warning(
+                "WebSocket sender failed for %s: %s", websocket.client, error
+            )
+            await self.disconnect(websocket)
 
     async def disconnect(self, websocket: WebSocket):
+        sender_task = None
         async with self._lock:
             connection_id = id(websocket)
-            if connection_id in self.active_connections:
-                del self.active_connections[connection_id]
-                connection_count = len(self.active_connections)
+            if connection_id not in self.active_connections:
+                return
+            del self.active_connections[connection_id]
+            self._outbound_queues.pop(connection_id, None)
+            sender_task = self._sender_tasks.pop(connection_id, None)
+            connection_count = len(self.active_connections)
 
-                # Get client info for better logging
-                real_ip = getattr(websocket, "_real_ip", "unknown")
-                client_identifier = getattr(websocket, "_client_identifier", "unknown")
+            real_ip = getattr(websocket, "_real_ip", "unknown")
+            client_identifier = getattr(websocket, "_client_identifier", "unknown")
+            remaining_from_client = sum(
+                1
+                for ws in self.active_connections.values()
+                if hasattr(ws, "_client_identifier")
+                and ws._client_identifier == client_identifier
+            )
 
-                # Count remaining connections from same client
-                remaining_from_client = sum(
-                    1
-                    for ws_id, ws in self.active_connections.items()
-                    if hasattr(ws, "_client_identifier")
-                    and ws._client_identifier == client_identifier
-                )
+            logger.info(
+                f"🔌 WebSocket disconnected: {real_ip} (ID: {connection_id}) - Remaining: {connection_count} total, {remaining_from_client} from this client"
+            )
 
-                logger.info(
-                    f"🔌 WebSocket disconnected: {real_ip} (ID: {connection_id}) - Remaining: {connection_count} total, {remaining_from_client} from this client"
-                )
+        if sender_task is not None and sender_task is not asyncio.current_task():
+            sender_task.cancel()
+            await asyncio.gather(sender_task, return_exceptions=True)
 
     async def _cleanup_stale_connections(self):
         """Remove stale/closed WebSocket connections"""
@@ -123,16 +176,39 @@ class ConnectionManager:
 
         for connection_id in stale_connections:
             del self.active_connections[connection_id]
+            self._outbound_queues.pop(connection_id, None)
+            sender_task = self._sender_tasks.pop(connection_id, None)
+            if sender_task is not None:
+                sender_task.cancel()
             logger.debug(f"🧹 Cleaned up stale connection: {connection_id}")
 
         if stale_connections:
             logger.info(f"🧹 Cleaned up {len(stale_connections)} stale connections")
 
+    async def close_all(self, *, code: int = 1001) -> None:
+        """Close every socket and await all managed sender-task cleanup."""
+        async with self._lock:
+            sockets = list(self.active_connections.values())
+        await asyncio.gather(*(self.disconnect(socket) for socket in sockets))
+        await asyncio.gather(
+            *(socket.close(code=code, reason="Server shutdown") for socket in sockets),
+            return_exceptions=True,
+        )
+
     async def send_notification_to_socket(
         self, websocket: WebSocket, message: Dict[str, Any]
     ):
+        queue = self._outbound_queues.get(id(websocket))
+        if queue is not None:
+            try:
+                queue.put_nowait(copy.deepcopy(message))
+                return True
+            except asyncio.QueueFull:
+                await self._drop_slow_connection(websocket)
+                return False
         try:
-            # Check if the connection is still active using proper enum comparison
+            # Compatibility for externally registered sockets that predate the
+            # managed outbound queue.
             if (
                 hasattr(websocket, "client_state")
                 and websocket.client_state == WebSocketState.CONNECTED
@@ -142,7 +218,17 @@ class ConnectionManager:
         except Exception as e:
             logger.error(f"Failed to send message to {websocket.client}: {e}")
             await self.disconnect(websocket)
-            return False
+        return False
+
+    async def _drop_slow_connection(self, websocket: WebSocket) -> None:
+        logger.warning(
+            "Dropping slow WebSocket client %s: outbound queue full", websocket.client
+        )
+        await self.disconnect(websocket)
+        try:
+            await websocket.close(code=1013, reason="Outbound queue full")
+        except Exception:
+            logger.debug("WebSocket already closed while dropping slow client")
 
     async def send_notification(self, message: dict):
         replay_event = await self._record_replayable_event(message)
@@ -169,14 +255,9 @@ class ConnectionManager:
             return
 
         for ws in active_sockets:
-            try:
-                await ws.send_json(outbound_message)
-                if should_log:
-                    logger.debug(f"WebSocketManager: Notification sent to {ws.client}")
-            except Exception as e:
-                logger.error(f"WebSocketManager: Failed to send to {ws.client}: {e}")
-                # Remove failed connection
-                await self.disconnect(ws)
+            await self.send_notification_to_socket(ws, outbound_message)
+        # Schedule sender tasks without coupling the broadcaster to socket I/O.
+        await asyncio.sleep(0)
 
     async def _record_replayable_event(self, message: dict) -> Optional[Dict[str, Any]]:
         """Assign a monotonic cursor and keep a bounded replay log.
@@ -228,6 +309,16 @@ class ConnectionManager:
             "retained_events": retained_events,
             "max_retained_events": self._event_log_size,
         }
+
+    async def get_replay_window(
+        self, since: int = 0, limit: Optional[int] = None
+    ) -> Dict[str, Any]:
+        """Return retained events and explicitly signal a cursor retention gap."""
+        events = await self.get_events_since(since=since, limit=limit)
+        state = await self.get_replay_state()
+        oldest = state["oldest_event_id"]
+        gap = oldest is not None and since < oldest - 1
+        return {"events": events, "gap": gap, **state}
 
     async def send_active_recordings_update(
         self, active_recordings: List[Dict[str, Any]]

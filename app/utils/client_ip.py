@@ -4,6 +4,8 @@ Client IP extraction utilities for reverse proxy environments.
 
 import logging
 
+from app.config.settings import settings
+
 logger = logging.getLogger("streamvault")
 
 
@@ -26,6 +28,16 @@ def get_real_client_ip(request_or_websocket) -> str:
         "x-cluster-client-ip",  # Load balancer
         "forwarded",  # RFC 7239
     ]
+
+    direct_ip = "unknown"
+    if hasattr(request_or_websocket, "client") and request_or_websocket.client:
+        direct_ip = request_or_websocket.client.host
+
+    # Forwarding headers are attacker-controlled unless the socket peer is a
+    # configured reverse proxy. HTTP and WebSocket callers deliberately share
+    # this function so they cannot disagree about client identity.
+    if not settings.is_trusted_proxy(direct_ip):
+        return direct_ip
 
     headers = request_or_websocket.headers
 
@@ -54,10 +66,9 @@ def get_real_client_ip(request_or_websocket) -> str:
                 return client_ip
 
     # Fallback to direct connection IP
-    if hasattr(request_or_websocket, "client") and request_or_websocket.client:
-        fallback_ip = request_or_websocket.client.host
-        logger.debug(f"Using fallback IP from direct connection: {fallback_ip}")
-        return fallback_ip
+    if direct_ip != "unknown":
+        logger.debug(f"Using fallback IP from direct connection: {direct_ip}")
+        return direct_ip
 
     return "unknown"
 
