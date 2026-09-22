@@ -4,9 +4,10 @@ from collections.abc import Callable
 from typing import Generator
 
 from fastapi import Depends, FastAPI, HTTPException, Request
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
-from app.database import SessionLocal
+from app.database import SessionLocal, get_async_db
 from app.services.communication.websocket_manager import ConnectionManager
 from app.services.core.auth_service import AuthService, AuthTokenError
 from app.services.core.settings_service import SettingsService
@@ -190,8 +191,8 @@ def get_image_service():
     return unified_image_service
 
 
-def get_category_service(db: Session = Depends(get_db)):
-    """Overrideable provider for the category domain service."""
+async def get_category_service(db: AsyncSession = Depends(get_async_db)):
+    """Provide the async category service on a request-scoped session."""
     from app.services.categories.category_service import CategoryService
     from app.services.categories.category_service import CategoryRepository
 

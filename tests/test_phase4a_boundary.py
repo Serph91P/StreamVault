@@ -318,11 +318,29 @@ def seeded_client(app):
         id = 1
         is_admin = True
 
+    class _CategoryServiceFake:
+        async def list_categories(self, user_id):
+            assert user_id == 1
+            return {
+                "categories": [
+                    {
+                        "id": 1,
+                        "twitch_id": "t1",
+                        "name": "Just Chatting",
+                        "box_art_url": None,
+                        "first_seen": "2026-01-01T00:00:00Z",
+                        "last_seen": "2026-01-01T00:00:00Z",
+                        "is_favorite": False,
+                    }
+                ]
+            }
+
     def override_current_user():
         return _FakeUser()
 
     app.dependency_overrides[deps.get_current_user] = override_current_user
     app.dependency_overrides[deps.get_event_registry] = lambda: object()
+    app.dependency_overrides[deps.get_category_service] = _CategoryServiceFake
     app.state.phase4a_api_key = raw_key
 
     try:

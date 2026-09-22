@@ -40,7 +40,7 @@ async def get_categories(
     """Get all categories with favorite status"""
     # Bounded list validation: only clamp when the caller opts in; the legacy
     # no-parameter behaviour (return all categories) is preserved exactly.
-    result = category_service.list_categories(current_user.id)
+    result = await category_service.list_categories(current_user.id)
     logger.debug(
         f"Found {len(result['categories'])} categories in database (favorites resolved)"
     )
@@ -55,7 +55,7 @@ async def add_favorite_category(
 ):
     """Mark a category as favorite"""
     try:
-        return category_service.add_favorite(current_user.id, data.category_id)
+        return await category_service.add_favorite(current_user.id, data.category_id)
     except LookupError:
         raise HTTPException(status_code=404, detail="Category not found")
 
@@ -68,7 +68,7 @@ async def remove_favorite_category(
 ):
     """Remove a category from favorites"""
     try:
-        return category_service.remove_favorite(current_user.id, category_id)
+        return await category_service.remove_favorite(current_user.id, category_id)
     except LookupError:
         raise HTTPException(status_code=404, detail="Category not found")
 
@@ -79,7 +79,7 @@ async def get_favorite_categories(
     current_user: User = Depends(get_current_user),
 ):
     """Get all categories marked as favorites"""
-    return category_service.list_favorites(current_user.id)
+    return await category_service.list_favorites(current_user.id)
 
 
 # Category Image Management Endpoints
