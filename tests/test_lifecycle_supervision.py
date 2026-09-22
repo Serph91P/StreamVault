@@ -1,4 +1,5 @@
 import asyncio
+from types import SimpleNamespace
 from typing import cast
 
 import pytest
@@ -149,6 +150,35 @@ async def test_supervisor_kills_process_that_ignores_terminate():
     assert supervisor.process_names == ()
 
 
+@pytest.mark.asyncio
+async def test_supervisor_retains_identity_fenced_process_when_custom_reaper_refuses():
+    from app.services.system.supervisor import TaskSupervisor
+
+    class Process:
+        returncode = None
+
+        def terminate(self):
+            raise AssertionError("generic termination bypassed the identity fence")
+
+    reaper_calls = []
+
+    async def fenced_reaper(timeout):
+        reaper_calls.append(timeout)
+        return False
+
+    supervisor = TaskSupervisor("test")
+    supervisor.track_process(
+        "fenced",
+        cast(asyncio.subprocess.Process, Process()),
+        reaper=fenced_reaper,
+    )
+
+    await supervisor.shutdown(process_timeout=0.25)
+
+    assert reaper_calls == [0.25]
+    assert supervisor.process_names == ("fenced",)
+
+
 def test_supervisor_rejects_duplicate_and_post_shutdown_processes():
     from app.services.system.supervisor import TaskSupervisor
 
@@ -211,6 +241,182 @@ async def test_live_service_can_restart_with_a_new_supervisor_generation(tmp_pat
     assert first_generation.closed is True
     assert second_generation.closed is True
     assert second_generation is not first_generation
+
+
+@pytest.mark.asyncio
+async def test_live_processes_are_supervisor_owned_until_fenced_shutdown(
+    monkeypatch, tmp_path
+):
+    import app.services.live_streaming_service as live_module
+    from app.services.live_streaming_service import LiveStreamingService
+
+    releases = []
+
+    class Coordinator:
+        async def reserve(self, **values):
+            return SimpleNamespace(
+                channel_key=values["channel_key"],
+                generation=7,
+                live_session_id=values["live_session_id"],
+            )
+
+        async def inspect_process_identity(self, pid):
+            return SimpleNamespace(
+                pid=pid,
+                process_group_id=pid,
+                started_at=1.0,
+                fingerprint=f"identity-{pid}",
+            )
+
+        async def activate(self, **values):
+            return SimpleNamespace(
+                process_group_id=values["process_group_id"],
+                process_started_at=values["process_started_at"],
+                process_start_fingerprint=values["process_start_fingerprint"],
+            )
+
+        async def assert_stop_authorized(self, **_values):
+            return None
+
+        async def release(self, **values):
+            releases.append((values["generation"], values["reason"]))
+            return True
+
+    class Process:
+        def __init__(self, pid):
+            self.pid = pid
+            self.returncode: int | None = None
+            self.stdin = SimpleNamespace()
+            self.stdout = SimpleNamespace()
+            self.stderr = SimpleNamespace()
+
+        async def wait(self):
+            assert self.returncode is not None
+            return self.returncode
+
+    processes = [Process(4101), Process(4102)]
+
+    async def create_process(*_args, **_kwargs):
+        return processes.pop(0)
+
+    async def streamlink_command(*_args, **_kwargs):
+        return ["streamlink", "synthetic"]
+
+    async def idle(*_args, **_kwargs):
+        await asyncio.Future()
+
+    process_by_group = {process.pid: process for process in processes}
+
+    def terminate_group(process_group_id, _signal):
+        process_by_group[process_group_id].returncode = -15
+
+    monkeypatch.setattr(live_module.asyncio, "create_subprocess_exec", create_process)
+    monkeypatch.setattr(live_module.os, "killpg", terminate_group)
+
+    service = LiveStreamingService(coordinator=Coordinator(), output_root=tmp_path)
+    monkeypatch.setattr(service, "_build_streamlink_command", streamlink_command)
+    monkeypatch.setattr(service, "_build_ffmpeg_command", lambda _path: ["ffmpeg"])
+    monkeypatch.setattr(
+        service, "_wait_for_playlist", lambda *_args, **_kwargs: _true()
+    )
+    monkeypatch.setattr(service, "_log_stderr", idle)
+    monkeypatch.setattr(service, "_pipe_streamlink_to_ffmpeg", idle)
+    monkeypatch.setattr(service, "_monitor_session", idle)
+
+    result = await service.start_stream("synthetic-channel")
+
+    assert service._supervisor.process_names == (
+        f"{result.session_id}:ffmpeg",
+        f"{result.session_id}:streamlink",
+    )
+
+    await service.stop()
+
+    assert service._supervisor.process_names == ()
+    assert service.sessions == {}
+    assert releases == [(7, "live_stopped")]
+
+
+@pytest.mark.asyncio
+async def test_recording_shutdown_reaps_supervised_pid_and_releases_lease(monkeypatch):
+    from importlib import import_module
+
+    process_manager_module = import_module("app.services.recording.process_manager")
+    from app.services.recording.process_manager import ProcessManager
+    from app.services.system.supervisor import TaskSupervisor
+
+    calls = []
+
+    class Coordinator:
+        async def assert_stop_authorized(self, **values):
+            calls.append(("authorized", values["process_pid"]))
+
+        async def inspect_process_identity(self, pid):
+            return SimpleNamespace(
+                pid=pid,
+                process_group_id=pid,
+                fingerprint=f"identity-{pid}",
+            )
+
+        async def release(self, **values):
+            calls.append(("released", values["generation"], values["reason"]))
+            return True
+
+    class Process:
+        pid = 4201
+        returncode: int | None = None
+
+        async def wait(self):
+            assert self.returncode is not None
+            return self.returncode
+
+    process = Process()
+    process_id = "stream_7"
+    tracked_segment_info = {
+        "upstream_channel_key": "synthetic-channel",
+        "upstream_generation": 3,
+        "upstream_activated": True,
+        "upstream_process_group_id": process.pid,
+        "upstream_process_start_fingerprint": f"identity-{process.pid}",
+        "monitor_task": None,
+    }
+    manager = object.__new__(ProcessManager)
+    manager.lock = asyncio.Lock()
+    manager.active_processes = {process_id: process}
+    manager.long_stream_processes = {process_id: tracked_segment_info}
+    manager._streamlink_output_secrets = {}
+    manager._segment_completion_tasks = {}
+    manager._supervised_process_names = {}
+    manager._task_supervisor = TaskSupervisor("recording-test")
+    manager.upstream_coordinator = Coordinator()
+    manager._is_shutting_down = False
+
+    async def finalize(segment_info):
+        assert segment_info is tracked_segment_info
+
+    manager._finalize_segmented_recording = finalize
+
+    def terminate_group(process_group_id, _signal):
+        assert process_group_id == process.pid
+        process.returncode = -15
+
+    monkeypatch.setattr(process_manager_module.os, "killpg", terminate_group)
+    manager._track_recording_process(process_id, process)
+
+    await manager.graceful_shutdown(timeout=1)
+
+    assert manager.active_processes == {}
+    assert manager.long_stream_processes == {}
+    assert manager._task_supervisor.process_names == ()
+    assert manager._supervised_process_names == {}
+    assert calls == [
+        ("authorized", process.pid),
+        ("released", 3, "recording_stopped"),
+    ]
+
+
+async def _true():
+    return True
 
 
 def test_production_lifespan_has_no_schema_creation_or_startup_delay():

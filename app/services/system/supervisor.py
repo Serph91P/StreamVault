@@ -4,10 +4,17 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from collections.abc import Coroutine
+from collections.abc import Awaitable, Callable, Coroutine
+from dataclasses import dataclass
 from typing import Any
 
 logger = logging.getLogger("streamvault")
+
+
+@dataclass(frozen=True)
+class _TrackedProcess:
+    process: asyncio.subprocess.Process
+    reaper: Callable[[float], Awaitable[bool]] | None = None
 
 
 class TaskSupervisor:
@@ -16,7 +23,7 @@ class TaskSupervisor:
     def __init__(self, namespace: str) -> None:
         self._namespace = namespace
         self._tasks: dict[str, asyncio.Task[Any]] = {}
-        self._processes: dict[str, asyncio.subprocess.Process] = {}
+        self._processes: dict[str, _TrackedProcess] = {}
         self._failures: list[tuple[str, str]] = []
         self._shutdown_lock = asyncio.Lock()
         self._shutting_down = False
@@ -80,22 +87,29 @@ class TaskSupervisor:
             type(exception).__name__,
         )
 
-    def track_process(self, name: str, process: asyncio.subprocess.Process) -> None:
+    def track_process(
+        self,
+        name: str,
+        process: asyncio.subprocess.Process,
+        *,
+        reaper: Callable[[float], Awaitable[bool]] | None = None,
+    ) -> None:
         """Retain ownership of a child process until release or shutdown."""
         if self._shutting_down:
             raise RuntimeError("supervisor is shutting down")
         existing = self._processes.get(name)
-        if existing is not None and existing.returncode is None:
+        if existing is not None and existing.process.returncode is None:
             raise RuntimeError(f"process already running: {name}")
-        self._processes[name] = process
+        self._processes[name] = _TrackedProcess(process=process, reaper=reaper)
 
-    async def release_process(self, name: str) -> None:
+    async def release_process(self, name: str, *, already_reaped: bool = False) -> None:
         """Await an already-exiting child and release its supervisor ownership."""
-        process = self._processes.get(name)
-        if process is None:
+        tracked = self._processes.get(name)
+        if tracked is None:
             return
-        await process.wait()
-        if self._processes.get(name) is process:
+        if not already_reaped:
+            await tracked.process.wait()
+        if self._processes.get(name) is tracked:
             self._processes.pop(name, None)
 
     async def shutdown(self, process_timeout: float = 5.0) -> None:
@@ -117,23 +131,27 @@ class TaskSupervisor:
                     pass
             self._tasks.clear()
 
-            for name, process in reversed(tuple(self._processes.items())):
-                await self._reap_process(process, process_timeout)
-                if self._processes.get(name) is process:
+            for name, tracked in reversed(tuple(self._processes.items())):
+                reaped = (
+                    await tracked.reaper(process_timeout)
+                    if tracked.reaper is not None
+                    else await self._reap_process(tracked.process, process_timeout)
+                )
+                if reaped and self._processes.get(name) is tracked:
                     self._processes.pop(name, None)
 
     @staticmethod
     async def _reap_process(
         process: asyncio.subprocess.Process, timeout: float
-    ) -> None:
+    ) -> bool:
         if process.returncode is not None:
             await process.wait()
-            return
+            return True
         try:
             process.terminate()
         except ProcessLookupError:
             await process.wait()
-            return
+            return True
         try:
             await asyncio.wait_for(process.wait(), timeout=timeout)
         except TimeoutError:
@@ -142,3 +160,4 @@ class TaskSupervisor:
             except ProcessLookupError:
                 pass
             await process.wait()
+        return process.returncode is not None

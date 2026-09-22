@@ -115,6 +115,7 @@ class ProcessManager:
         self.rotation_locks = {}
         self._streamlink_output_secrets = {}
         self._segment_completion_tasks = {}
+        self._supervised_process_names = {}
         self._task_supervisor = TaskSupervisor("recording-processes")
         self.ASYNC_DELAYS = ASYNC_DELAYS
         self.config_manager = config_manager
@@ -171,6 +172,39 @@ class ProcessManager:
         contexts = getattr(self, "_streamlink_output_secrets", None)
         if contexts is not None:
             contexts.pop(process, None)
+
+    def _track_recording_process(self, process_id, process) -> None:
+        names = getattr(self, "_supervised_process_names", None)
+        if names is None:
+            names = self._supervised_process_names = {}
+        name = f"{process_id}:pid-{process.pid}"
+
+        async def reap(timeout):
+            async with self.lock:
+                is_current_owner = self.active_processes.get(process_id) is process
+            if not is_current_owner:
+                if process.returncode is None:
+                    return False
+                await process.wait()
+                return True
+            return await self.terminate_process(process_id, timeout=timeout)
+
+        self._get_task_supervisor().track_process(name, process, reaper=reap)
+        names[process] = name
+
+    async def _release_tracked_process(self, process, *, already_reaped=False) -> None:
+        names = getattr(self, "_supervised_process_names", None)
+        if not names:
+            return
+        name = names.get(process)
+        if name is None:
+            return
+        supervisor = getattr(self, "_task_supervisor", None)
+        if supervisor is None:
+            return
+        await supervisor.release_process(name, already_reaped=already_reaped)
+        if names.get(process) == name:
+            names.pop(process, None)
 
     async def _resolve_recording_token(self):
         from app.database import SessionLocal
@@ -815,6 +849,7 @@ class ProcessManager:
                             )
                             self._remember_streamlink_output_secrets(process, cmd)
                             self.active_processes[process_id] = process
+                            self._track_recording_process(process_id, process)
                     except BaseException:
                         async with self.lock:
                             if self.active_processes.get(process_id) is fallback_owner:
@@ -837,6 +872,7 @@ class ProcessManager:
 
                     # Publish ownership before any cancellable post-creation work.
                     self.active_processes[process_id] = process
+                    self._track_recording_process(process_id, process)
 
                 if activation_required:
                     identity_task = asyncio.create_task(
@@ -893,6 +929,7 @@ class ProcessManager:
                     break
 
                 stdout, stderr = await process.communicate()
+                await self._release_tracked_process(process, already_reaped=True)
                 known_secrets = self._get_streamlink_output_secrets(process)
                 safe_output = "\n".join(
                     (
@@ -1645,6 +1682,7 @@ class ProcessManager:
                 segment_info = self.long_stream_processes[process_id]
 
             stdout, stderr = await process.communicate()
+            await self._release_tracked_process(process, already_reaped=True)
             logging_service = getattr(self, "logging_service", None)
             if logging_service:
                 logging_service.log_streamlink_output(
@@ -2324,6 +2362,7 @@ class ProcessManager:
 
     async def _cleanup_process(self, process: asyncio.subprocess.Process):
         """Clean up process from tracking"""
+        await self._release_tracked_process(process, already_reaped=True)
         self._release_streamlink_output_secrets(process)
         async with self.lock:
             # Remove from active processes
@@ -2408,6 +2447,7 @@ class ProcessManager:
                 else:
                     process.terminate()
                     await asyncio.wait_for(process.wait(), timeout=timeout)
+                await self._release_tracked_process(process)
                 logger.info(f"Process {process_id} terminated gracefully")
                 self._release_streamlink_output_secrets(process)
 
@@ -2427,6 +2467,7 @@ class ProcessManager:
             except asyncio.TimeoutError:
                 process.kill()
                 await process.wait()
+                await self._release_tracked_process(process)
                 logger.warning(f"Process {process_id} killed after timeout")
                 self._release_streamlink_output_secrets(process)
 
@@ -2453,6 +2494,7 @@ class ProcessManager:
     ) -> bool:
         if process.returncode is not None:
             await process.wait()
+            await self._release_tracked_process(process)
             return True
         if process_start_fingerprint is None:
             try:
@@ -2489,7 +2531,10 @@ class ProcessManager:
                 except ProcessLookupError:
                     return process.returncode is not None
                 await asyncio.wait_for(process.wait(), timeout=timeout)
-            return process.returncode is not None
+            reaped = process.returncode is not None
+            if reaped:
+                await self._release_tracked_process(process)
+            return reaped
         except asyncio.CancelledError:
             raise
         except Exception:

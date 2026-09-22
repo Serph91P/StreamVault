@@ -325,6 +325,16 @@ class LiveStreamingService:
             except asyncio.CancelledError:
                 ffmpeg_identity = await identity_task
                 raise
+            self._supervisor.track_process(
+                f"{session_id}:ffmpeg",
+                ffmpeg_process,
+                reaper=lambda timeout: self._reap_process(
+                    ffmpeg_process,
+                    process_group_id=ffmpeg_identity.process_group_id,
+                    process_start_fingerprint=ffmpeg_identity.fingerprint,
+                    timeout=timeout,
+                ),
+            )
 
             # Start Streamlink with stdout captured
             streamlink_process = await asyncio.create_subprocess_exec(
@@ -344,6 +354,16 @@ class LiveStreamingService:
             except asyncio.CancelledError:
                 streamlink_identity = await identity_task
                 raise
+            self._supervisor.track_process(
+                f"{session_id}:streamlink",
+                streamlink_process,
+                reaper=lambda timeout: self._reap_process(
+                    streamlink_process,
+                    process_group_id=streamlink_identity.process_group_id,
+                    process_start_fingerprint=streamlink_identity.fingerprint,
+                    timeout=timeout,
+                ),
+            )
             activation = asyncio.create_task(
                 self._coordinator.activate(
                     channel_key=channel_key,
@@ -498,6 +518,10 @@ class LiveStreamingService:
                     ffmpeg_identity.fingerprint if ffmpeg_identity is not None else None
                 ),
             )
+            if streamlink_reaped:
+                await self._supervisor.release_process(f"{session_id}:streamlink")
+            if ffmpeg_reaped:
+                await self._supervisor.release_process(f"{session_id}:ffmpeg")
             if streamlink_reaped and ffmpeg_reaped:
                 await self._coordinator.release(
                     channel_key=channel_key,
@@ -679,6 +703,9 @@ class LiveStreamingService:
             session.is_active = True
             raise TwitchUpstreamStopForbidden("process_identity_changed")
 
+        await self._supervisor.release_process(f"{session_id}:streamlink")
+        await self._supervisor.release_process(f"{session_id}:ffmpeg")
+
         if session.lease_generation is not None:
             await self._coordinator.release(
                 channel_key=session.channel_key,
@@ -710,8 +737,11 @@ class LiveStreamingService:
         *,
         process_group_id=None,
         process_start_fingerprint=None,
+        timeout=5.0,
     ) -> bool:
-        if not process or process.returncode is not None:
+        if not process:
+            return True
+        if process.returncode is not None:
             return True
 
         if process_group_id is None or not process_start_fingerprint:
@@ -726,7 +756,7 @@ class LiveStreamingService:
         try:
             os.killpg(process_group_id, signal.SIGTERM)
             try:
-                await asyncio.wait_for(process.wait(), timeout=5.0)
+                await asyncio.wait_for(process.wait(), timeout=timeout)
             except asyncio.TimeoutError:
                 if not await self._process_identity_matches(
                     process.pid,
