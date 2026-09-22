@@ -287,6 +287,10 @@ class MigrationService:
         config.set_main_option(
             "script_location", str(repository_root / "migrations" / "alembic")
         )
+        # Migrations run inside the application process. Alembic's default
+        # fileConfig call would replace the host's handlers (including test
+        # capture and production structured logging).
+        config.attributes["configure_logger"] = False
         if connection is not None:
             config.attributes["connection"] = connection
         return config

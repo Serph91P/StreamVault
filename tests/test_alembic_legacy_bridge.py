@@ -2,6 +2,7 @@
 
 import ast
 import importlib
+import logging
 from pathlib import Path
 
 import pytest
@@ -78,6 +79,16 @@ def _record_complete_legacy_history(target):
                 ),
                 {"identity": identity},
             )
+
+
+def test_embedded_alembic_preserves_host_logging(bridge_engine, caplog):
+    _record_complete_legacy_history(bridge_engine)
+
+    with caplog.at_level(logging.INFO, logger="streamvault"):
+        MigrationService._bridge_legacy_history_to_alembic()
+        logging.getLogger("streamvault").info("host logging remains configured")
+
+    assert "host logging remains configured" in caplog.text
 
 
 def test_bridge_stamps_complete_legacy_history_without_touching_application_data(
