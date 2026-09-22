@@ -5,7 +5,6 @@ This migration sets up the category image caching system and preloads existing c
 """
 
 import logging
-import asyncio
 from pathlib import Path
 
 logger = logging.getLogger("streamvault")
@@ -44,40 +43,8 @@ def upgrade():
                 f.write(default_svg_content)
             logger.info("Created default category image")
 
-        # Start background task to preload existing category images
-        try:
-            # Import the service here to avoid circular imports
-            from app.services.unified_image_service import unified_image_service
-            from app.models import Category
-            from app.database import SessionLocal
-
-            # Get all existing categories from database
-            with SessionLocal() as session:
-                categories = session.query(Category).all()
-
-                if categories:
-                    category_names = [cat.name for cat in categories if cat.name and cat.name.strip()]
-
-                    if category_names:
-                        logger.info(f"Starting background preload for {len(category_names)} existing categories")
-
-                        # Create an async task to preload images
-                        # Note: This runs in background, migration doesn't wait for completion
-                        try:
-                            # Try to run the async preload
-                            asyncio.create_task(unified_image_service.preload_categories(category_names))
-                            logger.info("Background category image preload started")
-                        except RuntimeError:
-                            # If no event loop is running, just log and continue
-                            logger.info("No event loop available, category images will be loaded on-demand")
-                    else:
-                        logger.info("No category names found to preload")
-                else:
-                    logger.info("No existing categories found in database")
-
-        except Exception as e:
-            # Don't fail the migration if preloading fails
-            logger.warning(f"Could not preload category images (will load on-demand): {e}")
+        # Historical migrations must not depend on current services or ORM models.
+        logger.info("Category images will be loaded on-demand")
 
         logger.info("Category images migration completed successfully")
 

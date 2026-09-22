@@ -3,10 +3,13 @@
 Migration 010: Setup category image caching
 Creates directory structure and default category image
 """
+
 import os
 import sys
 import logging
 from pathlib import Path
+
+from sqlalchemy import text
 
 # Add parent directory to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -50,26 +53,30 @@ def run_migration():
                 f.write(default_svg_content)
             logger.info("✅ Created default category image")
 
-        # Start background task to preload existing category images
+        # Inspect historical category rows without importing current ORM models.
         try:
-            from app.models import Category
             from app.database import SessionLocal
 
-            # Get all existing categories from database
             with SessionLocal() as session:
-                categories = session.query(Category).all()
+                category_names = [
+                    row[0]
+                    for row in session.execute(
+                        text(
+                            "SELECT name FROM categories "
+                            "WHERE name IS NOT NULL AND TRIM(name) <> ''"
+                        )
+                    )
+                ]
 
-                if categories:
-                    category_names = [cat.name for cat in categories if cat.name and cat.name.strip()]
-
-                    if category_names:
-                        logger.info(f"Found {len(category_names)} existing categories for image preloading")
-                        logger.info("ℹ️  Category images will be loaded on-demand when first accessed")
-                        # Note: Async preloading skipped during migration - images will be loaded on-demand
-                    else:
-                        logger.info("No category names found to preload")
+                if category_names:
+                    logger.info(
+                        f"Found {len(category_names)} existing categories for image preloading"
+                    )
+                    logger.info(
+                        "ℹ️  Category images will be loaded on-demand when first accessed"
+                    )
                 else:
-                    logger.info("No existing categories found in database")
+                    logger.info("No category names found to preload")
 
         except Exception as e:
             # Don't fail the migration if preloading fails

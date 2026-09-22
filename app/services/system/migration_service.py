@@ -23,6 +23,9 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterator, List, Tuple
 
+from alembic import command
+from alembic.config import Config
+from alembic.migration import MigrationContext
 from sqlalchemy import (
     Boolean,
     Column,
@@ -44,6 +47,74 @@ _MIGRATIONS_SAFE_NAME = "migrations"
 
 class MigrationService:
     _POSTGRES_MIGRATION_LOCK_ID = 6005076117384319316
+    ALEMBIC_LEGACY_BASELINE = "20260922_legacy"
+    LEGACY_MIGRATION_IDENTITIES = (
+        "001_create_base_tables.py",
+        "002_create_main_entities.py",
+        "003_create_dependent_tables.py",
+        "004_add_database_indexes.py",
+        "005_add_max_streams_columns.py",
+        "006_add_cleanup_policy_columns.py",
+        "007_add_proxy_settings.py",
+        "008_add_active_recording_fields.py",
+        "009_add_cascade_constraints.py",
+        "010_setup_category_images.py",
+        "011_add_recording_path_to_streams.py",
+        "012_add_created_at_to_recordings.py",
+        "013_add_episode_number_to_streams.py",
+        "014_add_streamer_preferences.py",
+        "015_add_default_settings.py",
+        "016_add_use_global_cleanup_policy.py",
+        "017_add_xml_chapters_column.py",
+        "018_enable_session_cleanup.py",
+        "018_remove_unused_metadata_columns.py",
+        "019_create_share_tokens.py",
+        "019_update_twitch_profile_urls.py",
+        "020_remove_unused_metadata_columns.py",
+        "021_add_xml_chapters_column.py",
+        "022_add_recording_processing_state.py",
+        "023_add_last_stream_info.py",
+        "024_add_codec_preferences.py",
+        "025_add_multi_proxy_support.py",
+        "026_encrypt_proxy_credentials.py",
+        "027_add_recording_error_tracking.py",
+        "028_add_system_notification_settings.py",
+        "029_add_is_test_data_flag.py",
+        "030_add_notification_state.py",
+        "031_add_per_streamer_codecs.py",
+        "032_add_proxy_encryption_key.py",
+        "033_add_twitch_token_refresh.py",
+        "034_add_twitch_access_token.py",
+        "035_add_segments_dir_path.py",
+        "036_add_streamer_description.py",
+        "037_add_api_keys.py",
+        "038_add_refresh_tokens.py",
+        "038_add_system_state.py",
+        "039_add_unique_twitch_stream_id.py",
+        "040_add_twitch_upstream_leases.py",
+        "041_encrypt_proxy_credentials_after_schema.py",
+        "042_add_api_key_expiry.py",
+        "043_add_twitch_auth_priority.py",
+        "044_twitch_auth_handoff_state.py",
+        "20251110_add_streamer_banner.py",
+    )
+    SUPPORTED_LEGACY_ALIASES = (
+        "20250117_add_cascade_constraint_to_active_recordings.py",
+        "20250522_add_stream_indices.py",
+        "20250609160908_add_recording_path_to_streams.py",
+        "20250617_add_proxy_settings.py",
+        "20250620_add_push_subscriptions.py",
+        "20250620_add_system_config.py",
+        "20250625_add_recording_model.py",
+        "20250702_setup_category_images.py",
+        "20250714_add_active_recordings_state.py",
+        "20250714_add_database_indexes.py",
+        "20250715_add_episode_number_to_streams.py",
+        "20250723_add_created_at_to_recordings.py",
+        "add_cleanup_policy.py",
+        "add_cleanup_policy_v2.py",
+        "add_max_streams.py",
+    )
 
     @classmethod
     @contextmanager
@@ -185,15 +256,20 @@ class MigrationService:
 
     @classmethod
     def run_migrations(cls):
-        """Run all database migrations"""
+        """Bring legacy databases to their final identity and hand off to Alembic."""
         logger.info("🔄 Starting database migrations...")
 
         with cls._migration_orchestration_lock():
-            # Ensure migrations table exists
-            cls.ensure_migrations_table()
-
-            # Run all file-based migrations from the migrations directory
-            file_migration_results = cls._run_pending_migrations()
+            if cls._alembic_revision() is None:
+                cls.ensure_migrations_table()
+                file_migration_results = cls._run_pending_migrations()
+                if any(not result[1] for result in file_migration_results):
+                    logger.error("Legacy migration failed; Alembic bridge not stamped")
+                    return False
+                cls._bridge_legacy_history_to_alembic()
+            else:
+                file_migration_results = []
+                cls._upgrade_alembic()
 
         successful_migrations = len([r for r in file_migration_results if r[1]])
         failed_migrations = len([r for r in file_migration_results if not r[1]])
@@ -202,6 +278,58 @@ class MigrationService:
             f"🎯 Migration summary: {successful_migrations} successful, {failed_migrations} failed"
         )
         return failed_migrations == 0
+
+    @classmethod
+    def _alembic_config(cls, connection=None) -> Config:
+        """Build an Alembic config rooted at the installed repository."""
+        repository_root = Path(__file__).resolve().parents[3]
+        config = Config(str(repository_root / "alembic.ini"))
+        config.set_main_option(
+            "script_location", str(repository_root / "migrations" / "alembic")
+        )
+        if connection is not None:
+            config.attributes["connection"] = connection
+        return config
+
+    @classmethod
+    def _alembic_revision(cls) -> str | None:
+        """Return the database's Alembic identity without creating its table."""
+        target = cls._engine()
+        with target.connect() as connection:
+            inspector = sa_inspect(connection)
+            if not inspector.has_table("alembic_version"):
+                return None
+            return MigrationContext.configure(connection).get_current_revision()
+
+    @classmethod
+    def _upgrade_alembic(cls) -> None:
+        """Apply canonical Alembic revisions using the active engine."""
+        target = cls._engine()
+        with target.begin() as connection:
+            command.upgrade(cls._alembic_config(connection), "head")
+
+    @classmethod
+    def _bridge_legacy_history_to_alembic(cls) -> None:
+        """Stamp the exact, complete legacy ledger without changing app data."""
+        applied = set(cls.get_applied_migrations())
+        required = set(cls.LEGACY_MIGRATION_IDENTITIES)
+        supported = required | set(cls.SUPPORTED_LEGACY_ALIASES)
+        unknown = sorted(applied - supported)
+        if unknown:
+            raise RuntimeError(
+                "unsupported legacy migration identities: " + ", ".join(unknown)
+            )
+        missing = sorted(required - applied)
+        if missing:
+            raise RuntimeError(
+                "legacy migration history is incomplete: " + ", ".join(missing)
+            )
+
+        target = cls._engine()
+        with target.begin() as connection:
+            config = cls._alembic_config(connection)
+            command.stamp(config, cls.ALEMBIC_LEGACY_BASELINE)
+            command.upgrade(config, "head")
 
     @staticmethod
     def run_safe_migrations():

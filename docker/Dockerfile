@@ -117,9 +117,10 @@ WORKDIR /app
 # Copy built frontend from frontend stage
 COPY --from=frontend-builder /app/frontend/dist /app/app/frontend/dist
 
-# Copy application code and migrations
+# Copy application code and canonical migration configuration
 COPY app/ ./app/
 COPY migrations/ ./migrations/
+COPY alembic.ini ./alembic.ini
 
 # Copy and prepare entrypoint script (fix Windows CRLF line endings)
 COPY --chown=appuser:appuser entrypoint.sh /app/entrypoint.sh
