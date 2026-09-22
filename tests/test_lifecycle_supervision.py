@@ -312,6 +312,7 @@ async def test_live_processes_are_supervisor_owned_until_fenced_shutdown(
 
     monkeypatch.setattr(live_module.asyncio, "create_subprocess_exec", create_process)
     monkeypatch.setattr(live_module.os, "killpg", terminate_group)
+    monkeypatch.setattr(live_module.shutil, "which", lambda executable: executable)
 
     service = LiveStreamingService(coordinator=Coordinator(), output_root=tmp_path)
     monkeypatch.setattr(service, "_build_streamlink_command", streamlink_command)
