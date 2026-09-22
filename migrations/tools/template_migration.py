@@ -2,6 +2,7 @@
 """
 Migration template - rename this file and update description
 """
+
 import os
 import sys
 import logging
@@ -32,10 +33,8 @@ def run_migration():
         # session.execute(text("ALTER TABLE my_table ADD COLUMN new_column VARCHAR(255)"))
         # session.commit()
 
-        # Or use SQLAlchemy ORM:
-        # from app.models import MyModel
-        # for item in session.query(MyModel).all():
-        #    item.new_field = "default value"
+        # Keep historical migrations independent of current ORM models. Use
+        # explicit SQLAlchemy Core statements for any data transformation.
         # session.commit()
 
         logger.info("Migration completed successfully")

@@ -14,11 +14,13 @@ This directory contains database migration scripts for StreamVault.
 
 To create a new migration:
 
-1. Create a new Python file in this directory with a zero-padded numeric
-   prefix (e.g. `042_my_change.py`)
-2. Implement an `upgrade()` function that performs the database changes
-3. Handle errors appropriately in your migration
-4. Test your migration locally before deploying
+1. Run `alembic revision -m "describe the change"`.
+2. Implement `upgrade()` in the generated revision under
+   `migrations/alembic/versions` using Alembic operations or SQLAlchemy Core.
+3. Keep the revision independent of application ORM models and make downgrade
+   behavior explicitly data-safe.
+4. Exercise the revision on fresh and upgraded PostgreSQL databases before
+   deploying.
 
 ## Migration Invocation Contract (Phase 2 persistence foundation)
 
@@ -54,44 +56,66 @@ SQLite databases start up without PostgreSQL-only `information_schema`
 queries. Legacy schema fixups (renaming `name` → `script_name`, adding
 `script_name`) are preserved.
 
-## Alembic Compatibility / Removal Plan
+## Alembic bridge
 
-The numbered custom migration system predates Alembic. The long-term target
-is to converge on Alembic while keeping deployments safe:
+The numbered migration system predates Alembic. Startup now performs a one-way,
+lossless handoff:
 
-1. **Bridge (only if fully testable without schema/data changes)**: a safe
-   bridge could stamp Alembic's `alembic_version` table from the existing
-   `migrations` table and treat future changes as Alembic revisions. Because
-   the two systems must never run the same DDL twice, the bridge must be offline-tested
-   against a fresh SQLite database and a copy of an existing production-shaped
-   database before being enabled. No bridge is enabled yet.
-2. **Migration of numbered scripts**: fold retained numbered scripts into
-   Alembic revisions (`alembic revision --autogenerate`) once a baseline is
-   established, mapping each `migrations` row to its equivalent revision.
-3. **Removal**: custom file discovery and the advisory-lock orchestration
-   remain until Alembic owns orchestration; then `ensure_migrations_table`
-   becomes Alembic's own bookkeeping and the custom runner is deleted.
+1. A database that already has an `alembic_version` identity runs only canonical
+   Alembic revisions.
+2. An unversioned database completes the frozen numbered migration ledger while
+   holding the existing PostgreSQL advisory lock.
+3. The bridge verifies all 48 required script identities. It also accepts the 15
+   documented date/name identities retained in `old_migrations_backup`; any other
+   successful identity fails closed for operator review.
+4. Only a complete successful ledger is stamped as `20260922_legacy`. The bridge
+   revision contains no schema or data operations, so stamping cannot replay DDL
+   or modify application rows. Future migrations must be Alembic revisions below
+   `migrations/alembic/versions`.
 
-## Example Migration
+Interrupted runs remain safe: successful numbered migrations are retained, a
+failure is not recorded or stamped, and restart resumes at the first missing
+identity. PostgreSQL first starts remain serialized across processes. Historical
+migration files use SQLAlchemy Core rather than current ORM models.
+
+Before upgrading, back up the PostgreSQL database using the deployment's normal
+backup procedure. On failure, keep the database and restart after correcting the
+reported migration; do not delete migration rows or manually stamp Alembic. A
+rollback restores the pre-upgrade database backup together with the matching
+application image. Downgrading the baseline revision intentionally does not drop
+legacy tables or user data.
+
+The destructive real-PostgreSQL acceptance probe requires a disposable database
+whose name ends in `_migration_test`:
+
+```bash
+PYTHONPATH=. \
+  DATABASE_URL=postgresql+psycopg://.../streamvault_migration_test \
+  .venv/bin/python tests/postgres_alembic_bridge_probe.py
+```
+
+It covers fresh, current, representative legacy (`name` ledger), interrupted,
+concurrent first-start and immediate-restart paths while comparing schema identity
+and asserting sentinel data preservation.
+
+## Example Alembic revision
 
 ```python
-#!/usr/bin/env python
-"""
-Migration description
-"""
-import logging
-from sqlalchemy import text
-from app.database import engine
+"""Add a column without importing application ORM models."""
 
-logger = logging.getLogger("streamvault")
+from alembic import op
+import sqlalchemy as sa
+
+revision = "20261001_example"
+down_revision = "20260922_legacy"
 
 
-def upgrade(target_engine=None):
-    """Migration implementation function"""
-    target = target_engine or engine
-    with target.begin() as connection:
-        connection.execute(text("ALTER TABLE my_table ADD COLUMN new_column INT"))
-    logger.info("Migration completed successfully")
+def upgrade() -> None:
+    op.add_column("my_table", sa.Column("new_column", sa.Integer()))
+
+
+def downgrade() -> None:
+    op.drop_column("my_table", "new_column")
 ```
 
 ## Migration Service

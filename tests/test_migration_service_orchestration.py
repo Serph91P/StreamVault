@@ -46,6 +46,16 @@ def test_postgres_lock_wraps_initialization_discovery_and_execution(monkeypatch)
     monkeypatch.setattr(migration_service, "engine", _Engine("postgresql", events))
     monkeypatch.setattr(
         migration_service.MigrationService,
+        "_alembic_revision",
+        classmethod(lambda cls: None),
+    )
+    monkeypatch.setattr(
+        migration_service.MigrationService,
+        "_bridge_legacy_history_to_alembic",
+        classmethod(lambda cls: events.append("alembic_bridge_stamped")),
+    )
+    monkeypatch.setattr(
+        migration_service.MigrationService,
         "ensure_migrations_table",
         staticmethod(lambda: events.append("migrations_table_initialized")),
     )
@@ -68,6 +78,7 @@ def test_postgres_lock_wraps_initialization_discovery_and_execution(monkeypatch)
         "migrations_table_initialized",
         "applied_migrations_read",
         "migrations_executed_and_recorded",
+        "alembic_bridge_stamped",
         "lock_released",
         "connection_closed",
     ]
@@ -76,6 +87,11 @@ def test_postgres_lock_wraps_initialization_discovery_and_execution(monkeypatch)
 def test_postgres_lock_releases_when_migration_orchestration_raises(monkeypatch):
     events = []
     monkeypatch.setattr(migration_service, "engine", _Engine("postgresql", events))
+    monkeypatch.setattr(
+        migration_service.MigrationService,
+        "_alembic_revision",
+        classmethod(lambda cls: None),
+    )
 
     def fail_initialization():
         events.append("migrations_table_failed")
@@ -104,6 +120,16 @@ def test_sqlite_migration_orchestration_remains_unlocked(monkeypatch):
     monkeypatch.setattr(migration_service, "engine", _Engine("sqlite", events))
     monkeypatch.setattr(
         migration_service.MigrationService,
+        "_alembic_revision",
+        classmethod(lambda cls: None),
+    )
+    monkeypatch.setattr(
+        migration_service.MigrationService,
+        "_bridge_legacy_history_to_alembic",
+        classmethod(lambda cls: events.append("alembic_bridge_stamped")),
+    )
+    monkeypatch.setattr(
+        migration_service.MigrationService,
         "ensure_migrations_table",
         staticmethod(lambda: events.append("migrations_table_initialized")),
     )
@@ -119,4 +145,31 @@ def test_sqlite_migration_orchestration_remains_unlocked(monkeypatch):
     )
 
     assert migration_service.MigrationService.run_migrations() is True
-    assert events == ["migrations_table_initialized", "migrations_executed"]
+    assert events == [
+        "migrations_table_initialized",
+        "migrations_executed",
+        "alembic_bridge_stamped",
+    ]
+
+
+def test_existing_alembic_database_skips_legacy_runner(monkeypatch):
+    events = []
+    monkeypatch.setattr(migration_service, "engine", _Engine("sqlite", events))
+    monkeypatch.setattr(
+        migration_service.MigrationService,
+        "_alembic_revision",
+        classmethod(lambda cls: cls.ALEMBIC_LEGACY_BASELINE),
+    )
+    monkeypatch.setattr(
+        migration_service.MigrationService,
+        "_upgrade_alembic",
+        classmethod(lambda cls: events.append("alembic_upgraded")),
+    )
+    monkeypatch.setattr(
+        migration_service.MigrationService,
+        "_run_pending_migrations",
+        classmethod(lambda cls: pytest.fail("legacy runner must not be called")),
+    )
+
+    assert migration_service.MigrationService.run_migrations() is True
+    assert events == ["alembic_upgraded"]

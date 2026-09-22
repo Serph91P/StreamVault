@@ -111,9 +111,10 @@ def upgrade(target_engine=None):
             )
 
     metadata = MetaData()
-    state, _leases = _tables(metadata)
-    metadata.create_all(target, tables=[state, _leases], checkfirst=True)
+    state, leases = _tables(metadata)
     with target.begin() as connection:
+        state.create(connection, checkfirst=True)
+        leases.create(connection, checkfirst=True)
         guard_exists = connection.execute(
             text("SELECT 1 FROM twitch_upstream_coordination_state WHERE id = 1")
         ).first()
