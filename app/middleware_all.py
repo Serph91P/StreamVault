@@ -3,9 +3,11 @@ import hashlib
 import time
 import uuid
 from dataclasses import dataclass
+from collections.abc import Awaitable, Callable
 from typing import Dict, Optional, Tuple
 
-from fastapi import FastAPI, Request, Response
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 
@@ -13,6 +15,7 @@ from app.config.settings import settings
 from app.config.logging_config import request_context
 from app.middleware.logging import logging_middleware
 from app.observability import service_metrics
+from app.utils.client_ip import get_real_client_ip
 
 import logging
 
@@ -26,9 +29,10 @@ class _TokenBucket:
     tokens: float
     last_refill: float
     lock: asyncio.Lock
+    clock: Callable[[], float]
 
     def refill(self) -> None:
-        now = time.time()
+        now = self.clock()
         if now > self.last_refill:
             delta = now - self.last_refill
             self.tokens = min(self.capacity, self.tokens + delta * self.refill_per_sec)
@@ -36,7 +40,12 @@ class _TokenBucket:
 
 
 class AdaptiveLimiter:
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        *,
+        clock: Callable[[], float] = time.monotonic,
+        sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
+    ) -> None:
         self.enabled = settings.RATE_LIMIT_ENABLED
         self.default_capacity = settings.RATE_LIMIT_CAPACITY
         self.default_refill = settings.RATE_LIMIT_REFILL_PER_SEC
@@ -44,6 +53,8 @@ class AdaptiveLimiter:
         self.max_buckets = max(1, settings.RATE_LIMIT_MAX_BUCKETS)
         self._buckets: Dict[str, _TokenBucket] = {}
         self._lock = asyncio.Lock()
+        self._clock = clock
+        self._sleep = sleep
 
     def _route_params(self, path: str, method: str) -> Tuple[int, float]:
         # Allow higher throughput for safe, read-only endpoints
@@ -62,12 +73,19 @@ class AdaptiveLimiter:
         return (120, 2.0)
 
     def _key(
-        self, path: str, method: str, client_ip: str, auth_header: Optional[str]
+        self,
+        path: str,
+        method: str,
+        client_ip: str,
+        auth_header: Optional[str],
+        api_key: Optional[str] = None,
     ) -> str:
-        if auth_header and auth_header.startswith("Bearer ") and len(auth_header) > 7:
-            token = auth_header[7:].strip()
+        credential = api_key
+        if auth_header and auth_header.startswith(("Bearer ", "ApiKey ")):
+            credential = auth_header.split(" ", 1)[1].strip()
+        if credential:
             # Use a longer digest segment to reduce collision risk
-            digest = hashlib.sha256(token.encode("utf-8")).hexdigest()[:32]
+            digest = hashlib.sha256(credential.encode("utf-8")).hexdigest()[:32]
             return f"auth:{digest}"
         return f"ip:{client_ip}"
 
@@ -84,7 +102,12 @@ class AdaptiveLimiter:
                     )
                     self._buckets.pop(oldest_key, None)
                 bucket = _TokenBucket(
-                    capacity, refill, float(capacity), time.time(), asyncio.Lock()
+                    capacity,
+                    refill,
+                    float(capacity),
+                    self._clock(),
+                    asyncio.Lock(),
+                    self._clock,
                 )
                 self._buckets[key] = bucket
             else:
@@ -93,7 +116,13 @@ class AdaptiveLimiter:
             return bucket
 
     async def acquire(
-        self, *, path: str, method: str, client_ip: str, auth_header: Optional[str]
+        self,
+        *,
+        path: str,
+        method: str,
+        client_ip: str,
+        auth_header: Optional[str],
+        api_key: Optional[str] = None,
     ) -> Tuple[bool, int, int, int]:
         """Attempt to consume a token.
         Returns (allowed, retry_after_seconds, remaining_tokens, capacity)
@@ -103,7 +132,7 @@ class AdaptiveLimiter:
             return True, 0, cap, cap
 
         capacity, refill = self._route_params(path, method)
-        key = self._key(path, method, client_ip, auth_header)
+        key = self._key(path, method, client_ip, auth_header, api_key)
         bucket = await self._get_bucket(key, capacity, refill)
 
         async with bucket.lock:
@@ -113,9 +142,9 @@ class AdaptiveLimiter:
                 return True, 0, max(0, int(bucket.tokens)), capacity
 
             # Soft wait to reduce spiky 429s
-            deadline = time.time() + (self.max_wait_ms / 1000.0)
-            while time.time() < deadline:
-                await asyncio.sleep(0.05)
+            deadline = self._clock() + (self.max_wait_ms / 1000.0)
+            while self._clock() < deadline:
+                await self._sleep(min(0.05, deadline - self._clock()))
                 bucket.refill()
                 if bucket.tokens >= 1.0:
                     bucket.tokens -= 1.0
@@ -216,7 +245,7 @@ async def add_request_id(request: Request, call_next):
         request_id = (
             str(uuid.UUID(supplied_request_id)) if supplied_request_id else None
         )
-    except (ValueError, AttributeError):
+    except ValueError, AttributeError:
         request_id = None
     request_id = request_id or str(uuid.uuid4())
     request.state.request_id = request_id
@@ -279,14 +308,21 @@ async def rate_limit_middleware(request: Request, call_next):
         method=request.method,
         client_ip=client_ip,
         auth_header=request.headers.get("Authorization"),
+        api_key=request.headers.get("X-API-Key"),
     )
 
     if not allowed:
         logger.warning(
             f"Rate limit: 429 path={request.url.path} ip={client_ip} retry_after={retry_after}s"
         )
-        return Response(
-            content="Rate limit exceeded",
+        return JSONResponse(
+            content={
+                "error": {
+                    "code": "rate_limit_exceeded",
+                    "message": "Rate limit exceeded",
+                    "retry_after": retry_after,
+                }
+            },
             status_code=429,
             headers={
                 "Retry-After": str(retry_after),
@@ -303,12 +339,8 @@ async def rate_limit_middleware(request: Request, call_next):
 
 
 def client_ip_for_request(request: Request) -> str:
-    """Use forwarded client identity only when the direct peer is trusted."""
-    client_ip = request.client.host if request.client else "unknown"
-    forwarded_for = request.headers.get("X-Forwarded-For")
-    if settings.is_trusted_proxy(client_ip) and forwarded_for:
-        return forwarded_for.split(",", 1)[0].strip()
-    return client_ip
+    """Resolve the validated HTTP identity shared with WebSocket callers."""
+    return get_real_client_ip(request)
 
 
 def install_http_middleware(app: FastAPI) -> None:
