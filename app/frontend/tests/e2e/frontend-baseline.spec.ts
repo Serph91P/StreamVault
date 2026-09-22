@@ -165,15 +165,18 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 
         await page.goto('/streamers', { waitUntil: 'domcontentloaded' })
         stage = 'readiness'
         await writeObservation()
-        const streamerViewCount = await page.locator('.streamers-view').count()
+        const streamerView = page.locator('.streamers-view')
+        await expect(streamerView).toBeVisible()
+        const streamerViewCount = await streamerView.count()
         if (streamerViewCount !== 1) {
           throw new Error(`expected one source-derived .streamers-view root, found ${streamerViewCount}`)
         }
         stage = 'keyboard'
         await writeObservation()
         await page.keyboard.press('Tab')
-        await expect(page.locator(':focus-visible')).toHaveCount(1)
-        keyboardFocusCount = await page.locator(':focus-visible').count()
+        const keyboardFocus = page.locator(':focus')
+        await expect(keyboardFocus).toHaveCount(1)
+        keyboardFocusCount = await keyboardFocus.count()
         stage = 'accessibility-tree'
         await writeObservation()
         ariaSnapshot = await page.locator('body').ariaSnapshot()

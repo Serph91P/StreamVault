@@ -43,8 +43,16 @@ async function expectDialogLifecycle(page: Page, trigger: Locator) {
   expect(await dialog.evaluate(element => element.contains(document.activeElement))).toBe(true)
   expect(await page.evaluate(() => document.body.style.overflow)).toBe('hidden')
 
-  const controls = dialog.locator('button:not([disabled]):visible, a[href]:visible, input:not([disabled]):visible, select:not([disabled]):visible, textarea:not([disabled]):visible')
-  // Keep the boundary locator live: notification controls can appear while the panel hydrates.
+  const controls = dialog.locator([
+    'a[href]:visible',
+    'button:not([disabled]):visible',
+    'input:not([disabled]):not([type="hidden"]):visible',
+    'select:not([disabled]):visible',
+    'textarea:not([disabled]):visible',
+    '[tabindex]:not([tabindex="-1"]):visible',
+  ].join(','))
+  // Match useModal's complete focusable boundary. Notification items hydrate with
+  // tabindex="0" and must remain part of the live trap rather than be skipped.
   await controls.last().focus()
   await page.keyboard.press('Tab')
   await expect(controls.first()).toBeFocused()
