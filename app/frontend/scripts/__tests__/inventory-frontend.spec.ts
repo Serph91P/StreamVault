@@ -18,4 +18,13 @@ describe('frontend inventory', () => {
     expect(inventory.counts.clickSemantics).toBeGreaterThan(0)
     expect(inventory.clickSemantics?.some(entry => entry.match.includes('@click'))).toBe(true)
   })
+
+  it('excludes dynamic RouterLink props from navigation destinations', () => {
+    execFileSync(process.execPath, [scriptPath], { stdio: 'pipe' })
+    const inventory = JSON.parse(readFileSync(inventoryPath, 'utf8')) as {
+      navigationDestinations: string[]
+    }
+
+    expect(inventory.navigationDestinations).not.toContain('to')
+  })
 })

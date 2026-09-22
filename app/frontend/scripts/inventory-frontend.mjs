@@ -71,7 +71,7 @@ for (const match of router.matchAll(/path:\s*['"]([^'"]+)['"][\s\S]{0,180}?name:
   inventory.routes.push({ path: match[1], name: match[2], component: match[3].trim(), file: 'app/frontend/src/router/index.ts' })
 }
 for (const [path, content] of source) {
-  for (const match of content.matchAll(/(?:router\.(?:push|replace)|<RouterLink[^>]+\bto=)\s*\(?\s*['"]([^'"]+)/g)) add(inventory.navigationDestinations, match[1])
+  for (const match of content.matchAll(/(?:router\.(?:push|replace)|<RouterLink[^>]+(?<!:)\bto=)\s*\(?\s*['"]([^'"]+)/g)) add(inventory.navigationDestinations, match[1])
   for (const match of content.matchAll(/apiClient\.(get|post|put|patch|delete)\(\s*([`'"])(.*?)\2/g)) {
     inventory.apiCalls.push({ method: match[1].toUpperCase(), path: match[3], source: relative(repositoryRoot, path), auth: 'cookie credentials include via ApiClient', headers: ['Content-Type: application/json'] })
   }

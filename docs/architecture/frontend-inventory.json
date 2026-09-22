@@ -304,7 +304,6 @@
   ],
   "navigationDestinations": [
     "/streamers",
-    "to",
     "/",
     "/auth/login",
     "/add-streamer"
@@ -10912,7 +10911,7 @@
     "sourceRoot": "app/frontend",
     "frontendFiles": 194,
     "routes": 17,
-    "navigationDestinations": 5,
+    "navigationDestinations": 4,
     "apiCalls": 206,
     "websocketConsumers": 11,
     "storage": 2,
