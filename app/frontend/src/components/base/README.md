@@ -7,6 +7,7 @@ New frontend work should import shared primitives from this folder and from `com
 - `BaseButton`: canonical native button wrapper for `.btn` variants, sizes, loading labels and disabled states.
 - `BaseIconButton`: canonical labelled native button for icon-only actions.
 - `BaseLink`: canonical Vue Router link, rendered as a native anchor for application navigation.
+- `BaseInput` and `BaseDropdown`: native labelled input/select controls. They preserve native `required` and `disabled` behavior, attach their visible error, success or hint message with `aria-describedby`, and enforce the ordinary 44px control-target token.
 - `FormField`: wrapper for custom form controls that still need shared label, hint and error wiring.
 - `BaseList`: card stack list primitive for non-tabular collections.
 - `BaseModal`: centered modal dialog for blocking decisions.

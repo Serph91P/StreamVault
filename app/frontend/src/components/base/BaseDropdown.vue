@@ -46,6 +46,7 @@ const effectiveState = computed<'default' | 'error' | 'success'>(() =>
 )
 
 const selectClasses = computed(() => [
+  'base-form-control-target',
   effectiveState.value === 'error' && 'error',
   effectiveState.value === 'success' && 'success',
 ])
@@ -102,6 +103,10 @@ function onChange(ev: Event) {
 
 <style scoped lang="scss">
 @use '@/styles/variables' as v;
+
+.base-form-control-target {
+  min-height: var(--control-target-min);
+}
 
 .form-error {
   display: block;
