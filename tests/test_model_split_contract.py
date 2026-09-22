@@ -6,6 +6,7 @@ import ast
 import importlib
 import inspect as python_inspect
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from sqlalchemy import create_engine, inspect
@@ -230,3 +231,84 @@ def test_category_route_and_dependency_use_async_database_seam() -> None:
     assert "await category_service.remove_favorite" in route_source
     assert "await category_service.list_favorites" in route_source
     assert "Depends(get_async_db)" in dependency_source
+
+
+class _CategoryServiceRepository:
+    """Small repository seam for exercising service transaction failures."""
+
+    def __init__(self, category=None, favorite=None, commit_error=None) -> None:
+        self.category = category
+        self.favorite = favorite
+        self.commit_error = commit_error
+        self.rollback_calls = 0
+        self.add_calls = 0
+        self.remove_calls = 0
+
+    async def get_by_id(self, category_id):
+        return self.category
+
+    async def get_favorite(self, user_id, category_id):
+        return self.favorite
+
+    async def add_favorite(self, user_id, category_id):
+        self.add_calls += 1
+
+    async def remove_favorite(self, favorite):
+        self.remove_calls += 1
+
+    async def commit(self):
+        if self.commit_error:
+            raise self.commit_error
+
+    async def rollback(self):
+        self.rollback_calls += 1
+
+
+def _service_category():
+    return SimpleNamespace(
+        id=7,
+        twitch_id="category-7",
+        name="Contract Test",
+        box_art_url=None,
+        first_seen=None,
+        last_seen=None,
+    )
+
+
+@pytest.mark.asyncio
+async def test_category_service_missing_category_rolls_back_and_raises() -> None:
+    from app.services.categories.category_service import CategoryService
+
+    repository = _CategoryServiceRepository()
+    service = CategoryService(repository)
+
+    with pytest.raises(LookupError):
+        await service.add_favorite(1, 7)
+    with pytest.raises(LookupError):
+        await service.remove_favorite(1, 7)
+
+    assert repository.rollback_calls == 2
+    assert repository.add_calls == 0
+    assert repository.remove_calls == 0
+
+
+@pytest.mark.asyncio
+async def test_category_service_commit_failure_rolls_back_and_reraises() -> None:
+    from app.services.categories.category_service import CategoryService
+
+    error = RuntimeError("commit failed")
+    repository = _CategoryServiceRepository(
+        category=_service_category(), commit_error=error
+    )
+    service = CategoryService(repository)
+
+    with pytest.raises(RuntimeError, match="commit failed"):
+        await service.add_favorite(1, 7)
+    assert repository.add_calls == 1
+    assert repository.rollback_calls == 1
+
+    repository.favorite = SimpleNamespace(id=11)
+    with pytest.raises(RuntimeError, match="commit failed"):
+        await service.remove_favorite(1, 7)
+    assert repository.remove_calls == 1
+    assert repository.rollback_calls == 2
