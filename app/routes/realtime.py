@@ -15,7 +15,8 @@ async def websocket_endpoint(websocket: WebSocket):
     real_ip = get_real_client_ip(websocket)
     logger.info(f"📞 New WebSocket connection attempt from {real_ip}")
 
-    await websocket_manager.connect(websocket)
+    if not await websocket_manager.connect(websocket):
+        return
     try:
         while True:
             await websocket.receive_text()
@@ -36,11 +37,9 @@ async def replay_realtime_events(
     pass the highest event_id they have already processed as since to avoid
     duplicate replay of live events received before reconnect.
     """
-    events = await websocket_manager.get_events_since(since=since, limit=limit)
-    replay_state = await websocket_manager.get_replay_state()
+    replay_window = await websocket_manager.get_replay_window(since=since, limit=limit)
 
     return {
-        "events": events,
         "since": since,
-        **replay_state,
+        **replay_window,
     }

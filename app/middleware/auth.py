@@ -4,6 +4,7 @@ from app.services.core.auth_service import AuthService
 from app.services.core.api_key_service import ApiKeyService
 from app.database import SessionLocal
 import logging
+from urllib.parse import urlsplit
 
 logger = logging.getLogger("streamvault")
 
@@ -42,6 +43,35 @@ def _is_public_path(path: str) -> bool:
 
 def _is_admin_path(path: str) -> bool:
     return path == "/api/admin" or path.startswith("/api/admin/")
+
+
+def _cookie_mutation_has_csrf_violation(request: Request) -> bool:
+    """Reject cross-site browser mutations authenticated by ambient cookies."""
+    if request.method.upper() in {"GET", "HEAD", "OPTIONS", "TRACE"}:
+        return False
+    if not (request.cookies.get("access_token") or request.cookies.get("session")):
+        return False
+
+    # HTTP authentication gives ambient session cookies precedence over Bearer
+    # and API-key headers. Therefore a request carrying a session cookie remains
+    # cookie-authenticated and must pass CSRF checks even when an unrelated or
+    # invalid explicit credential is also present.
+
+    fetch_site = request.headers.get("sec-fetch-site", "").lower()
+    if fetch_site == "cross-site":
+        return True
+
+    origin = request.headers.get("origin")
+    if not origin:
+        # Preserve non-browser clients that do not send browser security headers.
+        return False
+    if origin == "null":
+        return True
+    parsed = urlsplit(origin)
+    return (
+        not parsed.scheme
+        or parsed.netloc.lower() != request.headers.get("host", "").lower()
+    )
 
 
 def _extract_bearer_token(headers: list) -> str | None:
@@ -152,6 +182,14 @@ class AuthMiddleware:
         is_json_request = request.headers.get(
             "X-Requested-With"
         ) == "XMLHttpRequest" or "application/json" in request.headers.get("accept", "")
+
+        if _cookie_mutation_has_csrf_violation(request):
+            logger.warning(
+                "Blocked cross-site cookie mutation for %s", request.url.path
+            )
+            return await JSONResponse(
+                {"error": "CSRF validation failed"}, status_code=403
+            )(scope, receive, send)
 
         # Public paths that don't require authentication
         # SECURITY: Only paths that MUST work without a session belong here.
