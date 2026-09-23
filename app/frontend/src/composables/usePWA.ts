@@ -2,7 +2,7 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import router from '@/router'
 import { normalizeNotificationTargetUrl } from '@/types/events'
 
-interface PWAInstallPrompt {
+interface PWAInstallPrompt extends Event {
   prompt(): Promise<void>
   userChoice: Promise<{outcome: 'accepted' | 'dismissed'}>
 }
@@ -17,10 +17,15 @@ export type PWAInstallResult = 'accepted' | 'dismissed' | 'installed' | 'unavail
 export function usePWA() {
   const isInstallable = ref(false)
   const isInstalled = ref(false)
-  const isOnline = ref(navigator.onLine)
+  const isOnline = ref(typeof navigator === 'undefined' ? true : navigator.onLine)
   const registration = ref<ServiceWorkerRegistration | null>(null)
   const installPrompt = ref<PWAInstallPrompt | null>(null)
-  const pushSupported = ref('serviceWorker' in navigator && 'PushManager' in window)
+  const pushSupported = ref(
+    typeof navigator !== 'undefined' &&
+    typeof window !== 'undefined' &&
+    'serviceWorker' in navigator &&
+    'PushManager' in window
+  )
   const notificationPermission = ref<NotificationPermission['state']>('default')
   const pushState = ref<PushState>('unsubscribed')
   const pushError = ref<string | null>(null)
@@ -40,15 +45,22 @@ export function usePWA() {
     return currentKey.every((value, index) => value === applicationServerKey[index])
   }
 
+  const displayModeMatches = (mode: string) =>
+    typeof window !== 'undefined' &&
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia(`(display-mode: ${mode})`).matches
+
   const checkInstallStatus = () => {
-    isInstalled.value = window.matchMedia('(display-mode: standalone)').matches ||
-                       (window.navigator as any).standalone === true ||
-                       window.matchMedia('(display-mode: fullscreen)').matches ||
-                       window.matchMedia('(display-mode: minimal-ui)').matches
+    if (typeof window === 'undefined') return
+
+    isInstalled.value = displayModeMatches('standalone') ||
+                       (window.navigator as Navigator & { standalone?: boolean }).standalone === true ||
+                       displayModeMatches('fullscreen') ||
+                       displayModeMatches('minimal-ui')
   }
 
   const resolveServiceWorkerRegistration = async () => {
-    if (!('serviceWorker' in navigator)) {
+    if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) {
       return null
     }
 
@@ -428,8 +440,14 @@ export function usePWA() {
 
   const handleBeforeInstallPrompt = (event: Event) => {
     event.preventDefault()
-    installPrompt.value = event as any
+    installPrompt.value = event as PWAInstallPrompt
     isInstallable.value = true
+  }
+
+  const handleAppInstalled = () => {
+    isInstalled.value = true
+    isInstallable.value = false
+    installPrompt.value = null
   }
 
   const handleServiceWorkerMessage = (event: MessageEvent) => {
@@ -448,43 +466,70 @@ export function usePWA() {
     }
   }
 
+  let listenersAttached = false
+  let displayModeQuery: MediaQueryList | null = null
+  let serviceWorkerContainer: ServiceWorkerContainer | null = null
+
+  const attachOwnedListeners = () => {
+    if (listenersAttached || typeof window === 'undefined') return
+    listenersAttached = true
+
+    window.addEventListener('online', handleOnline)
+    window.addEventListener('offline', handleOffline)
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
+    window.addEventListener('appinstalled', handleAppInstalled)
+
+    if (typeof window.matchMedia === 'function') {
+      displayModeQuery = window.matchMedia('(display-mode: standalone)')
+      if (typeof displayModeQuery.addEventListener === 'function') {
+        displayModeQuery.addEventListener('change', checkInstallStatus)
+      } else {
+        displayModeQuery.addListener(checkInstallStatus)
+      }
+    }
+
+    if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+      serviceWorkerContainer = navigator.serviceWorker
+      serviceWorkerContainer.addEventListener('message', handleServiceWorkerMessage)
+    }
+  }
+
+  const detachOwnedListeners = () => {
+    if (!listenersAttached || typeof window === 'undefined') return
+    listenersAttached = false
+
+    window.removeEventListener('online', handleOnline)
+    window.removeEventListener('offline', handleOffline)
+    window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
+    window.removeEventListener('appinstalled', handleAppInstalled)
+
+    if (displayModeQuery) {
+      if (typeof displayModeQuery.removeEventListener === 'function') {
+        displayModeQuery.removeEventListener('change', checkInstallStatus)
+      } else {
+        displayModeQuery.removeListener(checkInstallStatus)
+      }
+    }
+    displayModeQuery = null
+
+    serviceWorkerContainer?.removeEventListener('message', handleServiceWorkerMessage)
+    serviceWorkerContainer = null
+  }
+
   onMounted(() => {
     checkInstallStatus()
     resolveServiceWorkerRegistration().then(() => {
       checkExistingSubscription()
     })
 
-    if ('Notification' in window) {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
       notificationPermission.value = Notification.permission
     }
 
-    window.addEventListener('online', handleOnline)
-    window.addEventListener('offline', handleOffline)
-    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
-
-    window.addEventListener('appinstalled', () => {
-      isInstalled.value = true
-      isInstallable.value = false
-      installPrompt.value = null
-    })
-
-    const mediaQuery = window.matchMedia('(display-mode: standalone)')
-    mediaQuery.addEventListener('change', checkInstallStatus)
-
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.addEventListener('message', handleServiceWorkerMessage)
-    }
+    attachOwnedListeners()
   })
 
-  onUnmounted(() => {
-    window.removeEventListener('online', handleOnline)
-    window.removeEventListener('offline', handleOffline)
-    window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
-
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.removeEventListener('message', handleServiceWorkerMessage)
-    }
-  })
+  onUnmounted(detachOwnedListeners)
 
   return {
     isInstallable,
