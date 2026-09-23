@@ -77,22 +77,31 @@ TWITCH_APP_ID=your_twitch_client_id
 TWITCH_APP_SECRET=your_twitch_client_secret
 BASE_URL=https://streamvault.example.com
 EVENTSUB_SECRET=replace_with_a_random_secret
-AUTH_JWT_SECRET=replace_with_a_32_byte_minimum_secret
 POSTGRES_USER=streamvault
 POSTGRES_PASSWORD=replace_with_a_strong_password
 POSTGRES_DB=streamvault
 TZ=Europe/Berlin
 ```
 
-Generate the EventSub and JWT secrets with separate random values:
+Generate the EventSub secret with a random value:
 
 ```bash
 openssl rand -hex 32
 ```
 
-`AUTH_JWT_SECRET` is required for production login. JWT issuance fails closed
-when it is unset or shorter than 32 characters. Never put generated secrets in
-Git, screenshots, shell history shared with others, or support logs.
+When `AUTH_JWT_SECRET` is omitted, StreamVault automatically generates a unique,
+cryptographically random JWT signing identity after database migrations and
+persists it in `SystemConfig`. Restarts and concurrent instances reuse that same
+identity. A valid explicit `AUTH_JWT_SECRET` of at least 32 characters takes
+precedence when an operator deliberately supplies one; an explicitly empty or
+shorter value is invalid and startup fails closed rather than falling back.
+
+Database unavailability, corrupt persisted material, or evidenced loss of an
+established signing identity also fails closed; StreamVault never silently
+rotates it. Treat the persisted JWT rows and every database backup as credential
+material: restrict database and backup access, preserve them during restores,
+and never export or log the signing value. Never put generated or explicit
+secrets in Git, screenshots, shared shell history, or support logs.
 
 ### 3. Start StreamVault
 

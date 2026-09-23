@@ -71,7 +71,7 @@ class Settings(BaseSettings):
 
     SECURE_COOKIES: bool = True
     USE_SECURE_COOKIES: bool = True
-    auth_jwt_secret: SecretStr = Field(default=SecretStr(""), alias="AUTH_JWT_SECRET")
+    auth_jwt_secret: SecretStr | None = Field(default=None, alias="AUTH_JWT_SECRET")
     AUTH_JWT_ALGORITHM: str = "HS256"
     AUTH_JWT_ISSUER: str = "streamvault"
     AUTH_JWT_AUDIENCE: str = "streamvault-api"
@@ -185,6 +185,13 @@ class Settings(BaseSettings):
             raise ValueError("proxy URL must use http, https, socks4, or socks5")
         return value
 
+    @field_validator("auth_jwt_secret")
+    @classmethod
+    def _validate_explicit_jwt_secret(cls, value: SecretStr | None) -> SecretStr | None:
+        if value is not None and len(value.get_secret_value()) < 32:
+            raise ValueError("AUTH_JWT_SECRET must be at least 32 characters")
+        return value
+
     @model_validator(mode="after")
     def _validate_related_settings(self) -> Settings:
         if self.WEBHOOK_URL is None:
@@ -266,12 +273,18 @@ class Settings(BaseSettings):
         }
 
     def apply_persistent_keys(
-        self, *, eventsub_secret: str, vapid_public_key: str, vapid_private_key: str
+        self,
+        *,
+        eventsub_secret: str,
+        vapid_public_key: str,
+        vapid_private_key: str,
+        jwt_secret: str,
     ) -> None:
         """Apply material resolved by the explicit post-migration bootstrap."""
         object.__setattr__(self, "eventsub_secret", SecretStr(eventsub_secret))
         object.__setattr__(self, "VAPID_PUBLIC_KEY", vapid_public_key)
         object.__setattr__(self, "vapid_private_key", SecretStr(vapid_private_key))
+        object.__setattr__(self, "auth_jwt_secret", SecretStr(jwt_secret))
 
     @property
     def TWITCH_APP_SECRET(self) -> str:
@@ -313,7 +326,7 @@ class Settings(BaseSettings):
 
     @property
     def AUTH_JWT_SECRET(self) -> str:
-        return cast(str, self.auth_jwt_secret.get_secret_value())
+        return _secret_value(self.auth_jwt_secret) or ""
 
     @property
     def METRICS_AUTH_TOKEN(self) -> str | None:

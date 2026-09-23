@@ -6,16 +6,21 @@ import os
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from collections.abc import Callable
+from pathlib import Path
 from urllib.parse import urlunsplit
 
 import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ec
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
 from pydantic import ValidationError
 from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import sessionmaker
 
-from app.models import SystemConfig
+from app.dependencies import get_auth_service
+from app.models import RefreshToken, SystemConfig, User
+from app.routes import auth as auth_routes
 
 
 def _synthetic_proxy_url() -> str:
@@ -52,10 +57,14 @@ def test_settings_construction_is_pure_and_does_not_generate_identity(caplog) ->
     caplog.set_level(logging.DEBUG)
 
     settings = _settings(
-        EVENTSUB_SECRET=None, VAPID_PUBLIC_KEY=None, VAPID_PRIVATE_KEY=None
+        EVENTSUB_SECRET=None,
+        VAPID_PUBLIC_KEY=None,
+        VAPID_PRIVATE_KEY=None,
+        AUTH_JWT_SECRET=None,
     )
 
     assert settings.EVENTSUB_SECRET is None
+    assert settings.AUTH_JWT_SECRET == ""
     assert settings.get_vapid_keys() == {
         "public_key": None,
         "private_key": None,
@@ -185,6 +194,39 @@ def test_invalid_configuration_fails_fast_without_echoing_secrets(
     assert "database-secret" not in str(captured.value)
 
 
+@pytest.mark.parametrize("value", ["", "short"])
+def test_explicit_invalid_jwt_secret_fails_fast(value: str) -> None:
+    with pytest.raises(ValidationError, match="AUTH_JWT_SECRET") as captured:
+        _settings(AUTH_JWT_SECRET=value)
+
+    if value:
+        assert value not in str(captured.value)
+
+
+def test_operator_files_default_to_persistent_jwt_bootstrap_contract() -> None:
+    repository_root = Path(__file__).resolve().parents[1]
+    env_template = (repository_root / ".env.example").read_text(encoding="utf-8")
+    active_variables = {
+        line.partition("=")[0].strip()
+        for line in env_template.splitlines()
+        if line.strip() and not line.lstrip().startswith("#") and "=" in line
+    }
+    assert "AUTH_JWT_SECRET" not in active_variables
+
+    operator_docs = "\n".join(
+        (repository_root / path).read_text(encoding="utf-8").lower()
+        for path in ("README.md", "docs/BACKEND_MODERNIZATION.md")
+    )
+    for required_contract in (
+        "automatically generates",
+        "takes precedence",
+        "fails closed",
+        "backup",
+        "never export or log",
+    ):
+        assert required_contract in operator_docs
+
+
 def test_vapid_generator_returns_a_valid_p256_identity() -> None:
     from app.services.system.persistent_key_service import generate_vapid_keys
 
@@ -217,7 +259,10 @@ def test_bootstrap_persists_generated_keys_and_reuses_them_after_restart(
         return "eventsub-persistent-value"
 
     first_settings = _settings(
-        EVENTSUB_SECRET=None, VAPID_PUBLIC_KEY=None, VAPID_PRIVATE_KEY=None
+        EVENTSUB_SECRET=None,
+        VAPID_PUBLIC_KEY=None,
+        VAPID_PRIVATE_KEY=None,
+        AUTH_JWT_SECRET=None,
     )
     material = PersistentKeyBootstrapService(
         sessions,
@@ -227,11 +272,15 @@ def test_bootstrap_persists_generated_keys_and_reuses_them_after_restart(
 
     assert material.eventsub_secret == "eventsub-persistent-value"
     assert first_settings.EVENTSUB_SECRET == "eventsub-persistent-value"
+    assert len(first_settings.AUTH_JWT_SECRET) >= 32
     assert first_settings.VAPID_PUBLIC_KEY == "vapid-public-value"
     assert first_settings.VAPID_PRIVATE_KEY == "vapid-private-value"
 
     restarted_settings = _settings(
-        EVENTSUB_SECRET=None, VAPID_PUBLIC_KEY=None, VAPID_PRIVATE_KEY=None
+        EVENTSUB_SECRET=None,
+        VAPID_PUBLIC_KEY=None,
+        VAPID_PRIVATE_KEY=None,
+        AUTH_JWT_SECRET=None,
     )
     restarted = PersistentKeyBootstrapService(
         sessions,
@@ -243,6 +292,7 @@ def test_bootstrap_persists_generated_keys_and_reuses_them_after_restart(
 
     assert restarted == material
     assert restarted_settings.EVENTSUB_SECRET == material.eventsub_secret
+    assert restarted_settings.AUTH_JWT_SECRET == material.jwt_secret
     assert restarted_settings.VAPID_PRIVATE_KEY == material.vapid_private_key
     assert calls == {"vapid": 1, "eventsub": 1}
 
@@ -251,6 +301,10 @@ def test_bootstrap_persists_generated_keys_and_reuses_them_after_restart(
             session.execute(select(SystemConfig.key, SystemConfig.value)).all()
         )
     assert stored == {
+        "auth_jwt_identity_sha256": __import__("hashlib")
+        .sha256(material.jwt_secret.encode())
+        .hexdigest(),
+        "auth_jwt_secret": material.jwt_secret,
         "eventsub_secret": "eventsub-persistent-value",
         "vapid_claims_sub": "mailto:admin@streamvault.local",
         "vapid_private_key": "vapid-private-value",
@@ -285,6 +339,142 @@ def test_bootstrap_uses_complete_environment_key_material_without_database_write
     assert material.vapid_private_key == "configured-private"
     with sessions() as session:
         assert session.scalar(select(SystemConfig).limit(1)) is None
+    engine.dispose()
+
+
+def test_existing_user_install_bootstraps_jwt_once_and_tokens_survive_restart(
+    tmp_path, monkeypatch
+) -> None:
+    from app.services.core.auth_service import AuthService
+    from app.services.system.persistent_key_service import PersistentKeyBootstrapService
+
+    engine = create_engine(f"sqlite:///{tmp_path / 'existing.sqlite'}")
+    User.__table__.create(engine)
+    RefreshToken.__table__.create(engine)
+    SystemConfig.__table__.create(engine)
+    sessions = sessionmaker(bind=engine, expire_on_commit=False)
+    with sessions.begin() as session:
+        password_hash = AuthService(session, settings=_settings()).hash_password(
+            "synthetic-password"
+        )
+        session.add(
+            User(username="existing-user", password=password_hash, is_admin=True)
+        )
+
+    first = _settings(AUTH_JWT_SECRET=None)
+    PersistentKeyBootstrapService(sessions).bootstrap(first)
+
+    def get_test_auth_service():
+        with sessions() as session:
+            yield AuthService(session, settings=first)
+
+    app = FastAPI()
+    app.include_router(auth_routes.router, prefix="/auth")
+    app.dependency_overrides[get_auth_service] = get_test_auth_service
+    monkeypatch.setattr(auth_routes, "get_settings", lambda: first)
+    with TestClient(app) as client:
+        response = client.post(
+            "/auth/login",
+            json={"username": "existing-user", "password": "synthetic-password"},
+        )
+        assert response.status_code == 200
+        token = client.cookies["access_token"]
+
+    with sessions() as session:
+        user_id = session.scalar(
+            select(User.id).where(User.username == "existing-user")
+        )
+        assert user_id is not None
+
+    restarted = _settings(AUTH_JWT_SECRET=None)
+    PersistentKeyBootstrapService(
+        sessions,
+        jwt_secret_generator=_failing_generator("JWT identity was regenerated"),
+    ).bootstrap(restarted)
+    with sessions() as session:
+        claims = AuthService(session, settings=restarted).decode_access_token(token)
+    assert claims["sub"] == str(user_id)
+    assert restarted.AUTH_JWT_SECRET == first.AUTH_JWT_SECRET
+    engine.dispose()
+
+
+def test_missing_jwt_after_identity_marker_fails_closed(tmp_path) -> None:
+    from app.services.system.persistent_key_service import (
+        PersistentKeyBootstrapError,
+        PersistentKeyBootstrapService,
+    )
+
+    engine = create_engine(f"sqlite:///{tmp_path / 'lost.sqlite'}")
+    SystemConfig.__table__.create(engine)
+    sessions = sessionmaker(bind=engine, expire_on_commit=False)
+    with sessions.begin() as session:
+        session.add(SystemConfig(key="auth_jwt_identity_sha256", value="0" * 64))
+
+    with pytest.raises(PersistentKeyBootstrapError, match="identity is missing"):
+        PersistentKeyBootstrapService(
+            sessions,
+            jwt_secret_generator=_failing_generator("must not replace lost identity"),
+        ).bootstrap(_settings(AUTH_JWT_SECRET=None))
+    engine.dispose()
+
+
+def test_changed_jwt_after_identity_marker_fails_closed(tmp_path) -> None:
+    from app.services.system.persistent_key_service import (
+        PersistentKeyBootstrapError,
+        PersistentKeyBootstrapService,
+    )
+
+    engine = create_engine(f"sqlite:///{tmp_path / 'changed.sqlite'}")
+    SystemConfig.__table__.create(engine)
+    sessions = sessionmaker(bind=engine, expire_on_commit=False)
+    with sessions.begin() as session:
+        session.add_all(
+            [
+                SystemConfig(key="auth_jwt_secret", value="x" * 48),
+                SystemConfig(key="auth_jwt_identity_sha256", value="0" * 64),
+            ]
+        )
+
+    with pytest.raises(PersistentKeyBootstrapError, match="does not match"):
+        PersistentKeyBootstrapService(sessions).bootstrap(
+            _settings(AUTH_JWT_SECRET=None)
+        )
+    engine.dispose()
+
+
+def test_refresh_tokens_without_jwt_identity_fail_closed(tmp_path) -> None:
+    from datetime import datetime, timedelta, timezone
+
+    from app.services.system.persistent_key_service import (
+        PersistentKeyBootstrapError,
+        PersistentKeyBootstrapService,
+    )
+
+    engine = create_engine(f"sqlite:///{tmp_path / 'refresh-loss.sqlite'}")
+    User.__table__.create(engine)
+    RefreshToken.__table__.create(engine)
+    SystemConfig.__table__.create(engine)
+    sessions = sessionmaker(bind=engine, expire_on_commit=False)
+    now = datetime.now(timezone.utc)
+    with sessions.begin() as session:
+        user = User(username="existing-user", password="synthetic", is_admin=True)
+        session.add(user)
+        session.flush()
+        session.add(
+            RefreshToken(
+                user_id=user.id,
+                family_id="f" * 32,
+                token_hash="a" * 64,
+                expires_at=now + timedelta(hours=1),
+                family_expires_at=now + timedelta(hours=2),
+            )
+        )
+
+    with pytest.raises(PersistentKeyBootstrapError, match="refresh tokens exist"):
+        PersistentKeyBootstrapService(
+            sessions,
+            jwt_secret_generator=_failing_generator("must not replace lost identity"),
+        ).bootstrap(_settings(AUTH_JWT_SECRET=None))
     engine.dispose()
 
 
@@ -403,7 +593,8 @@ def test_database_outage_fails_closed_without_ephemeral_identity() -> None:
     assert settings.VAPID_PRIVATE_KEY is None
 
 
-def test_postgres_concurrent_first_starts_share_one_identity() -> None:
+def test_postgres_concurrent_first_starts_share_one_identity(monkeypatch) -> None:
+    from app.services.core.auth_service import AuthService
     from app.services.system.persistent_key_service import PersistentKeyBootstrapService
 
     url = os.environ.get("STREAMVAULT_POSTGRES_TEST_URL")
@@ -411,10 +602,14 @@ def test_postgres_concurrent_first_starts_share_one_identity() -> None:
         pytest.skip("requires isolated STREAMVAULT_POSTGRES_TEST_URL")
 
     engine = create_engine(url, pool_pre_ping=True)
+    RefreshToken.__table__.drop(engine, checkfirst=True)
+    User.__table__.drop(engine, checkfirst=True)
     SystemConfig.__table__.drop(engine, checkfirst=True)
+    User.__table__.create(engine)
+    RefreshToken.__table__.create(engine)
     SystemConfig.__table__.create(engine)
     sessions = sessionmaker(bind=engine, expire_on_commit=False)
-    calls = {"vapid": 0, "eventsub": 0}
+    calls = {"vapid": 0, "eventsub": 0, "jwt": 0}
     counter_lock = threading.Lock()
 
     def generate_vapid() -> tuple[str, str]:
@@ -427,14 +622,23 @@ def test_postgres_concurrent_first_starts_share_one_identity() -> None:
             calls["eventsub"] += 1
         return "concurrent-eventsub"
 
+    def generate_jwt() -> str:
+        with counter_lock:
+            calls["jwt"] += 1
+        return "concurrent-jwt-secret-that-is-long-enough-123456789"
+
     def boot_once(_index: int):
         settings = _settings(
-            EVENTSUB_SECRET=None, VAPID_PUBLIC_KEY=None, VAPID_PRIVATE_KEY=None
+            EVENTSUB_SECRET=None,
+            VAPID_PUBLIC_KEY=None,
+            VAPID_PRIVATE_KEY=None,
+            AUTH_JWT_SECRET=None,
         )
         return PersistentKeyBootstrapService(
             sessions,
             vapid_key_generator=generate_vapid,
             eventsub_secret_generator=generate_eventsub,
+            jwt_secret_generator=generate_jwt,
         ).bootstrap(settings)
 
     try:
@@ -442,10 +646,47 @@ def test_postgres_concurrent_first_starts_share_one_identity() -> None:
             materials = list(executor.map(boot_once, range(4)))
 
         assert materials == [materials[0]] * 4
-        assert calls == {"vapid": 1, "eventsub": 1}
+        assert calls == {"vapid": 1, "eventsub": 1, "jwt": 1}
         with sessions() as session:
-            assert session.scalar(select(func.count()).select_from(SystemConfig)) == 4
+            assert session.scalar(select(func.count()).select_from(SystemConfig)) == 6
+
+        login_settings = _settings(AUTH_JWT_SECRET=None)
+        PersistentKeyBootstrapService(
+            sessions,
+            jwt_secret_generator=_failing_generator("JWT identity was regenerated"),
+        ).bootstrap(login_settings)
+        with sessions.begin() as session:
+            password_hash = AuthService(session, settings=login_settings).hash_password(
+                "synthetic-password"
+            )
+            session.add(
+                User(
+                    username="postgres-user",
+                    password=password_hash,
+                    is_admin=True,
+                )
+            )
+
+        def get_postgres_auth_service():
+            with sessions() as session:
+                yield AuthService(session, settings=login_settings)
+
+        app = FastAPI()
+        app.include_router(auth_routes.router, prefix="/auth")
+        app.dependency_overrides[get_auth_service] = get_postgres_auth_service
+        monkeypatch.setattr(auth_routes, "get_settings", lambda: login_settings)
+        with TestClient(app) as client:
+            response = client.post(
+                "/auth/login",
+                json={
+                    "username": "postgres-user",
+                    "password": "synthetic-password",
+                },
+            )
+        assert response.status_code == 200
     finally:
+        RefreshToken.__table__.drop(engine, checkfirst=True)
+        User.__table__.drop(engine, checkfirst=True)
         SystemConfig.__table__.drop(engine, checkfirst=True)
         engine.dispose()
 
