@@ -103,7 +103,7 @@
                 <input
                   type="checkbox"
                   :checked="proxy.enabled"
-                  @change="handleToggleProxy(proxy.id, !proxy.enabled)"
+                  @change="handleToggleProxy(proxy.id)"
                 />
                 <span class="toggle-slider"></span>
               </label>
@@ -138,6 +138,14 @@
 
             <!-- Action Buttons -->
             <div class="proxy-action-buttons">
+              <button
+                @click="handleTestProxy(proxy.id)"
+                class="btn btn-sm btn-secondary"
+                :disabled="testingProxyId === proxy.id"
+              >
+                {{ testingProxyId === proxy.id ? 'Testing...' : 'Test' }}
+              </button>
+
               <button
                 @click="showPriorityDialog(proxy)"
                 class="btn btn-sm btn-secondary"
@@ -274,14 +282,6 @@
           hint="Lower numbers = higher priority (1 = highest priority)"
         />
 
-        <!-- Enabled -->
-        <div class="form-group">
-          <label class="checkbox-label">
-            <input type="checkbox" v-model="newProxy.enabled" />
-            <span>Enable immediately</span>
-          </label>
-        </div>
-
         <!-- Examples -->
         <div class="proxy-examples">
           <h2>Examples:</h2>
@@ -366,6 +366,7 @@ const {
   addProxy,
   deleteProxy,
   toggleProxy,
+  testProxy,
   updatePriority,
   updateConfig
 } = useProxySettings()
@@ -380,6 +381,7 @@ const newPriority = ref(1)
 const isAddingProxy = ref(false)
 const isUpdatingPriority = ref(false)
 const isSavingConfig = ref(false)
+const testingProxyId = ref<number | null>(null)
 
 // Local config (editable copy)
 const localConfig = ref({ ...config.value })
@@ -392,8 +394,7 @@ watch(config, (newConfig) => {
 // New proxy form
 const newProxy = ref<ProxyAddRequest>({
   proxy_url: '',
-  priority: 10,
-  enabled: true
+  priority: 10
 })
 
 // Computed
@@ -472,8 +473,7 @@ function closeAddDialog() {
   showAddDialog.value = false
   newProxy.value = {
     proxy_url: '',
-    priority: 10,
-    enabled: true
+    priority: 10
   }
 }
 
@@ -489,13 +489,26 @@ async function handleDeleteProxy(proxy: ProxySettings) {
   }
 }
 
-async function handleToggleProxy(id: number, enabled: boolean) {
+async function handleToggleProxy(id: number) {
   try {
-    await toggleProxy(id, enabled)
-    toast.success(`Proxy ${enabled ? 'enabled' : 'disabled'}`)
+    const result = await toggleProxy(id)
+    toast.success(`Proxy ${result.enabled ? 'enabled' : 'disabled'}`)
   } catch (e) {
     const errorMsg = e instanceof Error ? e.message : 'Failed to toggle proxy'
     toast.error(errorMsg)
+  }
+}
+
+async function handleTestProxy(id: number) {
+  testingProxyId.value = id
+  try {
+    await testProxy(id)
+    toast.success('Proxy health check completed')
+  } catch (e) {
+    const errorMsg = e instanceof Error ? e.message : 'Failed to test proxy'
+    toast.error(errorMsg)
+  } finally {
+    testingProxyId.value = null
   }
 }
 

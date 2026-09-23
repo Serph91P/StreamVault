@@ -1,12 +1,12 @@
 /**
  * Proxy System Types
- * 
+ *
  * Types for Multi-Proxy System with Health Checks
  */
 
 export interface ProxySettings {
   id: number
-  proxy_url: string  // Decrypted URL (from backend)
+  proxy_url: string  // Masked URL from backend
   masked_url: string // Masked URL for display (user:***@host:port)
   priority: number
   enabled: boolean
@@ -18,13 +18,12 @@ export interface ProxySettings {
   total_requests: number
   successful_requests: number
   failed_requests: number
-  created_at: string  // ISO datetime
+  created_at: string | null  // ISO datetime
 }
 
 export interface ProxyAddRequest {
   proxy_url: string
   priority?: number
-  enabled?: boolean
 }
 
 export interface ProxyUpdatePriorityRequest {
@@ -48,14 +47,36 @@ export interface ProxyHealthCheckResult {
   proxy_id: number
   health_status: 'healthy' | 'degraded' | 'failed'
   response_time_ms: number | null
+  consecutive_failures: number
+  enabled: boolean
   error: string | null
-  checked_at: string  // ISO datetime
+}
+
+export interface ProxySuccessResponse {
+  success: boolean
+  message: string
+}
+
+export interface ProxyAddResponse extends ProxySuccessResponse {
+  proxy_id: number
+}
+
+export interface ProxyToggleResponse extends ProxySuccessResponse {
+  enabled: boolean
+}
+
+export interface ProxyHealthCheckResponse {
+  success: boolean
+  result: ProxyHealthCheckResult
+}
+
+export interface ProxyConfigUpdateResponse extends ProxySuccessResponse {
+  config: ProxyConfigSettings
 }
 
 export interface BestProxyResponse {
   proxy: ProxySettings | null
-  fallback_to_direct: boolean
-  reason: string
+  message: string
 }
 
 // WebSocket event payload for real-time updates
