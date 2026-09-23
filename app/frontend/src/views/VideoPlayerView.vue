@@ -16,20 +16,8 @@
       />
     </div>
 
-    <!-- No Video State -->
-    <div v-else-if="!chapterData?.video_url" class="content-state">
-      <EmptyState
-        icon="video-off"
-        title="No Video Available"
-        description="This stream doesn't have a video file or it's still being processed."
-        action-label="Refresh"
-        action-icon="refresh-cw"
-        @action="retryLoad"
-      />
-    </div>
-
     <!-- Video Player - Main Content -->
-    <div v-else class="player-layout" :class="{ 'theater-mode': effectiveTheaterMode }">
+    <div v-else-if="chapterData" class="player-layout" :class="{ 'theater-mode': effectiveTheaterMode }">
       <!-- Main Content: Video + Sidebar -->
       <div class="player-main">
         <!-- Video Player with Header -->
@@ -63,7 +51,7 @@
           <VideoPlayer
             ref="videoPlayerRef"
             :video-src="chapterData.video_url"
-            :chapters="chapterData.chapters"
+            :chapters="videoPlayerChapters"
             :stream-title="chapterData.stream_title"
             :stream-id="parseInt(streamId)"
             :theater-mode="effectiveTheaterMode"
@@ -101,11 +89,7 @@
               </div>
               <div class="info-row">
                 <span class="info-label">Format</span>
-                <span class="info-value">{{ chapterData.metadata?.has_vtt ? 'VTT Chapters' : 'Standard' }}</span>
-              </div>
-              <div class="info-row">
-                <span class="info-label">Quality</span>
-                <span class="info-value">1080p60</span>
+                <span class="info-value">Backend stream</span>
               </div>
             </div>
           </GlassCard>
@@ -129,7 +113,7 @@
                 :aria-current="currentChapterIndex === index ? 'true' : undefined"
                 @click="seekToChapter(chapter)"
               >
-                <span class="chapter-time">{{ chapter.start_time }}</span>
+                <span class="chapter-time">{{ formatTimestamp(chapter.start) }}</span>
                 <span class="chapter-title">{{ chapter.title }}</span>
               </button>
             </div>
@@ -166,7 +150,7 @@
 
             <!-- Share URL Display (shown after generating) -->
             <div v-if="shareUrl" class="share-url-container">
-              <p class="share-label">Share URL (expires in 24h):</p>
+              <p class="share-label">Share URL (expires in {{ shareExpiresIn }}):</p>
               <div class="share-url-box">
                 <input type="text" :value="shareUrl" readonly class="share-url-input" ref="shareUrlInput" />
                 <button class="copy-btn" @click="copyShareUrl" v-ripple>
@@ -203,7 +187,6 @@ import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import VideoPlayer from '@/components/VideoPlayer.vue'
 import LoadingSkeleton from '@/components/LoadingSkeleton.vue'
-import EmptyState from '@/components/EmptyState.vue'
 import GlassCard from '@/components/cards/GlassCard.vue'
 import BaseModal from '@/components/base/BaseModal.vue'
 import BaseButton from '@/components/base/BaseButton.vue'
@@ -213,20 +196,36 @@ import { videoApi } from '@/services/api'
 
 interface ChapterData {
   chapters: Array<{
-    start_time: string
+    id: number
+    start: number
+    end: number
     title: string
-    type: string
   }>
   stream_id: number
   stream_title: string
-  duration?: number
+  streamer_name?: string
+  recorded_at: string
+  duration: number
   video_url: string
-  video_file: string
-  metadata: {
-    has_vtt: boolean
-    has_srt: boolean
-    has_ffmpeg: boolean
-  }
+}
+
+interface CatalogVideo {
+  id?: number
+  stream_id?: number
+  title?: string
+  stream_title?: string
+  streamer_name?: string
+  duration?: number
+  created_at?: string
+  started_at?: string
+  recorded_at?: string
+}
+
+interface BackendChapter {
+  id: number
+  title: string
+  start: number
+  end: number
 }
 
 const route = useRoute()
@@ -242,8 +241,8 @@ const streamId = computed(() => {
   // Fallback to 'streamId' parameter (from legacy route)
   return route.params.streamId as string
 })
-const streamTitle = computed(() => chapterData.value?.stream_title || (route.query.title as string) || `Stream #${streamId.value}`)
-const streamerName = computed(() => route.query.streamerName as string)
+const streamTitle = computed(() => chapterData.value?.stream_title || '')
+const streamerName = computed(() => chapterData.value?.streamer_name || '')
 
 const chapterData = ref<ChapterData | null>(null)
 const isLoading = ref(true)
@@ -269,10 +268,17 @@ const isDownloading = ref(false)
 const isSharing = ref(false)
 const isDeleting = ref(false)
 const shareUrl = ref<string | null>(null)
+const shareExpiresIn = ref('the backend-defined period')
 const copied = ref(false)
 const showDeleteModal = ref(false)
 const shareUrlInput = ref<HTMLInputElement | null>(null)
 const videoPlayerRef = ref<InstanceType<typeof VideoPlayer> | null>(null)
+
+const videoPlayerChapters = computed(() => chapterData.value?.chapters.map(chapter => ({
+  start_time: formatTimestamp(chapter.start),
+  title: chapter.title,
+  type: 'chapter'
+})) ?? [])
 
 const loadChapterData = async () => {
   try {
@@ -281,50 +287,57 @@ const loadChapterData = async () => {
     playerReady.value = false
     playerError.value = null
 
-    // Load video chapters using the new API
-    let chapters: any[] = []
-    let videoUrl = `/api/videos/${streamId.value}/stream`
-    let resolvedTitle = (route.query.title as string) || ''
-
-    try {
-      chapters = await videoApi.getChapters(parseInt(streamId.value))
-      if (!resolvedTitle) {
-        const videos = await videoApi.getAll()
-        const videoList = Array.isArray(videos) ? videos : videos?.data || videos?.videos || []
-        const currentVideo = videoList.find((video: any) => String(video.id ?? video.stream_id) === String(streamId.value))
-        resolvedTitle = currentVideo?.title || currentVideo?.stream_title || currentVideo?.name || ''
-      }
-    } catch {
-      // If no chapters available, use mock data for development
-      chapters = [
-        { start_time: '0:00', title: 'Stream Start', type: 'chapter' },
-        { start_time: '0:05', title: 'Intro & Welcome', type: 'chapter' },
-        { start_time: '0:10', title: 'Main Gameplay', type: 'chapter' },
-        { start_time: '0:15', title: 'Epic Moment', type: 'chapter' },
-        { start_time: '0:20', title: 'Chat Interaction', type: 'chapter' },
-        { start_time: '0:25', title: 'Outro', type: 'chapter' },
-      ]
-      // Use a public sample video for demo purposes
-      videoUrl = 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4'
+    const selectedStreamId = Number(streamId.value)
+    if (!Number.isInteger(selectedStreamId) || selectedStreamId <= 0) {
+      throw new Error('Invalid video identifier.')
     }
 
-    // Create chapter data structure compatible with the video player
-    chapterData.value = {
-      chapters: chapters.map((chapter: any) => ({
-        start_time: chapter.start_time,
-        title: chapter.title,
-        type: 'chapter'
-      })),
-      stream_id: parseInt(streamId.value),
-      stream_title: resolvedTitle || `Stream ${streamId.value}`,
-      duration: 596, // Big Buck Bunny duration
-      video_url: videoUrl,
-      video_file: '',
-      metadata: {
-        has_vtt: true,
-        has_srt: false,
-        has_ffmpeg: true
+    const [chapterResponse, catalogResponse] = await Promise.all([
+      videoApi.getChapters(selectedStreamId),
+      videoApi.getAll()
+    ])
+    if (!Array.isArray(chapterResponse)) {
+      throw new Error('The backend returned an invalid chapter response.')
+    }
+
+    const videos: CatalogVideo[] = Array.isArray(catalogResponse)
+      ? catalogResponse
+      : catalogResponse?.data ?? catalogResponse?.videos ?? []
+    const currentVideo = videos.find(video => String(video.id ?? video.stream_id) === String(selectedStreamId))
+    if (!currentVideo) {
+      throw new Error('Video metadata is unavailable. Please try again.')
+    }
+
+    const title = currentVideo.title ?? currentVideo.stream_title
+    const duration = Number(currentVideo.duration)
+    const recordedAt = currentVideo.created_at ?? currentVideo.started_at ?? currentVideo.recorded_at
+    if (!title || !Number.isFinite(duration) || duration < 0 || !recordedAt || Number.isNaN(Date.parse(recordedAt))) {
+      throw new Error('Video metadata is incomplete. Please try again.')
+    }
+
+    const chapters: BackendChapter[] = chapterResponse.map((chapter: unknown, index: number) => {
+      const candidate = chapter as Partial<BackendChapter>
+      const start = Number(candidate.start)
+      const end = Number(candidate.end)
+      if (!Number.isFinite(start) || start < 0 || !Number.isFinite(end) || end < start) {
+        throw new Error(`Chapter ${index + 1} has invalid timing data.`)
       }
+      return {
+        id: Number(candidate.id ?? index + 1),
+        title: candidate.title || `Chapter ${index + 1}`,
+        start,
+        end
+      }
+    })
+
+    chapterData.value = {
+      chapters,
+      stream_id: selectedStreamId,
+      stream_title: title,
+      streamer_name: currentVideo.streamer_name,
+      duration,
+      recorded_at: recordedAt,
+      video_url: videoApi.getVideoStreamUrl(selectedStreamId)
     }
   } catch (err: any) {
     console.error('Error loading chapter data:', err)
@@ -339,7 +352,7 @@ const retryLoad = () => {
 }
 
 const chapterAccessibleName = (chapter: ChapterData['chapters'][number]) =>
-  `Seek to ${chapter.title} at ${chapter.start_time}`
+  `Seek to ${chapter.title} at ${formatTimestamp(chapter.start)}`
 
 const goBack = () => {
   router.back()
@@ -374,7 +387,7 @@ const onTimeUpdate = (_currentTime: number) => {
 
 // Helper functions
 const formatDuration = (seconds: number): string => {
-  if (!seconds) return '0:00'
+  if (!Number.isFinite(seconds) || seconds < 0) return 'Unavailable'
   const hours = Math.floor(seconds / 3600)
   const minutes = Math.floor((seconds % 3600) / 60)
   const secs = Math.floor(seconds % 60)
@@ -386,8 +399,8 @@ const formatDuration = (seconds: number): string => {
 }
 
 const formattedDate = computed(() => {
-  // Mock date for now
-  return new Date().toLocaleDateString('en-US', {
+  if (!chapterData.value?.recorded_at) return 'Unavailable'
+  return new Date(chapterData.value.recorded_at).toLocaleDateString('en-US', {
     year: 'numeric',
     month: 'short',
     day: 'numeric'
@@ -398,20 +411,17 @@ const formattedDate = computed(() => {
 const currentChapterIndex = ref(0)
 
 const seekToChapter = (chapter: any) => {
-  const seconds = parseTimeToSeconds(chapter.start_time)
-  videoPlayerRef.value?.seekToChapter(seconds)
+  videoPlayerRef.value?.seekToChapter(chapter.start)
 }
 
-/** Parse time string (e.g. "1:23:45" or "5:30") to seconds */
-const parseTimeToSeconds = (timeString: string): number => {
-  if (!timeString) return 0
-  const parts = timeString.split(':')
-  if (parts.length === 2) {
-    return parseInt(parts[0]) * 60 + parseFloat(parts[1])
-  } else if (parts.length === 3) {
-    return parseInt(parts[0]) * 3600 + parseInt(parts[1]) * 60 + parseFloat(parts[2])
-  }
-  return 0
+const formatTimestamp = (seconds: number): string => {
+  const wholeSeconds = Math.max(0, Math.floor(seconds))
+  const hours = Math.floor(wholeSeconds / 3600)
+  const minutes = Math.floor((wholeSeconds % 3600) / 60)
+  const remainder = wholeSeconds % 60
+  return hours > 0
+    ? `${hours}:${minutes.toString().padStart(2, '0')}:${remainder.toString().padStart(2, '0')}`
+    : `${minutes}:${remainder.toString().padStart(2, '0')}`
 }
 
 // ============================================================================
@@ -428,7 +438,7 @@ const downloadVideo = async () => {
     isDownloading.value = true
 
     // Create a temporary link to trigger download
-    const downloadUrl = `/api/videos/${streamId.value}/stream`
+    const downloadUrl = videoApi.getVideoStreamUrl(Number(streamId.value))
     const link = document.createElement('a')
     link.href = downloadUrl
     link.download = `${streamerName.value || 'stream'}_${streamId.value}.mp4`
@@ -459,22 +469,11 @@ const shareVideo = async () => {
     shareUrl.value = null
     copied.value = false
 
-    const response = await fetch(`/api/videos/${streamId.value}/share-token`, {
-      method: 'POST',
-      credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json'
-      }
-    })
-
-    if (!response.ok) {
-      throw new Error(`Failed to generate share token: ${response.status}`)
-    }
-
-    const data = await response.json()
+    const data = await videoApi.createShareToken(Number(streamId.value), {})
 
     if (data.success && data.share_url) {
       shareUrl.value = data.share_url
+      shareExpiresIn.value = data.expires_in || 'the backend-defined period'
     } else {
       throw new Error(data.error || 'Failed to generate share URL')
     }
@@ -531,18 +530,7 @@ const deleteVideo = async () => {
   try {
     isDeleting.value = true
 
-    const response = await fetch(`/api/streams/${streamId.value}`, {
-      method: 'DELETE',
-      credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json'
-      }
-    })
-
-    if (!response.ok) {
-      const data = await response.json().catch(() => ({}))
-      throw new Error(data.detail || `Failed to delete: ${response.status}`)
-    }
+    await videoApi.delete(Number(streamId.value))
 
     // Success - close modal and navigate back
     showDeleteModal.value = false
