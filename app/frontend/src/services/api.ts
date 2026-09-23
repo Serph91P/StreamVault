@@ -93,11 +93,19 @@ const mockStreamersApi = {
 }
 
 const mockVideoApi = {
-  getAll: () => mockResponse(mockVideos),
+  getAll: (_params: Record<string, any> = {}) => mockResponse(mockVideos),
   getById: (id: number) => mockResponse(mockVideos.find(v => v.id === id) || null),
   delete: (_id: number) => mockResponse({ success: true }),
   deleteMultiple: (ids: number[]) => mockResponse({ success: true, count: ids.length }),
-  getChapters: (_id: number) => mockResponse([]),
+  getVideoStreamUrl: (id: number): string => `/api/videos/${id}/stream`,
+  getChapters: (_id: number) => mockResponse([
+    { id: 1, title: 'Stream Start', start: 0, end: 600 }
+  ]),
+  createShareToken: (id: number, _data: Record<string, never> = {}) => mockResponse({
+    success: true,
+    share_url: `/api/videos/public/${id}?token=mock-share-token`,
+    expires_in: '24 hours'
+  }),
   regenerateMetadata: (_id: number) => mockResponse({ success: true })
 }
 
