@@ -263,6 +263,9 @@ const mockLiveApi = {
 
 import * as realApi from './api-real'
 
+export { ApiRequestError, isApiRequestError } from './api-real'
+export type { ApiRequestErrorCode } from './api-real'
+
 // ============================================================================
 // CONDITIONAL EXPORTS
 // ============================================================================

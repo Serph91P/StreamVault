@@ -4,27 +4,51 @@
 import router from '@/router'
 import { appStorage } from '@/services/storage'
 
-// Global redirect guard to prevent concurrent redirects
-let isAuthRedirecting = false
+// Shared boundaries prevent concurrent safe requests from refreshing or logging out twice.
+let refreshPromise: Promise<boolean> | null = null
+let authLossError: ApiRequestError | null = null
 
-interface RequestConfig {
+interface RequestConfig extends RequestInit {
   headers?: Record<string, string>
   body?: any
-  method?: string
-  [key: string]: any
 }
 
-interface _ApiClientOptions {
-  headers?: Record<string, string>
+export type ApiRequestErrorCode = 'auth_lost' | 'http_error'
+
+export class ApiRequestError extends Error {
+  constructor(
+    message: string,
+    readonly code: ApiRequestErrorCode,
+    readonly status?: number,
+    readonly detail?: unknown
+  ) {
+    super(message)
+    this.name = 'ApiRequestError'
+  }
 }
 
-class ApiClient {
+export function isApiRequestError(error: unknown): error is ApiRequestError {
+  return error instanceof ApiRequestError
+}
+
+const REFRESH_ENDPOINT = '/auth/refresh'
+const RETRYABLE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS'])
+
+function isRefreshEndpoint(endpoint: string): boolean {
+  return new URL(endpoint, 'http://streamvault.local').pathname === REFRESH_ENDPOINT
+}
+
+export class ApiClient {
   constructor() {
     // All API calls use relative paths (/api/...)
     // BASE_URL is configured via docker-compose environment variables
   }
 
-  async request(endpoint: string, options: RequestConfig = {}): Promise<any> {
+  async request<T = any>(
+    endpoint: string,
+    options: RequestConfig = {},
+    allowRefresh = true
+  ): Promise<T> {
     const url = endpoint // Use endpoint directly (relative path)
 
     const config: RequestConfig = {
@@ -48,47 +72,76 @@ class ApiClient {
       const response = await fetch(url, config)
 
       if (!response.ok) {
-        // Handle 401 Unauthorized - redirect to login
         if (response.status === 401) {
-          console.warn('Session expired or invalid, redirecting to login...')
-          // Clear any stored auth data
-          appStorage.clearSessionToken()
-          appStorage.clearSessionStorage()
-          // Use Vue Router (soft navigation) to prevent reload loops
-          if (!isAuthRedirecting) {
-            isAuthRedirecting = true
-            router.push('/auth/login').finally(() => {
-              isAuthRedirecting = false
-            })
+          const method = config.method?.toUpperCase() ?? 'GET'
+          const canRefresh = allowRefresh
+            && !isRefreshEndpoint(endpoint)
+            && RETRYABLE_METHODS.has(method)
+
+          if (canRefresh) {
+            if (await this.refreshSession()) {
+              return this.request<T>(endpoint, config, false)
+            }
           }
-          // Throw to abort the caller so it doesn't continue processing
-          throw new Error('Session expired - redirecting to login')
+
+          throw this.handleAuthLoss()
         }
         const contentType = response.headers.get('content-type')
         const errorBody = contentType?.includes('application/json')
           ? await response.json()
           : null
         const detail = errorBody?.detail
-        const error = new Error(
+        throw new ApiRequestError(
           typeof detail?.reason === 'string'
             ? detail.reason
-            : `HTTP error! status: ${response.status}`
-        ) as Error & { status?: number; detail?: unknown }
-        error.status = response.status
-        error.detail = detail
-        throw error
+            : `HTTP error! status: ${response.status}`,
+          'http_error',
+          response.status,
+          detail
+        )
       }
 
       const contentType = response.headers.get('content-type')
       if (contentType && contentType.includes('application/json')) {
-        return await response.json()
+        return await response.json() as T
       } else {
-        return response
+        return response as T
       }
     } catch (error) {
       console.error('API request failed:', error)
       throw error
     }
+  }
+
+  private refreshSession(): Promise<boolean> {
+    if (!refreshPromise) {
+      refreshPromise = fetch(REFRESH_ENDPOINT, {
+        method: 'POST',
+        credentials: 'include'
+      })
+        .then(response => response.ok)
+        .catch(() => false)
+        .finally(() => {
+          refreshPromise = null
+        })
+    }
+
+    return refreshPromise
+  }
+
+  private handleAuthLoss(): ApiRequestError {
+    if (authLossError) {
+      return authLossError
+    }
+
+    console.warn('Session expired or invalid, redirecting to login...')
+    appStorage.clearSessionToken()
+    appStorage.clearSessionStorage()
+    authLossError = new ApiRequestError('Session expired - redirecting to login', 'auth_lost', 401)
+    router.push('/auth/login').finally(() => {
+      authLossError = null
+    })
+    return authLossError
   }
 
   async get(endpoint: string, params: Record<string, any> = {}): Promise<any> {
