@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import hashlib
 import secrets
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -10,15 +11,17 @@ from typing import Any
 
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ec
-from sqlalchemy import select, text
+from sqlalchemy import inspect, select, text
 
-from app.models import SystemConfig
+from app.models import RefreshToken, SystemConfig
 
 _BOOTSTRAP_LOCK_ID = 7_314_908_421
 _EVENTSUB_KEY = "eventsub_secret"
 _VAPID_PUBLIC_KEY = "vapid_public_key"
 _VAPID_PRIVATE_KEY = "vapid_private_key"
 _VAPID_CLAIMS_SUB = "vapid_claims_sub"
+_JWT_SECRET_KEY = "auth_jwt_secret"
+_JWT_IDENTITY_KEY = "auth_jwt_identity_sha256"
 
 
 class PersistentKeyBootstrapError(RuntimeError):
@@ -27,6 +30,7 @@ class PersistentKeyBootstrapError(RuntimeError):
 
 @dataclass(frozen=True)
 class PersistentKeyMaterial:
+    jwt_secret: str = field(repr=False)
     eventsub_secret: str = field(repr=False)
     vapid_public_key: str
     vapid_private_key: str = field(repr=False)
@@ -64,19 +68,28 @@ class PersistentKeyBootstrapService:
         eventsub_secret_generator: Callable[[], str] = lambda: secrets.token_urlsafe(
             32
         ),
+        jwt_secret_generator: Callable[[], str] = lambda: secrets.token_urlsafe(48),
     ) -> None:
         self._session_factory = session_factory
         self._vapid_key_generator = vapid_key_generator
         self._eventsub_secret_generator = eventsub_secret_generator
+        self._jwt_secret_generator = jwt_secret_generator
 
     def bootstrap(self, settings: Any) -> PersistentKeyMaterial:
+        configured_jwt = settings.AUTH_JWT_SECRET
         configured_eventsub = settings.EVENTSUB_SECRET
         configured_vapid_public = settings.VAPID_PUBLIC_KEY
         configured_vapid_private = settings.VAPID_PRIVATE_KEY
         claims_sub = settings.VAPID_CLAIMS_SUB
 
-        if configured_eventsub and configured_vapid_public and configured_vapid_private:
+        if (
+            configured_jwt
+            and configured_eventsub
+            and configured_vapid_public
+            and configured_vapid_private
+        ):
             return PersistentKeyMaterial(
+                jwt_secret=configured_jwt,
                 eventsub_secret=configured_eventsub,
                 vapid_public_key=configured_vapid_public,
                 vapid_private_key=configured_vapid_private,
@@ -96,11 +109,70 @@ class PersistentKeyBootstrapService:
                     _VAPID_PUBLIC_KEY,
                     _VAPID_PRIVATE_KEY,
                     _VAPID_CLAIMS_SUB,
+                    _JWT_SECRET_KEY,
+                    _JWT_IDENTITY_KEY,
                 }
                 rows = session.scalars(
                     select(SystemConfig).where(SystemConfig.key.in_(required_keys))
                 ).all()
                 stored = {row.key: row for row in rows}
+
+                jwt_secret = configured_jwt or self._stored_value(
+                    stored, _JWT_SECRET_KEY
+                )
+                jwt_identity = self._stored_value(stored, _JWT_IDENTITY_KEY)
+                if configured_jwt:
+                    jwt_secret = configured_jwt
+                elif jwt_identity and not jwt_secret:
+                    raise PersistentKeyBootstrapError(
+                        "Persisted JWT identity is missing; startup cannot continue"
+                    )
+                elif jwt_secret:
+                    if len(jwt_secret) < 32:
+                        raise PersistentKeyBootstrapError(
+                            "Persisted JWT identity is invalid; startup cannot continue"
+                        )
+                    digest = self._jwt_digest(jwt_secret)
+                    if jwt_identity and not secrets.compare_digest(
+                        jwt_identity, digest
+                    ):
+                        raise PersistentKeyBootstrapError(
+                            "Persisted JWT identity does not match its marker; "
+                            "startup cannot continue"
+                        )
+                    if not jwt_identity:
+                        self._upsert(
+                            session,
+                            stored,
+                            _JWT_IDENTITY_KEY,
+                            digest,
+                            "Integrity marker for the persistent JWT signing identity",
+                        )
+                else:
+                    if self._has_refresh_identity(session):
+                        raise PersistentKeyBootstrapError(
+                            "JWT identity is missing while refresh tokens exist; "
+                            "startup cannot continue"
+                        )
+                    jwt_secret = self._jwt_secret_generator()
+                    if not jwt_secret or len(jwt_secret) < 32:
+                        raise PersistentKeyBootstrapError(
+                            "JWT secret generation returned invalid key material"
+                        )
+                    self._upsert(
+                        session,
+                        stored,
+                        _JWT_SECRET_KEY,
+                        jwt_secret,
+                        "Persistent JWT signing secret",
+                    )
+                    self._upsert(
+                        session,
+                        stored,
+                        _JWT_IDENTITY_KEY,
+                        self._jwt_digest(jwt_secret),
+                        "Integrity marker for the persistent JWT signing identity",
+                    )
 
                 eventsub_secret = configured_eventsub or self._stored_value(
                     stored, _EVENTSUB_KEY
@@ -158,6 +230,7 @@ class PersistentKeyBootstrapService:
                         )
 
                 material = PersistentKeyMaterial(
+                    jwt_secret=jwt_secret,
                     eventsub_secret=eventsub_secret,
                     vapid_public_key=vapid_public,
                     vapid_private_key=vapid_private,
@@ -174,8 +247,20 @@ class PersistentKeyBootstrapService:
             eventsub_secret=material.eventsub_secret,
             vapid_public_key=material.vapid_public_key,
             vapid_private_key=material.vapid_private_key,
+            jwt_secret=material.jwt_secret,
         )
         return material
+
+    @staticmethod
+    def _jwt_digest(secret: str) -> str:
+        return hashlib.sha256(secret.encode("utf-8")).hexdigest()
+
+    @staticmethod
+    def _has_refresh_identity(session: Any) -> bool:
+        connection = session.connection()
+        if not inspect(connection).has_table(RefreshToken.__tablename__):
+            return False
+        return session.scalar(select(RefreshToken.id).limit(1)) is not None
 
     @staticmethod
     def _stored_value(stored: dict[str, SystemConfig], key: str) -> str | None:
