@@ -32,14 +32,15 @@ registration and SPA/API fallback semantics.
 ## Required configuration
 
 Use a non-committed `.env` file for local or Compose deployment. The application
-has typed settings and fails closed for JWT issuance in production.
+has typed settings and bootstraps a durable JWT signing identity after migrations
+when no override is configured.
 
 | Variable | Required | Purpose |
 | --- | --- | --- |
 | `TWITCH_APP_ID`, `TWITCH_APP_SECRET` | Yes | Twitch application credentials for EventSub and API access. |
 | `BASE_URL` | Yes | Public application origin and EventSub callback base. |
 | `EVENTSUB_SECRET` | Yes in production | HMAC secret for EventSub callback verification. |
-| `AUTH_JWT_SECRET` | Yes in production | At least 32 characters; signs short-lived access tokens. |
+| `AUTH_JWT_SECRET` | Optional override | At least 32 characters when explicitly set; takes precedence over the persisted signing identity. |
 | `DATABASE_URL` | Yes in production | PostgreSQL connection URL. Compose derives it from the PostgreSQL variables. |
 | `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` | Compose | Database container identity and database name. |
 | `ENVIRONMENT` | Recommended | Use `production` for deployed instances and `development` locally. |
@@ -48,9 +49,23 @@ has typed settings and fails closed for JWT issuance in production.
 | `METRICS_ENABLED`, `METRICS_AUTH_TOKEN` | Optional | Explicit metrics exposure and its dedicated bearer token. |
 | `READINESS_TIMEOUT_SECONDS`, `READINESS_REQUIRED_COMPONENTS` | Optional | Bound readiness probes and required components. |
 
-Generate unique secrets with `openssl rand -hex 32`. Do not reuse EventSub,
+Generate explicit secrets with `openssl rand -hex 32`. Do not reuse EventSub,
 JWT, database, Twitch, proxy or metrics credentials. Do not commit `.env`, log
 its contents, or copy tokens into issue or PR comments.
+
+With `AUTH_JWT_SECRET` omitted, StreamVault automatically generates a unique,
+cryptographically random signing identity after migrations and stores it in
+`SystemConfig` under the database transaction/advisory-lock bootstrap. Every
+restart and concurrent instance reads the same identity. A valid explicit
+`AUTH_JWT_SECRET` takes precedence. An explicitly empty or shorter-than-32 value
+is a configuration error and fails closed instead of silently using or creating
+another key.
+
+If the database is unavailable, persisted material is corrupt, or an established
+signing identity is evidenced but missing, startup fails closed and does not
+rotate the signer. The persisted JWT rows and database backups are credential
+material: restrict access, preserve both key and identity marker during backup
+and restore, and never export or log the signing value.
 
 ## Authentication and authorization
 
@@ -150,7 +165,7 @@ the metrics-token policy, and removes only the containers and network it created
 
 | Symptom | Check | Safe response |
 | --- | --- | --- |
-| Login returns a server error | `AUTH_JWT_SECRET`, issuer/audience and cookie TLS configuration | Configure a unique 32+ character JWT secret; do not weaken token validation. |
+| Login or startup reports JWT configuration failure | Explicit `AUTH_JWT_SECRET`, database availability, persisted signing identity, issuer/audience and cookie TLS configuration | Remove an unintended override to use automatic bootstrap, or supply a unique 32+ character override; restore lost persisted identity from a protected backup and never weaken validation. |
 | Readiness is 503 | `/api/health/ready` response | Fix only the named required dependency, then retry. Liveness may remain 200. |
 | Metrics return 404 | `METRICS_ENABLED` and `METRICS_AUTH_TOKEN` | Explicitly enable the endpoint and use its dedicated bearer token. |
 | Migration startup fails | Sanitized migration logs and migration tests | Preserve data and migration tracking; repair the cause and rerun normally. |

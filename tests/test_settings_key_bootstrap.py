@@ -6,6 +6,7 @@ import os
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from collections.abc import Callable
+from pathlib import Path
 from urllib.parse import urlunsplit
 
 import pytest
@@ -200,6 +201,30 @@ def test_explicit_invalid_jwt_secret_fails_fast(value: str) -> None:
 
     if value:
         assert value not in str(captured.value)
+
+
+def test_operator_files_default_to_persistent_jwt_bootstrap_contract() -> None:
+    repository_root = Path(__file__).resolve().parents[1]
+    env_template = (repository_root / ".env.example").read_text(encoding="utf-8")
+    active_variables = {
+        line.partition("=")[0].strip()
+        for line in env_template.splitlines()
+        if line.strip() and not line.lstrip().startswith("#") and "=" in line
+    }
+    assert "AUTH_JWT_SECRET" not in active_variables
+
+    operator_docs = "\n".join(
+        (repository_root / path).read_text(encoding="utf-8").lower()
+        for path in ("README.md", "docs/BACKEND_MODERNIZATION.md")
+    )
+    for required_contract in (
+        "automatically generates",
+        "takes precedence",
+        "fails closed",
+        "backup",
+        "never export or log",
+    ):
+        assert required_contract in operator_docs
 
 
 def test_vapid_generator_returns_a_valid_p256_identity() -> None:
