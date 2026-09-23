@@ -1,5 +1,6 @@
 import { ref } from 'vue'
 import type { Ref } from 'vue'
+import { streamersApi } from '@/services/api'
 
 export interface Streamer {
   id: string
@@ -41,11 +42,7 @@ export function useStreamers() {
   const fetchStreamers = async () => {
     isLoading.value = true
     try {
-      const response = await fetch('/api/streamers', {
-        credentials: 'include' // CRITICAL: Required to send session cookie
-      })
-      if (!response.ok) throw new Error('Failed to fetch streamers')
-      const data = await response.json()
+      const data = await streamersApi.getAll()
       streamers.value = data.streamers || []
     } catch (error) {
       console.error('Error fetching streamers:', error)
@@ -55,15 +52,14 @@ export function useStreamers() {
   }
 
   const deleteStreamer = async (streamerId: string) => {
-    const response = await fetch(`/api/streamers/${streamerId}`, {
-      method: 'DELETE',
-      credentials: 'include' // CRITICAL: Required to send session cookie
-    })
-    if (response.ok) {
+    try {
+      await streamersApi.delete(streamerId)
       streamers.value = streamers.value.filter(s => s.id !== streamerId)
       return true
+    } catch (error) {
+      console.error('Error deleting streamer:', error)
+      return false
     }
-    return false
   }
 
   return {

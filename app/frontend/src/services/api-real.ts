@@ -254,8 +254,11 @@ export const streamersApi = {
     apiClient.post(`/api/streamers/${username}`),
 
   // Delete a streamer
-  delete: (streamerId: number, deleteRecordings: boolean = false) => 
-    apiClient.delete(`/api/streamers/${streamerId}?delete_recordings=${deleteRecordings}`),
+  delete: async (streamerId: string | number, deleteRecordings?: boolean): Promise<void> => {
+    await apiClient.delete(
+      `/api/streamers/${streamerId}${deleteRecordings === undefined ? '' : `?delete_recordings=${deleteRecordings}`}`
+    )
+  },
 
   // Validate streamer username
   validate: (username: string) => 

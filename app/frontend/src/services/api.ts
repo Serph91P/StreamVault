@@ -39,7 +39,9 @@ const mockStreamersApi = {
     is_live: false,
     is_recording: false
   }),
-  delete: (id: number, deleteRecordings = false) => mockResponse({ success: true, deleteRecordings }),
+  delete: async (_id: string | number, _deleteRecordings?: boolean): Promise<void> => {
+    await mockResponse(undefined)
+  },
   validate: (username: string) => mockResponse({
     valid: true,
     user_id: '12345',
