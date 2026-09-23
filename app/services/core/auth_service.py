@@ -117,7 +117,7 @@ class AuthService:
             else:
                 valid = self._password_hasher.verify(user.password, password)
                 needs_rehash = self._password_hasher.check_needs_rehash(user.password)
-        except (InvalidHashError, VerifyMismatchError, ValueError):
+        except InvalidHashError, VerifyMismatchError, ValueError:
             return None
 
         if not valid:
@@ -252,10 +252,15 @@ class AuthService:
     def issue_token_pair(self, user: User) -> TokenPair:
         if not getattr(user, "is_active", True):
             raise AuthTokenError("Inactive user")
-        refresh, raw_refresh = self._new_refresh_token(user)
-        self.db.commit()
+        try:
+            access_token = self.create_access_token(user)
+            refresh, raw_refresh = self._new_refresh_token(user)
+            self.db.commit()
+        except Exception:
+            self.db.rollback()
+            raise
         return TokenPair(
-            access_token=self.create_access_token(user),
+            access_token=access_token,
             refresh_token=raw_refresh,
             family_id=refresh.family_id,
         )

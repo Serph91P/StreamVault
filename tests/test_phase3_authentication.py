@@ -149,6 +149,49 @@ def test_jwt_configuration_and_inactive_user_fail_closed(db_session, auth_settin
         service.rotate_refresh_token("missing-refresh-token")
 
 
+def test_token_pair_issuance_rolls_back_refresh_token_when_jwt_issuing_fails(
+    db_session, auth_settings
+):
+    service = AuthService(db_session, settings=auth_settings)
+    user = User(
+        username="broken-jwt-token-user",
+        password=service.hash_password("password"),
+        is_admin=False,
+    )
+    db_session.add(user)
+    db_session.commit()
+
+    broken_settings = SimpleNamespace(
+        **(vars(auth_settings) | {"AUTH_JWT_SECRET": "short"})
+    )
+    broken_service = AuthService(db_session, settings=broken_settings)
+
+    with pytest.raises(AuthConfigurationError, match="AUTH_JWT_SECRET"):
+        broken_service.issue_token_pair(user)
+
+    assert db_session.query(RefreshToken).filter_by(user_id=user.id).count() == 0
+
+
+def test_token_pair_issuance_persists_matching_refresh_and_access_tokens(
+    db_session, auth_settings
+):
+    service = AuthService(db_session, settings=auth_settings)
+    user = User(
+        username="atomic-token-user",
+        password=service.hash_password("password"),
+        is_admin=True,
+    )
+    db_session.add(user)
+    db_session.commit()
+
+    pair = service.issue_token_pair(user)
+
+    assert service.decode_access_token(pair.access_token)["sub"] == str(user.id)
+    refresh = db_session.query(RefreshToken).filter_by(user_id=user.id).one()
+    assert refresh.family_id == pair.family_id
+    assert refresh.token_hash != pair.refresh_token
+
+
 @pytest.mark.asyncio
 async def test_legacy_bcrypt_and_argon2_hashes_are_rehashed_after_valid_login(
     db_session, auth_settings
