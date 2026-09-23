@@ -835,6 +835,10 @@ onUnmounted(() => {
   color: var(--primary-color);
   flex-shrink: 0;
 
+  [data-theme="light"] & {
+    color: v.$primary-700;
+  }
+
   .icon-streamer {
     width: 12px;
     height: 12px;
@@ -1016,12 +1020,16 @@ onUnmounted(() => {
   flex-shrink: 0;
   font-family: v.$font-mono;
   font-size: 11px;
-  color: var(--primary-color);
+  color: v.$primary-300;
   background: rgba(var(--primary-500-rgb), 0.1);
   padding: 2px 6px;
   border-radius: var(--radius-sm);
   white-space: nowrap;
   margin-top: 2px;
+
+  [data-theme="light"] & {
+    color: v.$primary-800;
+  }
 }
 
 .chapter-title {
