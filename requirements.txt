@@ -10,7 +10,7 @@ aiosignal==1.4.0
     # via aiohttp
 aiosqlite==0.22.1
     # via streamvault
-alembic==1.19.2
+alembic==1.20.0
     # via streamvault
 annotated-doc==0.0.5
     # via fastapi
@@ -34,7 +34,7 @@ attrs==26.1.0
     #   trio
 bcrypt==5.0.0
     # via streamvault
-cachetools==7.1.8
+cachetools==7.2.0
     # via streamvault
 certifi==2026.7.22
     # via
@@ -64,7 +64,7 @@ frozenlist==1.8.0
     # via
     #   aiohttp
     #   aiosignal
-greenlet==3.5.5
+greenlet==3.5.6
     # via
     #   sqlalchemy
     #   streamvault
@@ -79,7 +79,7 @@ httptools==0.8.0
     # via uvicorn
 httpx==0.28.1
     # via streamvault
-idna==3.19
+idna==3.20
     # via
     #   anyio
     #   httpx
@@ -96,7 +96,7 @@ markdown==3.10.3
     # via apprise
 markupsafe==3.0.3
     # via mako
-multidict==6.8.0
+multidict==6.9.0
     # via
     #   aiohttp
     #   yarl
@@ -108,17 +108,17 @@ outcome==1.3.0.post0
     #   trio-websocket
 pillow==12.3.0
     # via streamvault
-propcache==0.5.2
+propcache==0.5.4
     # via
     #   aiohttp
     #   yarl
 psutil==7.2.2
     # via streamvault
-psycopg==3.3.5
+psycopg==3.3.6
     # via streamvault
-psycopg-binary==3.3.5 ; implementation_name != 'pypy'
+psycopg-binary==3.3.6 ; implementation_name != 'pypy'
     # via psycopg
-psycopg-pool==3.3.1
+psycopg-pool==3.3.2
     # via streamvault
 psycopg2==2.9.13
     # via sqlalchemy
@@ -134,11 +134,11 @@ pydantic==2.13.5
     # via
     #   fastapi
     #   pydantic-settings
-pydantic-core==2.46.5
+pydantic-core==2.49.0
     # via pydantic
 pydantic-settings==2.15.0
     # via streamvault
-pyjwt==2.13.0
+pyjwt==2.14.0
     # via streamvault
 pysocks==1.7.1
     # via streamlink
@@ -164,13 +164,13 @@ sniffio==1.3.1
     # via trio
 sortedcontainers==2.4.0
     # via trio
-sqlalchemy==2.0.52
+sqlalchemy==2.0.54
     # via
     #   alembic
     #   streamvault
 starlette==1.6.0
     # via fastapi
-streamlink==8.4.0
+streamlink==8.6.1
     # via streamvault
 trio==0.34.0
     # via
@@ -197,11 +197,11 @@ tzdata==2026.4 ; sys_platform == 'win32'
     # via
     #   apprise
     #   psycopg
-urllib3==2.7.0
+urllib3==2.8.0
     # via
     #   requests
     #   streamlink
-uvicorn==0.52.4
+uvicorn==0.53.0
     # via streamvault
 uvloop==0.22.1 ; platform_python_implementation != 'PyPy' and sys_platform != 'cygwin' and sys_platform != 'win32'
     # via uvicorn
@@ -213,5 +213,5 @@ websockets==17.1
     # via uvicorn
 wsproto==1.3.2
     # via trio-websocket
-yarl==1.24.5
+yarl==1.25.1
     # via aiohttp
