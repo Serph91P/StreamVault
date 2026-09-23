@@ -8,9 +8,9 @@ import type {
   BestProxyResponse,
   ProxyHealthUpdateEvent
 } from '@/types/proxy'
-import { UI } from '@/config/constants'
 import { mockProxies } from '@/mocks/mockData'
 import { hasRealtimeEventType } from '@/types/events'
+import { WebSocketManager, useWebSocket } from '@/composables/useWebSocket'
 
 // Check for mock data mode
 const USE_MOCK_DATA = import.meta.env.VITE_USE_MOCK_DATA === 'true'
@@ -34,8 +34,10 @@ export function useProxySettings() {
   const isLoading = ref(false)
   const error = ref<string | null>(null)
 
-  // WebSocket connection
-  let websocket: WebSocket | null = null
+  // Reuse the application-wide realtime connection and its lifecycle ownership.
+  useWebSocket()
+  const websocketManager = WebSocketManager.getInstance()
+  let stopListeningForRealtimeEvents: (() => void) | null = null
 
   // Computed properties
   const healthyProxyCount = computed(() => {
@@ -261,49 +263,6 @@ export function useProxySettings() {
     return result
   }
 
-  // WebSocket connection for real-time updates
-  function connectWebSocket() {
-    // 🎭 MOCK MODE: Skip WebSocket in mock mode
-    const USE_MOCK_DATA = import.meta.env.VITE_USE_MOCK_DATA === 'true'
-    if (USE_MOCK_DATA) {
-      console.log('🎭 Mock mode: Skipping Proxy WebSocket connection')
-      return
-    }
-    
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    const wsUrl = `${protocol}//${window.location.host}/ws`
-
-    try {
-      websocket = new WebSocket(wsUrl)
-
-      websocket.onopen = () => {
-        console.log('✅ Proxy WebSocket connected')
-      }
-
-      websocket.onmessage = (event) => {
-        try {
-          const message: ProxyHealthUpdateEvent = JSON.parse(event.data)
-          
-          if (hasRealtimeEventType(message, 'proxy_health_update')) {
-            handleProxyHealthUpdate(message.data)
-          }
-        } catch (e) {
-          console.error('Failed to parse WebSocket message:', e)
-        }
-      }
-
-      websocket.onerror = (error) => {
-        console.error('Proxy WebSocket error:', error)
-      }
-
-      websocket.onclose = () => {
-        console.log('Proxy WebSocket closed - reconnecting in 5s')
-        setTimeout(connectWebSocket, UI.WS_RECONNECT_DELAY_MS)
-      }
-    } catch (e) {
-      console.error('Failed to connect WebSocket:', e)
-    }
-  }
 
   function handleProxyHealthUpdate(data: ProxyHealthUpdateEvent['data']) {
     const proxy = proxies.value.find(p => p.id === data.proxy_id)
@@ -318,21 +277,19 @@ export function useProxySettings() {
     }
   }
 
-  function disconnectWebSocket() {
-    if (websocket) {
-      websocket.close()
-      websocket = null
-    }
-  }
-
   // Lifecycle
   onMounted(() => {
     fetchProxies()
-    connectWebSocket()
+    stopListeningForRealtimeEvents = websocketManager.onMessage((message) => {
+      if (hasRealtimeEventType(message, 'proxy_health_update')) {
+        handleProxyHealthUpdate(message.data as ProxyHealthUpdateEvent['data'])
+      }
+    })
   })
 
   onUnmounted(() => {
-    disconnectWebSocket()
+    stopListeningForRealtimeEvents?.()
+    stopListeningForRealtimeEvents = null
   })
 
   return {
