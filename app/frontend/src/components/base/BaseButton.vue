@@ -44,31 +44,18 @@ const props = withDefaults(defineProps<Props>(), {
   block: false,
 })
 
-const emit = defineEmits<{
-  (e: 'click', ev: MouseEvent): void
-}>()
-
+const isDisabled = computed(() => props.disabled || props.loading)
+const accessibleLabel = computed(() => (props.loading ? props.loadingLabel || props.ariaLabel : props.ariaLabel))
 const classes = computed(() => [
   'btn',
   'base-button-target',
+  props.variant === 'primary' ? 'base-button-target--primary' : 'base-button-target--ordinary',
   `btn-${props.variant}`,
   props.size === 'sm' && 'btn-sm',
   props.size === 'lg' && 'btn-lg',
   props.block && 'btn-block',
   props.loading && 'is-loading',
 ])
-
-const isDisabled = computed(() => props.disabled || props.loading)
-const accessibleLabel = computed(() => (props.loading ? props.loadingLabel || props.ariaLabel : props.ariaLabel))
-
-function onClick(ev: MouseEvent) {
-  if (isDisabled.value) {
-    ev.preventDefault()
-    ev.stopPropagation()
-    return
-  }
-  emit('click', ev)
-}
 </script>
 
 <template>
@@ -78,7 +65,6 @@ function onClick(ev: MouseEvent) {
     :disabled="isDisabled"
     :aria-busy="loading || undefined"
     :aria-label="accessibleLabel"
-    @click="onClick"
   >
     <span class="btn-content" :class="{ 'is-hidden': loading }">
       <slot />
@@ -90,8 +76,6 @@ function onClick(ev: MouseEvent) {
 </template>
 
 <style scoped lang="scss">
-@use '@/styles/mixins' as m;
-
 // All visual styles come from src/styles/_components.scss .btn
 // Only layout helpers that don't exist there live here.
 .base-button-target {
@@ -108,13 +92,17 @@ function onClick(ev: MouseEvent) {
     outline: var(--focus-ring);
     outline-offset: 2px;
   }
+}
 
-  @include m.respond-below('md') {
-    &.btn-primary {
-      min-height: var(--control-target-mobile);
-      min-inline-size: var(--control-target-mobile);
-    }
-  }
+// Ordinary controls use the documented 44px target. Primary actions reserve 48px.
+.base-button-target--ordinary {
+  min-height: var(--control-target-min);
+  min-inline-size: var(--control-target-min);
+}
+
+.base-button-target--primary {
+  min-height: var(--control-target-mobile);
+  min-inline-size: var(--control-target-mobile);
 }
 
 .btn-block {

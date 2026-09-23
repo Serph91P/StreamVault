@@ -26,13 +26,18 @@ describe('BaseButton', () => {
     expect(wrapper.emitted('click')).toBeUndefined()
   })
 
-  it.each(['sm', 'md'] as const)('keeps the %s size on the minimum target contract', (size) => {
-    const wrapper = mount(BaseButton, {
-      props: { size },
+  it('maps ordinary and primary buttons to the documented 44px and 48px target contracts', () => {
+    const ordinary = mount(BaseButton, {
+      props: { variant: 'secondary' },
+      slots: { default: 'Cancel' },
+    })
+    const primary = mount(BaseButton, {
+      props: { variant: 'primary' },
       slots: { default: 'Save' },
     })
 
-    expect(wrapper.get('button').classes()).toContain('base-button-target')
+    expect(ordinary.get('button').classes()).toContain('base-button-target--ordinary')
+    expect(primary.get('button').classes()).toContain('base-button-target--primary')
   })
 })
 
@@ -46,6 +51,7 @@ describe('BaseIconButton', () => {
 
     expect(button.attributes('type')).toBe('button')
     expect(button.attributes('aria-label')).toBe('Open actions')
+    expect(button.classes()).toContain('base-icon-button-target--icon')
     expect(button.find('[data-test="icon"]').exists()).toBe(true)
     await button.trigger('click')
     expect(wrapper.emitted('click')).toHaveLength(1)

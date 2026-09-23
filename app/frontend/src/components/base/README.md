@@ -4,8 +4,10 @@ New frontend work should import shared primitives from this folder and from `com
 
 ## Base primitives
 
-- `BaseButton`: canonical button wrapper for `.btn` variants, sizes, loading labels and disabled states.
-- `BaseInput` and `BaseDropdown`: canonical labelled controls for common text and select fields.
+- `BaseButton`: canonical native button wrapper for `.btn` variants, sizes, loading labels and disabled states.
+- `BaseIconButton`: canonical labelled native button for icon-only actions.
+- `BaseLink`: canonical Vue Router link, rendered as a native anchor for application navigation.
+- `BaseInput` and `BaseDropdown`: native labelled input/select controls. They preserve native `required` and `disabled` behavior, attach their visible error, success or hint message with `aria-describedby`, and enforce the ordinary 44px control-target token.
 - `FormField`: wrapper for custom form controls that still need shared label, hint and error wiring.
 - `BaseList`: card stack list primitive for non-tabular collections.
 - `BaseModal`: centered modal dialog for blocking decisions.
@@ -27,11 +29,13 @@ New frontend work should import shared primitives from this folder and from `com
 ## Rules for new work
 
 1. Use `BaseButton` instead of local button classes unless a native unstyled button is required.
-2. Use `SurfaceCard` or a domain card instead of adding new local `card` classes.
-3. Use `StatusBadge` instead of adding local `badge` or `status-badge` variants.
-4. Use `BasePanel`, `BaseSheet`, `BaseModal` and `BaseTable` before creating local panel, sheet, modal or table wrappers.
-5. Add styles to a primitive only when multiple consumers need them. Keep one-off layout in the calling component.
-6. Do not add new design token aliases in component styles.
+2. Use `BaseLink` for application navigation; it preserves the router's native anchor behavior. Do not simulate links or buttons with `role`, `tabindex` or click handlers.
+3. Ordinary controls use the 44px target token; primary and icon controls use the 48px target token.
+4. Use `SurfaceCard` or a domain card instead of adding new local `card` classes.
+5. Use `StatusBadge` instead of adding local `badge` or `status-badge` variants.
+6. Use `BasePanel`, `BaseSheet`, `BaseModal` and `BaseTable` before creating local panel, sheet, modal or table wrappers.
+7. Add styles to a primitive only when multiple consumers need them. Keep one-off layout in the calling component.
+8. Do not add new design token aliases in component styles.
 
 ## Empty, loading and error migration notes
 

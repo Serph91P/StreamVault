@@ -17,7 +17,7 @@ defineEmits<{
 
 <template>
   <button
-    class="base-icon-button unstyled"
+    class="base-icon-button base-icon-button-target--icon unstyled"
     :type="type"
     :disabled="disabled"
     :aria-label="label"
@@ -28,16 +28,14 @@ defineEmits<{
 </template>
 
 <style scoped lang="scss">
-@use '@/styles/mixins' as m;
-
-.base-icon-button {
+.base-icon-button-target--icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: var(--control-target-min);
-  min-width: var(--control-target-min);
-  height: var(--control-target-min);
-  min-height: var(--control-target-min);
+  width: var(--control-target-mobile);
+  min-width: var(--control-target-mobile);
+  height: var(--control-target-mobile);
+  min-height: var(--control-target-mobile);
   padding: 0;
   color: inherit;
   background: transparent;
@@ -59,13 +57,6 @@ defineEmits<{
   &:disabled {
     opacity: 0.5;
     cursor: not-allowed;
-  }
-
-  @include m.respond-below('md') {
-    width: var(--control-target-mobile);
-    min-width: var(--control-target-mobile);
-    height: var(--control-target-mobile);
-    min-height: var(--control-target-mobile);
   }
 }
 </style>

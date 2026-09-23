@@ -52,6 +52,7 @@ const effectiveState = computed<'default' | 'error' | 'success'>(() =>
 
 const inputClasses = computed(() => [
   'input-field',
+  'base-form-control-target',
   effectiveState.value === 'error' && 'error',
   effectiveState.value === 'success' && 'success',
 ])
@@ -97,6 +98,10 @@ function onInput(ev: Event) {
 
 <style scoped lang="scss">
 @use '@/styles/variables' as v;
+
+.base-form-control-target {
+  min-height: var(--control-target-min);
+}
 
 .form-error {
   display: block;

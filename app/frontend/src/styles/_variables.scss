@@ -1,3 +1,5 @@
+@use 'responsive.generated' as responsive;
+
 // ============================================================================
 // THEME: Modern Neutral (Option B)
 // Primary: Teal (#14b8a6) | Accent: Purple (#8b5cf6)
@@ -199,15 +201,9 @@ $shadow-focus-success: 0 0 0 3px rgba($success-500, 0.3);
 // Breakpoints (mobile-first)
 // CRITICAL: ALWAYS use mixins from _mixins.scss (respond-to, respond-below)
 // NEVER use hard-coded @media (max-width: XXXpx) in Vue components!
-$breakpoints: (
-  'xs': 375px,   // Mobile extra-small (iPhone SE)
-  'sm': 640px,   // Mobile / Phablet (most phones in landscape)
-  'md': 768px,   // Tablet portrait
-  'lg': 1024px,  // Desktop / Tablet landscape
-  'xl': 1200px,  // Large desktop
-  '2xl': 1440px, // Wide desktop
-  '3xl': 1920px  // Ultra-wide / 4K
-);
+// Compatibility alias for existing Sass consumers. The canonical values are
+// generated from responsive.tokens.json.
+$breakpoints: responsive.$breakpoints;
 
 // Container max-widths - beibehalten für Rückwärtskompatibilität
 $container-sm: 100%;

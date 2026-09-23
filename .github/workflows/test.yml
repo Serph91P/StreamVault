@@ -120,9 +120,9 @@ jobs:
         working-directory: app/frontend
         run: npm run test:build-output
 
-      - name: Install Playwright Chromium
+      - name: Install Playwright browsers
         working-directory: app/frontend
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install --with-deps
 
       - name: Run frontend browser tests
         working-directory: app/frontend
