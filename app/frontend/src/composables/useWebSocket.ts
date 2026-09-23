@@ -4,6 +4,7 @@ import { logDebug, logWebSocket } from '@/utils/logger'
 import router from '@/router'
 import { hasRealtimeEventType, normalizeRealtimeEventType, parseRealtimeEvent } from '@/types/events'
 import type { RealtimeEvent } from '@/types/events'
+import { fetchRealtimeEvents, RealtimeReplayAuthError } from '@/services/realtime'
 
 type ConnectionStatus = 'auth_failed' | 'connected' | 'connecting' | 'disconnected' | 'error' | 'failed' | 'offline' | 'reconnecting'
 
@@ -32,6 +33,9 @@ export class WebSocketManager {
   private wsUrl: string
   private connectionId: string | null = null
   private isRedirecting = false
+  private hasConnected = false
+  private lastEventId = 0
+  private terminalAuthFailure = false
   private recentEventKeys = new Map<string, number>()
   private readonly dedupeWindowMs = 5000
   private readonly maxRecentEventKeys = 200
@@ -67,7 +71,9 @@ export class WebSocketManager {
     if (this.connectionStatus.value === 'offline') {
       this.connectionStatus.value = 'disconnected'
     }
-    this.ensureConnected()
+    if (!this.terminalAuthFailure) {
+      this.ensureConnected()
+    }
   }
 
   private handleOffline = () => {
@@ -80,7 +86,7 @@ export class WebSocketManager {
   }
 
   private handleVisibilityChange = () => {
-    if (document.visibilityState === 'visible') {
+    if (document.visibilityState === 'visible' && !this.terminalAuthFailure) {
       this.ensureConnected()
     }
   }
@@ -142,6 +148,7 @@ export class WebSocketManager {
       // No active subscriber yet, the next subscribe() will connect for us.
       return
     }
+    this.terminalAuthFailure = false
     this.connect()
   }
 
@@ -152,6 +159,7 @@ export class WebSocketManager {
     }
     this.reconnectAttempts = 0
     this.reconnectAttempt.value = 0
+    this.terminalAuthFailure = false
     this.connect()
   }
 
@@ -173,29 +181,43 @@ export class WebSocketManager {
       console.log('⚠️ WebSocket already connected or connecting, skipping')
       return
     }
-    
+
     // Clean up existing connection
     if (this.ws) {
       this.ws.close()
     }
-    
+
     console.log('🔌 Creating single WebSocket connection for entire app')
     this.connectionStatus.value = 'connecting'
-    this.ws = new WebSocket(this.wsUrl)
+    const socket = new WebSocket(this.wsUrl)
+    const queuedLiveEvents: RealtimeEvent<string>[] = []
+    let isReplaying = false
+    this.ws = socket
 
-    this.ws.onopen = () => {
+    socket.onopen = () => {
       logWebSocket('WebSocketManager', 'connected', 'WebSocket connected successfully')
-      this.connectionStatus.value = 'connected'
       this.reconnectAttempts = 0
       this.reconnectAttempt.value = 0
-      
+
       if (this.reconnectTimer) {
         clearTimeout(this.reconnectTimer)
         this.reconnectTimer = null
       }
+
+      const shouldReplay = this.hasConnected
+      this.hasConnected = true
+      if (!shouldReplay) {
+        this.connectionStatus.value = 'connected'
+        return
+      }
+
+      isReplaying = true
+      void this.replayMissedEvents(socket, this.lastEventId, queuedLiveEvents, () => {
+        isReplaying = false
+      })
     }
 
-    this.ws.onmessage = (event) => {
+    socket.onmessage = (event) => {
       try {
         const message = parseRealtimeEvent(JSON.parse(event.data))
         if (!message) {
@@ -203,67 +225,38 @@ export class WebSocketManager {
           return
         }
 
-        if (this.isDuplicateMessage(message)) {
-          logDebug('WebSocketManager', `Skipping duplicate WebSocket event: ${message.type}`)
-          return
+        if (isReplaying) {
+          queuedLiveEvents.push(message)
+        } else {
+          this.dispatchMessage(message)
         }
-
-        this.messages.value.push(message)
-        
-        // Store connection ID from server for debugging
-        if (hasRealtimeEventType(message, 'connection.status') && message.data?.connection_id) {
-          this.connectionId = message.data.connection_id
-          const realIp = message.data.real_ip
-          const isProxied = message.data.is_reverse_proxied
-          const proxyInfo = isProxied ? ' (via reverse proxy)' : ''
-          console.log(`🆔 WebSocket connection ID: ${this.connectionId} - Real IP: ${realIp}${proxyInfo}`)
-        }
-        
-        // Keep only last 100 messages to prevent memory leaks
-        if (this.messages.value.length > 100) {
-          this.messages.value = this.messages.value.slice(-100)
-        }
-
-        this.messageListeners.forEach((listener) => {
-          try {
-            listener(message)
-          } catch (listenerError) {
-            console.error('Error in WebSocket message listener:', listenerError)
-          }
-        })
       } catch (error) {
         console.error('Error parsing WebSocket message:', error)
       }
     }
 
-    this.ws.onclose = (event) => {
+    socket.onclose = (event) => {
       console.log('🔌 WebSocket disconnected:', event.reason)
-      this.connectionStatus.value = 'disconnected'
-      this.ws = null
-      
-      // SECURITY: Don't reconnect on auth failures (code 4001/4003)
-      // These indicate the session is invalid/expired - redirect to login
-      if (event.code === 4001 || event.code === 4003) {
-        console.warn('🔒 WebSocket auth failed - session invalid or expired')
-        this.connectionStatus.value = 'auth_failed'
-        // Use Vue Router (soft navigation) instead of window.location.href
-        // to prevent full page reload → reconnect → auth fail → reload loop
-        if (!this.isRedirecting) {
-          this.isRedirecting = true
-          router.push('/auth/login').finally(() => {
-            this.isRedirecting = false
-          })
-        }
+      if (this.ws !== socket) {
         return
       }
-      
+      this.connectionStatus.value = 'disconnected'
+      this.ws = null
+
+      // SECURITY: Don't reconnect on auth failures (code 4001/4003)
+      // These indicate the session is invalid/expired - redirect to login
+      if (event.code === 4001 || event.code === 4003 || this.terminalAuthFailure) {
+        this.handleAuthenticationFailure()
+        return
+      }
+
       // Only attempt reconnection if we still have subscribers
       if (this.subscribers.size > 0) {
         this.attemptReconnect()
       }
     }
 
-    this.ws.onerror = (error) => {
+    socket.onerror = (error) => {
       console.error('WebSocket error:', error)
       this.connectionStatus.value = 'error'
     }
@@ -295,7 +288,8 @@ export class WebSocketManager {
       this.connectionStatus.value = 'failed'
       
       // After failure, wait 60 seconds and reset retry counter for fresh attempt
-      setTimeout(() => {
+      this.reconnectTimer = window.setTimeout(() => {
+        this.reconnectTimer = null
         if (this.subscribers.size > 0) {
           console.log('🔄 Resetting retry counter after cooldown period')
           this.reconnectAttempts = 0
@@ -318,10 +312,100 @@ export class WebSocketManager {
     console.log(`🔄 Reconnecting in ${Math.round(delay)}ms (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`)
     
     this.reconnectTimer = window.setTimeout(() => {
+      this.reconnectTimer = null
       if (this.subscribers.size > 0) {
         this.connect()
       }
     }, delay)
+  }
+
+  private async replayMissedEvents(
+    socket: WebSocket,
+    since: number,
+    queuedLiveEvents: RealtimeEvent<string>[],
+    finishReplay: () => void
+  ) {
+    try {
+      const replay = await fetchRealtimeEvents(since)
+      if (this.ws !== socket || socket.readyState !== WebSocket.OPEN) {
+        return
+      }
+
+      if (replay.gap) {
+        console.warn(`Realtime replay retention gap after event ${since}; applying retained events`)
+      }
+      replay.events.forEach((message) => this.dispatchMessage(message))
+      finishReplay()
+      queuedLiveEvents.forEach((message) => this.dispatchMessage(message))
+      this.connectionStatus.value = 'connected'
+    } catch (error) {
+      if (this.ws !== socket) {
+        return
+      }
+      if (error instanceof RealtimeReplayAuthError) {
+        this.terminalAuthFailure = true
+        this.handleAuthenticationFailure()
+        socket.close()
+        return
+      }
+
+      console.error('Failed to replay realtime events:', error)
+      finishReplay()
+      queuedLiveEvents.forEach((message) => this.dispatchMessage(message))
+      this.connectionStatus.value = 'connected'
+    }
+  }
+
+  private handleAuthenticationFailure() {
+    this.terminalAuthFailure = true
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer)
+      this.reconnectTimer = null
+    }
+    console.warn('🔒 WebSocket auth failed - session invalid or expired')
+    this.connectionStatus.value = 'auth_failed'
+    // Use Vue Router (soft navigation) instead of window.location.href
+    // to prevent full page reload → reconnect → auth fail → reload loop
+    if (!this.isRedirecting) {
+      this.isRedirecting = true
+      router.push('/auth/login').finally(() => {
+        this.isRedirecting = false
+      })
+    }
+  }
+
+  private dispatchMessage(message: RealtimeEvent<string>) {
+    if (this.isDuplicateMessage(message)) {
+      logDebug('WebSocketManager', `Skipping duplicate WebSocket event: ${message.type}`)
+      return
+    }
+
+    if (typeof message.event_id === 'number' && Number.isFinite(message.event_id)) {
+      this.lastEventId = Math.max(this.lastEventId, message.event_id)
+    }
+    this.messages.value.push(message)
+
+    // Store connection ID from server for debugging
+    if (hasRealtimeEventType(message, 'connection.status') && message.data?.connection_id) {
+      this.connectionId = message.data.connection_id
+      const realIp = message.data.real_ip
+      const isProxied = message.data.is_reverse_proxied
+      const proxyInfo = isProxied ? ' (via reverse proxy)' : ''
+      console.log(`🆔 WebSocket connection ID: ${this.connectionId} - Real IP: ${realIp}${proxyInfo}`)
+    }
+
+    // Keep only last 100 messages to prevent memory leaks
+    if (this.messages.value.length > 100) {
+      this.messages.value = this.messages.value.slice(-100)
+    }
+
+    this.messageListeners.forEach((listener) => {
+      try {
+        listener(message)
+      } catch (listenerError) {
+        console.error('Error in WebSocket message listener:', listenerError)
+      }
+    })
   }
 
   private getMessageDedupeKey(message: RealtimeEvent<string>): string | null {
