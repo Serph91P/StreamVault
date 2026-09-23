@@ -55,7 +55,7 @@ export function debugPWA() {
   }
   
   // Fetch manifest
-  fetch('/manifest.json')
+  fetch('/manifest.webmanifest')
     .then(response => response.json())
     .then(manifest => {
       console.log('Manifest loaded successfully:', manifest)
