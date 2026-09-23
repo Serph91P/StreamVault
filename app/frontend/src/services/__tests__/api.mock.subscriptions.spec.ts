@@ -13,13 +13,23 @@ describe('mock subscriptions API facade', () => {
     const fetchMock = vi.fn()
     vi.stubGlobal('fetch', fetchMock)
 
-    await expect(subscriptionsApi.getAll()).resolves.toEqual({ subscriptions: [] })
-    await expect(subscriptionsApi.resubscribeAll()).resolves.toMatchObject({
+    await expect(subscriptionsApi.getAll()).resolves.toEqual({ total: 0, subscriptions: [] })
+    await expect(subscriptionsApi.resubscribeAll()).resolves.toEqual({
       success: true,
-      message: expect.any(String)
+      message: 'All subscriptions resubscribed',
+      results: [],
+      total_processed: 0
     })
-    await expect(subscriptionsApi.delete('sub-1')).resolves.toEqual({ success: true, subscriptionId: 'sub-1' })
-    await expect(subscriptionsApi.deleteAll()).resolves.toEqual({ success: true })
+    await expect(subscriptionsApi.delete('sub-1')).resolves.toEqual({
+      success: true,
+      message: 'Subscription sub-1 deleted'
+    })
+    await expect(subscriptionsApi.deleteAll()).resolves.toEqual({
+      success: true,
+      deleted_subscriptions: [],
+      total_deleted: 0,
+      total_failed: 0
+    })
 
     expect(fetchMock).not.toHaveBeenCalled()
   })

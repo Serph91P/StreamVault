@@ -194,10 +194,23 @@ const mockImagesApi = {
 }
 
 const mockSubscriptionsApi = {
-  getAll: () => mockResponse({ subscriptions: [] }),
-  deleteAll: () => mockResponse({ success: true }),
-  delete: (subscriptionId: string) => mockResponse({ success: true, subscriptionId }),
-  resubscribeAll: () => mockResponse({ success: true, message: 'All subscriptions resubscribed' })
+  getAll: () => mockResponse({ total: 0, subscriptions: [] }),
+  deleteAll: () => mockResponse({
+    success: true,
+    deleted_subscriptions: [],
+    total_deleted: 0,
+    total_failed: 0
+  }),
+  delete: (subscriptionId: string) => mockResponse({
+    success: true,
+    message: `Subscription ${subscriptionId} deleted`
+  }),
+  resubscribeAll: () => mockResponse({
+    success: true,
+    message: 'All subscriptions resubscribed',
+    results: [],
+    total_processed: 0
+  })
 }
 
 const mockCategoriesApi = {
@@ -288,7 +301,7 @@ export const systemApi = USE_MOCK_DATA ? mockSystemApi : realApi.systemApi
 export const streamsApi = USE_MOCK_DATA ? mockStreamsApi : realApi.streamsApi
 export const authApi = USE_MOCK_DATA ? mockAuthApi : realApi.authApi
 export const imagesApi = USE_MOCK_DATA ? mockImagesApi : realApi.imagesApi
-export const subscriptionsApi = USE_MOCK_DATA ? mockSubscriptionsApi : (realApi.subscriptionsApi || { getAll: () => Promise.resolve([]) })
+export const subscriptionsApi = USE_MOCK_DATA ? mockSubscriptionsApi : realApi.subscriptionsApi
 export const categoriesApi = USE_MOCK_DATA ? mockCategoriesApi : (realApi.categoriesApi || { getAll: () => Promise.resolve([]) })
 export const filenamePresetsApi = USE_MOCK_DATA ? mockFilenamePresetsApi : (realApi.filenamePresetsApi || { getAll: () => Promise.resolve([]) })
 

@@ -14,7 +14,7 @@ vi.mock('@/services/storage', () => ({
   appStorage: { clearSessionToken, clearSessionStorage }
 }))
 
-import { subscriptionsApi } from '@/services/api-real'
+import { subscriptionsApi } from '@/services/api'
 
 describe('real subscriptions API facade', () => {
   afterEach(() => {
@@ -22,7 +22,9 @@ describe('real subscriptions API facade', () => {
     vi.clearAllMocks()
   })
 
-  it('preserves the backend list and mutation request/result contract', async () => {
+  const realModeIt = import.meta.env.VITE_USE_MOCK_DATA === 'true' ? it.skip : it
+
+  realModeIt('exports the real facade and preserves the backend list and mutation request/result contract', async () => {
     const subscriptions = [{
       id: 'sub-1',
       type: 'stream.online',
@@ -53,16 +55,19 @@ describe('real subscriptions API facade', () => {
     vi.stubGlobal('fetch', fetchMock)
 
     await expect(subscriptionsApi.getAll()).resolves.toEqual({ total: 1, subscriptions })
-    await expect(subscriptionsApi.resubscribeAll()).resolves.toMatchObject({
+    await expect(subscriptionsApi.resubscribeAll()).resolves.toEqual({
       success: true,
-      message: 'Resubscribed to 1 streamer(s)'
+      message: 'Resubscribed to 1 streamer(s)',
+      results: [],
+      total_processed: 1
     })
-    await expect(subscriptionsApi.delete('sub-1')).resolves.toMatchObject({
+    await expect(subscriptionsApi.delete('sub-1')).resolves.toEqual({
       success: true,
       message: 'Subscription sub-1 deleted'
     })
-    await expect(subscriptionsApi.deleteAll()).resolves.toMatchObject({
+    await expect(subscriptionsApi.deleteAll()).resolves.toEqual({
       success: true,
+      deleted_subscriptions: [],
       total_deleted: 0,
       total_failed: 0
     })
