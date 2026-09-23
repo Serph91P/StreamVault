@@ -173,10 +173,18 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 
         }
         stage = 'keyboard'
         await writeObservation()
+        const focusSeed = page.getByRole('button', { name: /Open background queue/ }).first()
+        await expect(focusSeed).toBeVisible()
+        await focusSeed.focus()
+        await expect(focusSeed).toBeFocused()
         await page.keyboard.press('Tab')
         const keyboardFocus = page.locator(':focus')
         await expect(keyboardFocus).toHaveCount(1)
         await expect(keyboardFocus).toBeVisible()
+        expect(
+          await focusSeed.evaluate(element => element !== document.activeElement),
+          'Tab must move focus away from the seeded interactive control',
+        ).toBe(true)
         const keyboardFocusEvidence = await keyboardFocus.evaluate((element) => ({
           isDocumentFallback: element === document.body || element === document.documentElement,
           meetsFocusableContract: element.tabIndex >= 0 && element.matches('a[href], area[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), summary, iframe, object, embed, audio[controls], video[controls], [contenteditable]:not([contenteditable="false"]), [tabindex]'),

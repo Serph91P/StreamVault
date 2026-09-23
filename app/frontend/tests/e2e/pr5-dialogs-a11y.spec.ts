@@ -51,14 +51,32 @@ async function expectDialogLifecycle(page: Page, trigger: Locator) {
     'textarea:not([disabled]):visible',
     '[tabindex]:not([tabindex="-1"]):visible',
   ].join(','))
-  // Match useModal's complete focusable boundary. Notification items hydrate with
-  // tabindex="0" and must remain part of the live trap rather than be skipped.
+
+  // The trap resolves its boundary live on every keydown. Exercise that contract
+  // while notification controls may still be hydrating: focus may advance to a
+  // newly inserted control, but it must never escape the active dialog.
   await controls.last().focus()
   await page.keyboard.press('Tab')
-  await expect(controls.first()).toBeFocused()
-  await controls.first().focus()
+  expect(await dialog.evaluate(element => element.contains(document.activeElement))).toBe(true)
+
+  if (await dialog.getByRole('heading', { name: 'Notifications' }).count()) {
+    await expect(dialog.getByText('Recording ready', { exact: true })).toBeVisible()
+  }
+
+  // Once the async content is present, snapshot the actual boundary elements and
+  // prove both wrap directions rather than comparing against mutable locators.
+  const boundaryElements = await controls.elementHandles()
+  expect(boundaryElements.length).toBeGreaterThan(0)
+  const firstBoundary = boundaryElements[0]!
+  const lastBoundary = boundaryElements.at(-1)!
+
+  await lastBoundary.focus()
+  await page.keyboard.press('Tab')
+  expect(await firstBoundary.evaluate(element => element === document.activeElement)).toBe(true)
+
+  await firstBoundary.focus()
   await page.keyboard.press('Shift+Tab')
-  await expect(controls.last()).toBeFocused()
+  expect(await lastBoundary.evaluate(element => element === document.activeElement)).toBe(true)
 
   await page.keyboard.press('Escape')
   await expect(dialog).toBeHidden()
