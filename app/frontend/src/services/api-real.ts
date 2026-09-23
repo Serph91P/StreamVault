@@ -3,6 +3,17 @@
 
 import router from '@/router'
 import { appStorage } from '@/services/storage'
+import type {
+  BestProxyResponse,
+  ProxyAddRequest,
+  ProxyAddResponse,
+  ProxyConfigSettings,
+  ProxyConfigUpdateResponse,
+  ProxyHealthCheckResponse,
+  ProxyListResponse,
+  ProxySuccessResponse,
+  ProxyToggleResponse
+} from '@/types/proxy'
 
 // Shared boundaries prevent concurrent safe requests from refreshing or logging out twice.
 let refreshPromise: Promise<boolean> | null = null
@@ -92,9 +103,11 @@ export class ApiClient {
           : null
         const detail = errorBody?.detail
         throw new ApiRequestError(
-          typeof detail?.reason === 'string'
-            ? detail.reason
-            : `HTTP error! status: ${response.status}`,
+          typeof detail === 'string'
+            ? detail
+            : typeof detail?.reason === 'string'
+              ? detail.reason
+              : `HTTP error! status: ${response.status}`,
           'http_error',
           response.status,
           detail
@@ -572,6 +585,35 @@ export const categoriesApi = {
 export const filenamePresetsApi = {
   getAll: () =>
     apiClient.get('/api/recording/filename-presets')
+}
+
+function proxyConfigQuery(config: Partial<ProxyConfigSettings>): string {
+  const params = new URLSearchParams()
+  for (const [key, value] of Object.entries(config)) {
+    if (value !== undefined) params.set(key, String(value))
+  }
+  const query = params.toString()
+  return query ? `?${query}` : ''
+}
+
+// Payload-free POST actions use request() directly so no empty JSON body is sent.
+export const proxyApi = {
+  getAll: (): Promise<ProxyListResponse> =>
+    apiClient.get('/api/proxy/list'),
+  add: (request: ProxyAddRequest): Promise<ProxyAddResponse> =>
+    apiClient.post('/api/proxy/add', request),
+  delete: (proxyId: number): Promise<ProxySuccessResponse> =>
+    apiClient.delete(`/api/proxy/${proxyId}`),
+  toggle: (proxyId: number): Promise<ProxyToggleResponse> =>
+    apiClient.request(`/api/proxy/${proxyId}/toggle`, { method: 'POST' }),
+  test: (proxyId: number): Promise<ProxyHealthCheckResponse> =>
+    apiClient.request(`/api/proxy/${proxyId}/test`, { method: 'POST' }),
+  updatePriority: (proxyId: number, priority: number): Promise<ProxySuccessResponse> =>
+    apiClient.post(`/api/proxy/${proxyId}/update-priority`, { priority }),
+  updateConfig: (config: Partial<ProxyConfigSettings>): Promise<ProxyConfigUpdateResponse> =>
+    apiClient.request(`/api/proxy/config/update${proxyConfigQuery(config)}`, { method: 'POST' }),
+  getBest: (): Promise<BestProxyResponse> =>
+    apiClient.get('/api/proxy/best')
 }
 
 // Live Streaming API endpoints

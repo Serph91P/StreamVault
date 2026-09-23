@@ -14,6 +14,18 @@ import {
   mockSettings,
   mockProxies
 } from '../mocks/mockData'
+import type {
+  BestProxyResponse,
+  ProxyAddRequest,
+  ProxyAddResponse,
+  ProxyConfigSettings,
+  ProxyConfigUpdateResponse,
+  ProxyHealthCheckResponse,
+  ProxyListResponse,
+  ProxySettings,
+  ProxySuccessResponse,
+  ProxyToggleResponse
+} from '@/types/proxy'
 
 // Check if mock mode is enabled
 const USE_MOCK_DATA = import.meta.env.VITE_USE_MOCK_DATA === 'true'
@@ -134,13 +146,110 @@ const mockNotificationApi = {
   clear: () => mockResponse({ success: true })
 }
 
+let mockProxyConfig: ProxyConfigSettings = {
+  enable_proxy: true,
+  proxy_health_check_enabled: true,
+  proxy_health_check_interval_seconds: 300,
+  proxy_max_consecutive_failures: 3,
+  fallback_to_direct_connection: true
+}
+
+const maskProxyUrl = (proxyUrl: string): string => {
+  try {
+    const parsed = new URL(proxyUrl)
+    // URL.port drops explicit default ports (for example http://host:80), while
+    // the backend's urllib serializer preserves every explicitly supplied port.
+    const authority = proxyUrl.match(/^[A-Za-z][A-Za-z\d+.-]*:\/\/([^/?#]*)/)?.[1]
+    const credentialSeparator = authority?.lastIndexOf('@') ?? -1
+    const hostAndPort = authority?.slice(credentialSeparator + 1)
+    const explicitPort = hostAndPort?.match(/:(\d+)$/)?.[1]
+    const port = explicitPort === undefined ? '' : String(Number(explicitPort))
+    return port ? `${parsed.hostname}:${port}` : parsed.hostname
+  } catch {
+    return '[REDACTED_PROXY_URL]'
+  }
+}
+
+let mockProxyState: ProxySettings[] = mockProxies.map(proxy => {
+  const maskedUrl = maskProxyUrl(proxy.proxy_url)
+  return {
+    ...proxy,
+    proxy_url: maskedUrl,
+    masked_url: maskedUrl
+  }
+})
+
 const mockProxyApi = {
-  getAll: () => mockResponse(mockProxies),
-  create: (data: any) => mockResponse({ ...data, id: Date.now() }),
-  update: (id: number, data: any) => mockResponse({ ...data, id }),
-  delete: (_id: number) => mockResponse({ success: true }),
-  test: (_id: number) => mockResponse({ success: true, latency: 123 }),
-  healthCheck: () => mockResponse({ healthy: 3, unhealthy: 0 })
+  getAll: (): Promise<ProxyListResponse> => mockResponse({
+    proxies: mockProxyState.map(proxy => ({ ...proxy })),
+    system_config: { ...mockProxyConfig }
+  }),
+  add: (request: ProxyAddRequest): Promise<ProxyAddResponse> => {
+    const proxyId = Math.max(0, ...mockProxyState.map(proxy => proxy.id)) + 1
+    const maskedUrl = maskProxyUrl(request.proxy_url)
+    mockProxyState.push({
+      id: proxyId,
+      proxy_url: maskedUrl,
+      masked_url: maskedUrl,
+      priority: request.priority ?? 0,
+      enabled: true,
+      health_status: 'unknown',
+      last_check: null,
+      response_time_ms: null,
+      consecutive_failures: 0,
+      last_error: null,
+      total_requests: 0,
+      successful_requests: 0,
+      failed_requests: 0,
+      created_at: new Date().toISOString()
+    })
+    return mockResponse({
+      success: true,
+      proxy_id: proxyId,
+      message: 'Proxy added successfully. Health check in progress.'
+    })
+  },
+  delete: (proxyId: number): Promise<ProxySuccessResponse> => {
+    mockProxyState = mockProxyState.filter(proxy => proxy.id !== proxyId)
+    return mockResponse({ success: true, message: `Proxy ${proxyId} deleted successfully` })
+  },
+  toggle: (proxyId: number): Promise<ProxyToggleResponse> => {
+    const proxy = mockProxyState.find(candidate => candidate.id === proxyId)
+    if (proxy) proxy.enabled = !proxy.enabled
+    return mockResponse({
+      success: true,
+      enabled: proxy?.enabled ?? false,
+      message: 'Proxy toggled successfully'
+    })
+  },
+  test: (proxyId: number): Promise<ProxyHealthCheckResponse> => mockResponse({
+    success: true,
+    result: {
+      proxy_id: proxyId,
+      health_status: 'healthy',
+      response_time_ms: 123,
+      consecutive_failures: 0,
+      enabled: mockProxyState.find(candidate => candidate.id === proxyId)?.enabled ?? false,
+      error: null
+    }
+  }),
+  updatePriority: (proxyId: number, priority: number): Promise<ProxySuccessResponse> => {
+    const proxy = mockProxyState.find(candidate => candidate.id === proxyId)
+    if (proxy) proxy.priority = priority
+    return mockResponse({ success: true, message: `Proxy priority updated to ${priority}` })
+  },
+  updateConfig: (config: Partial<ProxyConfigSettings>): Promise<ProxyConfigUpdateResponse> => {
+    mockProxyConfig = { ...mockProxyConfig, ...config }
+    return mockResponse({
+      success: true,
+      message: 'Proxy configuration updated successfully',
+      config: { ...mockProxyConfig }
+    })
+  },
+  getBest: (): Promise<BestProxyResponse> => mockResponse({
+    proxy: mockProxyState.find(proxy => proxy.enabled && proxy.health_status === 'healthy') ?? null,
+    message: 'Best available proxy'
+  })
 }
 
 const mockSystemApi = {
@@ -305,15 +414,7 @@ export const subscriptionsApi = USE_MOCK_DATA ? mockSubscriptionsApi : realApi.s
 export const categoriesApi = USE_MOCK_DATA ? mockCategoriesApi : (realApi.categoriesApi || { getAll: () => Promise.resolve([]) })
 export const filenamePresetsApi = USE_MOCK_DATA ? mockFilenamePresetsApi : (realApi.filenamePresetsApi || { getAll: () => Promise.resolve([]) })
 
-// Proxy API only exists in mock mode (no real backend endpoint yet)
-export const proxyApi = USE_MOCK_DATA ? mockProxyApi : {
-  getAll: () => Promise.resolve([]),
-  create: () => Promise.resolve({ success: false }),
-  update: () => Promise.resolve({ success: false }),
-  delete: () => Promise.resolve({ success: false }),
-  test: () => Promise.resolve({ success: false }),
-  healthCheck: () => Promise.resolve({ healthy: 0, unhealthy: 0 })
-}
+export const proxyApi = USE_MOCK_DATA ? mockProxyApi : realApi.proxyApi
 
 export const liveApi = USE_MOCK_DATA ? mockLiveApi : (realApi.liveApi || {
   startLiveStream: () => Promise.resolve({ success: false }),
