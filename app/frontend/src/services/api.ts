@@ -194,10 +194,10 @@ const mockImagesApi = {
 }
 
 const mockSubscriptionsApi = {
-  getAll: () => mockResponse({ data: [] }),
+  getAll: () => mockResponse({ subscriptions: [] }),
   deleteAll: () => mockResponse({ success: true }),
   delete: (subscriptionId: string) => mockResponse({ success: true, subscriptionId }),
-  resubscribeAll: () => mockResponse({ success: true })
+  resubscribeAll: () => mockResponse({ success: true, message: 'All subscriptions resubscribed' })
 }
 
 const mockCategoriesApi = {

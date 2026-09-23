@@ -132,6 +132,7 @@ import { ref, onMounted, computed } from 'vue'
 import GlassCard from '@/components/cards/GlassCard.vue'
 import LoadingSkeleton from '@/components/LoadingSkeleton.vue'
 import EmptyState from '@/components/EmptyState.vue'
+import { subscriptionsApi } from '@/services/api'
 
 interface Subscription {
   id: string
@@ -227,10 +228,7 @@ async function loadStreamers() {
 async function loadSubscriptions() {
   loading.value = true
   try {
-    const response = await fetch('/api/streamers/subscriptions', {
-      credentials: 'include' // CRITICAL: Required to send session cookie
-    })
-    const data = await response.json()
+    const data = await subscriptionsApi.getAll()
     subscriptions.value = data.subscriptions
 
     await loadStreamers()
@@ -244,21 +242,7 @@ async function loadSubscriptions() {
 async function resubscribeAll() {
   loadingResubscribe.value = true
   try {
-    const response = await fetch('/api/streamers/resubscribe-all', {
-      method: 'POST',
-      credentials: 'include', // CRITICAL: Required to send session cookie
-      headers: {
-        'Accept': 'application/json'
-      }
-    })
-
-    if (!response.ok) {
-      const errorText = await response.text()
-      console.error('Server response:', errorText)
-      throw new Error(`Failed to resubscribe: ${response.status}`)
-    }
-
-    const data = await response.json()
+    const data = await subscriptionsApi.resubscribeAll()
     alert(`Success: ${data.message}`)
 
     await loadSubscriptions()
@@ -278,11 +262,7 @@ async function deleteSubscription(id: string) {
   }
   
   try {
-    const response = await fetch(`/api/streamers/subscriptions/${id}`, {
-      method: 'DELETE',
-      credentials: 'include' // CRITICAL: Required to send session cookie
-    })
-    if (!response.ok) throw new Error('Failed to delete subscription')
+    await subscriptionsApi.delete(id)
 
     subscriptions.value = subscriptions.value.filter(sub => sub.id !== id)
   } catch (error) {
@@ -295,21 +275,7 @@ async function deleteAllSubscriptions() {
 
   loading.value = true
   try {
-    const response = await fetch('/api/streamers/subscriptions', {
-      method: 'DELETE',
-      credentials: 'include', // CRITICAL: Required to send session cookie
-      headers: {
-        'Accept': 'application/json'
-      }
-    })
-
-    if (!response.ok) {
-      const errorText = await response.text()
-      console.error('Server response:', errorText)
-      throw new Error(`Failed to delete subscriptions: ${response.status}`)
-    }
-
-    const _data = await response.json()
+    await subscriptionsApi.deleteAll()
     alert('All subscriptions successfully deleted!')
 
     subscriptions.value = []
