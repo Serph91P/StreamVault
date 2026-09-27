@@ -14,6 +14,8 @@ interface PWAState {
   isInstallable: Ref<boolean>
   isInstalled: Ref<boolean>
   isOnline: Ref<boolean>
+  updateAvailable: Ref<boolean>
+  applyUpdate: () => Promise<void>
 }
 
 class MatchMediaStub extends EventTarget implements MediaQueryList {
@@ -184,5 +186,20 @@ describe('usePWA listener lifecycle', () => {
     expect(state.isInstallable.value).toBe(false)
     expect(installEvent.defaultPrevented).toBe(false)
     expect(routerPush).not.toHaveBeenCalled()
+  })
+
+  it('surfaces service-worker updates for an explicit user action and detaches the update listener', async () => {
+    const update = vi.fn(() => Promise.resolve())
+    const { wrapper, state } = mountPWA()
+
+    window.dispatchEvent(new CustomEvent('pwa-needs-refresh', { detail: { update } }))
+    expect(state.updateAvailable.value).toBe(true)
+
+    await state.applyUpdate()
+    expect(update).toHaveBeenCalledOnce()
+
+    wrapper.unmount()
+    window.dispatchEvent(new CustomEvent('pwa-needs-refresh', { detail: { update } }))
+    expect(state.updateAvailable.value).toBe(false)
   })
 })

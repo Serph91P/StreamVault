@@ -13,7 +13,7 @@
       </div>
 
       <!-- Login Card -->
-      <GlassCard class="login-card">
+      <BasePanel :padded="false" class="login-card">
         <form @submit.prevent="handleLogin" class="login-form">
           <h2 class="form-title">Welcome Back</h2>
           <p class="form-subtitle">Sign in to continue to your dashboard</p>
@@ -78,7 +78,7 @@
             <span>{{ isLoading ? 'Signing in...' : 'Sign In' }}</span>
           </button>
         </form>
-      </GlassCard>
+      </BasePanel>
 
       <!-- Footer -->
       <div class="login-footer">
@@ -97,11 +97,13 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import { useRouter } from 'vue-router'
-import GlassCard from '@/components/cards/GlassCard.vue'
+import { useRoute, useRouter } from 'vue-router'
+import BasePanel from '@/components/base/BasePanel.vue'
 import { useAuth } from '@/composables/useAuth'
+import { getSafeReturnPath } from '@/services/session'
 
 const router = useRouter()
+const route = useRoute()
 const { login } = useAuth()
 
 const username = ref('')
@@ -117,8 +119,8 @@ const handleLogin = async () => {
     const result = await login(username.value, password.value)
 
     if (result.success) {
-      // Auth state is now reactive (module-level singleton) - no full reload needed
-      router.push('/')
+      // Auth state is reactive; restore only an internal deep link from the guard.
+      router.push(getSafeReturnPath(route.query.returnTo))
     } else {
       error.value = result.error || 'Invalid username or password'
     }

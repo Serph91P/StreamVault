@@ -208,6 +208,10 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 
       expect(collectionErrors, 'cross-engine evidence collection must complete without errors').toEqual([])
       expect(keyboardFocusCount, 'keyboard evidence must be present').not.toBeNull()
       expect(ariaSnapshot, 'accessibility-tree evidence must be present').not.toBeNull()
+      expect(
+        seriousOrCriticalAxeViolations,
+        'Axe must report no serious or critical violations for each exercised route/theme/viewport/browser observation',
+      ).toEqual([])
     })
   }
 }

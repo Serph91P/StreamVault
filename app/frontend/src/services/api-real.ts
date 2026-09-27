@@ -14,6 +14,7 @@ import type {
   ProxySuccessResponse,
   ProxyToggleResponse
 } from '@/types/proxy'
+import type { ApiKey, ApiKeyCreated } from '@/types/api-keys'
 
 // Shared boundaries prevent concurrent safe requests from refreshing or logging out twice.
 let refreshPromise: Promise<boolean> | null = null
@@ -199,10 +200,6 @@ const apiClient = new ApiClient()
 
 // Recording API endpoints
 export const recordingApi = {
-  // Start recording for a specific streamer
-  startRecording: (streamerId: number) => 
-    apiClient.post(`/api/recording/start/${streamerId}`),
-
   // Stop recording for a specific streamer
   stopRecording: (streamerId: number) => 
     apiClient.post(`/api/recording/stop/${streamerId}`),
@@ -211,45 +208,11 @@ export const recordingApi = {
   getActiveRecordings: () => 
     apiClient.get('/api/recording/active'),
 
-  // Get recording settings
-  getSettings: () => 
-    apiClient.get('/api/recording/settings'),
-
-  // Update recording settings
-  updateSettings: (settings: any) => 
-    apiClient.put('/api/recording/settings', settings),
-
-  // Get streamer-specific recording settings
-  getStreamerSettings: (streamerId: number) => 
-    apiClient.get(`/api/recording/streamers/${streamerId}`),
-
-  // Update streamer-specific recording settings
-  updateStreamerSettings: (streamerId: number, settings: any) => 
-    apiClient.put(`/api/recording/streamers/${streamerId}`, settings),
 
   // Force start recording (bypasses normal checks)
   forceStartRecording: (streamerId: number) => 
     apiClient.post(`/api/recording/force-start/${streamerId}`),
 
-  // Force stop recording
-  forceStopRecording: (recordingId: number) => 
-    apiClient.post(`/api/recording/force-stop/${recordingId}`),
-
-  // Get recording status for a specific recording
-  getRecordingStatus: (recordingId: number) => 
-    apiClient.get(`/api/recording/status/${recordingId}`),
-
-  // Delete a recording
-  deleteRecording: (recordingId: number) => 
-    apiClient.delete(`/api/recording/${recordingId}`),
-
-  // Get recording history
-  getRecordingHistory: (params: Record<string, any> = {}) => 
-    apiClient.get('/api/recording/history', params),
-
-  // Check if streamer is live
-  checkStreamerLiveStatus: (streamerId: number) => 
-    apiClient.get(`/api/streamers/${streamerId}/live-status`),
 }
 
 // Streamers API endpoints  
@@ -262,9 +225,6 @@ export const streamersApi = {
   get: (streamerId: number) => 
     apiClient.get(`/api/streamers/streamer/${streamerId}`),
 
-  // Add a new streamer by username
-  add: (username: string) => 
-    apiClient.post(`/api/streamers/${username}`),
 
   // Delete a streamer
   delete: async (streamerId: string | number, deleteRecordings?: boolean): Promise<void> => {
@@ -273,9 +233,6 @@ export const streamersApi = {
     )
   },
 
-  // Validate streamer username
-  validate: (username: string) => 
-    apiClient.get(`/api/streamers/validate/${username}`),
 
   // Get streamer's streams
   getStreams: (streamerId: number, params: Record<string, any> = {}) => 
@@ -285,9 +242,6 @@ export const streamersApi = {
   deleteAllStreams: (streamerId: number, opts: { excludeActive?: boolean } = {}) => 
     apiClient.delete(`/api/streamers/${streamerId}/streams${opts.excludeActive !== false ? '?exclude_active=true' : ''}`),
 
-  // Delete specific stream for a streamer
-  deleteStream: (streamerId: number, streamId: number) => 
-    apiClient.delete(`/api/streamers/${streamerId}/streams/${streamId}`),
 
   // Get stream chapters for a streamer
   getStreamChapters: (streamerId: number, streamId: number) => 
@@ -297,36 +251,13 @@ export const streamersApi = {
   checkLiveStatus: (streamerId: number) => 
     apiClient.get(`/api/streamers/${streamerId}/live-status`),
 
-  // Get debug live status for all streamers
-  getDebugLiveStatus: () => 
-    apiClient.get('/api/streamers/debug-live-status'),
-
-  // Subscription management
-  getSubscriptions: () => 
-    apiClient.get('/api/streamers/subscriptions'),
-
-  deleteSubscriptions: () => 
-    apiClient.delete('/api/streamers/subscriptions'),
-
-  deleteSubscription: (subscriptionId: string) => 
-    apiClient.delete(`/api/streamers/subscriptions/${subscriptionId}`),
-
-  resubscribeAll: () => 
-    apiClient.post('/api/streamers/resubscribe-all'),
 }
-
-// Alternative export name for backwards compatibility
-export const streamerApi = streamersApi
 
 // Streams API endpoints
 export const streamsApi = {
   // Delete a stream
   delete: (streamId: number) => 
     apiClient.delete(`/api/streams/${streamId}`),
-
-  // Check recordings for streams (batch operation)
-  checkRecordings: (streamIds: number[]) => 
-    apiClient.post('/api/streams/check-recordings', { stream_ids: streamIds }),
 }
 
 // System API endpoints
@@ -339,9 +270,6 @@ export const systemApi = {
   getVersion: () =>
     apiClient.get('/api/version'),
 
-  // Get health status
-  getHealth: () => 
-    apiClient.get('/api/status/health'),
 
   // Get all streamers status
   getStreamersStatus: (params: Record<string, any> = {}) =>
@@ -355,9 +283,6 @@ export const systemApi = {
   getActiveRecordingsStatus: (params: Record<string, any> = {}) =>
     apiClient.get('/api/status/active-recordings', params),
 
-  // Get background queue status
-  getBackgroundQueueStatus: () => 
-    apiClient.get('/api/status/background-queue'),
 
   // Get notifications status
   getNotificationsStatus: (params: Record<string, any> = {}) =>
@@ -416,17 +341,12 @@ export const settingsApi = {
   updateStreamerSettings: (streamerId: number, settings: any) => 
     apiClient.post(`/api/settings/streamer/${streamerId}`, settings),
 
-  // Get streamers (for settings)
-  getStreamers: () => 
-    apiClient.get('/api/settings/streamers'),
+}
 
-  // Test notification
-  testNotification: (data: any) => 
-    apiClient.post('/api/settings/test-notification', data),
-
-  // Test WebSocket notification
-  testWebSocketNotification: (data: any) => 
-    apiClient.post('/api/settings/test-websocket-notification', data),
+export const apiKeysApi = {
+  getAll: (): Promise<ApiKey[]> => apiClient.get('/api/api-keys'),
+  create: (name: string): Promise<ApiKeyCreated> => apiClient.post('/api/api-keys', { name }),
+  revoke: (id: number) => apiClient.delete(`/api/api-keys/${id}`)
 }
 
 // Background Queue API endpoints
@@ -443,29 +363,7 @@ export const backgroundQueueApi = {
   getRecentTasks: () => 
     apiClient.get('/api/background-queue/recent-tasks'),
 
-  // Get specific task
-  getTask: (taskId: string) => 
-    apiClient.get(`/api/background-queue/tasks/${taskId}`),
 
-  // Enqueue generic task
-  enqueueTask: (taskData: any) => 
-    apiClient.post('/api/background-queue/tasks/enqueue', taskData),
-
-  // Enqueue metadata generation task
-  enqueueMetadataGeneration: (streamId: number) => 
-    apiClient.post('/api/background-queue/tasks/metadata-generation', { stream_id: streamId }),
-
-  // Enqueue thumbnail generation task
-  enqueueThumbnailGeneration: (streamId: number) => 
-    apiClient.post('/api/background-queue/tasks/thumbnail-generation', { stream_id: streamId }),
-
-  // Enqueue file cleanup task
-  enqueueFileCleanup: (streamerId: number) => 
-    apiClient.post('/api/background-queue/tasks/file-cleanup', { streamer_id: streamerId }),
-
-  // Get queue health
-  getHealth: () => 
-    apiClient.get('/api/background-queue/health'),
 
   cancelStreamTasks: (streamId: number) =>
     apiClient.post(`/api/background-queue/cancel-stream/${streamId}`),
@@ -477,9 +375,6 @@ export const authApi = {
   getAuthUrl: () => 
     apiClient.get('/api/twitch/auth-url'),
 
-  // Handle auth callback
-  handleCallback: (code: string, state: string) => 
-    apiClient.get(`/api/twitch/callback?code=${code}&state=${state}`),
 
   // Get followed channels
   getFollowedChannels: () => 
@@ -494,91 +389,18 @@ export const authApi = {
     apiClient.get('/api/twitch/callback-url'),  // FIXED: Changed from /api/auth to /api/twitch
 }
 
-// Images API endpoints
-export const imagesApi = {
-  // Streamer profile images
-  getStreamerImage: (streamerId: number) => 
-    apiClient.get(`/api/images/streamer/${streamerId}`),
-
-  downloadStreamerImage: (streamerId: number) => 
-    apiClient.post(`/api/images/streamer/${streamerId}/download`),
-
-  // Category images
-  getCategoryImage: (categoryName: string) => 
-    apiClient.get(`/api/images/category/${categoryName}`),
-
-  downloadCategoryImage: (categoryName: string) => 
-    apiClient.post(`/api/images/category/${categoryName}/download`),
-
-  // Image management
-  getStats: () => 
-    apiClient.get('/api/images/stats'),
-
-  syncImages: () => 
-    apiClient.post('/api/images/sync'),
-
-  cleanupImages: () => 
-    apiClient.post('/api/images/cleanup'),
-
-  checkMissingImages: () => 
-    apiClient.post('/api/images/sync/check-missing'),
-
-  getSyncQueueStatus: () => 
-    apiClient.get('/api/images/sync/queue-status'),
-
-  // Get available streamers/categories for images
-  getStreamers: () => 
-    apiClient.get('/api/images/streamers'),
-
-  getCategories: () => 
-    apiClient.get('/api/images/categories'),
-}
 
 // Category browser + image cache endpoints
 export const categoriesApi = {
-  // Full category listing with favorite metadata
-  getAll: () =>
-    apiClient.get('/api/categories'),
-
-  // Favorite categories for current user
-  getFavorites: () =>
-    apiClient.get('/api/categories/favorites'),
-
-  // Mark a category as favorite
-  addFavorite: (categoryId: number) =>
-    apiClient.post('/api/categories/favorites', { category_id: categoryId }),
-
-  // Remove from favorites
-  removeFavorite: (categoryId: number) =>
-    apiClient.delete(`/api/categories/favorites/${categoryId}`),
-
   // Immediate category image fetch (downloads if missing)
   getImage: (categoryName: string) =>
     apiClient.get(`/api/categories/image/${encodeURIComponent(categoryName)}`),
 
-  // Batch image fetch helper
-  getImagesBatch: (categoryNames: string[]) =>
-    apiClient.post('/api/categories/images/batch', categoryNames),
 
   // Kick off background preload of category art
   preloadImages: (categoryNames: string[]) =>
     apiClient.post('/api/categories/preload-images', categoryNames),
 
-  // Force refresh/download for list of categories
-  refreshImages: (categoryNames: string[]) =>
-    apiClient.post('/api/categories/refresh-images', categoryNames),
-
-  // Clean cached artwork older than threshold
-  cleanupImages: (daysOld: number = 30) =>
-    apiClient.post(`/api/categories/cleanup-images?days_old=${daysOld}`),
-
-  // Cache metadata (counts, storage path, etc.)
-  getCacheStatus: () =>
-    apiClient.get('/api/categories/cache-status'),
-
-  // Missing image report for debugging
-  getMissingImages: () =>
-    apiClient.get('/api/categories/missing-images')
 }
 
 // Filename presets exposed via recording routes
@@ -634,13 +456,6 @@ export const liveApi = {
   stopLiveStream: (sessionId: string) =>
     apiClient.delete(`/api/live/stop/${sessionId}`),
 
-  // Get live stream status
-  getLiveStreamStatus: (sessionId: string) =>
-    apiClient.get(`/api/live/status/${sessionId}`),
-
-  // Get all active live streams
-  getActiveLiveStreams: () =>
-    apiClient.get('/api/live/active'),
 
   // Get HLS playlist URL
   getPlaylistUrl: (sessionId: string): string =>
@@ -653,37 +468,16 @@ export const videoApi = {
   getAll: (params: Record<string, any> = {}) => 
     apiClient.get('/api/videos', params),
 
-  // Get videos for specific streamer by ID
-  getByStreamerId: (streamerId: number) => 
-    apiClient.get(`/api/videos/streamer/${streamerId}`),
-
-  // Get videos for specific streamer by name
-  getByStreamerName: (streamerName: string) => 
-    apiClient.get(`/api/videos/${streamerName}`),
-
-  // Get specific video by streamer name and filename
-  getByStreamerAndFilename: (streamerName: string, filename: string) => 
-    apiClient.get(`/api/videos/${streamerName}/${filename}`),
-
-  // Get video by filename
-  getByFilename: (filename: string) => 
-    apiClient.get(`/api/videos/stream_by_filename/${filename}`),
 
   // Get video stream URL (returns string for direct use in video src attribute)
   getVideoStreamUrl: (streamId: number): string => 
     `/api/videos/${streamId}/stream`,
 
-  // Stream video
-  streamVideo: (streamId: number) => 
-    apiClient.get(`/api/videos/${streamId}/stream`),
 
   // Get video chapters
   getChapters: (streamId: number) => 
     apiClient.get(`/api/videos/${streamId}/chapters`),
 
-  // Get video thumbnail
-  getThumbnail: (streamId: number) => 
-    apiClient.get(`/api/videos/${streamId}/thumbnail`),
 
   // Delete videos. VideosView receives stream IDs from /api/videos, and the
   // backend deletion implementation lives under /api/streams/{stream_id}.
@@ -693,26 +487,11 @@ export const videoApi = {
   deleteMultiple: (streamIds: number[]) =>
     Promise.all(streamIds.map(streamId => apiClient.delete(`/api/streams/${streamId}`))),
 
-  // Get public video (shared)
-  getPublicVideo: (streamId: number) => 
-    apiClient.get(`/api/videos/public/${streamId}`),
 
   // Create share token for video
   createShareToken: (streamId: number, data: any) => 
     apiClient.post(`/api/videos/${streamId}/share-token`, data),
 
-  // Debug endpoints
-  getDebugInfo: (streamId: number) => 
-    apiClient.get(`/api/videos/debug/${streamId}`),
-
-  getTestVideo: (streamId: number) => 
-    apiClient.get(`/api/videos/test/${streamId}`),
-
-  getDebugDatabase: () => 
-    apiClient.get('/api/debug/videos-database'),
-
-  getDebugRecordingsDirectory: () => 
-    apiClient.get('/api/debug/recordings-directory'),
 }
 
 // Export the main API client as default

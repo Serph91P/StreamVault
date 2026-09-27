@@ -124,6 +124,23 @@ watch(
   max-width: 1200px;
 }
 
+.modal {
+  background: var(--sv-cmp-overlay-background);
+  border-color: var(--sv-cmp-overlay-border);
+  box-shadow: var(--sv-cmp-overlay-shadow);
+  color: var(--sv-sem-text-primary);
+}
+
+.close-btn {
+  min-width: var(--sv-fdn-size-target);
+  min-height: var(--sv-fdn-size-target);
+
+  &:focus-visible {
+    outline: 2px solid var(--sv-sem-action-focus);
+    outline-offset: 2px;
+  }
+}
+
 .modal-fullscreen-mobile {
   @include m.respond-below('md') {
     padding-bottom: env(safe-area-inset-bottom, 0px);

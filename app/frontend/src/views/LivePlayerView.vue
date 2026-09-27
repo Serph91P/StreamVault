@@ -154,6 +154,7 @@
                 <span class="info-label">Codecs</span>
                 <span class="info-value">{{ activeSupportedCodecs }}</span>
               </div>
+
               <div class="info-row">
                 <span class="info-label">Status</span>
                 <span class="info-value" :class="{ 'text-live': isPlaying && !isBuffering }">
@@ -213,13 +214,11 @@ import PlayerStatus from '@/components/player/PlayerStatus.vue'
 import PlayerError from '@/components/player/PlayerError.vue'
 import { liveApi } from '@/services/api'
 import { appStorage } from '@/services/storage'
-
-// Hls.js type declaration (loaded via npm, no longer from CDN)
-declare global {
-  interface Window {
-    Hls?: any
-  }
-}
+import {
+  createHlsConfig,
+  selectHlsPlaybackEngine,
+  supportsNativeHls
+} from '@/composables/hlsPlayback'
 
 interface HlsLevel {
   height?: number
@@ -231,7 +230,6 @@ type LiveCodecMode = 'auto' | 'h264' | 'hevc'
 
 interface LiveCodecSelection {
   supportedCodecs: string
-  useNativeHls: boolean
   hevcSupported: boolean
 }
 
@@ -259,6 +257,7 @@ const showControls = ref(true)
 const controlsTimeout = ref<number | null>(null)
 const hlsInstance = ref<any>(null)
 const qualityLevels = ref<Array<{ name: string; index: number }>>([])
+
 const selectedQuality = ref<string | number>('-1')
 const retryCount = ref(0)
 const retryTimer = ref<number | null>(null)
@@ -268,9 +267,10 @@ const codecMode = ref<LiveCodecMode>(
     'auto') as LiveCodecMode
 )
 const activeSupportedCodecs = ref('h264')
-const preferNativeHls = ref(false)
 const hevcSupported = ref(false)
 const codecWarning = ref<string | null>(null)
+let isDisposed = false
+let playbackGeneration = 0
 
 // Refs
 const videoElement = ref<HTMLVideoElement | null>(null)
@@ -354,20 +354,15 @@ const hlsErrorToMessage = (data: any): string => {
   return 'Stream playback failed. Please try again.'
 }
 
-// Load hls.js (bundled locally, no CDN dependency)
-import Hls from 'hls.js'
-
-const loadHlsJs = (): Promise<any> => {
-  return Promise.resolve(Hls)
+const terminalPlaybackMessage = (status: number): string | null => {
+  if (status === 401) return 'Your playback session expired. Sign in again, then retry the stream.'
+  if (status === 403) return 'You do not have permission to play this stream.'
+  if (status === 404) return 'The live stream media is unavailable. The streamer may be offline.'
+  return null
 }
 
 const getStoredSessionToken = (): string | null => {
   return appStorage.sessionToken
-}
-
-const canUseNativeHls = (): boolean => {
-  const video = document.createElement('video')
-  return Boolean(video.canPlayType('application/vnd.apple.mpegurl'))
 }
 
 const canUseNativeHevcHls = (): boolean => {
@@ -379,7 +374,7 @@ const canUseNativeHevcHls = (): boolean => {
     'video/mp4; codecs="hev1.1.6.L123.B0, mp4a.40.2"'
   ]
 
-  return canUseNativeHls() && hevcCodecStrings.some(codec => Boolean(video.canPlayType(codec)))
+  return supportsNativeHls(video) && hevcCodecStrings.some(codec => Boolean(video.canPlayType(codec)))
 }
 
 const resolveLiveCodecSelection = (): LiveCodecSelection => {
@@ -392,26 +387,27 @@ const resolveLiveCodecSelection = (): LiveCodecSelection => {
   codecWarning.value = null
 
   if (mode === 'h264') {
-    return { supportedCodecs: 'h264', useNativeHls: false, hevcSupported: supportsHevc }
+    return { supportedCodecs: 'h264', hevcSupported: supportsHevc }
   }
 
   if (mode === 'hevc') {
     if (supportsHevc) {
-      return { supportedCodecs: 'h264,h265', useNativeHls: true, hevcSupported: supportsHevc }
+      return { supportedCodecs: 'h264,h265', hevcSupported: supportsHevc }
     }
 
     codecWarning.value = 'HEVC live playback needs native HLS support. This browser uses H264 live playback to avoid audio-only video.'
-    return { supportedCodecs: 'h264', useNativeHls: false, hevcSupported: supportsHevc }
+    return { supportedCodecs: 'h264', hevcSupported: supportsHevc }
   }
 
   return supportsHevc
-    ? { supportedCodecs: 'h264,h265', useNativeHls: true, hevcSupported: supportsHevc }
-    : { supportedCodecs: 'h264', useNativeHls: false, hevcSupported: supportsHevc }
+    ? { supportedCodecs: 'h264,h265', hevcSupported: supportsHevc }
+    : { supportedCodecs: 'h264', hevcSupported: supportsHevc }
 }
 
 // Start stream
 const startStream = async () => {
   if (isStarting.value) return
+  const generation = ++playbackGeneration
 
   try {
     isStarting.value = true
@@ -425,7 +421,6 @@ const startStream = async () => {
     const quality = (route.query.quality as string) || 'best'
     const codecSelection = resolveLiveCodecSelection()
     activeSupportedCodecs.value = codecSelection.supportedCodecs
-    preferNativeHls.value = codecSelection.useNativeHls
     appStorage.setLiveCodecMode(codecMode.value)
 
     const response = await liveApi.startLiveStream(
@@ -433,6 +428,13 @@ const startStream = async () => {
       quality,
       codecSelection.supportedCodecs
     )
+
+    if (isDisposed || generation !== playbackGeneration) {
+      if (response.success && response.session_id) {
+        await liveApi.stopLiveStream(response.session_id).catch(() => {})
+      }
+      return
+    }
 
     if (!response.success || !response.session_id) {
       throw new Error(response.message || 'Failed to start stream')
@@ -450,8 +452,10 @@ const startStream = async () => {
     // Small delay to ensure HLS playlist exists on backend
     await new Promise(r => setTimeout(r, 1500))
 
-    await initPlayer(response.session_id, codecSelection.useNativeHls)
+    if (isDisposed || generation !== playbackGeneration || sessionId.value !== response.session_id) return
+    await initPlayer(response.session_id, generation)
   } catch (err: any) {
+    if (isDisposed || generation !== playbackGeneration) return
     console.error('Error starting stream:', err)
     error.value = err instanceof Error ? err.message : 'Failed to start live stream'
     sessionId.value = null
@@ -466,28 +470,33 @@ const startStream = async () => {
 }
 
 // Initialize HLS player
-const initPlayer = async (sid: string, useNativeHls: boolean = preferNativeHls.value) => {
-  if (!videoElement.value) return
+const initPlayer = async (sid: string, generation: number = playbackGeneration) => {
+  const playerVideo = videoElement.value
+  if (!playerVideo || isDisposed || generation !== playbackGeneration) return
 
   try {
-    const Hls = await loadHlsJs()
     const playlistUrl = streamInfo.value?.playlist_url || liveApi.getPlaylistUrl(sid)
+    const exposeUx06TestSeam = route.query.t
+    const engine = await selectHlsPlaybackEngine(playerVideo)
 
-    if (useNativeHls && videoElement.value.canPlayType('application/vnd.apple.mpegurl')) {
-      // Native HLS is preferred for HEVC-capable Safari/WebKit pipelines.
+    // Dynamic import can finish after an in-app route change. Never attach a
+    // late player/worker to a disposed component or a replaced media element.
+    if (isDisposed || generation !== playbackGeneration || videoElement.value !== playerVideo || sessionId.value !== sid) {
+      if (exposeUx06TestSeam) (window as Window & { u?: boolean }).u = false
+      return
+    }
+
+    if (engine.mode === 'native') {
+      // Native HLS is always preferred. This avoids loading the fallback bundle
+      // on Safari/WebKit while preserving native alternate audio/subtitle tracks.
       hlsInstance.value = null
-      videoElement.value.src = playlistUrl
-      videoElement.value.addEventListener('loadedmetadata', () => {
-        videoElement.value?.play().catch(() => {})
+      playerVideo.src = playlistUrl
+      playerVideo.addEventListener('loadedmetadata', () => {
+        if (!isDisposed && generation === playbackGeneration) playerVideo.play().catch(() => {})
       }, { once: true })
-    } else if (Hls.isSupported()) {
-      const hls = new Hls({
-        enableWorker: true,
-        lowLatencyMode: true,
-        backBufferLength: 90,
-        maxBufferLength: 30,
-        liveSyncDurationCount: 3,
-        liveMaxLatencyDurationCount: 5,
+    } else {
+      const Hls = engine.Hls
+      const hls = new Hls(createHlsConfig({
         xhrSetup: (xhr: XMLHttpRequest) => {
           xhr.withCredentials = true
           const sessionToken = getStoredSessionToken()
@@ -495,7 +504,7 @@ const initPlayer = async (sid: string, useNativeHls: boolean = preferNativeHls.v
             xhr.setRequestHeader('Authorization', `Bearer ${sessionToken}`)
           }
         },
-      })
+      }))
 
       hlsInstance.value = hls
 
@@ -515,11 +524,44 @@ const initPlayer = async (sid: string, useNativeHls: boolean = preferNativeHls.v
           })
         }
         qualityLevels.value = levels
-        videoElement.value?.play().catch(() => {})
+        playerVideo.play().catch(() => {})
       })
+      hls.on(Hls.Events.AUDIO_TRACKS_UPDATED, () => { playerVideo.dataset.audioTracks = String(hls.audioTracks.length) })
+      hls.on(Hls.Events.SUBTITLE_TRACKS_UPDATED, () => { playerVideo.dataset.subtitleTracks = String(hls.subtitleTracks.length) })
+
+      if (exposeUx06TestSeam) {
+        ;(playerVideo as HTMLVideoElement & { u: (audio: number, subtitle: number) => void }).u = (audio, subtitle) => {
+          hls.audioTrack = audio
+          hls.subtitleTrack = subtitle
+        }
+      }
 
       hls.on(Hls.Events.ERROR, (_event: string, data: any) => {
         if (data.fatal) {
+          const httpStatus = Number(data?.response?.code)
+          if (httpStatus === 410) {
+            isRetrying.value = false
+            isBuffering.value = false
+            isPlaying.value = false
+            isStopped.value = true
+            sessionId.value = null
+            streamInfo.value = null
+            destroyPlayer()
+            return
+          }
+
+          const terminalMessage = terminalPlaybackMessage(httpStatus)
+          if (terminalMessage) {
+            isRetrying.value = false
+            isBuffering.value = false
+            isPlaying.value = false
+            error.value = terminalMessage
+            sessionId.value = null
+            streamInfo.value = null
+            destroyPlayer()
+            return
+          }
+
           switch (data.type) {
             case Hls.ErrorTypes.NETWORK_ERROR:
               console.warn('HLS network error, attempting recovery...')
@@ -551,17 +593,11 @@ const initPlayer = async (sid: string, useNativeHls: boolean = preferNativeHls.v
       })
 
       hls.loadSource(playlistUrl)
-      hls.attachMedia(videoElement.value)
-    } else if (videoElement.value.canPlayType('application/vnd.apple.mpegurl')) {
-      // Native HLS support (Safari)
-      videoElement.value.src = playlistUrl
-      videoElement.value.addEventListener('loadedmetadata', () => {
-        videoElement.value?.play().catch(() => {})
-      })
-    } else {
-      throw new Error('HLS is not supported in this browser')
+      hls.attachMedia(playerVideo)
+      if (exposeUx06TestSeam) (window as Window & { u?: boolean }).u = true
     }
   } catch (err: any) {
+    if (isDisposed || generation !== playbackGeneration) return
     console.error('Error initializing player:', err)
     error.value = err instanceof Error ? err.message : 'Failed to initialize player'
     isRetrying.value = false
@@ -583,6 +619,7 @@ const destroyPlayer = () => {
     videoElement.value.load()
   }
   qualityLevels.value = []
+
 }
 
 // Stop stream
@@ -751,6 +788,8 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  isDisposed = true
+  playbackGeneration++
   window.removeEventListener('resize', updateViewportMode)
   document.removeEventListener('fullscreenchange', onFullscreenChange)
   if (retryTimer.value) {
@@ -909,8 +948,8 @@ onUnmounted(() => {
 // nesting depth (the root clips overflow-x, so no scrollbar can appear).
 @include m.respond-below('md') {
   .player-card {
-    width: 100vw;
-    margin-inline: calc(50% - 50vw);
+    width: 100%;
+    margin-inline: 0;
     border-inline: 0;
     border-radius: 0;
   }
@@ -1281,6 +1320,7 @@ onUnmounted(() => {
   @include m.respond-below('sm') {
     flex-direction: column;
     gap: var(--spacing-2);
+    padding-bottom: calc(68px + env(safe-area-inset-bottom, 0px) + var(--spacing-4));
 
     .info-card {
       min-width: 0;

@@ -54,6 +54,74 @@ async function disableMotion(page: Page) {
   })
 }
 
+type LoginCaptureState = {
+  panel: { width: number; height: number; opacity: number; visible: boolean }
+  controls: Array<{
+    label: string
+    width: number
+    height: number
+    opacity: number
+    visible: boolean
+    ancestorOpacities: number[]
+  }>
+  panelAncestorOpacities: number[]
+}
+
+async function getLoginCaptureState(page: Page): Promise<LoginCaptureState> {
+  return page.locator('.login-card.base-panel').evaluate((panel) => {
+    const panelElement = panel as HTMLElement
+    const opacitiesTo = (element: HTMLElement, last: HTMLElement | null) => {
+      const opacities: number[] = []
+      for (let current: HTMLElement | null = element; current; current = current.parentElement) {
+        opacities.push(Number(getComputedStyle(current).opacity))
+        if (current === last) break
+      }
+      return opacities
+    }
+    const measured = (element: HTMLElement, label: string) => {
+      const style = getComputedStyle(element)
+      const rect = element.getBoundingClientRect()
+      return {
+        label,
+        width: rect.width,
+        height: rect.height,
+        opacity: Number(style.opacity),
+        visible: style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0,
+        ancestorOpacities: opacitiesTo(element, panelElement),
+      }
+    }
+    return {
+      panel: measured(panelElement, 'panel'),
+      controls: [
+        measured(document.querySelector('#username') as HTMLElement, 'Username'),
+        measured(document.querySelector('#password') as HTMLElement, 'Password'),
+        measured(document.querySelector('button[type="submit"]') as HTMLElement, 'Sign In'),
+      ],
+      panelAncestorOpacities: opacitiesTo(panelElement, null),
+    }
+  })
+}
+
+async function waitForLoginCaptureReadiness(page: Page) {
+  await expect(page.locator('.login-card.base-panel')).toBeVisible()
+  await expect(page.getByLabel('Username')).toBeVisible()
+  await expect(page.getByLabel('Password')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Sign In' })).toBeVisible()
+  await expect.poll(async () => {
+    const state = await getLoginCaptureState(page)
+    return state.panel.visible
+      && state.panel.width > 0
+      && state.panel.height > 0
+      && state.panel.opacity === 1
+      && state.panelAncestorOpacities.every(opacity => opacity === 1)
+      && state.controls.every(control => control.visible
+        && control.width > 0
+        && control.height > 0
+        && control.opacity === 1
+        && control.ancestorOpacities.every(opacity => opacity === 1))
+  }, { timeout: 10_000 }).toBe(true)
+}
+
 async function assertRenderedContract(page: Page, width: number) {
   const issues = await page.evaluate(({ mobileWidth }) => {
     const visible = (element: Element) => {
@@ -137,6 +205,113 @@ test('mobile routed content clears the visible connectivity pill', async ({ page
   const gap = await Promise.all([finalAction.boundingBox(), pill.boundingBox()])
     .then(([action, status]) => status!.y - (action!.y + action!.height))
   expect(gap).toBeGreaterThanOrEqual(8)
+})
+
+test('System hub keeps settings, admin and subscriptions reachable on desktop and mobile', async ({ page }, testInfo) => {
+  const widths = testInfo.project.name === 'mobile' ? [390] : [1440]
+
+  for (const width of widths) {
+    await page.setViewportSize({ width, height: width === 390 ? 844 : 900 })
+    await preparePage(page)
+    await page.goto('/')
+    const shellNav = page.locator(width === 390 ? '.bottom-nav' : '.sidebar-nav')
+    await expect(shellNav).toBeVisible()
+    await expect(shellNav).toHaveCSS('backdrop-filter', 'none')
+    await page.getByRole('link', { name: 'System', exact: true }).click()
+    await expect(page.getByRole('heading', { name: 'System', exact: true })).toBeVisible()
+
+    for (const destination of [
+      { label: 'Settings', path: '/settings' },
+      { label: 'Admin tools', path: '/admin' },
+      { label: 'Subscriptions', path: '/subscriptions' },
+    ]) {
+      await page.getByRole('link', { name: destination.label, exact: true }).click()
+      await expect(page).toHaveURL(new RegExp(`${destination.path}$`))
+      await page.goBack()
+      await expect(page.getByRole('heading', { name: 'System', exact: true })).toBeVisible()
+    }
+  }
+})
+
+test('onboarding quality control keeps a visible native affordance and the primary action reachable', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await preparePage(page)
+  await page.goto('/onboarding?step=recording')
+
+  const quality = page.getByLabel('Default Quality')
+  await expect(quality).toBeVisible()
+  await expect(quality).toHaveCSS('appearance', 'auto')
+  const qualityBox = await quality.boundingBox()
+  expect(qualityBox?.height).toBeGreaterThanOrEqual(44)
+
+  const save = page.getByRole('button', { name: 'Save & Continue' })
+  await save.scrollIntoViewIfNeeded()
+  await expect(save).toBeVisible()
+  const saveBox = await save.boundingBox()
+  expect(saveBox?.height).toBeGreaterThanOrEqual(44)
+})
+
+test('welcome distinguishes forbidden and unreachable setup without showing the admin form', async ({ page }) => {
+  await page.route('**/auth/setup', route => route.fulfill({ status: 403 }))
+  await page.goto('/welcome')
+  await expect(page.getByRole('alert')).toContainText('Access to setup is forbidden.')
+  await expect(page.getByText('Create your administrator credentials')).toHaveCount(0)
+
+  await page.unroute('**/auth/setup')
+  await page.route('**/auth/setup', route => route.abort('failed'))
+  await page.reload()
+  await expect(page.getByRole('alert')).toContainText('Could not reach StreamVault setup.')
+  await expect(page.getByText('Create your administrator credentials')).toHaveCount(0)
+})
+
+test('login and onboarding use opaque panels without backdrop blur across themes and form factors', async ({ page }, testInfo) => {
+  const widths = testInfo.project.name === 'mobile' ? [390] : [1440]
+
+  for (const theme of ['light', 'dark'] as const) {
+    for (const width of widths) {
+      await page.setViewportSize({ width, height: width === 390 ? 844 : 900 })
+      await preparePage(page, theme)
+
+      for (const [route, label] of [['/auth/login', 'Username'], ['/onboarding?step=recording', 'Default Quality']] as const) {
+        await page.goto(route)
+        const panel = page.locator(route === '/auth/login' ? '.login-card.base-panel' : '.wizard-card.base-panel')
+        if (route === '/auth/login') {
+          // A DOM-visible login panel starts fully transparent during scaleIn. Capture
+          // only after the measured panel, controls, and every opacity ancestor are ready.
+          await waitForLoginCaptureReadiness(page)
+        } else {
+          await expect(panel).toBeVisible()
+        }
+        await expect(panel).toHaveCSS('backdrop-filter', 'none')
+        const panelStyle = await panel.evaluate(element => {
+          const style = getComputedStyle(element)
+          return { background: style.backgroundColor, image: style.backgroundImage }
+        })
+        expect(panelStyle.background).toMatch(/^rgb\(/)
+        expect(panelStyle.image).toBe('none')
+
+        const control = page.getByLabel(label)
+        await control.focus()
+        await expect(control).toBeFocused()
+        if (route === '/auth/login') {
+          await expect.poll(async () => {
+            const state = await getLoginCaptureState(page)
+            return state.panel.opacity === 1
+              && state.panelAncestorOpacities.every(opacity => opacity === 1)
+              && state.controls.every(candidate => candidate.opacity === 1
+                && candidate.visible
+                && candidate.ancestorOpacities.every(opacity => opacity === 1))
+          }).toBe(true)
+        }
+        const surface = route === '/auth/login' ? 'login' : 'onboarding'
+        const fileName = `${surface}-${theme}-${width}-${testInfo.project.name}.png`
+        await page.screenshot({
+          path: testInfo.outputPath(fileName),
+          fullPage: false,
+        })
+      }
+    }
+  }
 })
 
 test('active PR5 route fixtures have no serious or critical Axe violations', async ({ page }, testInfo) => {

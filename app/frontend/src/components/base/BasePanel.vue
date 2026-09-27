@@ -65,7 +65,7 @@ const paddingClass = computed(() => (props.padded ? `base-panel-padding-${props.
 
 .base-panel {
   min-width: 0;
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--sv-cmp-panel-border);
   border-radius: var(--radius-lg);
   background: transparent;
 }
@@ -73,13 +73,13 @@ const paddingClass = computed(() => (props.padded ? `base-panel-padding-${props.
 .base-panel-glass {
   // Translucency without backdrop-filter: panels are in-flow content
   // surfaces; real blur stays reserved for floating layers.
-  background: var(--glass-bg-subtle, var(--background-card));
-  border-color: var(--glass-border, var(--border-color));
+  background: var(--sv-cmp-panel-background);
+  border-color: var(--sv-cmp-panel-border);
 }
 
 .base-panel-strong {
-  background: var(--glass-bg, var(--background-card));
-  border-color: var(--glass-border, var(--border-color));
+  background: var(--sv-cmp-panel-background);
+  border-color: var(--sv-cmp-panel-border);
   box-shadow: var(--glass-shadow-sm, 0 4px 16px rgba(0, 0, 0, 0.18));
 }
 

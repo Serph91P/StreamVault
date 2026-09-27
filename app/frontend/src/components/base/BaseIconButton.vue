@@ -32,10 +32,10 @@ defineEmits<{
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: var(--control-target-mobile);
-  min-width: var(--control-target-mobile);
-  height: var(--control-target-mobile);
-  min-height: var(--control-target-mobile);
+  width: var(--sv-cmp-button-height-primary);
+  min-width: var(--sv-cmp-button-height-primary);
+  height: var(--sv-cmp-button-height-primary);
+  min-height: var(--sv-cmp-button-height-primary);
   padding: 0;
   color: inherit;
   background: transparent;
@@ -50,12 +50,13 @@ defineEmits<{
     transform var(--transition-fast);
 
   &:focus-visible {
-    outline: var(--focus-ring);
+    outline: 2px solid var(--sv-cmp-button-focus);
     outline-offset: 2px;
   }
 
   &:disabled {
-    opacity: 0.5;
+    color: var(--sv-cmp-button-disabled-foreground);
+    background: var(--sv-cmp-button-disabled-background);
     cursor: not-allowed;
   }
 }

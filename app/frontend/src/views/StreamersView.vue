@@ -805,11 +805,13 @@ $ctrl-h: 44px;
   transition: all v.$duration-200 v.$ease-out;
 
   &.active {
-    background: v.$primary-700;
+    background: v.$primary-800;
     color: white;
 
     .tab-badge {
-      background: rgba(255, 255, 255, 0.2);
+      // Keep the compact count pill opaque: alpha compositing against the
+      // active teal surface made its white small text fail contrast in light UI.
+      background: v.$primary-900;
       color: white;
     }
   }

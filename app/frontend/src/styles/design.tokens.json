@@ -1,0 +1,57 @@
+{
+  "foundation": {
+    "color": {
+      "ink-950": "#08111f",
+      "ink-900": "#0f1b2d",
+      "ink-800": "#17263b",
+      "ink-700": "#293a52",
+      "ink-500": "#64748b",
+      "ink-400": "#94a3b8",
+      "ink-300": "#cbd5e1",
+      "ink-200": "#e2e8f0",
+      "ink-100": "#f1f5f9",
+      "ink-50": "#f8fafc",
+      "white": "#ffffff",
+      "teal-800": "#115e59",
+      "teal-700": "#0f766e",
+      "teal-600": "#0d9488",
+      "teal-400": "#2dd4bf",
+      "red-700": "#b91c1c",
+      "red-600": "#dc2626",
+      "red-400": "#f87171",
+      "amber-700": "#b45309",
+      "amber-400": "#fbbf24",
+      "green-700": "#047857",
+      "green-400": "#4ade80",
+      "blue-700": "#1d4ed8",
+      "blue-400": "#60a5fa"
+    },
+    "space": { "1": "0.25rem", "2": "0.5rem", "3": "0.75rem", "4": "1rem", "5": "1.25rem", "6": "1.5rem", "8": "2rem" },
+    "size": { "target": "44px", "target-primary": "48px" },
+    "radius": { "sm": "0.25rem", "md": "0.5rem", "lg": "0.75rem", "xl": "1rem", "round": "9999px" },
+    "duration": { "fast": "150ms", "base": "200ms", "slow": "300ms" },
+    "easing": { "standard": "cubic-bezier(0.4, 0, 0.2, 1)", "exit": "cubic-bezier(0, 0, 0.2, 1)" },
+    "shadow": { "panel": "0 8px 24px rgb(0 0 0 / 0.18)", "overlay": "0 24px 64px rgb(0 0 0 / 0.38)" }
+  },
+  "semanticDark": {
+    "surface": { "canvas": "{foundation.color.ink-950}", "panel": "{foundation.color.ink-900}", "raised": "{foundation.color.ink-800}", "selected": "{foundation.color.ink-700}", "disabled": "{foundation.color.ink-800}" },
+    "text": { "primary": "{foundation.color.ink-50}", "secondary": "{foundation.color.ink-300}", "inverse": "{foundation.color.white}", "disabled": "{foundation.color.ink-400}" },
+    "border": { "default": "{foundation.color.ink-700}", "strong": "{foundation.color.ink-500}" },
+    "action": { "primary": "{foundation.color.teal-700}", "primary-hover": "{foundation.color.teal-600}", "primary-active": "{foundation.color.teal-800}", "focus": "{foundation.color.teal-400}" },
+    "status": { "success": "{foundation.color.green-400}", "warning": "{foundation.color.amber-400}", "danger": "{foundation.color.red-400}", "info": "{foundation.color.blue-400}" }
+  },
+  "semanticLight": {
+    "surface": { "canvas": "{foundation.color.ink-50}", "panel": "{foundation.color.white}", "raised": "{foundation.color.ink-100}", "selected": "{foundation.color.ink-200}", "disabled": "{foundation.color.ink-100}" },
+    "text": { "primary": "{foundation.color.ink-900}", "secondary": "{foundation.color.ink-700}", "inverse": "{foundation.color.white}", "disabled": "{foundation.color.ink-700}" },
+    "border": { "default": "{foundation.color.ink-300}", "strong": "{foundation.color.ink-500}" },
+    "action": { "primary": "{foundation.color.teal-800}", "primary-hover": "{foundation.color.teal-700}", "primary-active": "{foundation.color.teal-600}", "focus": "{foundation.color.teal-700}" },
+    "status": { "success": "{foundation.color.green-700}", "warning": "{foundation.color.amber-700}", "danger": "{foundation.color.red-700}", "info": "{foundation.color.blue-700}" }
+  },
+  "component": {
+    "button": { "height": "{foundation.size.target}", "height-primary": "{foundation.size.target-primary}", "background": "{semanticDark.action.primary}", "background-hover": "{semanticDark.action.primary-hover}", "background-active": "{semanticDark.action.primary-active}", "foreground": "{semanticDark.text.inverse}", "focus": "{semanticDark.action.focus}", "disabled-background": "{semanticDark.surface.disabled}", "disabled-foreground": "{semanticDark.text.disabled}" },
+    "field": { "background": "{semanticDark.surface.panel}", "border": "{semanticDark.border.default}", "border-hover": "{semanticDark.border.strong}", "border-focus": "{semanticDark.action.focus}", "error": "{semanticDark.status.danger}" },
+    "panel": { "background": "{semanticDark.surface.panel}", "border": "{semanticDark.border.default}", "selected": "{semanticDark.surface.selected}" },
+    "overlay": { "background": "{semanticDark.surface.raised}", "border": "{semanticDark.border.strong}", "shadow": "{foundation.shadow.overlay}" },
+    "badge": { "neutral": "{semanticDark.text.secondary}", "success": "{semanticDark.status.success}", "warning": "{semanticDark.status.warning}", "danger": "{semanticDark.status.danger}", "info": "{semanticDark.status.info}" }
+  }
+}

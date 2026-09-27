@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test'
 import axe from 'axe-core'
 import type { Page } from '@playwright/test'
+import { waitForUiReadiness } from './helpers/ui-readiness'
 
 type Theme = 'dark' | 'light'
 
@@ -14,10 +15,10 @@ interface AxeViolation {
 }
 
 const routes = [
-  { path: '/', heading: 'Live Streamers' },
-  { path: '/streamers', heading: 'Streamers' },
-  { path: '/streamers/1', heading: 'Streamer Alpha' },
-  { path: '/videos', heading: 'Videos' },
+  { path: '/', heading: 'Live Streamers', readySelectors: ['.home-view', '.dashboard-video-grid'] },
+  { path: '/streamers', heading: 'Streamers', readySelectors: ['.streamers-view', '.streamer-wrapper', '.view-details-link'] },
+  { path: '/streamers/1', heading: 'Streamer Alpha', readySelectors: ['.streamer-detail-view', '.streamer-control-header', '#streamer-detail-title'] },
+  { path: '/videos', heading: 'Videos', readySelectors: ['.videos-view', '.video-wrapper'] },
 ]
 
 async function setTheme(page: Page, theme: Theme) {
@@ -62,7 +63,7 @@ for (const theme of ['dark', 'light'] as const) {
 
       await page.goto(route.path)
       await expect(page.getByRole('heading', { name: route.heading, exact: true })).toBeVisible()
-      await page.waitForTimeout(400)
+      await waitForUiReadiness(page, route.readySelectors)
 
       const { violations } = await scanUiStandards(page)
       expect(violations, formatViolations(violations)).toEqual([])

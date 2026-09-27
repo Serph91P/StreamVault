@@ -105,9 +105,46 @@
           </div>
         </BasePanel>
 
-        <!-- No separate "Active Recordings" panel: a recording session is
-             visible as the Recording badge on its live card above, in the
-             "Recording" glance tile, and in the header queue monitor. -->
+        <BasePanel
+          v-if="recError || activeRecordings.length"
+          class="dashboard-panel"
+        >
+          <template #title>
+            <span>Recording</span>
+          </template>
+
+          <div v-if="recError">
+            <p>Unknown.</p>
+            <button @click="fetchActiveRecordings">Retry</button>
+          </div>
+
+          <div v-else class="recording-status-list">
+            <article
+              v-for="recording in recordingStatusSummaries"
+              :key="recording.id"
+              class="recording-status-item"
+            >
+              <div>
+                <h3>{{ recording.name }}</h3>
+                <p>{{ recording.summary.label }}</p>
+              </div>
+              <dl>
+                <div v-if="recording.summary.priority !== undefined">
+                  <dt>Priority</dt>
+                  <dd>{{ recording.summary.priority }}</dd>
+                </div>
+                <div v-if="recording.summary.handoff">
+                  <dt>Handoff</dt>
+                  <dd>{{ recording.summary.handoff }}</dd>
+                </div>
+                <div v-if="recording.summary.partialWarning">
+                  <dt>Note</dt>
+                  <dd>{{ recording.summary.partialWarning }}</dd>
+                </div>
+              </dl>
+            </article>
+          </div>
+        </BasePanel>
 
         <BasePanel labelled-by="recent-section-title" class="dashboard-panel">
           <template #title>
@@ -174,6 +211,7 @@ import { useRouter } from 'vue-router'
 import { streamersApi, videoApi, recordingApi, backgroundQueueApi } from '@/services/api'
 import { useRealtimeStore } from '@/stores/realtime'
 import { useForceRecording } from '@/composables/useForceRecording'
+import { toRecordingStatusSummary, type RecordingStatusSource } from '@/services/recording-status'
 import {
   hasRealtimeEventType,
   toCanonicalNotificationEvent,
@@ -208,7 +246,7 @@ interface VideoSummary {
   [key: string]: unknown
 }
 
-interface ActiveRecording {
+interface ActiveRecording extends RecordingStatusSource {
   id?: string | number
   recording_id?: string | number
   streamer_id?: string | number
@@ -270,7 +308,8 @@ const isLoadingRecordings = ref(true)
 const isLoadingQueue = ref(false)
 const streamersError = ref('')
 const videosError = ref('')
-const queueError = ref('')
+const recError = ref(false)
+
 
 const streamers = ref<StreamerSummary[]>([])
 const videos = ref<VideoSummary[]>([])
@@ -302,6 +341,12 @@ const recentRecordings = computed(() => {
     })
     .slice(0, 6)
 })
+
+const recordingStatusSummaries = computed(() => activeRecordings.value.map((recording, index) => ({
+  id: recording.id ?? recording.recording_id ?? recording.streamer_id ?? index,
+  name: recording.streamer_name || recording.username || 'Active recording',
+  summary: toRecordingStatusSummary(recording)
+})))
 
 const recentActivity = computed<CanonicalNotificationEvent[]>(() => {
   return realtime.recentEvents
@@ -345,6 +390,7 @@ const latestActivitySummary = computed(() => {
 
 const dashboardStateHeadline = computed(() => {
   if (failureItems.value.length > 0) return 'Attention needed now'
+
   if (isDashboardLoading.value && totalStreamers.value === 0 && activeRecordings.value.length === 0) return 'Checking dashboard status'
   if (liveStreamers.value.length > 0) return `${liveStreamers.value.length} streamer${liveStreamers.value.length === 1 ? '' : 's'} live now`
   if (activeRecordings.value.length > 0) return `${activeRecordings.value.length} recording${activeRecordings.value.length === 1 ? '' : 's'} active`
@@ -354,6 +400,7 @@ const dashboardStateHeadline = computed(() => {
 
 const dashboardStateDescription = computed(() => {
   if (failureItems.value.length > 0) return `${failureItems.value.length} alert${failureItems.value.length === 1 ? '' : 's'} need review before the queue looks healthy.`
+
   if (isDashboardLoading.value && totalStreamers.value === 0 && activeRecordings.value.length === 0) return 'Refreshing live, recording, queue and activity signals for the first read.'
   if (liveStreamers.value.length > 0) return 'Open a live stream, confirm recording, or keep watching queue health from this screen.'
   if (activeRecordings.value.length > 0) return 'Recording is underway. Follow the live session or watch the queue for processing.'
@@ -440,12 +487,14 @@ async function fetchVideos() {
 
 async function fetchActiveRecordings() {
   isLoadingRecordings.value = true
+  recError.value = false
   try {
     const response = await recordingApi.getActiveRecordings()
     activeRecordings.value = Array.isArray(response) ? response : response?.active_recordings || []
   } catch (error) {
     console.error('Failed to fetch active recordings:', error)
     activeRecordings.value = []
+    recError.value = true
   } finally {
     isLoadingRecordings.value = false
   }
@@ -453,7 +502,7 @@ async function fetchActiveRecordings() {
 
 async function refreshQueueFromAPI() {
   isLoadingQueue.value = true
-  queueError.value = ''
+
   try {
     const [stats, active, recent] = await Promise.all([
       backgroundQueueApi.getStats(),
@@ -466,7 +515,7 @@ async function refreshQueueFromAPI() {
     recentTasks.value = Array.isArray(recent) ? recent : []
   } catch (error) {
     console.error('Failed to refresh queue:', error)
-    queueError.value = 'Queue status is unavailable.'
+
   } finally {
     isLoadingQueue.value = false
   }

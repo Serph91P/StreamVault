@@ -1,6 +1,8 @@
 @use 'sass:map';
 @use 'sass:color';
+@use 'foundation.generated';
 @use 'variables' as v;
+@use 'foundation-bridge';
 @use 'mixins' as m;
 @forward 'variables';
 @use 'glass-system';  // Unified glassmorphism design system
@@ -287,7 +289,8 @@ button:not(.unstyled),
     &:not(:disabled):hover {
       background: v.$slate-300;
       border-color: v.$primary-500;
-      color: v.$primary-700;
+      // teal-800 preserves AA contrast on the light secondary hover surface.
+      color: v.$primary-800;
     }
   }
 }

@@ -22,9 +22,14 @@
 const fs = require('fs');
 const path = require('path');
 
-const ROOT = path.resolve(__dirname, '..', 'src');
+const rootArgumentIndex = process.argv.indexOf('--root');
+const ROOT = rootArgumentIndex === -1
+  ? path.resolve(__dirname, '..', 'src')
+  : path.resolve(process.argv[rootArgumentIndex + 1]);
 const APP_TOKEN_FILE = path.join(ROOT, 'styles', '_variables.scss');
 const GLASS_TOKEN_FILE = path.join(ROOT, 'styles', '_glass-system.scss');
+const GENERATED_TOKEN_FILE = path.join(ROOT, 'styles', '_foundation.generated.scss');
+const FOUNDATION_BRIDGE_FILE = path.join(ROOT, 'styles', '_foundation-bridge.scss');
 const TOKEN_ALLOWLIST = require('./design-token-allowlist.json');
 const APP_TOKEN_ALLOWLIST = new Set(TOKEN_ALLOWLIST.appTokens);
 const GLASS_TOKEN_ALLOWLIST = new Set(TOKEN_ALLOWLIST.glassTokens);
@@ -141,6 +146,9 @@ function checkCustomPropertyDefinition(file, lineNo, text, prop) {
   const rel = path.relative(path.resolve(__dirname, '..'), file);
   const inAppOwner = file === APP_TOKEN_FILE;
   const inGlassOwner = file === GLASS_TOKEN_FILE;
+
+  if (file === GENERATED_TOKEN_FILE) return;
+  if (file === FOUNDATION_BRIDGE_FILE && APP_TOKEN_ALLOWLIST.has(prop)) return;
 
   if (!inAppOwner && !inGlassOwner) {
     violations.push({ file: rel, line: lineNo, kind: 'custom-property-definition', text });

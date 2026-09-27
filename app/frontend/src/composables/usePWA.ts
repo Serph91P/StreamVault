@@ -30,6 +30,8 @@ export function usePWA() {
   const pushState = ref<PushState>('unsubscribed')
   const pushError = ref<string | null>(null)
   const installError = ref<string | null>(null)
+  const updateAvailable = ref(false)
+  let applyServiceWorkerUpdate: (() => Promise<void>) | null = null
   const existingSubscription = ref<PushSubscription | null>(null)
 
   const subscriptionUsesApplicationServerKey = (
@@ -285,28 +287,6 @@ export function usePWA() {
     }
   }
 
-  const showNotification = async (title: string, options: NotificationOptions = {}) => {
-    if (!registration.value) {
-      return
-    }
-
-    if (!('Notification' in window) || Notification.permission !== 'granted') {
-      return
-    }
-
-    const defaultOptions: NotificationOptions = {
-      icon: '/android-icon-192x192.png',
-      badge: '/android-icon-96x96.png',
-      tag: 'streamvault-notification',
-      ...options
-    }
-
-    if ('vibrate' in navigator && navigator.vibrate) {
-      navigator.vibrate([200, 100, 200])
-    }
-
-    return registration.value.showNotification(title, defaultOptions)
-  }
 
   const getPlatformInfo = () => {
     const userAgent = navigator.userAgent
@@ -450,6 +430,19 @@ export function usePWA() {
     installPrompt.value = null
   }
 
+  const handleUpdateAvailable = (event: Event) => {
+    applyServiceWorkerUpdate = (event as CustomEvent<{ update: () => Promise<void> }>).detail.update
+    updateAvailable.value = true
+  }
+
+  const applyUpdate = async () => {
+    if (!applyServiceWorkerUpdate) return
+    const update = applyServiceWorkerUpdate
+    applyServiceWorkerUpdate = null
+    updateAvailable.value = false
+    await update()
+  }
+
   const handleServiceWorkerMessage = (event: MessageEvent) => {
     if (event.data.type === 'navigate' && event.data.url) {
       try {
@@ -478,6 +471,7 @@ export function usePWA() {
     window.addEventListener('offline', handleOffline)
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
     window.addEventListener('appinstalled', handleAppInstalled)
+    window.addEventListener('pwa-needs-refresh', handleUpdateAvailable)
 
     if (typeof window.matchMedia === 'function') {
       displayModeQuery = window.matchMedia('(display-mode: standalone)')
@@ -502,6 +496,9 @@ export function usePWA() {
     window.removeEventListener('offline', handleOffline)
     window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
     window.removeEventListener('appinstalled', handleAppInstalled)
+    window.removeEventListener('pwa-needs-refresh', handleUpdateAvailable)
+    applyServiceWorkerUpdate = null
+    updateAvailable.value = false
 
     if (displayModeQuery) {
       if (typeof displayModeQuery.removeEventListener === 'function') {
@@ -537,19 +534,15 @@ export function usePWA() {
     isOnline,
     pushSupported,
     notificationPermission,
-    registration,
     pushState,
     pushError,
     installError,
-    existingSubscription,
-
+    updateAvailable,
     installPWA,
+    applyUpdate,
     subscribeToPush,
     unsubscribeFromPush,
-    showNotification,
     requestNotificationPermission,
-    checkExistingSubscription,
-    getPlatformInfo,
     checkPWAInstallCriteria,
     getInstallInstructions
   }

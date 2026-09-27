@@ -97,18 +97,8 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-
-interface ApiKey {
-  id: number
-  name: string
-  prefix: string
-  created_at: string
-  last_used_at: string | null
-}
-
-interface ApiKeyCreated extends ApiKey {
-  key: string
-}
+import { apiKeysApi } from '@/services/api'
+import type { ApiKey, ApiKeyCreated } from '@/types/api-keys'
 
 const keys = ref<ApiKey[]>([])
 const loading = ref(false)
@@ -121,9 +111,7 @@ async function load() {
   loading.value = true
   error.value = null
   try {
-    const res = await fetch('/api/api-keys', { credentials: 'include' })
-    if (!res.ok) throw new Error(`HTTP ${res.status}`)
-    keys.value = await res.json()
+    keys.value = await apiKeysApi.getAll()
   } catch (e: any) {
     error.value = `Failed to load API keys: ${e.message}`
   } finally {
@@ -137,17 +125,7 @@ async function createKey() {
   creating.value = true
   error.value = null
   try {
-    const res = await fetch('/api/api-keys', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({ name })
-    })
-    if (!res.ok) {
-      const txt = await res.text()
-      throw new Error(`HTTP ${res.status}: ${txt}`)
-    }
-    freshKey.value = await res.json()
+    freshKey.value = await apiKeysApi.create(name)
     newKeyName.value = ''
     await load()
   } catch (e: any) {
@@ -161,13 +139,7 @@ async function revokeKey(k: ApiKey) {
   if (!confirm(`Revoke API key "${k.name}"? Existing clients using it will stop working.`)) return
   error.value = null
   try {
-    const res = await fetch(`/api/api-keys/${k.id}`, {
-      method: 'DELETE',
-      credentials: 'include'
-    })
-    if (!res.ok && res.status !== 204) {
-      throw new Error(`HTTP ${res.status}`)
-    }
+    await apiKeysApi.revoke(k.id)
     await load()
   } catch (e: any) {
     error.value = `Failed to revoke key: ${e.message}`

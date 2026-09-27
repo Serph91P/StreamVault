@@ -286,31 +286,6 @@ async function fetchConnectionStatus() {
   }
 }
 
-async function _connectTwitch() {
-  try {
-    isLoading.value = true
-    
-    // Pass /settings as state parameter so backend knows where to redirect
-    const response = await fetch('/api/twitch/auth-url?state=/settings', {
-      credentials: 'include'
-    })
-    
-    if (!response.ok) throw new Error('Failed to get auth URL')
-    
-    const data = await response.json()
-    
-    if (data.auth_url) {
-      // Redirect to Twitch OAuth (state parameter tells backend to return to /settings)
-      window.location.href = data.auth_url
-    }
-  } catch (error) {
-    console.error('Failed to start Twitch OAuth:', error)
-    toast.error('Could not connect to Twitch. Please try again.')
-  } finally {
-    isLoading.value = false
-  }
-}
-
 async function disconnectTwitch() {
   if (!confirm('Are you sure you want to disconnect your Twitch account? You will lose access to H.265/1440p quality.')) {
     return
@@ -661,65 +636,6 @@ div.card-content {
   color: currentColor;
 }
 
-.token-setup-guide {
-  .setup-steps {
-    list-style: none;
-    counter-reset: step-counter;
-    padding: 0;
-    
-    li {
-      counter-increment: step-counter;
-      position: relative;
-      padding-left: v.$spacing-10;
-      margin-bottom: v.$spacing-4;
-      
-      &:before {
-        content: counter(step-counter);
-        position: absolute;
-        left: 0;
-        top: 0;
-        width: 32px;
-        height: 32px;
-        background: var(--primary-color);
-        color: white;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-weight: v.$font-bold;
-        font-size: v.$text-sm;
-      }
-      
-      strong {
-        color: var(--text-primary);
-        display: block;
-        margin-bottom: v.$spacing-1;
-      }
-    }
-  }
-  
-  .code-snippet {
-    background: var(--background-darker);
-    padding: v.$spacing-3;
-    border-radius: var(--radius-sm);
-    font-family: var(--font-mono);
-    font-size: v.$text-sm;
-    color: var(--primary-color);
-    overflow-x: auto;
-    margin: v.$spacing-2 0;
-    
-    code {
-      white-space: pre;
-      display: block;
-    }
-  }
-  
-  .copy-button {
-    margin-left: v.$spacing-2;
-    padding: v.$spacing-1 v.$spacing-2;
-    font-size: v.$text-xs;
-  }
-}
 
 // Steps Container
 .steps-container {
@@ -771,35 +687,6 @@ div.card-content {
   line-height: 1.6;
 }
 
-.quality-benefits {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: v.$spacing-3;
-  margin-top: v.$spacing-4;
-  
-  .benefit-item {
-    padding: v.$spacing-3;
-    background: var(--background-hover);
-    border-radius: var(--radius-sm);
-    
-    .benefit-icon {
-      font-size: v.$text-xl;
-      color: var(--success-color);
-      margin-bottom: v.$spacing-2;
-    }
-    
-    .benefit-title {
-      font-weight: v.$font-semibold;
-      color: var(--text-primary);
-      margin-bottom: v.$spacing-1;
-    }
-    
-    .benefit-description {
-      font-size: v.$text-sm;
-      color: var(--text-secondary);
-    }
-  }
-}
 
 .code-block {
   display: flex;
@@ -953,12 +840,6 @@ div.card-content {
     width: 16px;
     height: 16px;
   }
-  
-  .info-content {
-    font-size: v.$text-sm;
-    color: var(--text-secondary);
-    line-height: 1.6;
-  }
 }
 
 // ============================================================================
@@ -973,7 +854,6 @@ div.card-content {
     margin-bottom: v.$spacing-4;
   }
   
-  .form-actions,
   .token-input-row {
     flex-direction: column;
     
@@ -983,19 +863,5 @@ div.card-content {
   }
 }
 
-@include m.respond-below('sm') {
-  // Reduce padding in nested cards on mobile
-  .token-guide {
-    padding: v.$spacing-3;
-  }
-  
-  .guide-steps ol {
-    padding-left: v.$spacing-4;
-  }
-  
-  .info-banner,
-  .warning-banner {
-    padding: v.$spacing-3;
-  }
-}
+
 </style>

@@ -91,18 +91,12 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
 
-  // Glass effect
-  background: var(--glass-bg-strong);
-  backdrop-filter: blur(var(--glass-blur-lg));
-  -webkit-backdrop-filter: blur(var(--glass-blur-lg));
-  border-right: 1px solid var(--glass-border);
-  box-shadow: var(--glass-shadow-md);
+  // Opaque tokenized shell surface: navigation does not use glass or blur.
+  background: var(--background-card);
+  border-right: 1px solid var(--border-color);
+  box-shadow: var(--shadow-md);
 
   transition: width v.$duration-300 v.$ease-in-out;
-
-  @supports not (backdrop-filter: blur(1px)) {
-    background: var(--glass-bg-solid);
-  }
 
   &.collapsed {
     width: 72px;

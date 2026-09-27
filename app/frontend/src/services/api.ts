@@ -11,7 +11,6 @@ import {
   mockActiveRecordings,
   mockQueueStats,
   mockActiveTasks,
-  mockSettings,
   mockProxies
 } from '../mocks/mockData'
 import type {
@@ -26,6 +25,8 @@ import type {
   ProxySuccessResponse,
   ProxyToggleResponse
 } from '@/types/proxy'
+import type { NotificationSettings, StreamerNotificationSettings } from '@/types/settings'
+import type { ApiKey, ApiKeyCreated } from '@/types/api-keys'
 
 // Check if mock mode is enabled
 const USE_MOCK_DATA = import.meta.env.VITE_USE_MOCK_DATA === 'true'
@@ -44,22 +45,9 @@ const mockResponse = async <T>(data: T): Promise<T> => {
 const mockStreamersApi = {
   getAll: () => mockResponse({ streamers: mockStreamers }),
   get: (id: number) => mockResponse(mockStreamers.find(s => s.id === id) || null),
-  add: (username: string) => mockResponse({
-    id: Date.now(),
-    username,
-    display_name: username,
-    is_live: false,
-    is_recording: false
-  }),
   delete: async (_id: string | number, _deleteRecordings?: boolean): Promise<void> => {
     await mockResponse(undefined)
   },
-  validate: (username: string) => mockResponse({
-    valid: true,
-    user_id: '12345',
-    display_name: username,
-    profile_image_url: 'https://static-cdn.jtvnw.net/user-default-pictures-uv/cdd517fe-def4-11e9-948e-784f43822e80-profile_image-300x300.png'
-  }),
   getStreams: (streamerId: number) => {
     const streamerVideos = mockVideos.filter(video => video.streamer_id === streamerId)
     // Map mock videos to stream format expected by StreamCard
@@ -81,20 +69,12 @@ const mockStreamersApi = {
     return mockResponse({ streams })
   },
   deleteAllStreams: (streamerId: number) => mockResponse({ success: true, streamerId }),
-  deleteStream: (streamerId: number, streamId: number) => mockResponse({ success: true, streamerId, streamId }),
   getStreamChapters: (_streamerId: number, _streamId: number) => mockResponse({ chapters: [] }),
   checkLiveStatus: (streamerId: number) => mockResponse({ streamer_id: streamerId, is_live: false }),
-  getDebugLiveStatus: () => mockResponse({ live: 0, offline: mockStreamers.length }),
-  getSubscriptions: () => mockResponse({ data: [] }),
-  deleteSubscriptions: () => mockResponse({ success: true }),
-  deleteSubscription: (subscriptionId: string) => mockResponse({ success: true, subscriptionId }),
-  resubscribeAll: () => mockResponse({ success: true }),
-  forceRecord: (_id: number) => mockResponse({ success: true, message: 'Recording started' })
 }
 
 const mockVideoApi = {
   getAll: (_params: Record<string, any> = {}) => mockResponse(mockVideos),
-  getById: (id: number) => mockResponse(mockVideos.find(v => v.id === id) || null),
   delete: (_id: number) => mockResponse({ success: true }),
   deleteMultiple: (ids: number[]) => mockResponse({ success: true, count: ids.length }),
   getVideoStreamUrl: (id: number): string => `/api/videos/${id}/stream`,
@@ -105,47 +85,54 @@ const mockVideoApi = {
     success: true,
     share_url: `/api/videos/public/${id}?token=mock-share-token`,
     expires_in: '24 hours'
-  }),
-  regenerateMetadata: (_id: number) => mockResponse({ success: true })
+  })
 }
 
 const mockRecordingApi = {
   getActiveRecordings: () => mockResponse(mockActiveRecordings),
-  stop: (_streamerId: number) => mockResponse({ success: true }),
-  startRecording: (_streamerId: number) => mockResponse({ success: true }),
-  stopRecording: (_streamerId: number) => mockResponse({ success: true }),
-  getSettings: () => mockResponse({}),
-  updateSettings: (_settings: any) => mockResponse({ success: true }),
-  getStreamerSettings: (_streamerId: number) => mockResponse({}),
-  updateStreamerSettings: (_streamerId: number, _settings: any) => mockResponse({ success: true }),
+  stopRecording: (_streamerId: number) => mockResponse(undefined),
   forceStartRecording: (streamerId: number) => mockResponse({ success: true, streamerId }),
-  forceStopRecording: (recordingId: number) => mockResponse({ success: true, recordingId }),
-  getRecordingStatus: (recordingId: number) => mockResponse({ recordingId, status: 'stopped' }),
-  deleteRecording: (recordingId: number) => mockResponse({ success: true, recordingId }),
-  getRecordingHistory: () => mockResponse([]),
-  checkStreamerLiveStatus: (streamerId: number) => mockResponse({ streamer_id: streamerId, is_live: false })
 }
 
 const mockBackgroundQueueApi = {
   getStats: () => mockResponse(mockQueueStats),
   getActiveTasks: () => mockResponse(mockActiveTasks),
   getRecentTasks: () => mockResponse([]),
-  getTask: (taskId: string) => mockResponse({ taskId, status: 'queued' }),
-  enqueueTask: (taskData: any) => mockResponse({ success: true, task: taskData }),
-  enqueueMetadataGeneration: (streamId: number) => mockResponse({ success: true, streamId }),
-  enqueueThumbnailGeneration: (streamId: number) => mockResponse({ success: true, streamId }),
-  enqueueFileCleanup: (streamerId: number) => mockResponse({ success: true, streamerId }),
-  getHealth: () => mockResponse({ healthy: true }),
-  cancelStreamTasks: (streamId: number) => mockResponse({ success: true, streamId })
+  cancelStreamTasks: (_streamId: number) => mockResponse(undefined)
 }
 
+let mockGlobalSettings: NotificationSettings = {
+  notification_url: '',
+  notifications_enabled: true,
+  apprise_docs_url: '',
+  notify_online_global: true,
+  notify_offline_global: true,
+  notify_update_global: true
+}
+const mockStreamerSettings: StreamerNotificationSettings[] = []
 const mockSettingsApi = {
-  getAll: () => mockResponse(mockSettings),
-  update: (data: any) => mockResponse({ ...mockSettings, ...data }),
-  getRecordingSettings: () => mockResponse(mockSettings.recording || {}),
-  updateRecordingSettings: (_data: any) => mockResponse({ success: true }),
-  getNotificationSettings: () => mockResponse(mockSettings.notifications || {}),
-  updateNotificationSettings: (_data: any) => mockResponse({ success: true })
+  getGlobalSettings: () => mockResponse({ ...mockGlobalSettings }),
+  updateGlobalSettings: (settings: Partial<NotificationSettings>) => {
+    mockGlobalSettings = { ...mockGlobalSettings, ...settings }
+    return mockResponse({ ...mockGlobalSettings })
+  },
+  getStreamerSettings: () => mockResponse([...mockStreamerSettings]),
+  updateStreamerSettings: (streamerId: number, settings: Partial<StreamerNotificationSettings>) =>
+    mockResponse({ streamer_id: streamerId, notify_online: true, notify_offline: true, notify_update: true, ...settings })
+}
+
+let mockApiKeys: ApiKey[] = []
+const mockApiKeysApi = {
+  getAll: () => mockResponse([...mockApiKeys]),
+  create: (name: string): Promise<ApiKeyCreated> => {
+    const key = { id: Date.now(), name, prefix: 'sv_mock', key: 'mock-key', created_at: new Date().toISOString(), last_used_at: null }
+    mockApiKeys.push(key)
+    return mockResponse(key)
+  },
+  revoke: (id: number) => {
+    mockApiKeys = mockApiKeys.filter(key => key.id !== id)
+    return mockResponse(undefined)
+  }
 }
 
 const mockNotificationApi = {
@@ -272,43 +259,23 @@ const mockSystemApi = {
   getStreamersStatus: (_params: Record<string, any> = {}) => mockResponse({ live: 2, offline: 2, total: 4 }),
   getStreamsStatus: (_params: Record<string, any> = {}) => mockResponse({ live: 2, total: 4 }),
   getActiveRecordingsStatus: (_params: Record<string, any> = {}) => mockResponse({ active: 1, total: 1 }),
-  getBackgroundQueueStatus: () => mockResponse(mockQueueStats),
   getNotificationsStatus: (_params: Record<string, any> = {}) => mockResponse({ unread: 0, total: 0 })
 }
 
 const mockStreamsApi = {
-  delete: (streamId: number) => mockResponse({ success: true, streamId }),
-  checkRecordings: (streamIds: number[]) => mockResponse({ success: true, processed: streamIds.length })
+  delete: (_streamId: number) => mockResponse(undefined),
 }
 
 const mockAuthApi = {
   getAuthUrl: () => mockResponse({ url: 'https://twitch.tv/oauth/mock' }),
-  handleCallback: (code: string, state: string) => mockResponse({ success: true, code, state }),
   getFollowedChannels: () => mockResponse([
     { user_id: '123', user_login: 'mock1', user_name: 'Mock Channel 1' },
     { user_id: '456', user_login: 'mock2', user_name: 'Mock Channel 2' }
   ]),
   importStreamers: (_streamerIds: number[]) => mockResponse({ imported: 0, total: 0 }),
-  login: (_data: any) => mockResponse({ success: true, token: 'mock-token' }),
-  logout: () => mockResponse({ success: true }),
-  check: () => mockResponse({ authenticated: true }),
-  setup: () => mockResponse({ setup_required: false }),
-  getConnectionStatus: () => mockResponse({ 
-    connected: false, 
-    has_oauth_token: false,
-    has_browser_token: true,
-    token_source: 'browser'
-  }),
   getCallbackUrl: () => mockResponse({ callback_url: 'http://localhost:8000/auth/callback' }),
-  exchangeCode: (_code: string) => mockResponse({ success: true }),
-  disconnect: () => mockResponse({ success: true }),
-  importFollowedChannels: () => mockResponse({ imported: 0, total: 0 })
 }
 
-const mockImagesApi = {
-  getThumbnail: (_videoId: number) => mockResponse(null),
-  getStreamerAvatar: (_streamerId: number) => mockResponse(null)
-}
 
 const mockSubscriptionsApi = {
   getAll: () => mockResponse({ total: 0, subscriptions: [] }),
@@ -331,29 +298,12 @@ const mockSubscriptionsApi = {
 }
 
 const mockCategoriesApi = {
-  getAll: () => mockResponse([]),
-  getFavorites: () => mockResponse([]),
-  addFavorite: (categoryId: number) => mockResponse({ success: true, categoryId }),
-  removeFavorite: (categoryId: number) => mockResponse({ success: true, categoryId }),
   getImage: (categoryName: string) => mockResponse({ category_name: categoryName, image_url: null }),
-  getImagesBatch: (names: string[]) => mockResponse({
-    category_images: names.reduce<Record<string, string | null>>((acc, name) => {
-      acc[name] = null
-      return acc
-    }, {})
-  }),
-  preloadImages: (names: string[]) => mockResponse({ message: `Started preloading ${names.length} category images`, categories: names }),
-  refreshImages: (names: string[]) => mockResponse({ message: `Started refreshing ${names.length} category images`, categories: names }),
-  cleanupImages: (daysOld: number = 30) => mockResponse({ success: true, daysOld }),
-  getCacheStatus: () => mockResponse({ cached_categories: 0, failed_downloads: 0 }),
-  getMissingImages: () => mockResponse({ missing: [] })
+  preloadImages: (_names: string[]) => mockResponse(undefined),
 }
 
 const mockFilenamePresetsApi = {
-  getAll: () => mockResponse({ status: 'success', data: [] }),
-  create: (data: any) => mockResponse({ ...data, id: Date.now() }),
-  update: (_id: number, _data: any) => mockResponse({ success: true }),
-  delete: (_id: number) => mockResponse({ success: true })
+  getAll: () => mockResponse({ status: 'success', data: [] })
 }
 
 const mockLiveApi = {
@@ -376,16 +326,6 @@ const mockLiveApi = {
     success: true,
     message: 'Stream stopped (mock)'
   }),
-  getLiveStreamStatus: (sessionId: string) => mockResponse({
-    session_id: sessionId,
-    streamer_name: 'mock_streamer',
-    quality: 'best',
-    is_active: true,
-    created_at: new Date().toISOString(),
-    last_accessed: new Date().toISOString(),
-    playlist_url: '/api/live/stream/mock/playlist.m3u8'
-  }),
-  getActiveLiveStreams: () => mockResponse({ streams: [] }),
   getPlaylistUrl: (sessionId: string): string => `/api/live/stream/${sessionId}/playlist.m3u8`
 }
 
@@ -402,10 +342,8 @@ export type { ApiRequestErrorCode } from './api-real'
 // CONDITIONAL EXPORTS
 // ============================================================================
 
-if (USE_MOCK_DATA) {
-  console.log('🎭 Using MOCK API for all endpoints')
-} else {
-  console.log('🌐 Using REAL API for all endpoints')
+if (import.meta.env.DEV) {
+  console.log(USE_MOCK_DATA ? '🎭 Using MOCK API for all endpoints' : '🌐 Using REAL API for all endpoints')
 }
 
 export const streamersApi = USE_MOCK_DATA ? mockStreamersApi : realApi.streamersApi
@@ -413,21 +351,14 @@ export const videoApi = USE_MOCK_DATA ? mockVideoApi : realApi.videoApi
 export const recordingApi = USE_MOCK_DATA ? mockRecordingApi : realApi.recordingApi
 export const backgroundQueueApi = USE_MOCK_DATA ? mockBackgroundQueueApi : realApi.backgroundQueueApi
 export const settingsApi = USE_MOCK_DATA ? mockSettingsApi : realApi.settingsApi
+export const apiKeysApi = USE_MOCK_DATA ? mockApiKeysApi : realApi.apiKeysApi
 export const notificationApi = USE_MOCK_DATA ? mockNotificationApi : realApi.notificationApi
 export const systemApi = USE_MOCK_DATA ? mockSystemApi : realApi.systemApi
 export const streamsApi = USE_MOCK_DATA ? mockStreamsApi : realApi.streamsApi
 export const authApi = USE_MOCK_DATA ? mockAuthApi : realApi.authApi
-export const imagesApi = USE_MOCK_DATA ? mockImagesApi : realApi.imagesApi
 export const subscriptionsApi = USE_MOCK_DATA ? mockSubscriptionsApi : realApi.subscriptionsApi
-export const categoriesApi = USE_MOCK_DATA ? mockCategoriesApi : (realApi.categoriesApi || { getAll: () => Promise.resolve([]) })
-export const filenamePresetsApi = USE_MOCK_DATA ? mockFilenamePresetsApi : (realApi.filenamePresetsApi || { getAll: () => Promise.resolve([]) })
+export const categoriesApi = USE_MOCK_DATA ? mockCategoriesApi : realApi.categoriesApi
+export const filenamePresetsApi = USE_MOCK_DATA ? mockFilenamePresetsApi : realApi.filenamePresetsApi
 
 export const proxyApi = USE_MOCK_DATA ? mockProxyApi : realApi.proxyApi
-
-export const liveApi = USE_MOCK_DATA ? mockLiveApi : (realApi.liveApi || {
-  startLiveStream: () => Promise.resolve({ success: false }),
-  stopLiveStream: () => Promise.resolve({ success: false }),
-  getLiveStreamStatus: () => Promise.resolve(null),
-  getActiveLiveStreams: () => Promise.resolve({ streams: [] }),
-  getPlaylistUrl: (sessionId: string) => `/api/live/stream/${sessionId}/playlist.m3u8`
-})
+export const liveApi = USE_MOCK_DATA ? mockLiveApi : realApi.liveApi

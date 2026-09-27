@@ -134,7 +134,7 @@ const error = ref<string | null>(null);
 const imageErrors = ref<Set<string>>(new Set());
 
 // Use category images composable
-const { getCategoryImage, preloadCategoryImages, refreshImages: _refreshImages, clearCache: _clearCache } = useCategoryImages();
+const { getCategoryImage, preloadCategoryImages } = useCategoryImages();
 const toast = useToast();
 
 // Computed properties
@@ -290,19 +290,6 @@ const toggleFavorite = async (category: Category) => {
     console.error('Error toggling favorite status:', err);
     toast.error('Failed to update favorite status');
   }
-};
-
-const _formatImageUrl = (url: string | null, width: number, height: number): string => {
-  if (!url) return '';
-  
-  // Handle Twitch-Format mit Platzhaltern
-  if (url.includes('{width}') && url.includes('{height}')) {
-    return url
-      .replace('{width}', width.toString())
-      .replace('{height}', height.toString());
-  }
-  
-  return url;
 };
 
 const handleImageError = (event: Event) => {

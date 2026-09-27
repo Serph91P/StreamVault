@@ -1,5 +1,6 @@
 import { ref, type Ref } from 'vue'
 import type { NotificationSettings, StreamerNotificationSettings } from '@/types/settings'
+import { settingsApi } from '@/services/api'
 
 interface NotificationSettingsComposable {
   settings: Ref<NotificationSettings | null>
@@ -16,39 +17,19 @@ export function useNotificationSettings(): NotificationSettingsComposable {
 
   const fetchSettings = async (): Promise<void> => {
     try {
-      const response = await fetch('/api/settings', {
-        credentials: 'include' // CRITICAL: Required to send session cookie
-      })
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
-      settings.value = await response.json()
+      settings.value = await settingsApi.getGlobalSettings()
     } catch (error) {
       console.error('Failed to fetch settings:', error)
     }
   }
 
   const updateSettings = async (newSettings: Partial<NotificationSettings>): Promise<void> => {
-    const response = await fetch('/api/settings', {
-      method: 'POST',
-      credentials: 'include', // CRITICAL: Required to send session cookie
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newSettings)
-    })
-    
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.detail || 'Failed to update settings')
-    }
-    
-    settings.value = await response.json()
+    settings.value = await settingsApi.updateGlobalSettings(newSettings)
   }
 
   const getStreamerSettings = async () => {
     try {
-      const response = await fetch('/api/settings/streamer', {
-        credentials: 'include' // CRITICAL: Required to send session cookie
-      })
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
-      const data = await response.json()
+      const data = await settingsApi.getStreamerSettings()
       streamerSettings.value = data
       return data
     } catch (error) {
@@ -58,20 +39,7 @@ export function useNotificationSettings(): NotificationSettingsComposable {
   }
 
   const updateStreamerSettings = async (streamerId: number, settings: Partial<StreamerNotificationSettings>): Promise<StreamerNotificationSettings> => {
-    const response = await fetch(`/api/settings/streamer/${streamerId}`, {
-      method: 'POST',
-      credentials: 'include', // CRITICAL: Required to send session cookie
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(settings)
-    })
-    
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => null)
-      console.error("Error updating settings:", errorData)
-      throw new Error(errorData?.detail || `Failed to update settings for streamer ${streamerId}`)
-    }
-    
-    return await response.json()
+    return settingsApi.updateStreamerSettings(streamerId, settings)
   }
   return {
     settings,

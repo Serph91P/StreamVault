@@ -416,16 +416,6 @@ const proxyUrlError = computed(() => {
   return ''
 })
 
-// Helper methods
-function _getHealthBadgeClass(status: string): string {
-  switch (status) {
-    case 'healthy': return 'success'
-    case 'degraded': return 'warning'
-    case 'failed': return 'danger'
-    default: return 'secondary'
-  }
-}
-
 function getSuccessRate(proxy: ProxySettings): string {
   if (proxy.total_requests === 0) return 'N/A'
   const rate = (proxy.successful_requests / proxy.total_requests) * 100
@@ -1043,94 +1033,6 @@ async function handleSaveConfig() {
 
 :deep(.form-hint) {
   color: var(--text-primary);
-}
-
-// ============================================================================
-// MODAL STYLES
-// ============================================================================
-
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.7);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  padding: v.$spacing-4;
-}
-
-.modal-card {
-  width: 100%;
-  max-width: 500px;
-  max-height: 90vh;
-  overflow-y: auto;
-}
-
-.modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: v.$spacing-5;
-
-  h2 {
-    margin: 0;
-    font-size: v.$text-xl;
-    font-weight: v.$font-semibold;
-    color: var(--text-primary);
-  }
-}
-
-.btn-close {
-  background: none;
-  border: none;
-  font-size: v.$text-2xl;
-  color: var(--text-secondary);
-  cursor: pointer;
-  padding: v.$spacing-1;
-  line-height: 1;
-
-  &:hover {
-    color: var(--text-primary);
-  }
-}
-
-.modal-body {
-  .form-group {
-    margin-bottom: v.$spacing-4;
-  }
-
-  .form-label {
-    display: block;
-    font-weight: v.$font-medium;
-    color: var(--text-primary);
-    margin-bottom: v.$spacing-2;
-  }
-
-  .form-control {
-    width: 100%;
-  }
-
-  .help-text {
-    font-size: v.$text-sm;
-    color: var(--text-secondary);
-    margin-top: v.$spacing-1;
-  }
-
-  .error-text {
-    font-size: v.$text-sm;
-    color: var(--danger-color);
-    margin-top: v.$spacing-1;
-  }
-}
-
-.modal-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: v.$spacing-3;
-  margin-top: v.$spacing-5;
-  padding-top: v.$spacing-4;
-  border-top: 1px solid var(--border-color);
 }
 
 // ============================================================================

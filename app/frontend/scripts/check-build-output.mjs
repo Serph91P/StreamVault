@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs'
 import { readdir, readFile, rm } from 'node:fs/promises'
 import { join, relative } from 'node:path'
 import { spawnSync } from 'node:child_process'
+import { checkPrecacheIntegrity } from './check-precache-integrity.mjs'
 
 const root = process.cwd()
 const dist = join(root, 'dist')
@@ -40,6 +41,7 @@ async function build(number) {
     throw new Error(`Production build ${number} emitted source output at ${emittedSource}`)
   }
 
+  await checkPrecacheIntegrity(join(dist, 'sw.js'))
   return manifest(dist)
 }
 

@@ -77,6 +77,8 @@ withDefaults(defineProps<Props>(), {})
   font-size: var(--text-2xl);
   font-weight: 700;
   line-height: 1.25;
+  // Page headers globally use a decorative gradient; this semantic title must remain solid for contrast checks.
+  background-image: none;
   color: var(--text-primary);
   margin: 0;
   display: flex;

@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { ref, toRef, watch } from 'vue'
+import { useModal } from '@/composables/useModal'
 
 interface Props {
   modelValue: boolean
@@ -22,11 +23,17 @@ const emit = defineEmits<{
 }>()
 
 const sheetRef = ref<HTMLElement | null>(null)
-const previouslyFocused = ref<HTMLElement | null>(null)
+
+const modal = useModal(sheetRef, {
+  closeOnEscape: toRef(props, 'closeOnEsc'),
+  onClose: () => {
+    emit('update:modelValue', false)
+    emit('close')
+  },
+})
 
 function close() {
-  emit('update:modelValue', false)
-  emit('close')
+  modal.close()
 }
 
 function onBackdropClick(event: MouseEvent) {
@@ -35,62 +42,14 @@ function onBackdropClick(event: MouseEvent) {
   }
 }
 
-function onKeydown(event: KeyboardEvent) {
-  if (event.key === 'Escape' && props.closeOnEsc) {
-    event.stopPropagation()
-    close()
-    return
-  }
-  if (event.key === 'Tab') {
-    trapTabFocus(event)
-  }
-}
-
-function trapTabFocus(event: KeyboardEvent) {
-  const panel = sheetRef.value
-  if (!panel) return
-  const focusable = getFocusableElements(panel)
-  if (!focusable.length) {
-    event.preventDefault()
-    return
-  }
-  const first = focusable[0]
-  const last = focusable[focusable.length - 1]
-  if (event.shiftKey && document.activeElement === first) {
-    event.preventDefault()
-    last.focus()
-  } else if (!event.shiftKey && document.activeElement === last) {
-    event.preventDefault()
-    first.focus()
-  }
-}
-
-function getFocusableElements(container: HTMLElement): HTMLElement[] {
-  return Array.from(
-    container.querySelectorAll<HTMLElement>(
-      'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
-    )
-  )
-}
-
 watch(
   () => props.modelValue,
-  async (open) => {
-    if (open) {
-      previouslyFocused.value = (document.activeElement as HTMLElement) || null
-      document.body.style.overflow = 'hidden'
-      await nextTick()
-      sheetRef.value?.focus()
-    } else {
-      document.body.style.overflow = ''
-      previouslyFocused.value?.focus?.()
-    }
+  (open) => {
+    if (open) modal.open()
+    else modal.close(false)
   },
+  { immediate: true },
 )
-
-onBeforeUnmount(() => {
-  document.body.style.overflow = ''
-})
 </script>
 
 <template>
@@ -101,7 +60,6 @@ onBeforeUnmount(() => {
         class="sheet-backdrop"
         role="presentation"
         @click="onBackdropClick"
-        @keydown="onKeydown"
       >
         <aside
           ref="sheetRef"
@@ -152,10 +110,10 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   max-height: calc(100dvh - env(safe-area-inset-top, 0px));
-  background: var(--glass-bg-strong, var(--background-card));
-  border: 1px solid var(--glass-border, var(--border-color));
-  box-shadow: var(--glass-shadow-lg, 0 16px 48px rgba(0, 0, 0, 0.3));
-  color: var(--text-primary);
+  background: var(--sv-cmp-overlay-background);
+  border: 1px solid var(--sv-cmp-overlay-border);
+  box-shadow: var(--sv-cmp-overlay-shadow);
+  color: var(--sv-sem-text-primary);
   outline: none;
 }
 
@@ -192,11 +150,11 @@ onBeforeUnmount(() => {
 }
 
 .base-sheet-header {
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--sv-cmp-overlay-border);
 }
 
 .base-sheet-footer {
-  border-top: 1px solid var(--border-color);
+  border-top: 1px solid var(--sv-cmp-overlay-border);
 }
 
 .base-sheet-title {
@@ -212,14 +170,14 @@ onBeforeUnmount(() => {
 }
 
 .base-sheet-close {
-  min-width: 44px;
-  min-height: 44px;
+  min-width: var(--sv-fdn-size-target);
+  min-height: var(--sv-fdn-size-target);
   border-radius: var(--radius-full);
   background: transparent;
-  color: var(--text-secondary);
+  color: var(--sv-sem-text-secondary);
 
   &:focus-visible {
-    outline: 2px solid var(--primary-color);
+    outline: 2px solid var(--sv-sem-action-focus);
     outline-offset: 2px;
   }
 }

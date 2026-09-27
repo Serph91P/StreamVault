@@ -32,43 +32,17 @@ app.mount('#app')
 // VitePWA owns SW registration via virtual:pwa-register
 import { registerSW } from 'virtual:pwa-register'
 
-const _updateSW = registerSW({
+const updateSW = registerSW({
   onNeedRefresh() {
-    console.log('PWA needs refresh')
-    window.dispatchEvent(new CustomEvent('pwa-needs-refresh'))
-  },
-  onOfflineReady() {
-    console.log('PWA is ready for offline use')
-    window.dispatchEvent(new CustomEvent('pwa-offline-ready'))
-  },
-  onRegistered(registration) {
-    console.log('Service Worker registered successfully', registration)
-    window.dispatchEvent(new CustomEvent('pwa-sw-registered', { detail: { registration } }))
+    window.dispatchEvent(new CustomEvent('pwa-needs-refresh', {
+      detail: { update: () => updateSW(true) }
+    }))
   },
   onRegisterError(error) {
     console.error('Service Worker registration failed:', error)
-    window.dispatchEvent(new CustomEvent('pwa-sw-register-error', { detail: { error } }))
   },
 })
 
-// PWA Install Event
-let _deferredPrompt: any = null
-
-window.addEventListener('beforeinstallprompt', (e) => {
-  // Prevent the mini-infobar from appearing on mobile
-  e.preventDefault()
-  // Stash the event so it can be triggered later.
-  _deferredPrompt = e
-  console.log('PWA install prompt available')
-  
-  // Make the install prompt available
-  window.dispatchEvent(new CustomEvent('pwa-installable', { detail: e }))
-})
-
-window.addEventListener('appinstalled', () => {
-  console.log('PWA was installed')
-  // deferredPrompt is managed by the PWA composable
-})
 
 // Lightweight session keepalive: ping backend periodically to refresh cookie session
 // Runs only when page is visible to reduce battery impact

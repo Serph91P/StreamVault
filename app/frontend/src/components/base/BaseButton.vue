@@ -79,8 +79,8 @@ const classes = computed(() => [
 // All visual styles come from src/styles/_components.scss .btn
 // Only layout helpers that don't exist there live here.
 .base-button-target {
-  min-height: var(--control-target-min);
-  min-inline-size: var(--control-target-min);
+  min-height: var(--sv-cmp-button-height);
+  min-inline-size: var(--sv-cmp-button-height);
   transition:
     color var(--transition-fast),
     background-color var(--transition-fast),
@@ -89,20 +89,30 @@ const classes = computed(() => [
     transform var(--transition-fast);
 
   &:focus-visible {
-    outline: var(--focus-ring);
+    outline: 2px solid var(--sv-cmp-button-focus);
     outline-offset: 2px;
   }
 }
 
 // Ordinary controls use the documented 44px target. Primary actions reserve 48px.
 .base-button-target--ordinary {
-  min-height: var(--control-target-min);
-  min-inline-size: var(--control-target-min);
+  min-height: var(--sv-cmp-button-height);
+  min-inline-size: var(--sv-cmp-button-height);
 }
 
 .base-button-target--primary {
-  min-height: var(--control-target-mobile);
-  min-inline-size: var(--control-target-mobile);
+  min-height: var(--sv-cmp-button-height-primary);
+  min-inline-size: var(--sv-cmp-button-height-primary);
+}
+
+.base-button-target:disabled {
+  color: var(--sv-cmp-button-disabled-foreground);
+  background: var(--sv-cmp-button-disabled-background);
+}
+
+// Keep the outline affordance after the global button reset has been applied.
+.btn-outline {
+  border: 2px solid currentColor;
 }
 
 .btn-block {

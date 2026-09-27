@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import GlassCard from '@/components/cards/GlassCard.vue'
+import BasePanel from '@/components/base/BasePanel.vue'
 import BaseButton from '@/components/base/BaseButton.vue'
-import { appStorage } from '@/services/storage'
+import BaseDropdown from '@/components/base/BaseDropdown.vue'
+import { loginLocationFor } from '@/services/session'
+
 
 /**
  * Unified onboarding wizard. Both `/auth/setup` and `/welcome` route
@@ -12,7 +14,7 @@ import { appStorage } from '@/services/storage'
  * after the Twitch OAuth round-trip via `?step=...`.
  */
 
-type StepId = 'admin' | 'twitch' | 'recording' | 'streamers' | 'done'
+type StepId = 'admin' | 'recording' | 'streamers' | 'done'
 
 interface StepDef {
   id: StepId
@@ -23,7 +25,7 @@ interface StepDef {
 
 const STEPS: StepDef[] = [
   { id: 'admin', title: 'Admin Account', subtitle: 'Create your administrator credentials', icon: 'icon-user' },
-  { id: 'twitch', title: 'Connect Twitch', subtitle: 'Optional: link Twitch for HEVC + ad-free recordings', icon: 'icon-link' },
+
   { id: 'recording', title: 'Recording Defaults', subtitle: 'Where and how recordings are stored', icon: 'icon-video' },
   { id: 'streamers', title: 'Add Streamers', subtitle: 'Optional: add your first streamer to track', icon: 'icon-users' },
   { id: 'done', title: 'All Set', subtitle: 'You are ready to go', icon: 'icon-check-circle' },
@@ -37,6 +39,7 @@ const stepIndex = ref(0)
 const setupRequired = ref(true)
 const welcomeCompleted = ref(false)
 const initializing = ref(true)
+const bootstrapError = ref('')
 
 const currentStep = computed(() => STEPS[stepIndex.value])
 const visibleSteps = computed(() =>
@@ -76,7 +79,7 @@ async function submitAdmin(): Promise<void> {
     })
     if (response.ok) {
       setupRequired.value = false
-      goToStep('twitch')
+      goToStep('recording')
     } else {
       const detail = await response.json().catch(() => ({}))
       adminError.value = detail?.detail || 'Setup failed. Please try again.'
@@ -89,45 +92,7 @@ async function submitAdmin(): Promise<void> {
   }
 }
 
-// ---- step 2: twitch ----
-const twitchConnected = ref(false)
-const twitchChecking = ref(false)
-const twitchStarting = ref(false)
-
-async function refreshTwitchStatus(): Promise<void> {
-  twitchChecking.value = true
-  try {
-    const res = await fetch('/api/twitch/connection-status', { credentials: 'include' })
-    if (res.ok) {
-      const data = await res.json()
-      twitchConnected.value = Boolean(data.connected)
-    }
-  } catch (err) {
-    console.error('Twitch status check failed:', err)
-  } finally {
-    twitchChecking.value = false
-  }
-}
-
-async function startTwitchOAuth(): Promise<void> {
-  twitchStarting.value = true
-  try {
-    const res = await fetch('/api/twitch/auth-url', { credentials: 'include' })
-    const data = await res.json()
-    if (data.auth_url) {
-      // After callback we want to land back on the wizard at the next step.
-      appStorage.setOauthReturnUrl('/onboarding?step=recording')
-      window.location.href = data.auth_url
-      return
-    }
-  } catch (err) {
-    console.error('Twitch OAuth start failed:', err)
-  } finally {
-    twitchStarting.value = false
-  }
-}
-
-// ---- step 3: recording defaults ----
+// ---- recording defaults ----
 interface RecordingSettings {
   enabled: boolean
   output_directory: string
@@ -146,6 +111,7 @@ const recordingSaving = ref(false)
 const recordingError = ref('')
 
 const QUALITY_OPTIONS = ['best', '1080p60', '1080p', '720p60', '720p', '480p', 'audio_only']
+const qualityOptions = QUALITY_OPTIONS.map(value => ({ label: value, value }))
 
 async function loadRecordingSettings(): Promise<void> {
   recordingLoading.value = true
@@ -238,6 +204,7 @@ async function finishOnboarding(): Promise<void> {
   if (finishing.value) return
   finishing.value = true
   finishError.value = ''
+  let completed = false
   try {
     const res = await fetch('/auth/onboarding/complete', {
       method: 'POST',
@@ -249,15 +216,17 @@ async function finishOnboarding(): Promise<void> {
       },
     })
     if (!res.ok) {
-      finishError.value = 'Could not save onboarding state. Continuing anyway.'
+      finishError.value = 'Could not save onboarding state. Please try again.'
+    } else {
+      completed = true
     }
   } catch (err) {
     console.error('Finishing onboarding failed:', err)
-    finishError.value = 'Could not save onboarding state. Continuing anyway.'
+    finishError.value = 'Could not save onboarding state. Please try again.'
   } finally {
     finishing.value = false
   }
-  router.replace('/')
+  if (completed) await router.replace('/')
 }
 
 // ---- step navigation ----
@@ -274,9 +243,7 @@ async function goToStep(id: StepId): Promise<void> {
 }
 
 async function onEnterStep(id: StepId): Promise<void> {
-  if (id === 'twitch' && !twitchChecking.value) {
-    await refreshTwitchStatus()
-  } else if (id === 'recording' && !recording.value) {
+  if (id === 'recording' && !recording.value) {
     await loadRecordingSettings()
   }
 }
@@ -297,7 +264,7 @@ function prevStep(): void {
 
 const canGoBack = computed(() => {
   if (currentStep.value.id === 'admin') return false
-  if (currentStep.value.id === 'twitch' && !setupRequired.value) return false
+
   if (currentStep.value.id === 'done') return false
   return stepIndex.value > 0
 })
@@ -305,6 +272,7 @@ const canGoBack = computed(() => {
 // ---- bootstrap ----
 async function bootstrap(): Promise<void> {
   initializing.value = true
+  bootstrapError.value = ''
   try {
     const res = await fetch('/auth/setup', {
       credentials: 'include',
@@ -314,9 +282,22 @@ async function bootstrap(): Promise<void> {
       const data = await res.json()
       setupRequired.value = Boolean(data.setup_required)
       welcomeCompleted.value = Boolean(data.welcome_completed)
+    } else if (res.status === 401) {
+      await router.replace(loginLocationFor(route.fullPath))
+      return
+    } else if (res.status === 403) {
+      bootstrapError.value = 'Access to setup is forbidden. Contact an administrator or sign in with an authorized account.'
+    } else {
+      bootstrapError.value = 'StreamVault setup is currently unavailable. Check the service and try again.'
     }
   } catch (err) {
     console.error('Onboarding bootstrap failed:', err)
+    bootstrapError.value = 'Could not reach StreamVault setup. Check your connection and try again.'
+  }
+
+  if (bootstrapError.value) {
+    initializing.value = false
+    return
   }
 
   // Decide where to start.
@@ -327,9 +308,9 @@ async function bootstrap(): Promise<void> {
   } else if (requested && STEPS.some((s) => s.id === requested)) {
     target = requested as StepId
   } else if (route.path === '/auth/setup') {
-    target = 'twitch'
+    target = 'recording'
   } else {
-    target = 'twitch'
+    target = 'recording'
   }
   initializing.value = false
   await goToStep(target)
@@ -366,10 +347,16 @@ onMounted(() => {
         </li>
       </ol>
 
-      <GlassCard class="wizard-card">
+      <BasePanel :padded="false" class="wizard-card">
         <div v-if="initializing" class="wizard-loading">
           <span class="spinner" />
           <span>Loading...</span>
+        </div>
+
+        <div v-else-if="bootstrapError" class="wizard-status" role="alert">
+          <h2 class="wizard-step-title">Setup needs attention</h2>
+          <p class="wizard-text">{{ bootstrapError }}</p>
+          <BaseButton variant="primary" @click="bootstrap">Try again</BaseButton>
         </div>
 
         <template v-else>
@@ -435,44 +422,7 @@ onMounted(() => {
             </div>
           </form>
 
-          <!-- ============ Step 2: Twitch ============ -->
-          <div v-else-if="currentStep.id === 'twitch'" class="wizard-step-body">
-            <p class="wizard-text">
-              Linking your Twitch account is optional but unlocks H.265/1440p
-              and ad-free recordings (with Twitch Turbo). You can do this later
-              under Settings.
-            </p>
-
-            <div class="status-row">
-              <svg class="status-icon" :class="{ 'is-good': twitchConnected }">
-                <use :href="twitchConnected ? '#icon-check-circle' : '#icon-link'" />
-              </svg>
-              <span v-if="twitchChecking">Checking status...</span>
-              <span v-else-if="twitchConnected">Twitch account connected.</span>
-              <span v-else>No Twitch account linked yet.</span>
-            </div>
-
-            <div class="wizard-footer">
-              <BaseButton variant="outline" :disabled="!canGoBack" @click="prevStep">
-                Back
-              </BaseButton>
-              <div class="wizard-footer-actions">
-                <BaseButton
-                  v-if="!twitchConnected"
-                  variant="outline-primary"
-                  :loading="twitchStarting"
-                  @click="startTwitchOAuth"
-                >
-                  Connect Twitch
-                </BaseButton>
-                <BaseButton variant="primary" @click="nextStep">
-                  {{ twitchConnected ? 'Continue' : 'Skip & Continue' }}
-                </BaseButton>
-              </div>
-            </div>
-          </div>
-
-          <!-- ============ Step 3: Recording defaults ============ -->
+          <!-- ============ Recording defaults ============ -->
           <div v-else-if="currentStep.id === 'recording'" class="wizard-step-body">
             <div v-if="recordingLoading" class="wizard-loading">
               <span class="spinner" />
@@ -493,14 +443,12 @@ onMounted(() => {
                 writable and mounted from your host.
               </p>
 
-              <label class="form-label" for="wiz-quality">Default Quality</label>
-              <select
+              <BaseDropdown
                 id="wiz-quality"
                 v-model="recording.default_quality"
-                class="form-input"
-              >
-                <option v-for="q in QUALITY_OPTIONS" :key="q" :value="q">{{ q }}</option>
-              </select>
+                label="Default Quality"
+                :options="qualityOptions"
+              />
 
               <label class="form-checkbox">
                 <input v-model="recording.use_chapters" type="checkbox" />
@@ -597,7 +545,7 @@ onMounted(() => {
             </div>
           </div>
         </template>
-      </GlassCard>
+      </BasePanel>
     </div>
   </div>
 </template>
@@ -719,6 +667,13 @@ onMounted(() => {
 
 .wizard-step-header {
   margin-bottom: 1.25rem;
+}
+
+.wizard-status {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1rem;
 }
 
 .wizard-step-title {

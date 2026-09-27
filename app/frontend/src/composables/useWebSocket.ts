@@ -36,6 +36,7 @@ export class WebSocketManager {
   private hasConnected = false
   private lastEventId = 0
   private terminalAuthFailure = false
+  private authRouteBlocked = false
   private recentEventKeys = new Map<string, number>()
   private readonly dedupeWindowMs = 5000
   private readonly maxRecentEventKeys = 200
@@ -64,6 +65,23 @@ export class WebSocketManager {
     window.addEventListener('online', this.handleOnline)
     window.addEventListener('offline', this.handleOffline)
     document.addEventListener('visibilitychange', this.handleVisibilityChange)
+    router.afterEach((to) => {
+      this.handleRouteChange(to.path)
+    })
+  }
+
+  private isAuthRoute(path: string): boolean {
+    return path.startsWith('/auth/') || path === '/welcome' || path === '/onboarding' || path === '/setup'
+  }
+
+  private handleRouteChange(path: string): void {
+    this.authRouteBlocked = this.isAuthRoute(path)
+    if (this.authRouteBlocked) {
+      this.disconnect()
+      return
+    }
+
+    this.ensureConnected()
   }
 
   private handleOnline = () => {
@@ -164,14 +182,20 @@ export class WebSocketManager {
   }
 
   private connect() {
+    if (import.meta.env.VITE_USE_MOCK_DATA === 'true') {
+      return
+    }
+
     if (!this.isBrowserOnline.value) {
       this.connectionStatus.value = 'offline'
       return
     }
 
-    // Don't connect on auth pages - there's no valid session
+    // Don't connect on auth/setup routes. The persistent app subscription is
+    // already active there, so router.afterEach starts the same singleton as
+    // soon as authenticated navigation reaches a protected route.
     const path = window.location.pathname
-    if (path.startsWith('/auth/')) {
+    if (this.authRouteBlocked || this.isAuthRoute(path)) {
       console.log('⏭️ Skipping WebSocket connection on auth page')
       return
     }
@@ -251,7 +275,7 @@ export class WebSocketManager {
       }
 
       // Only attempt reconnection if we still have subscribers
-      if (this.subscribers.size > 0) {
+      if (this.subscribers.size > 0 && !this.authRouteBlocked) {
         this.attemptReconnect()
       }
     }

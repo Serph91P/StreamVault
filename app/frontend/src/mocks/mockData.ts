@@ -245,6 +245,11 @@ export const mockActiveRecordings = [
     started_at: '2025-11-20T10:14:43Z',
     duration: 2340, // 39 minutes
     status: 'recording',
+    twitch_auth_priority: -25,
+    effective_auth_mode: 'authenticated',
+    pending_handoff: true,
+    handoff_reason: 'Higher priority recording is waiting for capacity',
+    partial_recording_warning: true,
     output_file: '/recordings/maxim/Season 2025-11/maxim - S202511E02 - Pen_and_Paper_Preshow_!emma_!Holzkern_#Werbung.ts'
   }
 ]

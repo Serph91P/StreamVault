@@ -100,7 +100,13 @@ function onInput(ev: Event) {
 @use '@/styles/variables' as v;
 
 .base-form-control-target {
-  min-height: var(--control-target-min);
+  min-height: var(--sv-fdn-size-target);
+  background: var(--sv-cmp-field-background);
+  border-color: var(--sv-cmp-field-border);
+
+  &:hover:not(:disabled) { border-color: var(--sv-cmp-field-border-hover); }
+  &:focus-visible { border-color: var(--sv-cmp-field-border-focus); }
+  &.error { border-color: var(--sv-cmp-field-error); }
 }
 
 .form-error {
