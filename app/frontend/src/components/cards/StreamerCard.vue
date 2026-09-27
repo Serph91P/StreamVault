@@ -753,12 +753,12 @@ onUnmounted(() => {
 }
 
 [data-theme="light"] .streamer-card-content .streamer-stats .stat-viewers {
-  color: #b91c1c;
+  color: v.$danger-700;
 }
 
 [data-theme="light"] .streamer-card-content .streamer-stats .stat-vods,
 [data-theme="light"] .view-details-link {
-  color: #115e59;
+  color: v.$success-700;
 }
 
 .stat-category {
