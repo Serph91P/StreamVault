@@ -3,10 +3,6 @@
   "generatedBy": "app/frontend/scripts/inventory-frontend.mjs",
   "sourceRoot": "app/frontend",
   "frontendFiles": [
-    "app/frontend/.hermes/ux09-run244-green/raw-axe-active-filter-badge-dark-desktop.json",
-    "app/frontend/.hermes/ux09-run244-green/raw-axe-active-filter-badge-dark-mobile.json",
-    "app/frontend/.hermes/ux09-run244-green/raw-axe-active-filter-badge-light-desktop.json",
-    "app/frontend/.hermes/ux09-run244-green/raw-axe-active-filter-badge-light-mobile.json",
     "app/frontend/.prettierrc.json",
     "app/frontend/.vscode/extensions.json",
     "app/frontend/env.d.ts",
@@ -219,7 +215,6 @@
     "app/frontend/src/views/VideosView.vue",
     "app/frontend/src/views/__tests__/HomeView.recording-status.spec.ts",
     "app/frontend/src/views/__tests__/StreamerDetailView.spec.ts",
-    "app/frontend/src/views/__tests__/StreamersView.contrast.spec.ts",
     "app/frontend/src/views/__tests__/SubscriptionsView.spec.ts",
     "app/frontend/src/views/__tests__/VideoPlayerView.spec.ts",
     "app/frontend/src/views/__tests__/VideosView.spec.ts",
@@ -228,22 +223,15 @@
     "app/frontend/tests/audit/interactionAudit.ts",
     "app/frontend/tests/e2e/foundation.spec.ts",
     "app/frontend/tests/e2e/frontend-baseline.spec.ts",
-    "app/frontend/tests/e2e/helpers/ui-readiness.ts",
     "app/frontend/tests/e2e/mock-routes.spec.ts",
-    "app/frontend/tests/e2e/page-header-gradient.spec.ts",
     "app/frontend/tests/e2e/pr5-dialogs-a11y.spec.ts",
     "app/frontend/tests/e2e/pr5-responsive-shell.spec.ts",
     "app/frontend/tests/e2e/pwa-manifest.spec.ts",
-    "app/frontend/tests/e2e/pwa-offline-navigation.spec.ts",
     "app/frontend/tests/e2e/recording-status.spec.ts",
     "app/frontend/tests/e2e/stream-history.spec.ts",
-    "app/frontend/tests/e2e/streamers-filter-badge-contrast.spec.ts",
     "app/frontend/tests/e2e/touch-gestures.spec.ts",
-    "app/frontend/tests/e2e/ui-readiness.spec.ts",
     "app/frontend/tests/e2e/ui-standards.spec.ts",
     "app/frontend/tests/e2e/ux06-player.spec.ts",
-    "app/frontend/tests/e2e/websocket-setup-transition.playwright.config.ts",
-    "app/frontend/tests/e2e/websocket-setup-transition.spec.ts",
     "app/frontend/tests/fixtures/foundation-harness/FoundationHarness.vue",
     "app/frontend/tests/fixtures/foundation-harness/index.html",
     "app/frontend/tests/fixtures/foundation-harness/main.ts",
@@ -1634,7 +1622,6 @@
     "app/frontend/tests/e2e/foundation.spec.ts",
     "app/frontend/tests/e2e/pr5-dialogs-a11y.spec.ts",
     "app/frontend/tests/e2e/touch-gestures.spec.ts",
-    "app/frontend/tests/e2e/websocket-setup-transition.spec.ts",
     "app/frontend/tests/fixtures/foundation-harness/FoundationHarness.vue",
     "app/frontend/vite.config.ts"
   ],
@@ -1724,7 +1711,6 @@
   "states": [
     "app/frontend/package-lock.json",
     "app/frontend/package.json",
-    "app/frontend/scripts/__tests__/api-surface-cleanup.spec.ts",
     "app/frontend/scripts/__tests__/foundation-gates.spec.ts",
     "app/frontend/scripts/__tests__/ux06-loading.spec.ts",
     "app/frontend/scripts/design-token-allowlist.json",
@@ -1862,8 +1848,6 @@
     "app/frontend/tests/audit/gateEvidence.ts",
     "app/frontend/tests/e2e/foundation.spec.ts",
     "app/frontend/tests/e2e/frontend-baseline.spec.ts",
-    "app/frontend/tests/e2e/pwa-offline-navigation.spec.ts",
-    "app/frontend/tests/e2e/streamers-filter-badge-contrast.spec.ts",
     "app/frontend/tests/e2e/touch-gestures.spec.ts",
     "app/frontend/tests/e2e/ui-standards.spec.ts",
     "app/frontend/tests/e2e/ux06-player.spec.ts",
@@ -1956,13 +1940,9 @@
     "app/frontend/tests/e2e/frontend-baseline.spec.ts",
     "app/frontend/tests/e2e/pr5-responsive-shell.spec.ts",
     "app/frontend/tests/e2e/pwa-manifest.spec.ts",
-    "app/frontend/tests/e2e/pwa-offline-navigation.spec.ts",
-    "app/frontend/tests/e2e/streamers-filter-badge-contrast.spec.ts",
     "app/frontend/tests/e2e/touch-gestures.spec.ts",
-    "app/frontend/tests/e2e/ui-readiness.spec.ts",
     "app/frontend/tests/e2e/ui-standards.spec.ts",
     "app/frontend/tests/e2e/ux06-player.spec.ts",
-    "app/frontend/tests/e2e/websocket-setup-transition.spec.ts",
     "app/frontend/tests/fixtures/foundation.playwright.config.ts",
     "app/frontend/tests/unit/lighthouseLifecycle.spec.ts",
     "app/frontend/tests/unit/pwaManifestOwnership.spec.ts",
@@ -2962,26 +2942,6 @@
       "match": "document.documentElement"
     },
     {
-      "file": "app/frontend/tests/e2e/helpers/ui-readiness.ts",
-      "line": 12,
-      "match": "document.querySelector"
-    },
-    {
-      "file": "app/frontend/tests/e2e/helpers/ui-readiness.ts",
-      "line": 13,
-      "match": "document.querySelector"
-    },
-    {
-      "file": "app/frontend/tests/e2e/helpers/ui-readiness.ts",
-      "line": 51,
-      "match": "document.querySelector"
-    },
-    {
-      "file": "app/frontend/tests/e2e/helpers/ui-readiness.ts",
-      "line": 55,
-      "match": "document.querySelector"
-    },
-    {
       "file": "app/frontend/tests/e2e/mock-routes.spec.ts",
       "line": 14,
       "match": "document.documentElement"
@@ -3117,33 +3077,28 @@
       "match": "document.documentElement"
     },
     {
-      "file": "app/frontend/tests/e2e/ui-readiness.spec.ts",
-      "line": 20,
-      "match": "document.querySelector"
-    },
-    {
       "file": "app/frontend/tests/e2e/ui-standards.spec.ts",
-      "line": 78,
+      "line": 77,
       "match": "document.documentElement"
     },
     {
       "file": "app/frontend/tests/e2e/ui-standards.spec.ts",
-      "line": 103,
+      "line": 102,
       "match": "document.documentElement"
     },
     {
       "file": "app/frontend/tests/e2e/ui-standards.spec.ts",
-      "line": 107,
+      "line": 106,
       "match": "document.querySelector"
     },
     {
       "file": "app/frontend/tests/e2e/ui-standards.spec.ts",
-      "line": 110,
+      "line": 109,
       "match": "document.body"
     },
     {
       "file": "app/frontend/tests/e2e/ui-standards.spec.ts",
-      "line": 114,
+      "line": 113,
       "match": "document.documentElement"
     },
     {
@@ -3255,27 +3210,22 @@
   "moduleScopeMutableState": [
     {
       "file": "app/frontend/scripts/__tests__/api-surface-cleanup.spec.ts",
-      "line": 13,
-      "match": "const forceRecordingDiagnostics = ["
-    },
-    {
-      "file": "app/frontend/scripts/__tests__/api-surface-cleanup.spec.ts",
-      "line": 41,
+      "line": 10,
       "match": "const settingsSources = ["
     },
     {
       "file": "app/frontend/scripts/__tests__/api-surface-cleanup.spec.ts",
-      "line": 50,
+      "line": 19,
       "match": "const retiredFacadeSymbols = ["
     },
     {
       "file": "app/frontend/scripts/__tests__/api-surface-cleanup.spec.ts",
-      "line": 55,
+      "line": 24,
       "match": "const retiredRealSymbols = ["
     },
     {
       "file": "app/frontend/scripts/__tests__/api-surface-cleanup.spec.ts",
-      "line": 60,
+      "line": 29,
       "match": "const retiredMethods = ["
     },
     {
@@ -3640,12 +3590,12 @@
     },
     {
       "file": "app/frontend/tests/e2e/ui-standards.spec.ts",
-      "line": 17,
+      "line": 16,
       "match": "const routes = ["
     },
     {
       "file": "app/frontend/tests/e2e/ux06-player.spec.ts",
-      "line": 16,
+      "line": 17,
       "match": "const mediaFiles = new "
     },
     {
@@ -3992,6 +3942,11 @@
     },
     {
       "file": "app/frontend/src/composables/useWebSocket.ts",
+      "line": 64,
+      "match": "addEventListener("
+    },
+    {
+      "file": "app/frontend/src/composables/useWebSocket.ts",
       "line": 65,
       "match": "addEventListener("
     },
@@ -4002,42 +3957,37 @@
     },
     {
       "file": "app/frontend/src/composables/useWebSocket.ts",
-      "line": 67,
-      "match": "addEventListener("
-    },
-    {
-      "file": "app/frontend/src/composables/useWebSocket.ts",
-      "line": 101,
+      "line": 83,
       "match": "clearTimeout("
     },
     {
       "file": "app/frontend/src/composables/useWebSocket.ts",
-      "line": 175,
+      "line": 157,
       "match": "clearTimeout("
     },
     {
       "file": "app/frontend/src/composables/useWebSocket.ts",
-      "line": 227,
+      "line": 203,
+      "match": "clearTimeout("
+    },
+    {
+      "file": "app/frontend/src/composables/useWebSocket.ts",
+      "line": 267,
       "match": "clearTimeout("
     },
     {
       "file": "app/frontend/src/composables/useWebSocket.ts",
       "line": 291,
-      "match": "clearTimeout("
-    },
-    {
-      "file": "app/frontend/src/composables/useWebSocket.ts",
-      "line": 315,
       "match": "setTimeout("
     },
     {
       "file": "app/frontend/src/composables/useWebSocket.ts",
-      "line": 338,
+      "line": 314,
       "match": "setTimeout("
     },
     {
       "file": "app/frontend/src/composables/useWebSocket.ts",
-      "line": 386,
+      "line": 362,
       "match": "clearTimeout("
     },
     {
@@ -4242,7 +4192,7 @@
     },
     {
       "file": "app/frontend/tests/e2e/ux06-player.spec.ts",
-      "line": 68,
+      "line": 109,
       "match": "setTimeout("
     }
   ],
@@ -4454,7 +4404,7 @@
     },
     {
       "file": "app/frontend/src/composables/useForceRecording.ts",
-      "line": 55,
+      "line": 49,
       "match": ": any"
     },
     {
@@ -6828,12 +6778,12 @@
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 856,
+      "line": 854,
       "match": "transition: all"
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 992,
+      "line": 990,
       "match": "transition: all"
     },
     {
@@ -7722,47 +7672,47 @@
     },
     {
       "file": "app/frontend/src/components/cards/StreamerCard.vue",
-      "line": 717,
+      "line": 712,
       "match": "width: 16px"
     },
     {
       "file": "app/frontend/src/components/cards/StreamerCard.vue",
-      "line": 718,
+      "line": 713,
       "match": "height: 16px"
     },
     {
       "file": "app/frontend/src/components/cards/StreamerCard.vue",
-      "line": 830,
+      "line": 791,
       "match": "width: 20px"
     },
     {
       "file": "app/frontend/src/components/cards/StreamerCard.vue",
-      "line": 831,
+      "line": 792,
       "match": "height: 20px"
     },
     {
       "file": "app/frontend/src/components/cards/StreamerCard.vue",
-      "line": 915,
+      "line": 876,
       "match": "width: 16px"
     },
     {
       "file": "app/frontend/src/components/cards/StreamerCard.vue",
-      "line": 916,
+      "line": 877,
       "match": "height: 16px"
     },
     {
       "file": "app/frontend/src/components/cards/StreamerCard.vue",
-      "line": 1014,
+      "line": 975,
       "match": "min-height: 22px"
     },
     {
       "file": "app/frontend/src/components/cards/StreamerCard.vue",
-      "line": 1063,
+      "line": 1024,
       "match": "width: 12px"
     },
     {
       "file": "app/frontend/src/components/cards/StreamerCard.vue",
-      "line": 1064,
+      "line": 1025,
       "match": "height: 12px"
     },
     {
@@ -9282,72 +9232,72 @@
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 828,
+      "line": 826,
       "match": "min-width: 20px"
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 829,
+      "line": 827,
       "match": "height: 20px"
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 859,
+      "line": 857,
       "match": "width: 18px"
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 860,
+      "line": 858,
       "match": "height: 18px"
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 910,
+      "line": 908,
       "match": "width: 16px"
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 911,
+      "line": 909,
       "match": "height: 16px"
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 995,
+      "line": 993,
       "match": "width: 16px"
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 996,
+      "line": 994,
       "match": "height: 16px"
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 1152,
+      "line": 1150,
       "match": "width: 18px"
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 1153,
+      "line": 1151,
       "match": "height: 18px"
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 1172,
+      "line": 1170,
       "match": "min-width: 18px"
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 1173,
+      "line": 1171,
       "match": "height: 18px"
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 1187,
+      "line": 1185,
       "match": "width: 22px"
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 1188,
+      "line": 1186,
       "match": "height: 22px"
     },
     {
@@ -9604,11 +9554,6 @@
       "file": "app/frontend/src/views/VideosView.vue",
       "line": 1258,
       "match": "height: 16px"
-    },
-    {
-      "file": "app/frontend/tests/e2e/ui-readiness.spec.ts",
-      "line": 111,
-      "match": "height:40px"
     },
     {
       "file": "app/frontend/tests/fixtures/foundation-harness/FoundationHarness.vue",
@@ -10652,22 +10597,22 @@
     "schemaVersion": 1,
     "generatedBy": "app/frontend/scripts/inventory-frontend.mjs",
     "sourceRoot": "app/frontend",
-    "frontendFiles": 261,
+    "frontendFiles": 249,
     "routes": 18,
     "navigationDestinations": 9,
     "apiCalls": 141,
     "websocketConsumers": 12,
     "storage": 2,
-    "overlays": 61,
+    "overlays": 60,
     "forms": 7,
     "tables": 6,
     "destructiveActions": 64,
-    "states": 150,
+    "states": 147,
     "players": 13,
-    "pwa": 78,
+    "pwa": 74,
     "breakpoints": 95,
-    "directDomMutations": 161,
-    "moduleScopeMutableState": 80,
+    "directDomMutations": 156,
+    "moduleScopeMutableState": 79,
     "listenersAndTimers": 118,
     "anyTypes": 95,
     "nonsemanticActions": 19,
@@ -10676,7 +10621,7 @@
     "vHtml": 0,
     "transitionAll": 85,
     "raw100vh": 17,
-    "potentialUndersizeTargets": 527,
+    "potentialUndersizeTargets": 526,
     "backendRoutes": 205
   }
 }
