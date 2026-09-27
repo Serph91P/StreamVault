@@ -37,7 +37,7 @@ def test_project_metadata_declares_supported_runtime_and_locked_groups() -> None
     groups = cast(dict[str, list[str]], _configuration()["dependency-groups"])
 
     assert project["requires-python"] == ">=3.14,<3.15"
-    assert "streamlink==8.4.0" in dependencies
+    assert "streamlink==8.6.0" in dependencies
 
     assert {"dev", "test", "typing", "security"} <= set(groups)
     assert "ruff==0.15.1" in groups["dev"]
