@@ -3645,7 +3645,7 @@
     },
     {
       "file": "app/frontend/tests/e2e/ux06-player.spec.ts",
-      "line": 17,
+      "line": 16,
       "match": "const mediaFiles = new "
     },
     {
@@ -4242,7 +4242,7 @@
     },
     {
       "file": "app/frontend/tests/e2e/ux06-player.spec.ts",
-      "line": 109,
+      "line": 68,
       "match": "setTimeout("
     }
   ],
@@ -7722,47 +7722,47 @@
     },
     {
       "file": "app/frontend/src/components/cards/StreamerCard.vue",
-      "line": 712,
+      "line": 717,
       "match": "width: 16px"
     },
     {
       "file": "app/frontend/src/components/cards/StreamerCard.vue",
-      "line": 713,
+      "line": 718,
       "match": "height: 16px"
     },
     {
       "file": "app/frontend/src/components/cards/StreamerCard.vue",
-      "line": 791,
+      "line": 830,
       "match": "width: 20px"
     },
     {
       "file": "app/frontend/src/components/cards/StreamerCard.vue",
-      "line": 792,
+      "line": 831,
       "match": "height: 20px"
     },
     {
       "file": "app/frontend/src/components/cards/StreamerCard.vue",
-      "line": 876,
+      "line": 915,
       "match": "width: 16px"
     },
     {
       "file": "app/frontend/src/components/cards/StreamerCard.vue",
-      "line": 877,
+      "line": 916,
       "match": "height: 16px"
     },
     {
       "file": "app/frontend/src/components/cards/StreamerCard.vue",
-      "line": 975,
+      "line": 1014,
       "match": "min-height: 22px"
     },
     {
       "file": "app/frontend/src/components/cards/StreamerCard.vue",
-      "line": 1024,
+      "line": 1063,
       "match": "width: 12px"
     },
     {
       "file": "app/frontend/src/components/cards/StreamerCard.vue",
-      "line": 1025,
+      "line": 1064,
       "match": "height: 12px"
     },
     {

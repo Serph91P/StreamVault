@@ -1,8 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
-import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises'
-import { spawnSync } from 'node:child_process'
+import { readFile, readdir, writeFile } from 'node:fs/promises'
+import { fileURLToPath } from 'node:url'
 import { join } from 'node:path'
-import { tmpdir } from 'node:os'
 
 declare global {
   interface Window {
@@ -13,55 +12,15 @@ declare global {
   }
 }
 
-let mediaDirectory = ''
+const mediaFixtureDirectory = fileURLToPath(new URL('../fixtures/media/ux06-hls/', import.meta.url))
 const mediaFiles = new Map<string, Buffer>()
 
+// Keep this media fixture in the repository so the browser contract does not
+// depend on a system ffmpeg binary being present on every CI runner.
 test.beforeAll(async () => {
-  mediaDirectory = await mkdtemp(join(tmpdir(), 'streamvault-product-player-'))
-  await mkdir(join(mediaDirectory, 'hls'))
-  const source = join(mediaDirectory, 'source.mp4')
-  const generated = spawnSync('ffmpeg', [
-    '-hide_banner', '-loglevel', 'error', '-y',
-    '-f', 'lavfi', '-i', 'testsrc=size=320x180:rate=24:duration=8',
-    '-f', 'lavfi', '-i', 'sine=frequency=880:sample_rate=48000:duration=8',
-    '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-preset', 'ultrafast',
-    '-c:a', 'aac', '-shortest', source,
-  ], { encoding: 'utf8' })
-  if (generated.status !== 0) throw new Error(`ffmpeg source generation failed: ${generated.stderr}`)
-
-  const variants = [
-    ['video', '-map', '0:v:0', '-c:v', 'copy', '-an'],
-    ['audio-en', '-map', '0:a:0', '-c:a', 'copy', '-vn'],
-    ['audio-commentary', '-map', '0:a:0', '-c:a', 'copy', '-vn'],
-  ]
-  for (const [name, ...mapping] of variants) {
-    const converted = spawnSync('ffmpeg', [
-      '-hide_banner', '-loglevel', 'error', '-y', '-i', source,
-      ...mapping, '-hls_time', '2', '-hls_list_size', '0',
-      '-hls_segment_filename', join(mediaDirectory, 'hls', `${name}-%03d.ts`),
-      join(mediaDirectory, 'hls', `${name}.m3u8`),
-    ], { encoding: 'utf8' })
-    if (converted.status !== 0) throw new Error(`ffmpeg ${name} HLS generation failed: ${converted.stderr}`)
+  for (const name of await readdir(mediaFixtureDirectory)) {
+    mediaFiles.set(name, await readFile(join(mediaFixtureDirectory, name)))
   }
-
-  await writeFile(join(mediaDirectory, 'hls', 'subtitle-en.vtt'), 'WEBVTT\n\n00:00.000 --> 00:04.000\nSynthetic subtitle\n')
-  await writeFile(join(mediaDirectory, 'hls', 'subtitle-en.m3u8'), '#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:4\n#EXT-X-MEDIA-SEQUENCE:0\n#EXTINF:4.000,\nsubtitle-en.vtt\n#EXT-X-ENDLIST\n')
-  await writeFile(join(mediaDirectory, 'hls', 'playlist.m3u8'), `#EXTM3U
-#EXT-X-VERSION:3
-#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="audio",NAME="English",LANGUAGE="en",DEFAULT=YES,AUTOSELECT=YES,URI="audio-en.m3u8"
-#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="audio",NAME="Commentary",LANGUAGE="en",DEFAULT=NO,AUTOSELECT=NO,URI="audio-commentary.m3u8"
-#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="English",LANGUAGE="en",DEFAULT=YES,AUTOSELECT=YES,FORCED=NO,URI="subtitle-en.m3u8"
-#EXT-X-STREAM-INF:BANDWIDTH=900000,AVERAGE-BANDWIDTH=700000,CODECS="avc1.42c00d,mp4a.40.2",RESOLUTION=320x180,AUDIO="audio",SUBTITLES="subs"
-video.m3u8
-`)
-
-  for (const name of await readdir(join(mediaDirectory, 'hls'))) {
-    mediaFiles.set(name, await readFile(join(mediaDirectory, 'hls', name)))
-  }
-})
-
-test.afterAll(async () => {
-  if (mediaDirectory) await rm(mediaDirectory, { recursive: true, force: true })
 })
 
 async function serveSyntheticLiveMedia(page: Page) {
@@ -200,7 +159,7 @@ test('built live player requests its same-origin worker and plays synthetic HLS'
     ;(element as HTMLVideoElement & { u: (audio: number, subtitle: number) => void }).u(1, 0)
   })
   await expect.poll(() => media.requestsFor('audio-commentary.m3u8')).toBeGreaterThan(0)
-  await expect.poll(() => media.requestsFor('audio-commentary-000.ts')).toBeGreaterThan(0)
+  await expect.poll(() => media.requestsFor('audio-commentary-000.bin')).toBeGreaterThan(0)
   await expect.poll(() => media.requestsFor('subtitle-en.m3u8')).toBeGreaterThan(0)
   await expect.poll(() => media.requestsFor('subtitle-en.vtt')).toBeGreaterThan(0)
   await expect.poll(() => video.evaluate(element => Array.from((element as HTMLVideoElement).textTracks)
