@@ -13,6 +13,9 @@
 @use 'utilities';  // Design system utilities
 @use 'tables';  // Unified table system
 @use 'settings-panels';  // Unified settings panels design
+// Keep the legacy app-token layer last so its public aliases retain the
+// pre-split cascade over the foundation migration bridge.
+@use 'theme';
 
 // SCSS ownership: main.scss owns import order, reset, document base styles and
 // legacy global element defaults. Do not define design tokens or component

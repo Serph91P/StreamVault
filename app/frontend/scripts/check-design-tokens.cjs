@@ -9,7 +9,7 @@
  *   - hardcoded transition timings  (transition: ... 0.3s ease)
  *
  * It also fails when CSS custom properties are defined outside their owners:
- *   - app tokens and compatibility aliases: src/styles/_variables.scss
+ *   - app tokens and compatibility aliases: src/styles/_theme.scss
  *   - glass tokens only: src/styles/_glass-system.scss
  *
  * Allowlist:
@@ -17,7 +17,8 @@
  *   - max-width: 400px / 480px (intentional sub-mobile phones)
  *
  * Canonical tokens live in docs/frontend-overhaul-token-scss-plan.md,
- * src/styles/_variables.scss and src/styles/_glass-system.scss.
+ * src/styles/_variables.scss, src/styles/_theme.scss and
+ * src/styles/_glass-system.scss.
  */
 const fs = require('fs');
 const path = require('path');
@@ -26,7 +27,7 @@ const rootArgumentIndex = process.argv.indexOf('--root');
 const ROOT = rootArgumentIndex === -1
   ? path.resolve(__dirname, '..', 'src')
   : path.resolve(process.argv[rootArgumentIndex + 1]);
-const APP_TOKEN_FILE = path.join(ROOT, 'styles', '_variables.scss');
+const APP_TOKEN_FILE = path.join(ROOT, 'styles', '_theme.scss');
 const GLASS_TOKEN_FILE = path.join(ROOT, 'styles', '_glass-system.scss');
 const GENERATED_TOKEN_FILE = path.join(ROOT, 'styles', '_foundation.generated.scss');
 const FOUNDATION_BRIDGE_FILE = path.join(ROOT, 'styles', '_foundation-bridge.scss');
@@ -242,12 +243,12 @@ const byKind = violations.reduce((acc, v) => {
 }, {});
 
 const HINTS = {
-  hex: 'Use a CSS variable from src/styles/_variables.scss (e.g. var(--primary-color)).',
+  hex: 'Use a CSS variable from src/styles/_theme.scss (e.g. var(--primary-color)).',
   breakpoint: "Use the respond-to / respond-below mixins, e.g. @include m.respond-to('md').",
   transition: 'Use --transition-base / --transition-fast / --transition-slow or var(--duration-*) + var(--ease-*).',
   'custom-property-definition': 'Do not define CSS custom properties in components or non-owner SCSS. Use canonical tokens instead.',
-  'glass-owner': 'Glass tokens belong in src/styles/_glass-system.scss, not _variables.scss.',
-  'app-owner': 'App tokens belong in src/styles/_variables.scss. _glass-system.scss may define only --glass-* tokens.',
+  'glass-owner': 'Glass tokens belong in src/styles/_glass-system.scss, not _theme.scss.',
+  'app-owner': 'App tokens belong in src/styles/_theme.scss. _glass-system.scss may define only --glass-* tokens.',
   'unexpected-app-token': 'New app token names must be intentional: document the canonical group and update scripts/design-token-allowlist.json.',
   'unexpected-glass-token': 'New glass token names must be intentional: document the glass group and update scripts/design-token-allowlist.json.',
 };

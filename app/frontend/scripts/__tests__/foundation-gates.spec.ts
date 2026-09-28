@@ -117,6 +117,21 @@ describe('foundation gates fail closed', () => {
     expect(result.stderr).toContain('hex')
   })
 
+  it('keeps emitted app custom properties in the theme stylesheet', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'streamvault-token-owner-'))
+    await mkdir(join(directory, 'styles'), { recursive: true })
+    await writeFile(join(directory, 'styles', '_theme.scss'), ':root {\n  --control-target-min: 44px;\n}\n')
+    await writeFile(join(directory, 'styles', '_variables.scss'), '$control-target-min: 44px;\n')
+
+    const valid = run('scripts/check-design-tokens.cjs', ['--root', directory, '--strict'])
+    expect(valid.status).toBe(0)
+
+    await writeFile(join(directory, 'styles', '_variables.scss'), ':root {\n  --control-target-min: 44px;\n}\n')
+    const invalid = run('scripts/check-design-tokens.cjs', ['--root', directory, '--strict'])
+    expect(invalid.status).toBe(1)
+    expect(invalid.stderr).toContain('custom-property-definition')
+  })
+
   it('keeps routine browser captures inside the Playwright run output', async () => {
     const source = await readFile(resolve(frontendRoot, 'tests/e2e/foundation.spec.ts'), 'utf8')
     const config = await readFile(resolve(frontendRoot, 'tests/fixtures/foundation.playwright.config.ts'), 'utf8')
