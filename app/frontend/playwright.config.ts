@@ -14,14 +14,16 @@ export default defineConfig({
   expect: { timeout: 10_000 },
   reporter: 'list',
   outputDir: 'test-results',
+  metadata: { useMockData: true },
   use: {
     baseURL: 'http://127.0.0.1:4180',
     trace: 'retain-on-failure',
   },
   projects: [
-    { name: 'desktop', testIgnore: /frontend-baseline\.spec\.ts/, use: { viewport: { width: 1440, height: 900 } } },
-    { name: 'mobile', testIgnore: /frontend-baseline\.spec\.ts/, use: { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true } },
+    { name: 'desktop', testIgnore: /(?:frontend-baseline|foundation)\.spec\.ts/, use: { viewport: { width: 1440, height: 900 } } },
+    { name: 'mobile', testIgnore: /(?:frontend-baseline|foundation)\.spec\.ts/, use: { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true } },
     { name: 'baseline-chromium', testMatch: /frontend-baseline\.spec\.ts/, use: { ...devices['Desktop Chrome'], serviceWorkers: 'block' } },
+    { name: 'baseline-mobile-chromium', testMatch: /frontend-baseline\.spec\.ts/, use: { ...devices['iPhone 13'], browserName: 'chromium', serviceWorkers: 'block' } },
     { name: 'baseline-firefox', testMatch: /frontend-baseline\.spec\.ts/, use: { ...devices['Desktop Firefox'], serviceWorkers: 'block' } },
     { name: 'baseline-webkit', testMatch: /frontend-baseline\.spec\.ts/, use: { ...devices['Desktop Safari'], serviceWorkers: 'block' } },
   ],

@@ -13,6 +13,7 @@ dist
 dist-ssr
 coverage
 /test-results/
+/foundation-test-results/
 /playwright-report/
 # The baseline collector writes evidence under test-results; it has no committed golden images.
 /tests/e2e/frontend-baseline.spec.ts-snapshots/

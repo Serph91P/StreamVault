@@ -513,7 +513,7 @@ def test_streamlink_840_segment_attempts_cap_http_requests(monkeypatch):
     streamlink = pytest.importorskip("streamlink")
     hls = pytest.importorskip("streamlink.stream.hls")
     streamlink_http = pytest.importorskip("streamlink.session.http")
-    assert streamlink.__version__ == "8.4.0"
+    assert streamlink.__version__ == "8.6.0"
 
     cmd = get_streamlink_command(
         streamer_name="test_streamer",
@@ -598,7 +598,7 @@ def test_streamlink_840_retry_max_caps_missing_stream_resolution_attempts(
     streamlink = pytest.importorskip("streamlink")
     streamlink_cli = pytest.importorskip("streamlink_cli.main")
     plugin_module = pytest.importorskip("streamlink.plugin")
-    assert streamlink.__version__ == "8.4.0"
+    assert streamlink.__version__ == "8.6.0"
 
     with patch("pathlib.Path.exists", return_value=True):
         from app.services.system.streamlink_config_service import (

@@ -170,7 +170,7 @@ sqlalchemy==2.0.52
     #   streamvault
 starlette==1.6.0
     # via fastapi
-streamlink==8.4.0
+streamlink==8.6.0
     # via streamvault
 trio==0.34.0
     # via

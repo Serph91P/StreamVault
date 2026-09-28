@@ -701,6 +701,11 @@ onUnmounted(() => {
   color: v.$primary-800;
 }
 
+// The semantic focus token remains AA-readable on the dark card surface.
+[data-theme="dark"] .view-details-link {
+  color: var(--sv-sem-action-focus);
+}
+
 .stat {
   display: flex;
   align-items: center;
@@ -720,6 +725,42 @@ onUnmounted(() => {
 .stat-viewers {
   color: var(--danger-text-color);
   font-weight: v.$font-semibold;
+}
+
+// List-mode's nested .stat rule has higher specificity than the semantic
+// variants above. Keep the status information legible on its card surface.
+.streamer-card-content .streamer-stats .stat-viewers {
+  // The 400 semantic text token keeps live counts AA-readable on the dark
+  // glass surface, including intermediate compositor frames.
+  color: var(--danger-text-color);
+}
+
+.streamer-card-content .streamer-stats .stat-vods {
+  color: var(--sv-sem-action-focus);
+}
+
+.streamer-card-content .streamer-stats .stat-category {
+  color: var(--sv-sem-text-primary);
+}
+
+.streamer-card-content .streamer-stats .stat-time,
+.streamer-card-content .stream-info-container .streamer-description,
+.streamer-card-content .stream-info-container .last-stream-title,
+.streamer-card-content .stream-info-container .last-stream-category {
+  color: var(--sv-sem-text-secondary);
+}
+
+.streamer-card-content :deep(.status-badge-offline) {
+  color: var(--sv-sem-text-secondary);
+}
+
+[data-theme="light"] .streamer-card-content .streamer-stats .stat-viewers {
+  color: v.$danger-700;
+}
+
+[data-theme="light"] .streamer-card-content .streamer-stats .stat-vods,
+[data-theme="light"] .view-details-link {
+  color: v.$success-700;
 }
 
 .stat-category {

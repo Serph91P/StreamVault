@@ -62,7 +62,8 @@ const describedBy = computed(() => {
 })
 
 function onChange(ev: Event) {
-  const v = (ev.target as HTMLSelectElement).value
+  const raw = (ev.target as HTMLSelectElement).value
+  const v = props.options?.find(option => String(option.value) === raw)?.value ?? raw
   emit('update:modelValue', v)
   emit('change', v)
 }
@@ -105,7 +106,18 @@ function onChange(ev: Event) {
 @use '@/styles/variables' as v;
 
 .base-form-control-target {
-  min-height: var(--control-target-min);
+  min-height: var(--sv-fdn-size-target);
+  background: var(--sv-cmp-field-background);
+  border-color: var(--sv-cmp-field-border);
+  // The legacy global select reset uses a fixed SVG that disappears in some
+  // light-theme cascades. The native indicator follows the active color scheme.
+  appearance: auto;
+  background-image: none;
+  color-scheme: light dark;
+
+  &:hover:not(:disabled) { border-color: var(--sv-cmp-field-border-hover); }
+  &:focus-visible { border-color: var(--sv-cmp-field-border-focus); }
+  &.error { border-color: var(--sv-cmp-field-error); }
 }
 
 .form-error {

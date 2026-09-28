@@ -351,7 +351,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, nextTick } from 'vue';
+import { ref, watch, nextTick } from 'vue';
 import { useRecordingSettings } from '@/composables/useRecordingSettings';
 import { useFilenamePresets } from '@/composables/useFilenamePresets';
 import { useToast } from '@/composables/useToast';
@@ -408,13 +408,6 @@ const data = ref<RecordingSettings>({
   prefer_higher_quality: props.settings?.prefer_higher_quality !== false
 });
 
-const _updateFilenameTemplate = () => {
-  const preset = FILENAME_PRESETS.find((p: any) => p.value === data.value.filename_preset);
-  if (preset) {
-    data.value.filename_template = preset.description;
-  }
-};
-
 // Update local data when props change
 watch(() => props.settings, (newSettings: RecordingSettings | null) => {
   if (newSettings) {
@@ -426,45 +419,6 @@ watch(() => props.settings, (newSettings: RecordingSettings | null) => {
 }, { deep: true });
 
 const isSaving = ref(false);
-
-// Preview filename with example data
-const _previewFilename = computed(() => {
-  if (!data.value.filename_template) return '';
-
-  const now = new Date();
-  const year = now.getFullYear().toString();
-  const month = (now.getMonth() + 1).toString().padStart(2, '0');
-  const day = now.getDate().toString().padStart(2, '0');
-  const hour = now.getHours().toString().padStart(2, '0');
-  const minute = now.getMinutes().toString().padStart(2, '0');
-  const second = now.getSeconds().toString().padStart(2, '0');
-
-  let filename = data.value.filename_template;
-
-  // Replace variables
-  filename = filename
-    .replace(/{streamer}/g, 'example_streamer')
-    .replace(/{title}/g, 'Example Stream Title')
-    .replace(/{game}/g, 'Example Game')
-    .replace(/{twitch_id}/g, '123456789')
-    .replace(/{year}/g, year)
-    .replace(/{month}/g, month)
-    .replace(/{day}/g, day)
-    .replace(/{hour}/g, hour)
-    .replace(/{minute}/g, minute)
-    .replace(/{second}/g, second)
-    .replace(/{timestamp}/g, `${year}${month}${day}_${hour}${minute}${second}`)
-    .replace(/{datetime}/g, `${year}-${month}-${day}_${hour}-${minute}-${second}`)
-    .replace(/{id}/g, 'stream_12345')
-    .replace(/{season}/g, `S${year}-${month}`)
-    .replace(/{episode}/g, '01');
-
-  // Add .mp4 if not present
-  if (!filename.toLowerCase().endsWith('.mp4')) {
-    filename += '.mp4';
-  }
-  return filename;
-});
 
 // Update filename template when preset changes
 const updateFilenameFromPreset = () => {
@@ -559,10 +513,6 @@ const formatDuration = (seconds: number) => {
   return `${hours}h ${minutes}m`;
 };
 
-const _toggleStreamerRecording = (_streamerId: number, _enabled: boolean) => {
-  // updateStreamerSetting(streamerId, { enabled });
-};
-
 const handleCleanupPolicySaved = (policy: any) => {
   if (props.settings) {
     const updatedSettings = {
@@ -594,11 +544,6 @@ const handleStreamerPolicySaved = (_policy: any) => {
 @use '@/styles/variables' as v;
 @use '@/styles/mixins' as m;
 
-.settings-panel {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-7, 28px);
-}
 
 // Match the shared .settings-group look so recording blocks read as the
 // same "these belong together" containers as every other settings page
@@ -655,7 +600,6 @@ const handleStreamerPolicySaved = (_policy: any) => {
 
 /* Mobile-First-Ansatz - Basis-Styles für mobile Geräte */
 
-.settings-form,
 .active-recordings,
 .streamer-settings {
   margin-bottom: 0;
@@ -688,43 +632,6 @@ const handleStreamerPolicySaved = (_policy: any) => {
   background-color: rgba(239, 68, 68, 0.1);
 }
 
-// ============================================================================
-// CODEC SELECTION - Component specific
-// ============================================================================
-
-.codec-selection {
-  display: flex;
-  gap: v.$spacing-2;
-  flex-wrap: wrap;
-
-  label {
-    display: flex;
-    align-items: center;
-    gap: v.$spacing-2;
-    padding: v.$spacing-2 v.$spacing-3;
-    background: var(--background-card);
-    border: 2px solid var(--border-color);
-    border-radius: var(--radius-md);
-    cursor: pointer;
-    transition: v.$transition-all;
-
-    &:hover {
-      border-color: var(--primary-color);
-      background: var(--background-hover);
-    }
-
-    input[type="checkbox"] {
-      margin: 0;
-    }
-
-    &:has(input:checked) {
-      border-color: var(--primary-color);
-      background: var(--primary-bg);
-      color: var(--primary-color);
-      font-weight: v.$font-medium;
-    }
-  }
-}
 
 .checkbox-target {
   display: inline-flex;
@@ -740,188 +647,6 @@ const handleStreamerPolicySaved = (_policy: any) => {
   cursor: pointer;
 }
 
-// ============================================================================
-// ACTIVE RECORDINGS SECTION
-// ============================================================================
-
-.active-recordings-list {
-  display: flex;
-  flex-direction: column;
-  gap: v.$spacing-4;
-}
-
-.recording-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: v.$spacing-4;
-  background: var(--background-hover);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-  transition: v.$transition-all;
-
-  &:hover {
-    border-color: var(--primary-color);
-  }
-
-  @include m.respond-below('md') {
-    flex-direction: column;
-    gap: v.$spacing-3;
-    align-items: flex-start;
-  }
-}
-
-.recording-info {
-  flex: 1;
-
-  .streamer-name {
-    font-weight: v.$font-semibold;
-    color: var(--text-primary);
-    font-size: v.$text-base;
-  }
-
-  .recording-meta {
-    font-size: v.$text-sm;
-    color: var(--text-secondary);
-    margin-top: v.$spacing-1;
-  }
-}
-
-.recording-actions {
-  display: flex;
-  gap: v.$spacing-2;
-
-  @include m.respond-below('md') {
-    width: 100%;
-    justify-content: flex-end;
-  }
-}
-
-// ============================================================================
-// STREAMER SETTINGS TABLE
-// ============================================================================
-
-.streamer-table {
-  width: 100%;
-  border-collapse: collapse;
-
-  thead {
-    background: var(--background-hover);
-
-    th {
-      padding: v.$spacing-3;
-      text-align: left;
-      font-weight: v.$font-semibold;
-      color: var(--text-primary);
-      border-bottom: 2px solid var(--border-color);
-
-      @include m.respond-below('md') {
-        display: none;
-      }
-    }
-  }
-
-  tbody {
-    tr {
-      border-bottom: 1px solid var(--border-color);
-      transition: v.$transition-colors;
-
-      &:hover {
-        background: var(--background-hover);
-      }
-
-      @include m.respond-below('md') {
-        display: block;
-        margin-bottom: v.$spacing-4;
-        border: 1px solid var(--border-color);
-        border-radius: var(--radius-md);
-        padding: v.$spacing-3;
-      }
-    }
-
-    td {
-      padding: v.$spacing-3;
-      color: var(--text-primary);
-
-      @include m.respond-below('md') {
-        display: block;
-        text-align: right;
-        padding: v.$spacing-2 0;
-        border: none;
-
-        &:before {
-          content: attr(data-label);
-          float: left;
-          font-weight: v.$font-semibold;
-          color: var(--text-secondary);
-        }
-      }
-    }
-  }
-}
-
-// ============================================================================
-// PROXY CONFIGURATION (if present in this panel)
-// ============================================================================
-
-.proxy-configuration {
-  .proxy-info-card {
-    background: var(--info-bg-color);
-    border: 1px solid var(--info-border-color);
-    border-radius: var(--radius-md);
-    padding: v.$spacing-4;
-    margin-bottom: v.$spacing-4;
-
-    h5, h6 {
-      color: var(--text-primary);
-      margin-bottom: v.$spacing-2;
-    }
-
-    h5 {
-      font-size: v.$text-base;
-      font-weight: v.$font-semibold;
-    }
-
-    h6 {
-      font-size: v.$text-sm;
-      font-weight: v.$font-medium;
-    }
-  }
-
-  .proxy-examples-list,
-  .proxy-tips {
-    list-style: none;
-    padding: 0;
-
-    li {
-      padding: v.$spacing-2 0;
-      color: var(--text-secondary);
-      font-size: v.$text-sm;
-
-      code {
-        background: var(--background-darker);
-        padding: v.$spacing-1 v.$spacing-2;
-        border-radius: var(--radius-sm);
-        font-family: var(--font-mono);
-        font-size: v.$text-xs;
-        color: var(--primary-color);
-      }
-    }
-  }
-
-  .example-item {
-    padding: v.$spacing-3;
-    margin-bottom: v.$spacing-2;
-    background: var(--background-card);
-    border-radius: var(--radius-sm);
-
-    code {
-      display: block;
-      word-break: break-all;
-      margin-top: v.$spacing-1;
-    }
-  }
-}
 
 // ============================================================================
 // TABLE HEADER TOOLTIPS
@@ -997,20 +722,6 @@ const handleStreamerPolicySaved = (_policy: any) => {
   }
 }
 
-// ============================================================================
-// RESPONSIVE MOBILE OPTIMIZATIONS
-// ============================================================================
-
-@include m.respond-below('md') {
-  .form-actions {
-    flex-direction: column;
-    gap: v.$spacing-3;
-
-    .btn {
-      width: 100%;
-    }
-  }
-}
 
 // ============================================================================
 // VARIABLE TAGS (Filename template variables)

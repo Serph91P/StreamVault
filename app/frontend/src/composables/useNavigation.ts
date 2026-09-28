@@ -27,11 +27,10 @@ const liveBadgeCount = ref<number | null>(null)
 
 // Navigation configuration
 export const navigationTabs: NavigationTab[] = [
-  { route: '/', label: 'Dashboard', icon: 'home', description: 'Dashboard overview', badge: null },
+  { route: '/', label: 'Overview', icon: 'home', description: 'Recording overview', badge: null },
   { route: '/streamers', label: 'Streamers', icon: 'users', description: 'Manage creators', badge: null },
-  { route: '/videos', label: 'Library', icon: 'video', description: 'Video library', badge: null },
-  { route: '/subscriptions', label: 'Subscriptions', icon: 'bell', description: 'Manage subscriptions', badge: null },
-  { route: '/settings', label: 'Settings', icon: 'settings', description: 'App preferences', badge: null }
+  { route: '/videos', label: 'Library', icon: 'video', description: 'Find recordings', badge: null },
+  { route: '/system', label: 'System', icon: 'settings', description: 'Settings and diagnostics', badge: null },
 ]
 
 export function useNavigation() {

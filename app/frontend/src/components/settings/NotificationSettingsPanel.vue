@@ -428,55 +428,6 @@ const toggleAllStreamers = (enabled: boolean) => {
 // Most styles inherited from global _settings-panels.scss
 // ============================================================================
 
-// ============================================================================
-// NOTIFICATION TYPE CARDS
-// ============================================================================
-
-.notification-types {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: v.$spacing-4;
-  margin-bottom: v.$spacing-6;
-
-  @include m.respond-below('sm') {
-    grid-template-columns: 1fr;
-  }
-}
-
-.notification-type-card {
-  padding: v.$spacing-4;
-  background: var(--background-card);
-  border: 2px solid var(--border-color);
-  border-radius: var(--radius-md);
-  transition: v.$transition-all;
-  cursor: pointer;
-
-  &:hover {
-    border-color: var(--primary-color);
-    background: var(--background-hover);
-  }
-
-  &.active {
-    border-color: var(--primary-color);
-    background: var(--primary-bg);
-  }
-
-  .type-icon {
-    font-size: v.$text-2xl;
-    margin-bottom: v.$spacing-2;
-  }
-
-  .type-title {
-    font-weight: v.$font-semibold;
-    color: var(--text-primary);
-    margin-bottom: v.$spacing-1;
-  }
-
-  .type-description {
-    font-size: v.$text-sm;
-    color: var(--text-secondary);
-  }
-}
 
 // ============================================================================
 // CHECKBOX GROUP - Better spacing

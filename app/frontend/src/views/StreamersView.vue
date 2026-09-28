@@ -805,11 +805,13 @@ $ctrl-h: 44px;
   transition: all v.$duration-200 v.$ease-out;
 
   &.active {
-    background: v.$primary-700;
+    background: v.$primary-800;
     color: white;
 
     .tab-badge {
-      background: rgba(255, 255, 255, 0.2);
+      // Keep the compact count pill opaque: alpha compositing against the
+      // active teal surface made its white small text fail contrast in light UI.
+      background: v.$primary-900;
       color: white;
     }
   }
@@ -1039,16 +1041,16 @@ $ctrl-h: 44px;
 }
 
 .streamer-wrapper {
+  // Keep the staggered entrance movement without fading readable content
+  // through low-contrast intermediate colors.
   animation: fade-in-up v.$duration-500 v.$ease-out backwards;
 }
 
 @keyframes fade-in-up {
   from {
-    opacity: 0;
     transform: translateY(20px);
   }
   to {
-    opacity: 1;
     transform: translateY(0);
   }
 }

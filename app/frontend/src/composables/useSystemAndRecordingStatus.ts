@@ -482,17 +482,10 @@ export function useSystemAndRecordingStatus() {
     hasActiveRecordings,
     activeRecordingsCount,
     
-    // Methods
-    fetchSystemStatus,
+    // Methods used by current consumers
     fetchActiveRecordings,
     fetchStreamersStatus,
-    fetchStreamsStatus,
-    fetchNotificationsStatus,
     fetchAllStatus,
-    forceRefresh,
-    
-    // Manual control
-    startPeriodicRefresh,
-    stopPeriodicRefresh
+    forceRefresh
   }
 }

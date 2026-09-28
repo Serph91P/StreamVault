@@ -1,0 +1,21 @@
+// UX-03 migration bridge. New foundation components use --sv-* directly;
+// established consumers keep their public aliases while resolving through the
+// same semantic theme roles. Remove aliases only in the dedicated cleanup phase.
+:root {
+  --primary-color: var(--sv-sem-action-primary);
+  --primary-hover: var(--sv-sem-action-primary-hover);
+  --primary-color-dark: var(--sv-sem-action-primary-active);
+  --background-dark: var(--sv-sem-surface-canvas);
+  --background-darker: var(--sv-sem-surface-raised);
+  --background-card: var(--sv-sem-surface-panel);
+  --text-primary: var(--sv-sem-text-primary);
+  --text-secondary: var(--sv-sem-text-secondary);
+  --border-color: var(--sv-sem-border-default);
+  --success-color: var(--sv-sem-status-success);
+  --warning-color: var(--sv-sem-status-warning);
+  --danger-color: var(--sv-sem-status-danger);
+  --info-color: var(--sv-sem-status-info);
+  --control-target-min: var(--sv-fdn-size-target);
+  --control-target-mobile: var(--sv-fdn-size-target-primary);
+  --focus-ring: 2px solid var(--sv-sem-action-focus);
+}

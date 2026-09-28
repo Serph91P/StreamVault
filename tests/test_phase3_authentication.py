@@ -1,4 +1,5 @@
 import asyncio
+import os
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
@@ -170,6 +171,105 @@ def test_token_pair_issuance_rolls_back_refresh_token_when_jwt_issuing_fails(
         broken_service.issue_token_pair(user)
 
     assert db_session.query(RefreshToken).filter_by(user_id=user.id).count() == 0
+
+
+def test_token_pair_issuance_rolls_back_after_valid_config_signing_failure(
+    db_session, auth_settings, monkeypatch
+):
+    service = AuthService(db_session, settings=auth_settings)
+    user = User(
+        username="injected-signing-failure-user",
+        password=service.hash_password("password"),
+        is_admin=False,
+    )
+    db_session.add(user)
+    db_session.commit()
+    user_id = user.id
+    engine = db_session.get_bind()
+    signing_calls = []
+
+    class InjectedSigningFailure(RuntimeError):
+        pass
+
+    def fail_signing(payload, secret, *, algorithm):
+        signing_calls.append((payload, algorithm))
+        raise InjectedSigningFailure("synthetic JWT signing failure")
+
+    # The configuration remains valid; failure is injected at PyJWT's signing seam.
+    service._jwt_config()
+    monkeypatch.setattr(jwt, "encode", fail_signing)
+
+    with pytest.raises(InjectedSigningFailure, match="synthetic JWT signing failure"):
+        service.issue_token_pair(user)
+
+    assert len(signing_calls) == 1
+    assert signing_calls[0][0]["sub"] == str(user_id)
+    assert signing_calls[0][1] == auth_settings.AUTH_JWT_ALGORITHM
+    with sessionmaker(bind=engine)() as verification_db:
+        assert (
+            verification_db.query(RefreshToken).filter_by(user_id=user_id).count() == 0
+        )
+
+
+def test_postgres_token_pair_issuance_is_atomic_on_signing_failure(
+    auth_settings, monkeypatch
+):
+    url = os.environ.get("STREAMVAULT_POSTGRES_TEST_URL")
+    if not url:
+        pytest.skip("requires isolated STREAMVAULT_POSTGRES_TEST_URL")
+
+    engine = create_engine(url, future=True, pool_pre_ping=True)
+    Base.metadata.create_all(engine, tables=[User.__table__, RefreshToken.__table__])
+    session_factory = sessionmaker(bind=engine, expire_on_commit=False)
+
+    class InjectedSigningFailure(RuntimeError):
+        pass
+
+    def fail_signing(*_args, **_kwargs):
+        raise InjectedSigningFailure("synthetic JWT signing failure")
+
+    try:
+        with session_factory() as db:
+            service = AuthService(db, settings=auth_settings)
+            user = User(
+                username="postgres-injected-signing-failure",
+                password=service.hash_password("password"),
+                is_admin=True,
+            )
+            db.add(user)
+            db.commit()
+            user_id = user.id
+
+            service._jwt_config()
+            with monkeypatch.context() as patch:
+                patch.setattr(jwt, "encode", fail_signing)
+                with pytest.raises(
+                    InjectedSigningFailure, match="synthetic JWT signing failure"
+                ):
+                    service.issue_token_pair(user)
+
+        with session_factory() as verification_db:
+            assert (
+                verification_db.query(RefreshToken).filter_by(user_id=user_id).count()
+                == 0
+            )
+            persisted_user = verification_db.get(User, user_id)
+            assert persisted_user is not None
+            pair = AuthService(
+                verification_db, settings=auth_settings
+            ).issue_token_pair(persisted_user)
+
+        with session_factory() as success_db:
+            success_service = AuthService(success_db, settings=auth_settings)
+            assert success_service.decode_access_token(pair.access_token)["sub"] == str(
+                user_id
+            )
+            refresh = success_db.query(RefreshToken).filter_by(user_id=user_id).one()
+            assert refresh.family_id == pair.family_id
+            assert refresh.token_hash != pair.refresh_token
+    finally:
+        Base.metadata.drop_all(engine, tables=[RefreshToken.__table__, User.__table__])
+        engine.dispose()
 
 
 def test_token_pair_issuance_persists_matching_refresh_and_access_tokens(
@@ -390,6 +490,91 @@ def test_logout_route_revokes_refresh_family_and_clears_auth_cookies(
         with session_factory() as db:
             assert db.query(Session).count() == 0
     finally:
+        Base.metadata.drop_all(
+            engine,
+            tables=[Session.__table__, RefreshToken.__table__, User.__table__],
+        )
+        engine.dispose()
+
+
+def test_public_login_check_refresh_logout_flow(monkeypatch, auth_settings):
+    engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(
+        engine, tables=[User.__table__, RefreshToken.__table__, Session.__table__]
+    )
+    session_factory = sessionmaker(bind=engine, expire_on_commit=False)
+
+    with session_factory() as db:
+        service = AuthService(db, settings=auth_settings)
+        user = User(
+            username="public-flow-admin",
+            password=service.hash_password("correct horse"),
+            is_admin=True,
+            is_active=True,
+        )
+        db.add(user)
+        db.commit()
+        user_id = user.id
+
+    def get_test_auth_service():
+        with session_factory() as db:
+            yield AuthService(db, settings=auth_settings)
+
+    app = FastAPI()
+    app.include_router(auth_routes.router, prefix="/auth")
+    app.dependency_overrides[get_auth_service] = get_test_auth_service
+    monkeypatch.setattr(auth_routes, "get_settings", lambda: auth_settings)
+    auth_routes._login_attempts.clear()
+
+    try:
+        with TestClient(app) as client:
+            login = client.post(
+                "/auth/login",
+                json={"username": "public-flow-admin", "password": "correct horse"},
+            )
+            assert login.status_code == 200
+            assert login.json() == {"message": "Login successful", "success": True}
+            initial_refresh = client.cookies.get("refresh_token")
+            assert initial_refresh
+
+            check = client.get("/auth/check")
+            assert check.status_code == 200
+            assert check.json() == {"authenticated": True}
+
+            refresh = client.post("/auth/refresh")
+            assert refresh.status_code == 200
+            assert refresh.json() == {"success": True}
+            rotated_refresh = client.cookies.get("refresh_token")
+            assert rotated_refresh
+            assert rotated_refresh != initial_refresh
+
+            with session_factory() as db:
+                family = db.query(RefreshToken).filter_by(user_id=user_id).all()
+                assert len(family) == 2
+                assert sum(token.used_at is not None for token in family) == 1
+                assert all(token.revoked_at is None for token in family)
+
+            logout = client.post("/auth/logout")
+            assert logout.status_code == 200
+            assert logout.json() == {"message": "Logout successful", "success": True}
+
+            with session_factory() as db:
+                family = db.query(RefreshToken).filter_by(user_id=user_id).all()
+                assert len(family) == 2
+                assert all(token.revoked_at is not None for token in family)
+
+            client.cookies.set("refresh_token", rotated_refresh, path="/auth")
+            rejected_refresh = client.post("/auth/refresh")
+            assert rejected_refresh.status_code == 401
+            assert rejected_refresh.json() == {
+                "detail": "Refresh token replay detected"
+            }
+    finally:
+        auth_routes._login_attempts.clear()
         Base.metadata.drop_all(
             engine,
             tables=[Session.__table__, RefreshToken.__table__, User.__table__],

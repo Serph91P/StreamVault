@@ -9,13 +9,16 @@ export default defineConfig({
     vue(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'maskable-icon-*.png', 'android-icon-*.png'],
+      // Workbox globs already enumerate these public static assets. Keep the
+      // manifest metadata, but do not register a second copy in precache.
+      includeAssets: [],
+      includeManifestIcons: false,
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2,ttf}'],
         navigateFallback: 'index.html',
-        // Import push handler so VitePWA owns the generated SW while
-        // push and notificationclick listeners stay functional.
-        importScripts: ['push-sw.js'],
+        // The backend appends its canonical /pwa/push-sw.js import when it
+        // serves /sw.js. Do not generate a root-relative helper import: that
+        // route is intentionally not a public static asset in production.
         // Prevent service worker from intercepting API, auth, and WebSocket paths
         navigateFallbackDenylist: [/^\/api\//, /^\/auth\//, /^\/ws/, /^\/eventsub/, /^\/health/],
         runtimeCaching: [

@@ -5,6 +5,7 @@
 import { ref, computed } from 'vue'
 import router from '@/router'
 import { appStorage } from '@/services/storage'
+import { loginLocationFor } from '@/services/session'
 
 // Mock mode check (evaluated once at module load)
 const USE_MOCK_DATA = import.meta.env.VITE_USE_MOCK_DATA === 'true'
@@ -50,18 +51,18 @@ export function useAuth() {
             console.warn('Session invalid, redirecting to login...')
             if (!isAuthRedirecting) {
               isAuthRedirecting = true
-              router.push('/auth/login').finally(() => { isAuthRedirecting = false })
+              router.push(loginLocationFor(window.location.pathname + window.location.search + window.location.hash)).finally(() => { isAuthRedirecting = false })
             }
             return
           }
-        } else {
-          // Invalid stored token, clear it and redirect if on protected page
+        } else if (response.status === 401) {
+          // A forbidden response is not a session-expiry signal. Preserve it for route-level UI.
           clearAuth()
           if (!isAuthPage) {
-            console.warn('Auth check failed (non-OK response), redirecting to login...')
+            console.warn('Session check returned 401, redirecting to login...')
             if (!isAuthRedirecting) {
               isAuthRedirecting = true
-              router.push('/auth/login').finally(() => { isAuthRedirecting = false })
+              router.push(loginLocationFor(window.location.pathname + window.location.search + window.location.hash)).finally(() => { isAuthRedirecting = false })
             }
           }
         }

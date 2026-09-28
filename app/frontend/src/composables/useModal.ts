@@ -150,11 +150,15 @@ export function useModal(
     if (stackIndex !== -1) modalStack.splice(stackIndex, 1)
     unlockBody()
     if (modalStack.length === 0) document.removeEventListener('keydown', handleOverlayKeydown)
-    if (wasTopmost && stackEntry.restoreTarget?.isConnected) {
-      stackEntry.restoreTarget.focus()
+    const restoreTarget = stackEntry.restoreTarget
+    if (wasTopmost && restoreTarget?.isConnected) {
+      restoreTarget.focus()
     }
     stackEntry.restoreTarget = null
     if (notify) onClose?.()
+    if (wasTopmost && restoreTarget?.isConnected) {
+      requestAnimationFrame(() => restoreTarget.isConnected && restoreTarget.focus())
+    }
   }
 
   if (autoFocus) {

@@ -1,0 +1,34 @@
+[
+  {
+    "id": 41,
+    "stream_id": 13,
+    "streamer_id": 7,
+    "streamer_name": "pending-channel",
+    "title": "Pending recording",
+    "started_at": "2026-09-24T12:00:00",
+    "file_path": "/synthetic/pending.ts",
+    "status": "recording",
+    "duration": 0,
+    "twitch_auth_priority": -25,
+    "effective_auth_mode": "authenticated",
+    "pending_handoff": true,
+    "handoff_reason": "awaiting_higher_priority_handoff",
+    "partial_recording_warning": true
+  },
+  {
+    "id": 42,
+    "stream_id": 14,
+    "streamer_id": 8,
+    "streamer_name": "blocked-channel",
+    "title": "Blocked recording",
+    "started_at": "2026-09-24T12:00:00",
+    "file_path": "/synthetic/blocked.ts",
+    "status": "recording",
+    "duration": 0,
+    "twitch_auth_priority": 17,
+    "effective_auth_mode": "anonymous",
+    "pending_handoff": false,
+    "handoff_reason": "live_playback_owner_not_preemptible",
+    "partial_recording_warning": false
+  }
+]

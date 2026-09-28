@@ -64,102 +64,31 @@
       </aside>
 
       <!-- Settings Content -->
-      <div class="settings-content">
-        <!-- Twitch Connection Settings -->
-        <div v-if="activeSection === 'twitch'" class="settings-section">
+      <div ref="panelRegion" class="settings-content" tabindex="-1">
+        <div v-if="activeSectionData?.hasPanel" class="settings-section">
           <BasePanel tone="glass" padding="lg">
-            <template #title>Twitch Connection</template>
-            <template #description>Connect your Twitch account for enhanced recording quality and features</template>
-            <TwitchConnectionPanel />
-          </BasePanel>
-        </div>
-
-        <!-- Notifications Settings -->
-        <div v-if="activeSection === 'notifications'" class="settings-section">
-          <BasePanel tone="glass" padding="lg">
-            <template #title>Notifications</template>
-            <template #description>Configure notification preferences for stream events</template>
-            <NotificationSettingsPanel
-              :settings="notificationSettings || defaultNotificationSettings"
-              :streamer-settings="notificationStreamerSettings"
-              @update-settings="handleUpdateNotificationSettings"
-              @update-streamer-settings="handleUpdateStreamerNotificationSettings"
+            <template #title>{{ activeSectionData.label }}</template>
+            <template #description>{{ activeSectionData.panelDescription }}</template>
+            <div v-if="!panelHost && !panelHostError" class="panel-load-state" role="status">
+              <LoadingSkeleton type="card" />
+              <span>Loading {{ activeSectionData.label }} settings…</span>
+            </div>
+            <div v-else-if="panelHostError" class="panel-load-error" role="alert">
+              <p>{{ panelHostError }}</p>
+              <button type="button" class="btn btn-primary" @click="loadPanelHost">Retry</button>
+            </div>
+            <component
+              v-else
+              :is="panelHost"
+              :section="activeSection"
+              :panel-props="activePanelProps"
+              :panel-listeners="activePanelListeners"
             />
-          </BasePanel>
-        </div>
-
-        <!-- Recording Settings -->
-        <div v-if="activeSection === 'recording'" class="settings-section">
-          <BasePanel tone="glass" padding="lg">
-            <template #title>Recording</template>
-            <template #description>Manage recording quality, codecs, and behavior</template>
-            <RecordingSettingsPanel
-              section="recording"
-              :settings="recordingSettings"
-              :streamer-settings="recordingStreamerSettings"
-              :active-recordings="activeRecordings"
-              @update="handleUpdateRecordingSettings"
-              @update-streamer="handleUpdateStreamerRecordingSettings"
-              @stop-recording="handleStopRecording"
-            />
-          </BasePanel>
-        </div>
-
-        <!-- Storage Settings -->
-        <div v-if="activeSection === 'storage'" class="settings-section">
-          <BasePanel tone="glass" padding="lg">
-            <template #title>Storage</template>
-            <template #description>Automatic cleanup policies, retention and storage management</template>
-            <RecordingSettingsPanel
-              section="storage"
-              :settings="recordingSettings"
-              :streamer-settings="recordingStreamerSettings"
-              :active-recordings="activeRecordings"
-              @update="handleUpdateRecordingSettings"
-              @update-streamer="handleUpdateStreamerRecordingSettings"
-              @stop-recording="handleStopRecording"
-            />
-          </BasePanel>
-        </div>
-
-        <!-- Proxy Management -->
-        <div v-if="activeSection === 'proxy'" class="settings-section">
-          <BasePanel tone="glass" padding="lg">
-            <template #title>Proxy Management</template>
-            <template #description>Configure multiple proxy servers with automatic health monitoring and failover</template>
-            <ProxySettingsPanel />
-          </BasePanel>
-        </div>
-
-        <!-- Favorites Settings -->
-        <div v-if="activeSection === 'favorites'" class="settings-section">
-          <BasePanel tone="glass" padding="lg">
-            <template #title>Favorite Games</template>
-            <template #description>Set favorite game categories for priority notifications</template>
-            <FavoritesSettingsPanel />
-          </BasePanel>
-        </div>
-
-        <!-- PWA Settings -->
-        <div v-if="activeSection === 'pwa'" class="settings-section">
-          <BasePanel tone="glass" padding="lg">
-            <template #title>PWA & Mobile</template>
-            <template #description>Progressive Web App and mobile-specific settings</template>
-            <PWAPanel />
-          </BasePanel>
-        </div>
-
-        <!-- API Keys -->
-        <div v-if="activeSection === 'api-keys'" class="settings-section">
-          <BasePanel tone="glass" padding="lg">
-            <template #title>API Keys</template>
-            <template #description>Manage long-lived tokens for external clients (monitoring, scripts, dashboards)</template>
-            <ApiKeysPanel />
           </BasePanel>
         </div>
 
         <!-- About Settings -->
-        <div v-if="activeSection === 'about'" class="settings-section">
+        <div v-else-if="activeSection === 'about'" class="settings-section">
           <BasePanel tone="glass" padding="lg">
             <template #title>About</template>
             <template #description>Application information and version details</template>
@@ -247,22 +176,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, shallowRef, computed, nextTick, onMounted, onBeforeUnmount, watch, type Component } from 'vue'
 import { useRoute } from 'vue-router'
 import { useNotificationSettings } from '@/composables/useNotificationSettings'
 import { useRecordingSettings } from '@/composables/useRecordingSettings'
-import { useTheme } from '@/composables/useTheme'
+
 import { useToast } from '@/composables/useToast'
 import { systemApi } from '@/services/api'
 import LoadingSkeleton from '@/components/LoadingSkeleton.vue'
 import BasePanel from '@/components/base/BasePanel.vue'
-import NotificationSettingsPanel from '@/components/settings/NotificationSettingsPanel.vue'
-import RecordingSettingsPanel from '@/components/settings/RecordingSettingsPanel.vue'
-import ProxySettingsPanel from '@/components/settings/ProxySettingsPanel.vue'
-import FavoritesSettingsPanel from '@/components/settings/FavoritesSettingsPanel.vue'
-import PWAPanel from '@/components/settings/PWAPanel.vue'
-import TwitchConnectionPanel from '@/components/settings/TwitchConnectionPanel.vue'
-import ApiKeysPanel from '@/components/settings/ApiKeysPanel.vue'
 import PageHeader from '@/components/base/PageHeader.vue'
 import type { NotificationSettings, StreamerNotificationSettings } from '@/types/settings'
 import type { RecordingSettings } from '@/types/recording'
@@ -276,6 +198,8 @@ interface Section {
   description: string
   icon: string
   badge?: SectionBadge
+  hasPanel?: boolean
+  panelDescription?: string
 }
 
 interface SectionGroup {
@@ -286,14 +210,14 @@ interface SectionGroup {
 // No 'overview' pseudo-section: it only mirrored this navigation as a card
 // grid, so Settings lands directly in the first real section instead.
 const allSectionItems: Section[] = [
-  { id: 'twitch', label: 'Twitch Connection', description: 'OAuth & quality settings', icon: 'link', badge: 'Basic' },
-  { id: 'notifications', label: 'Notifications', description: 'Stream alerts & updates', icon: 'bell', badge: 'Basic' },
-  { id: 'recording', label: 'Recording', description: 'Quality & behavior', icon: 'video', badge: 'Advanced' },
-  { id: 'storage', label: 'Storage', description: 'Cleanup & retention', icon: 'server', badge: 'Advanced' },
-  { id: 'favorites', label: 'Favorite Games', description: 'Priority categories', icon: 'star', badge: 'Basic' },
-  { id: 'pwa', label: 'PWA & Mobile', description: 'Mobile app settings', icon: 'smartphone', badge: 'Advanced' },
-  { id: 'api-keys', label: 'API Keys', description: 'External access tokens', icon: 'key', badge: 'Safety' },
-  { id: 'proxy', label: 'Proxy Management', description: 'Multi-proxy system', icon: 'server', badge: 'Safety' },
+  { id: 'twitch', label: 'Twitch Connection', description: 'OAuth & quality settings', icon: 'link', badge: 'Basic', hasPanel: true, panelDescription: 'Connect your Twitch account for enhanced recording quality and features' },
+  { id: 'notifications', label: 'Notifications', description: 'Stream alerts & updates', icon: 'bell', badge: 'Basic', hasPanel: true, panelDescription: 'Configure notification preferences for stream events' },
+  { id: 'recording', label: 'Recording', description: 'Quality & behavior', icon: 'video', badge: 'Advanced', hasPanel: true, panelDescription: 'Manage recording quality, codecs, and behavior' },
+  { id: 'storage', label: 'Storage', description: 'Cleanup & retention', icon: 'server', badge: 'Advanced', hasPanel: true, panelDescription: 'Automatic cleanup policies, retention and storage management' },
+  { id: 'favorites', label: 'Favorite Games', description: 'Priority categories', icon: 'star', badge: 'Basic', hasPanel: true, panelDescription: 'Set favorite game categories for priority notifications' },
+  { id: 'pwa', label: 'PWA & Mobile', description: 'Mobile app settings', icon: 'smartphone', badge: 'Advanced', hasPanel: true, panelDescription: 'Progressive Web App and mobile-specific settings' },
+  { id: 'api-keys', label: 'API Keys', description: 'External access tokens', icon: 'key', badge: 'Safety', hasPanel: true, panelDescription: 'Manage long-lived tokens for external clients (monitoring, scripts, dashboards)' },
+  { id: 'proxy', label: 'Proxy Management', description: 'Multi-proxy system', icon: 'server', badge: 'Safety', hasPanel: true, panelDescription: 'Configure multiple proxy servers with automatic health monitoring and failover' },
   { id: 'about', label: 'About', description: 'App information', icon: 'info', badge: 'Account' }
 ]
 
@@ -318,11 +242,37 @@ const routeSection = typeof route.query.section === 'string' ? route.query.secti
 const activeSection = ref(allSectionItems.some(section => section.id === routeSection) ? routeSection : 'twitch')
 const activeSectionData = computed(() => allSectionItems.find(s => s.id === activeSection.value))
 const isLoading = ref(true)
+const panelHost = shallowRef<Component | null>(null)
+const panelHostError = ref('')
+const panelRegion = ref<HTMLElement | null>(null)
+let panelHostRequest = 0
+let acceptsPanelHost = true
+
+async function loadPanelHost() {
+  const request = ++panelHostRequest
+  panelHostError.value = ''
+  try {
+    const module = await import('@/components/settings/SettingsPanelHost.vue')
+    if (!acceptsPanelHost || request !== panelHostRequest) return
+    panelHost.value = module.default
+    await nextTick()
+    panelRegion.value?.focus()
+  } catch {
+    if (!acceptsPanelHost || request !== panelHostRequest) return
+    panelHostError.value = 'This settings panel could not be loaded.'
+  }
+}
 
 watch(() => route.query.section, (section) => {
   if (typeof section === 'string' && allSectionItems.some(item => item.id === section)) {
     activeSection.value = section
   }
+})
+
+watch(activeSection, async () => {
+  if (!panelHost.value) return
+  await nextTick()
+  panelRegion.value?.focus()
 })
 
 // Version information
@@ -347,8 +297,6 @@ const upToDateText = computed(() => {
   return `You're on the latest ${channel} release`
 })
 
-// Theme management - use global theme composable
-const { theme, setTheme } = useTheme()
 
 // Toast notifications
 const toast = useToast()
@@ -372,8 +320,7 @@ const {
   fetchStreamerSettings: fetchRecordingStreamerSettings,
   updateStreamerSettings: updateStreamerRecordingSettings,
   fetchActiveRecordings,
-  stopRecording,
-  cleanupOldRecordings: _cleanupOldRecordings
+  stopRecording
 } = useRecordingSettings()
 
 const notificationStreamerSettings = ref<StreamerNotificationSettings[]>([])
@@ -440,13 +387,6 @@ function formatBuildDate(isoDate: string): string {
   }
 }
 
-// Watch theme changes from dropdown and apply via setTheme
-watch(theme, (newTheme) => {
-  // Only call setTheme if it's a valid theme value
-  if (newTheme === 'dark' || newTheme === 'light') {
-    setTheme(newTheme)
-  }
-})
 
 // Notification handlers
 async function handleUpdateNotificationSettings(newSettings: Partial<NotificationSettings>) {
@@ -506,9 +446,50 @@ async function handleStopRecording(recordingId: number) {
   }
 }
 
+const activePanelProps = computed(() => {
+  if (activeSection.value === 'notifications') {
+    return {
+      settings: notificationSettings.value || defaultNotificationSettings,
+      streamerSettings: notificationStreamerSettings.value
+    }
+  }
+  if (activeSection.value === 'recording' || activeSection.value === 'storage') {
+    return {
+      section: activeSection.value,
+      settings: recordingSettings.value,
+      streamerSettings: recordingStreamerSettings.value,
+      activeRecordings: activeRecordings.value
+    }
+  }
+  return {}
+})
+
+const activePanelListeners = computed(() => {
+  if (activeSection.value === 'notifications') {
+    return {
+      'update-settings': handleUpdateNotificationSettings,
+      'update-streamer-settings': handleUpdateStreamerNotificationSettings
+    }
+  }
+  if (activeSection.value === 'recording' || activeSection.value === 'storage') {
+    return {
+      update: handleUpdateRecordingSettings,
+      'update-streamer': handleUpdateStreamerRecordingSettings,
+      'stop-recording': handleStopRecording
+    }
+  }
+  return {}
+})
+
 // Initialize
 onMounted(() => {
   loadAllSettings()
+  loadPanelHost()
+})
+
+onBeforeUnmount(() => {
+  acceptsPanelHost = false
+  panelHostRequest += 1
 })
 </script>
 
@@ -518,52 +499,6 @@ onMounted(() => {
 .settings-view {
   // .page-view provides padding/sizing via global styles
   // Page-specific overrides only
-}
-
-.btn-action {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--spacing-2);
-  padding: var(--spacing-3) var(--spacing-4);
-  min-height: 44px;
-  border-radius: var(--radius-lg);
-  font-size: var(--text-sm);
-  font-weight: v.$font-semibold;
-  border: none;
-  cursor: pointer;
-  transition: all v.$duration-200 v.$ease-out;
-
-  .icon {
-    width: 18px;
-    height: 18px;
-    stroke: currentColor;
-    fill: none;
-  }
-
-  &.btn-primary {
-    background: var(--primary-color);
-    color: white;
-
-    &:hover {
-      background: var(--primary-600);
-      box-shadow: var(--shadow-md);
-    }
-  }
-
-  &.btn-secondary {
-    background: var(--background-card);
-    color: var(--text-primary);
-    border: 1px solid var(--border-color);
-
-    &:hover {
-      border-color: var(--primary-color);
-    }
-  }
-
-  &:focus-visible {
-    outline: 2px solid var(--primary-color);
-    outline-offset: 2px;
-  }
 }
 
 // Loading
@@ -746,190 +681,6 @@ onMounted(() => {
 
 .settings-section {
   animation: fade-in v.$duration-300 v.$ease-out;
-}
-
-.section-header {
-  margin-bottom: var(--spacing-6);
-}
-
-.section-title {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-3);
-  font-size: var(--text-2xl);
-  font-weight: v.$font-bold;
-  color: var(--text-primary);
-  margin: 0 0 var(--spacing-2) 0;
-
-  .section-icon {
-    width: 28px;
-    height: 28px;
-    stroke: var(--primary-color);
-    fill: none;
-  }
-}
-
-.section-description {
-  font-size: var(--text-base);
-  color: var(--text-secondary);
-  margin: 0;
-}
-
-// Settings Cards - NO background, uses GlassCard component for glassmorphism
-.settings-card {
-  // NO background - GlassCard handles this
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-xl);
-  overflow: hidden;
-  margin-bottom: var(--spacing-5);
-
-  // Reduce margins on mobile
-  @include m.respond-below('sm') {
-    margin-bottom: var(--spacing-3);
-    border-radius: var(--radius-lg);
-  }
-}
-
-.card-content {
-  padding: var(--spacing-6);
-
-  // Mobile: Reduce padding for better content visibility
-  @include m.respond-below('sm') {
-    padding: var(--spacing-3);
-  }
-}
-
-.setting-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: var(--spacing-4);
-  padding: var(--spacing-4) 0;
-  border-bottom: 1px solid var(--border-color);
-
-  &:last-child {
-    border-bottom: none;
-    padding-bottom: 0;
-  }
-
-  &:first-child {
-    padding-top: 0;
-  }
-}
-
-.setting-info {
-  flex: 1;
-  min-width: 0;
-}
-
-.setting-label {
-  display: block;
-  font-size: var(--text-base);
-  font-weight: v.$font-semibold;
-  color: var(--text-primary);
-  margin-bottom: var(--spacing-1);
-}
-
-.setting-description {
-  font-size: var(--text-sm);
-  color: var(--text-secondary);
-  margin: 0;
-  line-height: 1.4;
-}
-
-.setting-control {
-  flex-shrink: 0;
-}
-
-// Form Controls
-.select-input,
-.text-input {
-  padding: var(--spacing-2) var(--spacing-3);
-  background: var(--background-darker);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-  color: var(--text-primary);
-  font-size: var(--text-sm);
-  min-width: 200px;
-  transition: all v.$duration-200 v.$ease-out;
-
-  &:hover {
-    border-color: var(--primary-color);
-  }
-
-  &:focus {
-    outline: none;
-    border-color: var(--primary-color);
-    box-shadow: 0 0 0 3px rgba(var(--primary-500-rgb), 0.1);
-  }
-}
-
-// Toggle Switch
-.toggle-switch {
-  position: relative;
-  display: inline-block;
-  width: 48px;
-  height: 24px;
-  cursor: pointer;
-
-  input {
-    opacity: 0;
-    width: 0;
-    height: 0;
-  }
-
-  .toggle-slider {
-    position: absolute;
-    inset: 0;
-    background: var(--background-darker);
-    border: 2px solid var(--border-color);
-    border-radius: var(--radius-full);
-    transition: all v.$duration-200 v.$ease-out;
-
-    &::before {
-      content: '';
-      position: absolute;
-      height: 16px;
-      width: 16px;
-      left: 2px;
-      top: 2px;
-      background: var(--text-tertiary);
-      border-radius: 50%;
-      transition: all v.$duration-200 v.$ease-out;
-    }
-  }
-
-  input:checked + .toggle-slider {
-    background: var(--primary-color);
-    border-color: var(--primary-color);
-
-    &::before {
-      background: white;
-      transform: translateX(24px);
-    }
-  }
-}
-
-.btn-outline {
-  padding: var(--spacing-2) var(--spacing-4);
-  background: transparent;
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-  color: var(--text-primary);
-  font-size: var(--text-sm);
-  font-weight: v.$font-medium;
-  cursor: pointer;
-  transition: all v.$duration-200 v.$ease-out;
-
-  &.btn-danger {
-    border-color: var(--danger-color);
-    color: var(--danger-color);
-
-    &:hover {
-      background: var(--danger-color);
-      color: white;
-    }
-  }
 }
 
 // About Section

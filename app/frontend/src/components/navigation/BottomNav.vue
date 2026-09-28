@@ -110,12 +110,10 @@ const mobileConnectivityLabel = computed(() => {
   will-change: transform;
   backface-visibility: hidden;
 
-  // Glass effect
-  background: var(--glass-bg-strong);
-  backdrop-filter: blur(var(--glass-blur-lg)) saturate(180%);
-  -webkit-backdrop-filter: blur(var(--glass-blur-lg)) saturate(180%);
-  border-top: 1px solid var(--glass-border);
-  box-shadow: 0 -2px 10px var(--glass-shadow-color);
+  // Opaque tokenized shell surface: navigation does not use glass or blur.
+  background: var(--background-card);
+  border-top: 1px solid var(--border-color);
+  box-shadow: 0 -2px 10px var(--shadow-color);
 
   display: flex;
   justify-content: space-around;
@@ -125,10 +123,6 @@ const mobileConnectivityLabel = computed(() => {
   padding: 6px max(8px, env(safe-area-inset-left, 0px)) calc(6px + env(safe-area-inset-bottom, 0px)) max(8px, env(safe-area-inset-right, 0px));
 
   transition: transform v.$duration-300 v.$ease-in-out;
-
-  @supports not (backdrop-filter: blur(1px)) {
-    background: var(--glass-bg-solid);
-  }
 }
 
 .mobile-connectivity-pill {
@@ -142,16 +136,14 @@ const mobileConnectivityLabel = computed(() => {
   gap: v.$spacing-2;
   min-height: 44px;
   padding: v.$spacing-2 v.$spacing-3;
-  border: 1px solid var(--glass-border-hover);
+  border: 1px solid var(--border-color);
   border-radius: var(--radius-full);
-  background: var(--glass-bg-strong);
-  box-shadow: var(--glass-shadow-md);
+  background: var(--background-card);
+  box-shadow: var(--shadow-md);
   color: var(--text-primary);
   font-size: v.$text-xs;
   font-weight: v.$font-semibold;
   line-height: 1.2;
-  backdrop-filter: blur(var(--glass-blur-lg));
-  -webkit-backdrop-filter: blur(var(--glass-blur-lg));
   pointer-events: auto;
 }
 

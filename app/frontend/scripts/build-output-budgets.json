@@ -1,0 +1,18 @@
+{
+  "baseline": "develop@14bff396a2055e45d679cc1f900bdc17990e7cb3",
+  "budgets": {
+    "jsBytes": 1196533,
+    "jsGzipBytes": 380431,
+    "cssBytes": 828985,
+    "cssGzipBytes": 123621,
+    "totalBytes": 2754341,
+    "precacheEntries": 91,
+    "largestJsBytes": 594240,
+    "largestCssBytes": 310991
+  },
+  "hlsWorkerAllowance": {
+    "packageVersion": "1.7.3",
+    "bytes": 116764,
+    "gzipBytes": 40615
+  }
+}

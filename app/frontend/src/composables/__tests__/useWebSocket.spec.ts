@@ -4,7 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/router', () => ({
   default: {
-    push: vi.fn(() => Promise.resolve())
+    push: vi.fn(() => Promise.resolve()),
+    afterEach: vi.fn(),
   }
 }))
 
@@ -58,6 +59,7 @@ function jsonResponse(body: unknown, status = 200): Response {
 
 describe('realtime WebSocket lifecycle authority', () => {
   beforeEach(() => {
+    window.history.replaceState({}, '', '/')
     vi.resetModules()
     vi.useFakeTimers()
     vi.spyOn(Math, 'random').mockReturnValue(0)
@@ -70,6 +72,48 @@ describe('realtime WebSocket lifecycle authority', () => {
     vi.clearAllTimers()
     vi.useRealTimers()
     vi.unstubAllGlobals()
+    vi.unstubAllEnvs()
+  })
+
+  it('keeps mock preview free of WebSocket construction across lifecycle triggers', async () => {
+    vi.stubEnv('VITE_USE_MOCK_DATA', 'true')
+    const router = (await import('@/router')).default
+    const { WebSocketManager } = await import('../useWebSocket')
+    const manager = WebSocketManager.getInstance()
+    const subscriber = () => undefined
+
+    manager.subscribe(subscriber)
+    const afterNavigation = vi.mocked(router.afterEach).mock.calls[0][0]
+    afterNavigation({ path: '/' } as never, { path: '/auth/setup' } as never, undefined)
+    window.dispatchEvent(new Event('online'))
+    document.dispatchEvent(new Event('visibilitychange'))
+    manager.reconnectNow()
+
+    expect(FakeWebSocket.instances).toHaveLength(0)
+    manager.unsubscribe(subscriber)
+  })
+
+  it('starts realtime after setup navigation and stops it again on an auth route', async () => {
+    window.history.replaceState({}, '', '/auth/setup')
+    const router = (await import('@/router')).default
+    const { WebSocketManager } = await import('../useWebSocket')
+    const manager = WebSocketManager.getInstance()
+    const subscriber = () => undefined
+
+    manager.subscribe(subscriber)
+    expect(FakeWebSocket.instances).toHaveLength(0)
+    expect(router.afterEach).toHaveBeenCalledTimes(1)
+
+    const afterNavigation = vi.mocked(router.afterEach).mock.calls[0][0]
+    window.history.replaceState({}, '', '/')
+    afterNavigation({ path: '/' } as never, { path: '/auth/setup' } as never, undefined)
+    expect(FakeWebSocket.instances).toHaveLength(1)
+
+    afterNavigation({ path: '/auth/login' } as never, { path: '/' } as never, undefined)
+    expect(FakeWebSocket.instances[0].readyState).toBe(FakeWebSocket.CLOSED)
+    expect(vi.getTimerCount()).toBe(0)
+
+    manager.unsubscribe(subscriber)
   })
 
   it('shares one socket between the shell and proxy settings and owns all teardown', async () => {

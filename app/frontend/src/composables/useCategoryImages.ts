@@ -91,56 +91,14 @@ export function useCategoryImages() {
 
   const preloadCategoryImages = async (categoryNames: string[]) => {
     try {
-      const data = await categoriesApi.preloadImages(categoryNames)
-      console.log('Preloading category images:', data.message)
-      return data
+      await categoriesApi.preloadImages(categoryNames)
     } catch (error) {
       console.warn('Failed to preload category images:', error)
     }
   }
 
-  const getCacheStatus = async () => {
-    try {
-      return await categoriesApi.getCacheStatus()
-    } catch (error) {
-      console.warn('Failed to get cache status:', error)
-    }
-  }
-
-  const refreshImages = async (categoryNames: string[]) => {
-    try {
-      const data = await categoriesApi.refreshImages(categoryNames)
-      console.log('Refreshing category images:', data.message)
-
-      // Clear local cache for these categories to force reload
-      categoryNames.forEach(name => {
-        if (categoryImageCache[name]) {
-          delete categoryImageCache[name]
-        }
-      })
-
-      return data
-    } catch (error) {
-      console.warn('Failed to refresh category images:', error)
-    }
-  }
-
-  const clearCache = () => {
-    Object.keys(categoryImageCache).forEach(key => {
-      delete categoryImageCache[key]
-    })
-    cacheVersion.value++
-    console.log('Category image cache cleared')
-  }
-
   return {
     getCategoryImage,
-    getIconFallback,
-    preloadCategoryImages,
-    getCacheStatus,
-    refreshImages,
-    clearCache,
-    categoryImageCache,
-    cacheVersion
+    preloadCategoryImages
   }
 }

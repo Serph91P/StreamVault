@@ -1,5 +1,12 @@
 <template>
   <div class="pwa-panel">
+    <div v-if="updateAvailable" class="pwa-guide-card" role="status">
+      <div>
+        <strong>Update ready</strong>
+        <p>Save any settings you are editing, then update when you are ready.</p>
+      </div>
+      <button class="btn btn-primary" type="button" @click="applyUpdate">Update now</button>
+    </div>
     <div class="pwa-section settings-section settings-group">
       <h4>Progressive Web App</h4>
 
@@ -255,11 +262,11 @@
         <div class="setting-info settings-item__info">
           <label>Offline Support</label>
           <p class="setting-description">
-            Basic app functionality works offline with cached content
+            The cached app shell can open offline. Settings, media, and protected API data still require a connection.
           </p>
         </div>
         <div class="setting-control settings-item__actions">
-          <span class="status-badge supported">Enabled</span>
+          <span class="status-badge supported">App shell only</span>
         </div>
       </div>
 
@@ -267,11 +274,11 @@
         <div class="setting-info settings-item__info">
           <label>Background Sync</label>
           <p class="setting-description">
-            Sync data automatically when connection is restored
+            Background data sync is not configured. Reconnect and retry actions explicitly.
           </p>
         </div>
         <div class="setting-control settings-item__actions">
-          <span class="status-badge supported">Enabled</span>
+          <span class="status-badge not-supported">Not configured</span>
         </div>
       </div>
     </div>
@@ -295,6 +302,8 @@ const {
   pushState,
   pushError,
   installError,
+  updateAvailable,
+  applyUpdate,
   installPWA,
   subscribeToPush,
   unsubscribeFromPush,
@@ -447,152 +456,6 @@ const showStatus = (message: string, type: 'success' | 'error' | 'info') => {
 @use '@/styles/variables' as v;
 @use '@/styles/mixins' as m;
 
-.pwa-status {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: v.$spacing-4;
-  margin-bottom: v.$spacing-6;
-
-  @include m.respond-below('sm') {
-    grid-template-columns: 1fr;
-  }
-}
-
-.status-card {
-  padding: v.$spacing-4;
-  background: var(--background-card);
-  border: 2px solid var(--border-color);
-  border-radius: var(--radius-md);
-
-  &.installed {
-    border-color: var(--success-color);
-    background: var(--success-bg-color);
-  }
-
-  &.not-installed {
-    border-color: var(--warning-color);
-    background: var(--warning-bg-color);
-  }
-
-  .status-icon {
-    font-size: v.$text-3xl;
-    margin-bottom: v.$spacing-2;
-  }
-
-  .status-title {
-    font-weight: v.$font-semibold;
-    color: var(--text-primary);
-    margin-bottom: v.$spacing-1;
-  }
-
-  .status-description {
-    font-size: v.$text-sm;
-    color: var(--text-secondary);
-  }
-}
-
-.install-instructions {
-  .platform-tabs {
-    display: flex;
-    gap: v.$spacing-2;
-    margin-bottom: v.$spacing-4;
-    border-bottom: 2px solid var(--border-color);
-
-    @include m.respond-below('sm') {
-      overflow-x: auto;
-      -webkit-overflow-scrolling: touch;
-    }
-
-    .platform-tab {
-      padding: v.$spacing-3 v.$spacing-4;
-      background: transparent;
-      border: none;
-      border-bottom: 3px solid transparent;
-      color: var(--text-secondary);
-      cursor: pointer;
-      transition: v.$transition-all;
-      white-space: nowrap;
-
-      &:hover {
-        color: var(--text-primary);
-        background: var(--background-hover);
-      }
-
-      &.active {
-        color: var(--primary-color);
-        border-bottom-color: var(--primary-color);
-        font-weight: v.$font-semibold;
-      }
-    }
-  }
-
-  .instruction-steps {
-    list-style: none;
-    counter-reset: step-counter;
-    padding: 0;
-
-    li {
-      counter-increment: step-counter;
-      position: relative;
-      padding-left: v.$spacing-10;
-      margin-bottom: v.$spacing-4;
-
-      &:before {
-        content: counter(step-counter);
-        position: absolute;
-        left: 0;
-        top: 0;
-        width: 32px;
-        height: 32px;
-        background: var(--primary-color);
-        color: white;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-weight: v.$font-bold;
-        font-size: v.$text-sm;
-      }
-
-      strong {
-        color: var(--text-primary);
-        display: block;
-        margin-bottom: v.$spacing-1;
-      }
-
-      span {
-        color: var(--text-secondary);
-        font-size: v.$text-sm;
-      }
-    }
-  }
-}
-
-.pwa-features {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: v.$spacing-3;
-  margin-top: v.$spacing-6;
-
-  .feature-item {
-    display: flex;
-    align-items: center;
-    gap: v.$spacing-2;
-    padding: v.$spacing-3;
-    background: var(--background-hover);
-    border-radius: var(--radius-sm);
-
-    .feature-icon {
-      font-size: v.$text-xl;
-      color: var(--primary-color);
-    }
-
-    .feature-text {
-      font-size: v.$text-sm;
-      color: var(--text-primary);
-    }
-  }
-}
 
 .pwa-flow-card,
 .pwa-guide-card,

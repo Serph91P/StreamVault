@@ -9,6 +9,17 @@
     <meta name="theme-color" media="(prefers-color-scheme: light)" content="#6f42c1">
     <meta name="description" content="Automated Twitch stream recording and management platform">
 
+    <!-- Apply the persisted theme before styles are evaluated. This prevents
+         first-paint color interpolation through non-AA contrast pairs. -->
+    <script>
+      (() => {
+        const storedTheme = localStorage.getItem('streamvault-theme')
+        const useLightTheme = storedTheme === 'light'
+          || (storedTheme !== 'dark' && matchMedia('(prefers-color-scheme: light)').matches)
+        document.documentElement.toggleAttribute('data-theme', useLightTheme)
+      })()
+    </script>
+
     <!-- SECURITY HEADERS -->
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' fonts.googleapis.com; font-src 'self' fonts.gstatic.com data:; img-src 'self' data: https:; connect-src 'self' ws: wss:; media-src 'self' blob:; worker-src 'self' blob:;">
     <meta http-equiv="X-XSS-Protection" content="1; mode=block">

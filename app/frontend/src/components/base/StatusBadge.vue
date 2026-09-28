@@ -58,10 +58,10 @@ const classes = computed(() => [
   gap: var(--spacing-2);
   min-height: 1.5rem;
   padding: var(--spacing-1) var(--spacing-3);
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--sv-sem-border-default);
   border-radius: var(--radius-full);
-  background: var(--background-darker);
-  color: var(--text-secondary);
+  background: var(--sv-sem-surface-raised);
+  color: var(--sv-cmp-badge-neutral);
   font-size: v.$text-xs;
   font-weight: v.$font-semibold;
   line-height: 1;
@@ -114,7 +114,7 @@ const classes = computed(() => [
 .status-badge-success,
 .status-badge-completed {
   background: rgba(var(--success-500-rgb), 0.15);
-  color: var(--success-text-color);
+  color: var(--sv-sem-text-primary);
   border-color: rgba(var(--success-500-rgb), 0.3);
 }
 
@@ -122,7 +122,7 @@ const classes = computed(() => [
 .status-badge-live,
 .status-badge-recording {
   background: rgba(var(--danger-color-rgb), 0.15);
-  color: var(--danger-text-color);
+  color: var(--sv-sem-text-primary);
   border-color: rgba(var(--danger-color-rgb), 0.3);
 }
 
@@ -133,20 +133,35 @@ const classes = computed(() => [
 .status-badge-warning,
 .status-badge-processing {
   background: rgba(var(--warning-color-rgb), 0.15);
-  color: var(--text-primary);
+  color: var(--sv-sem-text-primary);
   border-color: rgba(var(--warning-color-rgb), 0.3);
 }
 
 .status-badge-info {
   background: rgba(var(--info-500-rgb), 0.15);
-  color: var(--info-text-color);
+  color: var(--sv-sem-text-primary);
   border-color: rgba(var(--info-500-rgb), 0.3);
 }
 
 .status-badge-neutral,
 .status-badge-offline {
-  background: var(--background-darker);
-  color: var(--text-secondary);
-  border-color: var(--border-color);
+  background: var(--sv-sem-surface-raised);
+  color: var(--sv-cmp-badge-neutral);
+  border-color: var(--sv-sem-border-default);
+}
+
+.status-badge-success .status-badge-dot-mark,
+.status-badge-completed .status-badge-dot-mark { background: var(--sv-cmp-badge-success); }
+.status-badge-danger .status-badge-dot-mark,
+.status-badge-live .status-badge-dot-mark,
+.status-badge-recording .status-badge-dot-mark { background: var(--sv-cmp-badge-danger); }
+.status-badge-warning .status-badge-dot-mark,
+.status-badge-processing .status-badge-dot-mark { background: var(--sv-cmp-badge-warning); }
+.status-badge-info .status-badge-dot-mark { background: var(--sv-cmp-badge-info); }
+
+@media (prefers-reduced-motion: reduce) {
+  .status-badge-pulse .status-badge-dot-mark,
+  .status-badge-recording .status-badge-dot-mark,
+  .status-badge-live .status-badge-dot-mark { animation: none; }
 }
 </style>

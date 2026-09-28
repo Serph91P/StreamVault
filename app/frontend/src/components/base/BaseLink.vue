@@ -31,18 +31,18 @@ withDefaults(defineProps<Props>(), {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-inline-size: var(--control-target-min);
-  min-block-size: var(--control-target-min);
+  min-inline-size: var(--sv-fdn-size-target);
+  min-block-size: var(--sv-fdn-size-target);
 
   &:focus-visible {
-    outline: var(--focus-ring);
+    outline: 2px solid var(--sv-sem-action-focus);
     outline-offset: 2px;
   }
 }
 
 .base-link-target--primary,
 .base-link-target--icon {
-  min-inline-size: var(--control-target-mobile);
-  min-block-size: var(--control-target-mobile);
+  min-inline-size: var(--sv-fdn-size-target-primary);
+  min-block-size: var(--sv-fdn-size-target-primary);
 }
 </style>
