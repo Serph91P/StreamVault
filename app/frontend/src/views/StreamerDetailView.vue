@@ -1742,13 +1742,13 @@ onUnmounted(() => {
 }
 
 // Animations
+// Motion stays geometric so text and controls never render through a translucent
+// panel during initial paint or reduced-motion screenshot capture.
 @keyframes fade-in {
   from {
-    opacity: 0;
     transform: translateY(20px);
   }
   to {
-    opacity: 1;
     transform: translateY(0);
   }
 }
