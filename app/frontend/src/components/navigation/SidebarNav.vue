@@ -193,7 +193,11 @@ onMounted(() => {
   text-decoration: none;
   background: transparent;
   cursor: pointer;
-  transition: all v.$duration-200 v.$ease-out;
+  // Do not tween foreground/background when route activity changes: the
+  // intermediate pair can be unreadable even though both endpoints pass.
+  transition:
+    box-shadow v.$duration-200 v.$ease-out,
+    transform v.$duration-200 v.$ease-out;
   overflow: hidden;
 
   &:hover:not(.active) {

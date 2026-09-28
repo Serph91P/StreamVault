@@ -730,7 +730,9 @@ onUnmounted(() => {
 // List-mode's nested .stat rule has higher specificity than the semantic
 // variants above. Keep the status information legible on its card surface.
 .streamer-card-content .streamer-stats .stat-viewers {
-  color: var(--danger-color);
+  // The 400 semantic text token keeps live counts AA-readable on the dark
+  // glass surface, including intermediate compositor frames.
+  color: var(--danger-text-color);
 }
 
 .streamer-card-content .streamer-stats .stat-vods {

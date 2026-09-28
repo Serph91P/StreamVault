@@ -1041,16 +1041,16 @@ $ctrl-h: 44px;
 }
 
 .streamer-wrapper {
+  // Keep the staggered entrance movement without fading readable content
+  // through low-contrast intermediate colors.
   animation: fade-in-up v.$duration-500 v.$ease-out backwards;
 }
 
 @keyframes fade-in-up {
   from {
-    opacity: 0;
     transform: translateY(20px);
   }
   to {
-    opacity: 1;
     transform: translateY(0);
   }
 }
