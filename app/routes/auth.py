@@ -10,7 +10,13 @@ from app.services.core.auth_service import (
     AuthTokenError,
     RefreshTokenReplayError,
 )
-from app.dependencies import get_auth_service, get_current_user, get_db
+from app.dependencies import (
+    AuthIdentity,
+    get_auth_service,
+    get_current_identity,
+    get_current_user,
+    get_db,
+)
 from app.schemas.auth import UserCreate
 from app.config.settings import get_settings
 from app.models import SystemState, User
@@ -318,10 +324,15 @@ async def logout(
 
 @router.post("/keepalive")
 async def keepalive(
-    request: Request, auth_service: AuthService = Depends(get_auth_service)
+    request: Request,
+    auth_service: AuthService = Depends(get_auth_service),
+    identity: AuthIdentity = Depends(get_current_identity),
 ):
-    """Refresh the current session to implement sliding expiration."""
+    """Refresh legacy sessions while accepting the stateless JWT auth contract."""
     try:
+        if identity.auth_method == "jwt":
+            return JSONResponse(content={"ok": True})
+
         session_token = request.cookies.get("session")
         if not session_token:
             return JSONResponse(

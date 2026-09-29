@@ -32,7 +32,12 @@ from app.services.media.video_catalog_service import (
     VideoCatalogService,
     get_video_thumbnail_url as _catalog_thumbnail_url,
 )
-from app.dependencies import get_db, get_video_catalog_service
+from app.dependencies import (
+    AuthIdentity,
+    get_current_identity,
+    get_db,
+    get_video_catalog_service,
+)
 
 logger = logging.getLogger("streamvault")
 
@@ -203,17 +208,13 @@ async def get_videos(
     request: Request,
     db: Session = Depends(get_db),
     video_catalog: VideoCatalogService = Depends(get_video_catalog_service),
+    identity: AuthIdentity = Depends(get_current_identity),
 ):
     """Get all videos from database with file verification"""
-    # Check authentication via session cookie
-    session_token = request.cookies.get("session")
-    if not session_token:
+    # The library uses the canonical JWT-or-legacy interactive identity.
+    # API keys remain intentionally excluded from browser media access.
+    if not identity.interactive:
         raise HTTPException(status_code=401, detail="Authentication required")
-
-    # Validate session
-    auth_service = AuthService(db)
-    if not await auth_service.validate_session(session_token):
-        raise HTTPException(status_code=401, detail="Invalid session")
 
     try:
         videos = video_catalog.list_all_videos()
