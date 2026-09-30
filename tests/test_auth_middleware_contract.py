@@ -23,6 +23,7 @@ from app.dependencies import (
     get_auth_service,
     get_current_user,
     get_db,
+    get_video_catalog_service,
     get_websocket_manager,
     require_scopes,
 )
@@ -31,6 +32,7 @@ from app.routes import admin as admin_routes
 from app.routes import api_keys as api_key_routes
 from app.routes import auth as auth_routes
 from app.routes import settings as settings_routes
+from app.routes import videos as video_routes
 
 
 @pytest.fixture
@@ -98,6 +100,7 @@ def auth_stack(monkeypatch):
     app = FastAPI(openapi_url="/api/openapi.json")
     app.include_router(auth_routes.router, prefix="/auth")
     app.include_router(api_key_routes.router)
+    app.include_router(video_routes.router)
 
     @app.get("/api/settings")
     async def settings_endpoint(
@@ -124,6 +127,9 @@ def auth_stack(monkeypatch):
     app.include_router(admin_routes.router)
     app.dependency_overrides[get_db] = get_test_db
     app.dependency_overrides[get_auth_service] = get_test_auth_service
+    app.dependency_overrides[get_video_catalog_service] = lambda: SimpleNamespace(
+        list_all_videos=lambda: []
+    )
     app.dependency_overrides[get_websocket_manager] = lambda: SimpleNamespace(
         send_notification=lambda _notification: asyncio.sleep(0)
     )
@@ -144,7 +150,13 @@ def auth_stack(monkeypatch):
         engine.dispose()
 
 
-def _access_token(settings, user_id: int, *, expires_at: datetime | None = None) -> str:
+def _access_token(
+    settings,
+    user_id: int,
+    *,
+    expires_at: datetime | None = None,
+    scopes: list[str] | None = None,
+) -> str:
     now = datetime.now(timezone.utc)
     return jwt.encode(
         {
@@ -157,7 +169,7 @@ def _access_token(settings, user_id: int, *, expires_at: datetime | None = None)
             "iss": settings.AUTH_JWT_ISSUER,
             "aud": settings.AUTH_JWT_AUDIENCE,
             "roles": ["admin"],
-            "scp": ["settings:read"],
+            "scp": ["settings:read"] if scopes is None else scopes,
         },
         settings.AUTH_JWT_SECRET,
         algorithm="HS256",
@@ -327,6 +339,145 @@ def test_login_access_cookie_and_bearer_jwt_reach_protected_settings(auth_stack)
     assert bearer_response.json() == {"user_id": user_id}
 
 
+def test_fresh_jwt_login_can_check_session_list_library_and_keepalive(auth_stack):
+    app, _settings, _SessionFactory, _user_id, _legacy_token, _api_key = auth_stack
+
+    with TestClient(app) as client:
+        login = client.post(
+            "/auth/login",
+            json={"username": "middleware-admin", "password": "correct horse"},
+        )
+        checked = client.get("/auth/check", headers={"accept": "application/json"})
+        library = client.get("/api/videos", headers={"accept": "application/json"})
+        keepalive = client.post(
+            "/auth/keepalive", headers={"accept": "application/json"}
+        )
+
+    assert login.status_code == 200
+    assert "access_token" in login.cookies
+    assert "session" not in login.cookies
+    assert checked.status_code == 200
+    assert checked.json() == {"authenticated": True}
+    assert library.status_code == 200
+    assert library.json() == []
+    assert keepalive.status_code == 200
+    assert keepalive.json() == {"ok": True}
+
+
+def test_fresh_jwt_login_reaches_authenticated_media_contract(auth_stack, monkeypatch, tmp_path):
+    """JWT cookies must work for every player route without minting a legacy session."""
+    app, _settings, _SessionFactory, _user_id, _legacy_token, _api_key = auth_stack
+    media_file = tmp_path / "recording.mp4"
+    media_file.write_bytes(b"synthetic-media")
+    thumbnail = tmp_path / "recording-thumb.jpg"
+    thumbnail.write_bytes(b"synthetic-thumbnail")
+    chapters = tmp_path / "recording.vtt"
+    chapters.write_text(
+        "WEBVTT\n\n00:00:00.000 --> 00:00:04.000\nOpening\n",
+        encoding="utf-8",
+    )
+    stream = SimpleNamespace(
+        id=1,
+        title="Synthetic recording",
+        recording_path=str(media_file),
+        started_at=None,
+        ended_at=None,
+    )
+    metadata = SimpleNamespace(
+        stream_id=1,
+        chapters_vtt_path=str(chapters),
+        chapters_ffmpeg_path=None,
+    )
+
+    class Query:
+        def __init__(self, value):
+            self.value = value
+
+        def filter(self, *_args):
+            return self
+
+        def first(self):
+            return self.value
+
+    class MediaDb:
+        def query(self, model):
+            return Query(metadata if model.__name__ == "StreamMetadata" else stream)
+
+    from app.config import settings as settings_module
+
+    monkeypatch.setattr(video_routes, "validate_path_security", lambda path, _mode: path)
+    monkeypatch.setattr(video_routes, "validate_file_type", lambda *_args: None)
+    monkeypatch.setattr(video_routes, "get_recordings_directory", lambda: str(tmp_path))
+    monkeypatch.setattr(video_routes, "store_share_token", lambda *_args: None)
+    monkeypatch.setattr(video_routes, "cleanup_expired_tokens", lambda: None)
+    monkeypatch.setattr(
+        settings_module, "get_settings", lambda: SimpleNamespace(BASE_URL="https://test.invalid")
+    )
+    app.dependency_overrides[get_db] = lambda: MediaDb()
+
+    with TestClient(app) as client:
+        login = client.post(
+            "/auth/login",
+            json={"username": "middleware-admin", "password": "correct horse"},
+        )
+        thumbnail_response = client.get("/api/videos/1/thumbnail")
+        chapters_response = client.get("/api/videos/1/chapters")
+        share_response = client.post("/api/videos/1/share-token")
+        stream_response = client.get("/api/videos/1/stream", headers={"Range": "bytes=0-8"})
+
+    assert login.status_code == 200
+    assert "access_token" in login.cookies
+    assert "refresh_token" in login.cookies
+    assert "session" not in login.cookies
+    assert thumbnail_response.status_code == 200
+    assert thumbnail_response.content == b"synthetic-thumbnail"
+    assert chapters_response.status_code == 200
+    assert chapters_response.json() == [
+        {"id": 1, "start": 0.0, "end": 4.0, "title": "Opening"}
+    ]
+    assert share_response.status_code == 200
+    assert share_response.json()["share_url"].startswith("https://test.invalid/api/videos/public/1?token=")
+    assert stream_response.status_code == 206
+    assert stream_response.content == b"synthetic"
+
+
+def test_library_keeps_missing_invalid_expired_and_api_key_auth_fail_closed(auth_stack):
+    app, settings, _SessionFactory, user_id, _legacy_token, api_key = auth_stack
+
+    with TestClient(app) as client:
+        missing = client.get("/api/videos", headers={"accept": "application/json"})
+        client.cookies.set("access_token", "not-a-jwt")
+        invalid = client.get("/api/videos", headers={"accept": "application/json"})
+        client.cookies.set(
+            "access_token",
+            _access_token(
+                settings,
+                user_id,
+                expires_at=datetime.now(timezone.utc) - timedelta(seconds=1),
+            ),
+        )
+        expired = client.get("/api/videos", headers={"accept": "application/json"})
+
+    with TestClient(app) as client:
+        api_key_only = client.get(
+            "/api/videos",
+            headers={"accept": "application/json", "X-API-Key": api_key},
+        )
+        no_scope = client.get(
+            "/api/settings",
+            headers={
+                "accept": "application/json",
+                "Authorization": f"Bearer {_access_token(settings, user_id, scopes=[])}",
+            },
+        )
+
+    assert missing.status_code == 401
+    assert invalid.status_code == 401
+    assert expired.status_code == 401
+    assert api_key_only.status_code == 401
+    assert no_scope.status_code == 403
+
+
 def test_invalid_expired_and_disabled_jwts_fail_closed(auth_stack):
     app, settings, SessionFactory, user_id, _legacy_token, _api_key = auth_stack
 
@@ -372,6 +523,9 @@ def test_legacy_session_and_api_key_remain_compatible(auth_stack):
     with TestClient(app) as client:
         client.cookies.set("session", legacy_token)
         legacy = client.get("/api/settings", headers={"accept": "application/json"})
+        legacy_library = client.get(
+            "/api/videos", headers={"accept": "application/json"}
+        )
         legacy_management = client.get(
             "/api/api-keys", headers={"accept": "application/json"}
         )
@@ -407,6 +561,8 @@ def test_legacy_session_and_api_key_remain_compatible(auth_stack):
 
     assert legacy.status_code == 200
     assert legacy.json() == {"user_id": user_id}
+    assert legacy_library.status_code == 200
+    assert legacy_library.json() == []
     assert legacy_management.status_code == 200
     assert legacy_bearer.status_code == 200
     assert legacy_bearer.json() == {"user_id": user_id}

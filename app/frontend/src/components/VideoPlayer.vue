@@ -273,6 +273,7 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useCategoryImages } from '@/composables/useCategoryImages'
 import PlayerStatus from '@/components/player/PlayerStatus.vue'
 import PlayerError from '@/components/player/PlayerError.vue'
+import { videoApi } from '@/services/api'
 
 interface Chapter {
   title: string
@@ -282,16 +283,22 @@ interface Chapter {
   gameIcon?: string
 }
 
+interface ApiChapter {
+  id?: number
+  title?: string
+  start?: number
+  end?: number
+  start_time?: string
+  category_name?: string
+  type?: string
+}
+
 interface Props {
   videoSrc: string
   streamId?: number
   chaptersUrl?: string // URL to WebVTT chapter file
   autoChapters?: boolean // Auto-generate chapters from category changes
-  chapters?: Array<{
-    start_time: string
-    title: string
-    type: string
-  }> // Pre-loaded chapters from API
+  chapters?: ApiChapter[] // Pre-loaded chapters from API
   streamTitle?: string
   theaterMode?: boolean
 }
@@ -563,36 +570,8 @@ const loadChapters = async () => {
 
   if (props.streamId && props.autoChapters) {
     try {
-      // Fetch chapters from StreamVault API
-      const response = await fetch(`/api/streams/${props.streamId}/chapters`, {
-        credentials: 'include' // CRITICAL: Required to send session cookie
-      })
-      if (response.ok) {
-        const chaptersData = await response.json()
-        const converted = chaptersData.map((ch: any, index: number, arr: any[]) => {
-          // Calculate duration from API data or compute from next chapter
-          let duration = ch.duration || 60
-          if (!ch.duration && index < arr.length - 1) {
-            // Calculate from next chapter's start time
-            const nextStartTime = arr[index + 1].start_time || (ch.start_time + 60)
-            duration = nextStartTime - ch.start_time
-          }
-
-          return {
-            title: ch.category_name || ch.title || 'Stream Segment',
-            startTime: ch.start_time || 0,
-            duration: duration,
-            gameIcon: getCategoryImage(ch.category_name)
-          }
-        })
-
-        // Deduplicate by startTime and title
-        parsedChapters.value = converted.filter((chapter: any, index: number, self: any[]) =>
-          index === self.findIndex((c: any) =>
-            c.startTime === chapter.startTime && c.title === chapter.title
-          )
-        )
-      }
+      const chaptersData = await videoApi.getChapters(props.streamId)
+      parsedChapters.value = convertApiChaptersToInternal(chaptersData)
     } catch (e) {
       console.warn('Failed to load auto-generated chapters:', e)
     }
@@ -615,14 +594,20 @@ const loadChapters = async () => {
 }
 
 // Convert API chapters to internal format
-const convertApiChaptersToInternal = (apiChapters: Array<{start_time: string, title: string, type: string}>) => {
-  // Convert chapters first
-  const converted = apiChapters.map((chapter, index) => ({
-    title: chapter.title || `Chapter ${index + 1}`,
-    startTime: parseTimeStringToSeconds(chapter.start_time),
-    duration: 60, // Temporary, will be calculated below
-    gameIcon: undefined
-  }))
+const convertApiChaptersToInternal = (apiChapters: ApiChapter[]): Chapter[] => {
+  const converted = apiChapters.map((chapter, index) => {
+    const startTime = typeof chapter.start === 'number'
+      ? chapter.start
+      : parseTimeStringToSeconds(chapter.start_time || '')
+    const hasEnd = typeof chapter.end === 'number' && chapter.end >= startTime
+
+    return {
+      title: chapter.title || chapter.category_name || `Chapter ${index + 1}`,
+      startTime,
+      duration: hasEnd ? chapter.end! - startTime : undefined,
+      gameIcon: chapter.category_name ? getCategoryImage(chapter.category_name) : undefined,
+    }
+  })
 
   // Deduplicate by startTime and title
   const unique = converted.filter((chapter, index, self) =>
@@ -631,8 +616,13 @@ const convertApiChaptersToInternal = (apiChapters: Array<{start_time: string, ti
     )
   )
 
-  // Calculate actual duration between chapters
-  return calculateChapterDurations(unique)
+  const videoDur = videoElement.value?.duration || videoDuration.value
+  return unique.map((chapter, index) => ({
+    ...chapter,
+    duration: chapter.duration ?? (index < unique.length - 1
+      ? unique[index + 1].startTime - chapter.startTime
+      : (videoDur && !isNaN(videoDur) && videoDur > 0 ? videoDur - chapter.startTime : 60)),
+  }))
 }
 
 // Calculate chapter durations based on video metadata
