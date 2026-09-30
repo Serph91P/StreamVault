@@ -84,23 +84,24 @@ def parse_vtt_chapters(vtt_content: str) -> list:
             if current_chapter and current_chapter.get("title"):
                 chapters.append(current_chapter)
 
-            start_time = timestamp_match.group(1)
+            start_time, end_time = timestamp_match.groups()
 
-            # Convert timestamp to seconds for consistency
-            time_parts = start_time.split(":")
-            if len(time_parts) == 3:
-                hours, minutes, seconds = time_parts
-                total_seconds = int(hours) * 3600 + int(minutes) * 60 + float(seconds)
-            else:
+            def timestamp_seconds(value: str) -> float:
+                hours, minutes, seconds = value.split(":")
+                return int(hours) * 3600 + int(minutes) * 60 + float(seconds)
+
+            try:
+                start_seconds = timestamp_seconds(start_time)
+                end_seconds = timestamp_seconds(end_time)
+            except ValueError:
                 logger.warning(f"Invalid timestamp format encountered: {start_time}")
                 continue
 
             current_chapter = {
                 "id": len(chapters) + 1,
-                "start": total_seconds,
-                "start_time": start_time,
+                "start": start_seconds,
+                "end": end_seconds,
                 "title": "",
-                "type": "chapter",
             }
         # Skip lines that are not relevant to chapter titles (e.g., WebVTT metadata or cue types)
         elif (
@@ -306,19 +307,16 @@ async def debug_video_access(
 
 @router.post("/videos/{stream_id}/share-token")
 async def generate_share_token(
-    stream_id: int, request: Request, db: Session = Depends(get_db)
+    stream_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    identity: AuthIdentity = Depends(get_current_identity),
 ):
     """Generate a secure temporary share token for external video access (VLC, etc.)"""
     try:
-        # Check authentication via session cookie
-        session_token = request.cookies.get("session")
-        if not session_token:
+        # Browser media actions require an interactive JWT or legacy session.
+        if not identity.interactive:
             raise HTTPException(status_code=401, detail="Authentication required")
-
-        # Validate session
-        auth_service = AuthService(db)
-        if not await auth_service.validate_session(session_token):
-            raise HTTPException(status_code=401, detail="Invalid session")
 
         # Check if stream exists
         stream = db.query(Stream).filter(Stream.id == stream_id).first()
@@ -358,21 +356,16 @@ async def generate_share_token(
 
 @router.get("/videos/{stream_id}/thumbnail")
 async def get_video_thumbnail(
-    stream_id: int, request: Request, db: Session = Depends(get_db)
+    stream_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    identity: AuthIdentity = Depends(get_current_identity),
 ):
     """Serve video thumbnail image - returns 404 if not found (graceful degradation)"""
     try:
-        # Check authentication via session cookie
-        session_token = request.cookies.get("session")
-        if not session_token:
-            logger.warning(f"🔴 THUMBNAIL_NO_SESSION: stream_id={stream_id}")
+        if not identity.interactive:
+            logger.warning(f"🔴 THUMBNAIL_NONINTERACTIVE_AUTH: stream_id={stream_id}")
             raise HTTPException(status_code=401, detail="Authentication required")
-
-        # Validate session
-        auth_service = AuthService(db)
-        if not await auth_service.validate_session(session_token):
-            logger.warning(f"🔴 THUMBNAIL_INVALID_SESSION: stream_id={stream_id}")
-            raise HTTPException(status_code=401, detail="Invalid session")
 
         # Get stream from database
         stream = db.query(Stream).filter(Stream.id == stream_id).first()
@@ -598,33 +591,19 @@ async def stream_video_public(
 
 @router.get("/videos/{stream_id}/stream")
 async def stream_video_by_id(
-    stream_id: int, request: Request, db: Session = Depends(get_db)
+    stream_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    identity: AuthIdentity = Depends(get_current_identity),
 ):
     """Stream a video file by stream ID with range request support"""
     try:
         logger.info(f"Video stream request for stream_id: {stream_id}")
         # SECURITY: Never log headers or cookies - CWE-532
 
-        # Check authentication via session cookie
-        session_token = request.cookies.get("session")
-        if not session_token:
-            logger.error("No session token found in cookies")
+        if not identity.interactive:
+            logger.error("Non-interactive authentication cannot stream media")
             raise HTTPException(status_code=401, detail="Authentication required")
-
-        logger.debug("Session token found")
-
-        # Validate session
-        try:
-            auth_service = AuthService(db)
-            session_valid = await auth_service.validate_session(session_token)
-            logger.info(f"Session validation result: {session_valid}")
-
-            if not session_valid:
-                logger.error("Session validation failed")
-                raise HTTPException(status_code=401, detail="Invalid session")
-        except Exception as e:
-            logger.error(f"Session validation error: {e}")
-            raise HTTPException(status_code=401, detail="Session validation error")
 
         # Get stream from database with detailed logging
         stream = db.query(Stream).filter(Stream.id == stream_id).first()
@@ -778,27 +757,20 @@ async def stream_video_by_id(
 
 @router.get("/videos/{stream_id}/chapters")
 async def get_video_chapters(
-    stream_id: int, request: Request, db: Session = Depends(get_db)
+    stream_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    identity: AuthIdentity = Depends(get_current_identity),
 ):
     """Get chapters for a video from metadata files"""
     try:
         logger.info(f"🎬 CHAPTER_REQUEST: Getting chapters for stream {stream_id}")
 
-        # Check authentication via session cookie
-        session_token = request.cookies.get("session")
-        if not session_token:
+        if not identity.interactive:
             logger.warning(
-                f"🎬 CHAPTER_AUTH_FAIL: No session token for stream {stream_id}"
+                f"🎬 CHAPTER_AUTH_FAIL: Non-interactive authentication for stream {stream_id}"
             )
             raise HTTPException(status_code=401, detail="Authentication required")
-
-        # Validate session
-        auth_service = AuthService(db)
-        if not await auth_service.validate_session(session_token):
-            logger.warning(
-                f"🎬 CHAPTER_SESSION_INVALID: Invalid session for stream {stream_id}"
-            )
-            raise HTTPException(status_code=401, detail="Invalid session")
 
         logger.info(
             f"🎬 CHAPTER_AUTH_OK: Authentication successful for stream {stream_id}"
@@ -911,19 +883,16 @@ async def get_video_chapters(
 
 @router.get("/videos/{streamer_name}/{filename}")
 async def stream_video(
-    streamer_name: str, filename: str, request: Request, db: Session = Depends(get_db)
+    streamer_name: str,
+    filename: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    identity: AuthIdentity = Depends(get_current_identity),
 ):
     """Stream a video file with range request support - CodeQL-safe implementation"""
     try:
-        # Check authentication via session cookie
-        session_token = request.cookies.get("session")
-        if not session_token:
+        if not identity.interactive:
             raise HTTPException(status_code=401, detail="Authentication required")
-
-        # Validate session
-        auth_service = AuthService(db)
-        if not await auth_service.validate_session(session_token):
-            raise HTTPException(status_code=401, detail="Invalid session")
 
         recordings_dir = get_recordings_directory()
         if not recordings_dir:

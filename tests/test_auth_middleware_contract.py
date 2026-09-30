@@ -364,6 +364,83 @@ def test_fresh_jwt_login_can_check_session_list_library_and_keepalive(auth_stack
     assert keepalive.json() == {"ok": True}
 
 
+def test_fresh_jwt_login_reaches_authenticated_media_contract(auth_stack, monkeypatch, tmp_path):
+    """JWT cookies must work for every player route without minting a legacy session."""
+    app, _settings, _SessionFactory, _user_id, _legacy_token, _api_key = auth_stack
+    media_file = tmp_path / "recording.mp4"
+    media_file.write_bytes(b"synthetic-media")
+    thumbnail = tmp_path / "recording-thumb.jpg"
+    thumbnail.write_bytes(b"synthetic-thumbnail")
+    chapters = tmp_path / "recording.vtt"
+    chapters.write_text(
+        "WEBVTT\n\n00:00:00.000 --> 00:00:04.000\nOpening\n",
+        encoding="utf-8",
+    )
+    stream = SimpleNamespace(
+        id=1,
+        title="Synthetic recording",
+        recording_path=str(media_file),
+        started_at=None,
+        ended_at=None,
+    )
+    metadata = SimpleNamespace(
+        stream_id=1,
+        chapters_vtt_path=str(chapters),
+        chapters_ffmpeg_path=None,
+    )
+
+    class Query:
+        def __init__(self, value):
+            self.value = value
+
+        def filter(self, *_args):
+            return self
+
+        def first(self):
+            return self.value
+
+    class MediaDb:
+        def query(self, model):
+            return Query(metadata if model.__name__ == "StreamMetadata" else stream)
+
+    from app.config import settings as settings_module
+
+    monkeypatch.setattr(video_routes, "validate_path_security", lambda path, _mode: path)
+    monkeypatch.setattr(video_routes, "validate_file_type", lambda *_args: None)
+    monkeypatch.setattr(video_routes, "get_recordings_directory", lambda: str(tmp_path))
+    monkeypatch.setattr(video_routes, "store_share_token", lambda *_args: None)
+    monkeypatch.setattr(video_routes, "cleanup_expired_tokens", lambda: None)
+    monkeypatch.setattr(
+        settings_module, "get_settings", lambda: SimpleNamespace(BASE_URL="https://test.invalid")
+    )
+    app.dependency_overrides[get_db] = lambda: MediaDb()
+
+    with TestClient(app) as client:
+        login = client.post(
+            "/auth/login",
+            json={"username": "middleware-admin", "password": "correct horse"},
+        )
+        thumbnail_response = client.get("/api/videos/1/thumbnail")
+        chapters_response = client.get("/api/videos/1/chapters")
+        share_response = client.post("/api/videos/1/share-token")
+        stream_response = client.get("/api/videos/1/stream", headers={"Range": "bytes=0-8"})
+
+    assert login.status_code == 200
+    assert "access_token" in login.cookies
+    assert "refresh_token" in login.cookies
+    assert "session" not in login.cookies
+    assert thumbnail_response.status_code == 200
+    assert thumbnail_response.content == b"synthetic-thumbnail"
+    assert chapters_response.status_code == 200
+    assert chapters_response.json() == [
+        {"id": 1, "start": 0.0, "end": 4.0, "title": "Opening"}
+    ]
+    assert share_response.status_code == 200
+    assert share_response.json()["share_url"].startswith("https://test.invalid/api/videos/public/1?token=")
+    assert stream_response.status_code == 206
+    assert stream_response.content == b"synthetic"
+
+
 def test_library_keeps_missing_invalid_expired_and_api_key_auth_fail_closed(auth_stack):
     app, settings, _SessionFactory, user_id, _legacy_token, api_key = auth_stack
 
