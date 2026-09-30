@@ -5,6 +5,8 @@
       icon="settings"
       :mobile-title="activeSectionData?.label || 'Settings'"
       :mobile-icon="activeSectionData?.icon || 'settings'"
+      back-to="/system"
+      back-label="Back to System"
     />
 
     <!-- Loading State -->
