@@ -734,6 +734,13 @@ onUnmounted(() => {
   color: var(--sv-sem-status-success);
 }
 
+// The light success token is intended for larger status UI and falls just
+// below AA for normal 14px metadata on the subtle card surface. Keep the VOD
+// accent, but use the established darker primary accent in the light theme.
+[data-theme="light"] .streamer-card-content .streamer-stats .stat-vods {
+  color: var(--sv-sem-action-primary);
+}
+
 .streamer-card-content .streamer-stats .stat-category {
   color: var(--sv-sem-text-primary);
 }
