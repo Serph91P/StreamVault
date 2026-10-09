@@ -306,14 +306,16 @@ export const useNotificationStore = defineStore('notifications', () => {
     persist()
   }
 
-  async function clearAll(): Promise<void> {
+  async function clearAll(): Promise<boolean> {
     try {
       await notificationApi.clear()
     } catch (error) {
       console.error('Failed to clear notifications on backend:', error)
+      return false
     }
     notifications.value = []
     clearNotificationsStorage()
+    return true
   }
 
   return {

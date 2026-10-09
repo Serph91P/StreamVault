@@ -112,6 +112,15 @@
             <button type="submit" class="btn-action btn-primary" :disabled="isLoading || !manualToken.trim()" v-ripple>
               Save token
             </button>
+            <button
+              v-if="manualToken"
+              type="button"
+              class="btn-action btn-secondary"
+              :disabled="isLoading"
+              @click="manualToken = ''"
+            >
+              Cancel
+            </button>
           </div>
           <p class="token-help">
             The token is validated with Twitch before it is stored. It is never shown again after saving.

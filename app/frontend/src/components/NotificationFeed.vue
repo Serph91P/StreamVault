@@ -87,7 +87,12 @@ function markAllRead(event?: Event): void {
 async function clearAllNotifications(event?: Event): Promise<void> {
   event?.preventDefault()
   event?.stopPropagation()
-  await notificationStore.clearAll()
+  errorMessage.value = ''
+  const cleared = await notificationStore.clearAll()
+  if (!cleared) {
+    errorMessage.value = 'Notifications could not be cleared. Existing local items were preserved.'
+    return
+  }
   emit('clear-all')
   emit('close-panel')
 }

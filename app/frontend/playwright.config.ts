@@ -26,6 +26,8 @@ export default defineConfig({
     { name: 'baseline-mobile-chromium', testMatch: /frontend-baseline\.spec\.ts/, use: { ...devices['iPhone 13'], browserName: 'chromium', serviceWorkers: 'block' } },
     { name: 'baseline-firefox', testMatch: /frontend-baseline\.spec\.ts/, use: { ...devices['Desktop Firefox'], serviceWorkers: 'block' } },
     { name: 'baseline-webkit', testMatch: /frontend-baseline\.spec\.ts/, use: { ...devices['Desktop Safari'], serviceWorkers: 'block' } },
+    { name: 'state-matrix-firefox', testMatch: /final-local-state-matrix\.spec\.ts/, use: { ...devices['Desktop Firefox'], serviceWorkers: 'block' } },
+    { name: 'state-matrix-webkit', testMatch: /final-local-state-matrix\.spec\.ts/, use: { ...devices['Desktop Safari'], serviceWorkers: 'block' } },
   ],
   webServer: {
     command: 'VITE_USE_MOCK_DATA=true npm run build && VITE_USE_MOCK_DATA=true npm run preview -- --host 127.0.0.1 --port 4180',

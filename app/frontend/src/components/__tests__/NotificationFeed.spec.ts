@@ -86,4 +86,22 @@ describe('NotificationFeed states', () => {
     expect(store.totalCount).toBe(0)
     expect(wrapper.emitted('clear-all')).toHaveLength(1)
   })
+
+  it('preserves local notifications and exposes a retryable error when backend clear fails', async () => {
+    api.clear.mockRejectedValueOnce(new Error('backend unavailable')).mockResolvedValueOnce({})
+    localStorage.setItem('streamvault_notifications', JSON.stringify([first]))
+    const { wrapper, store } = mountFeed()
+    await flushPromises()
+
+    await wrapper.get('[aria-label="Clear all notifications"]').trigger('click')
+    await flushPromises()
+    expect(store.totalCount).toBe(1)
+    expect(wrapper.get('[data-state="error"]').text()).toContain('Retry')
+    expect(wrapper.emitted('clear-all')).toBeUndefined()
+
+    await wrapper.get('[data-state="error"] button').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('[data-state="error"]').exists()).toBe(false)
+    expect(store.totalCount).toBe(1)
+  })
 })

@@ -77,7 +77,7 @@
             </div>
             <div v-else-if="panelHostError" class="panel-load-error" role="alert">
               <p>{{ panelHostError }}</p>
-              <button type="button" class="btn btn-primary" @click="loadPanelHost">Retry</button>
+              <button type="button" class="btn btn-primary" @click="retryPanelHost">Retry</button>
             </div>
             <component
               v-else
@@ -257,12 +257,23 @@ async function loadPanelHost() {
     const module = await import('@/components/settings/SettingsPanelHost.vue')
     if (!acceptsPanelHost || request !== panelHostRequest) return
     panelHost.value = module.default
-    await nextTick()
-    panelRegion.value?.focus()
+    await focusPanelRegion()
   } catch {
     if (!acceptsPanelHost || request !== panelHostRequest) return
     panelHostError.value = 'This settings panel could not be loaded.'
   }
+}
+
+async function focusPanelRegion() {
+  await nextTick()
+  await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+  panelRegion.value?.focus({ preventScroll: true })
+}
+
+function retryPanelHost() {
+  // Browsers cache failed module-script imports for the lifetime of the page.
+  // Reloading preserves the deep link while giving the chunk a fresh request.
+  window.location.reload()
 }
 
 watch(() => route.query.section, (section) => {
@@ -273,8 +284,7 @@ watch(() => route.query.section, (section) => {
 
 watch(activeSection, async () => {
   if (!panelHost.value) return
-  await nextTick()
-  panelRegion.value?.focus()
+  await focusPanelRegion()
 })
 
 // Version information
@@ -361,6 +371,7 @@ async function loadAllSettings() {
     console.error('Failed to load settings:', error)
   } finally {
     isLoading.value = false
+    if (panelHost.value) await focusPanelRegion()
   }
 }
 
@@ -619,6 +630,10 @@ onBeforeUnmount(() => {
 // Settings Content
 .settings-content {
   min-width: 0;
+
+  // This region is focused programmatically after async panel changes. It is not
+  // in the Tab order; the panel heading and controls provide the visible context.
+  &:focus { outline: none; }
 
   // ------------------------------------------------------------------
   // Cross-panel typography normalization. The panels grew their own
