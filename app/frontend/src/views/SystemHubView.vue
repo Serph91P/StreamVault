@@ -64,15 +64,12 @@ import PageHeader from '@/components/base/PageHeader.vue'
   background: var(--sv-cmp-panel-background);
   border: 1px solid var(--sv-cmp-panel-border);
   border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-sm);
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
-  transition: border-color v.$duration-200 v.$ease-out, box-shadow v.$duration-200 v.$ease-out, transform v.$duration-200 v.$ease-out;
+  transition: border-color v.$duration-200 v.$ease-out;
 
   &:hover {
     border-color: var(--sv-sem-border-strong);
-    box-shadow: var(--shadow-md);
-    transform: translateY(-2px);
   }
 }
 
@@ -140,10 +137,6 @@ import PageHeader from '@/components/base/PageHeader.vue'
 @media (prefers-reduced-motion: reduce) {
   .system-hub-card {
     transition: none;
-  }
-
-  .system-hub-card:hover {
-    transform: none;
   }
 }
 </style>
