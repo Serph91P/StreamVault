@@ -39,6 +39,9 @@ test('Settings deep link retains dirty panel state and moves focus on section ch
   await page.goto('/settings?section=twitch')
   const content = page.locator('.settings-content')
   await expect(page.getByRole('heading', { name: 'Twitch Connection' })).toBeVisible()
+  await expect(content).toBeFocused()
+  await expect(content).toHaveCSS('outline-style', 'solid')
+  await expect(content).toHaveCSS('outline-width', '2px')
 
   const token = page.getByLabel('Twitch OAuth token')
   await token.fill('unsaved-local-matrix-value')
@@ -57,6 +60,23 @@ test('Settings deep link retains dirty panel state and moves focus on section ch
 
   await page.goto('/settings?section=notifications')
   await expect(page.getByRole('heading', { name: 'Notifications', exact: true })).toBeVisible()
+})
+
+test('Settings deep link focuses after settings data resolves before its lazy panel', async ({ page }) => {
+  await page.route(/\/assets\/SettingsPanelHost-[^/]+\.js(?:\?.*)?$/, async route => {
+    // Hold the panel request until the independent settings-data load has made
+    // the layout renderable. This covers the opposite completion order from
+    // the ordinary mock flow, where the panel chunk arrives first.
+    await expect(page.locator('.settings-layout')).toBeVisible()
+    await route.continue()
+  })
+
+  await page.goto('/settings?section=notifications')
+  const content = page.getByRole('region', { name: 'Notifications settings' })
+  await expect(page.getByLabel('Notification Service URL')).toBeVisible()
+  await expect(content).toBeFocused()
+  await expect(content).toHaveCSS('outline-style', 'solid')
+  await expect(content).toHaveCSS('outline-width', '2px')
 })
 
 test('Settings lazy panel failure is visible, retryable, and restores panel focus', async ({ page }) => {

@@ -261,7 +261,7 @@ type SettingsPanelHostLoader = {
   loadSettingsPanelHost: (attempt: number) => Promise<{ default: Component }>
 }
 
-async function loadPanelHost(focusOnSuccess = false) {
+async function loadPanelHost() {
   const request = ++panelHostRequest
   const attempt = ++panelHostAttempt
   panelHostError.value = ''
@@ -285,7 +285,6 @@ async function loadPanelHost(focusOnSuccess = false) {
     if (!module) throw new Error('Settings panel loader returned no module')
     if (!acceptsPanelHost || request !== panelHostRequest) return
     panelHost.value = module.default
-    if (focusOnSuccess && !isLoading.value) await focusPanelRegion()
   } catch {
     if (!acceptsPanelHost || request !== panelHostRequest) return
     panelHostError.value = 'This settings panel could not be loaded.'
@@ -299,7 +298,7 @@ async function focusPanelRegion() {
 }
 
 function retryPanelHost() {
-  void loadPanelHost(true)
+  void loadPanelHost()
 }
 
 watch(() => route.query.section, (section) => {
@@ -312,6 +311,14 @@ watch(activeSection, async () => {
   if (!panelHost.value) return
   await focusPanelRegion()
 })
+
+watch([panelHost, isLoading], async ([host, loading]) => {
+  // Settings data and the lazy panel resolve independently. Hand focus to the
+  // named region only after both are renderable, whichever one finishes last.
+  // This also covers a successful retry after one or more chunk failures.
+  if (!host || loading) return
+  await focusPanelRegion()
+}, { flush: 'post' })
 
 // Version information
 const versionInfo = ref<any>(null)
