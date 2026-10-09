@@ -4,6 +4,8 @@
       title="Admin"
       icon="settings"
       subtitle="Monitor system health, services, connections, and background jobs."
+      back-to="/system"
+      back-label="Back to System"
     >
       <template #status>
         <span class="diag-status" :class="diagStatusClass">

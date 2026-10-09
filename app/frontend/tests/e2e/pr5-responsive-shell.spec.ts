@@ -233,6 +233,27 @@ test('System hub keeps settings, admin and subscriptions reachable on desktop an
   }
 })
 
+test('System subpages provide a keyboard-accessible Back to System link on desktop and mobile', async ({ page }, testInfo) => {
+  const widths = testInfo.project.name === 'mobile' ? [390] : [1440]
+
+  for (const width of widths) {
+    await page.setViewportSize({ width, height: width === 390 ? 844 : 900 })
+    await preparePage(page)
+
+    for (const path of ['/settings', '/admin', '/subscriptions']) {
+      await page.goto(path)
+      const back = page.getByRole('link', { name: 'Back to System', exact: true })
+      await expect(back).toBeVisible()
+      await back.focus()
+      await expect(back).toBeFocused()
+      const box = await back.boundingBox()
+      expect(box?.height).toBeGreaterThanOrEqual(44)
+      await page.keyboard.press('Enter')
+      await expect(page).toHaveURL(/\/system$/)
+    }
+  }
+})
+
 test('onboarding quality control keeps a visible native affordance and the primary action reachable', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   await preparePage(page)

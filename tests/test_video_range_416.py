@@ -3,7 +3,7 @@
 from pathlib import Path
 
 import pytest
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.testclient import TestClient
 
 
@@ -55,12 +55,28 @@ def stored_media_client(monkeypatch, tmp_path):
     application.include_router(videos.router)
     application.dependency_overrides[dependencies.get_db] = lambda: database
 
+    def authenticated_media_identity(request: Request):
+        if request.cookies.get("session") != "test-session":
+            raise HTTPException(status_code=401, detail="Authentication required")
+        return dependencies.AuthIdentity(
+            subject="1",
+            roles=frozenset(),
+            scopes=frozenset(),
+            auth_method="legacy-session",
+            interactive=True,
+        )
+
+    application.dependency_overrides[dependencies.get_current_identity] = (
+        authenticated_media_identity
+    )
+
     client = TestClient(application)
     try:
         yield client, len(media_file.read_bytes())
     finally:
         client.close()
         application.dependency_overrides.pop(dependencies.get_db, None)
+        application.dependency_overrides.pop(dependencies.get_current_identity, None)
 
 
 def test_authenticated_stored_media_unsatisfied_range_has_content_range(

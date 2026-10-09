@@ -81,7 +81,7 @@ describe('SubscriptionsView facade actions', () => {
     expect(mocks.delete).toHaveBeenCalledWith('sub-1')
     expect(wrapper.find('.btn-delete').exists()).toBe(false)
 
-    await wrapper.get('.btn-action.btn-secondary').trigger('click')
+    await wrapper.get('button.btn-action.btn-secondary').trigger('click')
     await flushPromises()
     expect(mocks.getAll).toHaveBeenCalledTimes(2)
 
@@ -90,7 +90,7 @@ describe('SubscriptionsView facade actions', () => {
     expect(mocks.deleteAll).toHaveBeenCalledTimes(1)
     expect(mocks.alert).toHaveBeenCalledWith('All subscriptions successfully deleted!')
 
-    await wrapper.findAll('.btn-action.btn-secondary')[1].trigger('click')
+    await wrapper.findAll('button.btn-action.btn-secondary')[1].trigger('click')
     await flushPromises()
     expect(mocks.resubscribeAll).toHaveBeenCalledTimes(1)
     expect(mocks.alert).toHaveBeenCalledWith('Success: Resubscribed to 1 streamer(s)')
@@ -101,22 +101,22 @@ describe('SubscriptionsView facade actions', () => {
     mocks.getAll.mockRejectedValueOnce(new Error('list failed'))
     const wrapper = await mountView()
 
-    expect(wrapper.get('.btn-action.btn-secondary').attributes('disabled')).toBeUndefined()
+    expect(wrapper.get('button.btn-action.btn-secondary').attributes('disabled')).toBeUndefined()
 
     mocks.resubscribeAll.mockRejectedValueOnce(new Error('resubscribe failed'))
-    await wrapper.findAll('.btn-action.btn-secondary')[1].trigger('click')
+    await wrapper.findAll('button.btn-action.btn-secondary')[1].trigger('click')
     await flushPromises()
-    expect(wrapper.findAll('.btn-action.btn-secondary')[1].text()).toContain('Resubscribe All')
-    expect(wrapper.findAll('.btn-action.btn-secondary')[1].attributes('disabled')).toBeUndefined()
+    expect(wrapper.findAll('button.btn-action.btn-secondary')[1].text()).toContain('Resubscribe All')
+    expect(wrapper.findAll('button.btn-action.btn-secondary')[1].attributes('disabled')).toBeUndefined()
     expect(mocks.alert).toHaveBeenCalledWith('Error: resubscribe failed')
 
     mocks.getAll.mockResolvedValue({ total: 1, subscriptions })
-    await wrapper.get('.btn-action.btn-secondary').trigger('click')
+    await wrapper.get('button.btn-action.btn-secondary').trigger('click')
     await flushPromises()
     mocks.deleteAll.mockRejectedValueOnce(new Error('delete all failed'))
     await wrapper.get('.btn-action.btn-danger').trigger('click')
     await flushPromises()
-    expect(wrapper.get('.btn-action.btn-secondary').attributes('disabled')).toBeUndefined()
+    expect(wrapper.get('button.btn-action.btn-secondary').attributes('disabled')).toBeUndefined()
     expect(mocks.alert).toHaveBeenCalledWith('Error: delete all failed')
   })
 })

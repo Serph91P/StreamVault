@@ -1,19 +1,31 @@
 <script setup lang="ts">
+import type { RouteLocationRaw } from 'vue-router'
+import BaseLink from './BaseLink.vue'
+
 interface Props {
   title: string
   subtitle?: string
   icon?: string
   mobileTitle?: string
   mobileIcon?: string
+  /** Stable in-app destination for returning from a nested page. */
+  backTo?: RouteLocationRaw
+  backLabel?: string
 }
 
-withDefaults(defineProps<Props>(), {})
+withDefaults(defineProps<Props>(), {
+  backLabel: 'Back',
+})
 </script>
 
 <template>
   <header class="page-header">
     <div class="page-header-content">
       <div class="page-header-title-group">
+        <BaseLink v-if="backTo" :to="backTo" :aria-label="backLabel" class="page-header-back-link">
+          <svg aria-hidden="true"><use href="#icon-arrow-left" /></svg>
+          <span>{{ backLabel }}</span>
+        </BaseLink>
         <!-- Hidden on mobile when the mobile title brings its own icon -->
         <svg v-if="icon" class="page-header-icon" :class="{ 'm-hide': !!mobileIcon }" aria-hidden="true">
           <use :href="`#icon-${icon}`" />
@@ -57,6 +69,31 @@ withDefaults(defineProps<Props>(), {})
   align-items: flex-start;
   gap: var(--spacing-3);
   min-width: 0;
+}
+
+.page-header-back-link {
+  flex-shrink: 0;
+  gap: var(--spacing-2);
+  padding: 0 var(--spacing-3);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  text-decoration: none;
+
+  svg {
+    width: 1rem;
+    height: 1rem;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+  }
+
+  &:hover {
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+  }
 }
 
 .page-header-icon {
