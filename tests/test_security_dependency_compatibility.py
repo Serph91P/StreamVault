@@ -13,6 +13,7 @@ def _release(package: str) -> tuple[int, ...]:
 
 
 def test_security_dependency_floors_are_patched():
+    assert _release("Mako") >= (1, 4, 2)
     assert _release("multidict") >= (6, 9, 1)
     assert _release("PyJWT") >= (2, 15, 0)
     assert _release("urllib3") >= (2, 8, 0)
