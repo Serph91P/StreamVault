@@ -398,6 +398,15 @@ export class WebSocketManager {
   }
 
   private dispatchMessage(message: RealtimeEvent<string>) {
+    if (
+      typeof message.event_id === 'number'
+      && Number.isFinite(message.event_id)
+      && message.event_id <= this.lastEventId
+    ) {
+      if (import.meta.env.DEV) console.debug(`Skipping stale WebSocket event: ${message.type}`)
+      return
+    }
+
     if (this.isDuplicateMessage(message)) {
       if (import.meta.env.DEV) console.debug(`Skipping duplicate WebSocket event: ${message.type}`)
       return
