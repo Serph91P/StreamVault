@@ -589,7 +589,7 @@ const initPlayer = async (sid: string, generation: number = playbackGeneration) 
       })
 
       hls.on(Hls.Events.LEVEL_SWITCHED, (_event: string, data: any) => {
-        console.log('Quality switched to level', data.level)
+        if (import.meta.env.DEV) console.debug('Quality switched to level', data.level)
       })
 
       hls.loadSource(playlistUrl)
@@ -689,7 +689,7 @@ const scheduleRetry = () => {
   isRetrying.value = true
   retryTimer.value = window.setTimeout(() => {
     if (!isPlaying.value && sessionId.value) {
-      console.log(`Auto-retry attempt ${retryCount.value}...`)
+      if (import.meta.env.DEV) console.debug(`Auto-retry attempt ${retryCount.value}...`)
       initPlayer(sessionId.value)
     }
   }, 3000)
