@@ -15,6 +15,12 @@
       </div>
 
       <div class="header-actions">
+        <router-link to="/system" class="btn-action btn-secondary system-back-link" aria-label="Back to System">
+          <svg class="icon" aria-hidden="true">
+            <use href="#icon-arrow-left" />
+          </svg>
+          <span>Back to System</span>
+        </router-link>
         <button @click="loadSubscriptions" :disabled="loading" class="btn-action btn-secondary" v-ripple>
           <svg class="icon">
             <use href="#icon-refresh-cw" />
@@ -429,6 +435,16 @@ onMounted(loadSubscriptions)
       color: var(--text-tertiary);
       border: 1px solid var(--border-color);
     }
+  }
+}
+
+.system-back-link {
+  min-height: 44px;
+  text-decoration: none;
+
+  &:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
   }
 }
 
