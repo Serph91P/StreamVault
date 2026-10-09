@@ -29,16 +29,28 @@ function retryableSettingsPanelHost(): Plugin {
       }
       const panelHostChunk = panelHostOutput.fileName
       const relativePanelHostChunk = panelHostChunk.replace(/^assets\//, './')
+      const panelHostCss = [...(
+        panelHostOutput as typeof panelHostOutput & {
+          viteMetadata?: { importedCss?: Set<string> }
+        }
+      ).viteMetadata?.importedCss ?? []]
+      if (panelHostCss.length === 0) {
+        this.error('SettingsPanelHost CSS output was not generated')
+      }
+      const relativePanelHostCss = panelHostCss.map(fileName => fileName.replace(/^assets\//, './'))
 
       // The loader itself is stable and cacheable. Every call imports the real
       // compiled panel chunk at a unique URL, so a rejected browser module-map
-      // entry cannot poison a later user retry.
+      // entry cannot poison a later user retry. Because this generated import
+      // bypasses Vite's normal preload wrapper, restore the chunk's extracted
+      // CSS dependency explicitly and resolve only after it has loaded.
       this.emitFile({
         type: 'asset',
         fileName: publicPath.slice(1),
-        source:
-          'export const loadSettingsPanelHost = (attempt) => ' +
-          `import(${JSON.stringify(relativePanelHostChunk)} + '?retry=' + encodeURIComponent(attempt))`,
+        source: `const panelUrl=${JSON.stringify(relativePanelHostChunk)},panelCssUrls=${JSON.stringify(relativePanelHostCss)};
+const loadCss=(path,attempt)=>{const url=new URL(path,import.meta.url);if([...document.styleSheets].some(({href})=>href&&new URL(href).pathname===url.pathname))return;return new Promise((resolve,reject)=>{const link=document.createElement('link');link.rel='stylesheet';link.href=url.href+'?retry='+encodeURIComponent(attempt);link.onload=()=>resolve();link.onerror=()=>{link.remove();reject(new Error('Settings panel stylesheet could not be loaded'))};document.head.append(link)})};
+export const loadSettingsPanelHost=async attempt=>{const[,panelModule]=await Promise.all([Promise.all(panelCssUrls.map(url=>loadCss(url,attempt))),import(panelUrl+'?retry='+encodeURIComponent(attempt))]);return panelModule};
+`,
       })
     },
   }

@@ -31,6 +31,16 @@ async function selectSettingsSection(page: Page, section: string, accessibleName
   else await page.getByRole('button', { name: accessibleName }).click()
 }
 
+async function expectSettingsPanelStyles(page: Page) {
+  await expect(page.locator('.setup-icon')).toHaveCSS('width', '44px')
+  await expect(page.locator('.setup-icon')).toHaveCSS('height', '44px')
+  await expect(page.locator('.info-icon').first()).toHaveCSS('width', '24px')
+  await expect(page.locator('.info-icon').first()).toHaveCSS('height', '24px')
+  await expect.poll(() => page.evaluate(() =>
+    [...document.styleSheets].some(sheet => /\/SettingsPanelHost-[^/]+\.css(?:\?.*)?$/.test(sheet.href || '')),
+  )).toBe(true)
+}
+
 test('Settings deep link retains dirty panel state and moves focus on section changes', async ({ page }) => {
   await page.route('**/api/twitch/connection-status', route => route.fulfill({
     json: { connected: false, valid: false, expires_at: null },
@@ -42,6 +52,7 @@ test('Settings deep link retains dirty panel state and moves focus on section ch
   await expect(content).toBeFocused()
   await expect(content).toHaveCSS('outline-style', 'solid')
   await expect(content).toHaveCSS('outline-width', '2px')
+  await expectSettingsPanelStyles(page)
 
   const token = page.getByLabel('Twitch OAuth token')
   await token.fill('unsaved-local-matrix-value')
@@ -81,6 +92,7 @@ test('Settings deep link focuses after settings data resolves before its lazy pa
 
 test('Settings lazy panel failure is visible, retryable, and restores panel focus', async ({ page }) => {
   const panelHostRequestUrls: string[] = []
+  const panelHostCssRequestUrls: string[] = []
   let helperRequests = 0
   await page.route(/\/assets\/settings-panel-host(?:-loader)?\.js(?:\?.*)?$/, async route => {
     helperRequests += 1
@@ -96,6 +108,18 @@ test('Settings lazy panel failure is visible, retryable, and restores panel focu
         contentType: 'application/javascript',
         headers: { 'cache-control': 'no-store' },
         body: 'throw new Error("synthetic settings chunk outage")',
+      })
+    }
+    return route.continue()
+  })
+  await page.route(/\/assets\/SettingsPanelHost-[^/]+\.css(?:\?.*)?$/, async route => {
+    panelHostCssRequestUrls.push(route.request().url())
+    if (panelHostCssRequestUrls.length === 1) {
+      return route.fulfill({
+        status: 503,
+        contentType: 'text/css',
+        headers: { 'cache-control': 'no-store' },
+        body: '/* synthetic settings stylesheet outage */',
       })
     }
     return route.continue()
@@ -117,7 +141,13 @@ test('Settings lazy panel failure is visible, retryable, and restores panel focu
   await expect(content).toHaveCSS('outline-width', '2px')
   expect(panelHostRequestUrls).toHaveLength(3)
   expect(new Set(panelHostRequestUrls).size).toBe(3)
+  expect(panelHostCssRequestUrls.length).toBeGreaterThanOrEqual(2)
+  expect(new Set(panelHostCssRequestUrls).size).toBe(panelHostCssRequestUrls.length)
   expect(helperRequests).toBeGreaterThanOrEqual(1)
+
+  await selectSettingsSection(page, 'twitch', /^Twitch Connection /)
+  await expect(page.getByRole('heading', { name: 'Twitch Connection' })).toBeVisible()
+  await expectSettingsPanelStyles(page)
 })
 
 test('notification 99+ badge, unread/error filters, clear action, and queue error state remain usable', async ({ page }) => {
