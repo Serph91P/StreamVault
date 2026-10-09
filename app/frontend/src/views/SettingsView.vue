@@ -250,11 +250,16 @@ const panelRegion = ref<HTMLElement | null>(null)
 let panelHostRequest = 0
 let acceptsPanelHost = true
 
-async function loadPanelHost() {
+async function loadPanelHost(isRetry = false) {
   const request = ++panelHostRequest
   panelHostError.value = ''
   try {
-    const module = await import('@/components/settings/SettingsPanelHost.vue')
+    // A failed module import stays rejected in the browser's module map. The
+    // retry specifier is intentionally distinct so recovery does not depend on
+    // reload/cache behaviour, which differs between Firefox and WebKit.
+    const module = isRetry
+      ? await import('@/components/settings/SettingsPanelHost.vue?retry')
+      : await import('@/components/settings/SettingsPanelHost.vue')
     if (!acceptsPanelHost || request !== panelHostRequest) return
     panelHost.value = module.default
     await focusPanelRegion()
@@ -271,9 +276,7 @@ async function focusPanelRegion() {
 }
 
 function retryPanelHost() {
-  // Browsers cache failed module-script imports for the lifetime of the page.
-  // Reloading preserves the deep link while giving the chunk a fresh request.
-  window.location.reload()
+  void loadPanelHost(true)
 }
 
 watch(() => route.query.section, (section) => {

@@ -61,18 +61,26 @@ test('Settings deep link retains dirty panel state and moves focus on section ch
 })
 
 test('Settings lazy panel failure is visible, retryable, and restores panel focus', async ({ page }) => {
-  let failed = false
+  let allowPanelHost = false
   await page.route('**/assets/SettingsPanelHost-*.js', async route => {
-    if (!failed) {
-      failed = true
-      await route.abort('failed')
-      return
+    // Keep every request failed until the error UI is observed. A no-store 503
+    // models a transient chunk outage without relying on engine-specific abort
+    // caching or modulepreload request ordering.
+    if (!allowPanelHost) {
+      return route.fulfill({
+        status: 503,
+        contentType: 'application/javascript',
+        headers: { 'cache-control': 'no-store' },
+        body: 'throw new Error("synthetic settings chunk outage")',
+      })
     }
-    await route.continue()
+    return route.continue()
   })
   await page.goto('/settings?section=notifications')
   await expect(page.getByRole('alert')).toContainText('could not be loaded')
+  allowPanelHost = true
   await page.getByRole('button', { name: 'Retry' }).click()
+  await expect(page.locator('.panel-load-error')).toHaveCount(0)
   await expect(page.getByRole('heading', { name: 'Notifications', exact: true })).toBeVisible()
   await expect(page.locator('.settings-content')).toBeFocused()
 })
