@@ -98,7 +98,10 @@ async function refreshNotifications(): Promise<void> {
 
   try {
     notificationStore.load()
-    await notificationStore.syncBackendState()
+    const synchronized = await notificationStore.syncBackendState()
+    if (!synchronized) {
+      throw new Error('Notification backend state unavailable')
+    }
   } catch (error) {
     errorMessage.value = 'Notifications could not be refreshed. Existing local items are still available.'
     console.error('NotificationFeed: Failed to refresh notifications:', error)

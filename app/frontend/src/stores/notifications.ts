@@ -188,7 +188,7 @@ export const useNotificationStore = defineStore('notifications', () => {
     writeNotifications(notifications.value)
   }
 
-  async function syncBackendState(): Promise<void> {
+  async function syncBackendState(): Promise<boolean> {
     try {
       const backendState = await notificationApi.getState()
       const clearedTs =
@@ -223,8 +223,10 @@ export const useNotificationStore = defineStore('notifications', () => {
           persist()
         }
       }
+      return true
     } catch (error) {
       console.error('Failed to sync backend notification state:', error)
+      return false
     }
   }
 
