@@ -4,7 +4,8 @@ import vue from '@vitejs/plugin-vue'
 import { VitePWA } from 'vite-plugin-pwa'
 
 function retryableSettingsPanelHost(): Plugin {
-  const publicPath = '/assets/settings-panel-host.js'
+  const publicPath = '/assets/settings-panel-host-loader.js'
+  const panelHostModule = fileURLToPath(new URL('./src/components/settings/SettingsPanelHost.vue', import.meta.url))
 
   return {
     name: 'streamvault-retryable-settings-panel-host',
@@ -13,17 +14,31 @@ function retryableSettingsPanelHost(): Plugin {
         response.statusCode = 200
         response.setHeader('Content-Type', 'application/javascript')
         response.setHeader('Cache-Control', 'no-store')
-        response.end('export default true')
+        response.end(
+          'export const loadSettingsPanelHost = (attempt) => ' +
+          'import(`/src/components/settings/SettingsPanelHost.vue?retry=${encodeURIComponent(attempt)}`)'
+        )
       })
     },
-    generateBundle() {
-      // The tiny availability facade receives a unique query on every retry.
-      // The actual panel chunk remains a normal Vite lazy dependency and is
-      // requested only after this retryable boundary succeeds.
+    generateBundle(_options, bundle) {
+      const panelHostOutput = Object.values(bundle).find(
+        output => output.type === 'chunk' && panelHostModule in output.modules,
+      )
+      if (!panelHostOutput || panelHostOutput.type !== 'chunk') {
+        this.error('SettingsPanelHost output chunk was not generated')
+      }
+      const panelHostChunk = panelHostOutput.fileName
+      const relativePanelHostChunk = panelHostChunk.replace(/^assets\//, './')
+
+      // The loader itself is stable and cacheable. Every call imports the real
+      // compiled panel chunk at a unique URL, so a rejected browser module-map
+      // entry cannot poison a later user retry.
       this.emitFile({
         type: 'asset',
         fileName: publicPath.slice(1),
-        source: 'export default true',
+        source:
+          'export const loadSettingsPanelHost = (attempt) => ' +
+          `import(${JSON.stringify(relativePanelHostChunk)} + '?retry=' + encodeURIComponent(attempt))`,
       })
     },
   }

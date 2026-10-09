@@ -257,19 +257,35 @@ let panelHostRequest = 0
 let panelHostAttempt = 0
 let acceptsPanelHost = true
 
-async function loadPanelHost() {
+type SettingsPanelHostLoader = {
+  loadSettingsPanelHost: (attempt: number) => Promise<{ default: Component }>
+}
+
+async function loadPanelHost(focusOnSuccess = false) {
   const request = ++panelHostRequest
   const attempt = ++panelHostAttempt
   panelHostError.value = ''
   try {
-    // Failed module imports remain rejected in the browser module map. Probe a
-    // tiny build-owned module at a unique URL first, so the real lazy panel is
-    // not requested (and poisoned) until the transient chunk outage has cleared.
-    const panelHostUrl = `${import.meta.env.BASE_URL}assets/settings-panel-host.js?attempt=${attempt}`
-    await import(/* @vite-ignore */ panelHostUrl)
-    const module = await import('@/components/settings/SettingsPanelHost.vue')
+    // Failed imports remain rejected in the browser module map. The build-owned
+    // loader targets the actual compiled panel chunk with this unique attempt,
+    // rather than using a successful availability probe as a recovery signal.
+    const loaderUrl = `${import.meta.env.BASE_URL}assets/settings-panel-host-loader.js`
+    let module: { default: Component } | null = null
+    let loader: SettingsPanelHostLoader | null = null
+    try {
+      loader = await import(/* @vite-ignore */ loaderUrl) as SettingsPanelHostLoader
+    } catch {
+      // Keep Vite's native dynamic edge so it owns the exported panel chunk.
+      // Use it only when the generated loader asset itself is unavailable;
+      // panel-chunk failures must reach the retry UI instead of poisoning this
+      // fixed fallback URL as well.
+      module = await import('@/components/settings/SettingsPanelHost.vue')
+    }
+    if (loader) module = await loader.loadSettingsPanelHost(attempt)
+    if (!module) throw new Error('Settings panel loader returned no module')
     if (!acceptsPanelHost || request !== panelHostRequest) return
     panelHost.value = module.default
+    if (focusOnSuccess && !isLoading.value) await focusPanelRegion()
   } catch {
     if (!acceptsPanelHost || request !== panelHostRequest) return
     panelHostError.value = 'This settings panel could not be loaded.'
@@ -283,7 +299,7 @@ async function focusPanelRegion() {
 }
 
 function retryPanelHost() {
-  void loadPanelHost()
+  void loadPanelHost(true)
 }
 
 watch(() => route.query.section, (section) => {
@@ -296,14 +312,6 @@ watch(activeSection, async () => {
   if (!panelHost.value) return
   await focusPanelRegion()
 })
-
-watch([panelHost, isLoading], async ([host, loading]) => {
-  // Loading the settings data and loading the panel chunk race independently.
-  // Focus only after both have made the region renderable, regardless of which
-  // request finishes first.
-  if (!host || loading) return
-  await focusPanelRegion()
-}, { flush: 'post' })
 
 // Version information
 const versionInfo = ref<any>(null)
@@ -514,7 +522,7 @@ const activePanelListeners = computed(() => {
 // Initialize
 onMounted(() => {
   loadAllSettings()
-  loadPanelHost()
+  void loadPanelHost()
 })
 
 onBeforeUnmount(() => {

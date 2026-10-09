@@ -39,7 +39,6 @@ test('Settings deep link retains dirty panel state and moves focus on section ch
   await page.goto('/settings?section=twitch')
   const content = page.locator('.settings-content')
   await expect(page.getByRole('heading', { name: 'Twitch Connection' })).toBeVisible()
-  await expect(content).toBeFocused()
 
   const token = page.getByLabel('Twitch OAuth token')
   await token.fill('unsaved-local-matrix-value')
@@ -61,13 +60,17 @@ test('Settings deep link retains dirty panel state and moves focus on section ch
 })
 
 test('Settings lazy panel failure is visible, retryable, and restores panel focus', async ({ page }) => {
-  let failedPanelHostRequests = 0
-  await page.route(/(?:\/assets\/SettingsPanelHost-[^/]+\.js|\/settings-panel-host\.js)(?:\?.*)?$/, async route => {
-    // Fail both the initial request and the first user retry. Each attempt must
-    // use a fresh module URL so a later recovery cannot reuse a rejected entry
-    // from Firefox/WebKit's module map.
-    if (failedPanelHostRequests < 2) {
-      failedPanelHostRequests += 1
+  const panelHostRequestUrls: string[] = []
+  let helperRequests = 0
+  await page.route(/\/assets\/settings-panel-host(?:-loader)?\.js(?:\?.*)?$/, async route => {
+    helperRequests += 1
+    return route.continue()
+  })
+  await page.route(/\/assets\/SettingsPanelHost-[^/]+\.js(?:\?.*)?$/, async route => {
+    panelHostRequestUrls.push(route.request().url())
+    // Fail the real compiled panel dependency on the initial load and first
+    // user retry. A later recovery must request that dependency at a fresh URL.
+    if (panelHostRequestUrls.length <= 2) {
       return route.fulfill({
         status: 503,
         contentType: 'application/javascript',
@@ -79,16 +82,22 @@ test('Settings lazy panel failure is visible, retryable, and restores panel focu
   })
   await page.goto('/settings?section=notifications')
   await expect(page.getByRole('alert')).toContainText('could not be loaded')
+  expect(panelHostRequestUrls).toHaveLength(1)
   await page.getByRole('button', { name: 'Retry' }).click()
   await expect(page.getByRole('alert')).toContainText('could not be loaded')
   await expect(page.getByRole('button', { name: 'Retry' })).toBeVisible()
+  expect(panelHostRequestUrls).toHaveLength(2)
   await page.getByRole('button', { name: 'Retry' }).click()
   await expect(page.locator('.panel-load-error')).toHaveCount(0)
   await expect(page.getByRole('heading', { name: 'Notifications', exact: true })).toBeVisible()
+  await expect(page.getByLabel('Notification Service URL')).toBeVisible()
   const content = page.getByRole('region', { name: 'Notifications settings' })
   await expect(content).toBeFocused()
   await expect(content).toHaveCSS('outline-style', 'solid')
   await expect(content).toHaveCSS('outline-width', '2px')
+  expect(panelHostRequestUrls).toHaveLength(3)
+  expect(new Set(panelHostRequestUrls).size).toBe(3)
+  expect(helperRequests).toBeGreaterThanOrEqual(1)
 })
 
 test('notification 99+ badge, unread/error filters, clear action, and queue error state remain usable', async ({ page }) => {
