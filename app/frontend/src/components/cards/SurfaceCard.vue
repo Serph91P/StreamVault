@@ -96,6 +96,7 @@ function activate(event: MouseEvent | KeyboardEvent) {
   position: relative;
   min-width: 0;
   overflow: hidden;
+  padding: 0;
   background: var(--sv-cmp-panel-background);
   border: 1px solid var(--sv-cmp-panel-border);
   border-radius: var(--radius-xl);

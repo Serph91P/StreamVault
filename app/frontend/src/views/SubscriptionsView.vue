@@ -70,7 +70,7 @@
     />
 
     <!-- Subscriptions Table -->
-    <GlassCard v-else class="table-card">
+    <SurfaceCard v-else class="table-card">
       <div class="table-wrapper">
         <table class="subscriptions-table">
           <thead>
@@ -129,13 +129,13 @@
           Total: <strong>{{ subscriptions.length }}</strong> subscription{{ subscriptions.length !== 1 ? 's' : '' }}
         </p>
       </div>
-    </GlassCard>
+    </SurfaceCard>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
-import GlassCard from '@/components/cards/GlassCard.vue'
+import SurfaceCard from '@/components/cards/SurfaceCard.vue'
 import LoadingSkeleton from '@/components/LoadingSkeleton.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import { subscriptionsApi } from '@/services/api'

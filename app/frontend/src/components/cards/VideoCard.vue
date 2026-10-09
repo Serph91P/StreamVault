@@ -1,5 +1,5 @@
 <template>
-  <GlassCard
+  <SurfaceCard
     variant="subtle"
     hoverable
     :padding="false"
@@ -101,13 +101,13 @@
         </div>
       </div>
     </div>
-  </GlassCard>
+  </SurfaceCard>
 </template>
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import StatusBadge, { type StatusBadgeTone } from '@/components/base/StatusBadge.vue'
-import GlassCard from './GlassCard.vue'
+import SurfaceCard from './SurfaceCard.vue'
 
 type VideoStatus = 'recording' | 'processing' | 'ready' | 'failed'
 
@@ -667,12 +667,12 @@ const handlePlay = () => {
    Horizontal layout with thumbnail on left
    ======================================== */
 .video-card.list-mode {
-  :deep(.glass-card-content) {
+  :deep(.surface-card-body) {
     padding: 0;
   }
 
   // The row layout lives on .video-card-action: thumbnail and info are its
-  // children (.glass-card-content only wraps this single element, so flexing
+  // children (.surface-card-body only wraps this single element, so flexing
   // the content div had no effect and the info stacked under the thumbnail).
   .video-card-action {
     display: flex;

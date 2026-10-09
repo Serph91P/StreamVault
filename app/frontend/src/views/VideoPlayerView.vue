@@ -21,7 +21,7 @@
       <!-- Main Content: Video + Sidebar -->
       <div class="player-main">
         <!-- Video Player with Header -->
-        <GlassCard
+        <SurfaceCard
           variant="strong"
           :padding="false"
           class="player-card"
@@ -62,12 +62,12 @@
             @time-update="onTimeUpdate"
             @toggle-theater="toggleTheaterMode"
           />
-        </GlassCard>
+        </SurfaceCard>
 
         <!-- Info Sidebar -->
         <aside class="info-sidebar">
           <!-- Stream Details -->
-          <GlassCard variant="subtle" class="info-card">
+          <SurfaceCard variant="subtle" class="info-card">
             <h3 class="info-title">
               <svg class="info-icon">
                 <use href="#icon-info" />
@@ -92,10 +92,10 @@
                 <span class="info-value">Backend stream</span>
               </div>
             </div>
-          </GlassCard>
+          </SurfaceCard>
 
           <!-- Chapters List -->
-          <GlassCard v-if="chapterData.chapters?.length > 0" variant="subtle" class="info-card chapters-card">
+          <SurfaceCard v-if="chapterData.chapters?.length > 0" variant="subtle" class="info-card chapters-card">
             <h3 class="info-title">
               <svg class="info-icon">
                 <use href="#icon-list" />
@@ -117,10 +117,10 @@
                 <span class="chapter-title">{{ chapter.title }}</span>
               </button>
             </div>
-          </GlassCard>
+          </SurfaceCard>
 
           <!-- Quick Actions -->
-          <GlassCard variant="subtle" class="info-card">
+          <SurfaceCard variant="subtle" class="info-card">
             <h3 class="info-title">
               <svg class="info-icon">
                 <use href="#icon-settings" />
@@ -163,7 +163,7 @@
               </div>
               <p class="share-hint">Use this URL in VLC or any media player</p>
             </div>
-          </GlassCard>
+          </SurfaceCard>
         </aside>
       </div>
     </div>
@@ -187,7 +187,7 @@ import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import VideoPlayer from '@/components/VideoPlayer.vue'
 import LoadingSkeleton from '@/components/LoadingSkeleton.vue'
-import GlassCard from '@/components/cards/GlassCard.vue'
+import SurfaceCard from '@/components/cards/SurfaceCard.vue'
 import BaseModal from '@/components/base/BaseModal.vue'
 import BaseButton from '@/components/base/BaseButton.vue'
 import PlayerStatus from '@/components/player/PlayerStatus.vue'
@@ -705,7 +705,7 @@ onUnmounted(() => {
   // The 16:9 stage height budget (--player-max-h) is defined in
   // _variables.scss and consumed by VideoPlayer's .video-wrapper
 
-  :deep(.glass-card-content) {
+  :deep(.surface-card-body) {
     padding: 0;
     display: flex;
     flex-direction: column;
@@ -888,8 +888,8 @@ onUnmounted(() => {
   max-width: 100%;
   overflow: hidden;
 
-  // Ensure GlassCard content doesn't overflow
-  :deep(.glass-card-content) {
+  // Ensure SurfaceCard content doesn't overflow
+  :deep(.surface-card-body) {
     max-width: 100%;
     overflow: hidden;
   }
@@ -955,7 +955,7 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
 
-  :deep(.glass-card-content) {
+  :deep(.surface-card-body) {
     display: flex;
     flex-direction: column;
     overflow: hidden;

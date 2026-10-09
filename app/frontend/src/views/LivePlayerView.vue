@@ -31,7 +31,7 @@
     <!-- Live Player -->
     <div v-else-if="sessionId" class="player-layout">
       <div class="player-main">
-        <GlassCard variant="strong" :padding="false" class="player-card">
+        <SurfaceCard variant="strong" :padding="false" class="player-card">
           <!-- Header -->
           <div class="player-header">
             <button @click="goBack" class="back-button" aria-label="Go back" v-ripple>
@@ -122,11 +122,11 @@
               </div>
             </div>
           </div>
-        </GlassCard>
+        </SurfaceCard>
 
         <!-- Info Sidebar -->
         <aside class="info-sidebar">
-          <GlassCard variant="subtle" class="info-card">
+          <SurfaceCard variant="subtle" class="info-card">
             <h2 class="info-title">
               <svg class="info-icon">
                 <use href="#icon-info" />
@@ -162,9 +162,9 @@
                 </span>
               </div>
             </div>
-          </GlassCard>
+          </SurfaceCard>
 
-          <GlassCard variant="subtle" class="info-card">
+          <SurfaceCard variant="subtle" class="info-card">
             <h2 class="info-title">
               <svg class="info-icon">
                 <use href="#icon-settings" />
@@ -197,7 +197,7 @@
                 {{ isStopping ? 'Stopping...' : 'Stop Stream' }}
               </button>
             </div>
-          </GlassCard>
+          </SurfaceCard>
         </aside>
       </div>
     </div>
@@ -209,7 +209,7 @@ import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import LoadingSkeleton from '@/components/LoadingSkeleton.vue'
 import EmptyState from '@/components/EmptyState.vue'
-import GlassCard from '@/components/cards/GlassCard.vue'
+import SurfaceCard from '@/components/cards/SurfaceCard.vue'
 import PlayerStatus from '@/components/player/PlayerStatus.vue'
 import PlayerError from '@/components/player/PlayerError.vue'
 import { liveApi } from '@/services/api'
@@ -936,7 +936,7 @@ onUnmounted(() => {
 .player-card {
   overflow: hidden;
 
-  :deep(.glass-card-content) {
+  :deep(.surface-card-body) {
     padding: 0;
     display: flex;
     flex-direction: column;
@@ -1336,7 +1336,7 @@ onUnmounted(() => {
   max-width: 100%;
   overflow: hidden;
 
-  :deep(.glass-card-content) {
+  :deep(.surface-card-body) {
     max-width: 100%;
     overflow: hidden;
   }

@@ -1,7 +1,8 @@
 <template>
-  <GlassCard
+  <SurfaceCard
     tag="article"
     variant="subtle"
+    :padding="false"
     class="stream-card"
     :class="{
       'is-expanded': isExpanded
@@ -184,14 +185,14 @@
         </div>
       </transition>
     </div>
-  </GlassCard>
+  </SurfaceCard>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, useId } from 'vue'
 import type { Stream, StreamEvent } from '@/types/streams'
 import StatusBadge from '@/components/base/StatusBadge.vue'
-import GlassCard from './GlassCard.vue'
+import SurfaceCard from './SurfaceCard.vue'
 
 interface Props {
   stream: Stream
@@ -319,7 +320,7 @@ function handleDelete() {
 .stream-card {
   touch-action: pan-y;
 
-  :deep(.glass-card-content) {
+  :deep(.surface-card-body) {
     padding: 0;
     overflow: hidden;
   }
