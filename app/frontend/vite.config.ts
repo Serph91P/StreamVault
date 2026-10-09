@@ -1,12 +1,39 @@
 import { fileURLToPath, URL } from 'node:url'
-import { defineConfig } from 'vite'
+import { defineConfig, type Plugin } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { VitePWA } from 'vite-plugin-pwa'
+
+function retryableSettingsPanelHost(): Plugin {
+  const publicPath = '/assets/settings-panel-host.js'
+
+  return {
+    name: 'streamvault-retryable-settings-panel-host',
+    configureServer(server) {
+      server.middlewares.use(publicPath, (_request, response) => {
+        response.statusCode = 200
+        response.setHeader('Content-Type', 'application/javascript')
+        response.setHeader('Cache-Control', 'no-store')
+        response.end('export default true')
+      })
+    },
+    generateBundle() {
+      // The tiny availability facade receives a unique query on every retry.
+      // The actual panel chunk remains a normal Vite lazy dependency and is
+      // requested only after this retryable boundary succeeds.
+      this.emitFile({
+        type: 'asset',
+        fileName: publicPath.slice(1),
+        source: 'export default true',
+      })
+    },
+  }
+}
 
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [
     vue(),
+    retryableSettingsPanelHost(),
     VitePWA({
       registerType: 'autoUpdate',
       // Workbox globs already enumerate these public static assets. Keep the

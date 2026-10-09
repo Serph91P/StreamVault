@@ -61,12 +61,13 @@ test('Settings deep link retains dirty panel state and moves focus on section ch
 })
 
 test('Settings lazy panel failure is visible, retryable, and restores panel focus', async ({ page }) => {
-  let allowPanelHost = false
-  await page.route('**/assets/SettingsPanelHost-*.js', async route => {
-    // Keep every request failed until the error UI is observed. A no-store 503
-    // models a transient chunk outage without relying on engine-specific abort
-    // caching or modulepreload request ordering.
-    if (!allowPanelHost) {
+  let failedPanelHostRequests = 0
+  await page.route(/(?:\/assets\/SettingsPanelHost-[^/]+\.js|\/settings-panel-host\.js)(?:\?.*)?$/, async route => {
+    // Fail both the initial request and the first user retry. Each attempt must
+    // use a fresh module URL so a later recovery cannot reuse a rejected entry
+    // from Firefox/WebKit's module map.
+    if (failedPanelHostRequests < 2) {
+      failedPanelHostRequests += 1
       return route.fulfill({
         status: 503,
         contentType: 'application/javascript',
@@ -78,11 +79,16 @@ test('Settings lazy panel failure is visible, retryable, and restores panel focu
   })
   await page.goto('/settings?section=notifications')
   await expect(page.getByRole('alert')).toContainText('could not be loaded')
-  allowPanelHost = true
+  await page.getByRole('button', { name: 'Retry' }).click()
+  await expect(page.getByRole('alert')).toContainText('could not be loaded')
+  await expect(page.getByRole('button', { name: 'Retry' })).toBeVisible()
   await page.getByRole('button', { name: 'Retry' }).click()
   await expect(page.locator('.panel-load-error')).toHaveCount(0)
   await expect(page.getByRole('heading', { name: 'Notifications', exact: true })).toBeVisible()
-  await expect(page.locator('.settings-content')).toBeFocused()
+  const content = page.getByRole('region', { name: 'Notifications settings' })
+  await expect(content).toBeFocused()
+  await expect(content).toHaveCSS('outline-style', 'solid')
+  await expect(content).toHaveCSS('outline-width', '2px')
 })
 
 test('notification 99+ badge, unread/error filters, clear action, and queue error state remain usable', async ({ page }) => {

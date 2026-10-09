@@ -66,7 +66,13 @@
       </aside>
 
       <!-- Settings Content -->
-      <div ref="panelRegion" class="settings-content" tabindex="-1">
+      <div
+        ref="panelRegion"
+        class="settings-content"
+        tabindex="-1"
+        role="region"
+        :aria-label="`${activeSectionData?.label || 'Settings'} settings`"
+      >
         <div v-if="activeSectionData?.hasPanel" class="settings-section">
           <BasePanel tone="glass" padding="lg">
             <template #title>{{ activeSectionData.label }}</template>
@@ -248,21 +254,22 @@ const panelHost = shallowRef<Component | null>(null)
 const panelHostError = ref('')
 const panelRegion = ref<HTMLElement | null>(null)
 let panelHostRequest = 0
+let panelHostAttempt = 0
 let acceptsPanelHost = true
 
-async function loadPanelHost(isRetry = false) {
+async function loadPanelHost() {
   const request = ++panelHostRequest
+  const attempt = ++panelHostAttempt
   panelHostError.value = ''
   try {
-    // A failed module import stays rejected in the browser's module map. The
-    // retry specifier is intentionally distinct so recovery does not depend on
-    // reload/cache behaviour, which differs between Firefox and WebKit.
-    const module = isRetry
-      ? await import('@/components/settings/SettingsPanelHost.vue?retry')
-      : await import('@/components/settings/SettingsPanelHost.vue')
+    // Failed module imports remain rejected in the browser module map. Probe a
+    // tiny build-owned module at a unique URL first, so the real lazy panel is
+    // not requested (and poisoned) until the transient chunk outage has cleared.
+    const panelHostUrl = `${import.meta.env.BASE_URL}assets/settings-panel-host.js?attempt=${attempt}`
+    await import(/* @vite-ignore */ panelHostUrl)
+    const module = await import('@/components/settings/SettingsPanelHost.vue')
     if (!acceptsPanelHost || request !== panelHostRequest) return
     panelHost.value = module.default
-    await focusPanelRegion()
   } catch {
     if (!acceptsPanelHost || request !== panelHostRequest) return
     panelHostError.value = 'This settings panel could not be loaded.'
@@ -276,7 +283,7 @@ async function focusPanelRegion() {
 }
 
 function retryPanelHost() {
-  void loadPanelHost(true)
+  void loadPanelHost()
 }
 
 watch(() => route.query.section, (section) => {
@@ -289,6 +296,14 @@ watch(activeSection, async () => {
   if (!panelHost.value) return
   await focusPanelRegion()
 })
+
+watch([panelHost, isLoading], async ([host, loading]) => {
+  // Loading the settings data and loading the panel chunk race independently.
+  // Focus only after both have made the region renderable, regardless of which
+  // request finishes first.
+  if (!host || loading) return
+  await focusPanelRegion()
+}, { flush: 'post' })
 
 // Version information
 const versionInfo = ref<any>(null)
@@ -374,7 +389,6 @@ async function loadAllSettings() {
     console.error('Failed to load settings:', error)
   } finally {
     isLoading.value = false
-    if (panelHost.value) await focusPanelRegion()
   }
 }
 
@@ -634,9 +648,12 @@ onBeforeUnmount(() => {
 .settings-content {
   min-width: 0;
 
-  // This region is focused programmatically after async panel changes. It is not
-  // in the Tab order; the panel heading and controls provide the visible context.
-  &:focus { outline: none; }
+  // The async panel region is focused programmatically but remains outside the
+  // Tab order. Keep the location change visible to keyboard and low-vision users.
+  &:focus {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 3px;
+  }
 
   // ------------------------------------------------------------------
   // Cross-panel typography normalization. The panels grew their own
