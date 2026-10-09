@@ -969,7 +969,7 @@ $ctrl-h: 44px;
   min-height: $ctrl-h;
   padding: 0 var(--spacing-2);
   font-size: var(--text-sm);
-  color: var(--text-secondary);
+  color: var(--sv-sem-text-secondary);
 }
 
 .results-info span {

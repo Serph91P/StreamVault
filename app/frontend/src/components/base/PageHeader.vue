@@ -148,7 +148,7 @@ withDefaults(defineProps<Props>(), {
 .page-header-subtitle {
   margin: var(--spacing-1) 0 0;
   font-size: var(--text-sm);
-  color: var(--text-secondary);
+  color: var(--sv-sem-text-secondary);
   line-height: 1.5;
 }
 

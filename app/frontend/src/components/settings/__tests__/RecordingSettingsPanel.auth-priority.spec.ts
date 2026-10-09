@@ -43,6 +43,30 @@ describe('RecordingSettingsPanel Twitch auth priority', () => {
     wrapper.unmount()
   })
 
+  it('does not emit an out-of-contract priority value', async () => {
+    const wrapper = mount(RecordingSettingsPanel, {
+      global: { plugins: [createPinia()] },
+      props: {
+        settings: null,
+        activeRecordings: [],
+        streamerSettings: [{
+          streamer_id: 7,
+          username: 'priority-channel',
+          enabled: true,
+          twitch_auth_priority: 0
+        }]
+      }
+    })
+
+    const input = wrapper.get('[aria-label="Twitch authentication priority for priority-channel"]')
+    ;(input.element as HTMLInputElement).value = '1001'
+    await input.trigger('change')
+
+    expect(wrapper.emitted('updateStreamer')).toBeUndefined()
+    expect((input.element as HTMLInputElement).value).toBe('0')
+    wrapper.unmount()
+  })
+
   it('shows effective mode, pending handoff reason, and partial recording warning', () => {
     const wrapper = mount(RecordingSettingsPanel, {
       global: { plugins: [createPinia()] },

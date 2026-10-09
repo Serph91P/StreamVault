@@ -294,13 +294,13 @@
                 <td data-label="Auth priority">
                   <input
                     type="number"
-                    v-model.number="streamer.twitch_auth_priority"
+                    :value="streamer.twitch_auth_priority ?? 0"
                     min="-1000"
                     max="1000"
                     step="1"
                     class="form-control form-control-sm"
                     :aria-label="`Twitch authentication priority for ${streamer.username || 'streamer'}`"
-                    @change="updateStreamerSetting(streamer.streamer_id, { twitch_auth_priority: streamer.twitch_auth_priority })"
+                    @change="updateTwitchAuthPriority(streamer, $event)"
                   />
                   <small>-1000 to 1000</small>
                 </td>
@@ -484,6 +484,22 @@ const saveSettings = async () => {
 
 const updateStreamerSetting = (streamerId: number, settings: Partial<StreamerRecordingSettings>) => {
   emits('updateStreamer', streamerId, settings);
+};
+
+const updateTwitchAuthPriority = (
+  streamer: StreamerRecordingSettings,
+  event: Event
+) => {
+  const input = event.target as HTMLInputElement;
+  const rawPriority = input.value.trim();
+  const priority = Number(rawPriority);
+
+  if (!rawPriority || !Number.isInteger(priority) || priority < -1000 || priority > 1000) {
+    input.value = String(streamer.twitch_auth_priority ?? 0);
+    return;
+  }
+
+  updateStreamerSetting(streamer.streamer_id, { twitch_auth_priority: priority });
 };
 
 const toggleAllStreamers = async (enabled: boolean) => {
