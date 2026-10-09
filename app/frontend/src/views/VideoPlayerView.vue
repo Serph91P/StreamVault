@@ -826,8 +826,8 @@ onUnmounted(() => {
   display: inline-flex;
   align-items: center;
   gap: var(--spacing-1);
-  background: rgba(var(--primary-500-rgb), 0.15);
-  border: 1px solid rgba(var(--primary-500-rgb), 0.3);
+  background: var(--sv-sem-surface-raised);
+  border: 1px solid var(--sv-sem-border-strong);
   border-radius: var(--radius-pill);
   padding: var(--spacing-0-5) var(--spacing-2);
   font-size: var(--text-xs);
