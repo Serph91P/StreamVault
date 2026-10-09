@@ -99,23 +99,22 @@ function activate(event: MouseEvent | KeyboardEvent) {
   background: var(--sv-cmp-panel-background);
   border: 1px solid var(--sv-cmp-panel-border);
   border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-sm);
+  box-shadow: none;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
 
   &.surface-card-subtle { background: var(--sv-sem-surface-raised); }
-  &.surface-card-strong { box-shadow: var(--shadow-md); }
-  &.surface-card-elevated { box-shadow: var(--shadow-lg); }
+  &.surface-card-strong { border-color: var(--sv-sem-border-strong); }
+  &.surface-card-elevated { border-color: var(--sv-sem-border-strong); }
   &.surface-card-clickable { cursor: pointer; }
   &.surface-card-disabled { cursor: not-allowed; opacity: 0.62; }
 
   &.surface-card-hoverable {
-    transition: border-color v.$duration-200 v.$ease-out, box-shadow v.$duration-200 v.$ease-out, transform v.$duration-200 v.$ease-out;
+    transition: border-color v.$duration-200 v.$ease-out, background-color v.$duration-200 v.$ease-out;
 
     &:hover:not(.surface-card-disabled):not(.surface-card-loading) {
       border-color: var(--sv-sem-border-strong);
-      box-shadow: var(--shadow-md);
-      transform: translateY(-2px);
+      background: var(--sv-sem-surface-raised);
     }
   }
 

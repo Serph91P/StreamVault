@@ -362,13 +362,11 @@ defineExpose({ togglePanel, taskCount: combinedActiveTasks })
   align-items: center;
   gap: var(--spacing-2);
   padding: var(--spacing-2);
-  background: transparent;
+  background: var(--sv-cmp-panel-background);
   border-radius: var(--radius-full);
   cursor: pointer;
   transition: all var(--duration-200) var(--ease-out);
-  backdrop-filter: blur(var(--glass-blur-sm));
-  -webkit-backdrop-filter: blur(var(--glass-blur-sm));
-  border: 1px solid transparent;
+  border: 1px solid var(--sv-cmp-panel-border);
   min-height: 44px;
   min-width: 44px;
   color: var(--text-secondary);
@@ -376,8 +374,8 @@ defineExpose({ togglePanel, taskCount: combinedActiveTasks })
 }
 
 .queue-status-indicator:hover {
-  background: var(--glass-bg-subtle);
-  border-color: var(--glass-border);
+  background: var(--sv-sem-surface-raised);
+  border-color: var(--sv-sem-border-strong);
   color: var(--text-primary);
 }
 
