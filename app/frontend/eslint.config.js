@@ -1,6 +1,7 @@
 import pluginVue from 'eslint-plugin-vue'
-import vueTsEslintConfig from '@vue/eslint-config-typescript'
 import skipFormatting from '@vue/eslint-config-prettier/skip-formatting'
+import tseslint from 'typescript-eslint'
+import vueParser from 'vue-eslint-parser'
 
 export default [
   {
@@ -21,7 +22,26 @@ export default [
   },
 
   ...pluginVue.configs['flat/essential'],
-  ...vueTsEslintConfig(),
+  ...tseslint.configs.recommended,
+
+  // Restore the Vue parser after typescript-eslint's base config and delegate
+  // TypeScript script blocks to the official TypeScript parser.
+  ...pluginVue.configs['flat/base'],
+  {
+    name: 'app/vue-typescript-parser',
+    files: ['**/*.vue'],
+    languageOptions: {
+      parser: vueParser,
+      parserOptions: {
+        parser: {
+          ts: tseslint.parser,
+          tsx: tseslint.parser,
+        },
+        ecmaVersion: 2024,
+        extraFileExtensions: ['.vue'],
+      },
+    },
+  },
   skipFormatting,
 
   // Project-specific rule overrides
