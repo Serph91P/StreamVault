@@ -20,12 +20,12 @@ from urllib.parse import parse_qs, urlparse
 
 import httpx
 import pytest
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
+from sqlalchemy.engine import make_url
 from sqlalchemy.orm import sessionmaker
 from websockets.exceptions import ConnectionClosed
 from websockets.sync.client import connect
 
-from app.database import Base
 from app.models import (
     GlobalSettings,
     NotificationState,
@@ -39,15 +39,74 @@ from app.services.core.auth_service import AuthService
 from app.utils.token_store import ShareTokenModel
 
 
+_DISPOSABLE_DATABASE_PREFIX = "streamvault_test_"
+
+
+def _require_disposable_postgres_url(url: str) -> str:
+    """Fail closed before any connection or DDL can reach a database."""
+    parsed = make_url(url)
+    database = parsed.database or ""
+    confirmation = os.environ.get("STREAMVAULT_POSTGRES_TEST_DISPOSABLE")
+    if (
+        not parsed.drivername.startswith("postgresql")
+        or parsed.host not in {"127.0.0.1", "localhost", "::1"}
+        or not database.startswith(_DISPOSABLE_DATABASE_PREFIX)
+        or parsed.username != database
+        or confirmation != database
+    ):
+        raise RuntimeError(
+            "refusing destructive acceptance-test setup: expected a loopback "
+            f"PostgreSQL database/user named {_DISPOSABLE_DATABASE_PREFIX}* and "
+            "an exact STREAMVAULT_POSTGRES_TEST_DISPOSABLE confirmation"
+        )
+    return url
+
+
+def _reset_disposable_database(url: str) -> None:
+    """Reset only a positively identified disposable database for migrations."""
+    guarded_url = _require_disposable_postgres_url(url)
+    engine = create_engine(guarded_url, future=True)
+    try:
+        with engine.begin() as connection:
+            connection.execute(text("DROP SCHEMA public CASCADE"))
+            connection.execute(text("CREATE SCHEMA public"))
+    finally:
+        engine.dispose()
+
+
+@pytest.mark.parametrize(
+    "unsafe_url",
+    [
+        "postgresql://user@db.internal/streamvault_test_fda3d0a2",
+        "postgresql://user@127.0.0.1/streamvault",
+        "sqlite:////tmp/streamvault_test_fda3d0a2.db",
+    ],
+)
+def test_disposable_database_guard_rejects_before_connect(monkeypatch, unsafe_url):
+    monkeypatch.setenv(
+        "STREAMVAULT_POSTGRES_TEST_DISPOSABLE", "streamvault_test_fda3d0a2"
+    )
+    connected = False
+
+    def unexpected_connection(*args, **kwargs):
+        nonlocal connected
+        connected = True
+        raise AssertionError("unsafe target reached create_engine")
+
+    monkeypatch.setattr(sys.modules[__name__], "create_engine", unexpected_connection)
+    with pytest.raises(RuntimeError, match="refusing destructive"):
+        _reset_disposable_database(unsafe_url)
+    assert connected is False
+
+
 @pytest.fixture(scope="module")
 def fullstack_runtime(tmp_path_factory, request):
     url = os.environ.get("STREAMVAULT_POSTGRES_TEST_URL")
     if not url:
         pytest.skip("requires isolated STREAMVAULT_POSTGRES_TEST_URL")
 
+    _reset_disposable_database(url)
     engine = create_engine(url, future=True)
-    Base.metadata.drop_all(engine)
-    Base.metadata.create_all(engine)
     Session = sessionmaker(bind=engine, expire_on_commit=False)
 
     runtime_dir = tmp_path_factory.mktemp("ux09-live-runtime")
@@ -114,8 +173,8 @@ def fullstack_runtime(tmp_path_factory, request):
                 except subprocess.TimeoutExpired:
                     server.kill()
                     server.wait(timeout=5)
-            Base.metadata.drop_all(engine)
             engine.dispose()
+            _reset_disposable_database(url)
             (media_dir / "ux09-fullstack.ts").unlink(missing_ok=True)
 
         request.addfinalizer(cleanup_runtime)
