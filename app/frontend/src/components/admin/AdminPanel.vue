@@ -1,7 +1,7 @@
 <template>
   <div class="admin-panel">
     <!-- Quick Health Check -->
-    <GlassCard variant="medium" :padding="true" class="admin-section">
+    <SurfaceCard variant="medium" :padding="true" class="admin-section">
       <div class="section-header">
         <h2>System Health</h2>
         <button
@@ -46,10 +46,10 @@
           </div>
         </div>
       </div>
-    </GlassCard>
+    </SurfaceCard>
 
     <!-- System Information -->
-    <GlassCard variant="medium" :padding="true" class="admin-section">
+    <SurfaceCard variant="medium" :padding="true" class="admin-section">
       <div class="section-header">
         <h2>System Information</h2>
         <button @click="loadSystemInfo" :disabled="systemInfoLoading" class="btn btn-secondary">
@@ -101,22 +101,22 @@
           </ul>
         </div>
       </div>
-    </GlassCard>
+    </SurfaceCard>
 
     <!-- WebSocket Monitoring -->
-    <GlassCard variant="medium" :padding="true" class="admin-section">
+    <SurfaceCard variant="medium" :padding="true" class="admin-section">
       <div class="section-header">
         <h2>WebSocket Connections</h2>
       </div>
       <WebSocketMonitor />
-    </GlassCard>
+    </SurfaceCard>
 
     <details class="admin-disclosure">
       <summary>
         <span>Notification Diagnostics</span>
         <span>Test notification channels: Apprise, Web Push and WebSocket</span>
       </summary>
-      <GlassCard variant="medium" :padding="true" class="admin-section">
+      <SurfaceCard variant="medium" :padding="true" class="admin-section">
         <div class="section-header">
           <h2>Notification Diagnostics</h2>
           <p class="section-description">Test notification channels: Apprise, Web Push and WebSocket</p>
@@ -174,24 +174,24 @@
             </div>
           </div>
         </div>
-      </GlassCard>
+      </SurfaceCard>
     </details>
 
     <!-- Background Queue Monitoring -->
-    <GlassCard variant="medium" :padding="true" class="admin-section">
+    <SurfaceCard variant="medium" :padding="true" class="admin-section">
       <div class="section-header">
         <h2>Background Jobs & Services</h2>
         <p class="section-description">Real-time monitoring of background tasks, recording services, and system processes</p>
       </div>
       <BackgroundQueueMonitor />
-    </GlassCard>
+    </SurfaceCard>
 
     <details class="admin-disclosure">
       <summary>
         <span>Background Queue Tools</span>
         <span>Repair stuck jobs and inspect queue cleanup actions</span>
       </summary>
-      <GlassCard variant="medium" :padding="true" class="admin-section">
+      <SurfaceCard variant="medium" :padding="true" class="admin-section">
       <div class="section-header">
         <h2>🔧 Background Queue Management</h2>
         <p class="section-description">
@@ -199,7 +199,7 @@
         </p>
       </div>
         <BackgroundQueueAdmin />
-      </GlassCard>
+      </SurfaceCard>
     </details>
 
     <details class="admin-disclosure">
@@ -207,7 +207,7 @@
         <span>Post-Processing Tools</span>
         <span>Retry failed recordings and clean segment files</span>
       </summary>
-      <GlassCard variant="medium" :padding="true" class="admin-section">
+      <SurfaceCard variant="medium" :padding="true" class="admin-section">
       <div class="section-header">
         <h2>🔄 Post-Processing Management</h2>
         <p class="section-description">
@@ -215,7 +215,7 @@
         </p>
       </div>
         <PostProcessingManagement />
-      </GlassCard>
+      </SurfaceCard>
     </details>
 
     <details class="admin-disclosure">
@@ -223,7 +223,7 @@
         <span>Admin Verification Suite</span>
         <span>Run diagnostic checks only when troubleshooting</span>
       </summary>
-      <GlassCard variant="medium" :padding="true" class="admin-section">
+      <SurfaceCard variant="medium" :padding="true" class="admin-section">
       <div class="section-header">
         <h2>Admin Verification Suite</h2>
         <div class="test-controls">
@@ -341,7 +341,7 @@
           </div>
         </div>
       </div>
-      </GlassCard>
+      </SurfaceCard>
     </details>
 
     <details class="admin-disclosure">
@@ -349,7 +349,7 @@
         <span>Maintenance</span>
         <span>Review logs and cleanup temporary files</span>
       </summary>
-      <GlassCard variant="medium" :padding="true" class="admin-section">
+      <SurfaceCard variant="medium" :padding="true" class="admin-section">
       <div class="section-header">
         <h2>Maintenance</h2>
       </div>
@@ -379,7 +379,7 @@
           </li>
         </ul>
       </div>
-      </GlassCard>
+      </SurfaceCard>
     </details>
 
     <details class="admin-disclosure">
@@ -387,7 +387,7 @@
         <span>Video and Recording Diagnostics</span>
         <span>Inspect storage state and repair recording paths</span>
       </summary>
-      <GlassCard variant="medium" :padding="true" class="admin-section">
+      <SurfaceCard variant="medium" :padding="true" class="admin-section">
       <div class="section-header">
         <h2>Video and Recording Diagnostics</h2>
         <p class="section-description">Inspect video availability and recording file system status</p>
@@ -424,7 +424,7 @@
           {{ cleaningZombies ? 'Cleaning...' : 'Cleanup Zombie Recordings' }}
         </button>
       </div>
-      </GlassCard>
+      </SurfaceCard>
     </details>
 
     <!-- Logs Modal -->
@@ -589,7 +589,7 @@
 <script setup lang="ts">
 import SvgIcon from '@/components/icons/SvgIcon.vue'
 import { ref, computed, onMounted } from 'vue'
-import GlassCard from '../cards/GlassCard.vue'
+import SurfaceCard from '../cards/SurfaceCard.vue'
 import BaseModal from '../base/BaseModal.vue'
 import BaseButton from '../base/BaseButton.vue'
 import WebSocketMonitor from '../WebSocketMonitor.vue'
@@ -1096,7 +1096,7 @@ onMounted(() => {
   margin: 0 auto;
 }
 
-/* Admin Sections - GlassCard wrappers */
+/* Admin Sections - SurfaceCard wrappers */
 .admin-section {
   margin-bottom: var(--spacing-6);
 }
@@ -1301,9 +1301,9 @@ onMounted(() => {
   line-height: var(--leading-relaxed);
 }
 
-/* Test Suite - no wrapper class needed, GlassCard handles it */
+/* Test Suite - no wrapper class needed, SurfaceCard handles it */
 
-/* WebSocket and Background Queue - no wrapper classes needed, GlassCard handles it */
+/* WebSocket and Background Queue - no wrapper classes needed, SurfaceCard handles it */
 
 /* Notification Diagnostics */
 .diagnostic-channels {

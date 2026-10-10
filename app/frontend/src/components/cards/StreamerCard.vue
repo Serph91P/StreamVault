@@ -1,5 +1,5 @@
 <template>
-  <GlassCard
+  <SurfaceCard
     variant="subtle"
     hoverable
     class="streamer-card"
@@ -192,14 +192,14 @@
         </Teleport>
       </div>
     </div>
-  </GlassCard>
+  </SurfaceCard>
 </template>
 
 <script setup lang="ts">
 import { computed, ref, useId, watch, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import StatusBadge, { type StatusBadgeTone } from '@/components/base/StatusBadge.vue'
-import GlassCard from './GlassCard.vue'
+import SurfaceCard from './SurfaceCard.vue'
 
 interface Streamer {
   id: number
@@ -415,7 +415,7 @@ onUnmounted(() => {
   }
 
   // Card-specific overrides
-  :deep(.glass-card-content) {
+  :deep(.surface-card-body) {
     padding: var(--spacing-4);
     min-height: 240px;
     overflow: visible;
@@ -682,7 +682,7 @@ onUnmounted(() => {
   min-height: 44px;
   padding: var(--spacing-2) var(--spacing-3);
   border-radius: var(--radius-md);
-  color: var(--primary-color);
+  color: var(--sv-sem-action-primary);
   font-size: var(--text-sm);
   font-weight: v.$font-semibold;
   text-decoration: none;
@@ -697,12 +697,9 @@ onUnmounted(() => {
   }
 }
 
-[data-theme="light"] .view-details-link {
-  color: v.$primary-800;
-}
-
-// The semantic focus token remains AA-readable on the dark card surface.
-[data-theme="dark"] .view-details-link {
+// Dark mode is the unqualified root; use the high-contrast focus token rather
+// than the light-oriented primary action color on an in-flow card surface.
+:root:not([data-theme="light"]) .view-details-link {
   color: var(--sv-sem-action-focus);
 }
 
@@ -723,20 +720,25 @@ onUnmounted(() => {
 
 /* LIVE stats - More prominent */
 .stat-viewers {
-  color: var(--danger-text-color);
+  color: var(--sv-sem-status-danger);
   font-weight: v.$font-semibold;
 }
 
 // List-mode's nested .stat rule has higher specificity than the semantic
 // variants above. Keep the status information legible on its card surface.
 .streamer-card-content .streamer-stats .stat-viewers {
-  // The 400 semantic text token keeps live counts AA-readable on the dark
-  // glass surface, including intermediate compositor frames.
-  color: var(--danger-text-color);
+  color: var(--sv-sem-status-danger);
 }
 
 .streamer-card-content .streamer-stats .stat-vods {
-  color: var(--sv-sem-action-focus);
+  color: var(--sv-sem-status-success);
+}
+
+// The light success token is intended for larger status UI and falls just
+// below AA for normal 14px metadata on the subtle card surface. Keep the VOD
+// accent, but use the established darker primary accent in the light theme.
+[data-theme="light"] .streamer-card-content .streamer-stats .stat-vods {
+  color: var(--sv-sem-action-primary);
 }
 
 .streamer-card-content .streamer-stats .stat-category {
@@ -752,15 +754,6 @@ onUnmounted(() => {
 
 .streamer-card-content :deep(.status-badge-offline) {
   color: var(--sv-sem-text-secondary);
-}
-
-[data-theme="light"] .streamer-card-content .streamer-stats .stat-viewers {
-  color: v.$danger-700;
-}
-
-[data-theme="light"] .streamer-card-content .streamer-stats .stat-vods,
-[data-theme="light"] .view-details-link {
-  color: v.$success-700;
 }
 
 .stat-category {
@@ -936,7 +929,7 @@ onUnmounted(() => {
 
 @include m.respond-below('sm') {  // < 640px
   .streamer-card {
-    :deep(.glass-card-content) {
+    :deep(.surface-card-body) {
       min-height: 260px;
       max-height: 300px;
     }
@@ -957,7 +950,7 @@ onUnmounted(() => {
   max-width: none;
   min-height: 0;
 
-  :deep(.glass-card-content) {
+  :deep(.surface-card-body) {
     display: flex;
     flex-direction: row;
     align-items: center;

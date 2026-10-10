@@ -702,15 +702,11 @@ $glass-shadow-xl: 0 12px 48px rgba(0, 0, 0, 0.3);
 .glass-popup-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.4);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
+  background: rgba(0, 0, 0, 0.6);
   z-index: 10000;
 
   @include m.respond-below('lg') {
-    background: rgba(0, 0, 0, 0.6);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
+    background: rgba(0, 0, 0, 0.72);
   }
 }
 
@@ -719,11 +715,9 @@ $glass-shadow-xl: 0 12px 48px rgba(0, 0, 0, 0.3);
   z-index: 10001;
   border-radius: var(--radius-xl);
   overflow: hidden;
-  background: var(--glass-bg-strong);
-  backdrop-filter: blur(var(--glass-blur-xl));
-  -webkit-backdrop-filter: blur(var(--glass-blur-xl));
-  border: 1px solid var(--glass-border-hover);
-  box-shadow: var(--glass-shadow-xl), var(--glass-glow), inset 0 0 0 1px var(--glass-highlight);
+  background: var(--sv-cmp-overlay-background);
+  border: 1px solid var(--sv-cmp-panel-border);
+  box-shadow: var(--shadow-lg);
 
   @supports not (backdrop-filter: blur(1px)) {
     background: var(--glass-bg-solid);

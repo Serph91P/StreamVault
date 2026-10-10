@@ -533,7 +533,11 @@ async def stream_video_public(
                 )
 
                 if start >= file_size or end >= file_size or start > end:
-                    raise HTTPException(status_code=416, detail="Range not satisfiable")
+                    raise HTTPException(
+                        status_code=416,
+                        detail="Range not satisfiable",
+                        headers={"Content-Range": f"bytes */{file_size}"},
+                    )
 
                 chunk_size = end - start + 1
 

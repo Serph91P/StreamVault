@@ -157,11 +157,10 @@ defineExpose({
   padding: 16px;
   margin-bottom: 12px;
   border-radius: var(--radius-lg);
-  box-shadow: var(--glass-shadow-md);
+  box-shadow: none;
   cursor: pointer;
   pointer-events: auto;
-  backdrop-filter: blur(var(--glass-blur-md));
-  -webkit-backdrop-filter: blur(var(--glass-blur-md));
+
   border: 1px solid transparent;
   transition: var(--transition-base);
   max-width: 100%;
@@ -170,7 +169,7 @@ defineExpose({
 
 .toast:hover {
   transform: translateX(-4px);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+  box-shadow: none;
 }
 
 .toast-success {

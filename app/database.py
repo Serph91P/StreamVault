@@ -264,7 +264,10 @@ def get_database_url() -> str:
         raise ValueError("DATABASE_URL is not set.")
 
     if is_testing:
-        return "sqlite:///:memory:"
+        # Keep fast unit tests isolated on SQLite, but allow the explicitly
+        # opt-in UX09 integration suite to exercise the application's real
+        # SessionLocal/public seams against its dedicated PostgreSQL database.
+        return os.getenv("STREAMVAULT_POSTGRES_TEST_URL") or "sqlite:///:memory:"
 
     return url
 

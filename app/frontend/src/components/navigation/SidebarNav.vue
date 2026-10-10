@@ -94,7 +94,7 @@ onMounted(() => {
   // Opaque tokenized shell surface: navigation does not use glass or blur.
   background: var(--background-card);
   border-right: 1px solid var(--border-color);
-  box-shadow: var(--shadow-md);
+  box-shadow: none;
 
   transition: width v.$duration-300 v.$ease-in-out;
 

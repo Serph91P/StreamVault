@@ -66,7 +66,13 @@
       </aside>
 
       <!-- Settings Content -->
-      <div ref="panelRegion" class="settings-content" tabindex="-1">
+      <div
+        ref="panelRegion"
+        class="settings-content"
+        tabindex="-1"
+        role="region"
+        :aria-label="`${activeSectionData?.label || 'Settings'} settings`"
+      >
         <div v-if="activeSectionData?.hasPanel" class="settings-section">
           <BasePanel tone="glass" padding="lg">
             <template #title>{{ activeSectionData.label }}</template>
@@ -77,7 +83,7 @@
             </div>
             <div v-else-if="panelHostError" class="panel-load-error" role="alert">
               <p>{{ panelHostError }}</p>
-              <button type="button" class="btn btn-primary" @click="loadPanelHost">Retry</button>
+              <button type="button" class="btn btn-primary" @click="retryPanelHost">Retry</button>
             </div>
             <component
               v-else
@@ -248,21 +254,51 @@ const panelHost = shallowRef<Component | null>(null)
 const panelHostError = ref('')
 const panelRegion = ref<HTMLElement | null>(null)
 let panelHostRequest = 0
+let panelHostAttempt = 0
 let acceptsPanelHost = true
+
+type SettingsPanelHostLoader = {
+  loadSettingsPanelHost: (attempt: number) => Promise<{ default: Component }>
+}
 
 async function loadPanelHost() {
   const request = ++panelHostRequest
+  const attempt = ++panelHostAttempt
   panelHostError.value = ''
   try {
-    const module = await import('@/components/settings/SettingsPanelHost.vue')
+    // Failed imports remain rejected in the browser module map. The build-owned
+    // loader targets the actual compiled panel chunk with this unique attempt,
+    // rather than using a successful availability probe as a recovery signal.
+    const loaderUrl = `${import.meta.env.BASE_URL}assets/settings-panel-host-loader.js`
+    let module: { default: Component } | null = null
+    let loader: SettingsPanelHostLoader | null = null
+    try {
+      loader = await import(/* @vite-ignore */ loaderUrl) as SettingsPanelHostLoader
+    } catch {
+      // Keep Vite's native dynamic edge so it owns the exported panel chunk.
+      // Use it only when the generated loader asset itself is unavailable;
+      // panel-chunk failures must reach the retry UI instead of poisoning this
+      // fixed fallback URL as well.
+      module = await import('@/components/settings/SettingsPanelHost.vue')
+    }
+    if (loader) module = await loader.loadSettingsPanelHost(attempt)
+    if (!module) throw new Error('Settings panel loader returned no module')
     if (!acceptsPanelHost || request !== panelHostRequest) return
     panelHost.value = module.default
-    await nextTick()
-    panelRegion.value?.focus()
   } catch {
     if (!acceptsPanelHost || request !== panelHostRequest) return
     panelHostError.value = 'This settings panel could not be loaded.'
   }
+}
+
+async function focusPanelRegion() {
+  await nextTick()
+  await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+  panelRegion.value?.focus({ preventScroll: true })
+}
+
+function retryPanelHost() {
+  void loadPanelHost()
 }
 
 watch(() => route.query.section, (section) => {
@@ -273,9 +309,16 @@ watch(() => route.query.section, (section) => {
 
 watch(activeSection, async () => {
   if (!panelHost.value) return
-  await nextTick()
-  panelRegion.value?.focus()
+  await focusPanelRegion()
 })
+
+watch([panelHost, isLoading], async ([host, loading]) => {
+  // Settings data and the lazy panel resolve independently. Hand focus to the
+  // named region only after both are renderable, whichever one finishes last.
+  // This also covers a successful retry after one or more chunk failures.
+  if (!host || loading) return
+  await focusPanelRegion()
+}, { flush: 'post' })
 
 // Version information
 const versionInfo = ref<any>(null)
@@ -486,7 +529,7 @@ const activePanelListeners = computed(() => {
 // Initialize
 onMounted(() => {
   loadAllSettings()
-  loadPanelHost()
+  void loadPanelHost()
 })
 
 onBeforeUnmount(() => {
@@ -619,6 +662,13 @@ onBeforeUnmount(() => {
 // Settings Content
 .settings-content {
   min-width: 0;
+
+  // The async panel region is focused programmatically but remains outside the
+  // Tab order. Keep the location change visible to keyboard and low-vision users.
+  &:focus {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 3px;
+  }
 
   // ------------------------------------------------------------------
   // Cross-panel typography normalization. The panels grew their own

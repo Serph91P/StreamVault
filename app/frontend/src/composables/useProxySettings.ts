@@ -133,7 +133,7 @@ export function useProxySettings() {
       proxy.last_error = data.last_error
       proxy.consecutive_failures = data.consecutive_failures
       proxy.last_check = data.checked_at
-      console.log(`🔄 Proxy #${data.proxy_id} health updated: ${data.health_status}`)
+      if (import.meta.env.DEV) console.debug(`🔄 Proxy #${data.proxy_id} health updated: ${data.health_status}`)
     }
   }
 

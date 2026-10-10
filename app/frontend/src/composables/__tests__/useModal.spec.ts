@@ -121,4 +121,27 @@ describe('useModal', () => {
     first.unmount()
     second.unmount()
   })
+
+  it('wraps forward and backward Tab when focus escapes during modal hydration', async () => {
+    const outside = document.createElement('button')
+    document.body.append(outside)
+    const wrapper = mount(ModalHarness, { props: { name: 'hydrating' }, attachTo: document.body })
+    const vm = wrapper.vm as unknown as ModalHarnessVm
+
+    vm.open()
+    await flushFocus()
+    const controls = wrapper.findAll('button').map(button => button.element)
+
+    outside.focus()
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }))
+    expect(document.activeElement).toBe(controls[0])
+
+    outside.focus()
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true, cancelable: true }))
+    expect(document.activeElement).toBe(controls[1])
+
+    vm.close()
+    wrapper.unmount()
+    outside.remove()
+  })
 })

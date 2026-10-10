@@ -798,7 +798,7 @@ $ctrl-h: 44px;
   // Nested radius = container radius minus its 3px padding, so the active
   // pill follows the container corner instead of looking rounder than it
   border-radius: calc(var(--radius-lg) - 3px);
-  color: var(--text-secondary);
+  color: var(--text-primary);
   font-size: var(--text-sm);
   font-weight: v.$font-medium;
   cursor: pointer;
@@ -916,7 +916,7 @@ $ctrl-h: 44px;
 }
 
 .sort-label {
-  color: var(--text-secondary);
+  color: var(--text-primary);
   font-size: var(--text-sm);
   font-weight: v.$font-semibold;
   white-space: nowrap;
@@ -969,7 +969,7 @@ $ctrl-h: 44px;
   min-height: $ctrl-h;
   padding: 0 var(--spacing-2);
   font-size: var(--text-sm);
-  color: var(--text-secondary);
+  color: var(--sv-sem-text-secondary);
 }
 
 .results-info span {

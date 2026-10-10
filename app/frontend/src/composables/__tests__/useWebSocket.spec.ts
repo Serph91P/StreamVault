@@ -197,6 +197,27 @@ describe('realtime WebSocket lifecycle authority', () => {
     manager.unsubscribe(subscriber)
   })
 
+  it('drops stale out-of-order cursor events after accepting a newer event', async () => {
+    const { WebSocketManager } = await import('../useWebSocket')
+    const manager = WebSocketManager.getInstance()
+    const received: number[] = []
+    const subscriber = () => undefined
+    const stopListening = manager.onMessage((event) => {
+      if (typeof event.event_id === 'number') received.push(event.event_id)
+    })
+
+    manager.subscribe(subscriber)
+    FakeWebSocket.instances[0].open()
+    FakeWebSocket.instances[0].message({ type: 'test', event_id: 2, data: { test_id: 'newer' } })
+    FakeWebSocket.instances[0].message({ type: 'test', event_id: 1, data: { test_id: 'stale' } })
+
+    expect(received).toEqual([2])
+    expect(manager.messages.value.map((event) => event.event_id)).toEqual([2])
+
+    stopListening()
+    manager.unsubscribe(subscriber)
+  })
+
   it('never schedules reconnect after a terminal authentication close', async () => {
     const { WebSocketManager } = await import('../useWebSocket')
     const manager = WebSocketManager.getInstance()

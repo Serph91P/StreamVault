@@ -53,6 +53,16 @@
       </div>
 
       <div class="glass-popup-content panel-content">
+        <div v-if="queueIsLoading" class="queue-state" role="status" aria-live="polite">
+          <span class="queue-state-spinner" aria-hidden="true"></span>
+          <span>Loading background jobs…</span>
+        </div>
+        <div v-else-if="!isConnected" class="queue-state queue-state-error" role="alert">
+          <span>Background queue updates are unavailable.</span>
+          <button type="button" class="glass-btn-text" @click="forceRefreshFromAPI">Retry</button>
+        </div>
+
+        <template v-else>
         <!-- Queue Statistics -->
         <div class="stats-section">
           <div class="stat-item">
@@ -135,6 +145,7 @@
         <div v-if="!hasActiveTasks && recentTasks.length === 0" class="no-tasks">
           <p>No background tasks running</p>
         </div>
+        </template>
       </div>
     </div>
     </Transition>
@@ -240,6 +251,7 @@ const combinedActiveTasks = computed(() => {
 })
 
 const hasActiveTasks = computed(() => combinedActiveTasks.value.length > 0)
+const queueIsLoading = computed(() => isLoading.value)
 const isConnected = computed(() => connectionStatus === 'connected')
 
 const totalProgress = computed(() => {
@@ -362,13 +374,11 @@ defineExpose({ togglePanel, taskCount: combinedActiveTasks })
   align-items: center;
   gap: var(--spacing-2);
   padding: var(--spacing-2);
-  background: transparent;
+  background: var(--sv-cmp-panel-background);
   border-radius: var(--radius-full);
   cursor: pointer;
   transition: all var(--duration-200) var(--ease-out);
-  backdrop-filter: blur(var(--glass-blur-sm));
-  -webkit-backdrop-filter: blur(var(--glass-blur-sm));
-  border: 1px solid transparent;
+  border: 1px solid var(--sv-cmp-panel-border);
   min-height: 44px;
   min-width: 44px;
   color: var(--text-secondary);
@@ -376,8 +386,8 @@ defineExpose({ togglePanel, taskCount: combinedActiveTasks })
 }
 
 .queue-status-indicator:hover {
-  background: var(--glass-bg-subtle);
-  border-color: var(--glass-border);
+  background: var(--sv-sem-surface-raised);
+  border-color: var(--sv-sem-border-strong);
   color: var(--text-primary);
 }
 
@@ -457,6 +467,37 @@ defineExpose({ togglePanel, taskCount: combinedActiveTasks })
 
 .panel-content {
   // Additional content styling beyond shared .glass-popup-content
+}
+
+.queue-state {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-3);
+  min-height: 44px;
+  color: var(--text-secondary);
+}
+
+.queue-state-error {
+  color: var(--danger-color);
+}
+
+.queue-state-spinner {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  border: 2px solid var(--border-color);
+  border-top-color: var(--primary-color);
+  border-radius: 50%;
+  animation: queue-spin 0.8s linear infinite;
+}
+
+@keyframes queue-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .queue-state-spinner { animation: none; }
 }
 
 .stats-section {

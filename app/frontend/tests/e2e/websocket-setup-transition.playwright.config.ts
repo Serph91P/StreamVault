@@ -1,5 +1,11 @@
 import { defineConfig } from '@playwright/test'
 
+declare const process: { env: Record<string, string | undefined> }
+
+const realWebServerCommand = process.env.STREAMVAULT_REUSE_VERIFIED_REAL_BUILD === 'true'
+  ? 'cd ../.. && node scripts/build-artifact-provenance.mjs verify --mode real && npm run preview -- --host 127.0.0.1 --port 4181'
+  : 'cd ../.. && node scripts/build-artifact-provenance.mjs build --mode real && npm run preview -- --host 127.0.0.1 --port 4181'
+
 export default defineConfig({
   testDir: '.',
   testMatch: 'websocket-setup-transition.spec.ts',
@@ -12,7 +18,7 @@ export default defineConfig({
     trace: 'retain-on-failure',
   },
   webServer: {
-    command: 'VITE_USE_MOCK_DATA=false npm run build && npm run preview -- --host 127.0.0.1 --port 4181',
+    command: realWebServerCommand,
     url: 'http://127.0.0.1:4181',
     reuseExistingServer: false,
   },
