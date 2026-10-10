@@ -75,6 +75,11 @@ function assertCaptureIntegrationIsBlocking(
 
   const productionBuildStep = blockFrom(job, productionBuildStart, 6, /^      - /)
   const websocketStep = blockFrom(job, websocketStart, 6, /^      - /)
+  if (activeProperty(websocketStep, 8, 'if') !== undefined) failWorkflow('WebSocket test step may be skipped')
+  const websocketContinueOnError = activeProperty(websocketStep, 8, 'continue-on-error')
+  if (websocketContinueOnError !== undefined && websocketContinueOnError !== 'false') {
+    failWorkflow('WebSocket test step is non-blocking')
+  }
   if (!productionBuildStep.includes('          node scripts/build-artifact-provenance.mjs build --mode real')) {
     failWorkflow('production build does not create real-build provenance')
   }
@@ -225,6 +230,18 @@ describe('foundation gates fail closed', () => {
       workflow.replace('STREAMVAULT_REUSE_VERIFIED_REAL_BUILD=true npx playwright test', 'npx playwright test'),
       workflow.replace('STREAMVAULT_REUSE_VERIFIED_MOCK_BUILD=true npx playwright test', 'npx playwright test'),
       workflow.replace('      - name: Run real-build WebSocket transition test', '      - name: Removed WebSocket transition test'),
+      workflow.replace(
+        '      - name: Run real-build WebSocket transition test\n        working-directory: app/frontend\n        run: STREAMVAULT_REUSE_VERIFIED_REAL_BUILD=true npx playwright test --config tests/e2e/websocket-setup-transition.playwright.config.ts',
+        '      - name: Run real-build WebSocket transition test\n        working-directory: app/frontend\n        if: false\n        run: STREAMVAULT_REUSE_VERIFIED_REAL_BUILD=true npx playwright test --config tests/e2e/websocket-setup-transition.playwright.config.ts',
+      ),
+      workflow.replace(
+        '      - name: Run real-build WebSocket transition test\n        working-directory: app/frontend\n        run: STREAMVAULT_REUSE_VERIFIED_REAL_BUILD=true npx playwright test --config tests/e2e/websocket-setup-transition.playwright.config.ts',
+        '      - name: Run real-build WebSocket transition test\n        working-directory: app/frontend\n        continue-on-error: true\n        run: STREAMVAULT_REUSE_VERIFIED_REAL_BUILD=true npx playwright test --config tests/e2e/websocket-setup-transition.playwright.config.ts',
+      ),
+      workflow.replace(
+        '      - name: Run real-build WebSocket transition test\n        working-directory: app/frontend\n        run: STREAMVAULT_REUSE_VERIFIED_REAL_BUILD=true npx playwright test --config tests/e2e/websocket-setup-transition.playwright.config.ts',
+        '      - name: Run real-build WebSocket transition test\n        working-directory: app/frontend\n        if: false\n        continue-on-error: true\n        run: STREAMVAULT_REUSE_VERIFIED_REAL_BUILD=true npx playwright test --config tests/e2e/websocket-setup-transition.playwright.config.ts',
+      ),
       workflow.replace('- name: Run frontend browser tests', '- name: Run frontend browser tests\n        if: false'),
       workflow.replace(
         '        working-directory: app/frontend\n        run: |\n          STREAMVAULT_REUSE_VERIFIED_MOCK_BUILD=true npx playwright test',
