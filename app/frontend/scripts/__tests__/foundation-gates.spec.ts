@@ -44,7 +44,12 @@ function activeProperty(lines: string[], indent: number, name: string) {
   return line?.slice(line.indexOf(':') + 1).trim()
 }
 
-function assertCaptureIntegrationIsBlocking(workflow: string, integrationFlow: string, playwrightConfig: string) {
+function assertCaptureIntegrationIsBlocking(
+  workflow: string,
+  integrationFlow: string,
+  playwrightConfig: string,
+  websocketConfig: string,
+) {
   const lines = workflow.split('\n')
   const jobStart = lines.findIndex((line) => line === '  frontend-build:')
   const job = blockFrom(lines, jobStart, 2, /^  [A-Za-z0-9_-]+:\s*$/)
@@ -54,8 +59,28 @@ function assertCaptureIntegrationIsBlocking(workflow: string, integrationFlow: s
   if (jobContinueOnError !== undefined && jobContinueOnError !== 'false') failWorkflow('frontend-build job is non-blocking')
 
   const installStart = job.findIndex((line) => line === '      - name: Install Playwright browsers')
+  const productionBuildStart = job.findIndex((line) => line === '      - name: Build frontend (production)')
+  const websocketStart = job.findIndex((line) => line === '      - name: Run real-build WebSocket transition test')
+  const deterministicBuildStart = job.findIndex((line) => line === '      - name: Check deterministic frontend build output')
   const browserStart = job.findIndex((line) => line === '      - name: Run frontend browser tests')
-  if (installStart < 0 || browserStart <= installStart) failWorkflow('browser test step must follow browser installation')
+  if (
+    installStart < 0 ||
+    productionBuildStart <= installStart ||
+    websocketStart <= productionBuildStart ||
+    deterministicBuildStart <= websocketStart ||
+    browserStart <= deterministicBuildStart
+  ) {
+    failWorkflow('real and mock build consumers are missing or out of order')
+  }
+
+  const productionBuildStep = blockFrom(job, productionBuildStart, 6, /^      - /)
+  const websocketStep = blockFrom(job, websocketStart, 6, /^      - /)
+  if (!productionBuildStep.includes('          node scripts/build-artifact-provenance.mjs build --mode real')) {
+    failWorkflow('production build does not create real-build provenance')
+  }
+  if (!websocketStep.includes('        run: STREAMVAULT_REUSE_VERIFIED_REAL_BUILD=true npx playwright test --config tests/e2e/websocket-setup-transition.playwright.config.ts')) {
+    failWorkflow('WebSocket suite does not consume the verified real build')
+  }
 
   const browserStep = blockFrom(job, browserStart, 6, /^      - /)
   if (activeProperty(browserStep, 8, 'if') !== undefined) failWorkflow('browser test step may be skipped')
@@ -68,11 +93,13 @@ function assertCaptureIntegrationIsBlocking(workflow: string, integrationFlow: s
     .slice(runStart + 1)
     .filter((line) => indentation(line) > 8 && line.trim() && !line.trimStart().startsWith('#'))
     .map((line) => line.trim())
-  const regularSuite = commands.indexOf('npx playwright test')
-  const websocketSuite = commands.indexOf('npx playwright test --config tests/e2e/websocket-setup-transition.playwright.config.ts')
+  const regularSuite = commands.indexOf('STREAMVAULT_REUSE_VERIFIED_MOCK_BUILD=true npx playwright test')
   const integration = commands.indexOf('STREAMVAULT_REUSE_VERIFIED_MOCK_BUILD=true npm run test:foundation-capture-integration')
-  if (regularSuite < 0 || integration <= regularSuite || websocketSuite <= integration) {
+  if (regularSuite < 0 || integration <= regularSuite) {
     failWorkflow('active browser commands are missing or out of order')
+  }
+  if (commands.some((command) => command.includes('websocket-setup-transition.playwright.config.ts'))) {
+    failWorkflow('WebSocket suite is rebuilt after mock output replaced the real build')
   }
   if (commands.includes('npm run test:foundation-browser')) {
     failWorkflow('foundation browser suite is redundantly executed outside its capture integration')
@@ -103,10 +130,17 @@ function assertCaptureIntegrationIsBlocking(workflow: string, integrationFlow: s
   }
   if (
     !playwrightConfig.includes("process.env.STREAMVAULT_REUSE_VERIFIED_MOCK_BUILD === 'true'") ||
-    !playwrightConfig.includes("'VITE_USE_MOCK_DATA=true npm run preview -- --host 127.0.0.1 --port 4180'") ||
-    !playwrightConfig.includes("'VITE_USE_MOCK_DATA=true npm run build && VITE_USE_MOCK_DATA=true npm run preview -- --host 127.0.0.1 --port 4180'")
+    !playwrightConfig.includes("'node scripts/build-artifact-provenance.mjs verify --mode mock && npm run preview -- --host 127.0.0.1 --port 4180'") ||
+    !playwrightConfig.includes("'node scripts/build-artifact-provenance.mjs build --mode mock && npm run preview -- --host 127.0.0.1 --port 4180'")
   ) {
     failWorkflow('capture integration cannot reuse only its immediately verified mock build')
+  }
+  if (
+    !websocketConfig.includes("process.env.STREAMVAULT_REUSE_VERIFIED_REAL_BUILD === 'true'") ||
+    !websocketConfig.includes("'cd ../.. && node scripts/build-artifact-provenance.mjs verify --mode real && npm run preview -- --host 127.0.0.1 --port 4181'") ||
+    !websocketConfig.includes("'cd ../.. && node scripts/build-artifact-provenance.mjs build --mode real && npm run preview -- --host 127.0.0.1 --port 4181'")
+  ) {
+    failWorkflow('WebSocket suite cannot distinguish a verified real build from mock output')
   }
 
   const jobText = job.join('\n')
@@ -179,19 +213,27 @@ describe('foundation gates fail closed', () => {
     const workflow = await readFile(resolve(frontendRoot, '..', '..', '.github/workflows/test.yml'), 'utf8')
     const integrationFlow = await readFile(resolve(frontendRoot, 'scripts/test-foundation-evidence-flow.mjs'), 'utf8')
     const playwrightConfig = await readFile(resolve(frontendRoot, 'playwright.config.ts'), 'utf8')
-    assertCaptureIntegrationIsBlocking(workflow, integrationFlow, playwrightConfig)
+    const websocketConfig = await readFile(resolve(frontendRoot, 'tests/e2e/websocket-setup-transition.playwright.config.ts'), 'utf8')
+    assertCaptureIntegrationIsBlocking(workflow, integrationFlow, playwrightConfig, websocketConfig)
 
     const mutants = [
       workflow.replace(
         '          STREAMVAULT_REUSE_VERIFIED_MOCK_BUILD=true npm run test:foundation-capture-integration',
         '          # capture integration removed',
       ),
+      workflow.replace('          node scripts/build-artifact-provenance.mjs build --mode real', '          npm run build'),
+      workflow.replace('STREAMVAULT_REUSE_VERIFIED_REAL_BUILD=true npx playwright test', 'npx playwright test'),
+      workflow.replace('STREAMVAULT_REUSE_VERIFIED_MOCK_BUILD=true npx playwright test', 'npx playwright test'),
+      workflow.replace('      - name: Run real-build WebSocket transition test', '      - name: Removed WebSocket transition test'),
       workflow.replace('- name: Run frontend browser tests', '- name: Run frontend browser tests\n        if: false'),
-      workflow.replace('        working-directory: app/frontend\n        run: |\n          npx playwright test', '        working-directory: app/frontend\n        continue-on-error: true\n        run: |\n          npx playwright test'),
+      workflow.replace(
+        '        working-directory: app/frontend\n        run: |\n          STREAMVAULT_REUSE_VERIFIED_MOCK_BUILD=true npx playwright test',
+        '        working-directory: app/frontend\n        continue-on-error: true\n        run: |\n          STREAMVAULT_REUSE_VERIFIED_MOCK_BUILD=true npx playwright test',
+      ),
       workflow.replace('    name: Frontend Build & Lint', '    name: Frontend Build & Lint\n    continue-on-error: true'),
     ]
 
-    for (const mutant of mutants) expect(() => assertCaptureIntegrationIsBlocking(mutant, integrationFlow, playwrightConfig)).toThrow()
+    for (const mutant of mutants) expect(() => assertCaptureIntegrationIsBlocking(mutant, integrationFlow, playwrightConfig, websocketConfig)).toThrow()
 
     const integrationMutants = [
       integrationFlow.replace("run('npm', ['run', 'test:foundation-browser'])", "// removed first foundation run"),
@@ -201,7 +243,10 @@ describe('foundation gates fail closed', () => {
       ),
       integrationFlow.replace('if (result.status !== 0) process.exit(result.status ?? 1)', '// child failure ignored'),
     ]
-    for (const mutant of integrationMutants) expect(() => assertCaptureIntegrationIsBlocking(workflow, mutant, playwrightConfig)).toThrow()
+    for (const mutant of integrationMutants) expect(() => assertCaptureIntegrationIsBlocking(workflow, mutant, playwrightConfig, websocketConfig)).toThrow()
+
+    expect(() => assertCaptureIntegrationIsBlocking(workflow, integrationFlow, playwrightConfig.replace('verify --mode mock', 'verify --mode real'), websocketConfig)).toThrow()
+    expect(() => assertCaptureIntegrationIsBlocking(workflow, integrationFlow, playwrightConfig, websocketConfig.replace('verify --mode real', 'verify --mode mock'))).toThrow()
   })
 
   it('packages foundation evidence only through an explicit source and destination', async () => {

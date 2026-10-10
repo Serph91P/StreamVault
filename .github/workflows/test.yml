@@ -114,11 +114,19 @@ jobs:
           npm run test:unit
           npm run test:foundation-gates
 
+      - name: Install Playwright browsers
+        working-directory: app/frontend
+        run: npx playwright install --with-deps
+
       - name: Build frontend (production)
         working-directory: app/frontend
         run: |
           rm -rf dist || true
-          npm run build
+          node scripts/build-artifact-provenance.mjs build --mode real
+
+      - name: Run real-build WebSocket transition test
+        working-directory: app/frontend
+        run: STREAMVAULT_REUSE_VERIFIED_REAL_BUILD=true npx playwright test --config tests/e2e/websocket-setup-transition.playwright.config.ts
 
       - name: Check deterministic frontend build output
         working-directory: app/frontend
@@ -126,16 +134,11 @@ jobs:
           npm run test:build-output
           npm run test:output-budgets
 
-      - name: Install Playwright browsers
-        working-directory: app/frontend
-        run: npx playwright install --with-deps
-
       - name: Run frontend browser tests
         working-directory: app/frontend
         run: |
-          npx playwright test
+          STREAMVAULT_REUSE_VERIFIED_MOCK_BUILD=true npx playwright test
           STREAMVAULT_REUSE_VERIFIED_MOCK_BUILD=true npm run test:foundation-capture-integration
-          npx playwright test --config tests/e2e/websocket-setup-transition.playwright.config.ts
 
       - name: Preserve frontend browser failure evidence
         if: failure()
