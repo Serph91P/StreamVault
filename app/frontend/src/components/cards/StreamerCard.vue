@@ -720,14 +720,14 @@ onUnmounted(() => {
 
 /* LIVE stats - More prominent */
 .stat-viewers {
-  color: var(--sv-sem-text-primary);
+  color: var(--sv-sem-status-danger);
   font-weight: v.$font-semibold;
 }
 
 // List-mode's nested .stat rule has higher specificity than the semantic
 // variants above. Keep the status information legible on its card surface.
 .streamer-card-content .streamer-stats .stat-viewers {
-  color: var(--sv-sem-text-primary);
+  color: var(--sv-sem-status-danger);
 }
 
 .streamer-card-content .streamer-stats .stat-vods {
