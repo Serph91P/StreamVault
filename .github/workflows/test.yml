@@ -134,9 +134,8 @@ jobs:
         working-directory: app/frontend
         run: |
           npx playwright test
+          STREAMVAULT_REUSE_VERIFIED_MOCK_BUILD=true npm run test:foundation-capture-integration
           npx playwright test --config tests/e2e/websocket-setup-transition.playwright.config.ts
-          npm run test:foundation-browser
-          npm run test:foundation-capture-integration
 
       - name: Preserve frontend browser failure evidence
         if: failure()

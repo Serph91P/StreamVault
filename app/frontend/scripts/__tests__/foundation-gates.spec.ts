@@ -44,7 +44,7 @@ function activeProperty(lines: string[], indent: number, name: string) {
   return line?.slice(line.indexOf(':') + 1).trim()
 }
 
-function assertCaptureIntegrationIsBlocking(workflow: string) {
+function assertCaptureIntegrationIsBlocking(workflow: string, integrationFlow: string, playwrightConfig: string) {
   const lines = workflow.split('\n')
   const jobStart = lines.findIndex((line) => line === '  frontend-build:')
   const job = blockFrom(lines, jobStart, 2, /^  [A-Za-z0-9_-]+:\s*$/)
@@ -69,12 +69,45 @@ function assertCaptureIntegrationIsBlocking(workflow: string) {
     .filter((line) => indentation(line) > 8 && line.trim() && !line.trimStart().startsWith('#'))
     .map((line) => line.trim())
   const regularSuite = commands.indexOf('npx playwright test')
-  const foundationSuite = commands.indexOf('npm run test:foundation-browser')
-  const integration = commands.indexOf('npm run test:foundation-capture-integration')
-  if (regularSuite < 0 || foundationSuite <= regularSuite || integration <= foundationSuite) {
+  const websocketSuite = commands.indexOf('npx playwright test --config tests/e2e/websocket-setup-transition.playwright.config.ts')
+  const integration = commands.indexOf('STREAMVAULT_REUSE_VERIFIED_MOCK_BUILD=true npm run test:foundation-capture-integration')
+  if (regularSuite < 0 || integration <= regularSuite || websocketSuite <= integration) {
     failWorkflow('active browser commands are missing or out of order')
   }
+  if (commands.includes('npm run test:foundation-browser')) {
+    failWorkflow('foundation browser suite is redundantly executed outside its capture integration')
+  }
   if (commands.some((command) => /\|\|\s*true(?:\s|$)/.test(command))) failWorkflow('browser command has a success fallback')
+
+  const firstFoundation = integrationFlow.indexOf("run('npm', ['run', 'test:foundation-browser'])")
+  const pwa = integrationFlow.indexOf("run('npm', ['run', 'test:e2e', '--', 'tests/e2e/pwa-manifest.spec.ts', '--project', 'desktop'])")
+  const packageCaptures = integrationFlow.indexOf("run(process.execPath, ['scripts/package-foundation-evidence.mjs'")
+  const firstManifest = integrationFlow.indexOf('await verifyManifest()')
+  const secondFoundation = integrationFlow.indexOf("run('npm', ['run', 'test:foundation-browser'])", firstFoundation + 1)
+  const secondManifest = integrationFlow.indexOf('await verifyManifest()', firstManifest + 1)
+  if (
+    firstFoundation < 0 ||
+    pwa <= firstFoundation ||
+    packageCaptures <= pwa ||
+    firstManifest <= packageCaptures ||
+    secondFoundation <= firstManifest ||
+    secondManifest <= secondFoundation
+  ) {
+    failWorkflow('capture integration does not preserve both foundation runs and manifest verifications')
+  }
+  if (integrationFlow.indexOf("run('npm', ['run', 'test:foundation-browser'])", secondFoundation + 1) >= 0) {
+    failWorkflow('capture integration executes the foundation browser suite more than twice')
+  }
+  if (!integrationFlow.includes('if (result.status !== 0) process.exit(result.status ?? 1)')) {
+    failWorkflow('capture integration does not propagate a failing child command')
+  }
+  if (
+    !playwrightConfig.includes("process.env.STREAMVAULT_REUSE_VERIFIED_MOCK_BUILD === 'true'") ||
+    !playwrightConfig.includes("'VITE_USE_MOCK_DATA=true npm run preview -- --host 127.0.0.1 --port 4180'") ||
+    !playwrightConfig.includes("'VITE_USE_MOCK_DATA=true npm run build && VITE_USE_MOCK_DATA=true npm run preview -- --host 127.0.0.1 --port 4180'")
+  ) {
+    failWorkflow('capture integration cannot reuse only its immediately verified mock build')
+  }
 
   const jobText = job.join('\n')
   if (!jobText.includes('app/frontend/test-results/')) failWorkflow('regular browser failure artifacts are missing')
@@ -144,16 +177,31 @@ describe('foundation gates fail closed', () => {
 
   it('keeps the real capture integration fail-closed in frontend CI', async () => {
     const workflow = await readFile(resolve(frontendRoot, '..', '..', '.github/workflows/test.yml'), 'utf8')
-    assertCaptureIntegrationIsBlocking(workflow)
+    const integrationFlow = await readFile(resolve(frontendRoot, 'scripts/test-foundation-evidence-flow.mjs'), 'utf8')
+    const playwrightConfig = await readFile(resolve(frontendRoot, 'playwright.config.ts'), 'utf8')
+    assertCaptureIntegrationIsBlocking(workflow, integrationFlow, playwrightConfig)
 
     const mutants = [
-      workflow.replace('          npm run test:foundation-capture-integration', '          # npm run test:foundation-capture-integration'),
+      workflow.replace(
+        '          STREAMVAULT_REUSE_VERIFIED_MOCK_BUILD=true npm run test:foundation-capture-integration',
+        '          # capture integration removed',
+      ),
       workflow.replace('- name: Run frontend browser tests', '- name: Run frontend browser tests\n        if: false'),
       workflow.replace('        working-directory: app/frontend\n        run: |\n          npx playwright test', '        working-directory: app/frontend\n        continue-on-error: true\n        run: |\n          npx playwright test'),
       workflow.replace('    name: Frontend Build & Lint', '    name: Frontend Build & Lint\n    continue-on-error: true'),
     ]
 
-    for (const mutant of mutants) expect(() => assertCaptureIntegrationIsBlocking(mutant)).toThrow()
+    for (const mutant of mutants) expect(() => assertCaptureIntegrationIsBlocking(mutant, integrationFlow, playwrightConfig)).toThrow()
+
+    const integrationMutants = [
+      integrationFlow.replace("run('npm', ['run', 'test:foundation-browser'])", "// removed first foundation run"),
+      integrationFlow.replace(
+        "run('npm', ['run', 'test:foundation-browser'])\nawait verifyManifest()\nconsole.log",
+        "run('npm', ['run', 'test:foundation-browser'])\nconsole.log",
+      ),
+      integrationFlow.replace('if (result.status !== 0) process.exit(result.status ?? 1)', '// child failure ignored'),
+    ]
+    for (const mutant of integrationMutants) expect(() => assertCaptureIntegrationIsBlocking(workflow, mutant, playwrightConfig)).toThrow()
   })
 
   it('packages foundation evidence only through an explicit source and destination', async () => {

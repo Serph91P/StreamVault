@@ -1,5 +1,11 @@
 import { defineConfig, devices } from '@playwright/test'
 
+declare const process: { env: Record<string, string | undefined> }
+
+const mockWebServerCommand = process.env.STREAMVAULT_REUSE_VERIFIED_MOCK_BUILD === 'true'
+  ? 'VITE_USE_MOCK_DATA=true npm run preview -- --host 127.0.0.1 --port 4180'
+  : 'VITE_USE_MOCK_DATA=true npm run build && VITE_USE_MOCK_DATA=true npm run preview -- --host 127.0.0.1 --port 4180'
+
 export const requiredViewportMatrix = {
   smallPhone: [{ width: 320, height: 568 }, { width: 360, height: 640 }, { width: 375, height: 667 }],
   modernPhone: [{ width: 390, height: 844 }, { width: 393, height: 873 }, { width: 412, height: 915 }, { width: 430, height: 932 }],
@@ -30,7 +36,7 @@ export default defineConfig({
     { name: 'state-matrix-webkit', testMatch: /final-local-state-matrix\.spec\.ts/, use: { ...devices['Desktop Safari'], serviceWorkers: 'block' } },
   ],
   webServer: {
-    command: 'VITE_USE_MOCK_DATA=true npm run build && VITE_USE_MOCK_DATA=true npm run preview -- --host 127.0.0.1 --port 4180',
+    command: mockWebServerCommand,
     url: 'http://127.0.0.1:4180',
     reuseExistingServer: false,
   },
