@@ -78,7 +78,7 @@ class TwitchAuthPrioritySchedulerTests(unittest.TestCase):
                     streamer_id=1, twitch_auth_priority=invalid
                 )
 
-    def test_no_owner_selects_highest_priority_then_oldest_then_recording_id(
+    def test_no_owner_ignores_priority_and_selects_oldest_then_recording_id(
         self,
     ) -> None:
         decision = TwitchAuthScheduler().decide(
@@ -110,7 +110,7 @@ class TwitchAuthPrioritySchedulerTests(unittest.TestCase):
         self.assertEqual(decision.owner_channel_key, "owner")
         self.assertFalse(decision.pending_handoff)
 
-    def test_higher_priority_preempts_only_anonymously_continuable_recording(
+    def test_higher_priority_never_preempts_existing_owner(
         self,
     ) -> None:
         decision = TwitchAuthScheduler().decide(
@@ -127,19 +127,19 @@ class TwitchAuthPrioritySchedulerTests(unittest.TestCase):
             ]
         )
 
-        self.assertIs(decision.kind, AuthDecisionKind.HANDOFF)
+        self.assertIs(decision.kind, AuthDecisionKind.KEEP)
         self.assertEqual(decision.owner_channel_key, "owner")
-        self.assertEqual(decision.requested_channel_key, "preferred")
-        self.assertEqual(decision.displaced_channel_key, "owner")
-        self.assertTrue(decision.pending_handoff)
-        self.assertEqual(decision.reason, "higher_priority_recording")
+        self.assertIsNone(decision.requested_channel_key)
+        self.assertIsNone(decision.displaced_channel_key)
+        self.assertFalse(decision.pending_handoff)
+        self.assertIsNone(decision.reason)
 
-    def test_protected_or_live_owner_blocks_handoff_without_termination(self) -> None:
+    def test_protected_or_live_owner_stays_stable_without_handoff(self) -> None:
         cases = (
             (False, "RECORDING", "owner_anonymous_unavailable"),
             (True, "LIVE", "live_playback_owner_not_preemptible"),
         )
-        for anonymous_available, purpose, reason in cases:
+        for anonymous_available, purpose, _reason in cases:
             with self.subTest(purpose=purpose, anonymous_available=anonymous_available):
                 decision = TwitchAuthScheduler().decide(
                     [
@@ -156,11 +156,11 @@ class TwitchAuthPrioritySchedulerTests(unittest.TestCase):
                     ]
                 )
 
-                self.assertIs(decision.kind, AuthDecisionKind.BLOCKED)
+                self.assertIs(decision.kind, AuthDecisionKind.KEEP)
                 self.assertEqual(decision.owner_channel_key, "owner")
-                self.assertEqual(decision.requested_channel_key, "preferred")
+                self.assertIsNone(decision.requested_channel_key)
                 self.assertFalse(decision.pending_handoff)
-                self.assertEqual(decision.reason, reason)
+                self.assertIsNone(decision.reason)
 
     def test_only_queued_or_rotating_transitions_are_reported_as_pending(self) -> None:
         blocked = SimpleNamespace(
@@ -183,8 +183,8 @@ class TwitchAuthPrioritySchedulerTests(unittest.TestCase):
         )
 
         self.assertFalse(_is_pending_auth_handoff(blocked))
-        self.assertTrue(_is_pending_auth_handoff(queued))
-        self.assertTrue(_is_pending_auth_handoff(owner))
+        self.assertFalse(_is_pending_auth_handoff(queued))
+        self.assertFalse(_is_pending_auth_handoff(owner))
         self.assertTrue(
             _is_pending_auth_handoff(
                 SimpleNamespace(
@@ -222,6 +222,44 @@ class TwitchAuthPrioritySchedulerTests(unittest.TestCase):
 
             self.assertEqual(response.twitch_auth_priority, 100)
             self.assertEqual(persisted.twitch_auth_priority, 100)
+            engine.dispose()
+
+    def test_unrelated_settings_update_preserves_stored_priority(self) -> None:
+        with TemporaryDirectory() as directory:
+            engine = create_engine(f"sqlite:///{Path(directory) / 'settings-preserve.db'}")
+            Base.metadata.create_all(
+                engine,
+                tables=[Streamer.__table__, StreamerRecordingSettings.__table__],
+            )
+            Session = sessionmaker(bind=engine, expire_on_commit=False)
+            with Session() as db:
+                streamer = Streamer(twitch_id="124", username="preserved-channel")
+                db.add(streamer)
+                db.flush()
+                db.add(
+                    StreamerRecordingSettings(
+                        streamer_id=streamer.id,
+                        enabled=True,
+                        twitch_auth_priority=-25,
+                    )
+                )
+                db.commit()
+
+                response = __import__("asyncio").run(
+                    update_streamer_recording_settings(
+                        streamer.id,
+                        StreamerRecordingSettingsSchema(
+                            streamer_id=streamer.id,
+                            enabled=False,
+                        ),
+                        db,
+                    )
+                )
+                persisted = db.query(StreamerRecordingSettings).one()
+
+            self.assertFalse(response.enabled)
+            self.assertEqual(response.twitch_auth_priority, -25)
+            self.assertEqual(persisted.twitch_auth_priority, -25)
             engine.dispose()
 
     def test_migration_adds_compatible_zero_priority_and_is_idempotent(self) -> None:

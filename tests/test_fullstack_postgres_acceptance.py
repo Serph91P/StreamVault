@@ -327,7 +327,8 @@ def test_b2_recording_state_round_trip_uses_public_application(fullstack_runtime
     assert active.status_code == 200, active.text
     state = next(item for item in active.json() if item["streamer_id"] == streamer_id)
     assert state["effective_auth_mode"] == "authenticated"
-    assert state["pending_handoff"] is True
+    assert state["pending_handoff"] is False
+    assert state["handoff_reason"] == "awaiting_higher_priority_handoff"
     assert state["partial_recording_warning"] is True
 
 

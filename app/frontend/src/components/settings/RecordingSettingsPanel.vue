@@ -170,9 +170,8 @@
             <div><strong>Duration:</strong> {{ formatDuration(recording.duration) }}</div>
             <div><strong>Status:</strong> {{ recording.status }}</div>
             <div><strong>Twitch mode:</strong> {{ recording.effective_auth_mode || 'unknown' }}</div>
-            <div><strong>Auth priority:</strong> {{ recording.twitch_auth_priority ?? 0 }}</div>
             <div v-if="recording.pending_handoff" class="warning-message">
-              Auth handoff pending<span v-if="recording.handoff_reason">: {{ recording.handoff_reason }}</span>
+              Twitch authentication transition pending
             </div>
             <div v-if="recording.partial_recording_warning" class="warning-message">
               Recording may contain a short segment-boundary gap after the auth handoff.
@@ -229,17 +228,10 @@
                     </span>
                   </span>
                 </th>
-                <th>
-                  <span class="th-content">
-                    Auth priority
-                    <span class="th-tooltip-wrapper">
-                      <svg class="info-icon"><use href="#icon-info" /></svg>
-                      <span class="tooltip-wrapper">
-                        <span class="tooltip">Higher values win the authenticated Twitch slot. Range: -1000 to 1000; equal priority keeps the current owner.</span>
-                      </span>
-                    </span>
-                  </span>
-                </th>
+                <!-- Dormant Twitch-auth priority control retained for a future
+                     product decision; intentionally not rendered:
+                <th>Auth priority</th>
+                -->
                 <th>
                   <span class="th-content">
                     Custom Filename
@@ -291,19 +283,13 @@
                     </option>
                   </select>
                 </td>
+                <!-- Former compatibility-only editor (intentionally inactive):
                 <td data-label="Auth priority">
-                  <input
-                    type="number"
-                    :value="streamer.twitch_auth_priority ?? 0"
-                    min="-1000"
-                    max="1000"
-                    step="1"
-                    class="form-control form-control-sm"
-                    :aria-label="`Twitch authentication priority for ${streamer.username || 'streamer'}`"
-                    @change="updateTwitchAuthPriority(streamer, $event)"
-                  />
-                  <small>-1000 to 1000</small>
+                  <input type="number" :value="streamer.twitch_auth_priority ?? 0"
+                    min="-1000" max="1000" step="1"
+                    @change="updateTwitchAuthPriority(streamer, $event)" />
                 </td>
+                -->
                 <td data-label="Custom Filename">
                   <input type="text" v-model="streamer.custom_filename"
                     @change="updateStreamerSetting(streamer.streamer_id, { custom_filename: streamer.custom_filename })"
@@ -486,6 +472,7 @@ const updateStreamerSetting = (streamerId: number, settings: Partial<StreamerRec
   emits('updateStreamer', streamerId, settings);
 };
 
+/* Dormant UI mutation path retained while Twitch-auth priority is disabled:
 const updateTwitchAuthPriority = (
   streamer: StreamerRecordingSettings,
   event: Event
@@ -493,15 +480,13 @@ const updateTwitchAuthPriority = (
   const input = event.target as HTMLInputElement;
   const rawPriority = input.value.trim();
   const priority = Number(rawPriority);
-
   if (!rawPriority || !Number.isInteger(priority) || priority < -1000 || priority > 1000) {
     input.value = String(streamer.twitch_auth_priority ?? 0);
     return;
   }
-
   updateStreamerSetting(streamer.streamer_id, { twitch_auth_priority: priority });
 };
-
+*/
 const toggleAllStreamers = async (enabled: boolean) => {
   if (!props.streamerSettings) return;
 

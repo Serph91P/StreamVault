@@ -74,10 +74,10 @@ def recording_application(monkeypatch):
         engine.dispose()
 
 
-def test_postgres_recording_priority_save_round_trips_into_pending_partial_status(
+def test_postgres_priority_stays_compatible_without_activating_pending_handoff(
     recording_application,
 ):
-    """The public save and active-status seams preserve a pending handoff."""
+    """The public wire value persists while legacy priority markers stay dormant."""
     application, Session = recording_application
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     with Session() as db:
@@ -146,7 +146,7 @@ def test_postgres_recording_priority_save_round_trips_into_pending_partial_statu
         "status": "recording",
         "twitch_auth_priority": -25,
         "effective_auth_mode": "authenticated",
-        "pending_handoff": True,
+        "pending_handoff": False,
         "handoff_reason": "awaiting_higher_priority_handoff",
         "partial_recording_warning": True,
     }

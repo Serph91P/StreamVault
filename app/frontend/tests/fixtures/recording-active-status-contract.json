@@ -11,7 +11,7 @@
     "duration": 0,
     "twitch_auth_priority": -25,
     "effective_auth_mode": "authenticated",
-    "pending_handoff": true,
+    "pending_handoff": false,
     "handoff_reason": "awaiting_higher_priority_handoff",
     "partial_recording_warning": true
   },

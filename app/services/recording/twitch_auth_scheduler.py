@@ -39,11 +39,10 @@ class AuthDecision:
 
 
 class TwitchAuthScheduler:
-    """Make a deterministic, side-effect-free arbitration decision.
+    """Make the dormant-compatible, side-effect-free arbitration decision.
 
-    Stable ordering without an owner is priority descending, start time
-    ascending, recording id ascending, then channel key. Equal priority never
-    displaces an existing owner. Live playback is deliberately non-preemptible.
+    Configured priority is intentionally ignored. An existing owner is stable;
+    without an owner, temporal order and deterministic tie-breakers apply.
     """
 
     def decide(self, candidates: Iterable[AuthCandidate]) -> AuthDecision:
@@ -59,7 +58,6 @@ class TwitchAuthScheduler:
         ranked = sorted(
             active,
             key=lambda candidate: (
-                -candidate.priority,
                 candidate.started_at,
                 candidate.recording_id,
                 candidate.channel_key,
@@ -74,15 +72,32 @@ class TwitchAuthScheduler:
                 kind=AuthDecisionKind.PROMOTE,
                 owner_channel_key=requested.channel_key,
                 requested_channel_key=requested.channel_key,
-                reason="highest_priority_eligible_recording",
+                reason="oldest_eligible_recording",
             )
 
         owner = owners[0]
-        if requested.channel_key == owner.channel_key or (
-            requested.priority <= owner.priority
-        ):
-            return AuthDecision(AuthDecisionKind.KEEP, owner.channel_key)
+        return AuthDecision(AuthDecisionKind.KEEP, owner.channel_key)
 
+    def _legacy_priority_handoff_decision(
+        self, active: tuple[AuthCandidate, ...], owner: AuthCandidate
+    ) -> AuthDecision:
+        """Retained inactive implementation; do not call from product paths.
+
+        This keeps the former priority ranking/handoff policy available in
+        source while the product decision disables it.
+        """
+        ranked = sorted(
+            active,
+            key=lambda candidate: (
+                -candidate.priority,
+                candidate.started_at,
+                candidate.recording_id,
+                candidate.channel_key,
+            ),
+        )
+        requested = ranked[0]
+        if requested.channel_key == owner.channel_key or requested.priority <= owner.priority:
+            return AuthDecision(AuthDecisionKind.KEEP, owner.channel_key)
         if owner.purpose != "RECORDING":
             return AuthDecision(
                 AuthDecisionKind.BLOCKED,

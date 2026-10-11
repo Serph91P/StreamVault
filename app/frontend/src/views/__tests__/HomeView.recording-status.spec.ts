@@ -141,12 +141,13 @@ describe('HomeView recording status consumer', () => {
 
     expect(wrapper.text()).toContain('pending-channel')
     expect(wrapper.text()).toContain('Authenticated Twitch recording')
-    expect(wrapper.text()).toContain('-25')
-    expect(wrapper.text()).toContain('awaiting_higher_priority_handoff')
+    expect(wrapper.text()).not.toContain('-25')
+    expect(wrapper.text()).not.toContain('awaiting_higher_priority_handoff')
+    expect(wrapper.text()).toContain('Waiting for authenticated recording capacity.')
     expect(wrapper.text()).toContain('A short segment-boundary gap may follow this auth handoff.')
     expect(wrapper.text()).toContain('blocked-channel')
     expect(wrapper.text()).toContain('Anonymous Twitch recording')
-    expect(wrapper.text()).toContain('17')
+    expect(wrapper.text()).not.toContain('Priority')
     expect(wrapper.text()).toContain('live_playback_owner_not_preemptible')
 
     wrapper.unmount()

@@ -223,7 +223,7 @@ class ProcessManager:
 
     @staticmethod
     def _recording_auth_options(stream: Stream) -> tuple[int, bool]:
-        """Load credential-free arbitration inputs for one recording."""
+        """Load auth safety inputs while priority arbitration is dormant."""
         from app.database import SessionLocal
         from app.models import StreamerRecordingSettings
 
@@ -238,7 +238,10 @@ class ProcessManager:
             )
             if settings is None:
                 return 0, True
-            priority = int(getattr(settings, "twitch_auth_priority", 0) or 0)
+            # Compatibility-only value is deliberately not loaded into active
+            # process arbitration. Former behavior retained for future review:
+            # priority = int(getattr(settings, "twitch_auth_priority", 0) or 0)
+            priority = 0
             codecs = (getattr(settings, "supported_codecs", None) or "").lower()
             return priority, not codecs or "h264" in codecs
 
@@ -431,7 +434,7 @@ class ProcessManager:
                             ],
                         )
                         stop_authorized = True
-                    except KeyError, PermissionError:
+                    except (KeyError, PermissionError):
                         pass
                 cleanup_complete = (
                     owned_process is None or owned_process.returncode is not None
@@ -1183,17 +1186,12 @@ class ProcessManager:
                             stream.id,
                         )
                         break
-                    current_priority, _anonymous_available = (
-                        self._recording_auth_options(stream)
-                    )
-                    if current_priority != segment_info.get("twitch_auth_priority", 0):
-                        updated = await self.upstream_coordinator.update_auth_priority(
-                            channel_key=segment_info["upstream_channel_key"],
-                            generation=segment_info["upstream_generation"],
-                            priority=current_priority,
-                        )
-                        segment_info["twitch_auth_priority"] = updated.auth_priority
-                        segment_info["auth_handoff_reason"] = updated.handoff_reason
+                    # Priority refresh/requeue is intentionally dormant. The
+                    # compatibility API and DB values remain intact, but stored
+                    # values cannot trigger a process handoff from this loop.
+                    # Former activation path:
+                    # current_priority, _ = self._recording_auth_options(stream)
+                    # await self.upstream_coordinator.update_auth_priority(...)
                     try:
                         auth_transition = (
                             await self.upstream_coordinator.begin_auth_transition(
@@ -1645,7 +1643,7 @@ class ProcessManager:
                 cleanup_complete = True
             else:
                 cleanup_complete = True
-        except OSError, ProcessLookupError, KeyError, AttributeError, PermissionError:
+        except (OSError, ProcessLookupError, KeyError, AttributeError, PermissionError):
             return
         if cleanup_complete:
             if process is not None:
