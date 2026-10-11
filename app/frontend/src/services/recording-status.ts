@@ -3,7 +3,7 @@ export interface RecordingStatusSource {
   twitch_auth_priority?: number
   effective_auth_mode?: 'authenticated' | 'anonymous' | 'unknown'
   pending_handoff?: boolean
-  handoff_reason?: string
+  handoff_reason?: string | null
   partial_recording_warning?: boolean
 }
 
@@ -33,17 +33,22 @@ export function toRecordingStatusSummary(recording: RecordingStatusSource): Reco
   const prioritySpecificHandoff = recording.handoff_reason === 'awaiting_higher_priority_handoff'
     || recording.handoff_reason === 'higher_priority_recording'
     || /higher priority/i.test(recording.handoff_reason ?? '')
+  const showPartialWarning = recording.partial_recording_warning
+    && (!prioritySpecificHandoff || isPending)
+  const nonPriorityTransition = recording.handoff_reason === 'segment_boundary_transition'
 
   return {
     label,
     // Dormant UI field retained in the wire source only:
     // priority: recording.twitch_auth_priority,
     handoff: prioritySpecificHandoff
-      ? 'Waiting for authenticated recording capacity.'
-      : recording.handoff_reason || (isPending
+      ? (isPending ? 'Waiting for authenticated recording capacity.' : undefined)
+      : nonPriorityTransition
+        ? 'Twitch authentication transition pending.'
+        : recording.handoff_reason || (isPending
       ? 'Waiting for authenticated recording capacity.'
       : undefined),
-    partialWarning: recording.partial_recording_warning
+    partialWarning: showPartialWarning
       ? 'A short segment-boundary gap may follow this auth handoff.'
       : undefined
   }

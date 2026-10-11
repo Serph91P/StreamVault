@@ -170,11 +170,11 @@
             <div><strong>Duration:</strong> {{ formatDuration(recording.duration) }}</div>
             <div><strong>Status:</strong> {{ recording.status }}</div>
             <div><strong>Twitch mode:</strong> {{ recording.effective_auth_mode || 'unknown' }}</div>
-            <div v-if="recording.pending_handoff" class="warning-message">
-              Twitch authentication transition pending
+            <div v-if="recordingStatus(recording).handoff" class="warning-message">
+              {{ recordingStatus(recording).handoff }}
             </div>
-            <div v-if="recording.partial_recording_warning" class="warning-message">
-              Recording may contain a short segment-boundary gap after the auth handoff.
+            <div v-if="recordingStatus(recording).partialWarning" class="warning-message">
+              {{ recordingStatus(recording).partialWarning }}
             </div>
             <div class="output-path"><strong>Output:</strong> {{ recording.file_path || recording.output_path }}</div>
           </div>
@@ -341,15 +341,16 @@ import { ref, watch, nextTick } from 'vue';
 import { useRecordingSettings } from '@/composables/useRecordingSettings';
 import { useFilenamePresets } from '@/composables/useFilenamePresets';
 import { useToast } from '@/composables/useToast';
+import { toRecordingStatusSummary } from '@/services/recording-status';
 import { QUALITY_OPTIONS, FILENAME_VARIABLES } from '@/types/recording';
-import type { RecordingSettings, StreamerRecordingSettings } from '@/types/recording';
+import type { ActiveRecording, RecordingSettings, StreamerRecordingSettings } from '@/types/recording';
 import CleanupPolicyEditor from '@/components/CleanupPolicyEditor.vue';
 import BaseModal from '@/components/base/BaseModal.vue';
 
 const props = withDefaults(defineProps<{
   settings: RecordingSettings | null;
   streamerSettings: StreamerRecordingSettings[];
-  activeRecordings: any[];
+  activeRecordings: ActiveRecording[];
   /** Which settings page this instance renders: recording quality/behavior
    *  or the storage/cleanup half. Each is its own sidebar section now -
    *  the old in-panel tab bar is gone. */
@@ -501,8 +502,12 @@ const stopRecording = (streamerId: number) => {
 };
 
 const isActiveRecording = (streamerId: number): boolean => {
-  return props.activeRecordings.some((rec: any) => rec.streamer_id === streamerId);
+  return props.activeRecordings.some((rec) => rec.streamer_id === streamerId);
 };
+
+const recordingStatus = (recording: ActiveRecording) => (
+  toRecordingStatusSummary(recording)
+);
 
 const formatDate = (date: string) => {
   return new Date(date).toLocaleString();

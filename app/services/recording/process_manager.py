@@ -1189,9 +1189,30 @@ class ProcessManager:
                     # Priority refresh/requeue is intentionally dormant. The
                     # compatibility API and DB values remain intact, but stored
                     # values cannot trigger a process handoff from this loop.
-                    # Former activation path:
-                    # current_priority, _ = self._recording_auth_options(stream)
-                    # await self.upstream_coordinator.update_auth_priority(...)
+                    # Former activation path, retained fully but inactive:
+                    # current_priority, _anonymous_available = (
+                    #     self._recording_auth_options(stream)
+                    # )
+                    # if current_priority != segment_info.get(
+                    #     "twitch_auth_priority", 0
+                    # ):
+                    #     updated = (
+                    #         await self.upstream_coordinator.update_auth_priority(
+                    #             channel_key=segment_info[
+                    #                 "upstream_channel_key"
+                    #             ],
+                    #             generation=segment_info[
+                    #                 "upstream_generation"
+                    #             ],
+                    #             priority=current_priority,
+                    #         )
+                    #     )
+                    #     segment_info["twitch_auth_priority"] = (
+                    #         updated.auth_priority
+                    #     )
+                    #     segment_info["auth_handoff_reason"] = (
+                    #         updated.handoff_reason
+                    #     )
                     try:
                         auth_transition = (
                             await self.upstream_coordinator.begin_auth_transition(

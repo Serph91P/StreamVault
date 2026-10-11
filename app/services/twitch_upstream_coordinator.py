@@ -421,10 +421,37 @@ class TwitchUpstreamCoordinator:
                         auth_requested = True
                         auth_key = None
                         # Priority-driven displacement is intentionally dormant.
-                        # The former ranking/handoff policy remains available in
-                        # TwitchAuthScheduler._legacy_priority_handoff_decision.
-                        # A valid owner stays stable; this requester records
-                        # anonymously and may use the slot only after release.
+                        # Retain the former concrete reservation policy here as
+                        # inactive source; no live path calls or evaluates it:
+                        # if (
+                        #     owner
+                        #     and owner.purpose in (
+                        #         "RECORDING", "RECOVERY", "ROTATION"
+                        #     )
+                        #     and owner.anonymous_available
+                        #     and auth_priority > owner.auth_priority
+                        # ):
+                        #     current_target = None
+                        #     if owner.handoff_target_channel:
+                        #         current_target = (
+                        #             db.query(TwitchUpstreamLease)
+                        #             .filter(
+                        #                 TwitchUpstreamLease.channel_key
+                        #                 == owner.handoff_target_channel,
+                        #                 TwitchUpstreamLease.state.in_(ACTIVE_STATES),
+                        #             )
+                        #             .first()
+                        #         )
+                        #     if (
+                        #         current_target is None
+                        #         or auth_priority > current_target.auth_priority
+                        #     ):
+                        #         owner.handoff_target_channel = channel_key
+                        #         owner.handoff_reason = "higher_priority_recording"
+                        #         owner.handoff_requested_at = now
+                        #     handoff_reason = "awaiting_higher_priority_handoff"
+                        # A valid owner instead stays stable; this requester
+                        # records anonymously and may use the slot after release.
                         if owner and owner.purpose == "LIVE":
                             handoff_reason = "live_playback_owner_not_preemptible"
                         elif owner and not owner.anonymous_available:
@@ -668,6 +695,31 @@ class TwitchUpstreamCoordinator:
             # Ignore legacy priority-handoff markers on authenticated owners.
             # They remain wire/schema compatible but cannot interrupt a valid
             # owner now that priority-based displacement is dormant.
+            # Former concrete transition selection, retained fully inactive:
+            # if lease.auth_key is not None and lease.handoff_target_channel:
+            #     action = "demote"
+            # elif lease.auth_key is None and lease.auth_requested:
+            #     authenticated_count = (
+            #         db.query(TwitchUpstreamLease)
+            #         .filter(
+            #             TwitchUpstreamLease.auth_key.is_not(None),
+            #             TwitchUpstreamLease.state.in_(ACTIVE_STATES),
+            #         )
+            #         .count()
+            #     )
+            #     if authenticated_count >= self._authenticated_budget:
+            #         raise LookupError("authenticated slot is not ready")
+            #     winner = self._highest_priority_auth_requester(db)
+            #     if winner is None or winner.id != lease.id:
+            #         raise LookupError(
+            #             "authenticated slot is reserved for the "
+            #             "highest-priority requester"
+            #         )
+            #     action = "promote"
+            # else:
+            #     raise LookupError("no authentication transition is pending")
+            # The active branch below permits only a temporal promotion after
+            # the authenticated slot is genuinely free.
             if lease.auth_key is None and lease.auth_requested:
                 authenticated_count = (
                     db.query(TwitchUpstreamLease)
@@ -717,7 +769,49 @@ class TwitchUpstreamCoordinator:
             lease.auth_priority = priority
             # Compatibility-only persistence: priority updates deliberately do
             # not rank contenders, create handoffs, or change an existing owner.
-            # The former policy is retained in the dormant scheduler helper.
+            # Former concrete update policy, retained fully as inactive source:
+            # owner = (
+            #     db.query(TwitchUpstreamLease)
+            #     .filter(
+            #         TwitchUpstreamLease.auth_key.is_not(None),
+            #         TwitchUpstreamLease.state.in_(ACTIVE_STATES),
+            #     )
+            #     .order_by(TwitchUpstreamLease.id)
+            #     .first()
+            # )
+            # contenders = (
+            #     db.query(TwitchUpstreamLease)
+            #     .filter(
+            #         TwitchUpstreamLease.auth_requested.is_(True),
+            #         TwitchUpstreamLease.state.in_(ACTIVE_STATES),
+            #     )
+            #     .order_by(
+            #         TwitchUpstreamLease.auth_priority.desc(),
+            #         TwitchUpstreamLease.reserved_at,
+            #         TwitchUpstreamLease.recording_id,
+            #         TwitchUpstreamLease.channel_key,
+            #     )
+            #     .all()
+            # )
+            # requested = contenders[0] if contenders else None
+            # if owner and requested:
+            #     if (
+            #         owner.purpose in ("RECORDING", "RECOVERY", "ROTATION")
+            #         and owner.anonymous_available
+            #         and requested.auth_priority > owner.auth_priority
+            #     ):
+            #         owner.handoff_target_channel = requested.channel_key
+            #         owner.handoff_reason = "higher_priority_recording"
+            #         owner.handoff_requested_at = now
+            #         requested.handoff_reason = (
+            #             "awaiting_higher_priority_handoff"
+            #         )
+            #         requested.handoff_requested_at = now
+            #     elif owner.handoff_target_channel == requested.channel_key:
+            #         owner.handoff_target_channel = None
+            #         owner.handoff_reason = None
+            #         owner.handoff_requested_at = None
+            #         requested.handoff_reason = "authenticated_owner_stable"
             lease.updated_at = now
             db.commit()
             return self._snapshot(lease)

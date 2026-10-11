@@ -24,7 +24,7 @@ describe('toRecordingStatusSummary', () => {
     }))
     expect(toRecordingStatusSummary(recordings[0])).toEqual({
       label: 'Authenticated Twitch recording',
-      handoff: 'Waiting for authenticated recording capacity.',
+      handoff: 'Twitch authentication transition pending.',
       partialWarning: 'A short segment-boundary gap may follow this auth handoff.'
     })
     expect(toRecordingStatusSummary(recordings[1])).toEqual({
@@ -34,17 +34,31 @@ describe('toRecordingStatusSummary', () => {
     })
   })
 
-  it('does not surface a persisted priority or priority-specific handoff wording', () => {
+  it('ignores dormant legacy priority markers when no handoff is active', () => {
     expect(toRecordingStatusSummary({
       status: 'recording',
       twitch_auth_priority: -25,
       effective_auth_mode: 'authenticated',
-      pending_handoff: true,
+      pending_handoff: false,
       handoff_reason: 'Higher priority recording is waiting for capacity',
       partial_recording_warning: true
     })).toEqual({
       label: 'Authenticated Twitch recording',
-      handoff: 'Waiting for authenticated recording capacity.',
+      handoff: undefined,
+      partialWarning: undefined
+    })
+  })
+
+  it('keeps a real non-priority transition and its partial-media warning visible', () => {
+    expect(toRecordingStatusSummary({
+      status: 'recording',
+      effective_auth_mode: 'authenticated',
+      pending_handoff: true,
+      handoff_reason: 'authenticated_slot_transition',
+      partial_recording_warning: true
+    })).toEqual({
+      label: 'Authenticated Twitch recording',
+      handoff: 'authenticated_slot_transition',
       partialWarning: 'A short segment-boundary gap may follow this auth handoff.'
     })
   })

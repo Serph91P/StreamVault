@@ -44,7 +44,7 @@ class _NaiveUtcClock:
 
 
 def _lease(recording_id: int, channel_key: str, *, state: str, auth_key: str | None,
-           handoff_reason: str, partial_warning: bool) -> TwitchUpstreamLease:
+           handoff_reason: str | None, partial_warning: bool) -> TwitchUpstreamLease:
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     return TwitchUpstreamLease(
         channel_key=channel_key,
@@ -138,7 +138,7 @@ def test_active_recordings_route_exposes_persisted_auth_handoff_contract(monkeyp
                 "pending-channel",
                 state="ROTATING",
                 auth_key="synthetic-auth-key",
-                handoff_reason="awaiting_higher_priority_handoff",
+                handoff_reason=None,
                 partial_warning=True,
             ),
             _lease(
