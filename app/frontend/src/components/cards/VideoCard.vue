@@ -106,6 +106,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import StatusBadge, { type StatusBadgeTone } from '@/components/base/StatusBadge.vue'
 import SurfaceCard from './SurfaceCard.vue'
 
@@ -144,6 +145,7 @@ const emit = defineEmits<{
   play: [video: Video]
   select: [video: Video]
 }>()
+const route = useRoute()
 
 // Thumbnail error handling
 const thumbnailError = ref(false)
@@ -271,7 +273,9 @@ const videoRoute = computed(() => ({
   },
   query: {
     title: displayTitle.value,
-    streamerName: props.video.streamer_name
+    streamerName: props.video.streamer_name,
+    // Preserve the in-app origin; the player validates it before using it.
+    origin: route.fullPath.startsWith('/') ? route.fullPath : '/videos'
   }
 }))
 

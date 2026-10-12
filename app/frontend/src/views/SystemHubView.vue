@@ -18,7 +18,7 @@
       </router-link>
       <router-link to="/admin" class="system-hub-card" aria-label="Admin tools">
         <span class="system-hub-icon" aria-hidden="true">
-          <svg><use href="#icon-sliders" /></svg>
+          <svg><use href="#icon-wrench" /></svg>
         </span>
         <span class="system-hub-copy">
           <strong>Admin tools</strong>

@@ -355,7 +355,13 @@ const chapterAccessibleName = (chapter: ChapterData['chapters'][number]) =>
   `Seek to ${chapter.title} at ${formatTimestamp(chapter.start)}`
 
 const goBack = () => {
-  router.back()
+  const origin = route.query.origin
+  // Direct/reloaded entries use an in-app fallback and never navigate externally.
+  if (typeof origin === 'string' && origin.startsWith('/') && !origin.startsWith('//')) {
+    router.push(origin)
+    return
+  }
+  router.push({ name: 'Videos' })
 }
 
 // Video player event handlers

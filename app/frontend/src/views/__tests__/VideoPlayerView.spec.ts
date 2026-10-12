@@ -137,6 +137,20 @@ describe('VideoPlayerView backend playback contract', () => {
     expect(wrapper.get('.video-player-stub').attributes('data-src')).toBe('/api/videos/42/stream')
   })
 
+  it('returns to a validated in-app origin and falls back to the library on direct entry', async () => {
+    mocks.route.query = { origin: '/videos?search=alpha&sort=title' }
+    const wrapper = await mountView()
+
+    await wrapper.get('.back-button').trigger('click')
+    expect(mocks.routerPush).toHaveBeenCalledWith('/videos?search=alpha&sort=title')
+
+    mocks.routerPush.mockClear()
+    mocks.route.query = { origin: 'https://example.invalid' }
+    const directWrapper = await mountView()
+    await directWrapper.get('.back-button').trigger('click')
+    expect(mocks.routerPush).toHaveBeenCalledWith({ name: 'Videos' })
+  })
+
   it('routes share and delete actions through the video facade', async () => {
     const wrapper = await mountView()
     const actionButtons = wrapper.findAll('.action-btn')

@@ -159,4 +159,22 @@ withDefaults(defineProps<Props>(), {
   flex-shrink: 0;
   flex-wrap: wrap;
 }
+
+// A status/action pill must never consume the title column on a phone.
+@include m.respond-below('md') {
+  .page-header-content {
+    flex-wrap: wrap;
+    gap: var(--spacing-3);
+  }
+
+  .page-header-title-group {
+    flex: 1 1 100%;
+  }
+
+  .page-header-end {
+    flex: 1 1 100%;
+    justify-content: flex-start;
+    padding-left: calc(1rem + var(--spacing-3));
+  }
+}
 </style>

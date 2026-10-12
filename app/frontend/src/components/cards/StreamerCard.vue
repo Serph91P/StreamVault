@@ -616,6 +616,9 @@ onUnmounted(() => {
   -webkit-box-orient: vertical;
   word-break: break-word;
   padding-bottom: 0.15em;
+  // Reserve all clamped lines plus descender-safe padding in WebKit.
+  max-height: calc(1.5em * 3 + 0.15em);
+  box-sizing: content-box;
 
   &.no-title {
     font-style: italic;

@@ -1035,26 +1035,25 @@ defineExpose({ seekToChapter })
   white-space: nowrap;
 }
 
-/* Chapter List Panel - Overlay positioned inside video */
+/* Chapter List Panel - bounded, opaque overlay above the player. */
 .chapter-list-panel {
-  /* Glassmorphism panel design */
-  background: rgba(var(--background-card-rgb), 0.97);
+  background: var(--background-card);
   border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: var(--radius-lg);  /* 12px */
   box-shadow: var(--shadow-2xl), 0 0 40px rgba(0, 0, 0, 0.5);
   max-height: 500px;
   overflow-y: auto;
-  position: absolute;  /* Position inside video wrapper */
+  position: fixed;
   bottom: 80px;  /* Above video controls */
   right: var(--spacing-4);  /* 16px from right edge */
   width: 400px;  /* Fixed width for desktop */
   max-width: calc(100% - 32px);  /* Responsive on mobile */
-  z-index: 20;  /* Above controls overlay */
+  z-index: 1000;
   /* Animation now handled by Vue transition (see .slide-panel-* classes) */
 
   @include m.respond-below('md') {  // < 768px (mobile)
     width: calc(100% - 32px);  /* Full width on mobile with padding */
-    bottom: 100px;  /* More space above controls */
+    bottom: max(var(--spacing-4), env(safe-area-inset-bottom, 0px));
     right: var(--spacing-4);
     left: var(--spacing-4);  /* Center horizontally */
     max-height: 50vh;  /* Responsive height - prevent cut-off */
@@ -1062,7 +1061,7 @@ defineExpose({ seekToChapter })
   }
 
   @include m.respond-below('sm') {  // < 480px (small mobile)
-    bottom: 80px;
+    bottom: max(var(--spacing-2), env(safe-area-inset-bottom, 0px));
     left: var(--spacing-2);
     right: var(--spacing-2);
     width: calc(100% - 16px);
@@ -1659,7 +1658,7 @@ defineExpose({ seekToChapter })
   /* Ensure controls don't overflow */
   .controls-bottom {
     flex-wrap: nowrap;  /* Prevent wrapping */
-    overflow-x: visible;  /* Allow horizontal visibility */
+    overflow: hidden;
     min-width: 0;  /* Allow flex items to shrink */
   }
 
@@ -1675,12 +1674,20 @@ defineExpose({ seekToChapter })
     min-width: 0;
   }
 
-  /* Hide chapter toggle button on very small screens to save space */
-  @media (max-width: 400px) {
-    .chapters-button {
-      display: none;  /* Hide on tiny screens - users can see chapters in extension */
-    }
+  // Keep all capabilities at 320px while retaining 44px targets.
+  .control-button,
+  .chapters-button {
+    width: 44px;
+    min-width: 44px;
+    height: 44px;
   }
+
+  .play-pause-button {
+    width: 48px;
+    height: 48px;
+  }
+
+  .chapters-button { padding: 0; }
 }
 
 /* Very Small Screens */
@@ -1691,7 +1698,7 @@ defineExpose({ seekToChapter })
 
   .controls-left,
   .controls-right {
-    gap: var(--spacing-2);  /* 8px */
+    gap: var(--spacing-1);
   }
 
   .control-button {
