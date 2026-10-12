@@ -3,6 +3,7 @@ import { createMemoryHistory, createRouter } from 'vue-router'
 import { describe, expect, it } from 'vitest'
 import SystemHubView from '../SystemHubView.vue'
 import systemHubSource from '../SystemHubView.vue?raw'
+import iconSpriteSource from '@/components/icons/IconSprite.vue?raw'
 
 const router = createRouter({
   history: createMemoryHistory(),
@@ -36,5 +37,12 @@ describe('SystemHubView', () => {
     expect(systemHubSource).toMatch(/\.system-hub-icon svg\s*\{[\s\S]*?width:\s*24px;[\s\S]*?height:\s*24px;/)
     expect(systemHubSource).toMatch(/\.system-hub-card:focus-visible\s*\{/)
     expect(systemHubSource).toMatch(/respond-below\('sm'\)[\s\S]*?grid-template-columns:\s*1fr;/)
+  })
+
+  it('references only symbols registered by the shared sprite', () => {
+    const hrefs = [...systemHubSource.matchAll(/<use href="#([^"]+)"/g)].map(match => match[1])
+
+    expect(hrefs).toContain('icon-wrench')
+    expect(hrefs.every(id => iconSpriteSource.includes(`id="${id}"`))).toBe(true)
   })
 })

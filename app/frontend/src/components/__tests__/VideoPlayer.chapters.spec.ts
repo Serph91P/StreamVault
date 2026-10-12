@@ -63,4 +63,29 @@ describe('VideoPlayer automatic chapters', () => {
       expect.any(Error),
     )
   })
+
+  it('seeks after asynchronously loaded chapters and closes the bounded overlay by Escape or outside click', async () => {
+    let resolveChapters!: (chapters: Array<{ id: number; title: string; start: number; end: number }>) => void
+    mocks.getChapters.mockImplementationOnce(() => new Promise(resolve => { resolveChapters = resolve }))
+
+    const wrapperPromise = mountPlayer()
+    resolveChapters([{ id: 1, title: 'Delayed chapter', start: 120, end: 240 }])
+    const wrapper = await wrapperPromise
+    const video = wrapper.get('video').element as HTMLVideoElement
+
+    await wrapper.get('.chapters-button').trigger('click')
+    expect(wrapper.get('.chapter-overlay').attributes('class')).toContain('chapter-overlay')
+    expect(wrapper.get('.chapter-list-panel').attributes('role')).toBe('dialog')
+    await wrapper.get('.chapter-list .chapter-item').trigger('click')
+    expect(video.currentTime).toBe(120)
+
+    await wrapper.get('.chapters-button').trigger('click')
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    await flushPromises()
+    expect(wrapper.find('.chapter-overlay').exists()).toBe(false)
+
+    await wrapper.get('.chapters-button').trigger('click')
+    await wrapper.get('.chapter-overlay').trigger('click')
+    expect(wrapper.find('.chapter-overlay').exists()).toBe(false)
+  })
 })

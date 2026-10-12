@@ -142,6 +142,7 @@
               <!-- Chapters Button (Toggle List) -->
               <button
                 @click="toggleChapterUI"
+                ref="chaptersButton"
                 class="control-button chapters-button"
                 :class="{ 'active': showChapterUI }"
                 :aria-label="'Chapters'"
@@ -213,15 +214,19 @@
 
       <!-- Chapter List Panel (Overlay inside video) -->
       <transition name="slide-panel">
-        <div
-          v-if="showChapterUI && parsedChapters.length > 0"
-          class="chapter-list-panel"
-          ref="chapterListPanel"
-          @scroll="handleChapterListScroll"
-        >
+        <div v-if="showChapterUI && parsedChapters.length > 0" class="chapter-overlay" @click.self="closeChapterUI">
+          <div
+            class="chapter-list-panel"
+            ref="chapterListPanel"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Chapters"
+            tabindex="-1"
+            @scroll="handleChapterListScroll"
+          >
         <div class="chapter-list-header">
           <h3>Chapters</h3>
-          <button @click="toggleChapterUI" class="close-btn" aria-label="Close chapters">x</button>
+          <button @click="closeChapterUI" class="close-btn" aria-label="Close chapters">x</button>
         </div>
         <div class="chapter-list" ref="chapterList">
           <button
@@ -261,7 +266,8 @@
             </div>
           </button>
         </div>
-      </div>
+          </div>
+        </div>
       </transition>
     </div>
 
@@ -269,7 +275,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue'
 import { useCategoryImages } from '@/composables/useCategoryImages'
 import PlayerStatus from '@/components/player/PlayerStatus.vue'
 import PlayerError from '@/components/player/PlayerError.vue'
@@ -320,6 +326,7 @@ const emit = defineEmits<{
 const videoElement = ref<HTMLVideoElement>()
 const videoWrapper = ref<HTMLDivElement>()
 const chapterListPanel = ref<HTMLDivElement>()
+const chaptersButton = ref<HTMLButtonElement>()
 const chapterList = ref<HTMLDivElement>()
 const chapterItemRefs = ref<Record<number, HTMLElement>>({})
 const isLoading = ref(true)
@@ -556,8 +563,24 @@ const nextChapter = () => {
   }
 }
 
-const toggleChapterUI = () => {
+const closeChapterUI = () => {
+  showChapterUI.value = false
+  void nextTick(() => chaptersButton.value?.focus())
+}
+
+const toggleChapterUI = async () => {
   showChapterUI.value = !showChapterUI.value
+  if (showChapterUI.value) {
+    await nextTick()
+    chapterListPanel.value?.focus()
+  }
+}
+
+const onChapterOverlayKeydown = (event: KeyboardEvent) => {
+  if (event.key === 'Escape' && showChapterUI.value) {
+    event.preventDefault()
+    closeChapterUI()
+  }
 }
 
 // Chapter loading
@@ -826,6 +849,7 @@ const onKeyDown = (event: KeyboardEvent) => {
 }
 
 onMounted(() => {
+  window.addEventListener('keydown', onChapterOverlayKeydown)
   loadChapters()
   document.addEventListener('keydown', onKeyDown)
 
@@ -838,6 +862,7 @@ const onFullscreenChange = () => {
 }
 
 onUnmounted(() => {
+  window.removeEventListener('keydown', onChapterOverlayKeydown)
   document.removeEventListener('keydown', onKeyDown)
 
   // Clean up controls timeout
@@ -1036,6 +1061,13 @@ defineExpose({ seekToChapter })
 }
 
 /* Chapter List Panel - bounded, opaque overlay above the player. */
+.chapter-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(0, 0, 0, 0.32);
+}
+
 .chapter-list-panel {
   background: var(--background-card);
   border: 1px solid rgba(255, 255, 255, 0.15);
