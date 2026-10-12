@@ -96,7 +96,10 @@ class TwitchAuthScheduler:
             ),
         )
         requested = ranked[0]
-        if requested.channel_key == owner.channel_key or requested.priority <= owner.priority:
+        if (
+            requested.channel_key == owner.channel_key
+            or requested.priority <= owner.priority
+        ):
             return AuthDecision(AuthDecisionKind.KEEP, owner.channel_key)
         if owner.purpose != "RECORDING":
             return AuthDecision(

@@ -288,8 +288,7 @@ def _is_pending_auth_handoff(upstream_lease) -> bool:
     }:
         return False
     return bool(
-        upstream_lease.state == "ROTATING"
-        or upstream_lease.handoff_target_channel
+        upstream_lease.state == "ROTATING" or upstream_lease.handoff_target_channel
     )
 
 
