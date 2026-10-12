@@ -96,6 +96,7 @@ describe('VideosView library workflow', () => {
     expect(wrapper.findAll('.video-card')).toHaveLength(2)
 
     await wrapper.get('.search-input').setValue('alpha')
+    mocks.routerResolve.mockReturnValueOnce({ fullPath: '/videos?q=alpha&streamer=alpha&sort=title&view=list' })
     expect(wrapper.findAll('.video-card')).toHaveLength(1)
     expect(wrapper.text()).toContain('Morning run')
     expect(wrapper.get('.results-info').text().replace(/\s+/g, ' ')).toContain('Showing 1 video of 2')
@@ -104,6 +105,10 @@ describe('VideosView library workflow', () => {
     expect(mocks.routerPush).toHaveBeenCalledWith(expect.objectContaining({
       name: 'VideoPlayer',
       params: { streamerId: 1, streamId: 11 },
+      query: expect.objectContaining({
+        origin: '/videos?q=alpha&streamer=alpha&sort=title&view=list',
+        scroll: '0',
+      }),
     }))
   })
 

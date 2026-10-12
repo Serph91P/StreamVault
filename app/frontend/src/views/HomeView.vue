@@ -198,6 +198,7 @@
               v-for="video in recentRecordings"
               :key="video.id"
               :video="video"
+              origin="/"
               @play="playVideo(video)"
             />
           </div>
@@ -529,7 +530,13 @@ function navigateToAddStreamer() {
 }
 
 function playVideo(video: VideoSummary) {
-  router.push(`/videos/${video.id}`)
+  router.push({
+    path: `/videos/${video.id}`,
+    query: {
+      origin: '/',
+      scroll: String(Math.max(0, Math.round(window.scrollY)))
+    }
+  })
 }
 
 async function handleForceRecord(streamer: { id: number }) {

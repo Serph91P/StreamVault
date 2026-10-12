@@ -291,7 +291,7 @@
         <VideoCard
           :video="video"
           :view-mode="viewMode"
-          :origin="videoOrigin"
+          :origin="getVideoOrigin()"
           :disable-navigation="selectMode"
           @play="playVideo"
           @select="toggleSelection(video.id)"
@@ -454,7 +454,7 @@ const durationLabel = computed(() => {
 const hasActiveSearchOrFilters = computed(() => Boolean(searchQuery.value || activeFiltersCount.value > 0))
 // The player receives an explicit, same-app return URL. Query state is enough to
 // rebuild this view after it is remounted; scroll is captured by VideoCard at click time.
-const videoOrigin = computed(() => {
+const getVideoOrigin = () => {
   const query: Record<string, string> = {}
   if (searchQuery.value) query.q = searchQuery.value
   if (filterStreamer.value) query.streamer = filterStreamer.value
@@ -463,7 +463,7 @@ const videoOrigin = computed(() => {
   if (sortBy.value !== 'newest') query.sort = sortBy.value
   if (viewMode.value !== 'grid') query.view = viewMode.value
   return router.resolve({ name: 'Videos', query }).fullPath
-})
+}
 const emptyResultsDescription = computed(() => (
   searchQuery.value
     ? `No videos match '${searchQuery.value}'. Try adjusting your search or filters.`
@@ -595,7 +595,9 @@ function playVideo(video: Video) {
     },
     query: {
       title: video.title || `Stream ${video.id}`,
-      streamerName: video.streamer_name
+      streamerName: video.streamer_name,
+      origin: getVideoOrigin(),
+      scroll: String(Math.max(0, Math.round(window.scrollY)))
     }
   })
 }
