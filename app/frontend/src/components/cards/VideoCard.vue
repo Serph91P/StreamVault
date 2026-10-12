@@ -106,7 +106,6 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
 import StatusBadge, { type StatusBadgeTone } from '@/components/base/StatusBadge.vue'
 import SurfaceCard from './SurfaceCard.vue'
 
@@ -135,17 +134,18 @@ interface Props {
   video: Video
   viewMode?: 'grid' | 'list'
   disableNavigation?: boolean
+  origin?: string
 }
 
 const props = withDefaults(defineProps<Props>(), {
   viewMode: 'grid',
-  disableNavigation: false
+  disableNavigation: false,
+  origin: '/videos'
 })
 const emit = defineEmits<{
   play: [video: Video]
   select: [video: Video]
 }>()
-const route = useRoute()
 
 // Thumbnail error handling
 const thumbnailError = ref(false)
@@ -275,7 +275,8 @@ const videoRoute = computed(() => ({
     title: displayTitle.value,
     streamerName: props.video.streamer_name,
     // Preserve the in-app origin; the player validates it before using it.
-    origin: route.fullPath.startsWith('/') ? route.fullPath : '/videos'
+    origin: props.origin.startsWith('/') && !props.origin.startsWith('//') ? props.origin : '/videos',
+    scroll: String(Math.max(0, Math.round(window.scrollY)))
   }
 }))
 

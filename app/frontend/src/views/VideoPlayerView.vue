@@ -183,7 +183,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import VideoPlayer from '@/components/VideoPlayer.vue'
 import LoadingSkeleton from '@/components/LoadingSkeleton.vue'
@@ -354,14 +354,20 @@ const retryLoad = () => {
 const chapterAccessibleName = (chapter: ChapterData['chapters'][number]) =>
   `Seek to ${chapter.title} at ${formatTimestamp(chapter.start)}`
 
-const goBack = () => {
+const goBack = async () => {
   const origin = route.query.origin
+  const requestedScroll = Number(route.query.scroll)
+  const scroll = Number.isFinite(requestedScroll) && requestedScroll >= 0 ? requestedScroll : 0
   // Direct/reloaded entries use an in-app fallback and never navigate externally.
   if (typeof origin === 'string' && origin.startsWith('/') && !origin.startsWith('//')) {
-    router.push(origin)
+    await router.push(origin)
+    await nextTick()
+    window.scrollTo({ top: scroll, behavior: 'auto' })
     return
   }
-  router.push({ name: 'Videos' })
+  await router.push({ name: 'Videos' })
+  await nextTick()
+  window.scrollTo({ top: 0, behavior: 'auto' })
 }
 
 // Video player event handlers

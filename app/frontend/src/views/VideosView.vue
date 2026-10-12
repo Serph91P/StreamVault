@@ -291,6 +291,7 @@
         <VideoCard
           :video="video"
           :view-mode="viewMode"
+          :origin="videoOrigin"
           :disable-navigation="selectMode"
           @play="playVideo"
           @select="toggleSelection(video.id)"
@@ -328,7 +329,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { appStorage } from '@/services/storage'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { videoApi } from '@/services/api'
 import BaseButton from '@/components/base/BaseButton.vue'
 import BaseIconButton from '@/components/base/BaseIconButton.vue'
@@ -358,16 +359,18 @@ interface Video {
 }
 
 const router = useRouter()
+const route = useRoute()
 
 // State
 const isLoading = ref(true)
 const fetchError = ref('')
 const videos = ref<Video[]>([])
-const searchQuery = ref('')
+const stringQuery = (key: string, fallback = '') => typeof route.query[key] === 'string' ? route.query[key] : fallback
+const searchQuery = ref(stringQuery('q'))
 // Grid/list choice survives reloads
-const viewMode = ref<'grid' | 'list'>(appStorage.getViewMode('videos') ?? 'grid')
+const viewMode = ref<'grid' | 'list'>(stringQuery('view', appStorage.getViewMode('videos') ?? 'grid') === 'list' ? 'list' : 'grid')
 watch(viewMode, (mode) => appStorage.setViewMode('videos', mode))
-const sortBy = ref('newest')
+const sortBy = ref(stringQuery('sort', 'newest'))
 const sortOptions = [
   { value: 'newest', label: 'Newest First' },
   { value: 'oldest', label: 'Oldest First' },
@@ -383,9 +386,9 @@ const currentSortLabel = computed(() =>
 const showFilters = ref(false)
 
 // Filters
-const filterStreamer = ref('')
-const filterDate = ref('all')
-const filterDuration = ref('')
+const filterStreamer = ref(stringQuery('streamer'))
+const filterDate = ref(stringQuery('date', 'all'))
+const filterDuration = ref(stringQuery('duration'))
 
 // Selection
 const selectMode = ref(false)
@@ -449,6 +452,18 @@ const durationLabel = computed(() => {
   return labels[filterDuration.value] || filterDuration.value
 })
 const hasActiveSearchOrFilters = computed(() => Boolean(searchQuery.value || activeFiltersCount.value > 0))
+// The player receives an explicit, same-app return URL. Query state is enough to
+// rebuild this view after it is remounted; scroll is captured by VideoCard at click time.
+const videoOrigin = computed(() => {
+  const query: Record<string, string> = {}
+  if (searchQuery.value) query.q = searchQuery.value
+  if (filterStreamer.value) query.streamer = filterStreamer.value
+  if (filterDate.value !== 'all') query.date = filterDate.value
+  if (filterDuration.value) query.duration = filterDuration.value
+  if (sortBy.value !== 'newest') query.sort = sortBy.value
+  if (viewMode.value !== 'grid') query.view = viewMode.value
+  return router.resolve({ name: 'Videos', query }).fullPath
+})
 const emptyResultsDescription = computed(() => (
   searchQuery.value
     ? `No videos match '${searchQuery.value}'. Try adjusting your search or filters.`
