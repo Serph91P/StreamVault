@@ -7,10 +7,16 @@ const mocks = vi.hoisted(() => ({
   getAll: vi.fn(),
   deleteMultiple: vi.fn(),
   routerPush: vi.fn(),
+  routerResolve: vi.fn(() => ({ fullPath: '/videos' })),
+  route: {
+    path: '/videos',
+    query: {} as Record<string, string>,
+  },
 }))
 
 vi.mock('vue-router', () => ({
-  useRouter: () => ({ push: mocks.routerPush }),
+  useRouter: () => ({ push: mocks.routerPush, resolve: mocks.routerResolve }),
+  useRoute: () => mocks.route,
 }))
 
 vi.mock('@/services/api', () => ({
@@ -53,6 +59,8 @@ async function mountView() {
 }
 
 beforeEach(() => {
+  mocks.route.path = '/videos'
+  mocks.route.query = {}
   mocks.getAll.mockResolvedValue([
     { id: 11, streamer_id: 1, title: 'Morning run', streamer_name: 'alpha', duration: 3600, file_size: 1024, created_at: '2026-09-23T10:00:00Z', status: 'ready' },
     { id: 12, streamer_id: 2, title: 'Night run', streamer_name: 'beta', duration: 7200, file_size: 2048, created_at: '2026-09-22T10:00:00Z', status: 'ready' },
@@ -63,6 +71,26 @@ beforeEach(() => {
 afterEach(() => vi.clearAllMocks())
 
 describe('VideosView library workflow', () => {
+  it('restores the library search, filters, sort and view encoded by an in-app return URL', async () => {
+    mocks.route.query = {
+      q: 'alpha',
+      streamer: 'alpha',
+      date: 'all',
+      duration: 'medium',
+      sort: 'title',
+      view: 'list',
+    }
+
+    const wrapper = await mountView()
+
+    expect((wrapper.get('.search-input').element as HTMLInputElement).value).toBe('alpha')
+    expect((wrapper.get('[aria-label="Filter videos by streamer"]').element as HTMLSelectElement).value).toBe('alpha')
+    expect((wrapper.get('[aria-label="Filter videos by duration"]').element as HTMLSelectElement).value).toBe('medium')
+    expect((wrapper.get('[aria-label="Sort videos"]').element as HTMLSelectElement).value).toBe('title')
+    expect(wrapper.get('.videos-container').classes()).toContain('view-list')
+    expect(wrapper.get('.results-info').text().replace(/\s+/g, ' ')).toContain('Showing 1 video of 2')
+  })
+
   it('searches the loaded catalog and routes playable recordings', async () => {
     const wrapper = await mountView()
     expect(wrapper.findAll('.video-card')).toHaveLength(2)
