@@ -113,7 +113,7 @@ const mobileConnectivityLabel = computed(() => {
   // Opaque tokenized shell surface: navigation does not use glass or blur.
   background: var(--background-card);
   border-top: 1px solid var(--border-color);
-  box-shadow: 0 -2px 10px var(--shadow-color);
+  box-shadow: none;
 
   display: flex;
   justify-content: space-around;

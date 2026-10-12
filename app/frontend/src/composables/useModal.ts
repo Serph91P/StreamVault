@@ -115,7 +115,7 @@ export function useModal(
           event.preventDefault()
           last.focus()
         }
-      } else if (active === last) {
+      } else if (active === last || !containerRef.value.contains(active)) {
         event.preventDefault()
         first.focus()
       }

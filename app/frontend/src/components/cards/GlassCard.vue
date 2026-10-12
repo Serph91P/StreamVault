@@ -175,26 +175,16 @@ function handleKeyboardClick(event: KeyboardEvent) {
   padding: 0;
   border-radius: var(--radius-xl);
 
-  // Glass look via translucency + border highlight, WITHOUT backdrop-filter:
-  // grids render dozens of these cards at once and per-card blur is the main
-  // scroll-performance cost. Real blur is reserved for floating layers
-  // (header, nav, popups, modals) where content actually passes underneath.
-  background: var(--glass-bg);
-  border: 1px solid var(--glass-border);
-  box-shadow: var(--glass-shadow-sm), var(--glass-glow);
+  // Legacy API with R3 semantics: in-flow cards are opaque and flat.
+  background: var(--sv-cmp-panel-background);
+  border: 1px solid var(--sv-cmp-panel-border);
+  box-shadow: none;
 
-  &.glass-card-subtle {
-    background: var(--glass-bg-subtle);
-  }
+  &.glass-card-subtle { background: var(--sv-sem-surface-raised); }
 
-  &.glass-card-strong {
-    background: var(--glass-bg-strong);
-    box-shadow: var(--glass-shadow-md), var(--glass-glow);
-  }
+  &.glass-card-strong { background: var(--sv-sem-surface-raised); border-color: var(--sv-sem-border-strong); }
 
-  &.glass-card-elevated {
-    box-shadow: var(--glass-shadow-lg);
-  }
+  &.glass-card-elevated { border-color: var(--sv-sem-border-strong); }
 
   &.glass-card-clickable {
     cursor: pointer;
@@ -217,19 +207,19 @@ function handleKeyboardClick(event: KeyboardEvent) {
 
   // Hover effects
   &.glass-hover-lift {
-    transition: transform v.$duration-200 v.$ease-out, box-shadow v.$duration-200 v.$ease-out;
+    transition: background-color v.$duration-200 v.$ease-out, border-color v.$duration-200 v.$ease-out;
 
     &:hover:not(.glass-card-disabled):not(.glass-card-loading) {
-      transform: translateY(-4px);
-      box-shadow: var(--glass-shadow-lg);
+      background: var(--sv-sem-surface-raised);
+      border-color: var(--sv-sem-border-strong);
     }
   }
 
   &.glass-hover-scale {
-    transition: transform v.$duration-200 v.$ease-out;
+    transition: background-color v.$duration-200 v.$ease-out;
 
     &:hover:not(.glass-card-disabled):not(.glass-card-loading) {
-      transform: scale(1.02);
+      background: var(--sv-sem-surface-raised);
     }
   }
 }

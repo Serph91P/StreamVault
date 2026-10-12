@@ -3,21 +3,20 @@ export interface RecordingStatusSource {
   twitch_auth_priority?: number
   effective_auth_mode?: 'authenticated' | 'anonymous' | 'unknown'
   pending_handoff?: boolean
-  handoff_reason?: string
+  handoff_reason?: string | null
   partial_recording_warning?: boolean
 }
 
 export interface RecordingStatusSummary {
   label: string
-  priority?: number
   handoff?: string
   partialWarning?: string
 }
 
 /**
  * Maps the recording backend contract to copy that can be shared by recording
- * consumers. It deliberately preserves persisted priorities (including
- * negatives) and never turns capacity handoff into an offline streamer state.
+ * consumers. Priority remains wire-compatible but dormant and is never exposed
+ * as product UI. Capacity state is not mislabelled as an offline streamer.
  */
 export function toRecordingStatusSummary(recording: RecordingStatusSource): RecordingStatusSummary {
   const isPending = recording.pending_handoff || recording.status === 'pending'
@@ -31,13 +30,25 @@ export function toRecordingStatusSummary(recording: RecordingStatusSource): Reco
         ? 'Waiting for recording capacity'
         : 'Anonymous Twitch recording'
 
+  const prioritySpecificHandoff = recording.handoff_reason === 'awaiting_higher_priority_handoff'
+    || recording.handoff_reason === 'higher_priority_recording'
+    || /higher priority/i.test(recording.handoff_reason ?? '')
+  const showPartialWarning = recording.partial_recording_warning
+    && (!prioritySpecificHandoff || isPending)
+  const nonPriorityTransition = recording.handoff_reason === 'segment_boundary_transition'
+
   return {
     label,
-    priority: recording.twitch_auth_priority,
-    handoff: recording.handoff_reason || (isPending
+    // Dormant UI field retained in the wire source only:
+    // priority: recording.twitch_auth_priority,
+    handoff: prioritySpecificHandoff
+      ? (isPending ? 'Waiting for authenticated recording capacity.' : undefined)
+      : nonPriorityTransition
+        ? 'Twitch authentication transition pending.'
+        : recording.handoff_reason || (isPending
       ? 'Waiting for authenticated recording capacity.'
       : undefined),
-    partialWarning: recording.partial_recording_warning
+    partialWarning: showPartialWarning
       ? 'A short segment-boundary gap may follow this auth handoff.'
       : undefined
   }

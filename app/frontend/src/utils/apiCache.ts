@@ -29,18 +29,18 @@ class APICache {
     
     // Return cached data if valid
     if (cached && !this.isExpired(cached) && !cached.promise) {
-      console.log(`📋 Cache HIT for ${url}`)
+      if (import.meta.env.DEV) console.debug(`📋 Cache HIT for ${url}`)
       return cached.data
     }
     
     // Return pending promise if request is in flight
     if (cached?.promise) {
-      console.log(`⏳ Request DEDUPLICATION for ${url}`)
+      if (import.meta.env.DEV) console.debug(`⏳ Request DEDUPLICATION for ${url}`)
       return cached.promise
     }
     
     // Make new request
-    console.log(`🌐 Cache MISS for ${url}, making request`)
+    if (import.meta.env.DEV) console.debug(`🌐 Cache MISS for ${url}, making request`)
     const promise = this.makeRequest(url, options)
     
     // Store pending promise to deduplicate requests

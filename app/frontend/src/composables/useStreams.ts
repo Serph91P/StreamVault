@@ -43,7 +43,7 @@ export function useStreams() {
    * Refresh streams when a recording is completed
    */
   const handleRecordingCompleted = (event: CustomEvent) => {
-    console.log('Recording completed, refreshing streams...', event.detail)
+    if (import.meta.env.DEV) console.debug('Recording completed, refreshing streams...', event.detail)
     if (currentStreamerId.value) {
       // Delay refresh slightly to ensure database is updated
       setTimeout(() => {
@@ -58,7 +58,7 @@ export function useStreams() {
    * Refresh streams when a recording becomes available (post-processing completed)
    */
   const handleRecordingAvailable = (event: CustomEvent) => {
-    console.log('Recording available, refreshing streams...', event.detail)
+    if (import.meta.env.DEV) console.debug('Recording available, refreshing streams...', event.detail)
     if (currentStreamerId.value) {
       // Refresh immediately since this is the final state
       fetchStreams(currentStreamerId.value)

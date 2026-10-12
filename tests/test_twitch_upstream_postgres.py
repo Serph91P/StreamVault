@@ -25,6 +25,7 @@ from app.models import (
     User,
 )
 from app.services.twitch_upstream_coordinator import (
+    AUTHENTICATED_TWITCH_ACCOUNT,
     TwitchUpstreamConflict,
     TwitchUpstreamCoordinator,
 )
@@ -166,3 +167,150 @@ async def test_postgres_lease_contention_renewal_expiry_and_takeover(
             takeover.generation,
             "RECOVERING",
         )
+
+
+@pytest.mark.asyncio
+async def test_postgres_priority_is_dormant_across_real_coordinator_transitions(
+    postgres_coordinator,
+) -> None:
+    """Exercise arbitration, rotation, capacity, and fencing on PostgreSQL."""
+    Session, clock, coordinator = postgres_coordinator
+    with Session() as db:
+        db.add(GlobalSettings(id=1, twitch_max_concurrent_upstreams=3))
+        db.commit()
+
+    owner = await coordinator.reserve(
+        channel_key="postgres-auth-owner",
+        auth_key=AUTHENTICATED_TWITCH_ACCOUNT,
+        purpose="RECORDING",
+        auth_priority=-1000,
+        anonymous_available=True,
+        prefer_authenticated=True,
+    )
+    owner = await coordinator.activate(
+        channel_key=owner.channel_key,
+        generation=owner.generation,
+        process_pid=1001,
+        process_group_id=1001,
+        process_started_at=clock.utcnow(),
+        process_start_fingerprint="postgres-owner-birth",
+    )
+
+    waiters = []
+    for index, (channel_key, priority) in enumerate((
+        ("postgres-older-waiter", -1000),
+        ("postgres-newer-high-waiter", 1000),
+    ), start=2):
+        clock.advance(1)
+        waiter = await coordinator.reserve(
+            channel_key=channel_key,
+            auth_key=AUTHENTICATED_TWITCH_ACCOUNT,
+            purpose="RECORDING",
+            auth_priority=priority,
+            anonymous_available=True,
+            prefer_authenticated=True,
+        )
+        assert waiter.auth_key is None
+        assert waiter.handoff_reason == "authenticated_owner_stable"
+        waiter = await coordinator.activate(
+            channel_key=waiter.channel_key,
+            generation=waiter.generation,
+            process_pid=1000 + index,
+            process_group_id=1000 + index,
+            process_started_at=clock.utcnow(),
+            process_start_fingerprint=f"postgres-waiter-{index}-birth",
+        )
+        waiters.append(waiter)
+
+    older, newer = waiters
+    updated = await coordinator.update_auth_priority(
+        channel_key=newer.channel_key,
+        generation=newer.generation,
+        priority=1000,
+    )
+    assert updated.handoff_reason == "authenticated_owner_stable"
+
+    with Session() as db:
+        persisted_owner = (
+            db.query(TwitchUpstreamLease)
+            .filter_by(channel_key=owner.channel_key)
+            .one()
+        )
+        persisted_owner.handoff_target_channel = newer.channel_key
+        persisted_owner.handoff_reason = "higher_priority_recording"
+        persisted_owner.handoff_requested_at = clock.utcnow()
+        db.commit()
+
+    with pytest.raises(LookupError, match="no authentication transition"):
+        await coordinator.begin_auth_transition(
+            channel_key=owner.channel_key,
+            generation=owner.generation,
+        )
+
+    with pytest.raises(TwitchUpstreamConflict) as capacity:
+        await coordinator.reserve(
+            channel_key="postgres-over-capacity",
+            auth_key=None,
+            purpose="LIVE",
+            owner_user_id=8,
+            live_session_id="postgres-over-capacity",
+        )
+    assert capacity.value.code == "twitch_upstream_total_budget_exhausted"
+
+    rotating = await coordinator.begin_rotation(
+        channel_key=owner.channel_key,
+        generation=owner.generation,
+    )
+    assert rotating.state == "ROTATING"
+    rotated = await coordinator.handoff_rotation(
+        channel_key=owner.channel_key,
+        generation=rotating.generation,
+        process_pid=1004,
+        process_group_id=1004,
+        process_started_at=clock.utcnow(),
+        process_start_fingerprint="postgres-owner-rotated-birth",
+        auth_key=AUTHENTICATED_TWITCH_ACCOUNT,
+    )
+    assert rotated.state == "ACTIVE"
+    assert rotated.auth_key == AUTHENTICATED_TWITCH_ACCOUNT
+    assert not await coordinator.heartbeat(
+        channel_key=owner.channel_key,
+        generation=owner.generation,
+    )
+
+    assert await coordinator.release(
+        channel_key=rotated.channel_key,
+        generation=rotated.generation,
+        reason="postgres-owner-completed",
+    )
+    with pytest.raises(LookupError, match="oldest requester"):
+        await coordinator.begin_auth_transition(
+            channel_key=newer.channel_key,
+            generation=newer.generation,
+        )
+
+    promotion = await coordinator.begin_auth_transition(
+        channel_key=older.channel_key,
+        generation=older.generation,
+    )
+    assert promotion.action == "promote"
+    promoted = await coordinator.handoff_rotation(
+        channel_key=older.channel_key,
+        generation=promotion.reservation.generation,
+        process_pid=1002,
+        process_group_id=1002,
+        process_started_at=clock.utcnow(),
+        process_start_fingerprint="postgres-older-promoted-birth",
+        auth_key=AUTHENTICATED_TWITCH_ACCOUNT,
+    )
+    assert promoted.auth_key == AUTHENTICATED_TWITCH_ACCOUNT
+    assert promoted.auth_requested is False
+    with Session() as db:
+        persisted_newer = (
+            db.query(TwitchUpstreamLease)
+            .filter_by(channel_key=newer.channel_key)
+            .one()
+        )
+        assert persisted_newer.state == "ACTIVE"
+        assert persisted_newer.auth_key is None
+        assert persisted_newer.auth_priority == 1000

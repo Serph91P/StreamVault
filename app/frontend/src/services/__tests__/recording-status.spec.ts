@@ -24,30 +24,41 @@ describe('toRecordingStatusSummary', () => {
     }))
     expect(toRecordingStatusSummary(recordings[0])).toEqual({
       label: 'Authenticated Twitch recording',
-      priority: -25,
-      handoff: 'awaiting_higher_priority_handoff',
+      handoff: 'Twitch authentication transition pending.',
       partialWarning: 'A short segment-boundary gap may follow this auth handoff.'
     })
     expect(toRecordingStatusSummary(recordings[1])).toEqual({
       label: 'Anonymous Twitch recording',
-      priority: 17,
       handoff: 'live_playback_owner_not_preemptible',
       partialWarning: undefined
     })
   })
 
-  it('keeps a negative persisted priority and explains an authenticated handoff', () => {
+  it('ignores dormant legacy priority markers when no handoff is active', () => {
     expect(toRecordingStatusSummary({
       status: 'recording',
       twitch_auth_priority: -25,
       effective_auth_mode: 'authenticated',
-      pending_handoff: true,
+      pending_handoff: false,
       handoff_reason: 'Higher priority recording is waiting for capacity',
       partial_recording_warning: true
     })).toEqual({
       label: 'Authenticated Twitch recording',
-      priority: -25,
-      handoff: 'Higher priority recording is waiting for capacity',
+      handoff: undefined,
+      partialWarning: undefined
+    })
+  })
+
+  it('keeps a real non-priority transition and its partial-media warning visible', () => {
+    expect(toRecordingStatusSummary({
+      status: 'recording',
+      effective_auth_mode: 'authenticated',
+      pending_handoff: true,
+      handoff_reason: 'authenticated_slot_transition',
+      partial_recording_warning: true
+    })).toEqual({
+      label: 'Authenticated Twitch recording',
+      handoff: 'authenticated_slot_transition',
       partialWarning: 'A short segment-boundary gap may follow this auth handoff.'
     })
   })
@@ -63,7 +74,7 @@ describe('toRecordingStatusSummary', () => {
     })
   })
 
-  it('keeps an active anonymous recording visible while explaining its blocked handoff', () => {
+  it('keeps an active anonymous recording visible while explaining its blocked auth state', () => {
     expect(toRecordingStatusSummary({
       status: 'recording',
       twitch_auth_priority: 17,
@@ -72,16 +83,16 @@ describe('toRecordingStatusSummary', () => {
       handoff_reason: 'live_playback_owner_not_preemptible'
     })).toEqual({
       label: 'Anonymous Twitch recording',
-      priority: 17,
       handoff: 'live_playback_owner_not_preemptible',
       partialWarning: undefined
     })
   })
 
   it('keeps unknown auth mode explicit when the backend does not report one', () => {
-    expect(toRecordingStatusSummary({ status: 'recording' })).toMatchObject({
+    expect(toRecordingStatusSummary({ status: 'recording' })).toEqual({
       label: 'Recording; Twitch mode unknown',
-      priority: undefined
+      handoff: undefined,
+      partialWarning: undefined
     })
   })
 })

@@ -87,7 +87,12 @@ function markAllRead(event?: Event): void {
 async function clearAllNotifications(event?: Event): Promise<void> {
   event?.preventDefault()
   event?.stopPropagation()
-  await notificationStore.clearAll()
+  errorMessage.value = ''
+  const cleared = await notificationStore.clearAll()
+  if (!cleared) {
+    errorMessage.value = 'Notifications could not be cleared. Existing local items were preserved.'
+    return
+  }
   emit('clear-all')
   emit('close-panel')
 }
@@ -98,7 +103,10 @@ async function refreshNotifications(): Promise<void> {
 
   try {
     notificationStore.load()
-    await notificationStore.syncBackendState()
+    const synchronized = await notificationStore.syncBackendState()
+    if (!synchronized) {
+      throw new Error('Notification backend state unavailable')
+    }
   } catch (error) {
     errorMessage.value = 'Notifications could not be refreshed. Existing local items are still available.'
     console.error('NotificationFeed: Failed to refresh notifications:', error)
@@ -254,8 +262,8 @@ onMounted(() => {
   justify-content: space-between;
   gap: var(--spacing-4);
   padding: var(--spacing-5);
-  border-bottom: 1px solid var(--glass-border);
-  background: var(--glass-bg-medium);
+  border-bottom: 1px solid var(--sv-cmp-panel-border);
+  background: var(--sv-cmp-overlay-background);
 }
 
 .header-content {
@@ -375,7 +383,7 @@ onMounted(() => {
   justify-content: space-between;
   gap: var(--spacing-3);
   padding: var(--spacing-3) var(--spacing-5) var(--spacing-2);
-  background: linear-gradient(180deg, var(--glass-bg-strong), rgba(15, 23, 42, 0.72));
+  background: var(--sv-cmp-overlay-background);
   color: var(--text-secondary);
 }
 

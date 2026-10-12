@@ -1,12 +1,66 @@
 import { fileURLToPath, URL } from 'node:url'
-import { defineConfig } from 'vite'
+import { defineConfig, type Plugin } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { VitePWA } from 'vite-plugin-pwa'
+
+function retryableSettingsPanelHost(): Plugin {
+  const publicPath = '/assets/settings-panel-host-loader.js'
+  const panelHostModule = fileURLToPath(new URL('./src/components/settings/SettingsPanelHost.vue', import.meta.url))
+
+  return {
+    name: 'streamvault-retryable-settings-panel-host',
+    configureServer(server) {
+      server.middlewares.use(publicPath, (_request, response) => {
+        response.statusCode = 200
+        response.setHeader('Content-Type', 'application/javascript')
+        response.setHeader('Cache-Control', 'no-store')
+        response.end(
+          'export const loadSettingsPanelHost = (attempt) => ' +
+          'import(`/src/components/settings/SettingsPanelHost.vue?retry=${encodeURIComponent(attempt)}`)'
+        )
+      })
+    },
+    generateBundle(_options, bundle) {
+      const panelHostOutput = Object.values(bundle).find(
+        output => output.type === 'chunk' && panelHostModule in output.modules,
+      )
+      if (!panelHostOutput || panelHostOutput.type !== 'chunk') {
+        this.error('SettingsPanelHost output chunk was not generated')
+      }
+      const panelHostChunk = panelHostOutput.fileName
+      const relativePanelHostChunk = panelHostChunk.replace(/^assets\//, './')
+      const panelHostCss = [...(
+        panelHostOutput as typeof panelHostOutput & {
+          viteMetadata?: { importedCss?: Set<string> }
+        }
+      ).viteMetadata?.importedCss ?? []]
+      if (panelHostCss.length === 0) {
+        this.error('SettingsPanelHost CSS output was not generated')
+      }
+      const relativePanelHostCss = panelHostCss.map(fileName => fileName.replace(/^assets\//, './'))
+
+      // The loader itself is stable and cacheable. Every call imports the real
+      // compiled panel chunk at a unique URL, so a rejected browser module-map
+      // entry cannot poison a later user retry. Because this generated import
+      // bypasses Vite's normal preload wrapper, restore the chunk's extracted
+      // CSS dependency explicitly and resolve only after it has loaded.
+      this.emitFile({
+        type: 'asset',
+        fileName: publicPath.slice(1),
+        source: `const panelUrl=${JSON.stringify(relativePanelHostChunk)},panelCssUrls=${JSON.stringify(relativePanelHostCss)};
+const loadCss=(path,attempt)=>{const url=new URL(path,import.meta.url);if([...document.styleSheets].some(({href})=>href&&new URL(href).pathname===url.pathname))return;return new Promise((resolve,reject)=>{const link=document.createElement('link');link.rel='stylesheet';link.href=url.href+'?retry='+encodeURIComponent(attempt);link.onload=()=>resolve();link.onerror=()=>{link.remove();reject(new Error('Settings panel stylesheet could not be loaded'))};document.head.append(link)})};
+export const loadSettingsPanelHost=async attempt=>{const[,panelModule]=await Promise.all([Promise.all(panelCssUrls.map(url=>loadCss(url,attempt))),import(panelUrl+'?retry='+encodeURIComponent(attempt))]);return panelModule};
+`,
+      })
+    },
+  }
+}
 
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [
     vue(),
+    retryableSettingsPanelHost(),
     VitePWA({
       registerType: 'autoUpdate',
       // Workbox globs already enumerate these public static assets. Keep the

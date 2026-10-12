@@ -64,7 +64,7 @@ export interface ActiveRecording {
   twitch_auth_priority?: number;
   effective_auth_mode?: 'authenticated' | 'anonymous' | 'unknown';
   pending_handoff?: boolean;
-  handoff_reason?: string;
+  handoff_reason?: string | null;
   partial_recording_warning?: boolean;
   // Legacy fields for backwards compatibility
   output_path?: string;

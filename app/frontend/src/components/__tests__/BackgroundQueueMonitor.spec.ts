@@ -3,17 +3,20 @@ import { defineComponent, h, nextTick } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import BackgroundQueueMonitor from '../BackgroundQueueMonitor.vue'
 
-const { forceRefreshFromAPI } = vi.hoisted(() => ({
+const { forceRefreshFromAPI, queueState } = vi.hoisted(() => ({
   forceRefreshFromAPI: vi.fn(),
+  queueState: {
+    queueStats: { __v_isRef: true as const, value: { total_tasks: 0, completed_tasks: 0, failed_tasks: 0, pending_tasks: 0 } },
+    activeTasks: { __v_isRef: true as const, value: [] as any[] },
+    recentTasks: { __v_isRef: true as const, value: [] as any[] },
+    isLoading: { __v_isRef: true as const, value: false },
+    connectionStatus: 'connected',
+  },
 }))
 
 vi.mock('@/composables/useBackgroundQueue', () => ({
   useBackgroundQueue: () => ({
-    queueStats: { value: { total_tasks: 0, completed_tasks: 0, failed_tasks: 0, pending_tasks: 0 } },
-    activeTasks: { value: [] },
-    recentTasks: { value: [] },
-    isLoading: { value: false },
-    connectionStatus: 'connected',
+    ...queueState,
     forceRefreshFromAPI,
     cancelStreamTasks: vi.fn(),
   }),
@@ -30,6 +33,12 @@ async function flushFocus() {
 
 describe('BackgroundQueueMonitor', () => {
   beforeEach(() => {
+    vi.clearAllMocks()
+    queueState.queueStats.value = { total_tasks: 0, completed_tasks: 0, failed_tasks: 0, pending_tasks: 0 }
+    queueState.activeTasks.value = []
+    queueState.recentTasks.value = []
+    queueState.isLoading.value = false
+    queueState.connectionStatus = 'connected'
     vi.spyOn(HTMLElement.prototype, 'offsetParent', 'get').mockReturnValue(document.body)
     vi.spyOn(window, 'scrollTo').mockImplementation(() => undefined)
     document.body.style.cssText = ''
@@ -72,5 +81,43 @@ describe('BackgroundQueueMonitor', () => {
     expect(new Set(ids).size).toBe(2)
     expect(new Set(titleIds).size).toBe(2)
     wrapper.unmount()
+  })
+
+  it('renders the connected empty state', async () => {
+    const wrapper = mount(BackgroundQueueMonitor, { attachTo: document.body })
+    await wrapper.get('button').trigger('click')
+    await flushFocus()
+    expect(document.body.textContent).toContain('No background tasks running')
+    wrapper.unmount()
+  })
+
+  it('renders loading, retryable disconnect, and progress states', async () => {
+    queueState.isLoading.value = true
+    const loading = mount(BackgroundQueueMonitor, { attachTo: document.body })
+    await loading.get('button').trigger('click')
+    expect(document.querySelector('[role="status"]')?.textContent).toContain('Loading background jobs')
+    loading.unmount()
+
+    queueState.isLoading.value = false
+    queueState.connectionStatus = 'error'
+    const disconnected = mount(BackgroundQueueMonitor, { attachTo: document.body })
+    await disconnected.get('button').trigger('click')
+    const alert = document.querySelector<HTMLElement>('[role="alert"]')
+    expect(alert?.textContent).toContain('updates are unavailable')
+    const refreshCallsBeforeRetry = forceRefreshFromAPI.mock.calls.length
+    alert?.querySelector<HTMLButtonElement>('button')?.click()
+    await nextTick()
+    expect(forceRefreshFromAPI).toHaveBeenCalledTimes(refreshCallsBeforeRetry + 1)
+    disconnected.unmount()
+
+    queueState.connectionStatus = 'connected'
+    queueState.activeTasks.value = [{
+      id: 'task-1', task_type: 'thumbnail', status: 'running', progress: 73,
+      started_at: '2026-10-09T12:00:00Z', payload: { streamer_name: 'Alpha' },
+    }]
+    const active = mount(BackgroundQueueMonitor, { attachTo: document.body })
+    await active.get('button').trigger('click')
+    expect(document.querySelector('.progress-text')?.textContent).toBe('73%')
+    active.unmount()
   })
 })

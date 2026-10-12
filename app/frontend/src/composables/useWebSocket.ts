@@ -1,6 +1,5 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import type { Ref } from 'vue'
-import { logDebug, logWebSocket } from '@/utils/logger'
 import router from '@/router'
 import { hasRealtimeEventType, normalizeRealtimeEventType, parseRealtimeEvent } from '@/types/events'
 import type { RealtimeEvent } from '@/types/events'
@@ -57,10 +56,10 @@ export class WebSocketManager {
     // 🎭 MOCK MODE: Check if using mock data
     const USE_MOCK_DATA = import.meta.env.VITE_USE_MOCK_DATA === 'true'
     if (USE_MOCK_DATA) {
-      console.log('🎭 Mock mode: WebSocket connections disabled')
+      if (import.meta.env.DEV) console.debug('🎭 Mock mode: WebSocket connections disabled')
     }
     
-    logDebug('WebSocketManager', `Singleton created with URL: ${this.wsUrl}`)
+    if (import.meta.env.DEV) console.debug(`WebSocket singleton created with URL: ${this.wsUrl}`)
 
     window.addEventListener('online', this.handleOnline)
     window.addEventListener('offline', this.handleOffline)
@@ -112,9 +111,9 @@ export class WebSocketManager {
   public static getInstance(): WebSocketManager {
     if (!WebSocketManager.instance) {
       WebSocketManager.instance = new WebSocketManager()
-      logDebug('WebSocketManager', 'Singleton instance created')
+      if (import.meta.env.DEV) console.debug('WebSocket singleton instance created')
     } else {
-      logDebug('WebSocketManager', 'Singleton instance reused')
+      if (import.meta.env.DEV) console.debug('WebSocket singleton instance reused')
     }
     return WebSocketManager.instance
   }
@@ -125,26 +124,26 @@ export class WebSocketManager {
     // 🎭 MOCK MODE: Skip WebSocket connection in mock mode
     const USE_MOCK_DATA = import.meta.env.VITE_USE_MOCK_DATA === 'true'
     if (USE_MOCK_DATA) {
-      console.log('🎭 Mock mode: Skipping WebSocket connection')
+      if (import.meta.env.DEV) console.debug('🎭 Mock mode: Skipping WebSocket connection')
       return
     }
     
     // Auto-connect when first subscriber joins
     if (this.subscribers.size === 1) {
-      console.log('🔌 First subscriber - connecting WebSocket')
+      if (import.meta.env.DEV) console.debug('🔌 First subscriber - connecting WebSocket')
       this.connect()
     } else {
-      console.log(`📡 Additional subscriber (${this.subscribers.size} total) - reusing existing connection`)
+      if (import.meta.env.DEV) console.debug(`📡 Additional subscriber (${this.subscribers.size} total) - reusing existing connection`)
     }
   }
 
   public unsubscribe(callback: () => void) {
     this.subscribers.delete(callback)
-    console.log(`📡 Subscriber removed (${this.subscribers.size} remaining)`)
+    if (import.meta.env.DEV) console.debug(`📡 Subscriber removed (${this.subscribers.size} remaining)`)
     
     // Auto-disconnect when last subscriber leaves
     if (this.subscribers.size === 0) {
-      console.log('🔌 Last subscriber gone - disconnecting WebSocket')
+      if (import.meta.env.DEV) console.debug('🔌 Last subscriber gone - disconnecting WebSocket')
       this.disconnect()
     }
   }
@@ -196,13 +195,13 @@ export class WebSocketManager {
     // soon as authenticated navigation reaches a protected route.
     const path = window.location.pathname
     if (this.authRouteBlocked || this.isAuthRoute(path)) {
-      console.log('⏭️ Skipping WebSocket connection on auth page')
+      if (import.meta.env.DEV) console.debug('⏭️ Skipping WebSocket connection on auth page')
       return
     }
 
     // Prevent multiple connections
     if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) {
-      console.log('⚠️ WebSocket already connected or connecting, skipping')
+      if (import.meta.env.DEV) console.debug('⚠️ WebSocket already connected or connecting, skipping')
       return
     }
 
@@ -211,7 +210,7 @@ export class WebSocketManager {
       this.ws.close()
     }
 
-    console.log('🔌 Creating single WebSocket connection for entire app')
+    if (import.meta.env.DEV) console.debug('🔌 Creating single WebSocket connection for entire app')
     this.connectionStatus.value = 'connecting'
     const socket = new WebSocket(this.wsUrl)
     const queuedLiveEvents: RealtimeEvent<string>[] = []
@@ -219,7 +218,7 @@ export class WebSocketManager {
     this.ws = socket
 
     socket.onopen = () => {
-      logWebSocket('WebSocketManager', 'connected', 'WebSocket connected successfully')
+      if (import.meta.env.DEV) console.debug('WebSocket connected successfully')
       this.reconnectAttempts = 0
       this.reconnectAttempt.value = 0
 
@@ -260,7 +259,7 @@ export class WebSocketManager {
     }
 
     socket.onclose = (event) => {
-      console.log('🔌 WebSocket disconnected:', event.reason)
+      if (import.meta.env.DEV) console.debug('🔌 WebSocket disconnected:', event.reason)
       if (this.ws !== socket) {
         return
       }
@@ -298,7 +297,7 @@ export class WebSocketManager {
     }
     
     this.connectionStatus.value = 'disconnected'
-    console.log('🔌 WebSocket disconnected')
+    if (import.meta.env.DEV) console.debug('🔌 WebSocket disconnected')
   }
 
   private attemptReconnect() {
@@ -315,7 +314,7 @@ export class WebSocketManager {
       this.reconnectTimer = window.setTimeout(() => {
         this.reconnectTimer = null
         if (this.subscribers.size > 0) {
-          console.log('🔄 Resetting retry counter after cooldown period')
+          if (import.meta.env.DEV) console.debug('🔄 Resetting retry counter after cooldown period')
           this.reconnectAttempts = 0
           this.reconnectAttempt.value = 0
           this.connectionStatus.value = 'disconnected'
@@ -333,7 +332,7 @@ export class WebSocketManager {
     const jitter = Math.random() * 0.3 * baseDelay  // Add 0-30% jitter
     const delay = Math.min(baseDelay + jitter, 30000)
     
-    console.log(`🔄 Reconnecting in ${Math.round(delay)}ms (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`)
+    if (import.meta.env.DEV) console.debug(`🔄 Reconnecting in ${Math.round(delay)}ms (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`)
     
     this.reconnectTimer = window.setTimeout(() => {
       this.reconnectTimer = null
@@ -399,8 +398,17 @@ export class WebSocketManager {
   }
 
   private dispatchMessage(message: RealtimeEvent<string>) {
+    if (
+      typeof message.event_id === 'number'
+      && Number.isFinite(message.event_id)
+      && message.event_id <= this.lastEventId
+    ) {
+      if (import.meta.env.DEV) console.debug(`Skipping stale WebSocket event: ${message.type}`)
+      return
+    }
+
     if (this.isDuplicateMessage(message)) {
-      logDebug('WebSocketManager', `Skipping duplicate WebSocket event: ${message.type}`)
+      if (import.meta.env.DEV) console.debug(`Skipping duplicate WebSocket event: ${message.type}`)
       return
     }
 
@@ -415,7 +423,7 @@ export class WebSocketManager {
       const realIp = message.data.real_ip
       const isProxied = message.data.is_reverse_proxied
       const proxyInfo = isProxied ? ' (via reverse proxy)' : ''
-      console.log(`🆔 WebSocket connection ID: ${this.connectionId} - Real IP: ${realIp}${proxyInfo}`)
+      if (import.meta.env.DEV) console.debug(`🆔 WebSocket connection ID: ${this.connectionId} - Real IP: ${realIp}${proxyInfo}`)
     }
 
     // Keep only last 100 messages to prevent memory leaks
@@ -497,12 +505,12 @@ export function useWebSocket() {
   }
   
   onMounted(() => {
-    console.log(`📱 Component ${componentId} subscribing to WebSocket`)
+    if (import.meta.env.DEV) console.debug(`📱 Component ${componentId} subscribing to WebSocket`)
     manager.subscribe(componentCallback)
   })
   
   onUnmounted(() => {
-    console.log(`📱 Component ${componentId} unsubscribing from WebSocket`)
+    if (import.meta.env.DEV) console.debug(`📱 Component ${componentId} unsubscribing from WebSocket`)
     manager.unsubscribe(componentCallback)
   })
   

@@ -63,6 +63,19 @@ async function expectDialogLifecycle(page: Page, trigger: Locator) {
     await expect(dialog.getByText('Recording ready', { exact: true })).toBeVisible()
   }
 
+  const isQueueDialog = Boolean(await dialog.getByRole('heading', { name: 'Background Queue' }).count())
+  if (isQueueDialog) {
+    const queueLoading = dialog.getByText('Loading background jobs…', { exact: true })
+    await expect(dialog.getByText('Background queue updates are unavailable.', { exact: true })).toBeVisible()
+    await dialog.getByRole('button', { name: 'Retry' }).click()
+    await expect(queueLoading).toBeVisible()
+
+    // Retry deliberately changes the tabbable set from Close-only to Close + Retry.
+    // Capture strict boundaries only after that existing mock response has settled.
+    await expect(queueLoading).toBeHidden()
+    await expect(dialog.getByText('Background queue updates are unavailable.', { exact: true })).toBeVisible()
+  }
+
   // Once the async content is present, snapshot the actual boundary elements and
   // prove both wrap directions rather than comparing against mutable locators.
   const boundaryElements = await controls.elementHandles()
@@ -70,13 +83,32 @@ async function expectDialogLifecycle(page: Page, trigger: Locator) {
   const firstBoundary = boundaryElements[0]!
   const lastBoundary = boundaryElements.at(-1)!
 
+  const boundaryState = async () => firstBoundary.evaluate((first, last) => {
+    const active = document.activeElement
+    const label = (node: Node | null) => node instanceof Element
+      ? node.getAttribute('aria-label') || node.textContent?.trim() || null
+      : null
+    return {
+      first: label(first),
+      last: label(last),
+      active: label(active),
+      firstConnected: first.isConnected,
+      lastConnected: last.isConnected,
+      sameBoundary: first === last,
+      activeIsFirst: active === first,
+      activeIsLast: active === last,
+    }
+  }, lastBoundary)
+
   await lastBoundary.focus()
   await page.keyboard.press('Tab')
-  expect(await firstBoundary.evaluate(element => element === document.activeElement)).toBe(true)
+  const forwardState = await boundaryState()
+  expect(forwardState.activeIsFirst, JSON.stringify(forwardState)).toBe(true)
 
   await firstBoundary.focus()
   await page.keyboard.press('Shift+Tab')
-  expect(await lastBoundary.evaluate(element => element === document.activeElement)).toBe(true)
+  const backwardState = await boundaryState()
+  expect(backwardState.activeIsLast, JSON.stringify(backwardState)).toBe(true)
 
   await page.keyboard.press('Escape')
   await expect(dialog).toBeHidden()

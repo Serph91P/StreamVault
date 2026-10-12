@@ -103,3 +103,35 @@ def test_authenticated_stored_media_unsatisfied_range_has_content_range(
     )
     assert unsatisfied.status_code == 416
     assert unsatisfied.headers["content-range"] == f"bytes */{file_size}"
+
+
+def test_public_share_token_seek_and_expiry_keep_media_contract_fail_closed(
+    stored_media_client, monkeypatch
+):
+    """Public links use synthetic file bytes, preserve seek headers, and fail closed."""
+    from app.routes import videos
+
+    client, file_size = stored_media_client
+    monkeypatch.setattr(videos, "validate_share_token", lambda token: 1 if token == "valid" else None)
+
+    async def invalid_legacy_session(_self, _token):
+        return False
+
+    monkeypatch.setattr(videos.AuthService, "validate_session", invalid_legacy_session)
+
+    seek = client.get(
+        "/api/videos/public/1?token=valid",
+        headers={"Range": "bytes=4-8"},
+    )
+    unsatisfied = client.get(
+        "/api/videos/public/1?token=valid",
+        headers={"Range": "bytes=999999999-"},
+    )
+    expired = client.get("/api/videos/public/1?token=expired")
+
+    assert seek.status_code == 206
+    assert seek.headers["content-range"] == f"bytes 4-8/{file_size}"
+    assert seek.content == b"hetic"
+    assert unsatisfied.status_code == 416
+    assert unsatisfied.headers["content-range"] == f"bytes */{file_size}"
+    assert expired.status_code == 401

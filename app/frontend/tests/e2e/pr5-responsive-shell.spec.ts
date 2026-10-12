@@ -388,6 +388,7 @@ for (const snapshot of snapshots) {
     }
     if (snapshot.route === '/settings') {
       await expect(page.getByRole('heading', { name: 'Twitch Connection', exact: true }).first()).toBeVisible()
+      await expect(page.getByLabel('Twitch OAuth token')).toBeVisible()
     }
     if (snapshot.route.startsWith('/onboarding')) {
       await expect(page.getByRole('heading', { name: 'Recording Defaults' })).toBeVisible()

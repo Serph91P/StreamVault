@@ -82,6 +82,14 @@ html, body {
   overscroll-behavior-x: none;
 }
 
+// Keep programmatic focus/scroll targets clear of the fixed mobile navigation.
+// The document remains the sole scroll owner.
+@include m.respond-below('md') {
+  html {
+    scroll-padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px));
+  }
+}
+
 // Vue mount root. Use overflow-x: clip so transformed/sticky descendants
 // (modals, drawers, decorations using 100vw) cannot create a horizontal
 // scrollbar. `clip` is preferred over `hidden` because it does not create

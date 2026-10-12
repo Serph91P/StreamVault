@@ -262,15 +262,9 @@ watch(() => props.showShell, (showShell) => {
   box-sizing: border-box;
   display: block;
   z-index: 1100;
-  background: var(--glass-bg-strong);
-  backdrop-filter: blur(var(--glass-blur-lg));
-  -webkit-backdrop-filter: blur(var(--glass-blur-lg));
-  border-bottom: 1px solid var(--glass-border);
-  box-shadow: var(--glass-shadow-sm);
-
-  @supports not (backdrop-filter: blur(1px)) {
-    background: var(--glass-bg-solid);
-  }
+  background: var(--sv-cmp-panel-background);
+  border-bottom: 1px solid var(--sv-cmp-panel-border);
+  box-shadow: none;
 }
 
 .app-header .header-content {
@@ -515,11 +509,10 @@ watch(() => props.showShell, (showShell) => {
   padding: var(--spacing-3) var(--spacing-4);
   border: 1px solid var(--glass-border-hover);
   border-radius: var(--radius-xl);
-  background: var(--glass-bg-strong);
+  background: var(--sv-cmp-overlay-background);
   color: var(--text-primary);
   box-shadow: var(--glass-shadow-md);
-  backdrop-filter: blur(var(--glass-blur-lg));
-  -webkit-backdrop-filter: blur(var(--glass-blur-lg));
+
 }
 
 .connectivity-banner--danger {

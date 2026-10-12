@@ -2,8 +2,8 @@ import { createHash } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { readdir, readFile, rm } from 'node:fs/promises'
 import { join, relative } from 'node:path'
-import { spawnSync } from 'node:child_process'
 import { checkPrecacheIntegrity } from './check-precache-integrity.mjs'
+import { buildVerifiedArtifact } from './build-artifact-provenance.mjs'
 
 const root = process.cwd()
 const dist = join(root, 'dist')
@@ -26,15 +26,7 @@ async function manifest(directory) {
 
 async function build(number) {
   await rm(dist, { recursive: true, force: true })
-  const result = spawnSync('npm', ['run', 'build'], {
-    cwd: root,
-    env: { ...process.env, VITE_USE_MOCK_DATA: 'true' },
-    stdio: 'inherit',
-  })
-
-  if (result.status !== 0) {
-    throw new Error(`Production build ${number} failed with exit code ${result.status}`)
-  }
+  await buildVerifiedArtifact(root, 'mock')
 
   const emittedSource = join(dist, 'src')
   if (existsSync(emittedSource)) {

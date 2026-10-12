@@ -282,10 +282,13 @@ async def get_all_streamer_recording_settings():
 
 def _is_pending_auth_handoff(upstream_lease) -> bool:
     """Distinguish queued transitions from durable blocked/failure reasons."""
+    if upstream_lease.handoff_reason in {
+        "higher_priority_recording",
+        "awaiting_higher_priority_handoff",
+    }:
+        return False
     return bool(
-        upstream_lease.state == "ROTATING"
-        or upstream_lease.handoff_target_channel
-        or upstream_lease.handoff_reason == "awaiting_higher_priority_handoff"
+        upstream_lease.state == "ROTATING" or upstream_lease.handoff_target_channel
     )
 
 
@@ -590,15 +593,20 @@ async def update_streamer_recording_settings(
                     streamer_id,
                 )
 
-        old_priority = streamer_settings.twitch_auth_priority
-        streamer_settings.twitch_auth_priority = settings.twitch_auth_priority
-        if old_priority != settings.twitch_auth_priority:
-            logging_service.log_configuration_change(
-                "twitch_auth_priority",
-                str(old_priority),
-                str(settings.twitch_auth_priority),
-                streamer_id,
-            )
+        if hasattr(settings, "model_fields_set"):
+            provided_fields = settings.model_fields_set
+        else:
+            provided_fields = settings.__fields_set__
+        if "twitch_auth_priority" in provided_fields:
+            old_priority = streamer_settings.twitch_auth_priority
+            streamer_settings.twitch_auth_priority = settings.twitch_auth_priority
+            if old_priority != settings.twitch_auth_priority:
+                logging_service.log_configuration_change(
+                    "twitch_auth_priority",
+                    str(old_priority),
+                    str(settings.twitch_auth_priority),
+                    streamer_id,
+                )
 
         # Log the enabled/disabled change
         if old_enabled != settings.enabled:

@@ -343,7 +343,7 @@ export type { ApiRequestErrorCode } from './api-real'
 // ============================================================================
 
 if (import.meta.env.DEV) {
-  console.log(USE_MOCK_DATA ? '🎭 Using MOCK API for all endpoints' : '🌐 Using REAL API for all endpoints')
+  if (import.meta.env.DEV) console.debug(USE_MOCK_DATA ? '🎭 Using MOCK API for all endpoints' : '🌐 Using REAL API for all endpoints')
 }
 
 export const streamersApi = USE_MOCK_DATA ? mockStreamersApi : realApi.streamersApi

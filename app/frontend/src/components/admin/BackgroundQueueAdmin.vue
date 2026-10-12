@@ -179,7 +179,7 @@ export default {
         })
         if (response.ok) {
           status.value = await response.json()
-          console.log('Background queue status refreshed:', status.value)
+          if (import.meta.env.DEV) console.debug('Background queue status refreshed:', status.value)
         } else {
           throw new Error('Failed to fetch status')
         }
@@ -207,7 +207,7 @@ export default {
         if (response.ok) {
           const result = await response.json()
           lastResult.value = result
-          console.log(`${actionName} completed:`, result)
+          if (import.meta.env.DEV) console.debug(`${actionName} completed:`, result)
           
           // Refresh status after successful cleanup
           setTimeout(() => {

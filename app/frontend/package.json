@@ -16,7 +16,7 @@
     "test:precache-integrity": "node scripts/check-precache-integrity.mjs",
     "test:ux06-loading": "node scripts/check-ux06-loading.mjs",
     "test:output-budgets": "node scripts/check-output-budgets.mjs --budget scripts/build-output-budgets.json",
-    "test:foundation-gates": "vitest run scripts/__tests__/foundation-gates.spec.ts scripts/__tests__/output-budgets.spec.ts tests/unit/gateEvidence.spec.ts src/components/base/__tests__",
+    "test:foundation-gates": "vitest run scripts/__tests__/foundation-gates.spec.ts scripts/__tests__/build-artifact-provenance.spec.ts scripts/__tests__/output-budgets.spec.ts tests/unit/gateEvidence.spec.ts src/components/base/__tests__",
     "test:foundation-browser": "playwright test --config tests/fixtures/foundation.playwright.config.ts",
     "test:foundation-capture-integration": "node scripts/test-foundation-evidence-flow.mjs",
     "capture:foundation-evidence": "node scripts/package-foundation-evidence.mjs",

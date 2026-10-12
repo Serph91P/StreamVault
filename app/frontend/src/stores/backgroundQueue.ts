@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { useRealtimeStore } from '@/stores/realtime'
 import { backgroundQueueApi } from '@/services/api'
-import { logDebug, logError } from '@/utils/logger'
+import { logError } from '@/utils/logger'
 
 export interface BackgroundQueueTask {
   id: string
@@ -82,7 +82,7 @@ export const useBackgroundQueueStore = defineStore('backgroundQueue', () => {
   }
 
   function applyTaskStatusUpdate(taskData: BackgroundQueueTask): void {
-    logDebug('useBackgroundQueue', `Task status update for ${taskData.id}: ${taskData.status}`)
+    if (import.meta.env.DEV) console.debug('useBackgroundQueue', `Task status update for ${taskData.id}: ${taskData.status}`)
     const existingIndex = activeTasks.value.findIndex((task) => task.id === taskData.id)
     if (existingIndex >= 0) {
       activeTasks.value[existingIndex] = taskData
@@ -100,7 +100,7 @@ export const useBackgroundQueueStore = defineStore('backgroundQueue', () => {
   }
 
   function applyTaskProgressUpdate(taskId: string, progress: number): void {
-    logDebug('useBackgroundQueue', `Progress update for ${taskId}: ${progress}%`)
+    if (import.meta.env.DEV) console.debug('useBackgroundQueue', `Progress update for ${taskId}: ${progress}%`)
     const task = activeTasks.value.find((task) => task.id === taskId)
     if (task) {
       task.progress = progress
@@ -113,7 +113,7 @@ export const useBackgroundQueueStore = defineStore('backgroundQueue', () => {
       const realtime = useRealtimeStore()
       realtimeUnsubs = [
         realtime.onEvent('background_queue_update', (event) => {
-          logDebug('useBackgroundQueue', 'Updating background queue from WebSocket data')
+          if (import.meta.env.DEV) console.debug('useBackgroundQueue', 'Updating background queue from WebSocket data')
           if (event.data.stats) {
             setQueueStats(event.data.stats)
           }
@@ -126,7 +126,7 @@ export const useBackgroundQueueStore = defineStore('backgroundQueue', () => {
         }),
         realtime.onEvent('queue_stats_update', (event) => {
           setQueueStats(event.data)
-          logDebug('useBackgroundQueue', 'Updated queue stats only')
+          if (import.meta.env.DEV) console.debug('useBackgroundQueue', 'Updated queue stats only')
         }),
         realtime.onEvent('task_status_update', (event) => {
           applyTaskStatusUpdate(event.data)
@@ -148,7 +148,7 @@ export const useBackgroundQueueStore = defineStore('backgroundQueue', () => {
   }
 
   async function forceRefreshFromAPI(): Promise<void> {
-    logDebug('useBackgroundQueue', 'FORCE REFRESH: Using API as fallback')
+    if (import.meta.env.DEV) console.debug('useBackgroundQueue', 'FORCE REFRESH: Using API as fallback')
     isLoading.value = true
     error.value = null
 
@@ -162,7 +162,7 @@ export const useBackgroundQueueStore = defineStore('backgroundQueue', () => {
       setQueueStats(stats)
       setActiveTasks(active)
       setRecentTasks(recent)
-      logDebug('useBackgroundQueue', 'FORCE REFRESH: API data loaded as fallback')
+      if (import.meta.env.DEV) console.debug('useBackgroundQueue', 'FORCE REFRESH: API data loaded as fallback')
     } catch (err) {
       error.value = err instanceof Error ? err.message : String(err)
       logError('useBackgroundQueue', 'FORCE REFRESH: API fallback failed', err)
@@ -175,7 +175,7 @@ export const useBackgroundQueueStore = defineStore('backgroundQueue', () => {
     try {
       error.value = null
       await backgroundQueueApi.cancelStreamTasks(streamId)
-      logDebug('useBackgroundQueue', 'Stream tasks cancelled, waiting for WebSocket update')
+      if (import.meta.env.DEV) console.debug('useBackgroundQueue', 'Stream tasks cancelled, waiting for WebSocket update')
     } catch (err) {
       error.value = err instanceof Error ? err.message : String(err)
       logError('useBackgroundQueue', 'Failed to cancel stream tasks', err)
@@ -184,9 +184,9 @@ export const useBackgroundQueueStore = defineStore('backgroundQueue', () => {
 
   async function hydrateWhenDisconnected(): Promise<void> {
     const realtime = useRealtimeStore()
-    logDebug('useBackgroundQueue', 'Background Queue: Waiting for WebSocket data')
+    if (import.meta.env.DEV) console.debug('useBackgroundQueue', 'Background Queue: Waiting for WebSocket data')
     if (realtime.connectionStatus !== 'connected') {
-      logDebug('useBackgroundQueue', 'WebSocket not connected yet, using API fallback for initial load')
+      if (import.meta.env.DEV) console.debug('useBackgroundQueue', 'WebSocket not connected yet, using API fallback for initial load')
       await forceRefreshFromAPI()
     }
   }

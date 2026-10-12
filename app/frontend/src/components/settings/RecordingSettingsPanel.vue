@@ -170,12 +170,11 @@
             <div><strong>Duration:</strong> {{ formatDuration(recording.duration) }}</div>
             <div><strong>Status:</strong> {{ recording.status }}</div>
             <div><strong>Twitch mode:</strong> {{ recording.effective_auth_mode || 'unknown' }}</div>
-            <div><strong>Auth priority:</strong> {{ recording.twitch_auth_priority ?? 0 }}</div>
-            <div v-if="recording.pending_handoff" class="warning-message">
-              Auth handoff pending<span v-if="recording.handoff_reason">: {{ recording.handoff_reason }}</span>
+            <div v-if="recordingStatus(recording).handoff" class="warning-message">
+              {{ recordingStatus(recording).handoff }}
             </div>
-            <div v-if="recording.partial_recording_warning" class="warning-message">
-              Recording may contain a short segment-boundary gap after the auth handoff.
+            <div v-if="recordingStatus(recording).partialWarning" class="warning-message">
+              {{ recordingStatus(recording).partialWarning }}
             </div>
             <div class="output-path"><strong>Output:</strong> {{ recording.file_path || recording.output_path }}</div>
           </div>
@@ -229,17 +228,10 @@
                     </span>
                   </span>
                 </th>
-                <th>
-                  <span class="th-content">
-                    Auth priority
-                    <span class="th-tooltip-wrapper">
-                      <svg class="info-icon"><use href="#icon-info" /></svg>
-                      <span class="tooltip-wrapper">
-                        <span class="tooltip">Higher values win the authenticated Twitch slot. Range: -1000 to 1000; equal priority keeps the current owner.</span>
-                      </span>
-                    </span>
-                  </span>
-                </th>
+                <!-- Dormant Twitch-auth priority control retained for a future
+                     product decision; intentionally not rendered:
+                <th>Auth priority</th>
+                -->
                 <th>
                   <span class="th-content">
                     Custom Filename
@@ -291,19 +283,13 @@
                     </option>
                   </select>
                 </td>
+                <!-- Former compatibility-only editor (intentionally inactive):
                 <td data-label="Auth priority">
-                  <input
-                    type="number"
-                    v-model.number="streamer.twitch_auth_priority"
-                    min="-1000"
-                    max="1000"
-                    step="1"
-                    class="form-control form-control-sm"
-                    :aria-label="`Twitch authentication priority for ${streamer.username || 'streamer'}`"
-                    @change="updateStreamerSetting(streamer.streamer_id, { twitch_auth_priority: streamer.twitch_auth_priority })"
-                  />
-                  <small>-1000 to 1000</small>
+                  <input type="number" :value="streamer.twitch_auth_priority ?? 0"
+                    min="-1000" max="1000" step="1"
+                    @change="updateTwitchAuthPriority(streamer, $event)" />
                 </td>
+                -->
                 <td data-label="Custom Filename">
                   <input type="text" v-model="streamer.custom_filename"
                     @change="updateStreamerSetting(streamer.streamer_id, { custom_filename: streamer.custom_filename })"
@@ -355,15 +341,16 @@ import { ref, watch, nextTick } from 'vue';
 import { useRecordingSettings } from '@/composables/useRecordingSettings';
 import { useFilenamePresets } from '@/composables/useFilenamePresets';
 import { useToast } from '@/composables/useToast';
+import { toRecordingStatusSummary } from '@/services/recording-status';
 import { QUALITY_OPTIONS, FILENAME_VARIABLES } from '@/types/recording';
-import type { RecordingSettings, StreamerRecordingSettings } from '@/types/recording';
+import type { ActiveRecording, RecordingSettings, StreamerRecordingSettings } from '@/types/recording';
 import CleanupPolicyEditor from '@/components/CleanupPolicyEditor.vue';
 import BaseModal from '@/components/base/BaseModal.vue';
 
 const props = withDefaults(defineProps<{
   settings: RecordingSettings | null;
   streamerSettings: StreamerRecordingSettings[];
-  activeRecordings: any[];
+  activeRecordings: ActiveRecording[];
   /** Which settings page this instance renders: recording quality/behavior
    *  or the storage/cleanup half. Each is its own sidebar section now -
    *  the old in-panel tab bar is gone. */
@@ -486,6 +473,21 @@ const updateStreamerSetting = (streamerId: number, settings: Partial<StreamerRec
   emits('updateStreamer', streamerId, settings);
 };
 
+/* Dormant UI mutation path retained while Twitch-auth priority is disabled:
+const updateTwitchAuthPriority = (
+  streamer: StreamerRecordingSettings,
+  event: Event
+) => {
+  const input = event.target as HTMLInputElement;
+  const rawPriority = input.value.trim();
+  const priority = Number(rawPriority);
+  if (!rawPriority || !Number.isInteger(priority) || priority < -1000 || priority > 1000) {
+    input.value = String(streamer.twitch_auth_priority ?? 0);
+    return;
+  }
+  updateStreamerSetting(streamer.streamer_id, { twitch_auth_priority: priority });
+};
+*/
 const toggleAllStreamers = async (enabled: boolean) => {
   if (!props.streamerSettings) return;
 
@@ -500,8 +502,12 @@ const stopRecording = (streamerId: number) => {
 };
 
 const isActiveRecording = (streamerId: number): boolean => {
-  return props.activeRecordings.some((rec: any) => rec.streamer_id === streamerId);
+  return props.activeRecordings.some((rec) => rec.streamer_id === streamerId);
 };
+
+const recordingStatus = (recording: ActiveRecording) => (
+  toRecordingStatusSummary(recording)
+);
 
 const formatDate = (date: string) => {
   return new Date(date).toLocaleString();

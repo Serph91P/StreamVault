@@ -1,10 +1,13 @@
 <template>
-  <GlassCard
+  <SurfaceCard
     :variant="variant"
     :elevated="elevated"
-    :gradient="showGradient"
-    :gradient-colors="gradientColors"
+    :padding="false"
     class="status-card"
+    :class="[
+      { 'status-card-accent': showGradient },
+      `status-card-accent-${type}`
+    ]"
   >
     <div class="status-card-content">
       <!-- Icon -->
@@ -50,12 +53,12 @@
       </div>
       <div class="progress-text">{{ progress }}%</div>
     </div>
-  </GlassCard>
+  </SurfaceCard>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import GlassCard from './GlassCard.vue'
+import SurfaceCard from './SurfaceCard.vue'
 
 export type StatusType = 'primary' | 'success' | 'danger' | 'warning' | 'info'
 
@@ -125,19 +128,6 @@ const trendText = computed(() => {
   return `${sign} ${props.trend}`
 })
 
-const gradientColors = computed((): [string, string] => {
-  // Use CSS custom properties for theme-aware gradients
-  // All gradients now use design system variables
-  const colors = {
-    primary: ['var(--primary-color)', 'var(--accent-color)'],
-    success: ['var(--success-color)', 'var(--success-color-dark)'],
-    danger: ['var(--danger-color)', 'var(--danger-color-dark)'],
-    warning: ['var(--warning-color)', 'var(--warning-color-dark)'],
-    info: ['var(--info-color)', 'var(--info-color-dark)']
-  }
-  return colors[props.type] as [string, string]
-})
-
 const handleAction = () => {
   emit('action')
 }
@@ -150,8 +140,22 @@ const handleAction = () => {
 
 
 .status-card {
+  &.status-card-accent::before {
+    position: absolute;
+    inset: 0 0 auto;
+    height: 3px;
+    background: var(--status-card-accent);
+    content: '';
+  }
+
+  &.status-card-accent-primary { --status-card-accent: var(--primary-color); }
+  &.status-card-accent-success { --status-card-accent: var(--success-color); }
+  &.status-card-accent-danger { --status-card-accent: var(--danger-color); }
+  &.status-card-accent-warning { --status-card-accent: var(--warning-color); }
+  &.status-card-accent-info { --status-card-accent: var(--info-color); }
+
   // Card specific overrides
-  :deep(.glass-card-content) {
+  :deep(.surface-card-body) {
     padding: var(--spacing-5); // 20px
   }
   

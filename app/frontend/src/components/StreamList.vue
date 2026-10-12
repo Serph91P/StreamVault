@@ -760,7 +760,7 @@ const deleteStream = async () => {
     
     const response = await streamsApi.delete(Number(streamToDelete.value.id))
     
-    console.log('Stream deleted successfully:', response)
+    if (import.meta.env.DEV) console.debug('Stream deleted successfully:', response)
     
     // Remove from local state
   const index = streams.value.findIndex((s: Stream) => s.id === streamToDelete.value!.id)
@@ -814,7 +814,7 @@ const deleteAllStreams = async () => {
     
   const response = await streamersApi.deleteAllStreams(Number(streamerId.value), { excludeActive: true })
     
-    console.log('All streams deleted successfully:', response)
+    if (import.meta.env.DEV) console.debug('All streams deleted successfully:', response)
     
     // Clear local state
     streams.value = []
@@ -851,7 +851,7 @@ const forceStopRecording = async (stream: Stream) => {
   // Use streamerId to stop recording (API handles finding the active recording)
   const response = await recordingApi.stopRecording(streamerId)
     
-    console.log('Force stop recording successful:', response)
+    if (import.meta.env.DEV) console.debug('Force stop recording successful:', response)
     
     // Update local state immediately
     localRecordingState.value[stream.id] = false

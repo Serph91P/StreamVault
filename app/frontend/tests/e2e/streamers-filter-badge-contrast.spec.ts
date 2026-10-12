@@ -112,6 +112,40 @@ for (const theme of ['dark', 'light'] as const) {
     expect(result.violations.filter(rule => rule.id === 'color-contrast')).toEqual([])
     expect(result.incomplete.filter(rule => rule.id === 'color-contrast')).toEqual([])
   })
+
+  test(`streamer VOD metadata passes contrast on subtle cards in ${theme} theme`, async ({ page }, testInfo) => {
+    await openStreamers(page, theme)
+    const vodLabels = page.locator('.streamer-stats > .stat-vods > span')
+    await expect(vodLabels.first()).toBeVisible()
+    await page.addScriptTag({ content: axe.source })
+
+    const axeResult = await page.evaluate(async () => (
+      (window as typeof window & { axe: typeof axe }).axe.run(document, {
+        runOnly: { type: 'rule', values: ['color-contrast'] },
+      })
+    ))
+    const evidence = await vodLabels.evaluateAll((nodes) => nodes.map((node) => {
+      const card = node.closest('.surface-card')
+      if (!card) throw new Error('VOD metadata must remain inside its semantic card surface')
+      return {
+        label: node.textContent?.trim(),
+        foreground: getComputedStyle(node).color,
+        background: getComputedStyle(card).backgroundColor,
+      }
+    }))
+
+    const ratios = evidence.map(({ foreground, background }) => (
+      contrastRatio(parseRgb(foreground).channels, parseRgb(background).channels)
+    ))
+    const violations = axeResult.violations.filter(rule => rule.id === 'color-contrast')
+    const incomplete = axeResult.incomplete.filter(rule => rule.id === 'color-contrast')
+    console.log(`AXE_STREAMER_VOD_METADATA ${JSON.stringify({ theme, project: testInfo.project.name, evidence, ratios, violations, incomplete })}`)
+
+    expect(evidence.length).toBeGreaterThan(0)
+    expect(violations).toEqual([])
+    expect(incomplete).toEqual([])
+    expect(Math.min(...ratios)).toBeGreaterThanOrEqual(4.5)
+  })
 }
 
 test('negative control reports a serious color-contrast violation', async ({ page }) => {

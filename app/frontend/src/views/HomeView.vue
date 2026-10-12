@@ -129,10 +129,13 @@
                 <p>{{ recording.summary.label }}</p>
               </div>
               <dl>
+                <!-- Dormant Twitch-auth priority display retained for a future
+                     product decision:
                 <div v-if="recording.summary.priority !== undefined">
                   <dt>Priority</dt>
                   <dd>{{ recording.summary.priority }}</dd>
                 </div>
+                -->
                 <div v-if="recording.summary.handoff">
                   <dt>Handoff</dt>
                   <dd>{{ recording.summary.handoff }}</dd>

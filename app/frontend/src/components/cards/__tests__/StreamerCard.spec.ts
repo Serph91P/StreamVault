@@ -141,4 +141,11 @@ describe('StreamerCard touch and navigation behavior', () => {
     expect(streamerCardSource).toMatch(/\.streamer-card\s*\{[\s\S]*?touch-action:\s*pan-y;/)
     expect(streamerCardSource).not.toMatch(/\.streamer-card-content\s*\{[^}]*cursor:\s*pointer;/)
   })
+
+  it('uses the opaque semantic surface primitive for recording status contrast', () => {
+    expect(streamerCardSource).toContain("import SurfaceCard from './SurfaceCard.vue'")
+    expect(streamerCardSource).toContain('<SurfaceCard')
+    expect(streamerCardSource).not.toContain("import GlassCard from './GlassCard.vue'")
+    expect(streamerCardSource).not.toContain('<GlassCard')
+  })
 })
