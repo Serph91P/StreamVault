@@ -80,7 +80,7 @@ describe('VideoPlayer automatic chapters', () => {
     expect(video.currentTime).toBe(120)
 
     await wrapper.get('.chapters-button').trigger('click')
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
     await flushPromises()
     expect(wrapper.find('.chapter-overlay').exists()).toBe(false)
 

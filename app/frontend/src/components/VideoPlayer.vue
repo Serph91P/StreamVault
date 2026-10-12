@@ -576,13 +576,6 @@ const toggleChapterUI = async () => {
   }
 }
 
-const onChapterOverlayKeydown = (event: KeyboardEvent) => {
-  if (event.key === 'Escape' && showChapterUI.value) {
-    event.preventDefault()
-    closeChapterUI()
-  }
-}
-
 // Chapter loading
 const loadChapters = async () => {
   // First, check if we have pre-loaded chapters from props
@@ -825,6 +818,12 @@ watch(currentChapterIndex, (newIndex, oldIndex) => {
 const onKeyDown = (event: KeyboardEvent) => {
   if (!videoElement.value) return
 
+  if (event.key === 'Escape' && showChapterUI.value) {
+    event.preventDefault()
+    closeChapterUI()
+    return
+  }
+
   switch (event.key) {
     case 'ArrowLeft':
       if (event.ctrlKey || event.metaKey) {
@@ -849,7 +848,6 @@ const onKeyDown = (event: KeyboardEvent) => {
 }
 
 onMounted(() => {
-  window.addEventListener('keydown', onChapterOverlayKeydown)
   loadChapters()
   document.addEventListener('keydown', onKeyDown)
 
@@ -862,7 +860,6 @@ const onFullscreenChange = () => {
 }
 
 onUnmounted(() => {
-  window.removeEventListener('keydown', onChapterOverlayKeydown)
   document.removeEventListener('keydown', onKeyDown)
 
   // Clean up controls timeout
