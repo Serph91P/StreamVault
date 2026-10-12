@@ -137,18 +137,31 @@ describe('VideoPlayerView backend playback contract', () => {
     expect(wrapper.get('.video-player-stub').attributes('data-src')).toBe('/api/videos/42/stream')
   })
 
-  it('returns to a validated in-app origin and falls back to the library on direct entry', async () => {
-    mocks.route.query = { origin: '/videos?search=alpha&sort=title' }
+  it('restores a complete in-app library context and safely falls back for direct, invalid, or reload entries', async () => {
+    const scrollTo = vi.fn()
+    vi.stubGlobal('scrollTo', scrollTo)
+    const origin = '/videos?search=alpha&streamer=beta&sort=title&view=grid'
+    mocks.route.query = { origin, scroll: '480' }
     const wrapper = await mountView()
 
     await wrapper.get('.back-button').trigger('click')
-    expect(mocks.routerPush).toHaveBeenCalledWith('/videos?search=alpha&sort=title')
+    expect(mocks.routerPush).toHaveBeenCalledWith(origin)
+    expect(scrollTo).toHaveBeenCalledWith({ top: 480, behavior: 'auto' })
 
-    mocks.routerPush.mockClear()
-    mocks.route.query = { origin: 'https://example.invalid' }
-    const directWrapper = await mountView()
-    await directWrapper.get('.back-button').trigger('click')
-    expect(mocks.routerPush).toHaveBeenCalledWith({ name: 'Videos' })
+    for (const query of [{}, { origin: '' }, { origin: '//example.invalid' }, { origin: 'https://example.invalid' }, { origin, scroll: '-1' }]) {
+      mocks.routerPush.mockClear()
+      scrollTo.mockClear()
+      mocks.route.query = query
+      const fallbackWrapper = await mountView()
+      await fallbackWrapper.get('.back-button').trigger('click')
+      if (query.origin === origin) {
+        expect(mocks.routerPush).toHaveBeenCalledWith(origin)
+        expect(scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'auto' })
+      } else {
+        expect(mocks.routerPush).toHaveBeenCalledWith({ name: 'Videos' })
+        expect(scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'auto' })
+      }
+    }
   })
 
   it('routes share and delete actions through the video facade', async () => {
