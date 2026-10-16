@@ -12,7 +12,7 @@
         class="video-card-link"
         :to="videoRoute"
         :aria-label="watchLabel"
-        @click="prepareVideoReturn(origin)"
+        @click.capture="prepareVideoReturnForAcceptedLinkClick"
       />
       <button
         v-else-if="disableNavigation"
@@ -274,6 +274,20 @@ const videoRoute = computed(() => ({
     streamId: props.video.id
   }
 }))
+
+// RouterLink's own click handler prevents the default browser navigation for
+// an accepted same-tab activation. Capture runs before that handler so its
+// preventDefault call cannot suppress the return snapshot for ordinary clicks.
+const prepareVideoReturnForAcceptedLinkClick = (event: MouseEvent) => {
+  const link = event.currentTarget
+  const opensAnotherContext = link instanceof HTMLAnchorElement
+    && Boolean(link.target) && link.target !== '_self'
+
+  if (event.defaultPrevented || event.button !== 0 || event.ctrlKey || event.metaKey
+    || event.altKey || event.shiftKey || opensAnotherContext) return
+
+  prepareVideoReturn(props.origin)
+}
 
 const handleSelect = () => {
   emit('select', props.video)

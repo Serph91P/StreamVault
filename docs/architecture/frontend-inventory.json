@@ -85,6 +85,7 @@
     "app/frontend/src/components/cards/__tests__/StreamCard.spec.ts",
     "app/frontend/src/components/cards/__tests__/StreamerCard.spec.ts",
     "app/frontend/src/components/cards/__tests__/SurfaceCard.spec.ts",
+    "app/frontend/src/components/cards/__tests__/VideoCard.navigation.spec.ts",
     "app/frontend/src/components/cards/index.ts",
     "app/frontend/src/components/icons/IconCommunity.vue",
     "app/frontend/src/components/icons/IconDocumentation.vue",
@@ -2008,6 +2009,7 @@
     "app/frontend/src/components/base/FormField.vue",
     "app/frontend/src/components/cards/StreamerCard.vue",
     "app/frontend/src/components/cards/__tests__/StreamerCard.spec.ts",
+    "app/frontend/src/components/cards/__tests__/VideoCard.navigation.spec.ts",
     "app/frontend/src/components/navigation/NavigationWrapper.vue",
     "app/frontend/src/components/navigation/__tests__/NavigationWrapper.responsive.spec.ts",
     "app/frontend/src/components/settings/NotificationSettingsPanel.vue",
@@ -2849,6 +2851,26 @@
     {
       "file": "app/frontend/src/components/cards/__tests__/StreamerCard.spec.ts",
       "line": 135,
+      "match": "document.body"
+    },
+    {
+      "file": "app/frontend/src/components/cards/__tests__/VideoCard.navigation.spec.ts",
+      "line": 28,
+      "match": "document.body"
+    },
+    {
+      "file": "app/frontend/src/components/cards/__tests__/VideoCard.navigation.spec.ts",
+      "line": 49,
+      "match": "document.body"
+    },
+    {
+      "file": "app/frontend/src/components/cards/__tests__/VideoCard.navigation.spec.ts",
+      "line": 79,
+      "match": "document.body"
+    },
+    {
+      "file": "app/frontend/src/components/cards/__tests__/VideoCard.navigation.spec.ts",
+      "line": 83,
       "match": "document.body"
     },
     {
@@ -3784,6 +3806,11 @@
       "match": "const streamer = {"
     },
     {
+      "file": "app/frontend/src/components/cards/__tests__/VideoCard.navigation.spec.ts",
+      "line": 6,
+      "match": "const video = {"
+    },
+    {
       "file": "app/frontend/src/components/notifications/NotificationFilters.vue",
       "line": 26,
       "match": "const severityFilters = ["
@@ -4263,6 +4290,26 @@
     {
       "file": "app/frontend/src/components/cards/StreamerCard.vue",
       "line": 399,
+      "match": "removeEventListener("
+    },
+    {
+      "file": "app/frontend/src/components/cards/__tests__/VideoCard.navigation.spec.ts",
+      "line": 38,
+      "match": "setTimeout("
+    },
+    {
+      "file": "app/frontend/src/components/cards/__tests__/VideoCard.navigation.spec.ts",
+      "line": 42,
+      "match": "addEventListener("
+    },
+    {
+      "file": "app/frontend/src/components/cards/__tests__/VideoCard.navigation.spec.ts",
+      "line": 79,
+      "match": "addEventListener("
+    },
+    {
+      "file": "app/frontend/src/components/cards/__tests__/VideoCard.navigation.spec.ts",
+      "line": 83,
       "match": "removeEventListener("
     },
     {
@@ -6014,7 +6061,7 @@
     {
       "file": "app/frontend/src/components/cards/VideoCard.vue",
       "line": 15,
-      "match": "@click="
+      "match": "@click.capture="
     },
     {
       "file": "app/frontend/src/components/cards/VideoCard.vue",
@@ -7078,7 +7125,7 @@
     },
     {
       "file": "app/frontend/src/components/cards/VideoCard.vue",
-      "line": 468,
+      "line": 482,
       "match": "transition: all"
     },
     {
@@ -8277,62 +8324,62 @@
     },
     {
       "file": "app/frontend/src/components/cards/VideoCard.vue",
-      "line": 471,
+      "line": 485,
       "match": "width: 32px"
     },
     {
       "file": "app/frontend/src/components/cards/VideoCard.vue",
-      "line": 472,
+      "line": 486,
       "match": "height: 32px"
     },
     {
       "file": "app/frontend/src/components/cards/VideoCard.vue",
-      "line": 499,
+      "line": 513,
       "match": "width: 20px"
     },
     {
       "file": "app/frontend/src/components/cards/VideoCard.vue",
-      "line": 500,
+      "line": 514,
       "match": "height: 20px"
     },
     {
       "file": "app/frontend/src/components/cards/VideoCard.vue",
-      "line": 587,
+      "line": 601,
       "match": "width: 14px"
     },
     {
       "file": "app/frontend/src/components/cards/VideoCard.vue",
-      "line": 588,
+      "line": 602,
       "match": "height: 14px"
     },
     {
       "file": "app/frontend/src/components/cards/VideoCard.vue",
-      "line": 616,
+      "line": 630,
       "match": "width: 36px"
     },
     {
       "file": "app/frontend/src/components/cards/VideoCard.vue",
-      "line": 617,
+      "line": 631,
       "match": "height: 36px"
     },
     {
       "file": "app/frontend/src/components/cards/VideoCard.vue",
-      "line": 659,
+      "line": 673,
       "match": "width: 28px"
     },
     {
       "file": "app/frontend/src/components/cards/VideoCard.vue",
-      "line": 660,
+      "line": 674,
       "match": "height: 28px"
     },
     {
       "file": "app/frontend/src/components/cards/VideoCard.vue",
-      "line": 708,
+      "line": 722,
       "match": "width: 32px"
     },
     {
       "file": "app/frontend/src/components/cards/VideoCard.vue",
-      "line": 709,
+      "line": 723,
       "match": "height: 32px"
     },
     {
@@ -11172,7 +11219,7 @@
     "schemaVersion": 1,
     "generatedBy": "app/frontend/scripts/inventory-frontend.mjs",
     "sourceRoot": "app/frontend",
-    "frontendFiles": 290,
+    "frontendFiles": 291,
     "routes": 18,
     "navigationDestinations": 15,
     "apiCalls": 146,
@@ -11184,11 +11231,11 @@
     "destructiveActions": 65,
     "states": 169,
     "players": 13,
-    "pwa": 86,
+    "pwa": 87,
     "breakpoints": 94,
-    "directDomMutations": 229,
-    "moduleScopeMutableState": 86,
-    "listenersAndTimers": 122,
+    "directDomMutations": 233,
+    "moduleScopeMutableState": 87,
+    "listenersAndTimers": 126,
     "anyTypes": 91,
     "nonsemanticActions": 19,
     "clickSemantics": 283,
