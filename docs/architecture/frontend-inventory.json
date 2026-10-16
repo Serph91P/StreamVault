@@ -3303,22 +3303,22 @@
     },
     {
       "file": "app/frontend/tests/e2e/frontend-baseline.spec.ts",
-      "line": 78,
+      "line": 79,
       "match": "document.documentElement"
     },
     {
       "file": "app/frontend/tests/e2e/frontend-baseline.spec.ts",
-      "line": 78,
+      "line": 79,
       "match": "document.documentElement"
     },
     {
       "file": "app/frontend/tests/e2e/frontend-baseline.spec.ts",
-      "line": 189,
+      "line": 190,
       "match": "document.body"
     },
     {
       "file": "app/frontend/tests/e2e/frontend-baseline.spec.ts",
-      "line": 189,
+      "line": 190,
       "match": "document.documentElement"
     },
     {
@@ -3378,17 +3378,17 @@
     },
     {
       "file": "app/frontend/tests/e2e/pr5-dialogs-a11y.spec.ts",
-      "line": 116,
-      "match": "document.body"
-    },
-    {
-      "file": "app/frontend/tests/e2e/pr5-dialogs-a11y.spec.ts",
-      "line": 138,
+      "line": 121,
       "match": "document.body"
     },
     {
       "file": "app/frontend/tests/e2e/pr5-dialogs-a11y.spec.ts",
       "line": 143,
+      "match": "document.body"
+    },
+    {
+      "file": "app/frontend/tests/e2e/pr5-dialogs-a11y.spec.ts",
+      "line": 148,
       "match": "document.body"
     },
     {
@@ -4095,7 +4095,7 @@
     },
     {
       "file": "app/frontend/tests/e2e/frontend-baseline.spec.ts",
-      "line": 23,
+      "line": 24,
       "match": "const exceptionPath = new "
     },
     {
@@ -4125,7 +4125,7 @@
     },
     {
       "file": "app/frontend/tests/e2e/pr5-responsive-shell.spec.ts",
-      "line": 366,
+      "line": 397,
       "match": "const snapshots = ["
     },
     {
@@ -4702,17 +4702,17 @@
     },
     {
       "file": "app/frontend/tests/e2e/frontend-baseline.spec.ts",
-      "line": 49,
+      "line": 50,
       "match": "setTimeout("
     },
     {
       "file": "app/frontend/tests/e2e/frontend-baseline.spec.ts",
-      "line": 131,
+      "line": 132,
       "match": "setTimeout("
     },
     {
       "file": "app/frontend/tests/e2e/frontend-baseline.spec.ts",
-      "line": 144,
+      "line": 145,
       "match": "setTimeout("
     },
     {
@@ -4732,7 +4732,7 @@
     },
     {
       "file": "app/frontend/tests/e2e/pr5-responsive-shell.spec.ts",
-      "line": 340,
+      "line": 371,
       "match": "setTimeout("
     },
     {
@@ -7308,7 +7308,7 @@
     },
     {
       "file": "app/frontend/src/styles/main.scss",
-      "line": 203,
+      "line": 214,
       "match": "transition: all"
     },
     {
@@ -7500,7 +7500,7 @@
     },
     {
       "file": "app/frontend/src/styles/main.scss",
-      "line": 106,
+      "line": 117,
       "match": "min-height: 100vh"
     },
     {
@@ -9337,52 +9337,52 @@
     },
     {
       "file": "app/frontend/src/styles/main.scss",
-      "line": 213,
+      "line": 224,
       "match": "width: 18px"
     },
     {
       "file": "app/frontend/src/styles/main.scss",
-      "line": 214,
+      "line": 225,
       "match": "height: 18px"
     },
     {
       "file": "app/frontend/src/styles/main.scss",
-      "line": 465,
+      "line": 476,
       "match": "width: 20px"
     },
     {
       "file": "app/frontend/src/styles/main.scss",
-      "line": 466,
+      "line": 477,
       "match": "height: 20px"
     },
     {
       "file": "app/frontend/src/styles/main.scss",
-      "line": 516,
+      "line": 527,
       "match": "width: 20px"
     },
     {
       "file": "app/frontend/src/styles/main.scss",
-      "line": 517,
+      "line": 528,
       "match": "height: 20px"
     },
     {
       "file": "app/frontend/src/styles/main.scss",
-      "line": 605,
+      "line": 616,
       "match": "width: 8px"
     },
     {
       "file": "app/frontend/src/styles/main.scss",
-      "line": 606,
+      "line": 617,
       "match": "height: 8px"
     },
     {
       "file": "app/frontend/src/styles/main.scss",
-      "line": 655,
+      "line": 666,
       "match": "width: 1px"
     },
     {
       "file": "app/frontend/src/styles/main.scss",
-      "line": 656,
+      "line": 667,
       "match": "height: 1px"
     },
     {

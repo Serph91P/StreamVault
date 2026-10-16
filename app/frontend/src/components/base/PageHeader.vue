@@ -186,6 +186,17 @@ withDefaults(defineProps<Props>(), {
     }
   }
 
+  // Keep the ordinary icon and title copy together. Only headers with a back
+  // control use the intentionally stacked narrow layout below.
+  .page-header-title-group:not(:has(.page-header-back-link)) {
+    flex-wrap: nowrap;
+
+    .page-header-copy {
+      flex: 1 1 0;
+      width: auto;
+    }
+  }
+
   .page-header-end {
     flex: 1 1 100%;
     justify-content: flex-start;

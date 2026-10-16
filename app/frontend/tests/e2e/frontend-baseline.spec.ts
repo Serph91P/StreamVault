@@ -9,6 +9,7 @@ import type { InteractionAuditReport } from '../audit/interactionAudit'
 import { formatBaselineStageFailure } from '../audit/baselineObservation'
 import type { BaselineCollectionStage } from '../audit/baselineObservation'
 import { frontendBaselineScenarios } from '../fixtures/frontend-baseline-routes'
+import { waitForUiReadiness } from './helpers/ui-readiness'
 
 type Theme = 'dark' | 'light'
 
@@ -166,7 +167,7 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 
         stage = 'readiness'
         await writeObservation()
         const streamerView = page.locator('.streamers-view')
-        await expect(streamerView).toBeVisible()
+        await waitForUiReadiness(page, ['.streamers-view'])
         const streamerViewCount = await streamerView.count()
         if (streamerViewCount !== 1) {
           throw new Error(`expected one source-derived .streamers-view root, found ${streamerViewCount}`)

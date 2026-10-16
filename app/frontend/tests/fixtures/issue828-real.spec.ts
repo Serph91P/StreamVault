@@ -116,6 +116,41 @@ for (const viewport of playerViewports) {
   }
 }
 
+test('REAL synthetic retry pill preserves routed mobile clearance', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  const api = await installSyntheticApi(page, 'many')
+  try {
+    await page.goto('/add-streamer', { waitUntil: 'domcontentloaded' })
+    const pill = page.locator('.mobile-connectivity-pill')
+    const retry = pill.getByRole('button', { name: 'Retry', exact: true })
+    const target = page.locator('main.main-content button:not([disabled])').last()
+    await readyForSettledMotion(target)
+
+    // The synthetic HTTP fixture stays real while closed WebSockets plus native
+    // offline/online events move the app into its ordinary Retry state.
+    for (let cycle = 0; cycle < 12 && await retry.count() === 0; cycle++) {
+      await expect(pill).toBeVisible()
+      await page.context().setOffline(true)
+      await expect(pill).toContainText('Offline mode')
+      await page.context().setOffline(false)
+    }
+
+    await expect(retry).toBeVisible()
+    await target.scrollIntoViewIfNeeded()
+    const [targetBox, pillBox] = await Promise.all([target.boundingBox(), pill.boundingBox()])
+    expect(pillBox!.height).toBeGreaterThan(44)
+    expect(pillBox!.y - (targetBox!.y + targetBox!.height)).toBeGreaterThanOrEqual(8)
+    expect(await target.evaluate(element => {
+      const rect = element.getBoundingClientRect()
+      return element.contains(document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2))
+    })).toBe(true)
+    expect(api.unexpected).toEqual([])
+  } finally {
+    await page.context().setOffline(false)
+    api.releaseChapters()
+  }
+})
+
 // The actual Streamer detail History is the Videos tab. It does NOT expose a
 // VideoCard link or Play overlay: StreamCard has Expand + Watch Recording.
 // Exercise those real controls, never pretend that a nonexistent card navigates.
