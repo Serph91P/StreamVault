@@ -41,7 +41,11 @@ const tabindex = computed(() => props.clickable && !isDisabled.value ? 0 : undef
 const paddingClass = computed(() => props.padding === false ? undefined : `surface-card-padding-${props.padding === true ? 'md' : props.padding}`)
 
 function activate(event: MouseEvent | KeyboardEvent) {
-  if (props.clickable && !isDisabled.value) emit('click', event)
+  if (event instanceof KeyboardEvent && event.currentTarget !== event.target) return
+  if (props.clickable && !isDisabled.value) {
+    if (event instanceof KeyboardEvent) event.preventDefault()
+    emit('click', event)
+  }
 }
 </script>
 
@@ -67,8 +71,8 @@ function activate(event: MouseEvent | KeyboardEvent) {
     :aria-disabled="isDisabled || undefined"
     :aria-busy="loading || undefined"
     @click="activate"
-    @keydown.enter.prevent="activate"
-    @keydown.space.prevent="activate"
+    @keydown.enter="activate"
+    @keydown.space="activate"
   >
     <header v-if="$slots.header || $slots.title || $slots.actions" class="surface-card-header">
       <div class="surface-card-heading">

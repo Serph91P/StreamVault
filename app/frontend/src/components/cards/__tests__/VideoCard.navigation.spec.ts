@@ -113,7 +113,7 @@ describe('VideoCard RouterLink return snapshots', () => {
     wrapper.unmount()
   })
 
-  it('keeps keyboard activation eligible for a return snapshot', async () => {
+  it('keeps a zero-detail primary click eligible for a return snapshot', async () => {
     const origin = '/videos?q=alpha#recordings'
     const { router, wrapper } = await mountCard(origin)
 
