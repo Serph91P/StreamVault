@@ -30,6 +30,10 @@ async function mountPlayer() {
 
 describe('VideoPlayer automatic chapters', () => {
   beforeEach(() => {
+    // jsdom has no modal top-layer implementation; real hit testing remains
+    // covered by the unchanged browser chapter-click regression.
+    Object.defineProperty(HTMLDialogElement.prototype, 'showModal', { configurable: true, value: vi.fn(function (this: HTMLDialogElement) { this.open = true }) })
+    Object.defineProperty(HTMLDialogElement.prototype, 'close', { configurable: true, value: vi.fn(function (this: HTMLDialogElement) { this.open = false }) })
     mocks.getChapters.mockResolvedValue([
       { id: 1, title: 'Opening', start: 0, end: 600 },
       { id: 2, title: 'Main event', start: 600, end: 900 },
@@ -78,12 +82,87 @@ describe('VideoPlayer automatic chapters', () => {
     expect(wrapper.find('.chapters-button').exists()).toBe(chapters.length > 0)
     if (chapters.length > 0) {
       await wrapper.get('.chapters-button').trigger('click')
-      expect(wrapper.findAll('[role="dialog"]')).toHaveLength(1)
+      expect(wrapper.findAll('dialog, [role="dialog"]')).toHaveLength(1)
       expect(wrapper.findAll('.chapter-list .chapter-item')).toHaveLength(chapters.length)
       expect(wrapper.findAll('.chapter-list .chapter-title').map(title => title.text())).toEqual(
         chapters.map((chapter, index) => chapter.title || `Chapter ${index + 1}`),
       )
     }
+    wrapper.unmount()
+  })
+
+  it('uses preloaded numeric chapters and clears them when delayed props become empty', async () => {
+    const wrapper = mount(VideoPlayer, {
+      props: { videoSrc: '/api/videos/42/stream', streamId: 42, chapters: [{ start: 1.25, end: 4.75, title: 'Preloaded' }] },
+      global: { stubs: { PlayerStatus: true, PlayerError: true } },
+    })
+    await flushPromises()
+    expect(mocks.getChapters).not.toHaveBeenCalled()
+    await wrapper.get('.chapters-button').trigger('click')
+    await wrapper.get('.chapter-item').trigger('click')
+    expect((wrapper.get('video').element as HTMLVideoElement).currentTime).toBe(1.25)
+    await wrapper.setProps({ chapters: [] })
+    expect(wrapper.find('.chapters-button').exists()).toBe(false)
+    expect(wrapper.find('.chapter-list-panel').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it.each(['cancel', 'button', 'toggle', 'empty props'] as const)('closes the native modal before Vue removes it via %s, and reopens safely', async (method) => {
+    const wrapper = await mountPlayer()
+    await wrapper.get('.chapters-button').trigger('click')
+    const dialog = wrapper.get('dialog').element as HTMLDialogElement
+    expect(dialog.open).toBe(true)
+    if (method === 'cancel') await wrapper.get('dialog').trigger('cancel')
+    else if (method === 'button') await wrapper.get('.close-btn').trigger('click')
+    else if (method === 'toggle') {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'c' }))
+      await flushPromises()
+    } else await wrapper.setProps({ chapters: [] })
+    expect(HTMLDialogElement.prototype.close).toHaveBeenCalledOnce()
+    expect(dialog.open, 'modal must no longer leave the opener inert').toBe(false)
+    expect(wrapper.find('dialog').exists()).toBe(false)
+    if (method === 'empty props') await wrapper.setProps({ chapters: [{ start: 0, end: 60 }] })
+    await wrapper.get('.chapters-button').trigger('click')
+    expect((wrapper.get('dialog').element as HTMLDialogElement).open).toBe(true)
+    wrapper.unmount()
+  })
+
+  it('contains Tab at both native chapter dialog boundaries', async () => {
+    vi.spyOn(HTMLElement.prototype, 'offsetParent', 'get').mockReturnValue(document.body)
+    const wrapper = mount(VideoPlayer, {
+      attachTo: document.body,
+      props: { videoSrc: '/api/videos/42/stream', streamId: 42 },
+      global: { stubs: { PlayerStatus: true, PlayerError: true } },
+    })
+    try {
+      await flushPromises()
+      await wrapper.get('.chapters-button').trigger('click')
+      const dialog = wrapper.get('dialog')
+      const first = dialog.get('.close-btn').element as HTMLButtonElement
+      const last = dialog.findAll('.chapter-item').at(-1)!.element as HTMLButtonElement
+      first.focus()
+      await dialog.trigger('keydown', { key: 'Tab', shiftKey: true })
+      expect(document.activeElement).toBe(last)
+      await dialog.trigger('keydown', { key: 'Tab' })
+      expect(document.activeElement).toBe(first)
+      // Interior keys must retain native navigation; this is not a second modal lifecycle.
+      const interior = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true })
+      first.dispatchEvent(interior)
+      expect(interior.defaultPrevented).toBe(false)
+    } finally {
+      wrapper.unmount()
+    }
+  })
+
+  it('opens chapters in the native modal top layer, independent of page stacking and fullscreen', async () => {
+    const showModal = HTMLDialogElement.prototype.showModal
+    const wrapper = await mountPlayer()
+    await wrapper.get('.chapters-button').trigger('click')
+    await flushPromises()
+    expect(wrapper.get('.chapter-list-panel').element).toBeInstanceOf(HTMLDialogElement)
+    expect(showModal).toHaveBeenCalledOnce()
+    await wrapper.get('.chapter-list-panel').trigger('cancel')
+    expect(wrapper.find('.chapter-list-panel').exists()).toBe(false)
     wrapper.unmount()
   })
 
@@ -100,18 +179,23 @@ describe('VideoPlayer automatic chapters', () => {
     const video = wrapper.get('video').element as HTMLVideoElement
 
     await wrapper.get('.chapters-button').trigger('click')
-    expect(wrapper.get('.chapter-overlay').attributes('class')).toContain('chapter-overlay')
-    expect(wrapper.get('.chapter-list-panel').attributes('role')).toBe('dialog')
+    expect(wrapper.get('.chapter-list-panel').element).toBeInstanceOf(HTMLDialogElement)
+    expect(wrapper.get('.chapter-list-panel').attributes('aria-label')).toBe('Chapters')
     await wrapper.get('.chapter-list .chapter-item').trigger('click')
     expect(video.currentTime).toBe(120)
 
-    await wrapper.get('.chapters-button').trigger('click')
-    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    // jsdom does not translate Escape into native dialog cancel. The real
+    // browser keeps the physical Escape/focus-return assertion unchanged.
+    await wrapper.get('dialog').trigger('cancel')
     await flushPromises()
-    expect(wrapper.find('.chapter-overlay').exists()).toBe(false)
+    expect(wrapper.find('.chapter-list-panel').exists()).toBe(false)
 
     await wrapper.get('.chapters-button').trigger('click')
-    await wrapper.get('.chapter-overlay').trigger('click')
-    expect(wrapper.find('.chapter-overlay').exists()).toBe(false)
+    vi.spyOn(wrapper.get('dialog').element, 'getBoundingClientRect').mockReturnValue({ left: 10, right: 100, top: 10, bottom: 100 } as DOMRect)
+    await wrapper.get('dialog').trigger('click', { clientX: 50, clientY: 50 })
+    expect((wrapper.get('dialog').element as HTMLDialogElement).open).toBe(true)
+    await wrapper.get('dialog').trigger('click', { clientX: 2, clientY: 2 })
+    expect(wrapper.find('.chapter-list-panel').exists()).toBe(false)
+    wrapper.unmount()
   })
 })

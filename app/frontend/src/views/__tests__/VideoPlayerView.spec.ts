@@ -122,6 +122,14 @@ describe('VideoPlayerView backend playback contract', () => {
     expect(mocks.seekToChapter).toHaveBeenCalledWith(600)
   })
 
+  it('passes numeric chapter boundaries to the player without a lossy timestamp round-trip', async () => {
+    const chapters = [{ id: 1, title: 'Fractional chapter', start: 1.25, end: 4.75 }]
+    mocks.getChapters.mockResolvedValueOnce(chapters)
+    const wrapper = await mountView()
+    expect(wrapper.getComponent(VideoPlayerStub).props('chapters')).toEqual(chapters)
+    wrapper.unmount()
+  })
+
   it('shows a retryable error and never substitutes demo playback', async () => {
     mocks.getChapters.mockRejectedValueOnce(new Error('Authentication required'))
     const wrapper = await mountView()

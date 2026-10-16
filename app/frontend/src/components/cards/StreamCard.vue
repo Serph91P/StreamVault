@@ -189,24 +189,34 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, useId } from 'vue'
+import { computed, ref, useId } from 'vue'
+import { formatRecordingDuration as formatDuration } from '@/utils/recordingDuration'
 import type { Stream, StreamEvent } from '@/types/streams'
 import StatusBadge from '@/components/base/StatusBadge.vue'
 import SurfaceCard from './SurfaceCard.vue'
 
 interface Props {
   stream: Stream
+  expanded?: boolean
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), { expanded: undefined })
 const emit = defineEmits<{
+  'update:expanded': [expanded: boolean]
   'watch-live': [stream: Stream]
   'force-record': [stream: Stream]
   watch: [stream: Stream]
   delete: [stream: Stream]
 }>()
 
-const isExpanded = ref(false)
+const localExpanded = ref(false)
+const isExpanded = computed({
+  get: () => props.expanded ?? localExpanded.value,
+  set: (expanded: boolean) => {
+    if (props.expanded === undefined) localExpanded.value = expanded
+    emit('update:expanded', expanded)
+  },
+})
 const detailsId = useId()
 
 const isLive = computed(() => props.stream.ended_at == null)
@@ -230,22 +240,6 @@ function toggleExpand() {
   isExpanded.value = !isExpanded.value
 }
 
-function formatDuration(start: string | null, end: string | null) {
-  if (!start) return '-'
-
-  const startDate = new Date(start)
-  const endDate = end ? new Date(end) : new Date()
-
-  const diffMs = endDate.getTime() - startDate.getTime()
-  const diffMins = Math.floor(diffMs / 60000)
-  const hours = Math.floor(diffMins / 60)
-  const mins = diffMins % 60
-
-  if (hours > 0) {
-    return `${hours}h ${mins}m`
-  }
-  return `${mins}m`
-}
 
 function formatDate(dateStr: string | null) {
   if (!dateStr) return '-'
@@ -273,27 +267,8 @@ function formatDateShort(dateStr: string | null) {
 function formatEventDuration(event: StreamEvent, index: number) {
   if (!event.timestamp) return ''
 
-  const eventDate = new Date(event.timestamp)
   const nextEvent = categoryEvents.value[index + 1]
-
-  let endDate: Date
-  if (nextEvent && nextEvent.timestamp) {
-    endDate = new Date(nextEvent.timestamp)
-  } else if (props.stream.ended_at) {
-    endDate = new Date(props.stream.ended_at)
-  } else {
-    endDate = new Date()
-  }
-
-  const diffMs = endDate.getTime() - eventDate.getTime()
-  const diffMins = Math.floor(diffMs / 60000)
-  const hours = Math.floor(diffMins / 60)
-  const mins = diffMins % 60
-
-  if (hours > 0) {
-    return `${hours}h ${mins}m`
-  }
-  return `${mins}m`
+  return formatDuration(event.timestamp, nextEvent?.timestamp || props.stream.ended_at)
 }
 
 function handleWatchLive() {

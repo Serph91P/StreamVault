@@ -1,10 +1,12 @@
 import { expect, test, type Page } from '@playwright/test'
 import { localSeekMedia } from '../fixtures/media/issue828Media'
+import { readyForMeasuredClick, readyForSettledMotion } from '../fixtures/issue828Browser'
 
 const viewports = [
   { width: 320, height: 568 },
   { width: 360, height: 640 },
   { width: 390, height: 844 },
+  { width: 568, height: 320 },
   { width: 768, height: 1024 },
   { width: 1440, height: 900 },
 ] as const
@@ -12,6 +14,7 @@ const viewports = [
 async function assertButtonFitsViewport(page: Page, label: string) {
   const button = page.getByRole('button', { name: label })
   await expect(button).toBeVisible()
+  await readyForSettledMotion(button)
   const box = await button.boundingBox()
   expect(box, `${label} has a visible box`).not.toBeNull()
   expect(box!.x).toBeGreaterThanOrEqual(0)
@@ -35,8 +38,7 @@ test('issue 828 player keeps controls bounded and restores its in-app library or
     await page.goto('/videos?q=alpha&streamer=streamer_alpha&sort=title&view=list', { waitUntil: 'domcontentloaded' })
     const card = page.locator('.videos-container .video-card-link').last()
     await expect(card).toBeVisible()
-    await card.scrollIntoViewIfNeeded()
-    const originScroll = await page.evaluate(() => window.scrollY)
+    const originScroll = await readyForMeasuredClick(page, card)
     expect(originScroll).toBeGreaterThan(0)
     await card.click()
     await expect(page).toHaveURL(/\/streamer\/\d+\/stream\/\d+\/watch(?:\?|$)/)
@@ -49,6 +51,7 @@ test('issue 828 player keeps controls bounded and restores its in-app library or
     await assertButtonFitsViewport(page, 'Fullscreen')
     await assertButtonFitsViewport(page, 'Chapters')
     await assertButtonFitsViewport(page, 'Mute')
+    await assertButtonFitsViewport(page, 'Back to previous page')
     await expect(page.locator('.time-display')).toBeVisible()
     await expect(page.getByRole('slider', { name: 'Video progress' })).toBeVisible()
     await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBe(0)
@@ -57,6 +60,7 @@ test('issue 828 player keeps controls bounded and restores its in-app library or
     const dialog = page.getByRole('dialog', { name: 'Chapters' })
     await expect(dialog).toBeVisible()
     await expect(dialog).toBeFocused()
+    await readyForSettledMotion(dialog)
     const dialogBox = await dialog.boundingBox()
     expect(dialogBox!.width).toBeLessThanOrEqual(viewport.width)
     expect(dialogBox!.x).toBeGreaterThanOrEqual(0)
@@ -68,6 +72,15 @@ test('issue 828 player keeps controls bounded and restores its in-app library or
     })).toBe(true)
     await expect(dialog.locator('.chapter-item')).toHaveCount(1)
     expect(dialogBox!.height, 'one chapter stays compact').toBeLessThan(250)
+    await expect(page.getByRole('dialog')).toHaveCount(1)
+    const firstControl = dialog.getByRole('button', { name: 'Close chapters', exact: true })
+    const lastControl = dialog.locator('.chapter-item').last()
+    await page.keyboard.press('Tab')
+    await expect(firstControl).toBeFocused()
+    await page.keyboard.press('Shift+Tab')
+    await expect(lastControl).toBeFocused()
+    await page.keyboard.press('Tab')
+    await expect(firstControl).toBeFocused()
     await page.keyboard.press('Escape')
     await expect(dialog).toHaveCount(0)
     await expect(page.getByRole('button', { name: 'Chapters', exact: true })).toBeFocused()
@@ -87,8 +100,30 @@ test('issue 828 player keeps controls bounded and restores its in-app library or
     await expect(page.getByRole('button', { name: 'Chapters', exact: true })).toBeFocused()
     await page.getByRole('button', { name: 'Chapters', exact: true }).click()
     await expect(dialog).toBeVisible()
-    await page.locator('.chapter-overlay').click({ position: { x: 2, y: 2 } })
+    await readyForSettledMotion(dialog)
+    const outsideBox = await dialog.boundingBox()
+    const outside = { x: outsideBox!.x - 2, y: outsideBox!.y - 2 }
+    expect(outside.x).toBeGreaterThanOrEqual(0)
+    expect(outside.y).toBeGreaterThanOrEqual(0)
+    await page.mouse.click(outside.x, outside.y)
     await expect(dialog).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Chapters', exact: true })).toBeFocused()
+
+    await page.getByRole('button', { name: 'Fullscreen', exact: true }).click()
+    await expect.poll(() => page.evaluate(() => Boolean(document.fullscreenElement))).toBe(true)
+    await page.getByRole('button', { name: 'Chapters', exact: true }).click()
+    await expect(dialog).toBeVisible()
+    await readyForSettledMotion(dialog)
+    expect(await dialog.evaluate(element => {
+      const box = element.getBoundingClientRect()
+      return element.contains(document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2))
+    })).toBe(true)
+    await dialog.locator('.chapter-item').click()
+    await page.keyboard.press('Escape')
+    await expect(dialog).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Chapters', exact: true })).toBeFocused()
+    await page.getByRole('button', { name: 'Exit Fullscreen', exact: true }).click()
+    await expect.poll(() => page.evaluate(() => Boolean(document.fullscreenElement))).toBe(false)
 
     await page.screenshot({ path: testInfo.outputPath(`issue-828-player-${viewport.width}.png`) })
 

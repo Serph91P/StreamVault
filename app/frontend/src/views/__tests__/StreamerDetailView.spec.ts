@@ -1,10 +1,11 @@
 import { defineComponent, h, nextTick } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 import type { VueWrapper } from '@vue/test-utils'
-import { createMemoryHistory, createRouter } from 'vue-router'
+import { createMemoryHistory, createWebHistory, createRouter, RouterView } from 'vue-router'
 import type { Router, LocationQueryRaw } from 'vue-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import StreamerDetailView from '../StreamerDetailView.vue'
+import StreamCard from '@/components/cards/StreamCard.vue'
 import streamerDetailSource from '../StreamerDetailView.vue?raw'
 
 const mocks = vi.hoisted(() => ({
@@ -217,7 +218,177 @@ describe('StreamerDetailView tab query synchronization', () => {
   })
 })
 
+describe('StreamerDetailView recording return with real router history', () => {
+  it.each(['history', 'streamers'])(
+    'restores genuine expanded rows before scroll after unmount/back from %s', async source => {
+      const webHistory = createWebHistory()
+      const router = createRouter({ history: webHistory, routes: [
+        { path: '/streamers/:id', component: StreamerDetailView },
+        { path: '/videos/:id', component: { template: '<div>Player</div>' } },
+      ] })
+      const origin = `/streamers/42?tab=videos&sort=oldest&source=${source}`
+      history.replaceState({}, '', origin)
+      await router.push(origin)
+      await router.isReady()
+      const wrapper = mount(RouterView, { attachTo: document.body, global: {
+        plugins: [router], stubs: {
+          LoadingSkeleton: true, EmptyState: true, StatusCard: true, StatusBadge: true,
+          BaseModal: true, BaseButton: true, StreamerSettingsFields: true,
+        },
+      } })
+      wrappers.push(wrapper)
+      const card = (id: number) => wrapper.findAllComponents(StreamCard)
+        .find(component => component.props('stream').id === id)!
+      const expandedIds = () => wrapper.findAllComponents(StreamCard)
+        .filter(component => component.find('.stream-expanded').exists())
+        .map(component => component.props('stream').id).sort()
+      const atScroll: number[][] = []
+      const scrollTo = vi.fn(() => { atScroll.push(expandedIds()) })
+      vi.stubGlobal('scrollTo', scrollTo)
+      vi.stubGlobal('scrollY', 738)
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ json: async () => ({ has_recording: true }) }))
+      try {
+        await flushPromises()
+        await card(4).get('.expand-btn').trigger('click')
+        await card(3).get('.expand-btn').trigger('click')
+        await card(3).get('.expand-btn').trigger('click')
+        await card(1).get('.expand-btn').trigger('click')
+        expect(expandedIds()).toEqual([1, 4])
+        expect(card(1).get('.expand-btn').attributes('aria-expanded')).toBe('true')
+        await card(1).get('.btn-watch').trigger('click')
+        await flushPromises()
+        expect(router.currentRoute.value.path).toBe('/videos/1')
+        expect(wrapper.findAllComponents(StreamCard)).toHaveLength(0)
+        let release!: (value: { streams: typeof streams }) => void
+        mocks.getStreams.mockReturnValueOnce(new Promise(resolve => { release = resolve }))
+        router.back()
+        await vi.waitFor(() => expect(router.currentRoute.value.fullPath).toBe(origin))
+        await flushPromises()
+        expect(scrollTo).not.toHaveBeenCalled()
+        release({ streams })
+        await flushPromises()
+        expect(expandedIds()).toEqual([1, 4])
+        expect(card(1).get('.expand-btn').attributes('aria-expanded')).toBe('true')
+        expect(card(3).get('.expand-btn').attributes('aria-expanded')).toBe('false')
+        expect(card(1).get('.stream-expanded').classes().some(name => name.includes('enter'))).toBe(false)
+        expect(scrollTo).toHaveBeenCalledExactlyOnceWith(0, 738)
+        expect(atScroll).toEqual([[1, 4]])
+        expect(router.currentRoute.value.fullPath).toBe(origin)
+        expect(history.state.svre).toBeUndefined()
+        await card(1).get('.expand-btn').trigger('click')
+        expect(expandedIds()).toEqual([4])
+        // Unrelated entry, even with the same row IDs, starts collapsed.
+        await router.push('/videos/1')
+        await router.push('/streamers/77?tab=videos')
+        await flushPromises()
+        expect(expandedIds()).toEqual([])
+        await router.push('/videos/1')
+        await router.push(origin)
+        await flushPromises()
+        expect(expandedIds()).toEqual([])
+      } finally {
+        wrapper.unmount()
+        wrappers.splice(wrappers.indexOf(wrapper), 1)
+        webHistory.destroy()
+        vi.unstubAllGlobals()
+        history.replaceState({}, '', '/')
+      }
+    }
+  )
+
+  it.each(['newest', 'oldest', 'duration-desc', 'duration-asc'])(
+    'remounts with %s and restores origin scroll only after async data and tab reveal', async (sort) => {
+      const webHistory = createWebHistory()
+      const router = createRouter({ history: webHistory, routes: [
+        { path: '/streamers/:id', component: StreamerDetailView },
+        { path: '/videos/:id', component: { template: '<div>Player</div>' } },
+      ] })
+      const scrollTo = vi.fn()
+      vi.stubGlobal('scrollTo', scrollTo)
+      vi.stubGlobal('scrollY', 738)
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ json: async () => ({ has_recording: true }) }))
+      history.replaceState({}, '', '/streamers/42?tab=videos&source=history')
+      await router.push('/streamers/42?tab=videos&source=history')
+      await router.isReady()
+      const wrapper = mount(RouterView, { attachTo: document.body, global: {
+        plugins: [router], stubs: {
+          StreamCard: StreamCardStub, LoadingSkeleton: true, EmptyState: true,
+          StatusCard: true, StatusBadge: true, BaseModal: true, BaseButton: true,
+          StreamerSettingsFields: true,
+        },
+      } })
+      wrappers.push(wrapper)
+      try {
+        await flushPromises()
+        await wrapper.get('#stream-history-sort').setValue(sort)
+        await flushPromises()
+        const origin = router.currentRoute.value.fullPath
+        // Emit the real card event into the actual View-owned fetch/push path.
+        wrapper.findAllComponents(StreamCardStub).find(card => card.props('stream').id === 1)!
+          .vm.$emit('watch', streams[0])
+        await flushPromises()
+        expect(router.currentRoute.value.path).toBe('/videos/1')
+        expect(wrapper.find('#stream-history-sort').exists()).toBe(false)
+        let release!: (value: { streams: typeof streams }) => void
+        mocks.getStreams.mockReturnValueOnce(new Promise(resolve => { release = resolve }))
+        scrollTo.mockClear()
+        mocks.scrollIntoView.mockClear()
+        router.back()
+        await vi.waitFor(() => expect(router.currentRoute.value.fullPath).toBe(origin))
+        await flushPromises()
+        expect(scrollTo).not.toHaveBeenCalled()
+        expect(wrapper.findAllComponents(StreamCardStub)).toHaveLength(0)
+        release({ streams })
+        await flushPromises()
+        expect(wrapper.get<HTMLSelectElement>('#stream-history-sort').element.value).toBe(sort)
+        expect(selectedTab(wrapper).text()).toContain('Videos')
+        expect(router.currentRoute.value.query.source).toBe('history')
+        expect(scrollTo).toHaveBeenCalledExactlyOnceWith(0, 738)
+        expect(mocks.scrollIntoView.mock.invocationCallOrder.at(-1))
+          .toBeLessThan(scrollTo.mock.invocationCallOrder[0]!)
+        expect(history.state.svrs).toBeUndefined()
+        // Fresh unrelated history entries must not inherit a previous return.
+        scrollTo.mockClear()
+        await router.push('/streamers/77?tab=videos')
+        await flushPromises()
+        expect(wrapper.get<HTMLSelectElement>('#stream-history-sort').element.value).toBe('newest')
+        expect(scrollTo).not.toHaveBeenCalled()
+      } finally {
+        wrapper.unmount()
+        wrappers.splice(wrappers.indexOf(wrapper), 1)
+        webHistory.destroy()
+        vi.unstubAllGlobals()
+        history.replaceState({}, '', '/')
+      }
+    }
+  )
+
+  it.each(['oldest', 'duration-desc', 'duration-asc', 'invalid', ['oldest', 'newest']])(
+    'reads only a permitted scalar sort query %j and reacts to external changes', async sort => {
+      const { router, wrapper } = await mountView({ tab: 'videos', sort, source: 'link' })
+      const expected = typeof sort === 'string' && sort !== 'invalid' ? sort : 'newest'
+      expect(wrapper.get<HTMLSelectElement>('#stream-history-sort').element.value).toBe(expected)
+      await replaceQuery(router, { tab: 'videos', sort: 'oldest', source: 'link' })
+      expect(wrapper.get<HTMLSelectElement>('#stream-history-sort').element.value).toBe('oldest')
+      await replaceQuery(router, { tab: 'unknown', sort: 'unknown', source: 'link' })
+      expect(selectedTab(wrapper).text()).toContain('Overview')
+      expect(router.currentRoute.value.query).toEqual({ tab: 'unknown', sort: 'unknown', source: 'link' })
+    }
+  )
+})
+
 describe('StreamerDetailView stream history', () => {
+  it.each([
+    ['newest', [2, 4], [1, 3]],
+    ['oldest', [4, 2], [3, 1]],
+    ['duration-desc', [2, 4], [3, 1]],
+    ['duration-asc', [2, 4], [1, 3]],
+  ])('preserves %s ordering, including stable zero-duration ties', async (sort, active, ended) => {
+    const { wrapper } = await mountView({ tab: 'videos', sort: sort as string })
+    expect(streamIds(wrapper, '#streamer-detail-in-progress')).toEqual(active)
+    expect(streamIds(wrapper, '#streamer-detail-previous-streams')).toEqual(ended)
+  })
+
   it('sorts once and partitions every stream exclusively by ended_at', async () => {
     const { wrapper } = await mountView({ tab: 'videos' })
 
@@ -232,6 +403,7 @@ describe('StreamerDetailView stream history', () => {
     const { wrapper } = await mountView({ tab: 'videos' })
 
     await wrapper.get('#stream-history-sort').setValue('oldest')
+    await flushPromises() // Sort is owned by the asynchronous router replacement.
 
     expect(streamIds(wrapper, '#streamer-detail-in-progress')).toEqual([4, 2])
     expect(streamIds(wrapper, '#streamer-detail-previous-streams')).toEqual([3, 1])

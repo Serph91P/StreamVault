@@ -51,7 +51,7 @@
           <VideoPlayer
             ref="videoPlayerRef"
             :video-src="chapterData.video_url"
-            :chapters="videoPlayerChapters"
+            :chapters="chapterData.chapters"
             :stream-id="parseInt(streamId)"
             :theater-mode="effectiveTheaterMode"
             @chapter-change="onChapterChange"
@@ -190,6 +190,7 @@ import BaseButton from '@/components/base/BaseButton.vue'
 import PlayerStatus from '@/components/player/PlayerStatus.vue'
 import PlayerError from '@/components/player/PlayerError.vue'
 import { videoApi } from '@/services/api'
+import { formatTime } from '@/utils/playerClock'
 
 interface ChapterData {
   chapters: Array<{
@@ -261,11 +262,6 @@ const showDeleteModal = ref(false)
 const shareUrlInput = ref<HTMLInputElement | null>(null)
 const videoPlayerRef = ref<InstanceType<typeof VideoPlayer> | null>(null)
 
-const videoPlayerChapters = computed(() => chapterData.value?.chapters.map(chapter => ({
-  start_time: formatTimestamp(chapter.start),
-  title: chapter.title,
-  type: 'chapter'
-})) ?? [])
 
 const loadChapterData = async () => {
   try {
@@ -348,13 +344,7 @@ const onVideoReady = (duration: number) => {
 }
 
 // Helper functions
-const formatTimestamp = (seconds: number): string => {
-  const whole = Math.max(0, Math.floor(seconds))
-  const hours = Math.floor(whole / 3600)
-  const minutes = Math.floor((whole % 3600) / 60)
-  const remainder = String(whole % 60).padStart(2, '0')
-  return `${hours ? `${hours}:` : ''}${hours ? String(minutes).padStart(2, '0') : minutes}:${remainder}`
-}
+const formatTimestamp = (seconds: number): string => formatTime(Math.max(0, Math.floor(seconds)))
 
 const formatDuration = (seconds: number) =>
   Number.isFinite(seconds) && seconds >= 0 ? formatTimestamp(seconds) : 'Unavailable'
@@ -1302,22 +1292,24 @@ onUnmounted(() => {
 }
 
 // ============================================================================
-// LANDSCAPE MOBILE - Immersive
+// LANDSCAPE MOBILE - keep route navigation above the bounded stage
 // ============================================================================
 
 @media (max-width: 767px) and (orientation: landscape) {
-  .player-header,
   .info-sidebar {
     display: none;
   }
 
-  .player-container {
-    height: 100vh;
-    aspect-ratio: auto;
+  .player-header {
+    flex-wrap: nowrap;
   }
 
-  .modal-overlay {
-    display: none;
+  .video-title {
+    order: initial;
+    flex-basis: auto;
+    margin-top: 0;
+    -webkit-line-clamp: 1;
+    line-clamp: 1;
   }
 }
 </style>

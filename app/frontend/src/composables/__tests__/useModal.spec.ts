@@ -122,6 +122,31 @@ describe('useModal', () => {
     second.unmount()
   })
 
+  it.each([false, true])('autofocus respects eligibility and falls back to the dialog when empty=%s', async empty => {
+    const Harness = defineComponent({
+      setup(_, { expose }) {
+        const dialog = ref<HTMLElement | null>(null)
+        const modal = useModal(dialog)
+        expose(modal)
+        return () => modal.isOpen.value ? h('div', { ref: dialog, role: 'dialog', tabindex: -1 }, [
+          h('button', { tabindex: -1 }, 'negative'),
+          h('fieldset', { disabled: true }, [h('button', 'inherited disabled')]),
+          ...(!empty ? [h('button', { id: 'eligible' }, 'eligible')] : []),
+        ]) : null
+      },
+    })
+    const wrapper = mount(Harness, { attachTo: document.body })
+    const vm = wrapper.vm as unknown as ModalHarnessVm
+    try {
+      vm.open()
+      await flushFocus()
+      expect(document.activeElement).toBe(wrapper.get(empty ? '[role="dialog"]' : '#eligible').element)
+    } finally {
+      vm.close()
+      wrapper.unmount()
+    }
+  })
+
   it('wraps forward and backward Tab when focus escapes during modal hydration', async () => {
     const outside = document.createElement('button')
     document.body.append(outside)

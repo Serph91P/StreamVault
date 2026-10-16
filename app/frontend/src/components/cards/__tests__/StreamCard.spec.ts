@@ -1,5 +1,5 @@
 import { mount } from '@vue/test-utils'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { Stream } from '@/types/streams'
 import StreamCard from '../StreamCard.vue'
 import streamCardSource from '../StreamCard.vue?raw'
@@ -18,6 +18,68 @@ const stream: Stream = {
 }
 
 describe('StreamCard expansion', () => {
+  it('keeps an explicit parent boolean authoritative until its next update', async () => {
+    const wrapper = mount(StreamCard, { props: { stream, expanded: false } })
+    try {
+      await wrapper.get('.expand-btn').trigger('click')
+      expect(wrapper.emitted('update:expanded')).toEqual([[true]])
+      expect(wrapper.find('.stream-expanded').exists()).toBe(false)
+      await wrapper.setProps({ expanded: true })
+      expect(wrapper.find('.stream-expanded').exists()).toBe(true)
+      await wrapper.get('.expand-btn').trigger('click')
+      expect(wrapper.emitted('update:expanded')).toEqual([[true], [false]])
+      expect(wrapper.find('.stream-expanded').exists()).toBe(true)
+      await wrapper.setProps({ expanded: false })
+      expect(wrapper.find('.stream-expanded').exists()).toBe(false)
+    } finally { wrapper.unmount() }
+  })
+
+  it('supports parent v-model updates and independent standalone fallback', async () => {
+    const controlled: ReturnType<typeof mount<typeof StreamCard>> = mount(StreamCard, { props: {
+      stream, expanded: true,
+      'onUpdate:expanded': (expanded: boolean) => { void controlled.setProps({ expanded }) },
+    } })
+    const standalone = mount(StreamCard, { props: { stream } })
+    try {
+      await controlled.get('.expand-btn').trigger('click')
+      expect(controlled.find('.stream-expanded').exists()).toBe(false)
+      await standalone.get('.expand-btn').trigger('click')
+      expect(standalone.find('.stream-expanded').exists()).toBe(true)
+      expect(controlled.find('.stream-expanded').exists()).toBe(false)
+      await controlled.setProps({ expanded: true })
+      await standalone.get('.expand-btn').trigger('click')
+      expect(standalone.find('.stream-expanded').exists()).toBe(false)
+      expect(controlled.find('.stream-expanded').exists()).toBe(true)
+    } finally { controlled.unmount(); standalone.unmount() }
+  })
+
+  it.each([
+    [null, null, null, ''],
+    ['2026-09-03T10:00:00Z', '2026-09-03T10:37:59Z', '2026-09-03T13:00:00Z', '37m'],
+    ['2026-09-03T10:00:00Z', null, '2026-09-03T12:15:00Z', '2h 15m'],
+    ['2026-09-03T10:00:00Z', '', '2026-09-03T12:15:00Z', '2h 15m'],
+    ['2026-09-03T10:00:00Z', null, null, '3h 5m'],
+    ['2026-09-03T10:00:00Z', '2026-09-03T09:59:00Z', null, '-1m'],
+    ['invalid', null, null, 'NaNm'],
+  ])('preserves expanded category duration for start=%s next=%s end=%s', (start, next, end, expected) => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-09-03T13:05:00Z'))
+    const event = (timestamp: string | null, id: number) => ({
+      id, timestamp, event_type: 'category_change', title: null,
+      category_name: 'Synthetic', language: null,
+    })
+    const wrapper = mount(StreamCard, { props: {
+      expanded: true,
+      stream: { ...stream, ended_at: end, events: [event(start, 1), event(next, 2)] },
+    } })
+    try {
+      expect(wrapper.findAll('.category-duration')[0]!.text()).toBe(expected)
+    } finally {
+      wrapper.unmount()
+      vi.useRealTimers()
+    }
+  })
+
   it('does not expand when its row or body is clicked', async () => {
     const wrapper = mount(StreamCard, { props: { stream } })
 

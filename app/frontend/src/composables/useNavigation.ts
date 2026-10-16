@@ -28,13 +28,26 @@ const liveBadgeCount = ref<number | null>(null)
 const safePath = (path: unknown): path is string =>
   typeof path === 'string' && path[0] === '/' && path[1] !== '/'
 
-export function prepareVideoReturn(origin: string) {
+export function prepareVideoReturn(origin: string, expanded?: Record<number, boolean>) {
   if (!safePath(origin)) return
   history.replaceState(
-    { ...history.state, svrs: Math.max(0, scrollY) },
+    { ...history.state, svrs: Math.max(0, scrollY), svre: { origin, expanded: { ...expanded } } },
     '',
     origin
   )
+}
+
+// Consume only this source entry's row state. Router-owned fields stay intact.
+export function takeVideoReturnExpansion(origin: string): Record<number, boolean> {
+  const state = { ...history.state }
+  const snapshot = state.svre
+  delete state.svre
+  history.replaceState(state, '')
+  const expanded = snapshot?.expanded
+  return snapshot?.origin === origin && expanded && typeof expanded === 'object'
+    && !Array.isArray(expanded) && Object.entries(expanded).every(([id, value]) =>
+      Number.isSafeInteger(+id) && +id > 0 && typeof value === 'boolean')
+    ? expanded : {}
 }
 
 export async function returnFromVideo(router: Router) {

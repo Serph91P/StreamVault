@@ -142,7 +142,6 @@
               <!-- Chapters Button (Toggle List) -->
               <button
                 @click="toggleChapterUI"
-                ref="chaptersButton"
                 class="control-button chapters-button"
                 :class="{ 'active': showChapterUI }"
                 :aria-label="'Chapters'"
@@ -214,21 +213,21 @@
 
       <!-- Chapter List Panel (Overlay inside video) -->
       <transition name="slide-panel">
-        <div v-if="showChapterUI && parsedChapters.length > 0" class="chapter-overlay" @click.self="closeChapterUI">
-          <div
+        <dialog
+            v-if="showChapterUI && parsedChapters.length > 0"
             class="chapter-list-panel"
             ref="chapterListPanel"
-            role="dialog"
-            aria-modal="true"
             aria-label="Chapters"
-            tabindex="-1"
+            @cancel.prevent="closeChapterUI"
+            @keydown="containFocus($event, $event.currentTarget as HTMLDialogElement)"
+            @click.self="dismissChapterBackdrop"
             @scroll="handleChapterListScroll"
           >
         <div class="chapter-list-header">
           <h3>Chapters</h3>
           <button @click="closeChapterUI" class="close-btn" aria-label="Close chapters">x</button>
         </div>
-        <div class="chapter-list" ref="chapterList">
+        <div class="chapter-list">
           <button
             v-for="(chapter, index) in parsedChapters"
             :key="index"
@@ -266,8 +265,7 @@
             </div>
           </button>
         </div>
-          </div>
-        </div>
+        </dialog>
       </transition>
     </div>
 
@@ -280,6 +278,8 @@ import { useCategoryImages } from '@/composables/useCategoryImages'
 import PlayerStatus from '@/components/player/PlayerStatus.vue'
 import PlayerError from '@/components/player/PlayerError.vue'
 import { videoApi } from '@/services/api'
+import { containFocus } from '@/utils/focus'
+import { formatTime } from '@/utils/playerClock'
 
 interface Chapter {
   title: string
@@ -321,9 +321,8 @@ const emit = defineEmits<{
 
 const videoElement = ref<HTMLVideoElement>()
 const videoWrapper = ref<HTMLDivElement>()
-const chapterListPanel = ref<HTMLDivElement>()
-const chaptersButton = ref<HTMLButtonElement>()
-const chapterList = ref<HTMLDivElement>()
+const chapterListPanel = ref<HTMLDialogElement>()
+
 const chapterItemRefs = ref<Record<number, HTMLElement>>({})
 const isLoading = ref(true)
 const error = ref<string>('')
@@ -519,22 +518,31 @@ const seekChapterBy = (offset: number) => {
 }
 
 const closeChapterUI = () => {
+  // End modal inertness (and restore the opener) before Vue starts leaving.
+  chapterListPanel.value?.close()
   showChapterUI.value = false
-  void nextTick(() => chaptersButton.value?.focus())
 }
 
 const toggleChapterUI = () => {
-  showChapterUI.value = !showChapterUI.value
-  if (showChapterUI.value) void nextTick(() => chapterListPanel.value?.focus())
+  if (showChapterUI.value) return closeChapterUI()
+  showChapterUI.value = true
+  void nextTick(() => {
+    // The browser top layer escapes ancestor clipping/stacking and also works
+    // inside fullscreen. A larger page z-index cannot guarantee either.
+    chapterListPanel.value?.showModal()
+    chapterListPanel.value?.focus()
+  })
+}
+
+const dismissChapterBackdrop = (event: MouseEvent) => {
+  const { left, right, top, bottom } = chapterListPanel.value!.getBoundingClientRect()
+  if (event.clientX < left || event.clientX > right || event.clientY < top || event.clientY > bottom) closeChapterUI()
 }
 
 // Chapter loading
 const loadChapters = async () => {
   // First, check if we have pre-loaded chapters from props
-  if (props.chapters && props.chapters.length > 0) {
-    parsedChapters.value = convertApiChaptersToInternal(props.chapters)
-    return
-  }
+  if (props.chapters) return // The immediate props watcher owns conversion.
 
   if (props.streamId && props.autoChapters) {
     try {
@@ -630,17 +638,6 @@ const parseWebVTTChapters = (vttText: string) => {
 
 
 // Utility functions
-const formatTime = (seconds: number): string => {
-  const hrs = Math.floor(seconds / 3600)
-  const mins = Math.floor((seconds % 3600) / 60)
-  const secs = Math.floor(seconds % 60)
-
-  if (hrs > 0) {
-    return `${hrs}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
-  }
-  return `${mins}:${secs.toString().padStart(2, '0')}`
-}
-
 const formatDuration = (seconds: number): string => {
   const minutes = Math.floor(seconds / 60)
   return minutes > 60
@@ -691,12 +688,6 @@ watch(currentChapterIndex, (newIndex, oldIndex) => {
 const onKeyDown = (event: KeyboardEvent) => {
   if (!videoElement.value) return
 
-  if (event.key === 'Escape' && showChapterUI.value) {
-    event.preventDefault()
-    closeChapterUI()
-    return
-  }
-
   const modified = event.ctrlKey || event.metaKey
   if (modified && (event.key === 'ArrowLeft' || event.key === 'ArrowRight')) {
     event.preventDefault()
@@ -733,8 +724,9 @@ onUnmounted(() => {
 
 // Watch for changes in chapters prop
 watch(() => props.chapters, (newChapters) => {
-  if (newChapters && newChapters.length > 0) {
+  if (newChapters) {
     parsedChapters.value = convertApiChaptersToInternal(newChapters)
+    if (!newChapters.length) closeChapterUI()
   }
 }, { immediate: true })
 
@@ -803,11 +795,11 @@ defineExpose({ seekToChapter })
   }
 }
 
-// Mobile Landscape: Immersive fullscreen mode
+// Normal landscape reserves room for app chrome and route navigation.
 @media (max-width: 767px) and (orientation: landscape) {
   .video-wrapper {
-    height: 100vh;
-    width: auto;
+    height: var(--player-max-h);
+    width: 100%;
     aspect-ratio: auto;
     margin: 0;
   }
@@ -918,14 +910,16 @@ defineExpose({ seekToChapter })
 }
 
 /* Chapter List Panel - bounded, opaque overlay above the player. */
-.chapter-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 1000;
+.chapter-list-panel::backdrop {
   background: rgba(0, 0, 0, 0.32);
 }
 
 .chapter-list-panel {
+  margin: 0;
+  padding: 0;
+  color: inherit;
+  top: auto;
+  left: auto;
   background: var(--background-card);
   border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: var(--radius-lg);  /* 12px */
@@ -937,7 +931,6 @@ defineExpose({ seekToChapter })
   right: var(--spacing-4);  /* 16px from right edge */
   width: 400px;  /* Fixed width for desktop */
   max-width: calc(100% - 32px);  /* Responsive on mobile */
-  z-index: 1000;
   /* Animation now handled by Vue transition (see .slide-panel-* classes) */
 
   @include m.respond-below('md') {  // < 768px (mobile)

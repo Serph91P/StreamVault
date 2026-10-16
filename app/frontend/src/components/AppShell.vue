@@ -39,31 +39,6 @@
       </div>
     </header>
 
-    <div
-      v-if="showConnectivityBanner"
-      class="connectivity-banner"
-      :class="`connectivity-banner--${connectivityTone}`"
-      role="status"
-      aria-live="polite"
-    >
-      <div class="connectivity-banner__content">
-        <svg class="connectivity-banner__icon" aria-hidden="true">
-          <use :href="connectivityIcon" />
-        </svg>
-        <div class="connectivity-banner__copy">
-          <strong>{{ connectivityTitle }}</strong>
-          <span>{{ connectivityDescription }}</span>
-        </div>
-      </div>
-      <button
-        v-if="canReconnectNow"
-        class="connectivity-banner__action"
-        type="button"
-        @click="reconnectNow"
-      >
-        Reconnect
-      </button>
-    </div>
 
     <Teleport to="body">
       <Transition name="fade">
@@ -121,6 +96,31 @@
   </template>
 
   <NavigationWrapper v-if="showShell">
+    <div
+      v-if="showConnectivityBanner"
+      class="connectivity-banner"
+      :class="`connectivity-banner--${connectivityTone}`"
+      role="status"
+      aria-live="polite"
+    >
+      <div class="connectivity-banner__content">
+        <svg class="connectivity-banner__icon" aria-hidden="true">
+          <use :href="connectivityIcon" />
+        </svg>
+        <div class="connectivity-banner__copy">
+          <strong>{{ connectivityTitle }}</strong>
+          <span>{{ connectivityDescription }}</span>
+        </div>
+      </div>
+      <button
+        v-if="canReconnectNow"
+        class="connectivity-banner__action"
+        type="button"
+        @click="reconnectNow"
+      >
+        Reconnect
+      </button>
+    </div>
     <slot />
   </NavigationWrapper>
 
@@ -174,42 +174,48 @@ const notificationButtonLabel = computed(() => {
 
   return 'Open notifications'
 })
+// A retry handshake is still reconnecting; keep its in-flow status until connected.
+const connectivityStatus = computed(() =>
+  connectionStatus.value === 'connecting' && reconnectAttempt.value > 0
+    ? 'reconnecting'
+    : connectionStatus.value
+)
 const showConnectivityBanner = computed(() => {
   if (!isOnline.value) return true
-  return connectionStatus.value === 'reconnecting' ||
-    connectionStatus.value === 'failed' ||
-    connectionStatus.value === 'error' ||
-    connectionStatus.value === 'auth_failed'
+  return connectivityStatus.value === 'reconnecting' ||
+    connectivityStatus.value === 'failed' ||
+    connectivityStatus.value === 'error' ||
+    connectivityStatus.value === 'auth_failed'
 })
 const connectivityTone = computed(() => {
-  if (!isOnline.value || connectionStatus.value === 'auth_failed') return 'danger'
-  if (connectionStatus.value === 'reconnecting') return 'warning'
+  if (!isOnline.value || connectivityStatus.value === 'auth_failed') return 'danger'
+  if (connectivityStatus.value === 'reconnecting') return 'warning'
   return 'info'
 })
 const connectivityIcon = computed(() => {
-  if (!isOnline.value || connectionStatus.value === 'auth_failed') return '#icon-alert-triangle'
-  if (connectionStatus.value === 'reconnecting') return '#icon-refresh-cw'
+  if (!isOnline.value || connectivityStatus.value === 'auth_failed') return '#icon-alert-triangle'
+  if (connectivityStatus.value === 'reconnecting') return '#icon-refresh-cw'
   return '#icon-info'
 })
 const connectivityTitle = computed(() => {
   if (!isOnline.value) return 'You are offline'
-  if (connectionStatus.value === 'reconnecting') return 'Reconnecting live updates'
-  if (connectionStatus.value === 'auth_failed') return 'Session needs attention'
+  if (connectivityStatus.value === 'reconnecting') return 'Reconnecting live updates'
+  if (connectivityStatus.value === 'auth_failed') return 'Session needs attention'
   return 'Live updates paused'
 })
 const connectivityDescription = computed(() => {
   if (!isOnline.value) return 'StreamVault will retry when your device is back online.'
-  if (connectionStatus.value === 'reconnecting') {
+  if (connectivityStatus.value === 'reconnecting') {
     return `Attempt ${reconnectAttempt.value} of ${maxReconnectAttempts} to restore live events.`
   }
-  if (connectionStatus.value === 'auth_failed') return 'Sign in again to resume notifications and realtime status.'
+  if (connectivityStatus.value === 'auth_failed') return 'Sign in again to resume notifications and realtime status.'
   return 'Tap reconnect to retry now without refreshing the page.'
 })
 const canReconnectNow = computed(() => {
   return isOnline.value && (
-    connectionStatus.value === 'failed' ||
-    connectionStatus.value === 'error' ||
-    connectionStatus.value === 'disconnected'
+    connectivityStatus.value === 'failed' ||
+    connectivityStatus.value === 'error' ||
+    connectivityStatus.value === 'disconnected'
   )
 })
 const notificationBellRef = ref<HTMLElement | null>(null)
@@ -497,11 +503,9 @@ watch(() => props.showShell, (showShell) => {
 }
 
 .connectivity-banner {
-  position: fixed;
-  top: calc(var(--app-header-height, 56px) + env(safe-area-inset-top, 0px) + var(--spacing-2));
-  left: max(var(--spacing-2), env(safe-area-inset-left, 0px));
-  right: max(var(--spacing-2), env(safe-area-inset-right, 0px));
-  z-index: 1090;
+  // The shared main already reserves the fixed header. Natural flow reserves
+  // this banner's real wrapped height, including its interactive retry action.
+  margin: var(--spacing-2) max(var(--spacing-2), env(safe-area-inset-right, 0px)) var(--spacing-2) max(var(--spacing-2), env(safe-area-inset-left, 0px));
   display: flex;
   align-items: center;
   justify-content: space-between;

@@ -1,5 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { localSeekMedia } from '../fixtures/media/issue828Media'
+import { clickAndMeasureOrigin, readyForMeasuredClick } from '../fixtures/issue828Browser'
 
 const viewports = [
   { width: 320, height: 568 },
@@ -152,15 +153,18 @@ test('issue 828 preserves Library Play search/filter/sort/grid and measured scro
   const card = page.locator('.videos-container .video-card').last()
   await card.scrollIntoViewIfNeeded()
   await card.hover()
-  const originScroll = await page.evaluate(() => window.scrollY)
+  const play = card.getByRole('button', { name: /^Play / })
+  await readyForMeasuredClick(page, play)
+  const origin = page.url()
+  const originScroll = await clickAndMeasureOrigin(play)
   expect(originScroll).toBeGreaterThan(0)
-  await card.getByRole('button', { name: /^Play / }).click()
   await expect(page).toHaveURL(/\/streamer\/\d+\/stream\/\d+\/watch(?:\?|$)/)
   await page.getByRole('button', { name: 'Back to previous page' }).click()
   await expect.poll(() => page.evaluate(() => {
     const url = new URL(location.href)
     return [url.pathname, ...['q', 'streamer', 'sort', 'view'].map(key => url.searchParams.get(key))]
   })).toEqual(['/videos', 'alpha', 'streamer_alpha', 'title', 'grid'])
+  await expect(page).toHaveURL(origin)
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(originScroll)
   await expect(page.getByPlaceholder('Search videos by title or streamer...')).toHaveValue('alpha')
   await expect(page.getByRole('combobox', { name: 'Filter videos by streamer', exact: true })).toHaveValue('streamer_alpha')
@@ -181,4 +185,3 @@ test('issue 828 direct entry and reload use a safe fallback, ignoring external o
     await page.close()
   }
 })
-
