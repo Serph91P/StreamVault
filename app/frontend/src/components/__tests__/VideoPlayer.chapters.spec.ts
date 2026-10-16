@@ -64,13 +64,39 @@ describe('VideoPlayer automatic chapters', () => {
     )
   })
 
+  it.each([
+    ['zero', []],
+    ['default title at zero', [{ id: 1, title: '', start: 0, end: 60 }]],
+    ['one long title', [{ id: 1, title: 'Synthetic gypq long chapter title '.repeat(12).trim(), start: 0, end: 60 }]],
+    ['many long titles', Array.from({ length: 40 }, (_, index) => ({
+      id: index + 1, title: `Synthetic chapter ${index + 1} with gypq `.repeat(4).trim(), start: index * 60, end: (index + 1) * 60,
+    }))],
+  ] as const)('renders %s chapters without inventing entries or duplicating the selector', async (_name, chapters) => {
+    mocks.getChapters.mockResolvedValueOnce(chapters)
+    const wrapper = await mountPlayer()
+    expect(wrapper.findAll('.chapter-marker')).toHaveLength(chapters.length)
+    expect(wrapper.find('.chapters-button').exists()).toBe(chapters.length > 0)
+    if (chapters.length > 0) {
+      await wrapper.get('.chapters-button').trigger('click')
+      expect(wrapper.findAll('[role="dialog"]')).toHaveLength(1)
+      expect(wrapper.findAll('.chapter-list .chapter-item')).toHaveLength(chapters.length)
+      expect(wrapper.findAll('.chapter-list .chapter-title').map(title => title.text())).toEqual(
+        chapters.map((chapter, index) => chapter.title || `Chapter ${index + 1}`),
+      )
+    }
+    wrapper.unmount()
+  })
+
   it('seeks after asynchronously loaded chapters and closes the bounded overlay by Escape or outside click', async () => {
     let resolveChapters!: (chapters: Array<{ id: number; title: string; start: number; end: number }>) => void
     mocks.getChapters.mockImplementationOnce(() => new Promise(resolve => { resolveChapters = resolve }))
 
-    const wrapperPromise = mountPlayer()
+    const wrapper = await mountPlayer()
+    expect(wrapper.find('.chapters-button').exists()).toBe(false)
+    expect(wrapper.findAll('.chapter-marker')).toHaveLength(0)
     resolveChapters([{ id: 1, title: 'Delayed chapter', start: 120, end: 240 }])
-    const wrapper = await wrapperPromise
+    await flushPromises()
+    expect(wrapper.findAll('.chapter-marker')).toHaveLength(1)
     const video = wrapper.get('video').element as HTMLVideoElement
 
     await wrapper.get('.chapters-button').trigger('click')

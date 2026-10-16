@@ -212,6 +212,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { prepareVideoReturn, restoreVideoReturnScroll } from '@/composables/useNavigation'
 import { streamersApi, videoApi, recordingApi, backgroundQueueApi } from '@/services/api'
 import { useRealtimeStore } from '@/stores/realtime'
 import { useForceRecording } from '@/composables/useForceRecording'
@@ -530,13 +531,8 @@ function navigateToAddStreamer() {
 }
 
 function playVideo(video: VideoSummary) {
-  router.push({
-    path: `/videos/${video.id}`,
-    query: {
-      origin: '/',
-      scroll: String(Math.max(0, Math.round(window.scrollY)))
-    }
-  })
+  prepareVideoReturn('/')
+  router.push(`/videos/${video.id}`)
 }
 
 async function handleForceRecord(streamer: { id: number }) {
@@ -708,6 +704,7 @@ onMounted(async () => {
     fetchActiveRecordings(),
     refreshQueueFromAPI()
   ])
+  await restoreVideoReturnScroll()
 })
 </script>
 

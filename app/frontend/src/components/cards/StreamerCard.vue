@@ -563,7 +563,9 @@ onUnmounted(() => {
 .stream-info-container {
   width: 100%;
   text-align: center;
-  flex: 1;
+  // Preserve the title's content height instead of allocating a zero flex basis
+  // and shrinking .live-info to nothing in compact grid cards.
+  flex: 1 0 auto;
   display: flex;
   flex-direction: column;
   justify-content: flex-start;

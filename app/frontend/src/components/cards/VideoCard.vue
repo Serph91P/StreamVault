@@ -12,6 +12,7 @@
         class="video-card-link"
         :to="videoRoute"
         :aria-label="watchLabel"
+        @click="prepareVideoReturn(origin)"
       />
       <button
         v-else-if="disableNavigation"
@@ -106,6 +107,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { prepareVideoReturn } from '@/composables/useNavigation'
 import StatusBadge, { type StatusBadgeTone } from '@/components/base/StatusBadge.vue'
 import SurfaceCard from './SurfaceCard.vue'
 
@@ -270,13 +272,6 @@ const videoRoute = computed(() => ({
   params: {
     streamerId: props.video.streamer_id,
     streamId: props.video.id
-  },
-  query: {
-    title: displayTitle.value,
-    streamerName: props.video.streamer_name,
-    // Preserve the in-app origin; the player validates it before using it.
-    origin: props.origin.startsWith('/') && !props.origin.startsWith('//') ? props.origin : '/videos',
-    scroll: String(Math.max(0, Math.round(window.scrollY)))
   }
 }))
 

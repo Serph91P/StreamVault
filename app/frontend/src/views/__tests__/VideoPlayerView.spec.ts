@@ -33,13 +33,12 @@ vi.mock('@/services/api', () => ({
 
 const VideoPlayerStub = defineComponent({
   name: 'VideoPlayer',
-  props: ['videoSrc', 'chapters', 'streamTitle', 'streamId'],
+  props: ['videoSrc', 'chapters', 'streamId'],
   setup(props, { expose }) {
     expose({ seekToChapter: mocks.seekToChapter })
     return () => h('div', {
       class: 'video-player-stub',
-      'data-src': props.videoSrc,
-      'data-title': props.streamTitle
+      'data-src': props.videoSrc
     })
   }
 })
@@ -72,6 +71,7 @@ async function mountView() {
 }
 
 beforeEach(() => {
+  window.history.replaceState({}, '', '/videos/42')
   mocks.route.params = { id: '42' }
   mocks.route.query = {}
   mocks.getAll.mockResolvedValue([{
@@ -141,26 +141,24 @@ describe('VideoPlayerView backend playback contract', () => {
     const scrollTo = vi.fn()
     vi.stubGlobal('scrollTo', scrollTo)
     const origin = '/videos?search=alpha&streamer=beta&sort=title&view=grid'
-    mocks.route.query = { origin, scroll: '480' }
+    window.history.replaceState({ back: origin }, '', '/videos/42')
     const wrapper = await mountView()
 
     await wrapper.get('.back-button').trigger('click')
-    expect(mocks.routerPush).toHaveBeenCalledWith(origin)
-    expect(scrollTo).toHaveBeenCalledWith({ top: 480, behavior: 'auto' })
+    expect(mocks.routerBack).toHaveBeenCalledOnce()
+    expect(mocks.routerPush).not.toHaveBeenCalled()
+    expect(scrollTo).not.toHaveBeenCalled()
 
-    for (const query of [{}, { origin: '' }, { origin: '//example.invalid' }, { origin: 'https://example.invalid' }, { origin, scroll: '-1' }]) {
+    for (const back of [undefined, '', '//example.invalid', 'https://example.invalid']) {
+      mocks.routerBack.mockClear()
       mocks.routerPush.mockClear()
       scrollTo.mockClear()
-      mocks.route.query = query
+      window.history.replaceState(back === undefined ? {} : { back }, '', '/videos/42')
       const fallbackWrapper = await mountView()
       await fallbackWrapper.get('.back-button').trigger('click')
-      if (query.origin === origin) {
-        expect(mocks.routerPush).toHaveBeenCalledWith(origin)
-        expect(scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'auto' })
-      } else {
-        expect(mocks.routerPush).toHaveBeenCalledWith({ name: 'Videos' })
-        expect(scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'auto' })
-      }
+      expect(mocks.routerBack).not.toHaveBeenCalled()
+      expect(mocks.routerPush).toHaveBeenCalledWith('/videos')
+      expect(scrollTo).toHaveBeenCalledWith(0, 0)
     }
   })
 

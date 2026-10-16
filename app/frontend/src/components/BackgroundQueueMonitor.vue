@@ -53,16 +53,24 @@
       </div>
 
       <div class="glass-popup-content panel-content">
-        <div v-if="queueIsLoading" class="queue-state" role="status" aria-live="polite">
+        <div v-if="isLoading" class="queue-state" role="status" aria-live="polite">
           <span class="queue-state-spinner" aria-hidden="true"></span>
           <span>Loading background jobs…</span>
         </div>
-        <div v-else-if="!isConnected" class="queue-state queue-state-error" role="alert">
+        <div v-else-if="connectionStatus !== 'connected' && !dataAvailable" class="queue-state queue-state-error" role="alert">
           <span>Background queue updates are unavailable.</span>
+          <span v-if="error">{{ error }}</span>
           <button type="button" class="glass-btn-text" @click="forceRefreshFromAPI">Retry</button>
         </div>
 
         <template v-else>
+        <div v-if="connectionStatus !== 'connected'" class="queue-state" role="status" aria-live="polite">
+          <span>Live updates unavailable. Showing loaded queue data.</span>
+          <button type="button" class="glass-btn-text" @click="forceRefreshFromAPI">Retry</button>
+        </div>
+        <div v-if="error" class="queue-state queue-state-error" role="alert">
+          <span>{{ error }}</span>
+        </div>
         <!-- Queue Statistics -->
         <div class="stats-section">
           <div class="stat-item">
@@ -171,8 +179,9 @@ const {
   recentTasks,
   isLoading,
   connectionStatus,
+  dataAvailable,
+  error,
   forceRefreshFromAPI,
-  cancelStreamTasks: _cancelStreamTasks
 } = useBackgroundQueue()
 
 // Also track active recordings (they may not appear as queue tasks)
@@ -219,7 +228,7 @@ const combinedActiveTasks = computed(() => {
       const recordingAge = Date.now() - new Date(rec.started_at).getTime()
       const maxAge = STALE_RECORDING_THRESHOLD_HOURS * 60 * 60 * 1000 // Convert hours to milliseconds
       if (recordingAge > maxAge) {
-        console.debug(`Filtering out stale recording ${rec.id} (age: ${Math.round(recordingAge / 3600000)}h)`)
+        if (import.meta.env.DEV) console.debug(`Filtering out stale recording ${rec.id} (age: ${Math.round(recordingAge / 3600000)}h)`)
         continue
       }
     }
@@ -251,25 +260,15 @@ const combinedActiveTasks = computed(() => {
 })
 
 const hasActiveTasks = computed(() => combinedActiveTasks.value.length > 0)
-const queueIsLoading = computed(() => isLoading.value)
-const isConnected = computed(() => connectionStatus === 'connected')
+
 
 const totalProgress = computed(() => {
-  if (!hasActiveTasks.value) return 0
-
   const valid = combinedActiveTasks.value.filter(t => typeof t.progress === 'number')
-  if (valid.length === 0) return 0
-  const total = valid.reduce((sum, task) => sum + (task.progress || 0), 0)
-  return Math.round(total / valid.length)
+  return valid.length
+    ? Math.round(valid.reduce((sum, task) => sum + (task.progress || 0), 0) / valid.length)
+    : 0
 })
 
-const _statusIconClass = computed(() => {
-  if (isLoading.value) return 'status-loading'
-  if (!isConnected.value) return 'status-error'
-  if (queueStats.value.failed_tasks > 0) return 'status-error'
-  if (hasActiveTasks.value) return 'status-active'
-  return 'status-idle'
-})
 
 const togglePanel = () => {
   if (showPanel.value) {
@@ -325,14 +324,7 @@ const getStreamerName = (task: any) => {
 }
 
 const getStatusClass = (status: string) => {
-  const classes: Record<string, string> = {
-    'pending': 'status-pending',
-    'running': 'status-running',
-    'completed': 'status-completed',
-    'failed': 'status-failed',
-    'retrying': 'status-retrying'
-  }
-  return classes[status] || 'status-unknown'
+  return `status-${['pending', 'running', 'completed', 'failed', 'retrying'].includes(status) ? status : 'unknown'}`
 }
 
 // Map status to border class
@@ -347,8 +339,7 @@ const formatTime = (timestamp?: string) => {
   if (!timestamp) return ''
 
   const date = new Date(timestamp)
-  const now = new Date()
-  const diff = now.getTime() - date.getTime()
+  const diff = Date.now() - date.getTime()
 
   if (diff < 60000) return 'just now'
   if (diff < 3600000) return `${Math.round(diff / 60000)}m ago`

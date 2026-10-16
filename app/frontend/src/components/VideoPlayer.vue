@@ -1,7 +1,7 @@
 <template>
   <div class="video-player-container">
     <!-- Video Element -->
-    <div class="video-wrapper" ref="videoWrapper" @mouseenter="onVideoHover" @mouseleave="onVideoLeave" @mousemove="onVideoMove" @touchstart="onVideoTouch">
+    <div class="video-wrapper" ref="videoWrapper" @mouseenter="revealControls" @mouseleave="onVideoLeave" @mousemove="revealControls" @touchstart="revealControls">
       <video
         ref="videoElement"
         :src="decodedVideoSrc"
@@ -37,7 +37,7 @@
         v-show="showControls || !isPlaying"
         class="video-controls-overlay"
         @click.stop
-        @touchstart="onControlsTouch"
+        @touchstart="revealControls"
       >
         <!-- Progress Bar with Chapter Markers -->
         <div
@@ -122,7 +122,7 @@
             <template v-if="parsedChapters.length > 0">
               <!-- Previous Chapter Button -->
               <button
-                @click="previousChapter"
+                @click="seekChapterBy(-1)"
                 :disabled="currentChapterIndex <= 0"
                 class="control-button chapter-nav-button"
                 :aria-label="'Previous Chapter'"
@@ -156,7 +156,7 @@
 
               <!-- Next Chapter Button -->
               <button
-                @click="nextChapter"
+                @click="seekChapterBy(1)"
                 :disabled="currentChapterIndex >= parsedChapters.length - 1"
                 class="control-button chapter-nav-button"
                 :aria-label="'Next Chapter'"
@@ -305,7 +305,6 @@ interface Props {
   chaptersUrl?: string // URL to WebVTT chapter file
   autoChapters?: boolean // Auto-generate chapters from category changes
   chapters?: ApiChapter[] // Pre-loaded chapters from API
-  streamTitle?: string
   theaterMode?: boolean
 }
 
@@ -317,9 +316,6 @@ const props = withDefaults(defineProps<Props>(), {
 const emit = defineEmits<{
   'chapter-change': [chapter: Chapter, index: number]
   'video-ready': [duration: number]
-  'time-update': [currentTime: number]
-  'video-loading': []
-  'video-error': [message: string]
   'toggle-theater': []
 }>()
 
@@ -440,17 +436,7 @@ const toggleFullscreen = async () => {
   }
 }
 
-const _toggleControls = () => {
-  showControls.value = !showControls.value
-  resetControlsTimeout()
-}
-
-const onControlsTouch = () => {
-  showControls.value = true
-  resetControlsTimeout()
-}
-
-const onVideoHover = () => {
+const revealControls = () => {
   showControls.value = true
   resetControlsTimeout()
 }
@@ -461,15 +447,6 @@ const onVideoLeave = () => {
   }
 }
 
-const onVideoMove = () => {
-  showControls.value = true
-  resetControlsTimeout()
-}
-
-const onVideoTouch = () => {
-  showControls.value = true
-  resetControlsTimeout()
-}
 
 const resetControlsTimeout = () => {
   if (controlsTimeout.value) {
@@ -502,30 +479,22 @@ const onPause = () => {
 
 // Event handlers
 const onVideoLoaded = () => {
-  if (videoElement.value) {
-    videoDuration.value = videoElement.value.duration
-    volume.value = videoElement.value.volume
-    isMuted.value = videoElement.value.muted
-    emit('video-ready', videoDuration.value)
-
-    // Recalculate chapter durations now that we have video duration
-    if (parsedChapters.value.length > 0) {
-      parsedChapters.value = calculateChapterDurations([...parsedChapters.value])
-    }
-  }
+  const video = videoElement.value
+  if (!video) return
+  videoDuration.value = video.duration
+  volume.value = video.volume
+  isMuted.value = video.muted
+  emit('video-ready', videoDuration.value)
+  if (parsedChapters.value.length) parsedChapters.value = calculateChapterDurations([...parsedChapters.value])
 }
 
 const onTimeUpdate = () => {
-  if (videoElement.value) {
-    currentTime.value = videoElement.value.currentTime
-    emit('time-update', currentTime.value)
-  }
+  currentTime.value = videoElement.value?.currentTime ?? 0
 }
 
 const onLoadStart = () => {
   isLoading.value = true
   error.value = ''
-  emit('video-loading')
 }
 
 const onCanPlay = () => {
@@ -535,32 +504,18 @@ const onCanPlay = () => {
 const onVideoError = () => {
   isLoading.value = false
   error.value = 'Failed to load video. Please check the video file and try again.'
-  emit('video-error', error.value)
 }
 
-const retryLoad = () => {
-  if (videoElement.value) {
-    videoElement.value.load()
-  }
-}
+const retryLoad = () => videoElement.value?.load()
 
 // Chapter navigation
 const seekToChapter = (startTime: number) => {
-  if (videoElement.value) {
-    videoElement.value.currentTime = startTime
-  }
+  if (videoElement.value) videoElement.value.currentTime = startTime
 }
 
-const previousChapter = () => {
-  if (currentChapterIndex.value > 0) {
-    seekToChapter(parsedChapters.value[currentChapterIndex.value - 1].startTime)
-  }
-}
-
-const nextChapter = () => {
-  if (currentChapterIndex.value < parsedChapters.value.length - 1) {
-    seekToChapter(parsedChapters.value[currentChapterIndex.value + 1].startTime)
-  }
+const seekChapterBy = (offset: number) => {
+  const chapter = parsedChapters.value[currentChapterIndex.value + offset]
+  if (chapter) seekToChapter(chapter.startTime)
 }
 
 const closeChapterUI = () => {
@@ -568,12 +523,9 @@ const closeChapterUI = () => {
   void nextTick(() => chaptersButton.value?.focus())
 }
 
-const toggleChapterUI = async () => {
+const toggleChapterUI = () => {
   showChapterUI.value = !showChapterUI.value
-  if (showChapterUI.value) {
-    await nextTick()
-    chapterListPanel.value?.focus()
-  }
+  if (showChapterUI.value) void nextTick(() => chapterListPanel.value?.focus())
 }
 
 // Chapter loading
@@ -625,40 +577,26 @@ const convertApiChaptersToInternal = (apiChapters: ApiChapter[]): Chapter[] => {
     }
   })
 
-  // Deduplicate by startTime and title
-  const unique = converted.filter((chapter, index, self) =>
-    index === self.findIndex(c =>
-      c.startTime === chapter.startTime && c.title === chapter.title
-    )
-  )
+  const unique = [...new Map(converted.map(chapter => [
+    `${chapter.startTime}:${chapter.title}`, chapter
+  ])).values()]
 
-  const videoDur = videoElement.value?.duration || videoDuration.value
-  return unique.map((chapter, index) => ({
-    ...chapter,
-    duration: chapter.duration ?? (index < unique.length - 1
-      ? unique[index + 1].startTime - chapter.startTime
-      : (videoDur && !isNaN(videoDur) && videoDur > 0 ? videoDur - chapter.startTime : 60)),
-  }))
+  return calculateChapterDurations(unique, false)
 }
 
 // Calculate chapter durations based on video metadata
-const calculateChapterDurations = (chapterList: Chapter[]): Chapter[] => {
+const calculateChapterDurations = (
+  chapterList: Array<Omit<Chapter, 'duration'> & { duration?: number }>,
+  overwrite = true
+): Chapter[] => {
   const videoDur = videoElement.value?.duration || videoDuration.value
-
   return chapterList.map((chapter, index) => {
-    if (index < chapterList.length - 1) {
-      // Duration = next chapter start time - current chapter start time
-      chapter.duration = chapterList[index + 1].startTime - chapter.startTime
-    } else {
-      // Last chapter: calculate to end of video
-      if (videoDur && !isNaN(videoDur) && videoDur > 0) {
-        chapter.duration = videoDur - chapter.startTime
-      } else {
-        // Video not loaded yet, use placeholder
-        chapter.duration = 60
-      }
+    if (overwrite || chapter.duration === undefined) {
+      chapter.duration = index < chapterList.length - 1
+        ? chapterList[index + 1].startTime - chapter.startTime
+        : videoDur > 0 ? videoDur - chapter.startTime : 60
     }
-    return chapter
+    return chapter as Chapter
   })
 }
 
@@ -672,55 +610,24 @@ const parseTimeStringToSeconds = (timeString: string): number => {
   }
 
   // Handle HH:MM:SS.mmm or MM:SS format
-  const parts = timeString.split(':')
-  if (parts.length === 2) {
-    const [minutes, seconds] = parts
-    return parseInt(minutes) * 60 + parseFloat(seconds)
-  } else if (parts.length === 3) {
-    const [hours, minutes, seconds] = parts
-    return parseInt(hours) * 3600 + parseInt(minutes) * 60 + parseFloat(seconds)
-  }
-
-  return 0
+  const parts = timeString.split(':').map(Number)
+  if (parts.length === 2) return parts[0] * 60 + parts[1]
+  return parts.length === 3 ? parts[0] * 3600 + parts[1] * 60 + parts[2] : 0
 }
 
 const parseWebVTTChapters = (vttText: string) => {
-  const lines = vttText.split('\n')
-  const localChapters: Chapter[] = []
-
-  let i = 0
-  while (i < lines.length) {
-    const line = lines[i].trim()
-
-    // Look for timestamp line
-    const timeMatch = line.match(/(\d{2}:\d{2}:\d{2}\.\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2}\.\d{3})/)
-    if (timeMatch) {
-      const startTime = parseVTTTime(timeMatch[1])
-      const endTime = parseVTTTime(timeMatch[2])
-      const duration = endTime - startTime
-
-      // Next line should be the title
-      i++
-      const title = lines[i]?.trim() || 'Chapter'
-
-      localChapters.push({
-        title,
-        startTime,
-        duration
-      })
+  const cue = /(\d{2}:\d{2}:\d{2}\.\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2}\.\d{3})[^\n]*\n([^\n]*)/g
+  const chapters = Array.from(vttText.matchAll(cue), match => {
+    const startTime = parseTimeStringToSeconds(match[1])
+    return {
+      title: match[3].trim() || 'Chapter',
+      startTime,
+      duration: parseTimeStringToSeconds(match[2]) - startTime
     }
-    i++
-  }
-
-  if (localChapters.length > 0) {
-    parsedChapters.value = localChapters
-  }
+  })
+  if (chapters.length) parsedChapters.value = chapters
 }
 
-const parseVTTTime = (timeStr: string): number => {
-  const [hours, minutes, seconds] = timeStr.split(':')
-  return parseInt(hours) * 3600 + parseInt(minutes) * 60 + parseFloat(seconds)
-}
 
 // Utility functions
 const formatTime = (seconds: number): string => {
@@ -735,67 +642,33 @@ const formatTime = (seconds: number): string => {
 }
 
 const formatDuration = (seconds: number): string => {
-  const mins = Math.floor(seconds / 60)
-  const secs = Math.floor(seconds % 60)
-
-  if (mins > 60) {
-    const hrs = Math.floor(mins / 60)
-    const remainingMins = mins % 60
-    return `${hrs}h ${remainingMins}m`
-  }
-  return `${mins}m ${secs}s`
+  const minutes = Math.floor(seconds / 60)
+  return minutes > 60
+    ? `${Math.floor(minutes / 60)}h ${minutes % 60}m`
+    : `${minutes}m ${Math.floor(seconds % 60)}s`
 }
 
-const getChapterColor = (title: string): string => {
-  // Generate consistent colors for different game categories
-  let hash = 0
-  for (let i = 0; i < title.length; i++) {
-    hash = title.charCodeAt(i) + ((hash << 5) - hash)
-  }
-
-  const hue = Math.abs(hash % 360)
-  return `hsl(${hue}, 70%, 60%)`
-}
+const getChapterColor = (title: string) => `hsl(${title.length * 47 % 360}, 70%, 60%)`
 
 // Scroll indicator management for chapter list
 const handleChapterListScroll = (event: Event) => {
   const element = event.target as HTMLElement
   if (!element) return
 
-  const scrollTop = element.scrollTop
-  const scrollHeight = element.scrollHeight
-  const clientHeight = element.clientHeight
-
-  // Add/remove classes for scroll indicators
-  if (scrollTop > 10) {
-    element.classList.add('scrolled-top')
-  } else {
-    element.classList.remove('scrolled-top')
-  }
-
-  if (scrollTop < scrollHeight - clientHeight - 10) {
-    element.classList.add('scrolled-bottom')
-  } else {
-    element.classList.remove('scrolled-bottom')
-  }
+  element.classList.toggle('scrolled-top', element.scrollTop > 10)
+  element.classList.toggle(
+    'scrolled-bottom',
+    element.scrollTop < element.scrollHeight - element.clientHeight - 10
+  )
 }
 
 // Auto-scroll to keep active chapter centered
 const scrollToActiveChapter = (index: number) => {
-  if (!chapterListPanel.value || !chapterItemRefs.value[index]) return
-
   const panel = chapterListPanel.value
-  const item = chapterItemRefs.value[index] as HTMLElement
-
-  // Calculate position to center the active item
-  const itemTop = item.offsetTop
-  const itemHeight = item.offsetHeight
-  const panelHeight = panel.clientHeight
-  const scrollPosition = itemTop - (panelHeight / 2) + (itemHeight / 2)
-
-  // Smooth scroll to position
+  const item = chapterItemRefs.value[index]
+  if (!panel || !item) return
   panel.scrollTo({
-    top: scrollPosition,
+    top: item.offsetTop - panel.clientHeight / 2 + item.offsetHeight / 2,
     behavior: 'smooth'
   })
 }
@@ -824,26 +697,13 @@ const onKeyDown = (event: KeyboardEvent) => {
     return
   }
 
-  switch (event.key) {
-    case 'ArrowLeft':
-      if (event.ctrlKey || event.metaKey) {
-        event.preventDefault()
-        previousChapter()
-      }
-      break
-    case 'ArrowRight':
-      if (event.ctrlKey || event.metaKey) {
-        event.preventDefault()
-        nextChapter()
-      }
-      break
-    case 'c':
-    case 'C':
-      if (!event.ctrlKey && !event.metaKey) {
-        event.preventDefault()
-        toggleChapterUI()
-      }
-      break
+  const modified = event.ctrlKey || event.metaKey
+  if (modified && (event.key === 'ArrowLeft' || event.key === 'ArrowRight')) {
+    event.preventDefault()
+    seekChapterBy(event.key === 'ArrowLeft' ? -1 : 1)
+  } else if (!modified && event.key.toLowerCase() === 'c') {
+    event.preventDefault()
+    toggleChapterUI()
   }
 }
 
@@ -1130,18 +990,6 @@ defineExpose({ seekToChapter })
 .slide-panel-leave-to {
   opacity: 0;
   transform: translateX(20px);
-}
-
-/* Legacy animation (kept for backwards compatibility) */
-@keyframes slideInRight {
-  from {
-    opacity: 0;
-    transform: translateX(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
 }
 
 /* Custom scrollbar for chapter list with glass effect */

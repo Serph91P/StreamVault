@@ -12,7 +12,7 @@
         title="Failed to Load Video"
         :message="error"
         action-label="Retry"
-        @action="retryLoad"
+        @action="loadChapterData"
       />
     </div>
 
@@ -52,14 +52,10 @@
             ref="videoPlayerRef"
             :video-src="chapterData.video_url"
             :chapters="videoPlayerChapters"
-            :stream-title="chapterData.stream_title"
             :stream-id="parseInt(streamId)"
             :theater-mode="effectiveTheaterMode"
             @chapter-change="onChapterChange"
             @video-ready="onVideoReady"
-            @video-loading="onVideoLoading"
-            @video-error="onVideoError"
-            @time-update="onTimeUpdate"
             @toggle-theater="toggleTheaterMode"
           />
         </SurfaceCard>
@@ -142,7 +138,7 @@
                 </svg>
                 {{ isSharing ? 'Generating...' : 'Share' }}
               </button>
-              <button class="action-btn danger" @click="confirmDelete" :disabled="isDeleting" v-ripple>
+              <button class="action-btn danger" @click="showDeleteModal = true" :disabled="isDeleting" v-ripple>
                 <svg class="action-icon"><use href="#icon-trash-2" /></svg>
                 {{ isDeleting ? 'Deleting...' : 'Delete' }}
               </button>
@@ -183,8 +179,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed, nextTick } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { returnFromVideo } from '@/composables/useNavigation'
 import VideoPlayer from '@/components/VideoPlayer.vue'
 import LoadingSkeleton from '@/components/LoadingSkeleton.vue'
 import SurfaceCard from '@/components/cards/SurfaceCard.vue'
@@ -231,24 +228,14 @@ interface BackendChapter {
 const route = useRoute()
 const router = useRouter()
 
-const _streamerId = computed(() => route.params.streamerId as string)
 // Support both route patterns: /videos/:id and /streamer/:streamerId/stream/:streamId/watch
-const streamId = computed(() => {
-  // Check for 'id' parameter first (from /videos/:id route)
-  if (route.params.id) {
-    return route.params.id as string
-  }
-  // Fallback to 'streamId' parameter (from legacy route)
-  return route.params.streamId as string
-})
+const streamId = computed(() => (route.params.id || route.params.streamId) as string)
 const streamTitle = computed(() => chapterData.value?.stream_title || '')
 const streamerName = computed(() => chapterData.value?.streamer_name || '')
 
 const chapterData = ref<ChapterData | null>(null)
 const isLoading = ref(true)
 const error = ref<string | null>(null)
-const playerReady = ref(false)
-const playerError = ref<string | null>(null)
 const theaterMode = ref(false)
 const isNarrowViewport = ref(false)
 
@@ -284,12 +271,10 @@ const loadChapterData = async () => {
   try {
     isLoading.value = true
     error.value = null
-    playerReady.value = false
-    playerError.value = null
 
     const selectedStreamId = Number(streamId.value)
     if (!Number.isInteger(selectedStreamId) || selectedStreamId <= 0) {
-      throw new Error('Invalid video identifier.')
+      throw new Error('Invalid video ID.')
     }
 
     const [chapterResponse, catalogResponse] = await Promise.all([
@@ -297,7 +282,7 @@ const loadChapterData = async () => {
       videoApi.getAll()
     ])
     if (!Array.isArray(chapterResponse)) {
-      throw new Error('The backend returned an invalid chapter response.')
+      throw new Error('Invalid chapter response.')
     }
 
     const videos: CatalogVideo[] = Array.isArray(catalogResponse)
@@ -305,14 +290,14 @@ const loadChapterData = async () => {
       : catalogResponse?.data ?? catalogResponse?.videos ?? []
     const currentVideo = videos.find(video => String(video.id ?? video.stream_id) === String(selectedStreamId))
     if (!currentVideo) {
-      throw new Error('Video metadata is unavailable. Please try again.')
+      throw new Error('Video metadata unavailable.')
     }
 
     const title = currentVideo.title ?? currentVideo.stream_title
     const duration = Number(currentVideo.duration)
     const recordedAt = currentVideo.created_at ?? currentVideo.started_at ?? currentVideo.recorded_at
     if (!title || !Number.isFinite(duration) || duration < 0 || !recordedAt || Number.isNaN(Date.parse(recordedAt))) {
-      throw new Error('Video metadata is incomplete. Please try again.')
+      throw new Error('Video metadata is incomplete')
     }
 
     const chapters: BackendChapter[] = chapterResponse.map((chapter: unknown, index: number) => {
@@ -320,7 +305,7 @@ const loadChapterData = async () => {
       const start = Number(candidate.start)
       const end = Number(candidate.end)
       if (!Number.isFinite(start) || start < 0 || !Number.isFinite(end) || end < start) {
-        throw new Error(`Chapter ${index + 1} has invalid timing data.`)
+        throw new Error(`Chapter ${index + 1} has invalid timing.`)
       }
       return {
         id: Number(candidate.id ?? index + 1),
@@ -340,35 +325,18 @@ const loadChapterData = async () => {
       video_url: videoApi.getVideoStreamUrl(selectedStreamId)
     }
   } catch (err: any) {
-    console.error('Error loading chapter data:', err)
     error.value = err instanceof Error ? err.message : 'Failed to load video data. Please try again.'
   } finally {
     isLoading.value = false
   }
 }
 
-const retryLoad = () => {
-  loadChapterData()
-}
 
 const chapterAccessibleName = (chapter: ChapterData['chapters'][number]) =>
   `Seek to ${chapter.title} at ${formatTimestamp(chapter.start)}`
 
-const goBack = async () => {
-  const origin = route.query.origin
-  const requestedScroll = Number(route.query.scroll)
-  const scroll = Number.isFinite(requestedScroll) && requestedScroll >= 0 ? requestedScroll : 0
-  // Direct/reloaded entries use an in-app fallback and never navigate externally.
-  if (typeof origin === 'string' && origin.startsWith('/') && !origin.startsWith('//')) {
-    await router.push(origin)
-    await nextTick()
-    window.scrollTo({ top: scroll, behavior: 'auto' })
-    return
-  }
-  await router.push({ name: 'Videos' })
-  await nextTick()
-  window.scrollTo({ top: 0, behavior: 'auto' })
-}
+// The shared helper validates Vue Router's previous in-app history entry.
+const goBack = () => returnFromVideo(router)
 
 // Video player event handlers
 const onChapterChange = (_chapter: any, index: number) => {
@@ -376,47 +344,24 @@ const onChapterChange = (_chapter: any, index: number) => {
 }
 
 const onVideoReady = (duration: number) => {
-  playerReady.value = true
-  playerError.value = null
-  if (chapterData.value) {
-    chapterData.value.duration = duration
-  }
-}
-
-const onVideoLoading = () => {
-  playerReady.value = false
-  playerError.value = null
-}
-
-const onVideoError = (message: string) => {
-  playerReady.value = false
-  playerError.value = message
-}
-
-const onTimeUpdate = (_currentTime: number) => {
-  // Update progress or other time-based features
+  if (chapterData.value) chapterData.value.duration = duration
 }
 
 // Helper functions
-const formatDuration = (seconds: number): string => {
-  if (!Number.isFinite(seconds) || seconds < 0) return 'Unavailable'
-  const hours = Math.floor(seconds / 3600)
-  const minutes = Math.floor((seconds % 3600) / 60)
-  const secs = Math.floor(seconds % 60)
-
-  if (hours > 0) {
-    return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
-  }
-  return `${minutes}:${secs.toString().padStart(2, '0')}`
+const formatTimestamp = (seconds: number): string => {
+  const whole = Math.max(0, Math.floor(seconds))
+  const hours = Math.floor(whole / 3600)
+  const minutes = Math.floor((whole % 3600) / 60)
+  const remainder = String(whole % 60).padStart(2, '0')
+  return `${hours ? `${hours}:` : ''}${hours ? String(minutes).padStart(2, '0') : minutes}:${remainder}`
 }
+
+const formatDuration = (seconds: number) =>
+  Number.isFinite(seconds) && seconds >= 0 ? formatTimestamp(seconds) : 'Unavailable'
 
 const formattedDate = computed(() => {
   if (!chapterData.value?.recorded_at) return 'Unavailable'
-  return new Date(chapterData.value.recorded_at).toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric'
-  })
+  return new Date(chapterData.value.recorded_at).toLocaleDateString('en-US', { dateStyle: 'medium' })
 })
 
 // Chapter navigation
@@ -426,15 +371,6 @@ const seekToChapter = (chapter: any) => {
   videoPlayerRef.value?.seekToChapter(chapter.start)
 }
 
-const formatTimestamp = (seconds: number): string => {
-  const wholeSeconds = Math.max(0, Math.floor(seconds))
-  const hours = Math.floor(wholeSeconds / 3600)
-  const minutes = Math.floor((wholeSeconds % 3600) / 60)
-  const remainder = wholeSeconds % 60
-  return hours > 0
-    ? `${hours}:${minutes.toString().padStart(2, '0')}:${remainder.toString().padStart(2, '0')}`
-    : `${minutes}:${remainder.toString().padStart(2, '0')}`
-}
 
 // ============================================================================
 // ACTION BUTTON HANDLERS
@@ -443,13 +379,10 @@ const formatTimestamp = (seconds: number): string => {
 /**
  * Download the video file
  */
-const downloadVideo = async () => {
+const downloadVideo = () => {
   if (isDownloading.value) return
-
+  isDownloading.value = true
   try {
-    isDownloading.value = true
-
-    // Create a temporary link to trigger download
     const downloadUrl = videoApi.getVideoStreamUrl(Number(streamId.value))
     const link = document.createElement('a')
     link.href = downloadUrl
@@ -462,12 +395,8 @@ const downloadVideo = async () => {
   } catch (err) {
     console.error('Download failed:', err)
     error.value = 'Failed to start download'
-  } finally {
-    // Reset after a short delay to show the button state change
-    setTimeout(() => {
-      isDownloading.value = false
-    }, 1000)
   }
+  setTimeout(() => { isDownloading.value = false }, 1000)
 }
 
 /**
@@ -506,32 +435,23 @@ const copyShareUrl = async () => {
 
   try {
     await navigator.clipboard.writeText(shareUrl.value)
-    copied.value = true
-
-    // Reset copied state after 2 seconds
-    setTimeout(() => {
-      copied.value = false
-    }, 2000)
+    markCopied()
   } catch (err) {
     console.error('Copy failed:', err)
     // Fallback: select the input text
     if (shareUrlInput.value) {
       shareUrlInput.value.select()
       document.execCommand('copy')
-      copied.value = true
-      setTimeout(() => {
-        copied.value = false
-      }, 2000)
+      markCopied()
     }
   }
 }
 
-/**
- * Show delete confirmation modal
- */
-const confirmDelete = () => {
-  showDeleteModal.value = true
+const markCopied = () => {
+  copied.value = true
+  setTimeout(() => { copied.value = false }, 2000)
 }
+
 
 /**
  * Delete the video and associated files

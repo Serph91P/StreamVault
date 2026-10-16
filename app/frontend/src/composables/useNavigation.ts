@@ -6,8 +6,8 @@
  * - Desktop: Collapsible sidebar navigation
  */
 
-import { ref, computed } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
+import { ref, computed, nextTick } from 'vue'
+import { useRouter, useRoute, type Router } from 'vue-router'
 import { appStorage } from '@/services/storage'
 import { useLayoutQuery } from './useLayoutQuery'
 
@@ -24,6 +24,36 @@ export interface NavigationTab {
 // must live at module scope rather than creating one ref per component.
 const sidebarExpanded = ref(true)
 const liveBadgeCount = ref<number | null>(null)
+
+const safePath = (path: unknown): path is string =>
+  typeof path === 'string' && path[0] === '/' && path[1] !== '/'
+
+export function prepareVideoReturn(origin: string) {
+  if (!safePath(origin)) return
+  history.replaceState(
+    { ...history.state, svrs: Math.max(0, scrollY) },
+    '',
+    origin
+  )
+}
+
+export async function returnFromVideo(router: Router) {
+  const origin = history.state?.back
+  if (safePath(origin)) return router.back()
+  await router.push('/videos')
+  scrollTo(0, 0)
+}
+
+export function restoreVideoReturnScroll() {
+  return nextTick(() => {
+    const state = history.state
+    const scroll = state?.svrs
+    if (typeof scroll !== 'number' || scroll < 0) return
+    delete state.svrs
+    history.replaceState(state, '')
+    scrollTo(0, scroll)
+  })
+}
 
 // Navigation configuration
 export const navigationTabs: NavigationTab[] = [

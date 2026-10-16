@@ -30,7 +30,7 @@ withDefaults(defineProps<Props>(), {
         <svg v-if="icon" class="page-header-icon" :class="{ 'm-hide': !!mobileIcon }" aria-hidden="true">
           <use :href="`#icon-${icon}`" />
         </svg>
-        <div>
+        <div class="page-header-copy">
           <h1 class="page-header-title-text desktop-title" :class="{ 'm-hide': !!mobileTitle }">{{ title }}</h1>
           <h1 v-if="mobileTitle" class="page-header-title-text mobile-title">
             <svg v-if="mobileIcon" class="page-header-icon" aria-hidden="true">
@@ -65,9 +65,15 @@ withDefaults(defineProps<Props>(), {
 }
 
 .page-header-title-group {
+  flex: 1 1 0;
   display: flex;
   align-items: flex-start;
   gap: var(--spacing-3);
+  min-width: 0;
+}
+
+.page-header-copy {
+  flex: 1 1 0;
   min-width: 0;
 }
 
@@ -146,6 +152,8 @@ withDefaults(defineProps<Props>(), {
 }
 
 .page-header-subtitle {
+  width: 100%;
+  min-width: 0;
   margin: var(--spacing-1) 0 0;
   font-size: var(--text-sm);
   color: var(--sv-sem-text-secondary);
@@ -160,8 +168,8 @@ withDefaults(defineProps<Props>(), {
   flex-wrap: wrap;
 }
 
-// A status/action pill must never consume the title column on a phone.
-@include m.respond-below('md') {
+// A status/action pill must never consume the title column on a narrow screen.
+@include m.respond-below('lg') {
   .page-header-content {
     flex-wrap: wrap;
     gap: var(--spacing-3);
@@ -169,6 +177,13 @@ withDefaults(defineProps<Props>(), {
 
   .page-header-title-group {
     flex: 1 1 100%;
+    width: 100%;
+    flex-wrap: wrap;
+
+    .page-header-copy {
+      flex: 1 1 100%;
+      width: 100%;
+    }
   }
 
   .page-header-end {

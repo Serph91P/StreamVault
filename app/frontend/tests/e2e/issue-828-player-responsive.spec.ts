@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
+import { localSeekMedia } from '../fixtures/media/issue828Media'
 
 const viewports = [
   { width: 320, height: 568 },
@@ -23,24 +24,33 @@ async function assertButtonFitsViewport(page: Page, label: string) {
 
 test('issue 828 player keeps controls bounded and restores its in-app library origin', async ({ page }, testInfo) => {
   test.setTimeout(90_000)
-  // Mock mode intentionally has no media binary at the API stream URL. Keep its
-  // native load error from covering the custom controls while this test checks
-  // their independent layout and chapter interaction contract.
-  await page.addInitScript(() => {
-    document.addEventListener('error', (event) => {
-      if (event.target instanceof HTMLVideoElement) event.stopImmediatePropagation()
-    }, true)
-  })
+  // Serve genuine, local synthetic H264 media. Do not suppress native errors or
+  // dispatch canplay: decoding and a completed seek are part of this regression.
+  await page.route('**/api/videos/*/stream', localSeekMedia)
 
   for (const viewport of viewports) {
     await page.setViewportSize(viewport)
-    await page.goto('/streamer/1/stream/1/watch?title=Synthetic%20recording&streamerName=alpha&origin=%2Fvideos%3Fq%3Dalpha%26streamer%3Dalpha%26sort%3Dtitle%26view%3Dlist&scroll=480', { waitUntil: 'domcontentloaded' })
-    await expect(page.getByRole('heading', { name: 'Morning Talk Show - Community Discussion' })).toBeVisible()
-    await page.locator('video.video-element').dispatchEvent('canplay')
+    // Enter through the real Library: origin/scroll are captured by VideoCard,
+    // not fabricated by legacy player query parameters or injected history state.
+    await page.goto('/videos?q=alpha&streamer=streamer_alpha&sort=title&view=list', { waitUntil: 'domcontentloaded' })
+    const card = page.locator('.videos-container .video-card-link').last()
+    await expect(card).toBeVisible()
+    await card.scrollIntoViewIfNeeded()
+    const originScroll = await page.evaluate(() => window.scrollY)
+    expect(originScroll).toBeGreaterThan(0)
+    await card.click()
+    await expect(page).toHaveURL(/\/streamer\/\d+\/stream\/\d+\/watch(?:\?|$)/)
+    await expect(page.locator('video.video-element')).toBeAttached()
+    const video = page.locator('video.video-element')
+    await expect.poll(() => video.evaluate(element => (element as HTMLVideoElement).readyState)).toBeGreaterThanOrEqual(2)
+    await expect.poll(() => video.evaluate(element => (element as HTMLVideoElement).duration)).toBe(12)
 
     await assertButtonFitsViewport(page, 'Play')
     await assertButtonFitsViewport(page, 'Fullscreen')
     await assertButtonFitsViewport(page, 'Chapters')
+    await assertButtonFitsViewport(page, 'Mute')
+    await expect(page.locator('.time-display')).toBeVisible()
+    await expect(page.getByRole('slider', { name: 'Video progress' })).toBeVisible()
     await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBe(0)
 
     await page.getByRole('button', { name: 'Chapters' }).click()
@@ -49,12 +59,46 @@ test('issue 828 player keeps controls bounded and restores its in-app library or
     await expect(dialog).toBeFocused()
     const dialogBox = await dialog.boundingBox()
     expect(dialogBox!.width).toBeLessThanOrEqual(viewport.width)
+    expect(dialogBox!.x).toBeGreaterThanOrEqual(0)
+    expect(dialogBox!.y).toBeGreaterThanOrEqual(0)
+    expect(dialogBox!.y + dialogBox!.height).toBeLessThanOrEqual(viewport.height)
+    expect(await dialog.evaluate(element => {
+      const box = element.getBoundingClientRect()
+      return element.contains(document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2))
+    })).toBe(true)
+    await expect(dialog.locator('.chapter-item')).toHaveCount(1)
+    expect(dialogBox!.height, 'one chapter stays compact').toBeLessThan(250)
     await page.keyboard.press('Escape')
+    await expect(dialog).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Chapters', exact: true })).toBeFocused()
+
+    // Establish a real nonzero decoded position, then use the actual chapter
+    // button to seek back to the numeric default/start chapter at zero.
+    await video.evaluate(element => { (element as HTMLVideoElement).currentTime = 6 })
+    await expect.poll(() => video.evaluate(element => (element as HTMLVideoElement).seeking)).toBe(false)
+    await expect.poll(() => video.evaluate(element => (element as HTMLVideoElement).currentTime)).toBe(6)
+    await page.getByRole('button', { name: 'Chapters', exact: true }).click()
+    await dialog.locator('.chapter-item').click()
+    await expect.poll(() => video.evaluate(element => (element as HTMLVideoElement).currentTime)).toBe(0)
+    await expect.poll(() => video.evaluate(element => (element as HTMLVideoElement).seeking)).toBe(false)
+    expect(await video.evaluate(element => (element as HTMLVideoElement).error)).toBeNull()
+    await dialog.getByRole('button', { name: 'Close chapters', exact: true }).click()
+    await expect(dialog).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Chapters', exact: true })).toBeFocused()
+    await page.getByRole('button', { name: 'Chapters', exact: true }).click()
+    await expect(dialog).toBeVisible()
+    await page.locator('.chapter-overlay').click({ position: { x: 2, y: 2 } })
     await expect(dialog).toHaveCount(0)
 
     await page.screenshot({ path: testInfo.outputPath(`issue-828-player-${viewport.width}.png`) })
 
     await page.getByRole('button', { name: 'Back to previous page' }).click()
-    await expect(page).toHaveURL(/\/videos\?q=alpha&streamer=alpha&sort=title&view=list$/)
+    await expect.poll(() => page.evaluate(() => {
+      const url = new URL(location.href)
+      return [url.pathname, ...['q', 'streamer', 'sort', 'view'].map(key => url.searchParams.get(key))]
+    })).toEqual(['/videos', 'alpha', 'streamer_alpha', 'title', 'list'])
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(originScroll)
+    await expect(page.getByPlaceholder('Search videos by title or streamer...')).toHaveValue('alpha')
+    await expect(page.getByRole('combobox', { name: 'Sort videos', exact: true })).toHaveValue('title')
   }
 })

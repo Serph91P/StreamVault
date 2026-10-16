@@ -3,16 +3,21 @@ import { defineComponent, h, nextTick } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import BackgroundQueueMonitor from '../BackgroundQueueMonitor.vue'
 
-const { forceRefreshFromAPI, queueState } = vi.hoisted(() => ({
-  forceRefreshFromAPI: vi.fn(),
-  queueState: {
-    queueStats: { __v_isRef: true as const, value: { total_tasks: 0, completed_tasks: 0, failed_tasks: 0, pending_tasks: 0 } },
-    activeTasks: { __v_isRef: true as const, value: [] as any[] },
-    recentTasks: { __v_isRef: true as const, value: [] as any[] },
-    isLoading: { __v_isRef: true as const, value: false },
-    connectionStatus: 'connected',
-  },
-}))
+const { forceRefreshFromAPI, queueState } = await vi.hoisted(async () => {
+  const { ref } = await import('vue')
+  return {
+    forceRefreshFromAPI: vi.fn(),
+    queueState: {
+      queueStats: ref({ total_tasks: 0, completed_tasks: 0, failed_tasks: 0, pending_tasks: 0 }),
+      activeTasks: ref<any[]>([]),
+      recentTasks: ref<any[]>([]),
+      isLoading: ref(false),
+      connectionStatus: ref('connected'),
+      dataAvailable: ref(false),
+      error: ref<string | null>(null),
+    },
+  }
+})
 
 vi.mock('@/composables/useBackgroundQueue', () => ({
   useBackgroundQueue: () => ({
@@ -38,7 +43,7 @@ describe('BackgroundQueueMonitor', () => {
     queueState.activeTasks.value = []
     queueState.recentTasks.value = []
     queueState.isLoading.value = false
-    queueState.connectionStatus = 'connected'
+    queueState.connectionStatus.value = 'connected'
     vi.spyOn(HTMLElement.prototype, 'offsetParent', 'get').mockReturnValue(document.body)
     vi.spyOn(window, 'scrollTo').mockImplementation(() => undefined)
     document.body.style.cssText = ''
@@ -99,7 +104,7 @@ describe('BackgroundQueueMonitor', () => {
     loading.unmount()
 
     queueState.isLoading.value = false
-    queueState.connectionStatus = 'error'
+    queueState.connectionStatus.value = 'error'
     const disconnected = mount(BackgroundQueueMonitor, { attachTo: document.body })
     await disconnected.get('button').trigger('click')
     const alert = document.querySelector<HTMLElement>('[role="alert"]')
@@ -110,7 +115,7 @@ describe('BackgroundQueueMonitor', () => {
     expect(forceRefreshFromAPI).toHaveBeenCalledTimes(refreshCallsBeforeRetry + 1)
     disconnected.unmount()
 
-    queueState.connectionStatus = 'connected'
+    queueState.connectionStatus.value = 'connected'
     queueState.activeTasks.value = [{
       id: 'task-1', task_type: 'thumbnail', status: 'running', progress: 73,
       started_at: '2026-10-09T12:00:00Z', payload: { streamer_name: 'Alpha' },
