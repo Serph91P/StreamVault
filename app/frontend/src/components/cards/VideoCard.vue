@@ -12,6 +12,7 @@
         class="video-card-link"
         :to="videoRoute"
         :aria-label="watchLabel"
+        @click.capture="prepareVideoReturnForAcceptedLinkClick"
       />
       <button
         v-else-if="disableNavigation"
@@ -106,6 +107,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { prepareVideoReturn } from '@/composables/useNavigation'
 import StatusBadge, { type StatusBadgeTone } from '@/components/base/StatusBadge.vue'
 import SurfaceCard from './SurfaceCard.vue'
 
@@ -134,11 +136,13 @@ interface Props {
   video: Video
   viewMode?: 'grid' | 'list'
   disableNavigation?: boolean
+  origin?: string
 }
 
 const props = withDefaults(defineProps<Props>(), {
   viewMode: 'grid',
-  disableNavigation: false
+  disableNavigation: false,
+  origin: '/videos'
 })
 const emit = defineEmits<{
   play: [video: Video]
@@ -268,12 +272,22 @@ const videoRoute = computed(() => ({
   params: {
     streamerId: props.video.streamer_id,
     streamId: props.video.id
-  },
-  query: {
-    title: displayTitle.value,
-    streamerName: props.video.streamer_name
   }
 }))
+
+// RouterLink's own click handler prevents the default browser navigation for
+// an accepted same-tab activation. Capture runs before that handler so its
+// preventDefault call cannot suppress the return snapshot for ordinary clicks.
+const prepareVideoReturnForAcceptedLinkClick = (event: MouseEvent) => {
+  const link = event.currentTarget
+  const opensAnotherContext = link instanceof HTMLAnchorElement
+    && Boolean(link.target) && link.target !== '_self'
+
+  if (event.defaultPrevented || event.button !== 0 || event.ctrlKey || event.metaKey
+    || event.altKey || event.shiftKey || opensAnotherContext) return
+
+  prepareVideoReturn(props.origin)
+}
 
 const handleSelect = () => {
   emit('select', props.video)

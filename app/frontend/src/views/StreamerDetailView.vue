@@ -307,6 +307,7 @@
                 v-for="stream in inProgressStreams"
                 :key="stream.id"
                 :stream="stream"
+                v-model:expanded="expandedStreams[stream.id]"
                 @watch-live="handleWatchLive"
                 @force-record="handleForceRecord"
                 @watch="handleWatchRecording"
@@ -325,6 +326,7 @@
                 v-for="stream in previousStreams"
                 :key="stream.id"
                 :stream="stream"
+                v-model:expanded="expandedStreams[stream.id]"
                 @watch-live="handleWatchLive"
                 @force-record="handleForceRecord"
                 @watch="handleWatchRecording"
@@ -452,6 +454,8 @@
 <script setup lang="ts">
 import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { formatRecordingDuration as formatDuration } from '@/utils/recordingDuration'
+import { prepareVideoReturn, restoreVideoReturnScroll, takeVideoReturnExpansion } from '@/composables/useNavigation'
 import { streamersApi } from '@/services/api'
 import { useForceRecording } from '@/composables/useForceRecording'
 import { useToast } from '@/composables/useToast'
@@ -488,7 +492,13 @@ const streams = ref<any[]>([])
 const avatarLoadFailed = ref(false)
 
 // View controls
-const sortBy = ref('newest')
+const expandedStreams = ref(takeVideoReturnExpansion(route.fullPath))
+watch(streamerId, () => { expandedStreams.value = {} })
+const sortBy = computed({
+  get: () => ['newest', 'oldest', 'duration-desc', 'duration-asc'].includes(route.query.sort as string)
+    ? route.query.sort as string : 'newest',
+  set: (sort: string) => { void router.replace({ query: { ...route.query, sort } }) },
+})
 
 // Delete flow
 const showConfirm = ref(false)
@@ -766,28 +776,18 @@ const sortedStreams = computed(() => {
 
   switch (sortBy.value) {
     case 'newest':
-      return sorted.sort((a, b) => {
-        const dateA = new Date(a.started_at || 0).getTime()
-        const dateB = new Date(b.started_at || 0).getTime()
-        return dateB - dateA
-      })
     case 'oldest':
       return sorted.sort((a, b) => {
         const dateA = new Date(a.started_at || 0).getTime()
         const dateB = new Date(b.started_at || 0).getTime()
-        return dateA - dateB
+        return sortBy.value === 'oldest' ? dateA - dateB : dateB - dateA
       })
     case 'duration-desc':
-      return sorted.sort((a, b) => {
-        const aDur = a.ended_at ? new Date(a.ended_at).getTime() - new Date(a.started_at).getTime() : 0
-        const bDur = b.ended_at ? new Date(b.ended_at).getTime() - new Date(b.started_at).getTime() : 0
-        return bDur - aDur
-      })
     case 'duration-asc':
       return sorted.sort((a, b) => {
         const aDur = a.ended_at ? new Date(a.ended_at).getTime() - new Date(a.started_at).getTime() : 0
         const bDur = b.ended_at ? new Date(b.ended_at).getTime() - new Date(b.started_at).getTime() : 0
-        return aDur - bDur
+        return sortBy.value === 'duration-asc' ? aDur - bDur : bDur - aDur
       })
     default:
       return sorted
@@ -804,17 +804,6 @@ const formatDateShort = (dateStr?: string): string => {
   return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
-const formatDuration = (start?: string, end?: string): string => {
-  if (!start) return '-'
-  const startDate = new Date(start)
-  const endDate = end ? new Date(end) : new Date()
-  const diffMs = endDate.getTime() - startDate.getTime()
-  const diffMins = Math.floor(diffMs / 60000)
-  const hours = Math.floor(diffMins / 60)
-  const mins = diffMins % 60
-  if (hours > 0) return `${hours}h ${mins}m`
-  return `${mins}m`
-}
 
 // Fetch streamer data
 async function fetchStreamer() {
@@ -883,6 +872,7 @@ async function handleWatchRecording(stream: any) {
     const data = await response.json()
 
     if (data.has_recording) {
+      prepareVideoReturn(route.fullPath, expandedStreams.value)
       router.push(`/videos/${stream.id}`)
     }
   } catch {
@@ -921,6 +911,7 @@ onMounted(async () => {
     fetchStreams()
   ])
   await revealActiveCockpitTab()
+  await restoreVideoReturnScroll()
 
   // Subscribe to real-time events
   realtimeCleanups.push(

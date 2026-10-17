@@ -5,26 +5,26 @@ import { useBackgroundQueueStore } from '@/stores/backgroundQueue'
 
 export function useBackgroundQueue() {
   const store = useBackgroundQueueStore()
-  const realtime = useRealtimeStore()
+  const { connectionStatus } = storeToRefs(useRealtimeStore())
   const {
     activeTasks,
     recentTasks,
     queueStats,
     hasActiveTasks,
     totalProgress,
-    isLoading
+    isLoading,
+    dataAvailable,
+    error
   } = storeToRefs(store)
 
-  let unbindRealtime: (() => void) | null = null
+  let unbindRealtime: (() => void) | undefined
 
-  onMounted(async () => {
+  onMounted(() => {
     unbindRealtime = store.bindRealtime()
-    await store.hydrateWhenDisconnected()
+    return store.hydrateWhenDisconnected()
   })
 
-  onUnmounted(() => {
-    unbindRealtime?.()
-  })
+  onUnmounted(() => unbindRealtime?.())
 
   return {
     activeTasks,
@@ -33,7 +33,9 @@ export function useBackgroundQueue() {
     hasActiveTasks,
     totalProgress,
     isLoading,
-    connectionStatus: realtime.connectionStatus,
+    connectionStatus,
+    dataAvailable,
+    error,
     forceRefreshFromAPI: store.forceRefreshFromAPI,
     cancelStreamTasks: store.cancelStreamTasks
   }

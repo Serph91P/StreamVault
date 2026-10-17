@@ -66,14 +66,19 @@ async function expectDialogLifecycle(page: Page, trigger: Locator) {
   const isQueueDialog = Boolean(await dialog.getByRole('heading', { name: 'Background Queue' }).count())
   if (isQueueDialog) {
     const queueLoading = dialog.getByText('Loading background jobs…', { exact: true })
-    await expect(dialog.getByText('Background queue updates are unavailable.', { exact: true })).toBeVisible()
+    const degradedStatus = dialog.getByText('Live updates unavailable. Showing loaded queue data.', { exact: true })
+    await expect(degradedStatus).toBeVisible()
+    await expect(dialog.getByText('Total:', { exact: true })).toBeVisible()
+    await expect(dialog.getByText('Background queue updates are unavailable.', { exact: true })).toHaveCount(0)
     await dialog.getByRole('button', { name: 'Retry' }).click()
     await expect(queueLoading).toBeVisible()
 
     // Retry deliberately changes the tabbable set from Close-only to Close + Retry.
     // Capture strict boundaries only after that existing mock response has settled.
     await expect(queueLoading).toBeHidden()
-    await expect(dialog.getByText('Background queue updates are unavailable.', { exact: true })).toBeVisible()
+    await expect(degradedStatus).toBeVisible()
+    await expect(dialog.getByText('Total:', { exact: true })).toBeVisible()
+    await expect(dialog.getByText('Background queue updates are unavailable.', { exact: true })).toHaveCount(0)
   }
 
   // Once the async content is present, snapshot the actual boundary elements and

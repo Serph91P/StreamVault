@@ -195,8 +195,8 @@ export class ApiClient {
   }
 }
 
-// Create and export a singleton instance
-const apiClient = new ApiClient()
+// Empty constructor and no field initializers: unused clients have no effects.
+const apiClient = /*#__PURE__*/ new ApiClient()
 
 // Recording API endpoints
 export const recordingApi = {

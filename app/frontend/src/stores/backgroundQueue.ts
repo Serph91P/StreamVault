@@ -54,13 +54,12 @@ export const useBackgroundQueueStore = defineStore('backgroundQueue', () => {
   const queueStats = ref<BackgroundQueueStats>(defaultStats())
   const isLoading = ref(false)
   const error = ref<string | null>(null)
+  const dataAvailable = ref(false)
 
   const hasActiveTasks = computed(() => activeTasks.value.length > 0)
-  const totalProgress = computed(() => {
-    if (activeTasks.value.length === 0) return 0
-    const progress = activeTasks.value.reduce((sum, task) => sum + task.progress, 0)
-    return progress / activeTasks.value.length
-  })
+  const totalProgress = computed(() =>
+    activeTasks.value.reduce((sum, task) => sum + task.progress, 0) / (activeTasks.value.length || 1)
+  )
   const hasError = computed(() => error.value !== null)
 
   let realtimeBindingCount = 0
@@ -123,6 +122,8 @@ export const useBackgroundQueueStore = defineStore('backgroundQueue', () => {
           if (Array.isArray(event.data.recent_tasks)) {
             setRecentTasks(event.data.recent_tasks)
           }
+          error.value = null
+          dataAvailable.value = true
         }),
         realtime.onEvent('queue_stats_update', (event) => {
           setQueueStats(event.data)
@@ -162,6 +163,7 @@ export const useBackgroundQueueStore = defineStore('backgroundQueue', () => {
       setQueueStats(stats)
       setActiveTasks(active)
       setRecentTasks(recent)
+      dataAvailable.value = true
       if (import.meta.env.DEV) console.debug('useBackgroundQueue', 'FORCE REFRESH: API data loaded as fallback')
     } catch (err) {
       error.value = err instanceof Error ? err.message : String(err)
@@ -197,6 +199,7 @@ export const useBackgroundQueueStore = defineStore('backgroundQueue', () => {
     queueStats,
     isLoading,
     error,
+    dataAvailable,
     hasActiveTasks,
     totalProgress,
     hasError,

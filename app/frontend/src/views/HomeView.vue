@@ -198,6 +198,7 @@
               v-for="video in recentRecordings"
               :key="video.id"
               :video="video"
+              origin="/"
               @play="playVideo(video)"
             />
           </div>
@@ -211,6 +212,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { prepareVideoReturn, restoreVideoReturnScroll } from '@/composables/useNavigation'
 import { streamersApi, videoApi, recordingApi, backgroundQueueApi } from '@/services/api'
 import { useRealtimeStore } from '@/stores/realtime'
 import { useForceRecording } from '@/composables/useForceRecording'
@@ -529,6 +531,7 @@ function navigateToAddStreamer() {
 }
 
 function playVideo(video: VideoSummary) {
+  prepareVideoReturn('/')
   router.push(`/videos/${video.id}`)
 }
 
@@ -701,6 +704,7 @@ onMounted(async () => {
     fetchActiveRecordings(),
     refreshQueueFromAPI()
   ])
+  await restoreVideoReturnScroll()
 })
 </script>
 

@@ -47,4 +47,10 @@ describe('NavigationWrapper touch navigation', () => {
 
     expect(useSwipeMock).not.toHaveBeenCalled()
   })
+
+  it('reserves the retry pill height only when the mobile navigation exposes Retry', () => {
+    expect(navigationWrapperSource).toMatch(/mobile-connectivity-pill__action/)
+    expect(navigationWrapperSource).toMatch(/146px/)
+    expect(navigationWrapperSource).toMatch(/128px/)
+  })
 })

@@ -1,7 +1,7 @@
 <template>
   <div class="video-player-container">
     <!-- Video Element -->
-    <div class="video-wrapper" ref="videoWrapper" @mouseenter="onVideoHover" @mouseleave="onVideoLeave" @mousemove="onVideoMove" @touchstart="onVideoTouch">
+    <div class="video-wrapper" ref="videoWrapper" @mouseenter="revealControls" @mouseleave="onVideoLeave" @mousemove="revealControls" @touchstart="revealControls">
       <video
         ref="videoElement"
         :src="decodedVideoSrc"
@@ -37,7 +37,7 @@
         v-show="showControls || !isPlaying"
         class="video-controls-overlay"
         @click.stop
-        @touchstart="onControlsTouch"
+        @touchstart="revealControls"
       >
         <!-- Progress Bar with Chapter Markers -->
         <div
@@ -122,7 +122,7 @@
             <template v-if="parsedChapters.length > 0">
               <!-- Previous Chapter Button -->
               <button
-                @click="previousChapter"
+                @click="seekChapterBy(-1)"
                 :disabled="currentChapterIndex <= 0"
                 class="control-button chapter-nav-button"
                 :aria-label="'Previous Chapter'"
@@ -155,7 +155,7 @@
 
               <!-- Next Chapter Button -->
               <button
-                @click="nextChapter"
+                @click="seekChapterBy(1)"
                 :disabled="currentChapterIndex >= parsedChapters.length - 1"
                 class="control-button chapter-nav-button"
                 :aria-label="'Next Chapter'"
@@ -213,17 +213,21 @@
 
       <!-- Chapter List Panel (Overlay inside video) -->
       <transition name="slide-panel">
-        <div
-          v-if="showChapterUI && parsedChapters.length > 0"
-          class="chapter-list-panel"
-          ref="chapterListPanel"
-          @scroll="handleChapterListScroll"
-        >
+        <dialog
+            v-if="showChapterUI && parsedChapters.length > 0"
+            class="chapter-list-panel"
+            ref="chapterListPanel"
+            aria-label="Chapters"
+            @cancel.prevent="closeChapterUI"
+            @keydown="containFocus($event, $event.currentTarget as HTMLDialogElement)"
+            @click.self="dismissChapterBackdrop"
+            @scroll="handleChapterListScroll"
+          >
         <div class="chapter-list-header">
           <h3>Chapters</h3>
-          <button @click="toggleChapterUI" class="close-btn" aria-label="Close chapters">x</button>
+          <button @click="closeChapterUI" class="close-btn" aria-label="Close chapters">x</button>
         </div>
-        <div class="chapter-list" ref="chapterList">
+        <div class="chapter-list">
           <button
             v-for="(chapter, index) in parsedChapters"
             :key="index"
@@ -261,7 +265,7 @@
             </div>
           </button>
         </div>
-      </div>
+        </dialog>
       </transition>
     </div>
 
@@ -269,11 +273,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue'
 import { useCategoryImages } from '@/composables/useCategoryImages'
 import PlayerStatus from '@/components/player/PlayerStatus.vue'
 import PlayerError from '@/components/player/PlayerError.vue'
 import { videoApi } from '@/services/api'
+import { containFocus } from '@/utils/focus'
+import { formatTime } from '@/utils/playerClock'
 
 interface Chapter {
   title: string
@@ -299,7 +305,6 @@ interface Props {
   chaptersUrl?: string // URL to WebVTT chapter file
   autoChapters?: boolean // Auto-generate chapters from category changes
   chapters?: ApiChapter[] // Pre-loaded chapters from API
-  streamTitle?: string
   theaterMode?: boolean
 }
 
@@ -311,16 +316,13 @@ const props = withDefaults(defineProps<Props>(), {
 const emit = defineEmits<{
   'chapter-change': [chapter: Chapter, index: number]
   'video-ready': [duration: number]
-  'time-update': [currentTime: number]
-  'video-loading': []
-  'video-error': [message: string]
   'toggle-theater': []
 }>()
 
 const videoElement = ref<HTMLVideoElement>()
 const videoWrapper = ref<HTMLDivElement>()
-const chapterListPanel = ref<HTMLDivElement>()
-const chapterList = ref<HTMLDivElement>()
+const chapterListPanel = ref<HTMLDialogElement>()
+
 const chapterItemRefs = ref<Record<number, HTMLElement>>({})
 const isLoading = ref(true)
 const error = ref<string>('')
@@ -433,17 +435,7 @@ const toggleFullscreen = async () => {
   }
 }
 
-const _toggleControls = () => {
-  showControls.value = !showControls.value
-  resetControlsTimeout()
-}
-
-const onControlsTouch = () => {
-  showControls.value = true
-  resetControlsTimeout()
-}
-
-const onVideoHover = () => {
+const revealControls = () => {
   showControls.value = true
   resetControlsTimeout()
 }
@@ -454,15 +446,6 @@ const onVideoLeave = () => {
   }
 }
 
-const onVideoMove = () => {
-  showControls.value = true
-  resetControlsTimeout()
-}
-
-const onVideoTouch = () => {
-  showControls.value = true
-  resetControlsTimeout()
-}
 
 const resetControlsTimeout = () => {
   if (controlsTimeout.value) {
@@ -495,30 +478,22 @@ const onPause = () => {
 
 // Event handlers
 const onVideoLoaded = () => {
-  if (videoElement.value) {
-    videoDuration.value = videoElement.value.duration
-    volume.value = videoElement.value.volume
-    isMuted.value = videoElement.value.muted
-    emit('video-ready', videoDuration.value)
-
-    // Recalculate chapter durations now that we have video duration
-    if (parsedChapters.value.length > 0) {
-      parsedChapters.value = calculateChapterDurations([...parsedChapters.value])
-    }
-  }
+  const video = videoElement.value
+  if (!video) return
+  videoDuration.value = video.duration
+  volume.value = video.volume
+  isMuted.value = video.muted
+  emit('video-ready', videoDuration.value)
+  if (parsedChapters.value.length) parsedChapters.value = calculateChapterDurations([...parsedChapters.value])
 }
 
 const onTimeUpdate = () => {
-  if (videoElement.value) {
-    currentTime.value = videoElement.value.currentTime
-    emit('time-update', currentTime.value)
-  }
+  currentTime.value = videoElement.value?.currentTime ?? 0
 }
 
 const onLoadStart = () => {
   isLoading.value = true
   error.value = ''
-  emit('video-loading')
 }
 
 const onCanPlay = () => {
@@ -528,45 +503,46 @@ const onCanPlay = () => {
 const onVideoError = () => {
   isLoading.value = false
   error.value = 'Failed to load video. Please check the video file and try again.'
-  emit('video-error', error.value)
 }
 
-const retryLoad = () => {
-  if (videoElement.value) {
-    videoElement.value.load()
-  }
-}
+const retryLoad = () => videoElement.value?.load()
 
 // Chapter navigation
 const seekToChapter = (startTime: number) => {
-  if (videoElement.value) {
-    videoElement.value.currentTime = startTime
-  }
+  if (videoElement.value) videoElement.value.currentTime = startTime
 }
 
-const previousChapter = () => {
-  if (currentChapterIndex.value > 0) {
-    seekToChapter(parsedChapters.value[currentChapterIndex.value - 1].startTime)
-  }
+const seekChapterBy = (offset: number) => {
+  const chapter = parsedChapters.value[currentChapterIndex.value + offset]
+  if (chapter) seekToChapter(chapter.startTime)
 }
 
-const nextChapter = () => {
-  if (currentChapterIndex.value < parsedChapters.value.length - 1) {
-    seekToChapter(parsedChapters.value[currentChapterIndex.value + 1].startTime)
-  }
+const closeChapterUI = () => {
+  // End modal inertness (and restore the opener) before Vue starts leaving.
+  chapterListPanel.value?.close()
+  showChapterUI.value = false
 }
 
 const toggleChapterUI = () => {
-  showChapterUI.value = !showChapterUI.value
+  if (showChapterUI.value) return closeChapterUI()
+  showChapterUI.value = true
+  void nextTick(() => {
+    // The browser top layer escapes ancestor clipping/stacking and also works
+    // inside fullscreen. A larger page z-index cannot guarantee either.
+    chapterListPanel.value?.showModal()
+    chapterListPanel.value?.focus()
+  })
+}
+
+const dismissChapterBackdrop = (event: MouseEvent) => {
+  const { left, right, top, bottom } = chapterListPanel.value!.getBoundingClientRect()
+  if (event.clientX < left || event.clientX > right || event.clientY < top || event.clientY > bottom) closeChapterUI()
 }
 
 // Chapter loading
 const loadChapters = async () => {
   // First, check if we have pre-loaded chapters from props
-  if (props.chapters && props.chapters.length > 0) {
-    parsedChapters.value = convertApiChaptersToInternal(props.chapters)
-    return
-  }
+  if (props.chapters) return // The immediate props watcher owns conversion.
 
   if (props.streamId && props.autoChapters) {
     try {
@@ -609,40 +585,26 @@ const convertApiChaptersToInternal = (apiChapters: ApiChapter[]): Chapter[] => {
     }
   })
 
-  // Deduplicate by startTime and title
-  const unique = converted.filter((chapter, index, self) =>
-    index === self.findIndex(c =>
-      c.startTime === chapter.startTime && c.title === chapter.title
-    )
-  )
+  const unique = [...new Map(converted.map(chapter => [
+    `${chapter.startTime}:${chapter.title}`, chapter
+  ])).values()]
 
-  const videoDur = videoElement.value?.duration || videoDuration.value
-  return unique.map((chapter, index) => ({
-    ...chapter,
-    duration: chapter.duration ?? (index < unique.length - 1
-      ? unique[index + 1].startTime - chapter.startTime
-      : (videoDur && !isNaN(videoDur) && videoDur > 0 ? videoDur - chapter.startTime : 60)),
-  }))
+  return calculateChapterDurations(unique, false)
 }
 
 // Calculate chapter durations based on video metadata
-const calculateChapterDurations = (chapterList: Chapter[]): Chapter[] => {
+const calculateChapterDurations = (
+  chapterList: Array<Omit<Chapter, 'duration'> & { duration?: number }>,
+  overwrite = true
+): Chapter[] => {
   const videoDur = videoElement.value?.duration || videoDuration.value
-
   return chapterList.map((chapter, index) => {
-    if (index < chapterList.length - 1) {
-      // Duration = next chapter start time - current chapter start time
-      chapter.duration = chapterList[index + 1].startTime - chapter.startTime
-    } else {
-      // Last chapter: calculate to end of video
-      if (videoDur && !isNaN(videoDur) && videoDur > 0) {
-        chapter.duration = videoDur - chapter.startTime
-      } else {
-        // Video not loaded yet, use placeholder
-        chapter.duration = 60
-      }
+    if (overwrite || chapter.duration === undefined) {
+      chapter.duration = index < chapterList.length - 1
+        ? chapterList[index + 1].startTime - chapter.startTime
+        : videoDur > 0 ? videoDur - chapter.startTime : 60
     }
-    return chapter
+    return chapter as Chapter
   })
 }
 
@@ -656,130 +618,54 @@ const parseTimeStringToSeconds = (timeString: string): number => {
   }
 
   // Handle HH:MM:SS.mmm or MM:SS format
-  const parts = timeString.split(':')
-  if (parts.length === 2) {
-    const [minutes, seconds] = parts
-    return parseInt(minutes) * 60 + parseFloat(seconds)
-  } else if (parts.length === 3) {
-    const [hours, minutes, seconds] = parts
-    return parseInt(hours) * 3600 + parseInt(minutes) * 60 + parseFloat(seconds)
-  }
-
-  return 0
+  const parts = timeString.split(':').map(Number)
+  if (parts.length === 2) return parts[0] * 60 + parts[1]
+  return parts.length === 3 ? parts[0] * 3600 + parts[1] * 60 + parts[2] : 0
 }
 
 const parseWebVTTChapters = (vttText: string) => {
-  const lines = vttText.split('\n')
-  const localChapters: Chapter[] = []
-
-  let i = 0
-  while (i < lines.length) {
-    const line = lines[i].trim()
-
-    // Look for timestamp line
-    const timeMatch = line.match(/(\d{2}:\d{2}:\d{2}\.\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2}\.\d{3})/)
-    if (timeMatch) {
-      const startTime = parseVTTTime(timeMatch[1])
-      const endTime = parseVTTTime(timeMatch[2])
-      const duration = endTime - startTime
-
-      // Next line should be the title
-      i++
-      const title = lines[i]?.trim() || 'Chapter'
-
-      localChapters.push({
-        title,
-        startTime,
-        duration
-      })
+  const cue = /(\d{2}:\d{2}:\d{2}\.\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2}\.\d{3})[^\n]*\n([^\n]*)/g
+  const chapters = Array.from(vttText.matchAll(cue), match => {
+    const startTime = parseTimeStringToSeconds(match[1])
+    return {
+      title: match[3].trim() || 'Chapter',
+      startTime,
+      duration: parseTimeStringToSeconds(match[2]) - startTime
     }
-    i++
-  }
-
-  if (localChapters.length > 0) {
-    parsedChapters.value = localChapters
-  }
+  })
+  if (chapters.length) parsedChapters.value = chapters
 }
 
-const parseVTTTime = (timeStr: string): number => {
-  const [hours, minutes, seconds] = timeStr.split(':')
-  return parseInt(hours) * 3600 + parseInt(minutes) * 60 + parseFloat(seconds)
-}
 
 // Utility functions
-const formatTime = (seconds: number): string => {
-  const hrs = Math.floor(seconds / 3600)
-  const mins = Math.floor((seconds % 3600) / 60)
-  const secs = Math.floor(seconds % 60)
-
-  if (hrs > 0) {
-    return `${hrs}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
-  }
-  return `${mins}:${secs.toString().padStart(2, '0')}`
-}
-
 const formatDuration = (seconds: number): string => {
-  const mins = Math.floor(seconds / 60)
-  const secs = Math.floor(seconds % 60)
-
-  if (mins > 60) {
-    const hrs = Math.floor(mins / 60)
-    const remainingMins = mins % 60
-    return `${hrs}h ${remainingMins}m`
-  }
-  return `${mins}m ${secs}s`
+  const minutes = Math.floor(seconds / 60)
+  return minutes > 60
+    ? `${Math.floor(minutes / 60)}h ${minutes % 60}m`
+    : `${minutes}m ${Math.floor(seconds % 60)}s`
 }
 
-const getChapterColor = (title: string): string => {
-  // Generate consistent colors for different game categories
-  let hash = 0
-  for (let i = 0; i < title.length; i++) {
-    hash = title.charCodeAt(i) + ((hash << 5) - hash)
-  }
-
-  const hue = Math.abs(hash % 360)
-  return `hsl(${hue}, 70%, 60%)`
-}
+const getChapterColor = (title: string) => `hsl(${title.length * 47 % 360}, 70%, 60%)`
 
 // Scroll indicator management for chapter list
 const handleChapterListScroll = (event: Event) => {
   const element = event.target as HTMLElement
   if (!element) return
 
-  const scrollTop = element.scrollTop
-  const scrollHeight = element.scrollHeight
-  const clientHeight = element.clientHeight
-
-  // Add/remove classes for scroll indicators
-  if (scrollTop > 10) {
-    element.classList.add('scrolled-top')
-  } else {
-    element.classList.remove('scrolled-top')
-  }
-
-  if (scrollTop < scrollHeight - clientHeight - 10) {
-    element.classList.add('scrolled-bottom')
-  } else {
-    element.classList.remove('scrolled-bottom')
-  }
+  element.classList.toggle('scrolled-top', element.scrollTop > 10)
+  element.classList.toggle(
+    'scrolled-bottom',
+    element.scrollTop < element.scrollHeight - element.clientHeight - 10
+  )
 }
 
 // Auto-scroll to keep active chapter centered
 const scrollToActiveChapter = (index: number) => {
-  if (!chapterListPanel.value || !chapterItemRefs.value[index]) return
-
   const panel = chapterListPanel.value
-  const item = chapterItemRefs.value[index] as HTMLElement
-
-  // Calculate position to center the active item
-  const itemTop = item.offsetTop
-  const itemHeight = item.offsetHeight
-  const panelHeight = panel.clientHeight
-  const scrollPosition = itemTop - (panelHeight / 2) + (itemHeight / 2)
-
-  // Smooth scroll to position
+  const item = chapterItemRefs.value[index]
+  if (!panel || !item) return
   panel.scrollTo({
-    top: scrollPosition,
+    top: item.offsetTop - panel.clientHeight / 2 + item.offsetHeight / 2,
     behavior: 'smooth'
   })
 }
@@ -802,26 +688,13 @@ watch(currentChapterIndex, (newIndex, oldIndex) => {
 const onKeyDown = (event: KeyboardEvent) => {
   if (!videoElement.value) return
 
-  switch (event.key) {
-    case 'ArrowLeft':
-      if (event.ctrlKey || event.metaKey) {
-        event.preventDefault()
-        previousChapter()
-      }
-      break
-    case 'ArrowRight':
-      if (event.ctrlKey || event.metaKey) {
-        event.preventDefault()
-        nextChapter()
-      }
-      break
-    case 'c':
-    case 'C':
-      if (!event.ctrlKey && !event.metaKey) {
-        event.preventDefault()
-        toggleChapterUI()
-      }
-      break
+  const modified = event.ctrlKey || event.metaKey
+  if (modified && (event.key === 'ArrowLeft' || event.key === 'ArrowRight')) {
+    event.preventDefault()
+    seekChapterBy(event.key === 'ArrowLeft' ? -1 : 1)
+  } else if (!modified && event.key.toLowerCase() === 'c') {
+    event.preventDefault()
+    toggleChapterUI()
   }
 }
 
@@ -851,8 +724,9 @@ onUnmounted(() => {
 
 // Watch for changes in chapters prop
 watch(() => props.chapters, (newChapters) => {
-  if (newChapters && newChapters.length > 0) {
+  if (newChapters) {
     parsedChapters.value = convertApiChaptersToInternal(newChapters)
+    if (!newChapters.length) closeChapterUI()
   }
 }, { immediate: true })
 
@@ -921,11 +795,11 @@ defineExpose({ seekToChapter })
   }
 }
 
-// Mobile Landscape: Immersive fullscreen mode
+// Normal landscape reserves room for app chrome and route navigation.
 @media (max-width: 767px) and (orientation: landscape) {
   .video-wrapper {
-    height: 100vh;
-    width: auto;
+    height: var(--player-max-h);
+    width: 100%;
     aspect-ratio: auto;
     margin: 0;
   }
@@ -1035,26 +909,33 @@ defineExpose({ seekToChapter })
   white-space: nowrap;
 }
 
-/* Chapter List Panel - Overlay positioned inside video */
+/* Chapter List Panel - bounded, opaque overlay above the player. */
+.chapter-list-panel::backdrop {
+  background: rgba(0, 0, 0, 0.32);
+}
+
 .chapter-list-panel {
-  /* Glassmorphism panel design */
-  background: rgba(var(--background-card-rgb), 0.97);
+  margin: 0;
+  padding: 0;
+  color: inherit;
+  top: auto;
+  left: auto;
+  background: var(--background-card);
   border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: var(--radius-lg);  /* 12px */
   box-shadow: var(--shadow-2xl), 0 0 40px rgba(0, 0, 0, 0.5);
   max-height: 500px;
   overflow-y: auto;
-  position: absolute;  /* Position inside video wrapper */
+  position: fixed;
   bottom: 80px;  /* Above video controls */
   right: var(--spacing-4);  /* 16px from right edge */
   width: 400px;  /* Fixed width for desktop */
   max-width: calc(100% - 32px);  /* Responsive on mobile */
-  z-index: 20;  /* Above controls overlay */
   /* Animation now handled by Vue transition (see .slide-panel-* classes) */
 
   @include m.respond-below('md') {  // < 768px (mobile)
     width: calc(100% - 32px);  /* Full width on mobile with padding */
-    bottom: 100px;  /* More space above controls */
+    bottom: max(var(--spacing-4), env(safe-area-inset-bottom, 0px));
     right: var(--spacing-4);
     left: var(--spacing-4);  /* Center horizontally */
     max-height: 50vh;  /* Responsive height - prevent cut-off */
@@ -1062,7 +943,7 @@ defineExpose({ seekToChapter })
   }
 
   @include m.respond-below('sm') {  // < 480px (small mobile)
-    bottom: 80px;
+    bottom: max(var(--spacing-2), env(safe-area-inset-bottom, 0px));
     left: var(--spacing-2);
     right: var(--spacing-2);
     width: calc(100% - 16px);
@@ -1102,18 +983,6 @@ defineExpose({ seekToChapter })
 .slide-panel-leave-to {
   opacity: 0;
   transform: translateX(20px);
-}
-
-/* Legacy animation (kept for backwards compatibility) */
-@keyframes slideInRight {
-  from {
-    opacity: 0;
-    transform: translateX(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
 }
 
 /* Custom scrollbar for chapter list with glass effect */
@@ -1659,7 +1528,7 @@ defineExpose({ seekToChapter })
   /* Ensure controls don't overflow */
   .controls-bottom {
     flex-wrap: nowrap;  /* Prevent wrapping */
-    overflow-x: visible;  /* Allow horizontal visibility */
+    overflow: hidden;
     min-width: 0;  /* Allow flex items to shrink */
   }
 
@@ -1675,12 +1544,20 @@ defineExpose({ seekToChapter })
     min-width: 0;
   }
 
-  /* Hide chapter toggle button on very small screens to save space */
-  @media (max-width: 400px) {
-    .chapters-button {
-      display: none;  /* Hide on tiny screens - users can see chapters in extension */
-    }
+  // Keep all capabilities at 320px while retaining 44px targets.
+  .control-button,
+  .chapters-button {
+    width: 44px;
+    min-width: 44px;
+    height: 44px;
   }
+
+  .play-pause-button {
+    width: 48px;
+    height: 48px;
+  }
+
+  .chapters-button { padding: 0; }
 }
 
 /* Very Small Screens */
@@ -1691,7 +1568,7 @@ defineExpose({ seekToChapter })
 
   .controls-left,
   .controls-right {
-    gap: var(--spacing-2);  /* 8px */
+    gap: var(--spacing-1);
   }
 
   .control-button {

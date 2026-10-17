@@ -14,6 +14,7 @@
  *   <div ref="dialogRef" v-if="isOpen" role="dialog" aria-modal="true">...</div>
  */
 import { ref, unref, watch, onBeforeUnmount, type Ref } from 'vue'
+import { containFocus, getFocusable } from '@/utils/focus'
 
 export interface UseModalOptions {
   /** Called when the modal should close (ESC, programmatic close, etc.) */
@@ -67,19 +68,6 @@ function unlockBody() {
   window.scrollTo(0, savedScrollY)
 }
 
-const FOCUSABLE_SELECTOR = [
-  'a[href]',
-  'button:not([disabled])',
-  'input:not([disabled]):not([type="hidden"])',
-  'select:not([disabled])',
-  'textarea:not([disabled])',
-  '[tabindex]:not([tabindex="-1"])',
-].join(',')
-
-function getFocusable(container: HTMLElement): HTMLElement[] {
-  return Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR))
-    .filter((el) => !el.hasAttribute('disabled') && el.offsetParent !== null)
-}
 
 export function useModal(
   containerRef: Ref<HTMLElement | null>,
@@ -100,26 +88,7 @@ export function useModal(
       return
     }
 
-    if (event.key === 'Tab' && containerRef.value) {
-      const focusable = getFocusable(containerRef.value)
-      if (focusable.length === 0) {
-        event.preventDefault()
-        return
-      }
-      const first = focusable[0]
-      const last = focusable[focusable.length - 1]
-      const active = document.activeElement as HTMLElement | null
-
-      if (event.shiftKey) {
-        if (active === first || !containerRef.value.contains(active)) {
-          event.preventDefault()
-          last.focus()
-        }
-      } else if (active === last || !containerRef.value.contains(active)) {
-        event.preventDefault()
-        first.focus()
-      }
-    }
+    if (containerRef.value) containFocus(event, containerRef.value)
   }
 
   stackEntry.onKeydown = handleKeydown
@@ -168,9 +137,8 @@ export function useModal(
         if (!open || !el) return
         // wait a tick so the v-if rendered children are in the DOM
         requestAnimationFrame(() => {
-          const focusable = getFocusable(el)
-          if (focusable.length > 0) focusable[0].focus()
-          else el.focus?.()
+          const target = getFocusable(el)[0] ?? el
+          target.focus()
         })
       },
       { flush: 'post' }

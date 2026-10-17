@@ -291,6 +291,7 @@
         <VideoCard
           :video="video"
           :view-mode="viewMode"
+          :origin="getVideoOrigin()"
           :disable-navigation="selectMode"
           @play="playVideo"
           @select="toggleSelection(video.id)"
@@ -328,7 +329,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { appStorage } from '@/services/storage'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
+import { prepareVideoReturn, restoreVideoReturnScroll } from '@/composables/useNavigation'
 import { videoApi } from '@/services/api'
 import BaseButton from '@/components/base/BaseButton.vue'
 import BaseIconButton from '@/components/base/BaseIconButton.vue'
@@ -358,16 +360,18 @@ interface Video {
 }
 
 const router = useRouter()
+const route = useRoute()
 
 // State
 const isLoading = ref(true)
 const fetchError = ref('')
 const videos = ref<Video[]>([])
-const searchQuery = ref('')
+const stringQuery = (key: string, fallback = '') => typeof route.query[key] === 'string' ? route.query[key] : fallback
+const searchQuery = ref(stringQuery('q'))
 // Grid/list choice survives reloads
-const viewMode = ref<'grid' | 'list'>(appStorage.getViewMode('videos') ?? 'grid')
+const viewMode = ref<'grid' | 'list'>(stringQuery('view', appStorage.getViewMode('videos') ?? 'grid') === 'list' ? 'list' : 'grid')
 watch(viewMode, (mode) => appStorage.setViewMode('videos', mode))
-const sortBy = ref('newest')
+const sortBy = ref(stringQuery('sort', 'newest'))
 const sortOptions = [
   { value: 'newest', label: 'Newest First' },
   { value: 'oldest', label: 'Oldest First' },
@@ -383,9 +387,9 @@ const currentSortLabel = computed(() =>
 const showFilters = ref(false)
 
 // Filters
-const filterStreamer = ref('')
-const filterDate = ref('all')
-const filterDuration = ref('')
+const filterStreamer = ref(stringQuery('streamer'))
+const filterDate = ref(stringQuery('date', 'all'))
+const filterDuration = ref(stringQuery('duration'))
 
 // Selection
 const selectMode = ref(false)
@@ -449,6 +453,23 @@ const durationLabel = computed(() => {
   return labels[filterDuration.value] || filterDuration.value
 })
 const hasActiveSearchOrFilters = computed(() => Boolean(searchQuery.value || activeFiltersCount.value > 0))
+// The player receives an explicit, same-app return URL. Query state is enough to
+// rebuild this view after it is remounted; scroll is captured by VideoCard at click time.
+const getVideoOrigin = () => {
+  return router.resolve({ name: 'videos', query: {
+    q: searchQuery.value,
+    streamer: filterStreamer.value,
+    date: filterDate.value,
+    duration: filterDuration.value,
+    sort: sortBy.value,
+    view: viewMode.value
+  } }).fullPath
+}
+// Keep Vue Router's current location in sync, not only window.history: its next
+// push otherwise rewrites the origin entry with the stale entry-time query.
+watch([searchQuery, filterStreamer, filterDate, filterDuration, sortBy, viewMode], () => {
+  router.replace(getVideoOrigin())
+})
 const emptyResultsDescription = computed(() => (
   searchQuery.value
     ? `No videos match '${searchQuery.value}'. Try adjusting your search or filters.`
@@ -478,17 +499,9 @@ const filteredAndSortedVideos = computed(() => {
     const now = new Date()
     const filterTime = new Date()
 
-    switch (filterDate.value) {
-      case 'today':
-        filterTime.setHours(0, 0, 0, 0)
-        break
-      case 'week':
-        filterTime.setDate(now.getDate() - 7)
-        break
-      case 'month':
-        filterTime.setMonth(now.getMonth() - 1)
-        break
-    }
+    if (filterDate.value === 'today') filterTime.setHours(0, 0, 0, 0)
+    else if (filterDate.value === 'week') filterTime.setDate(now.getDate() - 7)
+    else if (filterDate.value === 'month') filterTime.setMonth(now.getMonth() - 1)
 
     filtered = filtered.filter(v => {
       const date = new Date(v.recorded_at || v.stream_date || v.created_at || '')
@@ -500,52 +513,21 @@ const filteredAndSortedVideos = computed(() => {
   if (filterDuration.value) {
     filtered = filtered.filter(v => {
       const duration = v.duration || 0
-      switch (filterDuration.value) {
-        case 'short':
-          return duration < 3600
-        case 'medium':
-          return duration >= 3600 && duration <= 10800
-        case 'long':
-          return duration > 10800
-        default:
-          return true
-      }
+      return filterDuration.value === 'short' ? duration < 3600
+        : filterDuration.value === 'medium' ? duration >= 3600 && duration <= 10800
+          : duration > 10800
     })
   }
 
-  // Sorting
-  const sorted = [...filtered]
-  switch (sortBy.value) {
-    case 'newest':
-      sorted.sort((a, b) => {
-        const getDate = (v: Video) => new Date(v.recorded_at || v.stream_date || v.created_at || '').getTime()
-        return getDate(b) - getDate(a)
-      })
-      break
-    case 'oldest':
-      sorted.sort((a, b) => {
-        const getDate = (v: Video) => new Date(v.recorded_at || v.stream_date || v.created_at || '').getTime()
-        return getDate(a) - getDate(b)
-      })
-      break
-    case 'duration-desc':
-      sorted.sort((a, b) => (b.duration || 0) - (a.duration || 0))
-      break
-    case 'duration-asc':
-      sorted.sort((a, b) => (a.duration || 0) - (b.duration || 0))
-      break
-    case 'size-desc':
-      sorted.sort((a, b) => (b.file_size || 0) - (a.file_size || 0))
-      break
-    case 'size-asc':
-      sorted.sort((a, b) => (a.file_size || 0) - (b.file_size || 0))
-      break
-    case 'title':
-      sorted.sort((a, b) => (a.title || '').localeCompare(b.title || ''))
-      break
-  }
-
-  return sorted
+  const sorting = sortBy.value
+  const date = (video: Video) => new Date(video.recorded_at || video.stream_date || video.created_at || '').getTime()
+  if (sorting === 'title') return filtered.sort((a, b) => (a.title || '').localeCompare(b.title || ''))
+  const direction = sorting === 'oldest' || sorting.endsWith('asc') ? 1 : -1
+  const field = sorting.startsWith('size') ? 'file_size' : 'duration'
+  const time = sorting === 'newest' || sorting === 'oldest'
+  return filtered.sort((a, b) => direction * (time
+    ? date(a) - date(b)
+    : (a[field] || 0) - (b[field] || 0)))
 })
 
 // Fetch videos
@@ -563,12 +545,15 @@ async function fetchVideos() {
     videos.value = []
   } finally {
     isLoading.value = false
+    await restoreVideoReturnScroll()
   }
 }
 
 // Actions
 function playVideo(video: Video) {
   if (!video.streamer_id || !video.id || video.status === 'failed') return
+
+  prepareVideoReturn(getVideoOrigin())
 
   // Navigate to video player with correct route parameters
   // Route expects: /streamer/:streamerId/stream/:streamId/watch
@@ -577,10 +562,6 @@ function playVideo(video: Video) {
     params: {
       streamerId: video.streamer_id,
       streamId: video.id  // video.id is actually the stream_id
-    },
-    query: {
-      title: video.title || `Stream ${video.id}`,
-      streamerName: video.streamer_name
     }
   })
 }
@@ -598,24 +579,16 @@ function isSelected(id: number) {
   return selectedVideos.value.includes(id)
 }
 
-function toggleSelection(id: number) {
-  const index = selectedVideos.value.indexOf(id)
-  if (index > -1) {
-    selectedVideos.value.splice(index, 1)
-  } else {
-    selectedVideos.value.push(id)
-  }
+function setSelected(id: number, selected: boolean) {
+  if (selected === isSelected(id)) return
+  if (selected) selectedVideos.value.push(id)
+  else selectedVideos.value = selectedVideos.value.filter(videoId => videoId !== id)
 }
 
-function handleSelectionChange(id: number, event: Event) {
-  const checked = (event.target as HTMLInputElement).checked
-  const isAlreadySelected = selectedVideos.value.includes(id)
+const toggleSelection = (id: number) => setSelected(id, !isSelected(id))
 
-  if (checked && !isAlreadySelected) {
-    selectedVideos.value.push(id)
-  } else if (!checked && isAlreadySelected) {
-    selectedVideos.value = selectedVideos.value.filter(videoId => videoId !== id)
-  }
+function handleSelectionChange(id: number, event: Event) {
+  setSelected(id, (event.target as HTMLInputElement).checked)
 }
 
 function handleBatchDelete() {

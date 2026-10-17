@@ -84,4 +84,13 @@ const { isMobile, isDesktop, sidebarExpanded } = useNavigation()
     min-height: calc(100dvh - var(--app-header-height, 56px) - env(safe-area-inset-top, 0px) - 128px - env(safe-area-inset-bottom, 0px));
   }
 }
+
+// A visible Retry control makes the pill 62px tall (44px action plus pill
+// padding and borders), rather than the ordinary 44px status height. Keep the
+// routed content clearance coupled to that actual rendered state.
+.navigation-wrapper:has(.mobile-connectivity-pill__action) .main-content.with-bottom-nav {
+  padding-bottom: calc(146px + env(safe-area-inset-bottom, 0px));
+  min-height: calc(100vh - var(--app-header-height, 56px) - env(safe-area-inset-top, 0px) - 146px - env(safe-area-inset-bottom, 0px));
+  min-height: calc(100dvh - var(--app-header-height, 56px) - env(safe-area-inset-top, 0px) - 146px - env(safe-area-inset-bottom, 0px));
+}
 </style>
