@@ -1,6 +1,6 @@
 # Backend baseline contract
 
-Frozen base: `develop@99b101f8fe140fc897eb53a4d80895a660f3025e` (2026-09-20 UTC).
+Integration base: `develop@107323c11043d6011f0947022318bbf57f64e42b`.
 
 This is P0 of #842. It records what exists; it does not claim that the backend
 modernization is complete. Contract changes require an explicit, reviewed
@@ -13,13 +13,17 @@ URLs containing credentials, or database contents.
 `tests/fixtures/backend_contract_snapshot.json` freezes these compatibility
 surfaces:
 
-- FastAPI OpenAPI HTTP path/method shape;
-- `app.main` router inclusion and middleware installation order;
+- FastAPI OpenAPI method/path plus request-body, response-content/header and
+  operation-security shapes;
+- `app.main` router inclusion and middleware installation order, including the
+  direct `install_http_middleware(application)` call;
 - public WebSocket manager `send_*` event methods;
-- `Settings` environment field names and source defaults (generated defaults are
-  represented by a marker, never evaluated);
+- `Settings` external environment aliases and source defaults. `SecretStr`
+  fields are represented as secret markers and never instantiated or read;
+  default factories are structurally represented, never evaluated;
 - service module inventory, lifespan jobs and subprocess API kinds; and
-- persistent path defaults (`/recordings`, artwork/media, logs and live output).
+- persistent path defaults derived from the defining settings, logging and live
+  streaming sources.
 
 Regenerate only after a reviewed intentional contract change, using safe,
 non-secret fixture values and writable temporary paths:
@@ -35,43 +39,24 @@ LOGS_BASE_DIR=<writable>/logs \
 ```
 
 The test uses an AST-derived inventory for source topology and an application
-OpenAPI path/method projection. It intentionally excludes FastAPI-generated
-operation IDs because legacy GET/HEAD route method sets make those IDs vary
-between interpreter runs; path/method compatibility remains frozen.
+OpenAPI projection. It intentionally excludes FastAPI-generated operation IDs
+because legacy GET/HEAD route method sets make those IDs vary between interpreter
+runs; request/response/schema and operation-security compatibility remains
+frozen without those unstable IDs.
 
-## Observed quality baseline
+## P0 evidence boundary
 
-The preceding reconciliation on this exact develop commit observed:
+This snapshot is a source-level compatibility guard, not a runtime or operations
+acceptance claim. Its local bootstrap uses synthetic non-secret settings and
+temporary writable paths. PostgreSQL/migration, Docker/Unraid, performance,
+live Twitch/EventSub, recording and operator evidence remain later #842 phases;
+P0 neither implements nor certifies them.
 
-| Gate | Result |
-| --- | --- |
-| Backend pytest + coverage | 437 passed, 6 PostgreSQL-dependent skips, 31% coverage |
-| Ruff lint / format | pass |
-| CI mypy target | pass |
-| Full-app mypy | 315 errors |
-| Real PostgreSQL scenarios | six required scenarios not run locally |
-| Docker / Unraid | not run as a P0 replacement for real operator acceptance |
-| Live canary | not authorized; no provider credentials or production access used |
+## Frontend boundary
 
-The current `Settings` implementation and several imports still have side
-effects; the snapshot generation therefore uses only disposable local paths.
-Those shortcomings are P3/P4 work, not silently corrected here.
-
-## Develop frontend baseline
-
-The develop push run reported a failure at
-`app/frontend/tests/e2e/pr5-dialogs-a11y.spec.ts:61`: the mobile dialog focus
-wrap assertion expected the last control focused and observed an inactive
-control. The P0 correction dynamically discovers visible, enabled, focusable
-controls within each dialog and asserts both cycle boundaries: last control to
-first control after Tab, and first control to last control after Shift+Tab. Each
-assertion also requires focus containment in the dialog. This contract permits a
-singleton dialog because its first and last controls are the same, while avoiding
-a fragile static ordering of product controls. Under the repository-pinned
-Playwright 1.62.1 Chromium downloaded in the original P0 workspace, the isolated
-mobile test passed. The initial `--with-deps` browser installation was
-unavailable because that worker cannot switch to root; direct local browser
-installation succeeded. No screenshot or visual snapshot changed.
+The dialog accessibility test remains byte-identical to the selected current
+develop integration base. This P0 package does not alter frontend source,
+Playwright baselines or visual snapshots.
 
 ## Known non-baseline work
 

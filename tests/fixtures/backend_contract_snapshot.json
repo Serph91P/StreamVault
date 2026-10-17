@@ -1,307 +1,5432 @@
 {
   "environment_defaults": {
-    "APPRISE_URLS": "<List>",
-    "ARTWORK_BASE_PATH": "/recordings/.artwork",
-    "AUTH_ACCESS_TOKEN_MINUTES": 15,
-    "AUTH_JWT_ALGORITHM": "HS256",
-    "AUTH_JWT_AUDIENCE": "streamvault-api",
-    "AUTH_JWT_ISSUER": "streamvault",
-    "AUTH_JWT_SECRET": "",
-    "AUTH_REFRESH_FAMILY_MAX_HOURS": 168,
-    "AUTH_REFRESH_TOKEN_HOURS": 24,
-    "BASE_DIR": "<str>",
-    "BASE_URL": null,
-    "CONTENT_SECURITY_POLICY": null,
-    "CORS_ADDITIONAL_ORIGINS": "",
-    "CORS_ALLOW_CREDENTIALS": true,
-    "CORS_ALLOW_HEADERS": "<List>",
-    "CORS_ALLOW_METHODS": "<List>",
-    "CORS_MAX_AGE": 86400,
-    "DATABASE_URL": null,
-    "ENVIRONMENT": "production",
-    "EVENTSUB_PORT": 8080,
-    "EVENTSUB_SECRET": "<secrets.token_urlsafe>",
-    "HSTS_MAX_AGE": 31536000,
-    "HTTPS_PROXY": null,
-    "HTTP_PROXY": null,
-    "LOGS_BASE_DIR": null,
-    "LOG_DIR": null,
-    "LOG_FORMAT": "text",
-    "LOG_LEVEL": "INFO",
-    "METRICS_ALLOW_UNAUTHENTICATED": false,
-    "METRICS_AUTH_TOKEN": null,
-    "METRICS_ENABLED": false,
-    "POSTGRES_DB": null,
-    "POSTGRES_PASSWORD": null,
-    "POSTGRES_USER": null,
-    "RATE_LIMIT_CAPACITY": 300,
-    "RATE_LIMIT_ENABLED": true,
-    "RATE_LIMIT_MAX_BUCKETS": 10000,
-    "RATE_LIMIT_MAX_WAIT_MS": 500,
-    "RATE_LIMIT_REFILL_PER_SEC": 5.0,
-    "READINESS_REQUIRED_COMPONENTS": "<List>",
-    "READINESS_TIMEOUT_SECONDS": 3.0,
-    "RECORDING_DIRECTORY": "/recordings",
-    "SECURE_COOKIES": true,
-    "SECURE_HEADERS_ENABLED": true,
-    "TRUSTED_HOSTS": "<List>",
-    "TRUSTED_PROXY_CIDRS": "<List>",
-    "TWITCH_APP_ID": null,
-    "TWITCH_APP_SECRET": null,
-    "TWITCH_OAUTH_TOKEN": null,
-    "USE_SECURE_COOKIES": true,
-    "VAPID_CLAIMS_SUB": "mailto:admin@streamvault.local",
-    "VAPID_PRIVATE_KEY": null,
-    "VAPID_PUBLIC_KEY": null,
-    "WEBHOOK_URL": null
+    "APPRISE_URLS": {
+      "default_factory": "<Name>",
+      "field": "APPRISE_URLS",
+      "secret": false
+    },
+    "ARTWORK_BASE_PATH": {
+      "default": "/recordings/.artwork",
+      "field": "ARTWORK_BASE_PATH",
+      "secret": false
+    },
+    "AUTH_ACCESS_TOKEN_MINUTES": {
+      "default": 15,
+      "field": "AUTH_ACCESS_TOKEN_MINUTES",
+      "secret": false
+    },
+    "AUTH_JWT_ALGORITHM": {
+      "default": "HS256",
+      "field": "AUTH_JWT_ALGORITHM",
+      "secret": false
+    },
+    "AUTH_JWT_AUDIENCE": {
+      "default": "streamvault-api",
+      "field": "AUTH_JWT_AUDIENCE",
+      "secret": false
+    },
+    "AUTH_JWT_ISSUER": {
+      "default": "streamvault",
+      "field": "AUTH_JWT_ISSUER",
+      "secret": false
+    },
+    "AUTH_JWT_SECRET": {
+      "default": null,
+      "field": "auth_jwt_secret",
+      "secret": true
+    },
+    "AUTH_REFRESH_FAMILY_MAX_HOURS": {
+      "default": 168,
+      "field": "AUTH_REFRESH_FAMILY_MAX_HOURS",
+      "secret": false
+    },
+    "AUTH_REFRESH_TOKEN_HOURS": {
+      "default": 24,
+      "field": "AUTH_REFRESH_TOKEN_HOURS",
+      "secret": false
+    },
+    "BASE_DIR": {
+      "default": "<str>",
+      "field": "BASE_DIR",
+      "secret": false
+    },
+    "BASE_URL": {
+      "default": null,
+      "field": "BASE_URL",
+      "secret": false
+    },
+    "CONTENT_SECURITY_POLICY": {
+      "default": null,
+      "field": "CONTENT_SECURITY_POLICY",
+      "secret": false
+    },
+    "CORS_ADDITIONAL_ORIGINS": {
+      "default": "",
+      "field": "CORS_ADDITIONAL_ORIGINS",
+      "secret": false
+    },
+    "CORS_ALLOW_CREDENTIALS": {
+      "default": true,
+      "field": "CORS_ALLOW_CREDENTIALS",
+      "secret": false
+    },
+    "CORS_ALLOW_HEADERS": {
+      "default_factory": [
+        "Content-Type",
+        "Authorization",
+        "X-Requested-With",
+        "Accept",
+        "Origin"
+      ],
+      "field": "CORS_ALLOW_HEADERS",
+      "secret": false
+    },
+    "CORS_ALLOW_METHODS": {
+      "default_factory": [
+        "GET",
+        "POST",
+        "PUT",
+        "DELETE",
+        "OPTIONS",
+        "PATCH"
+      ],
+      "field": "CORS_ALLOW_METHODS",
+      "secret": false
+    },
+    "CORS_MAX_AGE": {
+      "default": 86400,
+      "field": "CORS_MAX_AGE",
+      "secret": false
+    },
+    "DATABASE_URL": {
+      "default": null,
+      "field": "database_url",
+      "secret": true
+    },
+    "ENVIRONMENT": {
+      "default": "production",
+      "field": "ENVIRONMENT",
+      "secret": false
+    },
+    "EVENTSUB_PORT": {
+      "default": 8080,
+      "field": "EVENTSUB_PORT",
+      "secret": false
+    },
+    "EVENTSUB_SECRET": {
+      "default": null,
+      "field": "eventsub_secret",
+      "secret": true
+    },
+    "HSTS_MAX_AGE": {
+      "default": 31536000,
+      "field": "HSTS_MAX_AGE",
+      "secret": false
+    },
+    "HTTPS_PROXY": {
+      "default": null,
+      "field": "https_proxy",
+      "secret": true
+    },
+    "HTTP_PROXY": {
+      "default": null,
+      "field": "http_proxy",
+      "secret": true
+    },
+    "LOGS_BASE_DIR": {
+      "default": null,
+      "field": "LOGS_BASE_DIR",
+      "secret": false
+    },
+    "LOG_DIR": {
+      "default": null,
+      "field": "LOG_DIR",
+      "secret": false
+    },
+    "LOG_FORMAT": {
+      "default": "text",
+      "field": "LOG_FORMAT",
+      "secret": false
+    },
+    "LOG_LEVEL": {
+      "default": "INFO",
+      "field": "LOG_LEVEL",
+      "secret": false
+    },
+    "METRICS_ALLOW_UNAUTHENTICATED": {
+      "default": false,
+      "field": "METRICS_ALLOW_UNAUTHENTICATED",
+      "secret": false
+    },
+    "METRICS_AUTH_TOKEN": {
+      "default": null,
+      "field": "metrics_auth_token",
+      "secret": true
+    },
+    "METRICS_ENABLED": {
+      "default": false,
+      "field": "METRICS_ENABLED",
+      "secret": false
+    },
+    "POSTGRES_DB": {
+      "default": null,
+      "field": "POSTGRES_DB",
+      "secret": false
+    },
+    "POSTGRES_PASSWORD": {
+      "default": null,
+      "field": "postgres_password",
+      "secret": true
+    },
+    "POSTGRES_USER": {
+      "default": null,
+      "field": "POSTGRES_USER",
+      "secret": false
+    },
+    "RATE_LIMIT_CAPACITY": {
+      "default": 300,
+      "field": "RATE_LIMIT_CAPACITY",
+      "secret": false
+    },
+    "RATE_LIMIT_ENABLED": {
+      "default": true,
+      "field": "RATE_LIMIT_ENABLED",
+      "secret": false
+    },
+    "RATE_LIMIT_MAX_BUCKETS": {
+      "default": 10000,
+      "field": "RATE_LIMIT_MAX_BUCKETS",
+      "secret": false
+    },
+    "RATE_LIMIT_MAX_WAIT_MS": {
+      "default": 500,
+      "field": "RATE_LIMIT_MAX_WAIT_MS",
+      "secret": false
+    },
+    "RATE_LIMIT_REFILL_PER_SEC": {
+      "default": 5.0,
+      "field": "RATE_LIMIT_REFILL_PER_SEC",
+      "secret": false
+    },
+    "READINESS_REQUIRED_COMPONENTS": {
+      "default_factory": [
+        "database",
+        "ffmpeg",
+        "streamlink"
+      ],
+      "field": "READINESS_REQUIRED_COMPONENTS",
+      "secret": false
+    },
+    "READINESS_TIMEOUT_SECONDS": {
+      "default": 3.0,
+      "field": "READINESS_TIMEOUT_SECONDS",
+      "secret": false
+    },
+    "RECORDING_DIRECTORY": {
+      "default": "/recordings",
+      "field": "RECORDING_DIRECTORY",
+      "secret": false
+    },
+    "SECURE_COOKIES": {
+      "default": true,
+      "field": "SECURE_COOKIES",
+      "secret": false
+    },
+    "SECURE_HEADERS_ENABLED": {
+      "default": true,
+      "field": "SECURE_HEADERS_ENABLED",
+      "secret": false
+    },
+    "TRUSTED_HOSTS": {
+      "default_factory": "<Name>",
+      "field": "TRUSTED_HOSTS",
+      "secret": false
+    },
+    "TRUSTED_PROXY_CIDRS": {
+      "default_factory": "<Name>",
+      "field": "TRUSTED_PROXY_CIDRS",
+      "secret": false
+    },
+    "TWITCH_APP_ID": {
+      "default": null,
+      "field": "TWITCH_APP_ID",
+      "secret": false
+    },
+    "TWITCH_APP_SECRET": {
+      "default": null,
+      "field": "twitch_app_secret",
+      "secret": true
+    },
+    "TWITCH_OAUTH_TOKEN": {
+      "default": null,
+      "field": "twitch_oauth_token",
+      "secret": true
+    },
+    "USE_SECURE_COOKIES": {
+      "default": true,
+      "field": "USE_SECURE_COOKIES",
+      "secret": false
+    },
+    "VAPID_CLAIMS_SUB": {
+      "default": "mailto:admin@streamvault.local",
+      "field": "VAPID_CLAIMS_SUB",
+      "secret": false
+    },
+    "VAPID_PRIVATE_KEY": {
+      "default": null,
+      "field": "vapid_private_key",
+      "secret": true
+    },
+    "VAPID_PUBLIC_KEY": {
+      "default": null,
+      "field": "VAPID_PUBLIC_KEY",
+      "secret": false
+    },
+    "WEBHOOK_URL": {
+      "default": null,
+      "field": "WEBHOOK_URL",
+      "secret": false
+    }
   },
   "openapi_operations": [
-    "DELETE /api/admin/share-tokens/{token_id}",
-    "DELETE /api/api-keys/{key_id}",
-    "DELETE /api/categories/favorites/{category_id}",
-    "DELETE /api/live/stop/{session_id}",
-    "DELETE /api/proxy/{proxy_id}",
-    "DELETE /api/streamers/subscriptions",
-    "DELETE /api/streamers/subscriptions/{subscription_id}",
-    "DELETE /api/streamers/{streamer_id}",
-    "DELETE /api/streamers/{streamer_id}/streams",
-    "DELETE /api/streamers/{streamer_id}/streams/{stream_id}",
-    "DELETE /api/streams/{stream_id}",
-    "DELETE /logging/files/{log_type}/{filename}",
-    "GET /",
-    "GET /add-streamer",
-    "GET /admin",
-    "GET /admin/websocket-connections",
-    "GET /api/admin/background-queue/status",
-    "GET /api/admin/debug/recordings-directory",
-    "GET /api/admin/debug/videos-database",
-    "GET /api/admin/logs/recent",
-    "GET /api/admin/orphaned/statistics",
-    "GET /api/admin/post-processing/orphaned-list",
-    "GET /api/admin/post-processing/stats",
-    "GET /api/admin/share-tokens/stats",
-    "GET /api/admin/system/info",
-    "GET /api/admin/tests/available",
-    "GET /api/api-keys",
-    "GET /api/background-queue/active-tasks",
-    "GET /api/background-queue/health",
-    "GET /api/background-queue/recent-tasks",
-    "GET /api/background-queue/stats",
-    "GET /api/background-queue/tasks/{task_id}",
-    "GET /api/categories",
-    "GET /api/categories/cache-status",
-    "GET /api/categories/favorites",
-    "GET /api/categories/image/{category_name}",
-    "GET /api/categories/missing-images",
-    "GET /api/debug/recordings-directory",
-    "GET /api/debug/videos-database",
-    "GET /api/health",
-    "GET /api/health/live",
-    "GET /api/health/ready",
-    "GET /api/images/categories",
-    "GET /api/images/category/{category_name}",
-    "GET /api/images/stats",
-    "GET /api/images/streamer/{streamer_id}",
-    "GET /api/images/streamers",
-    "GET /api/images/sync/queue-status",
-    "GET /api/live/active",
-    "GET /api/live/status/{session_id}",
-    "GET /api/live/stream/{session_id}/playlist.m3u8",
-    "GET /api/live/stream/{session_id}/{segment_name}",
-    "GET /api/migration/images/status",
-    "GET /api/notifications/state",
-    "GET /api/proxy/best",
-    "GET /api/proxy/config",
-    "GET /api/proxy/list",
-    "GET /api/push/debug",
-    "GET /api/push/vapid-public-key",
-    "GET /api/realtime/events",
-    "GET /api/recording/active",
-    "GET /api/recording/filename-presets",
-    "GET /api/recording/recovery/statistics",
-    "GET /api/recording/recovery/status",
-    "GET /api/recording/settings",
-    "GET /api/recording/storage/{streamer_id}",
-    "GET /api/recording/streamers",
-    "GET /api/recordings/latest",
-    "GET /api/recordings/recent",
-    "GET /api/recovery/automated/status",
-    "GET /api/recovery/automated/test-services",
-    "GET /api/settings",
-    "GET /api/settings/codec-options",
-    "GET /api/settings/quality-options",
-    "GET /api/settings/streamer",
-    "GET /api/settings/streamers",
-    "GET /api/status/active-recordings",
-    "GET /api/status/background-queue",
-    "GET /api/status/health",
-    "GET /api/status/notifications",
-    "GET /api/status/recordings-active",
-    "GET /api/status/streamers",
-    "GET /api/status/streams",
-    "GET /api/status/system",
-    "GET /api/stream/{stream_id}/has-recording",
-    "GET /api/streamers",
-    "GET /api/streamers/debug-live-status",
-    "GET /api/streamers/streamer/{streamer_id}",
-    "GET /api/streamers/subscriptions",
-    "GET /api/streamers/validate/{username}",
-    "GET /api/streamers/{streamer_id}/live-status",
-    "GET /api/streamers/{streamer_id}/streams",
-    "GET /api/streamers/{streamer_id}/streams/{stream_id}/chapters",
-    "GET /api/twitch/auth-url",
-    "GET /api/twitch/callback",
-    "GET /api/twitch/callback-url",
-    "GET /api/twitch/connection-status",
-    "GET /api/twitch/followed-channels",
-    "GET /api/version",
-    "GET /api/videos",
-    "GET /api/videos/debug/{stream_id}",
-    "GET /api/videos/public/{stream_id}",
-    "GET /api/videos/stream_by_filename/{filename}",
-    "GET /api/videos/streamer/{streamer_id}",
-    "GET /api/videos/test/{stream_id}",
-    "GET /api/videos/{stream_id}/chapters",
-    "GET /api/videos/{stream_id}/stream",
-    "GET /api/videos/{stream_id}/thumbnail",
-    "GET /api/videos/{streamer_name}",
-    "GET /api/videos/{streamer_name}/{filename}",
-    "GET /auth/check",
-    "GET /auth/login",
-    "GET /auth/onboarding-state",
-    "GET /auth/setup",
-    "GET /browserconfig.xml",
-    "GET /data/images/artwork/{streamer_id}/{filename}",
-    "GET /data/images/categories/{filename}",
-    "GET /data/images/category/{category_name}",
-    "GET /data/images/profile/{streamer_id}",
-    "GET /data/images/profiles/{filename}",
-    "GET /data/images/stats",
-    "GET /eventsub",
-    "GET /favicon.ico",
-    "GET /favicon.png",
-    "GET /health",
-    "GET /logging/files",
-    "GET /logging/files/{log_type}/{filename}",
-    "GET /logging/files/{log_type}/{filename}/tail",
-    "GET /logging/stats",
-    "GET /manifest.json",
-    "GET /manifest.webmanifest",
-    "GET /pwa/push-sw.js",
-    "GET /registerSW.js",
-    "GET /settings",
-    "GET /streamer/{streamer_id}",
-    "GET /streamer/{streamer_id}/stream/{stream_id}/watch",
-    "GET /streamers",
-    "GET /subscriptions",
-    "GET /sw.js",
-    "GET /videos",
-    "GET /welcome",
-    "GET /workbox-{filename}",
-    "GET /{full_path}",
-    "GET /{icon_file}",
-    "HEAD /auth/login",
-    "HEAD /auth/setup",
-    "HEAD /eventsub",
-    "POST /api/admin/background-queue/cleanup/all",
-    "POST /api/admin/background-queue/cleanup/orphaned-recovery",
-    "POST /api/admin/background-queue/cleanup/stuck-recordings",
-    "POST /api/admin/background-queue/cleanup/task-names",
-    "POST /api/admin/debug/check-stream-recordings",
-    "POST /api/admin/maintenance/cleanup-temp",
-    "POST /api/admin/orphaned/recover/{recording_id}",
-    "POST /api/admin/orphaned/scan",
-    "POST /api/admin/post-processing/cleanup-orphaned-files",
-    "POST /api/admin/post-processing/cleanup-segments",
-    "POST /api/admin/post-processing/enqueue-manual",
-    "POST /api/admin/post-processing/retry-all",
-    "POST /api/admin/post-processing/retry-specific",
-    "POST /api/admin/recordings/cleanup-orphaned-db",
-    "POST /api/admin/recordings/cleanup-process-orphaned",
-    "POST /api/admin/recordings/cleanup-zombies",
-    "POST /api/admin/recordings/fix-availability",
-    "POST /api/admin/share-tokens/cleanup",
-    "POST /api/admin/test/{test_name}",
-    "POST /api/admin/tests/quick-health",
-    "POST /api/admin/tests/run",
-    "POST /api/api-keys",
-    "POST /api/background-queue/tasks/enqueue",
-    "POST /api/background-queue/tasks/file-cleanup",
-    "POST /api/background-queue/tasks/metadata-generation",
-    "POST /api/background-queue/tasks/thumbnail-generation",
-    "POST /api/categories/cleanup-images",
-    "POST /api/categories/favorites",
-    "POST /api/categories/images/batch",
-    "POST /api/categories/preload-images",
-    "POST /api/categories/refresh-images",
-    "POST /api/images/category/{category_name}/download",
-    "POST /api/images/cleanup",
-    "POST /api/images/streamer/{streamer_id}/download",
-    "POST /api/images/sync",
-    "POST /api/images/sync/check-missing",
-    "POST /api/live/start/{streamer_name}",
-    "POST /api/migration/images",
-    "POST /api/migration/images/refresh",
-    "POST /api/migration/images/refresh/category/{category_name}",
-    "POST /api/migration/images/refresh/streamer/{streamer_id}",
-    "POST /api/notifications/clear",
-    "POST /api/notifications/mark-read",
-    "POST /api/proxy/add",
-    "POST /api/proxy/config/update",
-    "POST /api/proxy/{proxy_id}/test",
-    "POST /api/proxy/{proxy_id}/toggle",
-    "POST /api/proxy/{proxy_id}/update-priority",
-    "POST /api/push/subscribe",
-    "POST /api/push/test",
-    "POST /api/push/test-local",
-    "POST /api/push/unsubscribe",
-    "POST /api/recording/cleanup/{streamer_id}",
-    "POST /api/recording/cleanup/{streamer_id}/custom",
-    "POST /api/recording/force-start/{streamer_id}",
-    "POST /api/recording/recovery/scan",
-    "POST /api/recording/settings",
-    "POST /api/recording/stop/{streamer_id}",
-    "POST /api/recording/streamers/{streamer_id}",
-    "POST /api/recording/streamers/{streamer_id}/cleanup-policy",
-    "POST /api/recordings/force-stop",
-    "POST /api/recovery/automated/configure",
-    "POST /api/recovery/automated/run-once",
-    "POST /api/recovery/automated/run-simple",
-    "POST /api/recovery/automated/start",
-    "POST /api/recovery/automated/stop",
-    "POST /api/settings",
-    "POST /api/settings/streamer/{streamer_id}",
-    "POST /api/settings/test-notification",
-    "POST /api/settings/test-websocket-notification",
-    "POST /api/streamers/resubscribe-all",
-    "POST /api/streamers/{username}",
-    "POST /api/streams/check-recordings",
-    "POST /api/twitch/disconnect",
-    "POST /api/twitch/import-streamers",
-    "POST /api/twitch/manual-token",
-    "POST /api/videos/{stream_id}/share-token",
-    "POST /auth/keepalive",
-    "POST /auth/login",
-    "POST /auth/logout",
-    "POST /auth/onboarding/complete",
-    "POST /auth/refresh",
-    "POST /auth/setup",
-    "POST /data/images/cleanup",
-    "POST /data/images/sync/categories",
-    "POST /data/images/sync/profiles",
-    "POST /eventsub",
-    "POST /logging/cleanup",
-    "PUT /api/streamers/streamer/{streamer_id}/settings"
+    {
+      "method": "DELETE",
+      "path": "/api/admin/share-tokens/{token_id}",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Response Delete Share Token Api Admin Share Tokens  Token Id  Delete",
+                "type": "object"
+              }
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/api-keys/{key_id}",
+      "request_body": null,
+      "responses": {
+        "204": {},
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/categories/favorites/{category_id}",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CategoryResponse"
+              }
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/live/stop/{session_id}",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/proxy/{proxy_id}",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/streamers/subscriptions",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/streamers/subscriptions/{subscription_id}",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/streamers/{streamer_id}",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/streamers/{streamer_id}/streams",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/streamers/{streamer_id}/streams/{stream_id}",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/streams/{stream_id}",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "DELETE",
+      "path": "/logging/files/{log_type}/{filename}",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/add-streamer",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/admin",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/admin/websocket-connections",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/background-queue/status",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BackgroundQueueStatusResponse"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/debug/recordings-directory",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Response Debug Recordings Directory Api Admin Debug Recordings Directory Get",
+                "type": "object"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/debug/videos-database",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Response Debug Videos Database Api Admin Debug Videos Database Get",
+                "type": "object"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/logs/recent",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Response Get Recent Logs Api Admin Logs Recent Get",
+                "type": "object"
+              }
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/orphaned/statistics",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Response Get Orphaned Statistics Api Admin Orphaned Statistics Get",
+                "type": "object"
+              }
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/post-processing/orphaned-list",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Response Get Orphaned Recordings List Api Admin Post Processing Orphaned List Get",
+                "type": "object"
+              }
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/post-processing/stats",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PostProcessingStatsResponse"
+              }
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/share-tokens/stats",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Response Get Share Tokens Stats Api Admin Share Tokens Stats Get",
+                "type": "object"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/system/info",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Response Get System Info Api Admin System Info Get",
+                "type": "object"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/tests/available",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "title": "Response Get Available Tests Api Admin Tests Available Get",
+                "type": "object"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/api-keys",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "items": {
+                  "$ref": "#/components/schemas/ApiKeyResponse"
+                },
+                "title": "Response List Api Keys Api Api Keys Get",
+                "type": "array"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/background-queue/active-tasks",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/background-queue/health",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/background-queue/recent-tasks",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/background-queue/stats",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/background-queue/tasks/{task_id}",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/categories",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CategoryList"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/categories/cache-status",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/categories/favorites",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CategoryList"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/categories/image/{category_name}",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/categories/missing-images",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/debug/recordings-directory",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/debug/videos-database",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/health",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Response Health Check Api Health Get",
+                "type": "object"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/health/live",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "title": "Response Liveness Check Api Health Live Get",
+                "type": "object"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/health/ready",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/images/categories",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/images/category/{category_name}",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/images/stats",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/images/streamer/{streamer_id}",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/images/streamers",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/images/sync/queue-status",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/live/active",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/live/status/{session_id}",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/live/stream/{session_id}/playlist.m3u8",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/live/stream/{session_id}/{segment_name}",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/migration/images/status",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/notifications/state",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/proxy/best",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/proxy/config",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/proxy/list",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/push/debug",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/push/vapid-public-key",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/realtime/events",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/recording/active",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "items": {
+                  "$ref": "#/components/schemas/ActiveRecordingSchema"
+                },
+                "title": "Response Get Active Recordings Api Recording Active Get",
+                "type": "array"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/recording/filename-presets",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/recording/recovery/statistics",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Response Get Recovery Statistics Api Recording Recovery Statistics Get",
+                "type": "object"
+              }
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/recording/recovery/status",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Response Get Recovery Status Api Recording Recovery Status Get",
+                "type": "object"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/recording/settings",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordingSettingsSchema"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/recording/storage/{streamer_id}",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StorageUsageSchema"
+              }
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/recording/streamers",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "items": {
+                  "$ref": "#/components/schemas/StreamerRecordingSettingsSchema"
+                },
+                "title": "Response Get All Streamer Recording Settings Api Recording Streamers Get",
+                "type": "array"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/recordings/latest",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/recordings/recent",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/recovery/automated/status",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/recovery/automated/test-services",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/settings",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GlobalSettingsSchema"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/settings/codec-options",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/settings/quality-options",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/settings/streamer",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "items": {
+                  "$ref": "#/components/schemas/StreamerNotificationSettingsSchema"
+                },
+                "title": "Response Get All Streamer Settings Api Settings Streamer Get",
+                "type": "array"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/settings/streamers",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/status/active-recordings",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Response Get Active Recordings Status Api Status Active Recordings Get",
+                "type": "object"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/status/background-queue",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Response Get Background Queue Status Api Status Background Queue Get",
+                "type": "object"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/status/health",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Response Get Health Status Api Status Health Get",
+                "type": "object"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/status/notifications",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Response Get Notifications Status Api Status Notifications Get",
+                "type": "object"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/status/recordings-active",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Response Check Recordings Active Api Status Recordings Active Get",
+                "type": "object"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/status/streamers",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Response Get Streamers Status Api Status Streamers Get",
+                "type": "object"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/status/streams",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Response Get Streams Status Api Status Streams Get",
+                "type": "object"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/status/system",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Response Get System Status Api Status System Get",
+                "type": "object"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/stream/{stream_id}/has-recording",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/streamers",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/streamers/debug-live-status",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/streamers/streamer/{streamer_id}",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/streamers/subscriptions",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/streamers/validate/{username}",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/streamers/{streamer_id}/live-status",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/streamers/{streamer_id}/streams",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Response Get Streams By Streamer Id Api Streamers  Streamer Id  Streams Get",
+                "type": "object"
+              }
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/streamers/{streamer_id}/streams/{stream_id}/chapters",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/twitch/auth-url",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/twitch/callback",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/twitch/callback-url",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/twitch/connection-status",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConnectionStatusResponse"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/twitch/followed-channels",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/version",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/videos",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/videos/debug/{stream_id}",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/videos/public/{stream_id}",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/videos/stream_by_filename/{filename}",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/videos/streamer/{streamer_id}",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/videos/test/{stream_id}",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/videos/{stream_id}/chapters",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/videos/{stream_id}/stream",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/videos/{stream_id}/thumbnail",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/videos/{streamer_name}",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/videos/{streamer_name}/{filename}",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/auth/check",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/auth/login",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/auth/onboarding-state",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/auth/setup",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/browserconfig.xml",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/data/images/artwork/{streamer_id}/{filename}",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/data/images/categories/{filename}",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/data/images/category/{category_name}",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/data/images/profile/{streamer_id}",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/data/images/profiles/{filename}",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/data/images/stats",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/eventsub",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/favicon.ico",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/favicon.png",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/health",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/logging/files",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LogsListSchema"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/logging/files/{log_type}/{filename}",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/logging/files/{log_type}/{filename}/tail",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/logging/stats",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/manifest.json",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/manifest.webmanifest",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/pwa/push-sw.js",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/registerSW.js",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/settings",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/streamer/{streamer_id}",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/streamer/{streamer_id}/stream/{stream_id}/watch",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/streamers",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/subscriptions",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/sw.js",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/videos",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/welcome",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/workbox-{filename}",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/{full_path}",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "path": "/{icon_file}",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "HEAD",
+      "path": "/auth/login",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "HEAD",
+      "path": "/auth/setup",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "HEAD",
+      "path": "/eventsub",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/background-queue/cleanup/all",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BackgroundQueueCleanupResponse"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/background-queue/cleanup/orphaned-recovery",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BackgroundQueueCleanupResponse"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/background-queue/cleanup/stuck-recordings",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BackgroundQueueCleanupResponse"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/background-queue/cleanup/task-names",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BackgroundQueueCleanupResponse"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/debug/check-stream-recordings",
+      "request_body": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "items": {
+                "type": "integer"
+              },
+              "title": "Stream Ids",
+              "type": "array"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Response Debug Check Stream Recordings Api Admin Debug Check Stream Recordings Post",
+                "type": "object"
+              }
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/maintenance/cleanup-temp",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Response Cleanup Temp Files Api Admin Maintenance Cleanup Temp Post",
+                "type": "object"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/orphaned/recover/{recording_id}",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Response Recover Specific Recording Api Admin Orphaned Recover  Recording Id  Post",
+                "type": "object"
+              }
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/orphaned/scan",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Response Scan Orphaned Recordings Api Admin Orphaned Scan Post",
+                "type": "object"
+              }
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/post-processing/cleanup-orphaned-files",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Response Cleanup Orphaned Files Api Admin Post Processing Cleanup Orphaned Files Post",
+                "type": "object"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/post-processing/cleanup-segments",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Response Cleanup Orphaned Segments Api Admin Post Processing Cleanup Segments Post",
+                "type": "object"
+              }
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/post-processing/enqueue-manual",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Response Enqueue Manual Post Processing Api Admin Post Processing Enqueue Manual Post",
+                "type": "object"
+              }
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/post-processing/retry-all",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PostProcessingRetryResponse"
+              }
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/post-processing/retry-specific",
+      "request_body": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/PostProcessingRetryRequest"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PostProcessingRetryResponse"
+              }
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/recordings/cleanup-orphaned-db",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Response Cleanup Orphaned Database Recordings Api Admin Recordings Cleanup Orphaned Db Post",
+                "type": "object"
+              }
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/recordings/cleanup-process-orphaned",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Response Cleanup Process Orphaned Recordings Api Admin Recordings Cleanup Process Orphaned Post",
+                "type": "object"
+              }
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/recordings/cleanup-zombies",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Response Cleanup Zombie Recordings Api Admin Recordings Cleanup Zombies Post",
+                "type": "object"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/recordings/fix-availability",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Response Fix Recording Availability Api Admin Recordings Fix Availability Post",
+                "type": "object"
+              }
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/share-tokens/cleanup",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Response Cleanup Share Tokens Api Admin Share Tokens Cleanup Post",
+                "type": "object"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/test/{test_name}",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/tests/quick-health",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Response Quick Health Check Api Admin Tests Quick Health Post",
+                "type": "object"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/tests/run",
+      "request_body": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/TestRequest",
+              "default": {}
+            }
+          }
+        }
+      },
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TestResponse"
+              }
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/api-keys",
+      "request_body": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ApiKeyCreate"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "201": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApiKeyCreated"
+              }
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/background-queue/tasks/enqueue",
+      "request_body": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "additionalProperties": true,
+              "title": "Payload",
+              "type": "object"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/background-queue/tasks/file-cleanup",
+      "request_body": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Body_enqueue_file_cleanup_api_background_queue_tasks_file_cleanup_post"
+            }
+          }
+        }
+      },
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/background-queue/tasks/metadata-generation",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/background-queue/tasks/thumbnail-generation",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/categories/cleanup-images",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/categories/favorites",
+      "request_body": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/FavoriteCategoryCreate"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CategoryResponse"
+              }
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/categories/images/batch",
+      "request_body": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Category Names",
+              "type": "array"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/categories/preload-images",
+      "request_body": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Category Names",
+              "type": "array"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/categories/refresh-images",
+      "request_body": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Category Names",
+              "type": "array"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/images/category/{category_name}/download",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/images/cleanup",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/images/streamer/{streamer_id}/download",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/images/sync",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/images/sync/check-missing",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/live/start/{streamer_name}",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/migration/images",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MigrationResponse"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/migration/images/refresh",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MigrationResponse"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/migration/images/refresh/category/{category_name}",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/migration/images/refresh/streamer/{streamer_id}",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/notifications/clear",
+      "request_body": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/NotificationClearRequest"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/notifications/mark-read",
+      "request_body": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/NotificationMarkReadRequest"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/proxy/add",
+      "request_body": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ProxyAddRequest"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/proxy/config/update",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/proxy/{proxy_id}/test",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/proxy/{proxy_id}/toggle",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/proxy/{proxy_id}/update-priority",
+      "request_body": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ProxyUpdatePriorityRequest"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/push/subscribe",
+      "request_body": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "additionalProperties": true,
+              "title": "Subscription Data",
+              "type": "object"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/push/test",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/push/test-local",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/push/unsubscribe",
+      "request_body": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "additionalProperties": true,
+              "title": "Unsubscribe Data",
+              "type": "object"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/recording/cleanup/{streamer_id}",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/recording/cleanup/{streamer_id}/custom",
+      "request_body": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/CleanupPolicySchema"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Response Run Custom Cleanup Api Recording Cleanup  Streamer Id  Custom Post",
+                "type": "object"
+              }
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/recording/force-start/{streamer_id}",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/recording/recovery/scan",
+      "request_body": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/RecoveryScanRequest"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Response Comprehensive Recovery Scan Api Recording Recovery Scan Post",
+                "type": "object"
+              }
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/recording/settings",
+      "request_body": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/RecordingSettingsSchema"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordingSettingsSchema"
+              }
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/recording/stop/{streamer_id}",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/recording/streamers/{streamer_id}",
+      "request_body": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/StreamerRecordingSettingsSchema"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StreamerRecordingSettingsSchema"
+              }
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/recording/streamers/{streamer_id}/cleanup-policy",
+      "request_body": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "additionalProperties": true,
+              "title": "Request Data",
+              "type": "object"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Response Update Streamer Cleanup Policy Api Recording Streamers  Streamer Id  Cleanup Policy Post",
+                "type": "object"
+              }
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/recordings/force-stop",
+      "request_body": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "additionalProperties": true,
+              "title": "Request Data",
+              "type": "object"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/recovery/automated/configure",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/recovery/automated/run-once",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/recovery/automated/run-simple",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/recovery/automated/start",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/recovery/automated/stop",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/settings",
+      "request_body": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/GlobalSettingsSchema"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GlobalSettingsSchema"
+              }
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/settings/streamer/{streamer_id}",
+      "request_body": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/StreamerNotificationSettingsUpdateSchema"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StreamerNotificationSettingsSchema"
+              }
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/settings/test-notification",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/settings/test-websocket-notification",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/streamers/resubscribe-all",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/streamers/{username}",
+      "request_body": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "additionalProperties": true,
+              "title": "Data",
+              "type": "object"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/streams/check-recordings",
+      "request_body": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "items": {
+                "type": "integer"
+              },
+              "title": "Stream Ids",
+              "type": "array"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/twitch/disconnect",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/twitch/import-streamers",
+      "request_body": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "items": {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              "title": "Streamers",
+              "type": "array"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/twitch/manual-token",
+      "request_body": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ManualTokenRequest"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/videos/{stream_id}/share-token",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "path": "/auth/keepalive",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "path": "/auth/login",
+      "request_body": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/UserCreate"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "path": "/auth/logout",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "path": "/auth/onboarding/complete",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "path": "/auth/refresh",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "path": "/auth/setup",
+      "request_body": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/UserCreate"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "path": "/data/images/cleanup",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "path": "/data/images/sync/categories",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "path": "/data/images/sync/profiles",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "path": "/eventsub",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "path": "/logging/cleanup",
+      "request_body": null,
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "PUT",
+      "path": "/api/streamers/streamer/{streamer_id}/settings",
+      "request_body": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "additionalProperties": true,
+              "title": "Settings",
+              "type": "object"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": []
+    }
   ],
   "persistent_paths": {
     "artwork_base_path": "/recordings/.artwork",
     "live_output_default": "/tmp/streamvault-live",
     "logs_default": "/app/logs",
-    "media_path": "/recordings/.media",
     "recording_directory": "/recordings"
   },
   "route_and_middleware_order": {
     "middleware": [
+      "install_http_middleware",
       "AuthMiddleware"
     ],
     "routers": [
@@ -340,13 +5465,7 @@
   },
   "schema_version": 1,
   "services_jobs_and_subprocesses": {
-    "lifespan_jobs": [
-      "launch_background_services()",
-      "logging_service._schedule_cleanup(interval_hours=24)",
-      "safe_image_refresh()",
-      "scheduled_recording_cleanup()",
-      "scheduled_session_cleanup()"
-    ],
+    "lifespan_jobs": [],
     "service_modules": [
       "app/services/__init__.py",
       "app/services/api/__init__.py",
@@ -415,6 +5534,7 @@
       "app/services/recording/orphaned_recovery_tasks.py",
       "app/services/recording/post_processing_coordinator.py",
       "app/services/recording/process_manager.py",
+      "app/services/recording/recording_auth_policy.py",
       "app/services/recording/recording_database_service.py",
       "app/services/recording/recording_lifecycle_manager.py",
       "app/services/recording/recording_logger.py",
@@ -425,6 +5545,7 @@
       "app/services/recording/recording_websocket_service.py",
       "app/services/recording/segment_concatenation_task.py",
       "app/services/recording/stream_info_manager.py",
+      "app/services/recording/twitch_auth_scheduler.py",
       "app/services/recording/unified_recovery_service.py",
       "app/services/simple_recovery_service.py",
       "app/services/streamer_service.py",
@@ -437,7 +5558,9 @@
       "app/services/system/development_test_runner.py",
       "app/services/system/logging_service.py",
       "app/services/system/migration_service.py",
+      "app/services/system/persistent_key_service.py",
       "app/services/system/streamlink_config_service.py",
+      "app/services/system/supervisor.py",
       "app/services/system/system_config_service.py",
       "app/services/system/twitch_token_service.py",
       "app/services/twitch_upstream_coordinator.py",

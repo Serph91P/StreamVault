@@ -29,9 +29,12 @@ WebSocket message shapes, notification names, recording/media identity, port
 
 ## Contract governance
 
-P0's versioned snapshot is the comparison point before each vertical slice.
-An intentional change must include its consumer/migration/deprecation strategy
-and an updated snapshot in the same reviewed PR. Removals or shape changes are
+P0's versioned snapshot is the comparison point before each vertical slice. It
+covers OpenAPI request/response/security shape, external settings aliases and
+source defaults, composition order, WebSocket method names, source inventory and
+source-derived persistent paths. An intentional change must include its
+consumer/migration/deprecation strategy and an updated snapshot in the same
+reviewed PR. Removals or shape changes are
 not accepted as incidental refactoring. The snapshot is inventory, not a source
 of secrets or a permission to expose an endpoint.
 

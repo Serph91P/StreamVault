@@ -1,6 +1,6 @@
 # Backend modernization migration plan
 
-Start from `develop@99b101f8fe140fc897eb53a4d80895a660f3025e`. Every package is
+Start from `develop@107323c11043d6011f0947022318bbf57f64e42b`. Every package is
 a small reviewed PR to `develop`, references #842, has one writer and performs
 a semantic diff against the P0 contract snapshot. No history rewrite, force
 push, production connection, credential handling, deployment or release is
@@ -9,10 +9,10 @@ part of this plan.
 ## Completed evidence and P0
 
 - #846 supplied an application-factory seam and is baseline evidence only.
-- P0 freezes current OpenAPI path/methods, composition order, WebSocket event
-  method names, environment names/defaults, services/jobs/subprocess kinds and
-  persistent paths. It records the non-reproduced develop Playwright focus
-  failure without changing UI behavior.
+- P0 freezes OpenAPI request/response/security shape, composition order,
+  WebSocket event method names, external environment aliases plus safe source
+  defaults, services/jobs/subprocess kinds and source-derived persistent paths.
+  It does not change runtime behavior or frontend tests.
 
 ## Ordered implementation slices
 
@@ -43,10 +43,10 @@ part of this plan.
   where executable. Record concrete blockers rather than fabricating passes.
 - Require real PostgreSQL tests for DB/migration/scheduler slices; local SQLite
   success does not prove them.
-- Review the contract delta for removed APIs, environment aliases/defaults,
-  middleware order, WebSocket event shapes, subprocess types and persistent
-  paths. A compatibility break needs an approved adapter/migration/deprecation
-  plan.
+- Review the contract delta for removed APIs; OpenAPI request/response/security
+  shapes; environment aliases/defaults; middleware order; WebSocket event
+  shapes; subprocess types; and persistent paths. A compatibility break needs
+  an approved adapter/migration/deprecation plan.
 
 ## Rollback model
 
