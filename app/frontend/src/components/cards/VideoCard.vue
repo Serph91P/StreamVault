@@ -441,6 +441,7 @@ const handlePlay = () => {
 
 .hover-overlay {
   position: absolute;
+  z-index: 2;
   top: 0;
   left: 0;
   width: 100%;
@@ -455,6 +456,7 @@ const handlePlay = () => {
   justify-content: center;
 
   opacity: 0;
+  pointer-events: none;
   transition: opacity v.$duration-200 v.$ease-out;
 
   &.is-disabled {
@@ -478,6 +480,7 @@ const handlePlay = () => {
   justify-content: center;
 
   cursor: pointer;
+  pointer-events: auto;
   transform: scale(0.9);
   transition: all v.$duration-200 v.$ease-out;
 
