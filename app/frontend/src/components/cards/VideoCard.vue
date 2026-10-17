@@ -441,6 +441,7 @@ const handlePlay = () => {
 
 .hover-overlay {
   position: absolute;
+  z-index: 2;
   top: 0;
   left: 0;
   width: 100%;
@@ -455,10 +456,17 @@ const handlePlay = () => {
   justify-content: center;
 
   opacity: 0;
+  pointer-events: none;
   transition: opacity v.$duration-200 v.$ease-out;
 
   &.is-disabled {
     background: rgba(0, 0, 0, 0.48);
+  }
+
+  @media (hover: none) {
+    // Touch users have no hover state that can reveal the independent Play control.
+    // Keep the overlay visible so it never creates an invisible hit target over Watch.
+    opacity: 1;
   }
 }
 
@@ -478,6 +486,7 @@ const handlePlay = () => {
   justify-content: center;
 
   cursor: pointer;
+  pointer-events: auto;
   transform: scale(0.9);
   transition: all v.$duration-200 v.$ease-out;
 
