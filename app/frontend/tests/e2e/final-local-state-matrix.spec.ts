@@ -150,7 +150,7 @@ test('Settings lazy panel failure is visible, retryable, and restores panel focu
   await expectSettingsPanelStyles(page)
 })
 
-test('notification 99+ badge, unread/error filters, clear action, and queue error state remain usable', async ({ page }) => {
+test('notification 99+ badge, unread/error filters, clear action, and degraded queue state remain usable', async ({ page }) => {
   await seedNotifications(page, 100)
   await page.goto('/')
   const trigger = page.getByRole('button', { name: /Open notifications/ })
@@ -174,7 +174,12 @@ test('notification 99+ badge, unread/error filters, clear action, and queue erro
   const queueTrigger = page.getByRole('button', { name: /Open background queue/ }).first()
   await queueTrigger.click()
   const queueDialog = page.getByRole('dialog')
-  await expect(queueDialog).toContainText('Background queue updates are unavailable')
+  // The REST fixture has already loaded usable data while realtime is offline.
+  // Keep that distinction explicit: this is degraded freshness, not a no-data
+  // queue error.
+  await expect(queueDialog).toContainText('Live updates unavailable. Showing loaded queue data.')
+  await expect(queueDialog).toContainText('Total:')
+  await expect(queueDialog).not.toContainText('Background queue updates are unavailable.')
   await expect(queueDialog.getByRole('button', { name: 'Retry' })).toBeVisible()
   await page.keyboard.press('Escape')
   await expect(queueTrigger).toBeFocused()

@@ -30,7 +30,7 @@ withDefaults(defineProps<Props>(), {
         <svg v-if="icon" class="page-header-icon" :class="{ 'm-hide': !!mobileIcon }" aria-hidden="true">
           <use :href="`#icon-${icon}`" />
         </svg>
-        <div>
+        <div class="page-header-copy">
           <h1 class="page-header-title-text desktop-title" :class="{ 'm-hide': !!mobileTitle }">{{ title }}</h1>
           <h1 v-if="mobileTitle" class="page-header-title-text mobile-title">
             <svg v-if="mobileIcon" class="page-header-icon" aria-hidden="true">
@@ -65,9 +65,15 @@ withDefaults(defineProps<Props>(), {
 }
 
 .page-header-title-group {
+  flex: 1 1 0;
   display: flex;
   align-items: flex-start;
   gap: var(--spacing-3);
+  min-width: 0;
+}
+
+.page-header-copy {
+  flex: 1 1 0;
   min-width: 0;
 }
 
@@ -146,6 +152,8 @@ withDefaults(defineProps<Props>(), {
 }
 
 .page-header-subtitle {
+  width: 100%;
+  min-width: 0;
   margin: var(--spacing-1) 0 0;
   font-size: var(--text-sm);
   color: var(--sv-sem-text-secondary);
@@ -158,5 +166,41 @@ withDefaults(defineProps<Props>(), {
   gap: var(--spacing-2);
   flex-shrink: 0;
   flex-wrap: wrap;
+}
+
+// A status/action pill must never consume the title column on a narrow screen.
+@include m.respond-below('lg') {
+  .page-header-content {
+    flex-wrap: wrap;
+    gap: var(--spacing-3);
+  }
+
+  .page-header-title-group {
+    flex: 1 1 100%;
+    width: 100%;
+    flex-wrap: wrap;
+
+    .page-header-copy {
+      flex: 1 1 100%;
+      width: 100%;
+    }
+  }
+
+  // Keep the ordinary icon and title copy together. Only headers with a back
+  // control use the intentionally stacked narrow layout below.
+  .page-header-title-group:not(:has(.page-header-back-link)) {
+    flex-wrap: nowrap;
+
+    .page-header-copy {
+      flex: 1 1 0;
+      width: auto;
+    }
+  }
+
+  .page-header-end {
+    flex: 1 1 100%;
+    justify-content: flex-start;
+    padding-left: calc(1rem + var(--spacing-3));
+  }
 }
 </style>

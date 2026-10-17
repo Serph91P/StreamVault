@@ -207,6 +207,37 @@ test('mobile routed content clears the visible connectivity pill', async ({ page
   expect(gap).toBeGreaterThanOrEqual(8)
 })
 
+test('mobile routed content clears navigation without a connectivity pill', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop')
+  await page.setViewportSize({ width: 390, height: 844 })
+  await preparePage(page)
+  await page.goto('/add-streamer')
+  await expect(page.locator('.mobile-connectivity-pill')).toHaveCount(0)
+
+  const finalAction = page.locator('main.main-content button:not([disabled])').last()
+  await finalAction.scrollIntoViewIfNeeded()
+  const bottomNav = page.locator('.bottom-nav')
+  const gap = await Promise.all([finalAction.boundingBox(), bottomNav.boundingBox()])
+    .then(([action, nav]) => nav!.y - (action!.y + action!.height))
+  expect(gap).toBeGreaterThanOrEqual(8)
+})
+
+test('ordinary narrow page headers keep their icon and copy on the same row', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop')
+  await page.setViewportSize({ width: 360, height: 844 })
+  await preparePage(page)
+  await page.goto('/videos')
+
+  const header = page.locator('.page-header')
+  const icon = header.locator('.page-header-icon').first()
+  const copy = header.locator('.page-header-copy')
+  await expect(icon).toBeVisible()
+  await expect(copy).toBeVisible()
+  const [iconBox, copyBox] = await Promise.all([icon.boundingBox(), copy.boundingBox()])
+  expect(Math.abs(iconBox!.y - copyBox!.y)).toBeLessThanOrEqual(8)
+  expect(copyBox!.x).toBeGreaterThan(iconBox!.x)
+})
+
 test('System hub keeps settings, admin and subscriptions reachable on desktop and mobile', async ({ page }, testInfo) => {
   const widths = testInfo.project.name === 'mobile' ? [390] : [1440]
 

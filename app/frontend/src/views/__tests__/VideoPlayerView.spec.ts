@@ -33,13 +33,12 @@ vi.mock('@/services/api', () => ({
 
 const VideoPlayerStub = defineComponent({
   name: 'VideoPlayer',
-  props: ['videoSrc', 'chapters', 'streamTitle', 'streamId'],
+  props: ['videoSrc', 'chapters', 'streamId'],
   setup(props, { expose }) {
     expose({ seekToChapter: mocks.seekToChapter })
     return () => h('div', {
       class: 'video-player-stub',
-      'data-src': props.videoSrc,
-      'data-title': props.streamTitle
+      'data-src': props.videoSrc
     })
   }
 })
@@ -72,6 +71,7 @@ async function mountView() {
 }
 
 beforeEach(() => {
+  window.history.replaceState({}, '', '/videos/42')
   mocks.route.params = { id: '42' }
   mocks.route.query = {}
   mocks.getAll.mockResolvedValue([{
@@ -122,6 +122,14 @@ describe('VideoPlayerView backend playback contract', () => {
     expect(mocks.seekToChapter).toHaveBeenCalledWith(600)
   })
 
+  it('passes numeric chapter boundaries to the player without a lossy timestamp round-trip', async () => {
+    const chapters = [{ id: 1, title: 'Fractional chapter', start: 1.25, end: 4.75 }]
+    mocks.getChapters.mockResolvedValueOnce(chapters)
+    const wrapper = await mountView()
+    expect(wrapper.getComponent(VideoPlayerStub).props('chapters')).toEqual(chapters)
+    wrapper.unmount()
+  })
+
   it('shows a retryable error and never substitutes demo playback', async () => {
     mocks.getChapters.mockRejectedValueOnce(new Error('Authentication required'))
     const wrapper = await mountView()
@@ -135,6 +143,31 @@ describe('VideoPlayerView backend playback contract', () => {
     await flushPromises()
     expect(mocks.getChapters).toHaveBeenCalledTimes(2)
     expect(wrapper.get('.video-player-stub').attributes('data-src')).toBe('/api/videos/42/stream')
+  })
+
+  it('restores a complete in-app library context and safely falls back for direct, invalid, or reload entries', async () => {
+    const scrollTo = vi.fn()
+    vi.stubGlobal('scrollTo', scrollTo)
+    const origin = '/videos?search=alpha&streamer=beta&sort=title&view=grid'
+    window.history.replaceState({ back: origin }, '', '/videos/42')
+    const wrapper = await mountView()
+
+    await wrapper.get('.back-button').trigger('click')
+    expect(mocks.routerBack).toHaveBeenCalledOnce()
+    expect(mocks.routerPush).not.toHaveBeenCalled()
+    expect(scrollTo).not.toHaveBeenCalled()
+
+    for (const back of [undefined, '', '//example.invalid', 'https://example.invalid']) {
+      mocks.routerBack.mockClear()
+      mocks.routerPush.mockClear()
+      scrollTo.mockClear()
+      window.history.replaceState(back === undefined ? {} : { back }, '', '/videos/42')
+      const fallbackWrapper = await mountView()
+      await fallbackWrapper.get('.back-button').trigger('click')
+      expect(mocks.routerBack).not.toHaveBeenCalled()
+      expect(mocks.routerPush).toHaveBeenCalledWith('/videos')
+      expect(scrollTo).toHaveBeenCalledWith(0, 0)
+    }
   })
 
   it('routes share and delete actions through the video facade', async () => {

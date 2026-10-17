@@ -83,10 +83,21 @@ html, body {
 }
 
 // Keep programmatic focus/scroll targets clear of the fixed mobile navigation.
-// The document remains the sole scroll owner.
+// When its optional connectivity pill is rendered, its 44px minimum height plus
+// the one-pixel fractional-layout guard extends the existing nav clearance from
+// 84px to 129px. The document remains the sole scroll owner, so this also
+// covers routed forms that use scrollIntoViewIfNeeded on their final control.
 @include m.respond-below('md') {
   html {
     scroll-padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px));
+  }
+
+  html:has(.mobile-connectivity-pill) {
+    scroll-padding-bottom: calc(129px + env(safe-area-inset-bottom, 0px));
+  }
+
+  html:has(.mobile-connectivity-pill__action) {
+    scroll-padding-bottom: calc(147px + env(safe-area-inset-bottom, 0px));
   }
 }
 
