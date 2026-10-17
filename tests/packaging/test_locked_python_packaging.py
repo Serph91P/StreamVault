@@ -37,10 +37,10 @@ def test_project_metadata_declares_supported_runtime_and_locked_groups() -> None
     groups = cast(dict[str, list[str]], _configuration()["dependency-groups"])
 
     assert project["requires-python"] == ">=3.14,<3.15"
-    assert "streamlink==8.6.0" in dependencies
+    assert "streamlink==8.6.2" in dependencies
 
     assert {"dev", "test", "typing", "security"} <= set(groups)
-    assert "ruff==0.15.1" in groups["dev"]
+    assert "ruff==0.17.0" in groups["dev"]
     assert "bandit[toml]==1.9.4" in groups["security"]
     production = set(dependencies)
     tooling = {dependency for group in groups.values() for dependency in group}
@@ -187,7 +187,7 @@ def test_locked_environment_exposes_ruff_without_host_fallback() -> None:
         capture_output=True,
         text=True,
     )
-    assert completed.stdout.startswith("ruff 0.15.1")
+    assert completed.stdout.startswith("ruff 0.17.0")
 
 
 def test_locked_ruff_format_gate_preserves_existing_application_format() -> None:

@@ -87,7 +87,15 @@ def _transform_driver(database_url: str, drivername_map: Dict[str, str]) -> str:
         target = drivername_map[url.drivername]
     except KeyError:
         raise ValueError(f"Unsupported database scheme: {url.drivername!r}") from None
-    return url.set(drivername=target).render_as_string(hide_password=False)
+
+    rendered = url.set(drivername=target).render_as_string(hide_password=False)
+    # SQLAlchemy 2.1 percent-encodes SQLite's special in-memory database name
+    # after a driver swap. Keep the canonical SQLite URL accepted by engines.
+    if target.startswith("sqlite") and database_url.partition("?")[0].endswith(
+        "/:memory:"
+    ):
+        return rendered.replace("/%3Amemory%3A", "/:memory:", 1)
+    return rendered
 
 
 def _is_in_memory_sqlite(url: URL) -> bool:
