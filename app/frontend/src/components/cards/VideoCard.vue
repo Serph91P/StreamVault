@@ -462,6 +462,12 @@ const handlePlay = () => {
   &.is-disabled {
     background: rgba(0, 0, 0, 0.48);
   }
+
+  @media (hover: none) {
+    // Touch users have no hover state that can reveal the independent Play control.
+    // Keep the overlay visible so it never creates an invisible hit target over Watch.
+    opacity: 1;
+  }
 }
 
 .play-button {
