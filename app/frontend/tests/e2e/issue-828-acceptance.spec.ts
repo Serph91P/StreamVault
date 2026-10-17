@@ -145,6 +145,38 @@ test('issue 828 preserves the actual Overview card and Play origin', async ({ pa
   await page.screenshot({ path: testInfo.outputPath('issue-828-origin-return.png'), fullPage: true, animations: 'disabled' })
 })
 
+test('issue 828 keeps hoverless Overview Watch and visible Play touch actions separate', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'mobile')
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.route('**/api/videos/*/stream', localSeekMedia)
+  await page.goto('/', { waitUntil: 'domcontentloaded' })
+
+  const card = page.locator('.dashboard-video-grid .video-card').first()
+  const play = card.getByRole('button', { name: /^Play / })
+  await card.scrollIntoViewIfNeeded()
+  await expect(card).not.toHaveCSS('opacity', '0')
+  await expect(play.locator('..')).toHaveCSS('opacity', '1')
+
+  const thumbnail = card.locator('.video-thumbnail')
+  const watchPoint = await thumbnail.evaluate(element => {
+    const rect = element.getBoundingClientRect()
+    return { x: rect.x + 20, y: rect.y + 20 }
+  })
+  await page.touchscreen.tap(watchPoint.x, watchPoint.y)
+  await expect(page).toHaveURL(/\/streamer\/1\/stream\/1\/watch(?:\?|$)/)
+  await page.getByRole('button', { name: 'Back to previous page' }).click()
+  await expect(page).toHaveURL(/\/$/)
+
+  await card.scrollIntoViewIfNeeded()
+  await expect(play.locator('..')).toHaveCSS('opacity', '1')
+  const playPoint = await play.evaluate(element => {
+    const rect = element.getBoundingClientRect()
+    return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 }
+  })
+  await page.touchscreen.tap(playPoint.x, playPoint.y)
+  await expect(page).toHaveURL(/\/videos\/1(?:\?|$)/)
+})
+
 test('issue 828 preserves Library Play search/filter/sort/grid and measured scroll', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   await page.route('**/api/videos/*/stream', localSeekMedia)
