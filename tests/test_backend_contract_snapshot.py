@@ -47,12 +47,25 @@ def _literal_or_marker(node: ast.AST | None) -> object:
     )
 
 
-def _settings_contract() -> dict[str, object]:
-    settings = next(
+def _factory_contract(node: ast.AST) -> object:
+    """Render a factory's source form without evaluating it."""
+    if isinstance(node, ast.Name):
+        return {"call": node.id, "kind": "name"}
+    if isinstance(node, ast.Lambda):
+        return _literal_or_marker(node.body)
+    return {"expression": ast.unparse(node)}
+
+
+def _settings_class() -> ast.ClassDef:
+    return next(
         node
         for node in _source("app/config/settings.py").body
         if isinstance(node, ast.ClassDef) and node.name == "Settings"
     )
+
+
+def _settings_contract() -> dict[str, object]:
+    settings = _settings_class()
     contract: dict[str, object] = {}
     for field in settings.body:
         if not isinstance(field, ast.AnnAssign) or not isinstance(
@@ -78,16 +91,38 @@ def _settings_contract() -> dict[str, object]:
             default_factory = keywords.get("default_factory")
         entry: dict[str, object] = {"field": field_name, "secret": secret}
         if default_factory is not None:
-            factory_value = (
-                default_factory.body
-                if isinstance(default_factory, ast.Lambda)
-                else default_factory
-            )
-            entry["default_factory"] = _literal_or_marker(factory_value)
+            entry["default_factory"] = _factory_contract(default_factory)
         else:
-            entry["default"] = _literal_or_marker(value)
+            entry["default"] = (
+                {"required": True} if value is None else _literal_or_marker(value)
+            )
         contract[alias] = entry
     return contract
+
+
+def _settings_property_aliases() -> dict[str, str]:
+    """Freeze public compatibility accessors without calling them or Settings."""
+    aliases: dict[str, str] = {}
+    for node in _settings_class().body:
+        if not isinstance(node, ast.FunctionDef) or not node.name.isupper():
+            continue
+        if not any(
+            isinstance(decorator, ast.Name) and decorator.id == "property"
+            for decorator in node.decorator_list
+        ):
+            continue
+        targets = sorted(
+            {
+                expression.attr
+                for expression in ast.walk(node)
+                if isinstance(expression, ast.Attribute)
+                and isinstance(expression.value, ast.Name)
+                and expression.value.id == "self"
+            }
+        )
+        if targets:
+            aliases[node.name] = ",".join(targets)
+    return aliases
 
 
 def _main_contract() -> dict[str, list[str]]:
@@ -131,8 +166,31 @@ def _fallback_string(path: str, target: str) -> str:
     raise AssertionError(f"cannot derive persistent default for {path}:{target}")
 
 
-def _persistent_paths_contract() -> dict[str, str]:
+def _persistent_paths_contract() -> dict[str, object]:
     settings = _settings_contract()
+    frontend = _source("app/frontend.py")
+    recording_root = next(
+        ast.unparse(node.value).removeprefix("settings.")
+        for node in ast.walk(frontend)
+        if isinstance(node, ast.Assign)
+        and any(
+            isinstance(target, ast.Name) and target.id == "recordings_dir"
+            for target in node.targets
+        )
+    )
+    media_suffix = next(
+        node.value.right.value
+        for node in ast.walk(frontend)
+        if isinstance(node, ast.Assign)
+        and any(
+            isinstance(target, ast.Name) and target.id == "images_dir"
+            for target in node.targets
+        )
+        and isinstance(node.value, ast.BinOp)
+        and isinstance(node.value.op, ast.Div)
+        and isinstance(node.value.right, ast.Constant)
+        and isinstance(node.value.right.value, str)
+    )
     return {
         "recording_directory": settings["RECORDING_DIRECTORY"]["default"],  # type: ignore[index,return-value]
         "artwork_base_path": settings["ARTWORK_BASE_PATH"]["default"],  # type: ignore[index,return-value]
@@ -140,6 +198,7 @@ def _persistent_paths_contract() -> dict[str, str]:
         "live_output_default": _fallback_string(
             "app/services/live_streaming_service.py", "_output_root"
         ),
+        "media_path": {"recording_root": recording_root, "suffix": media_suffix},
     }
 
 
@@ -196,19 +255,42 @@ def _service_job_process_contract() -> dict[str, object]:
     }
 
 
-def _openapi_contract() -> list[dict[str, object]]:
-    """Freeze public OpenAPI path/method shape, not FastAPI's unstable IDs.
+def _openapi_contract() -> dict[str, object]:
+    """Freeze public operations plus reachable schema and security definitions.
 
-    Several legacy routes answer both GET and HEAD. FastAPI derives their
-    generated operation IDs from a set, so IDs vary between interpreter runs;
-    the externally relevant path/method surface does not.
+    Generated operation IDs are intentionally omitted: FastAPI derives them
+    nondeterministically for legacy GET/HEAD pairs.  Request parameters,
+    effective security and reachable component definitions are public contracts.
     """
     try:
         from app.main import app
     except Exception as error:  # pragma: no cover - reports a real bootstrap failure
         pytest.fail(f"cannot derive OpenAPI contract: {error}")
+    document = app.openapi()
+    components = document.get("components", {})
+    schemas = components.get("schemas", {})
+    security_schemes = components.get("securitySchemes", {})
+    referenced_schemas: set[str] = set()
+
+    def remember_schema_refs(value: object) -> None:
+        if isinstance(value, dict):
+            reference = value.get("$ref")
+            if isinstance(reference, str) and reference.startswith(
+                "#/components/schemas/"
+            ):
+                name = reference.rsplit("/", 1)[-1]
+                if name not in referenced_schemas:
+                    referenced_schemas.add(name)
+                    remember_schema_refs(schemas.get(name, {}))
+            for child in value.values():
+                remember_schema_refs(child)
+        elif isinstance(value, list):
+            for child in value:
+                remember_schema_refs(child)
+
+    referenced_security: set[str] = set()
     operations: list[dict[str, object]] = []
-    for path, path_item in app.openapi()["paths"].items():
+    for path, path_item in document["paths"].items():
         for method, operation in path_item.items():
             if method not in {
                 "get",
@@ -228,18 +310,41 @@ def _openapi_contract() -> list[dict[str, object]]:
                 }
                 for status, response in sorted(operation.get("responses", {}).items())
             }
+            parameters = [
+                *path_item.get("parameters", []),
+                *operation.get("parameters", []),
+            ]
+            security = operation.get("security", document.get("security", []))
+            remember_schema_refs(
+                {
+                    "parameters": parameters,
+                    "request": operation.get("requestBody"),
+                    "responses": responses,
+                }
+            )
+            for requirement in security:
+                referenced_security.update(requirement)
             operations.append(
                 {
                     "method": method.upper(),
                     "path": path,
+                    "parameters": parameters,
                     "request_body": operation.get("requestBody"),
                     "responses": responses,
-                    "security": operation.get("security", []),
+                    "security": security,
                 }
             )
-    return sorted(
-        operations, key=lambda operation: (operation["method"], operation["path"])
-    )
+    return {
+        "operations": sorted(
+            operations, key=lambda operation: (operation["method"], operation["path"])
+        ),
+        "components": {
+            "schemas": {name: schemas[name] for name in sorted(referenced_schemas)},
+            "security_schemes": {
+                name: security_schemes[name] for name in sorted(referenced_security)
+            },
+        },
+    }
 
 
 def collect_contract() -> dict[str, object]:
@@ -249,6 +354,7 @@ def collect_contract() -> dict[str, object]:
         "route_and_middleware_order": _main_contract(),
         "websocket_event_methods": _websocket_event_methods(),
         "environment_defaults": _settings_contract(),
+        "settings_property_aliases": _settings_property_aliases(),
         "services_jobs_and_subprocesses": _service_job_process_contract(),
         "persistent_paths": _persistent_paths_contract(),
     }
@@ -273,7 +379,13 @@ def test_settings_contract_preserves_external_aliases_and_safe_default_factories
         """
 class Settings:
     auth_jwt_secret: SecretStr | None = Field(default=None, alias="AUTH_JWT_SECRET")
+    twitch_app_secret: SecretStr = Field(alias="TWITCH_APP_SECRET")
+    APPRISE_URLS: list[str] = Field(default_factory=list)
     CORS_ALLOW_METHODS: list[str] = Field(default_factory=lambda: ["GET", "POST"])
+
+    @property
+    def AUTH_JWT_SECRET(self) -> str:
+        return _secret_value(self.auth_jwt_secret) or ""
 """,
         encoding="utf-8",
     )
@@ -290,6 +402,19 @@ class Settings:
             "field": "CORS_ALLOW_METHODS",
             "secret": False,
         },
+        "APPRISE_URLS": {
+            "default_factory": {"call": "list", "kind": "name"},
+            "field": "APPRISE_URLS",
+            "secret": False,
+        },
+        "TWITCH_APP_SECRET": {
+            "default": {"required": True},
+            "field": "twitch_app_secret",
+            "secret": True,
+        },
+    }
+    assert _settings_property_aliases() == {
+        "AUTH_JWT_SECRET": "auth_jwt_secret",
     }
 
 
@@ -321,7 +446,8 @@ def test_persistent_paths_are_derived_from_their_source_definitions(
     config_path = tmp_path / "app/config/settings.py"
     logging_path = tmp_path / "app/config/logging_config.py"
     live_path = tmp_path / "app/services/live_streaming_service.py"
-    for path in (config_path, logging_path, live_path):
+    frontend_path = tmp_path / "app/frontend.py"
+    for path in (config_path, logging_path, live_path, frontend_path):
         path.parent.mkdir(parents=True, exist_ok=True)
     config_path.write_text(
         """
@@ -337,12 +463,23 @@ class Settings:
     live_path.write_text(
         'self._output_root = Path(output_root or "/contract-live")\n', encoding="utf-8"
     )
+    frontend_path.write_text(
+        """
+recordings_dir = settings.RECORDING_DIRECTORY
+images_dir = Path(recordings_dir) / ".contract-media"
+""",
+        encoding="utf-8",
+    )
     monkeypatch.setattr(sys.modules[__name__], "ROOT", tmp_path)
 
     assert _persistent_paths_contract() == {
         "artwork_base_path": "/contract-recordings/.artwork",
         "live_output_default": "/contract-live",
         "logs_default": "/contract-logs",
+        "media_path": {
+            "recording_root": "RECORDING_DIRECTORY",
+            "suffix": ".contract-media",
+        },
         "recording_directory": "/contract-recordings",
     }
 
@@ -355,11 +492,21 @@ def test_openapi_contract_freezes_request_response_and_security_shape(
             return {
                 "paths": {
                     "/widgets": {
+                        "parameters": [
+                            {"name": "tenant", "in": "header", "required": True}
+                        ],
                         "post": {
+                            "parameters": [
+                                {"name": "since", "in": "query", "required": True}
+                            ],
                             "requestBody": {
                                 "required": True,
                                 "content": {
-                                    "application/json": {"schema": {"type": "object"}}
+                                    "application/json": {
+                                        "schema": {
+                                            "$ref": "#/components/schemas/Widget"
+                                        }
+                                    }
                                 },
                             },
                             "responses": {
@@ -374,31 +521,71 @@ def test_openapi_contract_freezes_request_response_and_security_shape(
                                 "422": {"description": "invalid"},
                             },
                             "security": [{"ApiKeyAuth": []}],
-                        }
+                        },
                     }
-                }
+                },
+                "security": [{"GlobalAuth": []}],
+                "components": {
+                    "schemas": {
+                        "Widget": {
+                            "type": "object",
+                            "required": ["id"],
+                            "properties": {"id": {"type": "integer"}},
+                        }
+                    },
+                    "securitySchemes": {
+                        "ApiKeyAuth": {
+                            "type": "apiKey",
+                            "in": "header",
+                            "name": "X-Api-Key",
+                        },
+                        "GlobalAuth": {"type": "http", "scheme": "bearer"},
+                    },
+                },
             }
 
     import types
 
     monkeypatch.setitem(sys.modules, "app.main", types.SimpleNamespace(app=FakeApp()))
-    assert _openapi_contract() == [
-        {
-            "method": "POST",
-            "path": "/widgets",
-            "request_body": {
-                "required": True,
-                "content": {"application/json": {"schema": {"type": "object"}}},
-            },
-            "responses": {
-                "201": {
-                    "content": {"application/json": {"schema": {"type": "string"}}}
+    assert _openapi_contract() == {
+        "operations": [
+            {
+                "method": "POST",
+                "path": "/widgets",
+                "parameters": [
+                    {"name": "tenant", "in": "header", "required": True},
+                    {"name": "since", "in": "query", "required": True},
+                ],
+                "request_body": {
+                    "required": True,
+                    "content": {
+                        "application/json": {
+                            "schema": {"$ref": "#/components/schemas/Widget"}
+                        }
+                    },
                 },
-                "422": {},
+                "responses": {
+                    "201": {
+                        "content": {"application/json": {"schema": {"type": "string"}}}
+                    },
+                    "422": {},
+                },
+                "security": [{"ApiKeyAuth": []}],
+            }
+        ],
+        "components": {
+            "schemas": {
+                "Widget": {
+                    "type": "object",
+                    "required": ["id"],
+                    "properties": {"id": {"type": "integer"}},
+                }
             },
-            "security": [{"ApiKeyAuth": []}],
-        }
-    ]
+            "security_schemes": {
+                "ApiKeyAuth": {"type": "apiKey", "in": "header", "name": "X-Api-Key"},
+            },
+        },
+    }
 
 
 if __name__ == "__main__":
