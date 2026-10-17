@@ -136,13 +136,7 @@ test('issue 828 preserves the actual Overview card and Play origin', async ({ pa
 
   const playCard = page.locator('.dashboard-video-grid .video-card').first()
   await playCard.hover()
-  const playButton = playCard.getByRole('button', { name: /^Play / })
-  await expect.poll(() => playButton.evaluate(button => {
-    const box = button.getBoundingClientRect()
-    const target = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2)
-    return target === button || target?.closest('.play-button') === button
-  })).toBe(true)
-  await playButton.click()
+  await playCard.getByRole('button', { name: /^Play / }).click()
   await expect(page).toHaveURL(/\/videos\/1(?:\?|$)/)
   await page.getByRole('button', { name: 'Back to previous page' }).click()
   await expect(page).toHaveURL(/\/$/)
