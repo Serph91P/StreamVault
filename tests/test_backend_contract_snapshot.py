@@ -77,6 +77,7 @@ def _settings_contract() -> dict[str, object]:
         secret = "SecretStr" in annotation
         alias = field_name
         value = field.value
+        has_default = value is not None
         default_factory: ast.AST | None = None
         if isinstance(value, ast.Call) and _call_name(value.func) == "Field":
             keywords = {
@@ -87,14 +88,19 @@ def _settings_contract() -> dict[str, object]:
                 alias_value.value, str
             ):
                 alias = alias_value.value
-            value = keywords.get("default")
+            if value.args:
+                value = value.args[0]
+                has_default = True
+            else:
+                value = keywords.get("default")
+                has_default = "default" in keywords
             default_factory = keywords.get("default_factory")
         entry: dict[str, object] = {"field": field_name, "secret": secret}
         if default_factory is not None:
             entry["default_factory"] = _factory_contract(default_factory)
         else:
             entry["default"] = (
-                {"required": True} if value is None else _literal_or_marker(value)
+                {"required": True} if not has_default else _literal_or_marker(value)
             )
         contract[alias] = entry
     return contract
@@ -178,8 +184,8 @@ def _persistent_paths_contract() -> dict[str, object]:
             for target in node.targets
         )
     )
-    media_suffix = next(
-        node.value.right.value
+    media_expression = next(
+        node.value
         for node in ast.walk(frontend)
         if isinstance(node, ast.Assign)
         and any(
@@ -191,6 +197,15 @@ def _persistent_paths_contract() -> dict[str, object]:
         and isinstance(node.value.right, ast.Constant)
         and isinstance(node.value.right.value, str)
     )
+    if not (
+        isinstance(media_expression.left, ast.Call)
+        and _call_name(media_expression.left.func) == "Path"
+        and len(media_expression.left.args) == 1
+        and isinstance(media_expression.left.args[0], ast.Name)
+        and media_expression.left.args[0].id == "recordings_dir"
+    ):
+        raise AssertionError("media path must derive from recordings_dir")
+    media_suffix = _literal_or_marker(media_expression.right)
     return {
         "recording_directory": settings["RECORDING_DIRECTORY"]["default"],  # type: ignore[index,return-value]
         "artwork_base_path": settings["ARTWORK_BASE_PATH"]["default"],  # type: ignore[index,return-value]
@@ -380,6 +395,7 @@ def test_settings_contract_preserves_external_aliases_and_safe_default_factories
 class Settings:
     auth_jwt_secret: SecretStr | None = Field(default=None, alias="AUTH_JWT_SECRET")
     twitch_app_secret: SecretStr = Field(alias="TWITCH_APP_SECRET")
+    positionally_optional: SecretStr | None = Field(None, alias="POSITIONAL_OPTIONAL")
     APPRISE_URLS: list[str] = Field(default_factory=list)
     CORS_ALLOW_METHODS: list[str] = Field(default_factory=lambda: ["GET", "POST"])
 
@@ -410,6 +426,11 @@ class Settings:
         "TWITCH_APP_SECRET": {
             "default": {"required": True},
             "field": "twitch_app_secret",
+            "secret": True,
+        },
+        "POSITIONAL_OPTIONAL": {
+            "default": None,
+            "field": "positionally_optional",
             "secret": True,
         },
     }
@@ -482,6 +503,14 @@ images_dir = Path(recordings_dir) / ".contract-media"
         },
         "recording_directory": "/contract-recordings",
     }
+
+    frontend_path.write_text(
+        "recordings_dir = settings.RECORDING_DIRECTORY\n"
+        'images_dir = Path("/contract-other-root") / ".contract-media"\n',
+        encoding="utf-8",
+    )
+    with pytest.raises(AssertionError, match="media path"):
+        _persistent_paths_contract()
 
 
 def test_openapi_contract_freezes_request_response_and_security_shape(
