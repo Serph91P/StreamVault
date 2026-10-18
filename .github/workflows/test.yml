@@ -128,10 +128,6 @@ jobs:
         working-directory: app/frontend
         run: STREAMVAULT_REUSE_VERIFIED_REAL_BUILD=true npx playwright test --config tests/e2e/websocket-setup-transition.playwright.config.ts
 
-      - name: Run real-build Settings loader regressions
-        working-directory: app/frontend
-        run: STREAMVAULT_REUSE_VERIFIED_REAL_BUILD=true npx playwright test --config tests/fixtures/settings-real.config.ts
-
       - name: Check deterministic frontend build output
         working-directory: app/frontend
         run: |
@@ -154,6 +150,32 @@ jobs:
             app/frontend/foundation-test-results/
           if-no-files-found: ignore
           retention-days: 3
+
+  # Keep new Settings regressions isolated from the shared browser job's budget.
+  # Both genuine build modes and desktop/mobile contexts remain blocking.
+  settings-loader-regressions:
+    name: Settings Loader Regressions
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Set up Node.js 24
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: app/frontend/package-lock.json
+      - name: Install dependencies and Chromium
+        working-directory: app/frontend
+        run: |
+          npm ci --prefer-offline
+          npx playwright install --with-deps chromium
+      - name: Run real-build Settings loader regressions
+        working-directory: app/frontend
+        run: STREAMVAULT_SETTINGS_TEST_MODE=real npx playwright test --config tests/fixtures/settings-loader.config.ts
+      - name: Run mock-build Settings loader regressions
+        working-directory: app/frontend
+        run: STREAMVAULT_SETTINGS_TEST_MODE=mock npx playwright test --config tests/fixtures/settings-loader.config.ts
 
   # ──────────────────────────────────────────────
   # Python Lint & Type Check

@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 
-// Run against both the canonical MOCK artifact and the isolated REAL artifact.
+// Run against isolated MOCK and REAL production artifacts.
 // REAL requests below are synthetic HTTP fixtures, not a live installation.
 async function installSettingsApi(page: Page) {
   const writes: string[] = []
