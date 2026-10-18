@@ -128,6 +128,10 @@ jobs:
         working-directory: app/frontend
         run: STREAMVAULT_REUSE_VERIFIED_REAL_BUILD=true npx playwright test --config tests/e2e/websocket-setup-transition.playwright.config.ts
 
+      - name: Run real-build long-recording mobile player regressions
+        working-directory: app/frontend
+        run: npx playwright test --config tests/fixtures/issue894-player.config.ts
+
       - name: Check deterministic frontend build output
         working-directory: app/frontend
         run: |

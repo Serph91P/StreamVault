@@ -645,6 +645,13 @@ onUnmounted(() => {
 // card. The 50%-50vw trick escapes every ancestor padding regardless of
 // nesting depth (the root clips overflow-x, so no scrollbar can appear).
 @include m.respond-below('md') {
+  // The viewport-wide card must escape these padded layout containers.
+  // Only the page root clips its bleed; clipping here cuts the controls off.
+  .player-layout,
+  .player-main {
+    overflow: visible;
+  }
+
   .player-card {
     width: 100vw;
     margin-inline: calc(50% - 50vw);
