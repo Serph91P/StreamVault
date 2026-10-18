@@ -269,7 +269,10 @@ async function loadPanelHost() {
     // Failed imports remain rejected in the browser module map. The build-owned
     // loader targets the actual compiled panel chunk with this unique attempt,
     // rather than using a successful availability probe as a recovery signal.
-    const loaderUrl = `${import.meta.env.BASE_URL}assets/settings-panel-host-loader.js`
+    // The helper contains build-specific chunk URLs. Key its cache entry to
+    // this compiled view (whose hash includes the native panel import below),
+    // so a previous deployment's helper cannot keep requesting removed chunks.
+    const loaderUrl = `${import.meta.env.BASE_URL}assets/settings-panel-host-loader.js?v=${import.meta.url}`
     let module: { default: Component } | null = null
     let loader: SettingsPanelHostLoader | null = null
     try {
