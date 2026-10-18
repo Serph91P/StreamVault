@@ -39,8 +39,9 @@ function retryableSettingsPanelHost(): Plugin {
       }
       const relativePanelHostCss = panelHostCss.map(fileName => fileName.replace(/^assets\//, './'))
 
-      // The loader itself is stable and cacheable. Every call imports the real
-      // compiled panel chunk at a unique URL, so a rejected browser module-map
+      // SettingsView versions the helper URL by its compiled module URL because
+      // this helper embeds build-specific chunk references. Every call imports
+      // the real compiled panel chunk at a unique URL, so a rejected module-map
       // entry cannot poison a later user retry. Because this generated import
       // bypasses Vite's normal preload wrapper, restore the chunk's extracted
       // CSS dependency explicitly and resolve only after it has loaded.
