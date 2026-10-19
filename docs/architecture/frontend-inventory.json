@@ -2106,12 +2106,12 @@
     },
     {
       "file": "app/frontend/src/components/VideoPlayer.vue",
-      "line": 807,
+      "line": 806,
       "match": "@media (max-width: 767px"
     },
     {
       "file": "app/frontend/src/components/VideoPlayer.vue",
-      "line": 1347,
+      "line": 1348,
       "match": "@media (max-width: 767px"
     },
     {
@@ -3583,7 +3583,7 @@
     },
     {
       "file": "app/frontend/tests/fixtures/issue896-player.spec.ts",
-      "line": 303,
+      "line": 349,
       "match": "document.querySelector"
     },
     {
@@ -4267,47 +4267,47 @@
     },
     {
       "file": "app/frontend/src/components/VideoPlayer.vue",
-      "line": 452,
+      "line": 451,
       "match": "clearTimeout("
     },
     {
       "file": "app/frontend/src/components/VideoPlayer.vue",
-      "line": 459,
+      "line": 458,
       "match": "setTimeout("
     },
     {
       "file": "app/frontend/src/components/VideoPlayer.vue",
-      "line": 475,
+      "line": 474,
       "match": "clearTimeout("
     },
     {
       "file": "app/frontend/src/components/VideoPlayer.vue",
-      "line": 682,
+      "line": 681,
       "match": "setTimeout("
     },
     {
       "file": "app/frontend/src/components/VideoPlayer.vue",
-      "line": 705,
+      "line": 704,
       "match": "addEventListener("
     },
     {
       "file": "app/frontend/src/components/VideoPlayer.vue",
-      "line": 708,
+      "line": 707,
       "match": "addEventListener("
     },
     {
       "file": "app/frontend/src/components/VideoPlayer.vue",
-      "line": 716,
+      "line": 715,
       "match": "removeEventListener("
     },
     {
       "file": "app/frontend/src/components/VideoPlayer.vue",
-      "line": 720,
+      "line": 719,
       "match": "clearTimeout("
     },
     {
       "file": "app/frontend/src/components/VideoPlayer.vue",
-      "line": 724,
+      "line": 723,
       "match": "removeEventListener("
     },
     {
@@ -5345,11 +5345,6 @@
       "match": "<div\n          class=\"progress-container\"\n          role=\"slider\"\n          tabindex=\"0\"\n          aria-label=\"Video progress\"\n          aria-valuemin=\"0\"\n          :aria-valuemax="
     },
     {
-      "file": "app/frontend/src/components/VideoPlayer.vue",
-      "line": 60,
-      "match": "<div\n                v-for=\"(chapter, index) in parsedChapters\"\n                :key=\"index\"\n                class=\"chapter-marker\"\n                :style=\"{\n                  left"
-    },
-    {
       "file": "app/frontend/src/components/VideoTabs.vue",
       "line": 73,
       "match": "<div\n              v-for=\"video in sortedVideos\"\n              :key=\"video.id\"\n              @click"
@@ -5763,57 +5758,52 @@
     },
     {
       "file": "app/frontend/src/components/VideoPlayer.vue",
-      "line": 70,
-      "match": "@click.stop="
-    },
-    {
-      "file": "app/frontend/src/components/VideoPlayer.vue",
-      "line": 83,
+      "line": 82,
       "match": "@click="
     },
     {
       "file": "app/frontend/src/components/VideoPlayer.vue",
-      "line": 97,
+      "line": 96,
       "match": "@click="
     },
     {
       "file": "app/frontend/src/components/VideoPlayer.vue",
-      "line": 125,
+      "line": 124,
       "match": "@click="
     },
     {
       "file": "app/frontend/src/components/VideoPlayer.vue",
-      "line": 144,
+      "line": 143,
       "match": "@click="
     },
     {
       "file": "app/frontend/src/components/VideoPlayer.vue",
-      "line": 158,
+      "line": 157,
       "match": "@click="
     },
     {
       "file": "app/frontend/src/components/VideoPlayer.vue",
-      "line": 171,
+      "line": 170,
       "match": "@click="
     },
     {
       "file": "app/frontend/src/components/VideoPlayer.vue",
-      "line": 184,
+      "line": 183,
       "match": "@click="
     },
     {
       "file": "app/frontend/src/components/VideoPlayer.vue",
-      "line": 223,
+      "line": 222,
       "match": "@click.self="
     },
     {
       "file": "app/frontend/src/components/VideoPlayer.vue",
-      "line": 228,
+      "line": 227,
       "match": "@click="
     },
     {
       "file": "app/frontend/src/components/VideoPlayer.vue",
-      "line": 238,
+      "line": 237,
       "match": "@click="
     },
     {
@@ -7128,22 +7118,22 @@
     },
     {
       "file": "app/frontend/src/components/VideoPlayer.vue",
-      "line": 960,
+      "line": 959,
       "match": "transition: all"
     },
     {
       "file": "app/frontend/src/components/VideoPlayer.vue",
-      "line": 1217,
+      "line": 1218,
       "match": "transition: all"
     },
     {
       "file": "app/frontend/src/components/VideoPlayer.vue",
-      "line": 1254,
+      "line": 1255,
       "match": "transition: all"
     },
     {
       "file": "app/frontend/src/components/VideoPlayer.vue",
-      "line": 1304,
+      "line": 1305,
       "match": "transition: all"
     },
     {
@@ -7520,7 +7510,7 @@
     },
     {
       "file": "app/frontend/src/components/VideoPlayer.vue",
-      "line": 818,
+      "line": 817,
       "match": "height: 100vh"
     },
     {
@@ -8057,87 +8047,87 @@
     },
     {
       "file": "app/frontend/src/components/VideoPlayer.vue",
-      "line": 992,
+      "line": 991,
       "match": "width: 8px"
     },
     {
       "file": "app/frontend/src/components/VideoPlayer.vue",
-      "line": 1124,
+      "line": 1123,
       "match": "height: 20px"
     },
     {
       "file": "app/frontend/src/components/VideoPlayer.vue",
-      "line": 1178,
+      "line": 1179,
       "match": "height: 8px"
     },
     {
       "file": "app/frontend/src/components/VideoPlayer.vue",
-      "line": 1185,
+      "line": 1186,
       "match": "height: 12px"
     },
     {
       "file": "app/frontend/src/components/VideoPlayer.vue",
-      "line": 1190,
+      "line": 1191,
       "match": "height: 12px"
-    },
-    {
-      "file": "app/frontend/src/components/VideoPlayer.vue",
-      "line": 1248,
-      "match": "width: 16px"
     },
     {
       "file": "app/frontend/src/components/VideoPlayer.vue",
       "line": 1249,
+      "match": "width: 16px"
+    },
+    {
+      "file": "app/frontend/src/components/VideoPlayer.vue",
+      "line": 1250,
       "match": "height: 16px"
     },
     {
       "file": "app/frontend/src/components/VideoPlayer.vue",
-      "line": 1258,
-      "match": "width: 24px"
-    },
-    {
-      "file": "app/frontend/src/components/VideoPlayer.vue",
       "line": 1259,
-      "match": "height: 24px"
+      "match": "width: 24px"
     },
     {
       "file": "app/frontend/src/components/VideoPlayer.vue",
-      "line": 1402,
-      "match": "width: 24px"
+      "line": 1260,
+      "match": "height: 24px"
     },
     {
       "file": "app/frontend/src/components/VideoPlayer.vue",
       "line": 1403,
-      "match": "height: 24px"
-    },
-    {
-      "file": "app/frontend/src/components/VideoPlayer.vue",
-      "line": 1408,
-      "match": "width: 28px"
-    },
-    {
-      "file": "app/frontend/src/components/VideoPlayer.vue",
-      "line": 1409,
-      "match": "height: 28px"
-    },
-    {
-      "file": "app/frontend/src/components/VideoPlayer.vue",
-      "line": 1435,
-      "match": "width: 20px"
-    },
-    {
-      "file": "app/frontend/src/components/VideoPlayer.vue",
-      "line": 1435,
-      "match": "height: 20px"
-    },
-    {
-      "file": "app/frontend/src/components/VideoPlayer.vue",
-      "line": 1436,
       "match": "width: 24px"
     },
     {
       "file": "app/frontend/src/components/VideoPlayer.vue",
+      "line": 1404,
+      "match": "height: 24px"
+    },
+    {
+      "file": "app/frontend/src/components/VideoPlayer.vue",
+      "line": 1409,
+      "match": "width: 28px"
+    },
+    {
+      "file": "app/frontend/src/components/VideoPlayer.vue",
+      "line": 1410,
+      "match": "height: 28px"
+    },
+    {
+      "file": "app/frontend/src/components/VideoPlayer.vue",
       "line": 1436,
+      "match": "width: 20px"
+    },
+    {
+      "file": "app/frontend/src/components/VideoPlayer.vue",
+      "line": 1436,
+      "match": "height: 20px"
+    },
+    {
+      "file": "app/frontend/src/components/VideoPlayer.vue",
+      "line": 1437,
+      "match": "width: 24px"
+    },
+    {
+      "file": "app/frontend/src/components/VideoPlayer.vue",
+      "line": 1437,
       "match": "height: 24px"
     },
     {
@@ -11280,8 +11270,8 @@
     "moduleScopeMutableState": 87,
     "listenersAndTimers": 128,
     "anyTypes": 91,
-    "nonsemanticActions": 19,
-    "clickSemantics": 283,
+    "nonsemanticActions": 18,
+    "clickSemantics": 282,
     "nativeDialogs": 54,
     "vHtml": 0,
     "transitionAll": 84,

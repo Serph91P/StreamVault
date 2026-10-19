@@ -55,7 +55,7 @@
           @keydown.end.prevent="seekToTime(videoDuration)"
         >
           <div class="progress-bar-track">
-            <!-- Chapter markers background -->
+            <!-- Chapter background segments bubble precise clicks to the slider. -->
             <div class="chapter-markers" v-if="parsedChapters.length > 0">
               <div
                 v-for="(chapter, index) in parsedChapters"
@@ -67,7 +67,6 @@
                   backgroundColor: getChapterColor(chapter.title)
                 }"
                 :title="`${chapter.title} - ${formatTime(chapter.startTime)} (${formatDuration(chapter.duration)})`"
-                @click.stop="seekToChapter(chapter.startTime)"
               ></div>
             </div>
             <div class="progress-bar-fill" :style="{ width: progressPercentage + '%' }"></div>
@@ -1166,6 +1165,7 @@ $min-stage-height: calc(132px + var(--spacing-8));
 /* Progress Bar Container */
 .progress-container {
   margin-bottom: var(--spacing-3);  /* 12px */
+  margin-inline: var(--spacing-2);  /* Keep the thumb inside both clipped edges. */
   padding: var(--spacing-2) 0;  /* Extended tap area */
   cursor: pointer;
   min-height: 44px;
@@ -1175,6 +1175,7 @@ $min-stage-height: calc(132px + var(--spacing-8));
 
 .progress-bar-track {
   position: relative;
+  flex: 1;  /* Absolute marker/fill children otherwise collapse this flex item to 0px. */
   height: 8px;  /* Desktop height */
   background: rgba(255, 255, 255, 0.3);
   border-radius: var(--radius-full);

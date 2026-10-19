@@ -138,6 +138,21 @@ for (const sample of [
         `${item.name} fully visible through every ancestor before automatic scrolling`,
       ).toEqual([])
     }
+    const seekVisual = await page.locator('.progress-container').evaluate((slider) => {
+      const bounds = (element: Element) => {
+        const { left, right, width } = element.getBoundingClientRect()
+        return { left, right, width }
+      }
+      return {
+        slider: bounds(slider),
+        track: bounds(slider.querySelector('.progress-bar-track')!),
+        thumb: bounds(slider.querySelector('.progress-bar-thumb')!),
+        player: bounds(slider.closest('.video-wrapper')!),
+      }
+    })
+    expect(seekVisual.track.width).toBeCloseTo(seekVisual.slider.width, 1)
+    expect(seekVisual.thumb.left).toBeGreaterThanOrEqual(seekVisual.player.left)
+    expect(seekVisual.thumb.right).toBeLessThanOrEqual(seekVisual.player.right)
     // Initial clip-port geometry is already verified. Now scroll vertically as
     // a user can on a short screen, then exercise the actual input surfaces.
     for (const item of report.filter((control) => control.enabled)) {
@@ -196,6 +211,37 @@ for (const sample of [
     expect(api.unexpected).toEqual([])
   })
 }
+
+test('visible seek track keeps exact pointer seeking over chapter segments and both ends', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 412, height: 892 })
+  const api = await installSyntheticApi(page, 'many')
+  api.releaseChapters()
+  await page.goto('/videos/1', { waitUntil: 'domcontentloaded' })
+  await expect(page.locator('.loading-overlay')).toHaveCount(0)
+  const slider = page.getByRole('slider', { name: 'Video progress' })
+  await readyForMeasuredClick(page, slider)
+  const box = (await slider.boundingBox())!
+  const duration = Number(await slider.getAttribute('aria-valuemax'))
+  expect(duration).toBeGreaterThan(0)
+  await slider.tap({ position: { x: box.width * 0.7, y: box.height / 2 } })
+  await expect
+    .poll(() => page.locator('video').evaluate((video) => video.currentTime))
+    .toBeCloseTo(duration * 0.7, 1)
+  for (const [key, position] of [
+    ['End', duration],
+    ['Home', 0],
+  ] as const) {
+    await slider.press(key)
+    await expect(slider).toHaveAttribute('aria-valuenow', String(position))
+    const thumb = (await page.locator('.progress-bar-thumb').boundingBox())!
+    const player = (await page.locator('.video-wrapper').boundingBox())!
+    expect(thumb.x).toBeGreaterThanOrEqual(player.x)
+    expect(thumb.x + thumb.width).toBeLessThanOrEqual(player.x + player.width)
+  }
+  expect(api.unexpected).toEqual([])
+})
 
 for (const viewport of [
   { width: 360, height: 640 },
