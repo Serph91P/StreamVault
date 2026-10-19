@@ -256,13 +256,10 @@
               <svg viewBox="0 0 24 24" fill="currentColor" width="24" height="24"><path d="M8 5v14l11-7z"/></svg>
             </div>
 
-            <div class="chapter-info">
-              <div class="chapter-title">{{ chapter.title }}</div>
-              <div class="chapter-time">{{ formatTime(chapter.startTime) }}</div>
-              <div class="chapter-duration" v-if="chapter.duration">
-                {{ formatDuration(chapter.duration) }}
-              </div>
-            </div>
+            <ChapterDetails
+              :title="chapter.title" :category-name="chapter.categoryName"
+              :start="chapter.startTime" :end="chapter.endTime ?? chapter.startTime + chapter.duration" truncate
+            />
           </button>
         </div>
         </dialog>
@@ -277,6 +274,7 @@ import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue'
 import { useCategoryImages } from '@/composables/useCategoryImages'
 import PlayerStatus from '@/components/player/PlayerStatus.vue'
 import PlayerError from '@/components/player/PlayerError.vue'
+import ChapterDetails from '@/components/player/ChapterDetails.vue'
 import { videoApi } from '@/services/api'
 import { containFocus } from '@/utils/focus'
 import { formatTime } from '@/utils/playerClock'
@@ -285,6 +283,8 @@ interface Chapter {
   title: string
   startTime: number // in seconds
   duration: number // in seconds
+  endTime?: number
+  categoryName?: string | null
   thumbnail?: string
   gameIcon?: string
 }
@@ -295,7 +295,7 @@ interface ApiChapter {
   start?: number
   end?: number
   start_time?: string
-  category_name?: string
+  category_name?: string | null
   type?: string
 }
 
@@ -579,7 +579,9 @@ const convertApiChaptersToInternal = (apiChapters: ApiChapter[]): Chapter[] => {
 
     return {
       title: chapter.title || chapter.category_name || `Chapter ${index + 1}`,
+      categoryName: chapter.category_name,
       startTime,
+      endTime: hasEnd ? chapter.end : undefined,
       duration: hasEnd ? chapter.end! - startTime : undefined,
       gameIcon: chapter.category_name ? getCategoryImage(chapter.category_name) : undefined,
     }
@@ -589,21 +591,20 @@ const convertApiChaptersToInternal = (apiChapters: ApiChapter[]): Chapter[] => {
     `${chapter.startTime}:${chapter.title}`, chapter
   ])).values()]
 
-  return calculateChapterDurations(unique, false)
+  return calculateChapterDurations(unique)
 }
 
 // Calculate chapter durations based on video metadata
 const calculateChapterDurations = (
-  chapterList: Array<Omit<Chapter, 'duration'> & { duration?: number }>,
-  overwrite = true
+  chapterList: Array<Omit<Chapter, 'duration'> & { duration?: number }>
 ): Chapter[] => {
   const videoDur = videoElement.value?.duration || videoDuration.value
   return chapterList.map((chapter, index) => {
-    if (overwrite || chapter.duration === undefined) {
-      chapter.duration = index < chapterList.length - 1
+    chapter.duration = chapter.endTime !== undefined
+      ? chapter.endTime - chapter.startTime
+      : index < chapterList.length - 1
         ? chapterList[index + 1].startTime - chapter.startTime
         : videoDur > 0 ? videoDur - chapter.startTime : 60
-    }
     return chapter as Chapter
   })
 }
@@ -630,6 +631,7 @@ const parseWebVTTChapters = (vttText: string) => {
     return {
       title: match[3].trim() || 'Chapter',
       startTime,
+      endTime: parseTimeStringToSeconds(match[2]),
       duration: parseTimeStringToSeconds(match[2]) - startTime
     }
   })
@@ -741,6 +743,7 @@ defineExpose({ seekToChapter })
    ============================================================================ */
 
 .video-player-container {
+  container: player / inline-size;
   position: relative;
   width: 100%;
   max-width: 100%;
@@ -752,9 +755,14 @@ defineExpose({ seekToChapter })
   }
 }
 
+// Progress plus two possible control rows must retain their 44px targets.
+$min-stage-height: calc(132px + var(--spacing-8));
+
 .video-wrapper {
+  container: video-stage / inline-size;
   position: relative;
   width: 100%;
+  min-height: $min-stage-height;
   background: var(--background-darker);
   overflow: hidden;
 
@@ -764,7 +772,7 @@ defineExpose({ seekToChapter })
   @include m.respond-to('md') {  // >= 768px
     aspect-ratio: 16/9;
     max-height: var(--player-max-h, none);
-    width: min(100%, calc(var(--player-max-h, 9999px) * 16 / 9));
+    width: min(100%, calc(max(var(--player-max-h, 9999px), #{$min-stage-height}) * 16 / 9));
     margin-inline: auto;
   }
 
@@ -924,32 +932,25 @@ defineExpose({ seekToChapter })
   border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: var(--radius-lg);  /* 12px */
   box-shadow: var(--shadow-2xl), 0 0 40px rgba(0, 0, 0, 0.5);
-  max-height: 500px;
+  max-height: calc(100dvh - 80px - var(--spacing-4) - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
   overflow-y: auto;
   overscroll-behavior-y: contain;
   position: fixed;
   bottom: 80px;  /* Above video controls */
-  right: var(--spacing-4);  /* 16px from right edge */
-  width: 400px;  /* Fixed width for desktop */
-  max-width: calc(100% - 32px);  /* Responsive on mobile */
+  right: max(var(--spacing-4), env(safe-area-inset-right, 0px));
+  width: 44rem;
+  max-width: calc(100% - max(var(--spacing-4), env(safe-area-inset-left, 0px)) - max(var(--spacing-4), env(safe-area-inset-right, 0px)));
   /* Animation now handled by Vue transition (see .slide-panel-* classes) */
 
   @include m.respond-below('md') {  // < 768px (mobile)
-    width: calc(100% - 32px);  /* Full width on mobile with padding */
-    bottom: max(var(--spacing-4), env(safe-area-inset-bottom, 0px));
-    right: var(--spacing-4);
-    left: var(--spacing-4);  /* Center horizontally */
-    max-height: 50vh;  /* Responsive height - prevent cut-off */
-    max-width: none;  /* Override desktop constraint */
-  }
-
-  @include m.respond-below('sm') {  // < 480px (small mobile)
+    top: max(var(--spacing-2), env(safe-area-inset-top, 0px));
     bottom: max(var(--spacing-2), env(safe-area-inset-bottom, 0px));
-    left: var(--spacing-2);
-    right: var(--spacing-2);
-    width: calc(100% - 16px);
-    max-height: 45vh;  /* Smaller on very small screens */
-    border-radius: var(--radius-md);
+    right: max(var(--spacing-2), env(safe-area-inset-right, 0px));
+    left: max(var(--spacing-2), env(safe-area-inset-left, 0px));
+    width: auto;
+    height: fit-content;
+    max-height: calc(100dvh - max(var(--spacing-2), env(safe-area-inset-top, 0px)) - max(var(--spacing-2), env(safe-area-inset-bottom, 0px)));
+    max-width: none;  /* Override desktop constraint */
   }
 }
 
@@ -1088,10 +1089,6 @@ defineExpose({ seekToChapter })
   }
 }
 
-.chapter-item.active .chapter-time,
-.chapter-item.active .chapter-duration {
-  color: rgba(255, 255, 255, 0.9);
-}
 
 .chapter-thumbnail,
 .chapter-icon,
@@ -1116,61 +1113,6 @@ defineExpose({ seekToChapter })
   }
 }
 
-.chapter-info {
-  flex: 1;
-  min-width: 0;
-  padding-right: 40px;  /* Space for play icon on active items */
-
-  @include m.respond-below('sm') {
-    padding-right: 24px;
-  }
-}
-
-.chapter-title {
-  font-weight: var(--font-semibold);  /* 600 */
-  color: var(--text-primary);
-  font-size: 15px;  /* Desktop: 15px */
-  margin-bottom: var(--spacing-1);  /* 4px */
-  line-height: var(--leading-snug);
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-
-  @include m.respond-below('md') {  // < 768px
-    font-size: 14px;  /* Mobile: Slightly smaller */
-    font-weight: var(--font-semibold);
-    -webkit-line-clamp: 2;  /* Allow 2 lines on mobile */
-  }
-
-  @include m.respond-below('sm') {  // < 480px
-    font-size: 13px;
-    margin-bottom: var(--spacing-0-5);
-  }
-}
-
-.chapter-time {
-  font-size: 14px;  /* Desktop: 14px */
-  color: var(--text-secondary);
-  font-family: var(--font-mono);
-  font-weight: var(--font-medium);  /* 500 */
-  margin-bottom: var(--spacing-0-5);  /* 2px */
-
-  @include m.respond-below('md') {  // < 768px
-    font-size: 16px;  /* Mobile: Larger timestamps */
-    font-weight: var(--font-semibold);  /* Bolder for contrast */
-  }
-}
-
-.chapter-duration {
-  font-size: var(--text-xs);  /* 12px */
-  color: var(--text-secondary);
-
-  @include m.respond-below('md') {  // < 768px
-    font-size: 14px;  /* Mobile: Larger subtitle text */
-  }
-}
 
 /* Scroll Indicators - Top and Bottom Fade Gradients */
 .chapter-list-panel::before,
@@ -1460,20 +1402,12 @@ defineExpose({ seekToChapter })
   width: 24px;
   height: 24px;
 
-  @include m.respond-below('md') {  // < 768px (mobile)
-    width: 20px;
-    height: 20px;
-  }
 }
 
 .play-pause-button .control-icon {
   width: 28px;
   height: 28px;
 
-  @include m.respond-below('md') {  // < 768px (mobile)
-    width: 24px;
-    height: 24px;
-  }
 }
 
 /* Time Display */
@@ -1496,8 +1430,11 @@ defineExpose({ seekToChapter })
   opacity: 0.7;
 }
 
-/* Mobile Optimizations */
-@include m.respond-below('md') {  // < 768px
+/* Adapt to the actual stage width, including height-capped landscape players. */
+@mixin compact-controls {
+  .control-icon { width: 20px; height: 20px; }
+  .play-pause-button .control-icon { width: 24px; height: 24px; }
+  .current-chapter-inline { display: none; }
   .video-controls-overlay {
     padding: var(--spacing-2);  /* Reduce all padding to prevent overflow */
     padding-bottom: env(safe-area-inset-bottom, var(--spacing-2));  /* Account for safe area */
@@ -1546,6 +1483,24 @@ defineExpose({ seekToChapter })
   .chapters-button { padding: 0; }
 }
 
+@container video-stage (max-width: 767px) {
+  @include compact-controls;
+}
+
+// Short landscape needs the available width, not a miniature stage derived
+// from the depleted height budget. Only use a one-row minimum when it fits;
+// the rem threshold preserves room at enlarged text sizes.
+@media (max-height: 480px) and (orientation: landscape) {
+  .video-wrapper { width: 100%; }
+  @include compact-controls;
+
+  @container player (min-width: 30rem) {
+    .video-wrapper {
+      min-height: calc(44px + max(44px, 2 * var(--text-sm) * var(--leading-tight)) + var(--spacing-4) + env(safe-area-inset-bottom, 0px));
+    }
+  }
+}
+
 /* Very Small Screens */
 @include m.respond-below('xs') {  // < 375px (iPhone SE)
   .controls-bottom {
@@ -1586,9 +1541,6 @@ defineExpose({ seekToChapter })
     text-align: left;
   }
 
-  .chapter-list-panel {
-    max-height: 300px;
-  }
 }
 
 /* Very small screens */

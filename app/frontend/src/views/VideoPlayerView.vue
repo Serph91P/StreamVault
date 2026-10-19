@@ -109,8 +109,7 @@
                 :aria-current="currentChapterIndex === index ? 'true' : undefined"
                 @click="seekToChapter(chapter)"
               >
-                <span class="chapter-time">{{ formatTimestamp(chapter.start) }}</span>
-                <span class="chapter-title">{{ chapter.title }}</span>
+                <ChapterDetails :title="chapter.title" :category-name="chapter.category_name" :start="chapter.start" :end="chapter.end" />
               </button>
             </div>
           </SurfaceCard>
@@ -189,6 +188,7 @@ import BaseModal from '@/components/base/BaseModal.vue'
 import BaseButton from '@/components/base/BaseButton.vue'
 import PlayerStatus from '@/components/player/PlayerStatus.vue'
 import PlayerError from '@/components/player/PlayerError.vue'
+import ChapterDetails from '@/components/player/ChapterDetails.vue'
 import { videoApi } from '@/services/api'
 import { formatTime } from '@/utils/playerClock'
 
@@ -198,6 +198,7 @@ interface ChapterData {
     start: number
     end: number
     title: string
+    category_name?: string | null
   }>
   stream_id: number
   stream_title: string
@@ -224,6 +225,7 @@ interface BackendChapter {
   title: string
   start: number
   end: number
+  category_name?: string | null
 }
 
 const route = useRoute()
@@ -306,6 +308,7 @@ const loadChapterData = async () => {
       return {
         id: Number(candidate.id ?? index + 1),
         title: candidate.title || `Chapter ${index + 1}`,
+        category_name: candidate.category_name,
         start,
         end
       }
@@ -641,20 +644,13 @@ onUnmounted(() => {
   }
 }
 
-// Mobile: player goes edge-to-edge like YouTube instead of floating in a
-// card. The 50%-50vw trick escapes every ancestor padding regardless of
-// nesting depth (the root clips overflow-x, so no scrollbar can appear).
+// Fill the available safe-area-aware shell, never escape its clip ports.
 @include m.respond-below('md') {
-  // The viewport-wide card must escape these padded layout containers.
-  // Only the page root clips its bleed; clipping here cuts the controls off.
-  .player-layout,
-  .player-main {
-    overflow: visible;
+  .video-player-view {
+    padding-inline: 0;
   }
 
   .player-card {
-    width: 100vw;
-    margin-inline: calc(50% - 50vw);
     border-inline: 0;
     border-radius: 0;
   }
@@ -945,38 +941,6 @@ onUnmounted(() => {
   }
 }
 
-.chapter-time {
-  flex-shrink: 0;
-  font-family: v.$font-mono;
-  font-size: 11px;
-  color: v.$primary-300;
-  background: rgba(var(--primary-500-rgb), 0.1);
-  padding: 2px 6px;
-  border-radius: var(--radius-sm);
-  white-space: nowrap;
-  margin-top: 2px;
-
-  [data-theme="light"] & {
-    color: v.$primary-800;
-  }
-}
-
-.chapter-title {
-  font-size: var(--text-sm);
-  color: var(--text-primary);
-  line-height: 1.4;
-  min-width: 0;
-  flex: 1;
-  word-break: break-word;
-
-  // On desktop sidebar, truncate with ellipsis
-  @include m.respond-to('lg') {
-    font-size: var(--text-xs);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-}
 
 // ============================================================================
 // ACTION BUTTONS

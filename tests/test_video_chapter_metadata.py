@@ -63,18 +63,40 @@ def test_vtt_chapters_get_categories_from_matching_generated_event_provenance(tm
         "00:00:10.250 --> 00:00:20.000\nMidstream (Music)\n",
         encoding="utf-8",
     )
-    stream = SimpleNamespace(id=1, title="Recording", started_at=started_at, ended_at=started_at + timedelta(seconds=20))
+    stream = SimpleNamespace(
+        id=1,
+        title="Recording",
+        started_at=started_at,
+        ended_at=started_at + timedelta(seconds=20),
+    )
     metadata = SimpleNamespace(chapters_vtt_path=str(vtt), chapters_ffmpeg_path=None)
     events = [
-        SimpleNamespace(timestamp=started_at - timedelta(minutes=2), title="Opening", category_name="Games"),
+        SimpleNamespace(
+            timestamp=started_at - timedelta(minutes=2),
+            title="Opening",
+            category_name="Games",
+        ),
         SimpleNamespace(timestamp=started_at, title="Ignored", category_name="Wrong"),
-        SimpleNamespace(timestamp=started_at + timedelta(seconds=10.25), title="Midstream", category_name="Music"),
+        SimpleNamespace(
+            timestamp=started_at + timedelta(seconds=10.25),
+            title="Midstream",
+            category_name="Music",
+        ),
     ]
     db = _ChapterDb(stream, metadata, events)
 
     chapters = _chapters(db)
 
-    assert [(chapter["title"], chapter["category_name"], chapter["start"], chapter["end"], chapter["end"] - chapter["start"]) for chapter in chapters] == [
+    assert [
+        (
+            chapter["title"],
+            chapter["category_name"],
+            chapter["start"],
+            chapter["end"],
+            chapter["end"] - chapter["start"],
+        )
+        for chapter in chapters
+    ] == [
         ("Opening (Games)", "Games", 0.0, 10.25, 10.25),
         ("Midstream (Music)", "Music", 10.25, 20.0, 9.75),
     ]
@@ -88,20 +110,39 @@ def test_vtt_category_is_null_without_trusted_matching_provenance(tmp_path):
         "WEBVTT\n\n00:00:00.000 --> 00:00:04.000\nCustom title (not parsed)\n",
         encoding="utf-8",
     )
-    stream = SimpleNamespace(id=1, title="Recording", started_at=started_at, ended_at=started_at + timedelta(seconds=4))
+    stream = SimpleNamespace(
+        id=1,
+        title="Recording",
+        started_at=started_at,
+        ended_at=started_at + timedelta(seconds=4),
+    )
     metadata = SimpleNamespace(chapters_vtt_path=str(vtt), chapters_ffmpeg_path=None)
     db = _ChapterDb(
         stream,
         metadata,
-        [SimpleNamespace(timestamp=started_at, title="Custom title", category_name="Wrong")],
+        [
+            SimpleNamespace(
+                timestamp=started_at, title="Custom title", category_name="Wrong"
+            )
+        ],
     )
 
     chapters = _chapters(db)
 
-    assert chapters == [{"id": 1, "start": 0.0, "end": 4.0, "title": "Custom title (not parsed)", "category_name": None}]
+    assert chapters == [
+        {
+            "id": 1,
+            "start": 0.0,
+            "end": 4.0,
+            "title": "Custom title (not parsed)",
+            "category_name": None,
+        }
+    ]
 
 
-def test_vtt_provenance_handles_one_event_and_skips_duplicate_generated_offsets(tmp_path):
+def test_vtt_provenance_handles_one_event_and_skips_duplicate_generated_offsets(
+    tmp_path,
+):
     started_at = datetime(2026, 1, 1, tzinfo=timezone.utc)
     vtt = tmp_path / "recording.vtt"
     vtt.write_text(
@@ -110,15 +151,30 @@ def test_vtt_provenance_handles_one_event_and_skips_duplicate_generated_offsets(
         "00:00:01.000 --> 00:00:04.000\nSwitch (Music)\n",
         encoding="utf-8",
     )
-    stream = SimpleNamespace(id=1, title="Recording", started_at=started_at, ended_at=started_at + timedelta(seconds=4))
+    stream = SimpleNamespace(
+        id=1,
+        title="Recording",
+        started_at=started_at,
+        ended_at=started_at + timedelta(seconds=4),
+    )
     metadata = SimpleNamespace(chapters_vtt_path=str(vtt), chapters_ffmpeg_path=None)
     db = _ChapterDb(
         stream,
         metadata,
         [
-            SimpleNamespace(timestamp=started_at, title="Opening", category_name="Games"),
-            SimpleNamespace(timestamp=started_at + timedelta(seconds=1), title="Switch", category_name="Music"),
-            SimpleNamespace(timestamp=started_at + timedelta(seconds=1), title="Ignored", category_name="Wrong"),
+            SimpleNamespace(
+                timestamp=started_at, title="Opening", category_name="Games"
+            ),
+            SimpleNamespace(
+                timestamp=started_at + timedelta(seconds=1),
+                title="Switch",
+                category_name="Music",
+            ),
+            SimpleNamespace(
+                timestamp=started_at + timedelta(seconds=1),
+                title="Ignored",
+                category_name="Wrong",
+            ),
         ],
     )
 
@@ -131,8 +187,15 @@ def test_vtt_provenance_handles_one_event_and_skips_duplicate_generated_offsets(
 def test_vtt_without_event_history_keeps_category_null(tmp_path):
     started_at = datetime(2026, 1, 1, tzinfo=timezone.utc)
     vtt = tmp_path / "recording.vtt"
-    vtt.write_text("WEBVTT\n\n00:00:00.000 --> 00:00:04.000\nOpening\n", encoding="utf-8")
-    stream = SimpleNamespace(id=1, title="Recording", started_at=started_at, ended_at=started_at + timedelta(seconds=4))
+    vtt.write_text(
+        "WEBVTT\n\n00:00:00.000 --> 00:00:04.000\nOpening\n", encoding="utf-8"
+    )
+    stream = SimpleNamespace(
+        id=1,
+        title="Recording",
+        started_at=started_at,
+        ended_at=started_at + timedelta(seconds=4),
+    )
     metadata = SimpleNamespace(chapters_vtt_path=str(vtt), chapters_ffmpeg_path=None)
     db = _ChapterDb(stream, metadata, [])
 
@@ -149,7 +212,12 @@ def test_one_generated_event_provides_vtt_category_provenance(tmp_path):
         "WEBVTT\n\n00:00:00.000 --> 00:00:04.000\nOpening (Games)\n",
         encoding="utf-8",
     )
-    stream = SimpleNamespace(id=1, title="Recording", started_at=started_at, ended_at=started_at + timedelta(seconds=4))
+    stream = SimpleNamespace(
+        id=1,
+        title="Recording",
+        started_at=started_at,
+        ended_at=started_at + timedelta(seconds=4),
+    )
     metadata = SimpleNamespace(chapters_vtt_path=str(vtt), chapters_ffmpeg_path=None)
     db = _ChapterDb(
         stream,

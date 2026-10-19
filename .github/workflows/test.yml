@@ -132,6 +132,10 @@ jobs:
         working-directory: app/frontend
         run: npx playwright test --config tests/fixtures/issue894-player.config.ts
 
+      - name: Run real-build Pixel control and chapter regressions
+        working-directory: app/frontend
+        run: npx playwright test --config tests/fixtures/issue896-player.config.ts
+
       - name: Check deterministic frontend build output
         working-directory: app/frontend
         run: |
