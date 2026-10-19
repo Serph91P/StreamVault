@@ -154,6 +154,35 @@ describe('VideoPlayer automatic chapters', () => {
     }
   })
 
+  it('renders title, category, exact range and duration as four separate rows after metadata arrives', async () => {
+    mocks.getChapters.mockResolvedValueOnce([
+      { id: 1, title: 'Synthetic title (literal parentheses)', category_name: 'Synthetic category', start: 1.25, end: 4.75 },
+      { id: 2, title: 'Second chapter', category_name: null, start: 8.25, end: 12 },
+    ])
+    const wrapper = await mountPlayer()
+    Object.defineProperty(wrapper.get('video').element, 'duration', { configurable: true, value: 12 })
+    await wrapper.get('video').trigger('loadedmetadata')
+    await wrapper.get('.chapters-button').trigger('click')
+    const rows = wrapper.findAll('.chapter-item')[0].findAll('.chapter-title, .chapter-category, .chapter-time, .chapter-duration')
+    expect(rows.map(row => row.text())).toEqual([
+      'Synthetic title (literal parentheses)', 'Synthetic category', '0:01 - 0:04', 'Duration: 0:03',
+    ])
+    expect(wrapper.findAll('.chapter-item')[1].get('.chapter-category').text()).toBe('Category unavailable')
+    await wrapper.findAll('.chapter-item')[0].trigger('click')
+    expect((wrapper.get('video').element as HTMLVideoElement).currentTime).toBe(1.25)
+    wrapper.unmount()
+  })
+
+  it('shows zero-duration chapters without inferring category from title punctuation', async () => {
+    mocks.getChapters.mockResolvedValueOnce([{ id: 1, title: 'Synthetic title (not a category)', start: 0, end: 0 }])
+    const wrapper = await mountPlayer()
+    await wrapper.get('.chapters-button').trigger('click')
+    expect(wrapper.get('.chapter-item .chapter-category').text()).toBe('Category unavailable')
+    expect(wrapper.get('.chapter-item .chapter-duration').text()).toBe('Duration: 0:00')
+    expect(wrapper.get('.chapter-item .chapter-title').text()).toBe('Synthetic title (not a category)')
+    wrapper.unmount()
+  })
+
   it('opens chapters in the native modal top layer, independent of page stacking and fullscreen', async () => {
     const showModal = HTMLDialogElement.prototype.showModal
     const wrapper = await mountPlayer()

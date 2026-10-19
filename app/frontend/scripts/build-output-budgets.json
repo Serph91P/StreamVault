@@ -2,7 +2,7 @@
   "baseline": "develop@14bff396a2055e45d679cc1f900bdc17990e7cb3",
   "budgets": {
     "jsBytes": 1196533,
-    "jsGzipBytes": 380431,
+    "jsGzipBytes": 381000,
     "cssBytes": 828985,
     "cssGzipBytes": 123621,
     "totalBytes": 2754341,

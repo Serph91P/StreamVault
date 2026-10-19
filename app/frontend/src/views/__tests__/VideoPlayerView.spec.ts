@@ -130,6 +130,20 @@ describe('VideoPlayerView backend playback contract', () => {
     wrapper.unmount()
   })
 
+  it('preserves explicit chapter categories and renders four rows with the complete title inline', async () => {
+    const title = 'Synthetic complete chapter title '.repeat(8).trim()
+    const chapters = [{ id: 1, title, category_name: 'Synthetic category', start: 1.25, end: 4.75 }]
+    mocks.getChapters.mockResolvedValueOnce(chapters)
+    const wrapper = await mountView()
+    expect(wrapper.getComponent(VideoPlayerStub).props('chapters')).toEqual(chapters)
+    expect(wrapper.get('.chapter-item').findAll('.chapter-title, .chapter-category, .chapter-time, .chapter-duration').map(row => row.text())).toEqual([
+      title, 'Synthetic category', '0:01 - 0:04', 'Duration: 0:03',
+    ])
+    await wrapper.get('.chapter-item').trigger('click')
+    expect(mocks.seekToChapter).toHaveBeenCalledWith(1.25)
+    wrapper.unmount()
+  })
+
   it('shows a retryable error and never substitutes demo playback', async () => {
     mocks.getChapters.mockRejectedValueOnce(new Error('Authentication required'))
     const wrapper = await mountView()
