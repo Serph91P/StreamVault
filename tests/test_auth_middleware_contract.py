@@ -433,7 +433,13 @@ def test_fresh_jwt_login_reaches_authenticated_media_contract(auth_stack, monkey
     assert thumbnail_response.content == b"synthetic-thumbnail"
     assert chapters_response.status_code == 200
     assert chapters_response.json() == [
-        {"id": 1, "start": 0.0, "end": 4.0, "title": "Opening"}
+        {
+            "id": 1,
+            "start": 0.0,
+            "end": 4.0,
+            "title": "Opening",
+            "category_name": None,
+        }
     ]
     assert share_response.status_code == 200
     assert share_response.json()["share_url"].startswith("https://test.invalid/api/videos/public/1?token=")

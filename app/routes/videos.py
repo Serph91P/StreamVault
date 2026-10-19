@@ -7,10 +7,11 @@ import logging
 from pathlib import Path
 import mimetypes
 import re
+import math
 from secrets import token_urlsafe
 from sqlalchemy.orm import Session
 
-from app.models import Stream, Streamer, Recording
+from app.models import Stream, Streamer, Recording, StreamEvent
 from app.utils.security_enhanced import (
     safe_file_access,
     safe_error_message,
@@ -136,32 +137,115 @@ def parse_ffmpeg_chapters(ffmpeg_content: str) -> list:
             continue
 
         lines = block.strip().split("\n")
+        timebase = None
         start_time = None
+        end_time = None
         title = None
 
         for line in lines:
             if line.startswith("TIMEBASE="):
-                continue
+                try:
+                    numerator, denominator = line.split("=", 1)[1].split("/", 1)
+                    timebase = float(numerator) / float(denominator)
+                except (ValueError, ZeroDivisionError, IndexError):
+                    continue
             elif line.startswith("START="):
                 # Extract start time in timebase units
-                start_value = line.split("=")[1]
+                start_value = line.split("=", 1)[1]
                 try:
                     start_time = float(start_value)
+                except (ValueError, IndexError):
+                    continue
+            elif line.startswith("END="):
+                end_value = line.split("=", 1)[1]
+                try:
+                    end_time = float(end_value)
                 except (ValueError, IndexError):
                     continue
             elif line.startswith("title="):
                 title = line.split("=", 1)[1] if "=" in line else None
 
-        if start_time is not None:
+        if timebase is not None and start_time is not None and end_time is not None:
+            start_seconds = start_time * timebase
+            end_seconds = end_time * timebase
+            if (
+                not math.isfinite(start_seconds)
+                or not math.isfinite(end_seconds)
+                or start_seconds < 0
+                or end_seconds < start_seconds
+            ):
+                continue
             chapters.append(
                 {
                     "id": len(chapters) + 1,
-                    "start": start_time,
+                    "start": start_seconds,
+                    "end": end_seconds,
                     "title": title or f"Chapter {len(chapters) + 1}",
                 }
             )
 
     return chapters
+
+
+def _add_vtt_category_provenance(chapters: list, stream: Stream, db: Session) -> None:
+    """Attach categories only when a VTT cue exactly matches generated event data."""
+    for chapter in chapters:
+        chapter["category_name"] = None
+
+    if not chapters or not stream.started_at:
+        return
+
+    events = (
+        db.query(StreamEvent)
+        .filter(StreamEvent.stream_id == stream.id)
+        .order_by(StreamEvent.timestamp)
+        .all()
+    )
+    events = sorted(events, key=lambda event: event.timestamp)
+    if not events:
+        return
+
+    pre_stream_events = [
+        event for event in events if event.timestamp < stream.started_at
+    ]
+    if pre_stream_events:
+        prepared_events = [max(pre_stream_events, key=lambda event: event.timestamp)]
+        post_stream_events = [
+            event for event in events if event.timestamp >= stream.started_at
+        ]
+        if post_stream_events and post_stream_events[0].timestamp == stream.started_at:
+            post_stream_events = post_stream_events[1:]
+        prepared_events.extend(post_stream_events)
+    else:
+        prepared_events = events
+
+    generated_cues = []
+    if len(prepared_events) == 1:
+        event = prepared_events[0]
+        title = event.title or "Stream"
+        if event.category_name:
+            title += f" ({event.category_name})"
+        generated_cues.append((0.0, title, event.category_name))
+    else:
+        last_start = None
+        for event in prepared_events:
+            start = max(0.0, (event.timestamp - stream.started_at).total_seconds())
+            if last_start == start:
+                continue
+            last_start = start
+            title = event.title or "Stream"
+            if event.category_name:
+                title += f" ({event.category_name})"
+            generated_cues.append((start, title, event.category_name))
+
+    for chapter in chapters:
+        matches = [
+            category_name
+            for start, title, category_name in generated_cues
+            if title == chapter["title"] and abs(start - chapter["start"]) <= 0.001
+        ]
+        if len(matches) == 1:
+            chapter["category_name"] = matches[0]
 
 
 def get_video_thumbnail_url(stream_id: int, recording_path: str) -> Optional[str]:
@@ -798,6 +882,7 @@ async def get_video_chapters(
         )
 
         chapters = []
+        vtt_chapters_loaded = False
 
         # Try to load chapters from VTT file first (best for web)
         if (
@@ -809,6 +894,9 @@ async def get_video_chapters(
                 with open(metadata.chapters_vtt_path, "r", encoding="utf-8") as f:
                     vtt_content = f.read()
                     chapters = parse_vtt_chapters(vtt_content)
+                    if chapters:
+                        _add_vtt_category_provenance(chapters, stream, db)
+                        vtt_chapters_loaded = True
                     logger.info(
                         f"🎬 CHAPTER_VTT_LOADED: Loaded {len(chapters)} chapters from VTT file"
                     )
@@ -869,6 +957,10 @@ async def get_video_chapters(
                 }
             ]
             logger.info("🎬 CHAPTER_DEFAULT: Created default chapter")
+
+        if not vtt_chapters_loaded:
+            for chapter in chapters:
+                chapter["category_name"] = None
 
         logger.info(
             f"🎬 CHAPTER_SUCCESS: Returning {len(chapters)} chapters for stream {stream_id}"
