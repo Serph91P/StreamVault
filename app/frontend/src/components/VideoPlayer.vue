@@ -926,6 +926,7 @@ defineExpose({ seekToChapter })
   box-shadow: var(--shadow-2xl), 0 0 40px rgba(0, 0, 0, 0.5);
   max-height: 500px;
   overflow-y: auto;
+  overscroll-behavior-y: contain;
   position: fixed;
   bottom: 80px;  /* Above video controls */
   right: var(--spacing-4);  /* 16px from right edge */
@@ -1362,13 +1363,6 @@ defineExpose({ seekToChapter })
 
   width: 44px;
   height: 44px;
-
-  @include m.respond-below('md') {  // < 768px (mobile)
-    /* Mobile: 48px (touch-friendly) */
-    width: 48px;
-    height: 48px;
-    border-width: 2px;
-  }
 }
 
 .control-button:hover {
@@ -1395,12 +1389,6 @@ defineExpose({ seekToChapter })
   /* Desktop: 48px (primary control) */
   width: 48px;
   height: 48px;
-
-  @include m.respond-below('md') {  // < 768px (mobile)
-    /* Mobile: 56px (extra large for primary action) */
-    width: 56px;
-    height: 56px;
-  }
 }
 
 .play-pause-button:hover {
@@ -1437,10 +1425,6 @@ defineExpose({ seekToChapter })
   padding: 0 var(--spacing-2);  /* Horizontal padding for count */
   width: auto;  /* Auto width to fit content */
   min-width: 48px;  /* Minimum touch target */
-
-  @include m.respond-below('md') {  // < 768px (mobile)
-    min-width: 56px;
-  }
 }
 
 .chapters-button.active {
@@ -1477,8 +1461,8 @@ defineExpose({ seekToChapter })
   height: 24px;
 
   @include m.respond-below('md') {  // < 768px (mobile)
-    width: 28px;  /* Larger icons on mobile */
-    height: 28px;
+    width: 20px;
+    height: 20px;
   }
 }
 
@@ -1487,8 +1471,8 @@ defineExpose({ seekToChapter })
   height: 28px;
 
   @include m.respond-below('md') {  // < 768px (mobile)
-    width: 32px;  /* Even larger for primary button */
-    height: 32px;
+    width: 24px;
+    height: 24px;
   }
 }
 
@@ -1525,36 +1509,38 @@ defineExpose({ seekToChapter })
     margin-bottom: var(--spacing-2);  /* Reduce spacing */
   }
 
-  /* Ensure controls don't overflow */
+  // Never hide an action to make an overfull row appear to fit.
   .controls-bottom {
-    flex-wrap: nowrap;  /* Prevent wrapping */
-    overflow: hidden;
-    min-width: 0;  /* Allow flex items to shrink */
+    flex-wrap: wrap;
+    gap: var(--spacing-1);
   }
 
   .controls-left,
   .controls-right {
-    min-width: 0;  /* Allow flex items to shrink */
-    flex-shrink: 1;  /* Allow shrinking when needed */
+    gap: var(--spacing-1);
+    flex-shrink: 0;
   }
 
-  /* Time display can shrink if needed */
+  // A long recording needs two compact clock lines, not an overflowing label.
   .time-display {
-    flex-shrink: 2;  /* Can shrink more than buttons */
-    min-width: 0;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0;
+    line-height: var(--leading-tight);
+  }
+
+  .time-separator {
+    display: none;
   }
 
   // Keep all capabilities at 320px while retaining 44px targets.
   .control-button,
-  .chapters-button {
+  .chapters-button,
+  .play-pause-button {
     width: 44px;
     min-width: 44px;
     height: 44px;
-  }
-
-  .play-pause-button {
-    width: 48px;
-    height: 48px;
+    flex-shrink: 0;
   }
 
   .chapters-button { padding: 0; }
@@ -1574,11 +1560,6 @@ defineExpose({ seekToChapter })
   .control-button {
     width: 44px;  /* Minimum touch target */
     height: 44px;
-  }
-
-  .play-pause-button {
-    width: 52px;  /* Slightly smaller but still prominent */
-    height: 52px;
   }
 }
 
