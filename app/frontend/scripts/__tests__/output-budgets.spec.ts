@@ -90,6 +90,18 @@ describe('blocking build-output budgets', () => {
     expect(result.stdout).toContain(`\"jsBytes\": ${compliantWithWorker.jsBytes}`)
   })
 
+  it.each([[381000, 0], [381001, 1]])('enforces the approved application gzip boundary at %i bytes', async (applicationGzip, status) => {
+    const directory = await mkdtemp(join(tmpdir(), 'streamvault-gzip-boundary-'))
+    const fixture = join(directory, 'metrics.json')
+    await writeFile(fixture, JSON.stringify({
+      ...compliantWithWorker,
+      jsGzipBytes: applicationGzip + compliantWithWorker.hlsWorker.gzipBytes,
+    }))
+    const result = spawnSync(process.execPath, [script, '--fixture', fixture, '--budget', budgets], { encoding: 'utf8' })
+    expect(result.status).toBe(status)
+    if (status) expect(result.stderr).toContain('applicationJsGzipBytes 381001 > 381000')
+  })
+
   it.each([
     ['oversized worker', { hlsWorker: { ...compliantWithWorker.hlsWorker, bytes: 116765 }, jsBytes: compliantWithWorker.jsBytes + 1, totalBytes: compliantWithWorker.totalBytes + 1 }],
     ['oversized worker gzip', { hlsWorker: { ...compliantWithWorker.hlsWorker, gzipBytes: 40616 }, jsGzipBytes: compliantWithWorker.jsGzipBytes + 1 }],

@@ -6,6 +6,8 @@ import asyncio
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
+import pytest
+
 from app.models import StreamEvent, StreamMetadata
 from app.routes.videos import get_video_chapters, parse_ffmpeg_chapters
 
@@ -202,6 +204,44 @@ def test_vtt_without_event_history_keeps_category_null(tmp_path):
     chapters = _chapters(db)
 
     assert chapters[0]["category_name"] is None
+    assert db.event_queries == 1
+
+
+@pytest.mark.parametrize(
+    "title, category, cue, offset, expected",
+    [
+        ("Synthetic recording", "Games", "Synthetic recording (Games)", 0, "Games"),
+        (None, "Games", "Stream (Games)", 0, "Games"),
+        ("Synthetic recording", None, "Synthetic recording (Stream)", 0, "Stream"),
+        ("Synthetic recording", "Games", "Custom title (Games)", 0, None),
+        ("Synthetic recording", "Games", "Synthetic recording (Games)", 1, None),
+        ("Synthetic recording", "Games", "Synthetic recording (Music)", 0, None),
+    ],
+)
+def test_vtt_without_events_matches_only_the_generators_stream_fallback(
+    tmp_path, title, category, cue, offset, expected
+):
+    started_at = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    vtt = tmp_path / "recording.vtt"
+    vtt.write_text(
+        f"WEBVTT\n\n00:00:{offset:02d}.000 --> 00:00:04.000\n{cue}\n",
+        encoding="utf-8",
+    )
+    stream = SimpleNamespace(
+        id=1,
+        title=title,
+        category_name=category,
+        started_at=started_at,
+        ended_at=started_at + timedelta(seconds=4),
+    )
+    metadata = SimpleNamespace(chapters_vtt_path=str(vtt), chapters_ffmpeg_path=None)
+    db = _ChapterDb(stream, metadata, [])
+
+    chapters = _chapters(db)
+
+    assert chapters[0]["category_name"] == expected
+    assert chapters[0]["title"] == cue
+    assert chapters[0]["start"] == offset
     assert db.event_queries == 1
 
 

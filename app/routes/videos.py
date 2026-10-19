@@ -147,20 +147,20 @@ def parse_ffmpeg_chapters(ffmpeg_content: str) -> list:
                 try:
                     numerator, denominator = line.split("=", 1)[1].split("/", 1)
                     timebase = float(numerator) / float(denominator)
-                except (ValueError, ZeroDivisionError, IndexError):
+                except ValueError, ZeroDivisionError, IndexError:
                     continue
             elif line.startswith("START="):
                 # Extract start time in timebase units
                 start_value = line.split("=", 1)[1]
                 try:
                     start_time = float(start_value)
-                except (ValueError, IndexError):
+                except ValueError, IndexError:
                     continue
             elif line.startswith("END="):
                 end_value = line.split("=", 1)[1]
                 try:
                     end_time = float(end_value)
-                except (ValueError, IndexError):
+                except ValueError, IndexError:
                     continue
             elif line.startswith("title="):
                 title = line.split("=", 1)[1] if "=" in line else None
@@ -203,7 +203,16 @@ def _add_vtt_category_provenance(chapters: list, stream: Stream, db: Session) ->
     )
     events = sorted(events, key=lambda event: event.timestamp)
     if not events:
-        return
+        # Match the generator's transient no-history fallback; do not persist it.
+        events = [
+            StreamEvent(
+                stream_id=stream.id,
+                timestamp=stream.started_at,
+                title=stream.title or "Stream",
+                category_name=getattr(stream, "category_name", None) or "Stream",
+                event_type="category_change",
+            )
+        ]
 
     pre_stream_events = [
         event for event in events if event.timestamp < stream.started_at
@@ -1160,7 +1169,7 @@ async def get_streamer_videos(
                     }
                     videos.append(video_info)
 
-            except (HTTPException, OSError):
+            except HTTPException, OSError:
                 continue
 
         # Sort by creation time (newest first)

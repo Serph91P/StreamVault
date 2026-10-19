@@ -318,25 +318,34 @@ for (const viewport of [
       radiusY: 4,
       force: 1,
     }
-    await session.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [touch] })
-    for (let step = 1; step <= 10; step++) {
-      await session.send('Input.dispatchTouchEvent', {
-        type: 'touchMove',
-        touchPoints: [{ ...touch, y: touch.y - (Math.min(200, panel.height - 110) * step) / 10 }],
-      })
-      await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(resolve)))
+    // Keep one input modality throughout: switching to wheel during a native
+    // touch fling can discard the wheel event on a slower CI compositor.
+    const swipeChapters = async () => {
+      await session.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [touch] })
+      for (let step = 1; step <= 12; step++) {
+        const progress = 1 - (1 - step / 12) ** 4
+        await session.send('Input.dispatchTouchEvent', {
+          type: 'touchMove',
+          touchPoints: [{ ...touch, y: touch.y - Math.min(200, panel.height - 110) * progress }],
+        })
+        await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(resolve)))
+      }
+      await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
     }
-    await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
+    await swipeChapters()
     await expect.poll(() => dialog.evaluate((el) => el.scrollTop)).toBeGreaterThan(0)
     expect(await page.evaluate(() => scrollY)).toBe(before)
-    await page.mouse.move(panel.x + panel.width / 2, panel.y + panel.height / 2)
-    await page.mouse.wheel(0, 100_000)
+    for (let swipe = 0; swipe < 20; swipe++) {
+      if (await dialog.evaluate((el) => el.scrollHeight - el.clientHeight - el.scrollTop <= 1))
+        break
+      await swipeChapters()
+    }
     await expect
       .poll(() =>
         dialog.evaluate((el) => Math.abs(el.scrollTop - el.scrollHeight + el.clientHeight)),
       )
       .toBeLessThanOrEqual(1)
-    await page.mouse.wheel(0, 400)
+    await swipeChapters()
     await page.evaluate(
       () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
     )
