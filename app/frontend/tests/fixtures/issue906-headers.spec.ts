@@ -1,4 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
+import { writeFile } from 'node:fs/promises'
+import { readyForSettledMotion } from './issue828Browser'
+import { syntheticReply } from './issue828SyntheticApi'
 
 type Theme = 'dark' | 'light'
 
@@ -8,12 +11,13 @@ type RouteCase = {
   title: RegExp
 }
 
-const viewports = [
+const viewports: Array<{ width: number; height: number; textScale?: number }> = [
   { width: 320, height: 568 },
   { width: 390, height: 844 },
   { width: 863, height: 900 },
   { width: 1440, height: 900 },
-] as const
+  { width: 320, height: 900, textScale: 2 },
+]
 
 const routes: RouteCase[] = [
   { name: 'Settings', path: '/settings', title: /Settings|Twitch Connection/ },
@@ -30,6 +34,8 @@ async function installIssue906SyntheticApi(page: Page, theme: Theme) {
   const origin = 'http://127.0.0.1:4187'
   const requests: Array<{ method: string; path: string; status: number }> = []
   const unknown: string[] = []
+  const errors: string[] = []
+  page.on('pageerror', error => errors.push(error.message))
 
   await page.addInitScript(({ selectedTheme }) => {
     localStorage.setItem('streamvault-theme', selectedTheme)
@@ -38,7 +44,10 @@ async function installIssue906SyntheticApi(page: Page, theme: Theme) {
   await page.route('**/*', async route => {
     const request = route.request()
     const url = new URL(request.url())
-    if (url.origin !== origin) return route.abort('blockedbyclient')
+    if (url.origin !== origin) {
+      unknown.push(`External ${url.origin}${url.pathname}`)
+      return route.abort('blockedbyclient')
+    }
     if (!/^\/(api|auth)\//.test(url.pathname) || request.isNavigationRequest()) return route.continue()
 
     const method = request.method()
@@ -48,10 +57,16 @@ async function installIssue906SyntheticApi(page: Page, theme: Theme) {
     return route.fulfill({ status: reply.status, json: reply.body })
   })
   await page.routeWebSocket(/.*/, socket => socket.close({ code: 1000, reason: 'Issue 906 synthetic REST-only fixture' }))
-  return { requests, unknown, origin, theme }
+  return { requests, unknown, errors, origin, theme }
 }
 
 function readonlyReply(path: string, method: string): { status: number; body: unknown } {
+  // AdminPanel automatically runs this diagnostic on mount. Intercept it here;
+  // no real health checks or other POST operations are forwarded to a backend.
+  if (method === 'POST' && path === '/api/admin/tests/quick-health') return {
+    status: 200,
+    body: { timestamp: '2026-01-01T00:00:00Z', overall_status: 'healthy', checks: { database: { status: 'healthy', message: 'Synthetic diagnostic only' } } },
+  }
   if (method !== 'GET') return { status: 501, body: { detail: `Read-only Issue 906 fixture rejects ${method} ${path}` } }
 
   if (path === '/auth/setup') return { status: 200, body: { setup_required: false, welcome_completed: true } }
@@ -64,10 +79,15 @@ function readonlyReply(path: string, method: string): { status: number; body: un
   if (path === '/api/recording/streamers' || path === '/api/recording/active') return { status: 200, body: [] }
   if (path === '/api/version') return { status: 200, body: { version: 'synthetic-test-only', frontend_version: 'synthetic-test-only' } }
   if (path === '/api/admin/system/info') return { status: 200, body: { platform: 'synthetic', python_version: 'synthetic', uptime: 0 } }
-  return { status: 501, body: { detail: `Unspecified Issue 906 endpoint: ${path}` } }
+  if (path === '/api/admin/background-queue/status') return { status: 200, body: { total_external_tasks: 0, total_active_tasks: 0, stuck_recordings: 0, continuous_orphaned: 0, unknown_tasks: 0, total_issues: 0, stuck_recording_tasks: [], orphaned_recovery_tasks: [] } }
+  if (path === '/api/admin/post-processing/stats') return { status: 200, body: { orphaned_recordings: 0, orphaned_segments: 0, total_size_gb: 0 } }
+  if (path === '/api/twitch/connection-status') return { status: 200, body: { connected: false, valid: false, expires_at: null } }
+  if (path === '/api/twitch/callback-url') return { status: 200, body: { url: 'http://127.0.0.1:4187/auth/callback' } }
+  // Share the existing named status/queue contracts, including its strict 501 fallback.
+  return syntheticReply(path, method)
 }
 
-async function assertUnifiedHeader(page: Page, route: RouteCase) {
+async function assertUnifiedHeader(page: Page, route: RouteCase, captureHeader: () => Promise<unknown>) {
   // Support the current legacy header during RED; do not make the test pass
   // merely because a future PageHeader class is absent.
   const header = page.locator('.page-header, .view-header').filter({ has: page.getByRole('heading', { level: 1, name: route.title }) }).first()
@@ -77,12 +97,14 @@ async function assertUnifiedHeader(page: Page, route: RouteCase) {
   await expect(header).toBeVisible()
   await expect(title).toBeVisible()
   await expect(back).toBeVisible()
+  await page.evaluate(() => document.fonts.ready)
+  await readyForSettledMotion(header)
 
   const [headerBox, titleBox, backBox, iconBoxes] = await Promise.all([
     header.boundingBox(),
     title.boundingBox(),
     back.boundingBox(),
-    header.locator('svg').evaluateAll(nodes => nodes
+    header.locator('.page-header-title-group svg, .header-content svg').evaluateAll(nodes => nodes
       .filter(node => !node.closest('a'))
       .map(node => {
         const rect = node.getBoundingClientRect()
@@ -130,6 +152,8 @@ async function assertUnifiedHeader(page: Page, route: RouteCase) {
     return element.contains(point)
   })).toBe(true)
   await back.click({ trial: true })
+  await page.mouse.move(0, 0)
+  await captureHeader()
   await back.click()
   await expect(page).toHaveURL(/\/system$/)
 }
@@ -137,19 +161,46 @@ async function assertUnifiedHeader(page: Page, route: RouteCase) {
 for (const viewport of viewports) {
   for (const theme of ['dark', 'light'] as const) {
     for (const route of routes) {
-      test(`REAL synthetic ${route.name} header ${viewport.width}px ${theme}`, async ({ page }, testInfo) => {
-        await page.setViewportSize(viewport)
+      test(`REAL synthetic ${route.name} header ${viewport.width}px ${theme}${viewport.textScale ? ' 200pct text' : ''}`, async ({ page }, testInfo) => {
+        await page.setViewportSize({ width: viewport.width, height: viewport.height })
         const api = await installIssue906SyntheticApi(page, theme)
         await page.goto(route.path, { waitUntil: 'domcontentloaded' })
-        await assertUnifiedHeader(page, route)
-        await page.screenshot({ path: testInfo.outputPath(`${route.name.toLowerCase()}-${viewport.width}-${theme}.png`) })
+        await expect.poll(() => page.evaluate(() => getComputedStyle(document.documentElement).colorScheme)).toBe(theme)
+        if (viewport.textScale) await page.evaluate(scale => {
+          const root = document.documentElement
+          root.style.fontSize = `${parseFloat(getComputedStyle(root).fontSize) * scale}px`
+        }, viewport.textScale)
+        await assertUnifiedHeader(page, route, async () => {
+          const stylePath = testInfo.outputPath('header-style.json')
+          await writeFile(stylePath, JSON.stringify({ route: route.name, width: viewport.width, theme, scale: viewport.textScale || 1, back: await page.locator('.page-header-back-link').evaluate(element => {
+              const svg = element.querySelector('svg')!
+              return { color: getComputedStyle(element).color, iconColor: getComputedStyle(svg).color, stroke: getComputedStyle(svg).stroke, hovered: element.matches(':hover') }
+            }) }))
+          await testInfo.attach('header-style', {
+            path: stylePath,
+            contentType: 'application/json',
+          })
+          await page.screenshot({ path: testInfo.outputPath(`${route.name.toLowerCase()}-${viewport.width}-${theme}.png`) })
+          if (route.name === 'Subscriptions') {
+            const header = page.locator('.page-header')
+            const count = () => api.requests.filter(request => request.path === '/api/streamers/subscriptions' || request.path === '/api/subscriptions').length
+            const before = count()
+            await header.getByRole('button', { name: 'Refresh', exact: true }).click()
+            await expect.poll(count).toBeGreaterThan(before)
+            await expect(header.getByRole('button', { name: 'Refresh', exact: true })).toBeEnabled()
+            await expect(header.getByRole('button', { name: 'Delete All', exact: true })).toBeDisabled()
+          }
+        })
 
         // Origin and API provenance are asserted from the actual browser route
         // handler, rather than from mocked application state.
         expect(api.origin).toBe('http://127.0.0.1:4187')
         expect(api.requests.some(request => request.path === '/auth/setup')).toBe(true)
         expect(api.requests.some(request => request.path === '/auth/check')).toBe(true)
-        expect(api.unknown.filter(request => request.startsWith('GET '))).toEqual([])
+        expect(api.unknown).toEqual([])
+        expect(api.requests.filter(request => request.method !== 'GET' && !(request.method === 'POST' && request.path === '/api/admin/tests/quick-health'))).toEqual([])
+        expect(api.requests.filter(request => request.method === 'POST')).toHaveLength(route.name === 'Admin' ? 1 : 0)
+        expect(api.errors).toEqual([])
       })
     }
   }
