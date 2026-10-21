@@ -917,6 +917,7 @@ onUnmounted(() => {
 
 .chapter-item {
   display: flex;
+  flex-shrink: 0;
   align-items: flex-start;
   gap: var(--spacing-2);
   padding: var(--spacing-2) var(--spacing-3);
