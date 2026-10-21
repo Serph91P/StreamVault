@@ -73,13 +73,13 @@
         role="region"
         :aria-label="`${activeSectionData?.label || 'Settings'} settings`"
       >
-        <div v-if="activeSectionData?.hasPanel" class="settings-section">
+        <div v-show="activeSectionData?.hasPanel" class="settings-section">
           <BasePanel tone="glass" padding="lg">
-            <template #title>{{ activeSectionData.label }}</template>
-            <template #description>{{ activeSectionData.panelDescription }}</template>
+            <template #title>{{ activeSectionData?.label }}</template>
+            <template #description>{{ activeSectionData?.panelDescription }}</template>
             <div v-if="!panelHost && !panelHostError" class="panel-load-state" role="status">
               <LoadingSkeleton type="card" />
-              <span>Loading {{ activeSectionData.label }} settings…</span>
+              <span>Loading {{ activeSectionData?.label }} settings…</span>
             </div>
             <div v-else-if="panelHostError" class="panel-load-error" role="alert">
               <p>{{ panelHostError }}</p>
@@ -96,7 +96,7 @@
         </div>
 
         <!-- About Settings -->
-        <div v-else-if="activeSection === 'about'" class="settings-section">
+        <div v-if="activeSection === 'about'" class="settings-section">
           <BasePanel tone="glass" padding="lg">
             <template #title>About</template>
             <template #description>Application information and version details</template>
