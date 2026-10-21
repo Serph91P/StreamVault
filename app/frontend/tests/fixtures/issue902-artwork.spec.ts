@@ -11,7 +11,7 @@ const chapters = [
 ]
 const imagePath = '/api/media/categories/synthetic-artwork.svg'
 
-for (const width of [390, 1440]) {
+for (const width of [320, 390, 863, 1440]) {
   for (const theme of ['dark', 'light'] as const) {
     for (const brokenImage of [false, true]) {
       test(`explicit cached chapter artwork ${width} ${theme} broken=${brokenImage}`, async ({ page }, testInfo) => {
