@@ -1,57 +1,47 @@
 <template>
   <div class="page-view subscriptions-view">
     <!-- Header -->
-    <div class="view-header">
-      <div class="header-content">
-        <h1 class="page-title">
-          <svg class="icon-title">
-            <use href="#icon-rss" />
-          </svg>
-          Subscription Management
-        </h1>
-        <p class="page-subtitle">
-          Manage your Twitch EventSub subscriptions for tracked streamers
-        </p>
-      </div>
-
-      <div class="header-actions">
-        <router-link to="/system" class="btn-action btn-secondary system-back-link" aria-label="Back to System">
-          <svg class="icon" aria-hidden="true">
-            <use href="#icon-arrow-left" />
-          </svg>
-          <span>Back to System</span>
-        </router-link>
-        <button @click="loadSubscriptions" :disabled="loading" class="btn-action btn-secondary" v-ripple>
-          <svg class="icon">
-            <use href="#icon-refresh-cw" />
-          </svg>
-          <span>{{ loading ? 'Loading...' : 'Refresh' }}</span>
-        </button>
-        <button
-          @click="resubscribeAll"
-          :disabled="loadingResubscribe"
-          class="btn-action btn-secondary"
-          v-ripple
-        >
-          <svg v-if="!loadingResubscribe" class="icon">
-            <use href="#icon-repeat" />
-          </svg>
-          <span v-if="loadingResubscribe" class="spinner"></span>
-          <span>{{ loadingResubscribe ? 'Resubscribing...' : 'Resubscribe All' }}</span>
-        </button>
-        <button
-          @click="deleteAllSubscriptions"
-          :disabled="loading || !subscriptions.length"
-          class="btn-action btn-danger"
-          v-ripple
-        >
-          <svg class="icon">
-            <use href="#icon-trash-2" />
-          </svg>
-          <span>Delete All</span>
-        </button>
-      </div>
-    </div>
+    <PageHeader
+      title="Subscription Management"
+      subtitle="Manage your Twitch EventSub subscriptions for tracked streamers"
+      icon="rss"
+      back-to="/system"
+      back-label="Back to System"
+    >
+      <template #actions>
+        <div class="header-actions">
+          <button @click="loadSubscriptions" :disabled="loading" class="btn-action btn-secondary" v-ripple>
+            <svg class="icon">
+              <use href="#icon-refresh-cw" />
+            </svg>
+            <span>{{ loading ? 'Loading...' : 'Refresh' }}</span>
+          </button>
+          <button
+            @click="resubscribeAll"
+            :disabled="loadingResubscribe"
+            class="btn-action btn-secondary"
+            v-ripple
+          >
+            <svg v-if="!loadingResubscribe" class="icon">
+              <use href="#icon-repeat" />
+            </svg>
+            <span v-if="loadingResubscribe" class="spinner"></span>
+            <span>{{ loadingResubscribe ? 'Resubscribing...' : 'Resubscribe All' }}</span>
+          </button>
+          <button
+            @click="deleteAllSubscriptions"
+            :disabled="loading || !subscriptions.length"
+            class="btn-action btn-danger"
+            v-ripple
+          >
+            <svg class="icon">
+              <use href="#icon-trash-2" />
+            </svg>
+            <span>Delete All</span>
+          </button>
+        </div>
+      </template>
+    </PageHeader>
 
     <!-- Loading State -->
     <div v-if="loading" class="loading-container">
@@ -135,6 +125,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
+import PageHeader from '@/components/base/PageHeader.vue'
 import SurfaceCard from '@/components/cards/SurfaceCard.vue'
 import LoadingSkeleton from '@/components/LoadingSkeleton.vue'
 import EmptyState from '@/components/EmptyState.vue'
@@ -315,44 +306,6 @@ onMounted(loadSubscriptions)
   }
 }
 
-// Header
-.view-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: var(--spacing-8);
-  gap: var(--spacing-4);
-  flex-wrap: wrap;
-}
-
-.header-content {
-  margin-bottom: var(--spacing-6);
-  flex: 1;
-  min-width: 200px;
-}
-
-.page-title {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-3);
-  font-size: var(--font-size-3xl);
-  font-weight: var(--font-weight-bold);
-  color: var(--text-primary);
-  margin-bottom: var(--spacing-3);
-}
-
-.icon-title {
-  width: 32px;
-  height: 32px;
-  fill: var(--color-primary);
-}
-
-.page-subtitle {
-  font-size: var(--font-size-base);
-  color: var(--text-secondary);
-  margin: 0;
-}
-
 .header-actions {
   display: flex;
   gap: var(--spacing-3);
@@ -435,16 +388,6 @@ onMounted(loadSubscriptions)
       color: var(--text-tertiary);
       border: 1px solid var(--border-color);
     }
-  }
-}
-
-.system-back-link {
-  min-height: 44px;
-  text-decoration: none;
-
-  &:focus-visible {
-    outline: 2px solid var(--primary-color);
-    outline-offset: 2px;
   }
 }
 
@@ -639,25 +582,8 @@ onMounted(loadSubscriptions)
     padding: var(--spacing-4);
   }
 
-  .view-header {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .header-content {
-    width: 100%;
-  }
-
-  .page-title {
-    font-size: var(--font-size-2xl);
-  }
-
-  .icon-title {
-    width: 24px;
-    height: 24px;
-  }
-
   .header-actions {
+    width: 100%;
     flex-direction: column;
 
     .btn-action {
