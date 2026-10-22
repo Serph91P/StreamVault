@@ -256,6 +256,7 @@ async def get_streamers(
                 "twitch_id": streamer.twitch_id,
                 "username": streamer.username,
                 "display_name": streamer.username,  # Fallback to username if no display_name
+                "description": streamer.description,
                 "is_live": streamer.is_live,
                 "is_recording": streamer.is_recording,
                 "recording_enabled": streamer.recording_enabled,
@@ -952,7 +953,7 @@ async def get_streamer(
         "category_name": streamer.category_name if streamer.is_live else None,
         "profile_image_url": profile_image_url,
         "original_profile_image_url": streamer.profile_image_url,
-        "description": None,  # TODO: Store description in DB if needed
+        "description": streamer.description,
         "last_updated": streamer.last_updated.isoformat()
         if streamer.last_updated
         else None,

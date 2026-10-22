@@ -58,6 +58,25 @@ describe('StreamerCard touch and navigation behavior', () => {
     expect(forbiddenContracts).toEqual([])
   })
 
+  it.each(['grid', 'list'] as const)('shows the channel description offline in %s mode and the title when live', async (viewMode) => {
+    const { wrapper } = await mountCard()
+    await wrapper.setProps({
+      viewMode,
+      streamer: { ...streamer, is_live: false, title: 'Current stream', last_stream_title: 'Previous stream' },
+    })
+    expect(wrapper.get('.streamer-description').text()).toBe(streamer.description)
+    expect(wrapper.text()).not.toContain('No description available')
+    expect(wrapper.find('.last-stream-title').exists()).toBe(false)
+
+    await wrapper.setProps({ streamer: { ...streamer, is_live: true, title: 'Current stream' } })
+    expect(wrapper.get('.stream-title').text()).toBe('Current stream')
+    expect(wrapper.find('.streamer-description').exists()).toBe(false)
+
+    await wrapper.setProps({ streamer: { ...streamer, description: undefined, is_live: false } })
+    expect(wrapper.get('.no-description').text()).toBe('No description available')
+    wrapper.unmount()
+  })
+
   it('does not open actions or vibrate when the card is held', async () => {
     vi.useFakeTimers()
     const vibrate = vi.fn()

@@ -4,6 +4,7 @@ export interface Streamer {
   id: string;
   username: string;
   display_name?: string;
+  description?: string | null;
   twitch_id: string;
   profile_image_url?: string;
   is_live: boolean;

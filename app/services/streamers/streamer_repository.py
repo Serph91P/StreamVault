@@ -91,6 +91,7 @@ class StreamerRepository:
                 streamer_response = StreamerResponse(
                     id=streamer.id,
                     username=streamer.username,
+                    description=streamer.description,
                     twitch_id=streamer.twitch_id,
                     profile_image_url=streamer.profile_image_url,
                     is_live=streamer.is_live,
