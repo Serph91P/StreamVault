@@ -413,3 +413,83 @@ for (const viewport of [
     await expect(page).toHaveURL(/\/videos$/)
   })
 }
+
+// Issue #901: children can be fully rendered while their flex button has been
+// shrunk to 44px. Measure content against its OWN row, not just itself/the page.
+for (const sample of [
+  { width: 1024, height: 800, scale: 1, mobile: false },
+  { width: 1440, height: 900, scale: 1, mobile: false },
+  { width: 1440, height: 900, scale: 2, mobile: false },
+  { width: 360, height: 640, scale: 1, mobile: true },
+  { width: 412, height: 892, scale: 2, mobile: true },
+]) {
+  test.describe(`chapter sidebar ${sample.width}px ${sample.scale}x text`, () => {
+    test.use({ isMobile: sample.mobile, hasTouch: sample.mobile })
+    test('keeps all details inside their own row before and after hover/focus', async ({ page }, testInfo) => {
+      await page.setViewportSize({ width: sample.width, height: sample.height })
+      const api = await installSyntheticApi(page, 'many')
+      api.releaseChapters()
+      const chapters = Array.from({ length: 12 }, (_, index) => ({
+        id: index + 1,
+        title: `Synthetic chapter ${index + 1}: ${'A complete descriptive event title '.repeat(5)}`,
+        category_name: 'Synthetic category',
+        start: index * 600 + 1.25,
+        end: index * 600 + 301.75,
+      }))
+      await page.route('**/api/videos/*/chapters', route => route.fulfill({ json: chapters }))
+      await page.route('**/api/categories/image/*', route => route.fulfill({ json: { image_url: null } }))
+      await page.route('**/api/videos/*/stream', longClockMedia)
+      await page.goto('/videos/1', { waitUntil: 'domcontentloaded' })
+      await expect(page.locator('.loading-overlay')).toHaveCount(0)
+      await expect.poll(() => page.locator('video').evaluate(el => (el as HTMLVideoElement).readyState)).toBeGreaterThanOrEqual(2)
+      if (sample.scale !== 1) {
+        const size = await page.locator('html').evaluate(el => parseFloat(getComputedStyle(el).fontSize))
+        await page.addStyleTag({ content: `html { font-size: ${size * sample.scale}px !important; }` })
+      }
+      const rows = page.locator('.chapters-card .chapter-item')
+      await expect(rows).toHaveCount(chapters.length)
+      await readyForSettledMotion(rows.first())
+      const geometry = () => rows.evaluateAll(elements => elements.map((row, index) => {
+        const box = row.getBoundingClientRect()
+        const fields = [...row.querySelectorAll('.chapter-title, .chapter-category, .chapter-time, .chapter-duration')]
+          .map(field => field.getBoundingClientRect().toJSON())
+        const next = elements[index + 1]?.getBoundingClientRect()
+        return { index, box: box.toJSON(), fields, nextTop: next?.top }
+      }))
+      const assertGeometry = async (state: string) => {
+        const report = await geometry()
+        await testInfo.attach(`sidebar-${state}`, { body: JSON.stringify(report), contentType: 'application/json' })
+        for (const row of report) {
+          expect(row.box.height, `${state}: row ${row.index} touch height`).toBeGreaterThanOrEqual(44)
+          expect(row.fields, `${state}: four details fields`).toHaveLength(4)
+          for (let index = 0; index < row.fields.length; index++) {
+            const field = row.fields[index]
+            expect(field.top, `${state}: field top inside own row ${row.index}`).toBeGreaterThanOrEqual(row.box.top - 0.5)
+            expect(field.bottom, `${state}: field bottom inside own row ${row.index}`).toBeLessThanOrEqual(row.box.bottom + 0.5)
+            expect(field.left).toBeGreaterThanOrEqual(row.box.left - 0.5)
+            expect(field.right).toBeLessThanOrEqual(row.box.right + 0.5)
+            if (index) expect(field.top).toBeGreaterThanOrEqual(row.fields[index - 1].bottom - 0.5)
+          }
+          if (row.nextTop !== undefined)
+            expect(row.box.bottom, `${state}: adjacent buttons do not overlap`).toBeLessThanOrEqual(row.nextTop + 0.5)
+        }
+      }
+      await assertGeometry('initial')
+      const second = rows.nth(1)
+      await readyForMeasuredClick(page, second)
+      if (!sample.mobile) {
+        await second.hover()
+        await readyForSettledMotion(second)
+        await assertGeometry('hovered')
+      }
+      await second.focus()
+      await expect(second).toBeFocused()
+      await assertGeometry('focused')
+      await page.screenshot({ path: testInfo.outputPath('chapter-sidebar.png') })
+      await second.press('Enter')
+      await expect(second).toHaveAttribute('aria-current', 'true')
+      await expect.poll(() => page.locator('video').evaluate(el => (el as HTMLVideoElement).currentTime)).toBeCloseTo(chapters[1].start, 2)
+      expect(api.unexpected).toEqual([])
+    })
+  })
+}
