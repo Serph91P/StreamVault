@@ -148,6 +148,10 @@ jobs:
         working-directory: app/frontend
         run: npx playwright test --config tests/fixtures/issue896-player.config.ts
 
+      - name: Run real-build native streamer carousel regressions
+        working-directory: app/frontend
+        run: npx playwright test --config tests/fixtures/issue903-streamers.config.ts
+
       - name: Check deterministic frontend build output
         working-directory: app/frontend
         run: |
