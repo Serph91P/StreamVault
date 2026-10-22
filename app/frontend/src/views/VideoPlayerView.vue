@@ -100,7 +100,7 @@
             </h3>
             <div class="chapters-list">
               <button
-                v-for="(chapter, index) in chapterData.chapters"
+                v-for="(chapter, index) in sidebarChapters"
                 :key="index"
                 type="button"
                 class="chapter-item"
@@ -109,6 +109,18 @@
                 :aria-current="currentChapterIndex === index ? 'true' : undefined"
                 @click="seekToChapter(chapter)"
               >
+                <div class="chapter-artwork" aria-hidden="true">
+                  <img
+                    v-if="!chapter.artwork.startsWith('icon:') && !failedChapterArtwork.has(chapter.artwork)"
+                    :src="chapter.artwork"
+                    alt=""
+                    loading="lazy"
+                    @error="failedChapterArtwork.add(chapter.artwork)"
+                  />
+                  <svg v-else viewBox="0 0 24 24" focusable="false">
+                    <use :href="`#icon-${chapter.artwork.startsWith('icon:') ? chapter.artwork.slice(5) : 'gamepad'}`" />
+                  </svg>
+                </div>
                 <ChapterDetails :title="chapter.title" :category-name="chapter.category_name" :start="chapter.start" :end="chapter.end" />
               </button>
             </div>
@@ -181,6 +193,7 @@
 import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { returnFromVideo } from '@/composables/useNavigation'
+import { useCategoryImages } from '@/composables/useCategoryImages'
 import VideoPlayer from '@/components/VideoPlayer.vue'
 import LoadingSkeleton from '@/components/LoadingSkeleton.vue'
 import SurfaceCard from '@/components/cards/SurfaceCard.vue'
@@ -237,6 +250,12 @@ const streamTitle = computed(() => chapterData.value?.stream_title || '')
 const streamerName = computed(() => chapterData.value?.streamer_name || '')
 
 const chapterData = ref<ChapterData | null>(null)
+const { getCategoryImage } = useCategoryImages()
+const failedChapterArtwork = ref(new Set<string>())
+const sidebarChapters = computed(() => chapterData.value?.chapters.map(chapter => ({
+  ...chapter,
+  artwork: chapter.category_name ? getCategoryImage(chapter.category_name) : 'icon:gamepad',
+})) ?? [])
 const isLoading = ref(true)
 const error = ref<string | null>(null)
 const theaterMode = ref(false)
@@ -917,6 +936,7 @@ onUnmounted(() => {
 
 .chapter-item {
   display: flex;
+  flex-shrink: 0;
   align-items: flex-start;
   gap: var(--spacing-2);
   padding: var(--spacing-2) var(--spacing-3);
@@ -943,6 +963,33 @@ onUnmounted(() => {
 
 
 // ============================================================================
+.chapter-artwork {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 var(--spacing-8);
+  width: var(--spacing-8);
+  height: var(--spacing-8);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  color: var(--primary-color);
+
+  img, svg {
+    width: 100%;
+    height: 100%;
+  }
+
+  img {
+    object-fit: cover;
+  }
+
+  svg {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+  }
+}
+
 // ACTION BUTTONS
 // ============================================================================
 

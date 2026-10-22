@@ -137,8 +137,9 @@ describe('StreamerCard touch and navigation behavior', () => {
     wrapper.unmount()
   })
 
-  it('keeps card surfaces vertical-pan friendly without making the card clickable', () => {
-    expect(streamerCardSource).toMatch(/\.streamer-card\s*\{[\s\S]*?touch-action:\s*pan-y;/)
+  it('keeps card surfaces friendly to both native pan axes without making the card clickable', () => {
+    expect(streamerCardSource).toMatch(/\.streamer-card\s*\{[^}]*touch-action:\s*pan-x pan-y;/)
+    expect(streamerCardSource).toMatch(/\.streamer-card-content\s*\{[^}]*touch-action:\s*pan-x pan-y;/)
     expect(streamerCardSource).not.toMatch(/\.streamer-card-content\s*\{[^}]*cursor:\s*pointer;/)
   })
 
