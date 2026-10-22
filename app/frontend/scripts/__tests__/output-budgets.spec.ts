@@ -1,4 +1,4 @@
-import { mkdtemp, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { spawnSync } from 'node:child_process'
 import { join, resolve } from 'node:path'
 import { tmpdir } from 'node:os'
@@ -31,6 +31,18 @@ const compliantWithWorker = {
 }
 
 describe('blocking build-output budgets', () => {
+  it('reports the installed Vite version in measured output', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'streamvault-budget-toolchain-'))
+    try {
+      const installed = JSON.parse(await readFile(resolve(frontendRoot, 'node_modules/vite/package.json'), 'utf8'))
+      const result = spawnSync(process.execPath, [script, '--dist', directory], { encoding: 'utf8' })
+      expect(result.status).toBe(0)
+      expect(JSON.parse(result.stdout).toolchain.vite).toBe(installed.version)
+    } finally {
+      await rm(directory, { recursive: true, force: true })
+    }
+  })
+
   it('rejects duplicate or missing static precache registrations', () => {
     const required = ['favicon.ico', 'icon-512x512.png']
     expect(() => assertPrecacheIntegrity(
