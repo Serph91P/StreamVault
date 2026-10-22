@@ -77,6 +77,18 @@ jobs:
   # ──────────────────────────────────────────────
   frontend-build:
     name: Frontend Build & Lint
+    needs: [frontend-core, frontend-browser]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    steps:
+      - name: Require both frontend workers to succeed
+        run: |
+          test "${{ needs.frontend-core.result }}" = success
+          test "${{ needs.frontend-browser.result }}" = success
+
+  frontend-core:
+    name: Frontend Core & Real Regressions
     runs-on: ubuntu-latest
     timeout-minutes: 12
 
@@ -116,7 +128,7 @@ jobs:
 
       - name: Install Playwright browsers
         working-directory: app/frontend
-        run: npx playwright install --with-deps
+        run: npx playwright install --with-deps chromium
 
       - name: Build frontend (production)
         working-directory: app/frontend
@@ -145,6 +157,39 @@ jobs:
         run: |
           npm run test:build-output
           npm run test:output-budgets
+
+      - name: Preserve frontend core failure evidence
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: frontend-core-failures-${{ github.run_attempt }}
+          path: |
+            app/frontend/test-results/
+            app/frontend/foundation-test-results/
+          if-no-files-found: ignore
+          retention-days: 3
+
+  frontend-browser:
+    name: Frontend Browser Regressions
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Set up Node.js 24
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: app/frontend/package-lock.json
+      - name: Install dependencies
+        working-directory: app/frontend
+        run: npm ci --prefer-offline
+      - name: Install Playwright browsers
+        working-directory: app/frontend
+        run: npx playwright install --with-deps
+      - name: Build verified mock frontend
+        working-directory: app/frontend
+        run: node scripts/build-artifact-provenance.mjs build --mode mock
 
       - name: Run frontend browser tests
         working-directory: app/frontend
