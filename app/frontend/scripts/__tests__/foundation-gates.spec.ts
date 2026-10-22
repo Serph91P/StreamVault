@@ -52,6 +52,14 @@ function stepFrom(job: string[], name: string) {
   return blockFrom(job, job.findIndex((line) => line === `      - name: ${name}`), 6, /^      - /)
 }
 
+function commandsFrom(step: string[]) {
+  const start = step.findIndex((line) => /^        run:\s*[|>]\s*$/.test(line))
+  if (start < 0) failWorkflow('required executable command block is missing')
+  return step.slice(start + 1)
+    .filter((line) => indentation(line) > 8 && line.trim() && !line.trimStart().startsWith('#'))
+    .map((line) => line.trim())
+}
+
 function assertNonSkippable(job: string[], name: string) {
   if (activeProperty(job, 4, 'if') !== undefined) failWorkflow(`${name} job may be skipped`)
   const value = activeProperty(job, 4, 'continue-on-error')
@@ -70,15 +78,23 @@ function assertCaptureIntegrationIsBlocking(workflow: string, integrationFlow: s
   if (activeProperty(aggregate, 4, 'timeout-minutes') !== '1') failWorkflow('aggregate timeout is not bounded to one minute')
   const aggregateContinueOnError = activeProperty(aggregate, 4, 'continue-on-error')
   if (aggregateContinueOnError !== undefined && aggregateContinueOnError !== 'false') failWorkflow('frontend-build job is non-blocking')
-  const aggregateText = aggregate.join('\n')
-  if (!aggregateText.includes('test "${{ needs.frontend-core.result }}" = success') || !aggregateText.includes('test "${{ needs.frontend-browser.result }}" = success')) {
+  const aggregateStep = stepFrom(aggregate, 'Require both frontend workers to succeed')
+  if (activeProperty(aggregateStep, 8, 'if') !== undefined || (activeProperty(aggregateStep, 8, 'continue-on-error') ?? 'false') !== 'false') failWorkflow('aggregate result checks may be skipped or ignored')
+  if (commandsFrom(aggregateStep).join('\n') !== 'test "${{ needs.frontend-core.result }}" = success\ntest "${{ needs.frontend-browser.result }}" = success') {
     failWorkflow('aggregate does not explicitly fail unless both worker results succeed')
   }
+  if (activeProperty(jobFrom(lines, 'integration-tests'), 4, 'needs') !== '[backend-tests, frontend-build]') failWorkflow('Docker integration bypasses the full frontend aggregate')
 
   const artifactNames: string[] = []
   for (const [name, job] of [['frontend-core', core], ['frontend-browser', browser]] as const) {
     assertNonSkippable(job, name)
     if (activeProperty(job, 4, 'timeout-minutes') !== '12') failWorkflow(`${name} timeout is not capped at twelve minutes`)
+    for (let i = 0; i < job.length; i += 1) {
+      if (!/^      - /.test(job[i])) continue
+      const step = blockFrom(job, i, 6, /^      - /)
+      if (step.some((line) => line.includes('uses: actions/upload-artifact@'))) continue
+      if (activeProperty(step, 8, 'if') !== undefined || (activeProperty(step, 8, 'continue-on-error') ?? 'false') !== 'false') failWorkflow(`${name} contains a skippable or non-blocking gate`)
+    }
     const text = job.join('\n')
     if (!text.includes('app/frontend/test-results/') || !text.includes('app/frontend/foundation-test-results/')) failWorkflow(`${name} failure artifacts are missing`)
     const upload = text.match(/uses:\s*actions\/upload-artifact[^\n]*(?:\n(?!\s{6}-)[^\n]*)*?\n\s+name:\s*([^\n]+)/)
@@ -114,6 +130,8 @@ function assertCaptureIntegrationIsBlocking(workflow: string, integrationFlow: s
     failWorkflow('browser worker does not build and consume the verified mock output in order')
   }
   if (!browserText.includes('      - name: Build verified mock frontend') || !browserText.includes('      - name: Run frontend browser tests')) failWorkflow('browser worker steps were renamed or removed')
+  const browserCommands = commandsFrom(browserStep)
+  if (browserCommands.join('\n') !== 'STREAMVAULT_REUSE_VERIFIED_MOCK_BUILD=true npx playwright test\nSTREAMVAULT_REUSE_VERIFIED_MOCK_BUILD=true npm run test:foundation-capture-integration') failWorkflow('active browser commands were removed, reordered, or duplicated')
   if (!browserText.includes('app/frontend/test-results/') || !browserText.includes('app/frontend/foundation-test-results/')) failWorkflow('browser failure artifacts are missing')
   if (/\|\|\s*true(?:\s|$)/.test(browserText)) failWorkflow('browser command has a success fallback')
 
@@ -125,8 +143,8 @@ function assertCaptureIntegrationIsBlocking(workflow: string, integrationFlow: s
   const secondManifest = integrationFlow.indexOf('await verifyManifest()', firstManifest + 1)
   if (firstFoundation < 0 || pwa <= firstFoundation || packageCaptures <= pwa || firstManifest <= packageCaptures || secondFoundation <= firstManifest || secondManifest <= secondFoundation || integrationFlow.indexOf("run('npm', ['run', 'test:foundation-browser'])", secondFoundation + 1) >= 0) failWorkflow('capture integration does not preserve exactly two foundation runs and manifest checks')
   if (!integrationFlow.includes('if (result.status !== 0) process.exit(result.status ?? 1)')) failWorkflow('capture integration does not propagate child failures')
-  if (!playwrightConfig.includes("process.env.STREAMVAULT_REUSE_VERIFIED_MOCK_BUILD === 'true'") || !playwrightConfig.includes("'node scripts/build-artifact-provenance.mjs verify --mode mock && npm run preview -- --host 127.0.0.1 --port 4180'")) failWorkflow('capture integration cannot reuse the verified mock build')
-  if (!websocketConfig.includes("process.env.STREAMVAULT_REUSE_VERIFIED_REAL_BUILD === 'true'") || !websocketConfig.includes("'cd ../.. && node scripts/build-artifact-provenance.mjs verify --mode real && npm run preview -- --host 127.0.0.1 --port 4181'")) failWorkflow('WebSocket suite cannot reuse the verified real build')
+  if (!playwrightConfig.includes("process.env.STREAMVAULT_REUSE_VERIFIED_MOCK_BUILD === 'true'") || !playwrightConfig.includes("'node scripts/build-artifact-provenance.mjs verify --mode mock && npm run preview -- --host 127.0.0.1 --port 4180'") || !playwrightConfig.includes("'node scripts/build-artifact-provenance.mjs build --mode mock && npm run preview -- --host 127.0.0.1 --port 4180'")) failWorkflow('capture integration cannot reuse or freshly build verified mock output')
+  if (!websocketConfig.includes("process.env.STREAMVAULT_REUSE_VERIFIED_REAL_BUILD === 'true'") || !websocketConfig.includes("'cd ../.. && node scripts/build-artifact-provenance.mjs verify --mode real && npm run preview -- --host 127.0.0.1 --port 4181'") || !websocketConfig.includes("'cd ../.. && node scripts/build-artifact-provenance.mjs build --mode real && npm run preview -- --host 127.0.0.1 --port 4181'")) failWorkflow('WebSocket suite cannot reuse or freshly build verified real output')
 }
 
 describe('foundation gates fail closed', () => {
@@ -196,76 +214,60 @@ describe('foundation gates fail closed', () => {
     const playwrightConfig = await readFile(resolve(frontendRoot, 'playwright.config.ts'), 'utf8')
     const websocketConfig = await readFile(resolve(frontendRoot, 'tests/e2e/websocket-setup-transition.playwright.config.ts'), 'utf8')
 
-    // c787's serial job is intentionally the RED control for the split topology.
-    expect(() => assertCaptureIntegrationIsBlocking(workflow, integrationFlow, playwrightConfig, websocketConfig)).toThrow()
-
-    const topology = `jobs:
-  frontend-build:
-    name: Frontend Build & Lint
-    needs: [frontend-core, frontend-browser]
-    if: always()
-    timeout-minutes: 1
-    steps:
-      - run: |
-          test "${'${{ needs.frontend-core.result }}'}" = success
-          test "${'${{ needs.frontend-browser.result }}'}" = success
-  frontend-core:
-    timeout-minutes: 12
-    steps:
-      - run: npm run lint:check
-      - run: npm run lint:tokens && npm run check:foundation
-      - run: npm run type-check
-      - run: npm run test:unit && npm run test:foundation-gates
-      - run: npx playwright install --with-deps chromium
-      - run: node scripts/build-artifact-provenance.mjs build --mode real
-      - name: Run real-build WebSocket transition test
-        run: STREAMVAULT_REUSE_VERIFIED_REAL_BUILD=true npx playwright test --config tests/e2e/websocket-setup-transition.playwright.config.ts
-      - run: npx playwright test --config tests/fixtures/issue894-player.config.ts
-      - run: npx playwright test --config tests/fixtures/issue896-player.config.ts
-      - run: npm run test:build-output && npm run test:output-budgets
-      - if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: frontend-core-failure-evidence
-          path: app/frontend/test-results/ app/frontend/foundation-test-results/
-  frontend-browser:
-    timeout-minutes: 12
-    steps:
-      - run: npx playwright install --with-deps
-      - name: Build verified mock frontend
-        run: node scripts/build-artifact-provenance.mjs build --mode mock
-      - name: Run frontend browser tests
-        run: |
-          STREAMVAULT_REUSE_VERIFIED_MOCK_BUILD=true npx playwright test
-          STREAMVAULT_REUSE_VERIFIED_MOCK_BUILD=true npm run test:foundation-capture-integration
-      - if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: frontend-browser-failure-evidence
-          path: app/frontend/test-results/ app/frontend/foundation-test-results/`
+    const topology = workflow
     expect(() => assertCaptureIntegrationIsBlocking(topology, integrationFlow, playwrightConfig, websocketConfig)).not.toThrow()
+
+    const statusCommands = commandsFrom(stepFrom(jobFrom(topology.split('\n'), 'frontend-build'), 'Require both frontend workers to succeed')).join('\n')
+    for (const coreResult of ['success', 'failure', 'cancelled', 'skipped']) {
+      for (const browserResult of ['success', 'failure', 'cancelled', 'skipped']) {
+        const resolved = statusCommands
+          .replace('${{ needs.frontend-core.result }}', coreResult)
+          .replace('${{ needs.frontend-browser.result }}', browserResult)
+        const execution = spawnSync('bash', ['-e', '-c', resolved], { encoding: 'utf8' })
+        expect(execution.status === 0, `${coreResult}/${browserResult}`).toBe(coreResult === 'success' && browserResult === 'success')
+      }
+    }
 
     const mutants = [
       topology.replace('needs: [frontend-core, frontend-browser]', 'needs: [frontend-core]'),
-      topology.replace('if: always()', 'if: success()'),
-      topology.replace('timeout-minutes: 1', 'timeout-minutes: 12'),
+      topology.replace('    if: always()\n', '    if: success()\n'),
+      topology.replace('    timeout-minutes: 1\n', '    timeout-minutes: 12\n'),
+      topology.replace('    timeout-minutes: 12\n', '    timeout-minutes: 13\n'),
       topology.replace('test "${{ needs.frontend-core.result }}" = success', 'true'),
-      topology.replace('    timeout-minutes: 12\n    steps:', '    if: false\n    timeout-minutes: 12\n    steps:'),
+      topology.replace('test "${{ needs.frontend-browser.result }}" = success', 'true'),
+      topology.replace('test "${{ needs.frontend-core.result }}" = success', '# test "${{ needs.frontend-core.result }}" = success'),
+      topology.replace('      - name: Require both frontend workers to succeed', '      - name: Require both frontend workers to succeed\n        continue-on-error: true'),
+      topology.replace('  frontend-build:\n', '  frontend-build:\n    continue-on-error: true\n'),
+      topology.replace('needs: [backend-tests, frontend-build]', 'needs: [backend-tests, frontend-core]'),
+      topology.replace('  frontend-core:\n', '  frontend-core:\n    if: false\n'),
+      topology.replace('  frontend-browser:\n', '  frontend-browser:\n    if: false\n'),
+      topology.replace('  frontend-browser:\n', '  frontend-browser:\n    continue-on-error: true\n'),
       topology.replace('npx playwright install --with-deps chromium', 'npx playwright install --with-deps'),
       topology.replace('node scripts/build-artifact-provenance.mjs build --mode real', 'npm run build'),
-      topology.replace('      - name: Run real-build WebSocket transition test\n        run:', '      - name: Run real-build WebSocket transition test\n        if: false\n        run:'),
+      topology.replace('STREAMVAULT_REUSE_VERIFIED_REAL_BUILD=true npx playwright test', 'npx playwright test'),
+      topology.replace('STREAMVAULT_REUSE_VERIFIED_MOCK_BUILD=true npx playwright test', 'npx playwright test'),
+      topology.replace('      - name: Run real-build WebSocket transition test', '      - name: Removed WebSocket transition test'),
+      topology.replace('      - name: Run real-build WebSocket transition test', '      - name: Run real-build WebSocket transition test\n        if: false'),
+      topology.replace('      - name: Run real-build WebSocket transition test', '      - name: Run real-build WebSocket transition test\n        continue-on-error: true'),
+      topology.replace('      - name: Run real-build WebSocket transition test', '      - name: Run real-build WebSocket transition test\n        if: false\n        continue-on-error: true'),
       topology.replace('tests/fixtures/issue896-player.config.ts', 'tests/fixtures/removed.config.ts'),
       topology.replace('Build verified mock frontend', 'Build mock frontend'),
       topology.replace('node scripts/build-artifact-provenance.mjs build --mode mock', '# mock build removed'),
-      topology.replace('      - name: Run frontend browser tests\n        run:', '      - name: Run frontend browser tests\n        if: false\n        run:'),
+      topology.replace('      - name: Run frontend browser tests', '      - name: Run frontend browser tests\n        if: false'),
+      topology.replace('      - name: Run frontend browser tests', '      - name: Run frontend browser tests\n        continue-on-error: true'),
       topology.replace('STREAMVAULT_REUSE_VERIFIED_MOCK_BUILD=true npm run test:foundation-capture-integration', '# capture integration removed'),
-      topology.replace('npx playwright install --with-deps\n      - name: Build', 'npx playwright install --with-deps chromium\n      - name: Build'),
-      topology.replace('  frontend-browser:\n    timeout-minutes: 12', '  frontend-browser:\n    continue-on-error: true\n    timeout-minutes: 12'),
+      topology.replace('STREAMVAULT_REUSE_VERIFIED_MOCK_BUILD=true npm run test:foundation-capture-integration', 'STREAMVAULT_REUSE_VERIFIED_MOCK_BUILD=true npm run test:foundation-capture-integration || true'),
+      topology.replace('        run: npx playwright install --with-deps\n', '        run: npx playwright install --with-deps chromium\n'),
+      topology.replace('frontend-core-failures-', 'frontend-browser-failures-'),
     ]
-    for (const mutant of mutants) expect(() => assertCaptureIntegrationIsBlocking(mutant, integrationFlow, playwrightConfig, websocketConfig)).toThrow()
+    for (const [index, mutant] of mutants.entries()) {
+      expect(mutant, `mutation ${index} must change the real workflow`).not.toBe(topology)
+      expect(() => assertCaptureIntegrationIsBlocking(mutant, integrationFlow, playwrightConfig, websocketConfig), `mutation ${index} must fail closed`).toThrow()
+    }
 
     for (const mutant of [
       integrationFlow.replace("run('npm', ['run', 'test:foundation-browser'])", '// foundation run removed'),
+      integrationFlow.replace("run('npm', ['run', 'test:foundation-browser'])\nawait verifyManifest()\nconsole.log", "run('npm', ['run', 'test:foundation-browser'])\nconsole.log"),
       integrationFlow.replace('if (result.status !== 0) process.exit(result.status ?? 1)', '// child failure ignored'),
     ]) expect(() => assertCaptureIntegrationIsBlocking(topology, mutant, playwrightConfig, websocketConfig)).toThrow()
     expect(() => assertCaptureIntegrationIsBlocking(topology, integrationFlow, playwrightConfig.replace('verify --mode mock', 'verify --mode real'), websocketConfig)).toThrow()
