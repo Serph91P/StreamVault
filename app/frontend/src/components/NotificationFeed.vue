@@ -375,7 +375,7 @@ onMounted(() => {
 }
 
 .notification-group-header {
-  position: sticky;
+  position: relative;
   top: 0;
   z-index: 2;
   display: flex;
