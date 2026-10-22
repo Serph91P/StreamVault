@@ -204,6 +204,36 @@ jobs:
           if-no-files-found: ignore
           retention-days: 3
 
+  # Keep artwork coverage isolated without changing the shared job's limits.
+  chapter-artwork-regressions:
+    name: Chapter Artwork Regressions
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Set up Node.js 24
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: app/frontend/package-lock.json
+      - name: Install dependencies and Chromium
+        working-directory: app/frontend
+        run: |
+          npm ci --prefer-offline
+          npx playwright install --with-deps chromium
+      - name: Run REAL-build chapter artwork regressions
+        working-directory: app/frontend
+        run: npx playwright test --config tests/fixtures/issue902-artwork.config.ts
+      - name: Preserve chapter artwork failure evidence
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: chapter-artwork-failures-${{ github.run_attempt }}
+          path: app/frontend/test-results/
+          if-no-files-found: ignore
+          retention-days: 3
+
   # Keep new Settings regressions isolated from the shared browser job's budget.
   # Both genuine build modes and desktop/mobile contexts remain blocking.
   settings-loader-regressions:
