@@ -74,7 +74,7 @@ export function useCategoryImages() {
         categoryImageCache[categoryName] = data.image_url
       } else {
         // Cache the icon fallback too to avoid repeated requests
-        categoryImageCache[categoryName] = data.image_url
+        categoryImageCache[categoryName] = data.image_url || getIconFallback(categoryName)
       }
 
       // Trigger reactivity update

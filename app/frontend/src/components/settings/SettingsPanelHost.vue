@@ -1,12 +1,15 @@
 <template>
-  <component
-    :is="panels[sectionId]"
+  <div
     v-for="(state, sectionId) in panelState"
     v-show="sectionId === section"
     :key="sectionId"
-    v-bind="state.props"
-    v-on="state.listeners"
-  />
+  >
+    <component
+      :is="panels[sectionId]"
+      v-bind="state.props"
+      v-on="state.listeners"
+    />
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -41,6 +44,7 @@ const panelState = reactive<Record<string, {
 }>>({})
 
 watchEffect(() => {
+  if (!Object.hasOwn(panels, props.section)) return
   panelState[props.section] = {
     props: props.panelProps,
     listeners: props.panelListeners

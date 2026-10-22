@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   routerPush: vi.fn(),
   getAll: vi.fn(),
   getChapters: vi.fn(),
+  getCategoryImage: vi.fn(),
   getVideoStreamUrl: vi.fn((id: number) => `/api/videos/${id}/stream`),
   createShareToken: vi.fn(),
   delete: vi.fn(),
@@ -22,6 +23,7 @@ vi.mock('vue-router', () => ({
 }))
 
 vi.mock('@/services/api', () => ({
+  categoriesApi: { getImage: mocks.getCategoryImage },
   videoApi: {
     getAll: mocks.getAll,
     getChapters: mocks.getChapters,
@@ -74,6 +76,7 @@ beforeEach(() => {
   window.history.replaceState({}, '', '/videos/42')
   mocks.route.params = { id: '42' }
   mocks.route.query = {}
+  mocks.getCategoryImage.mockResolvedValue({ image_url: '/api/media/categories/synthetic-artwork.jpg' })
   mocks.getAll.mockResolvedValue([{
     id: 42,
     title: 'Backend title',
@@ -141,6 +144,30 @@ describe('VideoPlayerView backend playback contract', () => {
     ])
     await wrapper.get('.chapter-item').trigger('click')
     expect(mocks.seekToChapter).toHaveBeenCalledWith(1.25)
+    wrapper.unmount()
+  })
+
+  it('renders shared cached artwork only from explicit category provenance and retains seeking', async () => {
+    mocks.getChapters.mockResolvedValueOnce([
+      { id: 1, title: 'Synthetic opener [Not metadata]', category_name: 'Synthetic explicit artwork', start: 0, end: 100 },
+      { id: 2, title: 'Synthetic followup', category_name: 'Synthetic explicit artwork', start: 100, end: 200 },
+      { id: 3, title: 'Synthetic title [Not metadata]', category_name: null, start: 200, end: 900 },
+    ])
+    const wrapper = await mountView()
+    const chapters = wrapper.findAll('.chapter-item')
+    expect(chapters.flatMap(chapter => chapter.findAll('img').map(image => image.attributes('src')))).toEqual([
+      '/api/media/categories/synthetic-artwork.jpg', '/api/media/categories/synthetic-artwork.jpg',
+    ])
+    expect(chapters[2].find('img').exists()).toBe(false)
+    expect(mocks.getCategoryImage.mock.calls).toEqual([['Synthetic explicit artwork']])
+    await chapters[1].trigger('click')
+    expect(mocks.seekToChapter).toHaveBeenCalledWith(100)
+    await chapters[0].get('img').trigger('error')
+    expect(chapters[0].find('img').exists()).toBe(false)
+    expect(chapters[0].get('.chapter-artwork use').attributes('href')).toBe('#icon-gamepad')
+    expect(chapters[0].text()).toContain('Synthetic opener [Not metadata]')
+    await chapters[0].trigger('click')
+    expect(mocks.seekToChapter).toHaveBeenLastCalledWith(0)
     wrapper.unmount()
   })
 

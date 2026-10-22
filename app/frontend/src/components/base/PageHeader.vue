@@ -19,19 +19,26 @@ withDefaults(defineProps<Props>(), {
 </script>
 
 <template>
-  <header class="page-header">
+  <header class="page-header" :class="{ 'page-header--nested': !!backTo }">
+    <div v-if="backTo" class="page-header-back-row">
+      <BaseLink :to="backTo" :aria-label="backLabel" class="page-header-back-link">
+        <svg aria-hidden="true"><use href="#icon-arrow-left" /></svg>
+        <span>{{ backLabel }}</span>
+      </BaseLink>
+    </div>
     <div class="page-header-content">
       <div class="page-header-title-group">
-        <BaseLink v-if="backTo" :to="backTo" :aria-label="backLabel" class="page-header-back-link">
-          <svg aria-hidden="true"><use href="#icon-arrow-left" /></svg>
-          <span>{{ backLabel }}</span>
-        </BaseLink>
         <!-- Hidden on mobile when the mobile title brings its own icon -->
-        <svg v-if="icon" class="page-header-icon" :class="{ 'm-hide': !!mobileIcon }" aria-hidden="true">
+        <svg v-if="icon && !backTo" class="page-header-icon" :class="{ 'm-hide': !!mobileIcon }" aria-hidden="true">
           <use :href="`#icon-${icon}`" />
         </svg>
         <div class="page-header-copy">
-          <h1 class="page-header-title-text desktop-title" :class="{ 'm-hide': !!mobileTitle }">{{ title }}</h1>
+          <h1 class="page-header-title-text desktop-title" :class="{ 'm-hide': !!mobileTitle }">
+            <svg v-if="backTo && icon" class="page-header-icon" aria-hidden="true">
+              <use :href="`#icon-${icon}`" />
+            </svg>
+            {{ title }}
+          </h1>
           <h1 v-if="mobileTitle" class="page-header-title-text mobile-title">
             <svg v-if="mobileIcon" class="page-header-icon" aria-hidden="true">
               <use :href="`#icon-${mobileIcon}`" />
@@ -77,8 +84,19 @@ withDefaults(defineProps<Props>(), {
   min-width: 0;
 }
 
+.page-header-back-row {
+  display: flex;
+  margin-bottom: var(--spacing-3);
+}
+
+.page-header--nested .page-header-title-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .page-header-back-link {
   flex-shrink: 0;
+  max-width: 100%;
   gap: var(--spacing-2);
   padding: 0 var(--spacing-3);
   border: 1px solid var(--border-color);
@@ -91,6 +109,7 @@ withDefaults(defineProps<Props>(), {
   svg {
     width: 1rem;
     height: 1rem;
+    flex-shrink: 0;
     fill: none;
     stroke: currentColor;
     stroke-width: 2;
@@ -178,29 +197,16 @@ withDefaults(defineProps<Props>(), {
   .page-header-title-group {
     flex: 1 1 100%;
     width: 100%;
-    flex-wrap: wrap;
-
-    .page-header-copy {
-      flex: 1 1 100%;
-      width: 100%;
-    }
-  }
-
-  // Keep the ordinary icon and title copy together. Only headers with a back
-  // control use the intentionally stacked narrow layout below.
-  .page-header-title-group:not(:has(.page-header-back-link)) {
-    flex-wrap: nowrap;
-
-    .page-header-copy {
-      flex: 1 1 0;
-      width: auto;
-    }
   }
 
   .page-header-end {
     flex: 1 1 100%;
     justify-content: flex-start;
     padding-left: calc(1rem + var(--spacing-3));
+  }
+
+  .page-header--nested .page-header-end {
+    padding-left: 0;
   }
 }
 </style>

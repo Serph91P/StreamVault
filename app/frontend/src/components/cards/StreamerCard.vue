@@ -405,7 +405,7 @@ onUnmounted(() => {
 @use '@/styles/mixins' as m;
 .streamer-card {
   overflow: visible;
-  touch-action: pan-y;
+  touch-action: pan-x pan-y;
 
   // Grid mode: fill the (row-stretched) wrapper so cards in a row are equal
   // height; clamped title/description absorb varying text lengths.
@@ -452,7 +452,7 @@ onUnmounted(() => {
   flex: 1;
   min-height: 0;
   position: relative;
-  touch-action: pan-y;
+  touch-action: pan-x pan-y;
 }
 
 /* Avatar Container - CENTERED */
