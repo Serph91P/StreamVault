@@ -1,6 +1,9 @@
 import { gzipSync } from 'node:zlib'
 import { readdir, readFile, stat, writeFile } from 'node:fs/promises'
 import { join, relative, resolve } from 'node:path'
+import { createRequire } from 'node:module'
+
+const viteVersion = createRequire(import.meta.url)('vite/package.json').version
 
 const argument = name => {
   const index = process.argv.indexOf(name)
@@ -40,7 +43,7 @@ export async function measureBuildOutput(directory = dist) {
   const workerGzipBytes = sum(workers, 'gzipBytes')
   const swSource = sw ? await readFile(join(directory, sw.path), 'utf8') : ''
   return {
-    toolchain: { node: process.version, vite: '8.3.0', measurement: 'raw and node:zlib gzip bytes' },
+    toolchain: { node: process.version, vite: viteVersion, measurement: 'raw and node:zlib gzip bytes' },
     files: files.length,
     jsBytes: sum(js, 'bytes'),
     jsGzipBytes: sum(js, 'gzipBytes'),
