@@ -4,7 +4,7 @@
 # =============================================================================
 
 # Use Alpine Linux for smaller attack surface and fewer vulnerabilities
-FROM python:3.14-alpine AS base
+FROM python:3.15-alpine AS base
 
 # Build arguments for version tracking (passed from docker-build.yml)
 ARG VERSION=dev
@@ -168,7 +168,7 @@ ENTRYPOINT ["/app/entrypoint.sh"]
 # Stage 4: Minimal Runtime (for maximum size reduction)
 # This stage removes build tools and creates the smallest possible image
 # =============================================================================
-FROM python:3.14-alpine AS runtime
+FROM python:3.15-alpine AS runtime
 
 # Install only runtime dependencies (no build tools)
 RUN apk upgrade --no-cache && apk add --no-cache \
