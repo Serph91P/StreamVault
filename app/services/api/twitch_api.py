@@ -8,6 +8,8 @@ user information, game data, category information, and other Twitch API interact
 import asyncio
 import logging
 from contextlib import asynccontextmanager
+from contextvars import ContextVar
+from functools import wraps
 from time import monotonic
 
 import aiohttp
@@ -16,6 +18,21 @@ from app.config.settings import settings
 from app.utils.retry_decorator import twitch_api_retry, NonRetryableError
 
 logger = logging.getLogger("streamvault")
+
+
+def _app_operation(func):
+    @wraps(func)
+    async def wrapper(self, *args, **kwargs):
+        if self._app_replay_used.get() is not None:
+            return await func(self, *args, **kwargs)
+        # Scope the auth budget outside all transient retries, including nested calls.
+        scope = self._app_replay_used.set(False)
+        try:
+            return await func(self, *args, **kwargs)
+        finally:
+            self._app_replay_used.reset(scope)
+
+    return wrapper
 
 
 class TwitchAPIService:
@@ -28,6 +45,9 @@ class TwitchAPIService:
         self._access_token = None
         self._token_expires_at = 0.0
         self._token_refresh = None
+        self._app_replay_used: ContextVar[Optional[bool]] = ContextVar(
+            "app_replay_used", default=None
+        )
 
     def _invalidate_token(self, rejected_token: str) -> None:
         # A late 401 must not invalidate another caller's replacement token.
@@ -84,7 +104,7 @@ class TwitchAPIService:
     async def _app_get(self, url: str, params: Dict[str, Any]):
         token = await self.get_access_token()
         async with aiohttp.ClientSession() as session:
-            for attempt in range(2):
+            for _ in range(2):
                 async with session.get(
                     url,
                     params=params,
@@ -93,14 +113,16 @@ class TwitchAPIService:
                         "Authorization": f"Bearer {token}",
                     },
                 ) as response:
-                    if response.status != 401 or attempt == 1:
+                    if response.status != 401 or self._app_replay_used.get():
                         if response.status == 401:
                             self._invalidate_token(token)
                         yield response
                         return
+                    self._app_replay_used.set(True)
                     self._invalidate_token(token)
                 token = await self.get_access_token()
 
+    @_app_operation
     @twitch_api_retry
     async def get_users_by_login(self, usernames: List[str]) -> List[Dict[str, Any]]:
         """Get user data by username(s)"""
@@ -123,6 +145,7 @@ class TwitchAPIService:
                 logger.error(f"Failed to get users by login. Status: {response.status}")
                 raise ConnectionError(f"Server error: {response.status}")
 
+    @_app_operation
     @twitch_api_retry
     async def get_users_by_id(self, user_ids: List[str]) -> List[Dict[str, Any]]:
         """Get user data by user ID(s)"""
@@ -143,6 +166,7 @@ class TwitchAPIService:
                 logger.error(f"Failed to get users by ID. Status: {response.status}")
                 raise ConnectionError(f"Server error: {response.status}")
 
+    @_app_operation
     @twitch_api_retry
     async def get_games_by_name(self, game_names: List[str]) -> List[Dict[str, Any]]:
         """Get game/category data by name(s)"""
@@ -163,6 +187,7 @@ class TwitchAPIService:
                 logger.error(f"Failed to get games by name. Status: {response.status}")
                 raise ConnectionError(f"Server error: {response.status}")
 
+    @_app_operation
     async def get_games_by_id(self, game_ids: List[str]) -> List[Dict[str, Any]]:
         """Get game/category data by ID(s)"""
         if not game_ids:
@@ -179,6 +204,7 @@ class TwitchAPIService:
                 logger.error(f"Failed to get games by ID. Status: {response.status}")
                 return []
 
+    @_app_operation
     @twitch_api_retry
     async def get_streams(
         self,
@@ -209,6 +235,7 @@ class TwitchAPIService:
                 logger.error(f"Failed to get streams. Status: {response.status}")
                 raise ConnectionError(f"Server error: {response.status}")
 
+    @_app_operation
     async def search_categories(self, query: str) -> List[Dict[str, Any]]:
         """Search for games/categories"""
         if not query:
@@ -225,6 +252,7 @@ class TwitchAPIService:
                 logger.error(f"Failed to search categories. Status: {response.status}")
                 return []
 
+    @_app_operation
     async def get_top_games(self, first: int = 20) -> List[Dict[str, Any]]:
         """Get top games on Twitch"""
         async with self._app_get(
@@ -279,6 +307,7 @@ class TwitchAPIService:
                     logger.error(f"Failed to validate token. Status: {response.status}")
                     raise ConnectionError(f"Token validation error: {response.status}")
 
+    @_app_operation
     @twitch_api_retry
     async def get_stream_by_user_id(self, user_id: str) -> Optional[Dict[str, Any]]:
         """Get single stream data by user ID"""

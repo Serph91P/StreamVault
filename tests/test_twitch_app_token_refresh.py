@@ -22,6 +22,7 @@ async def provider(monkeypatch):
         payload={"access_token": "synthetic-fresh", "expires_in": 3600},
         reject_fresh=False,
         status=200,
+        statuses=[],
         stale_barrier=None,
         delay_second_stale=False,
         token_started=asyncio.Event(),
@@ -41,6 +42,10 @@ async def provider(monkeypatch):
     async def helix(request):
         header = request.headers["Authorization"]
         state.headers.append(header)
+        if state.statuses:
+            return web.json_response(
+                {"data": [{"id": "42"}]}, status=state.statuses.pop(0)
+            )
         if header == "Bearer synthetic-stale":
             if state.stale_barrier is not None and (
                 not state.delay_second_stale or len(state.headers) == 2
@@ -101,6 +106,150 @@ APP_CALLS = [
     ("search_categories", {"query": "Example"}),
     ("get_top_games", {}),
 ]
+
+
+RETRY_CALLS = [
+    ("get_users_by_login", {"usernames": ["example"]}),
+    ("get_users_by_id", {"user_ids": ["42"]}),
+    ("get_games_by_name", {"game_names": ["Example"]}),
+    ("get_streams", {"user_ids": ["42"]}),
+    ("get_stream_by_user_id", {"user_id": "42"}),
+]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("method,kwargs", RETRY_CALLS)
+async def test_auth_replay_budget_survives_transient_retry(
+    provider, monkeypatch, method, kwargs
+):
+    client, state = provider
+    client._access_token = "synthetic-stale"
+    client._token_expires_at = float("inf")
+    state.statuses = [401, 503, 401, 200]
+    real_sleep = asyncio.sleep
+
+    async def no_backoff(delay):
+        await real_sleep(0)
+
+    monkeypatch.setattr(asyncio, "sleep", no_backoff)
+    with pytest.raises(NonRetryableError, match="401"):
+        await getattr(client, method)(**kwargs)
+    assert state.posts == 1
+    assert state.headers == [
+        "Bearer synthetic-stale",
+        "Bearer synthetic-fresh",
+        "Bearer synthetic-fresh",
+    ]
+    assert client._access_token is None
+    assert client._token_expires_at == 0.0
+
+    # A separate public operation gets its own auth budget, even in the same task.
+    client._access_token = "synthetic-stale"
+    client._token_expires_at = float("inf")
+    state.statuses = [401, 200]
+    expected = {"id": "42"} if method == "get_stream_by_user_id" else [{"id": "42"}]
+    assert await getattr(client, method)(**kwargs) == expected
+    assert state.posts == 2
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("method,kwargs", RETRY_CALLS)
+async def test_pure_503_keeps_direct_and_nested_retry_budgets(
+    provider, monkeypatch, method, kwargs
+):
+    client, state = provider
+    state.status = 503
+    real_sleep = asyncio.sleep
+
+    async def no_backoff(delay):
+        await real_sleep(0)
+
+    monkeypatch.setattr(asyncio, "sleep", no_backoff)
+    with pytest.raises(ConnectionError, match="503"):
+        await getattr(client, method)(**kwargs)
+    assert state.posts == 1
+    assert len(state.headers) == (9 if method == "get_stream_by_user_id" else 3)
+
+
+@pytest.mark.asyncio
+async def test_auth_budget_survives_outer_retry_after_inner_exhaustion(
+    provider, monkeypatch
+):
+    client, state = provider
+    client._access_token = "synthetic-stale"
+    client._token_expires_at = float("inf")
+    state.statuses = [401, 503, 503, 503, 401, 200]
+    real_sleep = asyncio.sleep
+
+    async def no_backoff(delay):
+        await real_sleep(0)
+
+    monkeypatch.setattr(asyncio, "sleep", no_backoff)
+    with pytest.raises(NonRetryableError, match="401"):
+        await client.get_stream_by_user_id("42")
+    assert state.posts == 1
+    assert state.headers == ["Bearer synthetic-stale"] + ["Bearer synthetic-fresh"] * 4
+
+
+@pytest.mark.asyncio
+async def test_concurrent_operations_do_not_share_auth_budgets(provider, monkeypatch):
+    client, state = provider
+    client._access_token = "synthetic-stale"
+    client._token_expires_at = float("inf")
+    state.statuses = [401, 503]
+    retry_started, retry_release = asyncio.Event(), asyncio.Event()
+
+    real_sleep = asyncio.sleep
+
+    async def blocked_backoff(delay):
+        if not delay:
+            await real_sleep(0)
+            return
+        retry_started.set()
+        await retry_release.wait()
+
+    monkeypatch.setattr(asyncio, "sleep", blocked_backoff)
+    first = asyncio.create_task(client.get_stream_by_user_id("42"))
+    try:
+        await asyncio.wait_for(retry_started.wait(), 2)
+        state.statuses = [401, 200, 401]
+        assert await client.get_users_by_id(["42"]) == [{"id": "42"}]
+        assert state.posts == 2
+        retry_release.set()
+        with pytest.raises(NonRetryableError, match="401"):
+            await asyncio.wait_for(first, 2)
+        assert state.posts == 2
+        assert (
+            state.headers == ["Bearer synthetic-stale"] + ["Bearer synthetic-fresh"] * 4
+        )
+    finally:
+        retry_release.set()
+        if not first.done():
+            first.cancel()
+        await asyncio.gather(first, return_exceptions=True)
+
+
+@pytest.mark.asyncio
+async def test_cancelled_operation_releases_auth_budget(provider, monkeypatch):
+    client, state = provider
+    client._access_token = "synthetic-stale"
+    client._token_expires_at = float("inf")
+    state.statuses = [401, 503]
+
+    real_sleep = asyncio.sleep
+
+    async def cancelled_backoff(delay):
+        if delay:
+            raise asyncio.CancelledError
+        await real_sleep(0)
+
+    monkeypatch.setattr(asyncio, "sleep", cancelled_backoff)
+    with pytest.raises(asyncio.CancelledError):
+        await client.get_stream_by_user_id("42")
+    state.statuses = [401, 200]
+    assert await client.get_stream_by_user_id("42") == {"id": "42"}
+    assert state.posts == 2
+    assert len(state.headers) == 4
 
 
 @pytest.mark.asyncio
