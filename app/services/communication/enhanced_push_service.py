@@ -54,8 +54,8 @@ class EnhancedPushService:
             )
             logger.info("Enhanced Web Push Service initialized successfully (lazy)")
             return self._web_push_service
-        except Exception as e:
-            logger.error(f"Failed to initialize Web Push Service: {e}")
+        except Exception:
+            logger.warning("Failed to initialize Web Push Service")
             return None
 
     @property
@@ -75,83 +75,18 @@ class EnhancedPushService:
         subscription: Union[Dict[str, Any], str],
         notification_data: Dict[str, Any],
     ) -> bool:
-        """Send a push notification to a specific subscription"""
+        """Send using the shared transport; let callers persist confirmed expiry."""
         try:
-            if not self.web_push_service or not self.vapid_public_key:
-                logger.warning(
-                    "VAPID keys not configured, cannot send push notifications"
-                )
+            service = self.web_push_service
+            if not service or not self.vapid_public_key:
                 return False
-
-            # Handle both string and dict subscription formats
             if isinstance(subscription, str):
-                try:
-                    subscription = json.loads(subscription)
-                except json.JSONDecodeError:
-                    logger.error(
-                        f"Invalid subscription format (not JSON): {subscription[:50]}..."
-                    )
-                    return False
-
-            if not isinstance(subscription, dict):
-                logger.error(
-                    f"Subscription must be a dictionary, got {type(subscription)}"
-                )
-                return False
-
-            # Validate required subscription fields
-            if "endpoint" not in subscription:
-                logger.error("Subscription missing required 'endpoint' field")
-                return False
-
-            # Prepare the notification payload as a JSON string
-            payload = json.dumps(notification_data)
-
-            # Debug logging
-            logger.debug(f"Sending push notification with payload: {payload[:100]}...")
-
-            # Send the push notification using our enhanced service
-            try:
-                # Pass the payload as JSON string, not the dictionary directly
-                success = self.web_push_service.send_notification(
-                    subscription_info=subscription,
-                    data=payload,
-                    ttl=43200,  # 12 hours TTL
-                )
-
-                if success:
-                    logger.debug(
-                        f"Push notification sent successfully to {subscription.get('endpoint', 'unknown')[:50]}..."
-                    )
-                    return True
-                return False
-            except Exception as e:
-                logger.error(f"Failed to send push notification: {e}")
-                return False
-
-        except WebPushException as e:
-            logger.error(f"WebPush error: {e}")
-            # Handle different error codes
-            if hasattr(e, "response") and e.response and e.response.status == 410:
-                # Subscription is no longer valid
-                endpoint = (
-                    subscription.get("endpoint", "unknown")
-                    if isinstance(subscription, dict)
-                    else "unknown"
-                )
-                logger.info(f"Subscription expired: {endpoint[:50]}...")
-                return False
-            elif hasattr(e, "response") and e.response and e.response.status == 413:
-                logger.warning("Payload too large")
-                return False
-            else:
-                logger.error(f"Push notification failed: {e}")
-                return False
-
-        except Exception as e:
-            logger.error(
-                f"Unexpected error sending push notification: {e}", exc_info=True
-            )
+                subscription = json.loads(subscription)
+            return service.send_notification(subscription, notification_data, ttl=43200)
+        except WebPushException:
+            raise
+        except Exception:
+            logger.warning("Push notification could not be sent")
             return False
 
     # Die folgenden Methoden bleiben unverändert, nur kopiere ich die erste als Beispiel:
