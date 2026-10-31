@@ -59,10 +59,17 @@ try {
         else editor = await openChannel()
         await expect(editor.getByRole('button', { name: 'Save Cleanup Policy', exact: true })).toBeVisible()
         // Wait for actual initialization before entering the draft.
+        const loaded = await state()
+        const initialPolicy = target === 'global' ? loaded.global : (loaded.inherits ? loaded.global : loaded.channel ?? loaded.global)
+        if (initialPolicy) {
+          await expect(editor.locator('input[type="number"]')).toHaveValue(String(initialPolicy.threshold))
+          await expect(editor.locator('select').first()).toHaveValue(initialPolicy.type)
+        }
         if (target !== 'global') {
           await expect.poll(async () => (await storeState()).channels.length).toBe(1)
           await expect(editor.getByLabel('Use Global Cleanup Policy')).toBeChecked({ checked: (await state()).inherits })
           await editor.getByLabel('Use Global Cleanup Policy').setChecked(target === 'inherit')
+          if (target === 'inherit') await expect(editor.locator('input[type="number"]')).toHaveValue(String(loaded.global?.threshold ?? 10))
         }
         const threshold = target === 'inherit' ? Number(await editor.locator('input[type="number"]').inputValue()) : 40 + result.cases.length
         if (target !== 'inherit') {
