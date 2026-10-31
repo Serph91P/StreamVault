@@ -7,6 +7,7 @@ Handles downloading, caching, and serving of streamer profile images.
 
 import logging
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import Dict, Optional
 from cachetools import TTLCache
 from app.database import SessionLocal
@@ -24,6 +25,9 @@ class ProfileImageService:
         self.download_service = download_service or ImageDownloadService()
         # TTLCache for profile images (prevents memory leaks with automatic expiration)
         self._profile_cache: TTLCache = TTLCache(
+            maxsize=CACHE_CONFIG.DEFAULT_CACHE_SIZE, ttl=CACHE_CONFIG.IMAGE_CACHE_TTL
+        )
+        self._profile_sources: TTLCache = TTLCache(
             maxsize=CACHE_CONFIG.DEFAULT_CACHE_SIZE, ttl=CACHE_CONFIG.IMAGE_CACHE_TTL
         )
         self.profiles_dir = None
@@ -107,6 +111,8 @@ class ProfileImageService:
 
     def _load_existing_cache(self):
         """Load information about already cached profile images"""
+        # Disk filenames alone cannot prove which upstream URL produced the bytes.
+        self._profile_sources.clear()
         try:
             self._ensure_profiles_dir()
 
@@ -200,12 +206,11 @@ class ProfileImageService:
         # Check if already cached
         self._ensure_cache_loaded()
         streamer_id_str = str(streamer_id)
-        if streamer_id_str in self._profile_cache:
+        if (
+            streamer_id_str in self._profile_cache
+            and self._profile_sources.get(streamer_id_str) == profile_image_url
+        ):
             return self._profile_cache[streamer_id_str]
-
-        # Skip if previously failed
-        if self.download_service.is_download_failed(profile_image_url):
-            return None
 
         try:
             filename = f"profile_avatar_{twitch_id}.jpg"
@@ -213,14 +218,26 @@ class ProfileImageService:
             if self.profiles_dir is None:
                 logger.error("Profiles directory not initialized")
                 return None
-            file_path = self.profiles_dir / filename
-
-            success = await self.download_service.download_image(
-                profile_image_url, file_path
+            file_path = self.download_service._resolve_destination_path(
+                self.profiles_dir / filename
             )
+
+            # Publish only complete downloads; errors and cancellation preserve the old image.
+            with TemporaryDirectory(
+                dir=file_path.parent, prefix=".profile-"
+            ) as staging:
+                staged_path = Path(staging) / filename
+                success = await self.download_service.download_image(
+                    profile_image_url, staged_path, retry_failed=True
+                )
+                if success and staged_path.stat().st_size:
+                    staged_path.replace(file_path)
+                else:
+                    success = False
             if success:
                 relative_path = f"/recordings/.media/profiles/{filename}"
                 self._profile_cache[streamer_id_str] = relative_path
+                self._profile_sources[streamer_id_str] = profile_image_url
                 logger.info(
                     f"Successfully cached profile image for streamer {streamer_id}"
                 )
@@ -229,14 +246,12 @@ class ProfileImageService:
                 logger.warning(
                     f"Failed to download profile image for streamer {streamer_id}"
                 )
-                self.download_service.mark_download_failed(profile_image_url)
                 return None
 
         except Exception as e:
             logger.error(
                 f"Error downloading profile image for streamer {streamer_id}: {e}"
             )
-            self.download_service.mark_download_failed(profile_image_url)
             return None
 
     def get_cached_profile_image(self, streamer_id: int) -> Optional[str]:
@@ -348,6 +363,7 @@ class ProfileImageService:
                         image_file.unlink()
                         # Remove from cache
                         self._profile_cache.pop(streamer_id, None)
+                        self._profile_sources.pop(streamer_id, None)
                         cleaned_count += 1
                         logger.info(f"Removed unused profile image: {image_file.name}")
                     except Exception as e:
