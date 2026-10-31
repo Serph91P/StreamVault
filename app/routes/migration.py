@@ -40,7 +40,13 @@ async def migrate_images(background_tasks: BackgroundTasks):
         stats = await image_migration_service.migrate_all_images()
 
         return MigrationResponse(
-            success=True, message="Image migration completed successfully", stats=stats
+            success=stats["errors"] == 0,
+            message=(
+                "Image migration completed with errors; retry failed images"
+                if stats["errors"]
+                else "Image migration completed successfully"
+            ),
+            stats=stats,
         )
     except Exception as e:
         logger.error(f"Error during image migration: {e}")
