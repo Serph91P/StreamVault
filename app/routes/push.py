@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import PushSubscription
 from app.config.settings import get_settings
-from app.utils.error_handler import handle_api_error, create_error_response, ERRORS
+from app.utils.error_handler import create_error_response, ERRORS
 import json
 import logging
 from typing import Dict, Any
@@ -62,7 +62,6 @@ async def subscribe_to_push(
             raise HTTPException(status_code=400, detail="Invalid subscription data")
 
         endpoint = subscription["endpoint"]
-        logger.debug(f"🔔 Endpoint: {endpoint[:50]}...")
 
         # Check if subscription already exists
         existing = (
@@ -96,16 +95,17 @@ async def subscribe_to_push(
             .filter(PushSubscription.is_active.is_(True))
             .count()
         )
-        logger.info(f"🔔 SUBSCRIPTION_SAVED: endpoint={endpoint[:50]}...")
+        logger.info("🔔 SUBSCRIPTION_SAVED")
         logger.info(f"🔔 TOTAL_ACTIVE_SUBSCRIPTIONS: count={total_active}")
 
         return {"success": True, "message": "Push subscription successful"}
 
-    except Exception as e:
+    except Exception:
         db.rollback()
-        raise handle_api_error(
-            e, "subscribing to push notifications", 500, ERRORS["SUBSCRIPTION_FAILED"]
-        )
+        logger.warning("Push subscription could not be saved")
+        raise HTTPException(
+            status_code=500, detail=ERRORS["SUBSCRIPTION_FAILED"]
+        ) from None
 
 
 @router.post("/unsubscribe")
@@ -129,18 +129,16 @@ async def unsubscribe_from_push(
         if subscription:
             subscription.is_active = False
             db.commit()
-            logger.info(f"Push subscription deactivated: {endpoint[:50]}...")
+            logger.info("Push subscription deactivated")
 
         return {"success": True, "message": "Push unsubscription successful"}
 
-    except Exception as e:
+    except Exception:
         db.rollback()
-        raise handle_api_error(
-            e,
-            "unsubscribing from push notifications",
-            500,
-            ERRORS["UNSUBSCRIPTION_FAILED"],
-        )
+        logger.warning("Push subscription could not be deactivated")
+        raise HTTPException(
+            status_code=500, detail=ERRORS["UNSUBSCRIPTION_FAILED"]
+        ) from None
 
 
 @router.post("/test")
@@ -149,7 +147,10 @@ async def send_test_notification(db: Session = Depends(get_db)):
     try:
         logger.info("🧪 PUSH_TEST_REQUESTED: Starting push notification test")
 
-        from app.services.communication.webpush_service import ModernWebPushService
+        from app.services.communication.webpush_service import (
+            ModernWebPushService,
+            WebPushException,
+        )
         from app.models import GlobalSettings
 
         # Check VAPID configuration
@@ -206,33 +207,31 @@ async def send_test_notification(db: Session = Depends(get_db)):
 
         sent_count = 0
         failed_count = 0
-        failed_endpoints = []
 
         for subscription in active_subscriptions:
             try:
                 subscription_data = json.loads(subscription.subscription_data)
-                endpoint = subscription_data.get("endpoint", "unknown")[:50]
-
-                logger.debug(f"🧪 SENDING_TEST_TO: {endpoint}...")
 
                 success = push_service.send_notification(
                     subscription_data, notification_data
                 )
                 if success:
                     sent_count += 1
-                    logger.info(f"🧪 TEST_SUCCESS: {endpoint}...")
+                    logger.info("🧪 TEST_SUCCESS: subscription_id=%s", subscription.id)
                 else:
                     failed_count += 1
-                    failed_endpoints.append(endpoint)
-                    logger.warning(f"🧪 TEST_FAILED: {endpoint}...")
+                    logger.warning(
+                        "🧪 TEST_FAILED: subscription_id=%s", subscription.id
+                    )
 
-            except Exception as e:
+            except WebPushException as e:
                 failed_count += 1
-                endpoint = (
-                    subscription.endpoint[:50] if subscription.endpoint else "unknown"
-                )
-                failed_endpoints.append(f"{endpoint} (error: delivery failed)")
-                logger.error(f"🧪 TEST_EXCEPTION: {endpoint}: {e}")
+                if e.response is not None and e.response.status == 410:
+                    subscription.is_active = False
+                    db.commit()
+            except Exception:
+                failed_count += 1
+                logger.warning("🧪 TEST_EXCEPTION: subscription_id=%s", subscription.id)
 
         logger.info(
             f"🧪 PUSH_TEST_SUMMARY: sent={sent_count}, failed={failed_count}, total={len(active_subscriptions)}"
@@ -253,6 +252,8 @@ async def send_test_notification(db: Session = Depends(get_db)):
             return {
                 "success": False,
                 "message": f"Failed to send notifications to all {len(active_subscriptions)} subscribers. Check VAPID key configuration or subscription validity.",
+                "sent_count": sent_count,
+                "failed_count": failed_count,
                 "suggestion": "Check browser console for errors or try re-subscribing to push notifications",
             }
 

@@ -70,7 +70,13 @@ export default defineConfig({
       includeManifestIcons: false,
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2,ttf}'],
-        navigateFallback: 'index.html',
+        // Match the backend's canonical URLs, not Vite preview's root assets.
+        modifyURLPrefix: {
+          'push-sw.js': 'pwa/push-sw.js',
+          'index.html': 'pwa/index.html',
+          'images/': 'pwa/images/',
+        },
+        navigateFallback: 'pwa/index.html',
         // The backend appends its canonical /pwa/push-sw.js import when it
         // serves /sw.js. Do not generate a root-relative helper import: that
         // route is intentionally not a public static asset in production.
