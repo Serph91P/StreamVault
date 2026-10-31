@@ -191,19 +191,29 @@ class RecordingLifecycleManager:
 
             recording_id = recording.id
 
+            # Resolve once so tracking, logging and the child use the same policy.
+            if self.config_manager:
+                self.config_manager.invalidate_cache()
+            quality = kwargs.get("quality") or (
+                self.config_manager.get_quality_setting(streamer_id)
+                if self.config_manager
+                else "best"
+            )
+
             # Add to active recordings
             recording_data = {
                 "file_path": file_path,
                 "streamer_id": streamer_id,
                 "stream_id": stream_id,
                 **kwargs,
+                "quality": quality,
             }
             self.state_manager.add_active_recording(recording_id, recording_data)
 
             # Get streamer name for logging
             streamer = await self.database_service.get_streamer_by_id(streamer_id)
             streamer_name = streamer.username if streamer else f"streamer_{streamer_id}"
-            quality = kwargs.get("quality", "best")
+
             resume_segments_dir = kwargs.get("resume_segments_dir")
             recovery_generation = kwargs.get("recovery_generation")
 
@@ -223,6 +233,7 @@ class RecordingLifecycleManager:
                 streamer_id,
                 resume_segments_dir=resume_segments_dir,
                 recovery_generation=recovery_generation,
+                quality=quality,
             )
 
             if success:
@@ -540,6 +551,7 @@ class RecordingLifecycleManager:
         streamer_id: int,
         resume_segments_dir: Optional[str] = None,
         recovery_generation: Optional[int] = None,
+        quality: str = "best",
     ) -> bool:
         """Start the actual recording process
 
@@ -583,7 +595,7 @@ class RecordingLifecycleManager:
             process = await self.process_manager.start_recording_process(
                 stream=stream,
                 output_path=file_path,
-                quality="best",  # TODO: Get quality from recording settings
+                quality=quality,
                 recording_id=recording_id,
                 resume_segments_dir=resume_segments_dir,
                 recovery_generation=recovery_generation,

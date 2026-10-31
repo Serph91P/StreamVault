@@ -562,10 +562,11 @@ async def update_streamer_recording_settings(
             db.add(streamer_settings)
 
         # Update settings
+        db.flush()
         old_enabled = streamer_settings.enabled if streamer_settings else False
 
         streamer_settings.enabled = settings.enabled
-        if settings.quality is not None:
+        if "quality" in settings.model_fields_set:
             old_quality = streamer_settings.quality
             streamer_settings.quality = settings.quality
             if old_quality != settings.quality:
