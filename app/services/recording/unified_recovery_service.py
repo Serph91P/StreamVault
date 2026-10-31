@@ -17,8 +17,9 @@ from pathlib import Path
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
 
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import Session, joinedload
 
+from app.core.exceptions import DomainError
 from app.database import SessionLocal
 from app.dependencies import get_recording_manager
 from app.models import Recording, Stream, Streamer
@@ -751,7 +752,7 @@ class UnifiedRecoveryService:
         return None
 
     async def _create_recording_from_orphaned_path(
-        self, db, file_path: str
+        self, db: Session, file_path: str
     ) -> Optional[int]:
         """Create a new Recording entry for an orphaned segments directory
 
@@ -766,6 +767,7 @@ class UnifiedRecoveryService:
         3. FALLBACK: Match newest incomplete stream (if no filename info)
         4. LAST RESORT: Create new Stream entry
         """
+        recovery_time = datetime.now(timezone.utc)
         try:
             path = Path(file_path)
             # Extract streamer name from path: /recordings/StreamerName/Season .../filename.ts
@@ -883,7 +885,7 @@ class UnifiedRecoveryService:
             # LAST RESORT: Create new stream
             if not matched_stream:
                 stream_started_at = (
-                    filename_timestamp if filename_timestamp else datetime.now()
+                    filename_timestamp if filename_timestamp else recovery_time
                 )
                 episode_num_for_new = (
                     episode_info["episode_number"] if episode_info else None
@@ -898,14 +900,14 @@ class UnifiedRecoveryService:
                     title=path.stem,  # Use filename as title
                     started_at=stream_started_at,
                     episode_number=episode_num_for_new,
-                    is_live=False,
+                    ended_at=recovery_time,
                 )
                 db.add(matched_stream)
                 db.flush()
 
             # Create recording entry with proper timestamp
             recording_start_time = (
-                filename_timestamp if filename_timestamp else datetime.now()
+                filename_timestamp if filename_timestamp else recovery_time
             )
 
             new_recording = Recording(
@@ -933,7 +935,11 @@ class UnifiedRecoveryService:
                 db.rollback()
             except Exception:
                 pass
-            return None
+            raise DomainError(
+                message="Unable to persist orphaned recording; inspect recovery logs and retry.",
+                code="recovery_adoption_failed",
+                status_code=500,
+            ) from e
 
     async def _update_recording_after_concatenation(
         self, recording_id: int, file_path: str

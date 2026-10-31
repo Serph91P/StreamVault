@@ -22,7 +22,7 @@ exact candidate head and each required check; intermediate counts below do not.
 | #954 | Identical bounded retry/backoff/dependency policy in both queue modes | implemented; eight real worker/clock cases, exact 1/2 budgets, single retry count |
 | #955 | Negative handler outcome cannot complete or release dependants | implemented; twenty cases, real segment failure and no output |
 | #956 | Lease-loss cleans only owned live resources, preserves replacement/fencing | pending |
-| #957 | Orphan adoption uses mapped timestamps, valid offline Stream+Recording and atomic rollback | pending; do not assign read-only Stream.is_live |
+| #957 | Orphan adoption uses mapped timestamps, valid offline Stream+Recording and atomic rollback | implemented; real SQLite4RED/2controls→6PASS, native combined769PASS; both INSERT failures roll back fully and same-session retry succeeds |
 | #959 | Per-recording stop serialization, finalization outside global registry lock | implemented; native8real-child cases, original5RED/3controls → combined763PASS; stop/public-start concurrency, duplicates, cancellation, denial/replaced-owner controls |
 | #961 | External capture progress retains task liveness without masking death | pending |
 | #965 | Initialized worker reaches registered orphan handler | implemented; actual shared/isolated signatures/getter; scanner finding policy separate |
