@@ -297,6 +297,42 @@ jobs:
         working-directory: app/frontend
         run: STREAMVAULT_SETTINGS_TEST_MODE=mock npx playwright test --config tests/fixtures/settings-loader.config.ts
 
+  cleanup-policy-regressions:
+    name: Cleanup Policy Persistence Regressions
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: '3.14'
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: app/frontend/package-lock.json
+      - name: Install locked dependencies and Chromium
+        run: |
+          python -m pip install uv==0.11.6
+          uv sync --locked --all-groups
+          npm ci --prefix app/frontend --prefer-offline
+          cd app/frontend && npx playwright install --with-deps chromium
+      - name: Build REAL frontend
+        working-directory: app/frontend
+        run: node scripts/build-artifact-provenance.mjs build --mode real
+      - name: Exercise failure, retry and database readback without cleanup
+        env:
+          TMPDIR: ${{ runner.temp }}
+        run: uv run python tests/cleanup_policy_acceptance/run.py --output "$RUNNER_TEMP/cleanup-policy-evidence"
+      - name: Preserve policy persistence evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: cleanup-policy-persistence
+          path: ${{ runner.temp }}/cleanup-policy-evidence/
+          if-no-files-found: ignore
+          retention-days: 3
+
   # ──────────────────────────────────────────────
   # Python Lint & Type Check
   # ──────────────────────────────────────────────

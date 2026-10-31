@@ -144,7 +144,6 @@
             <CleanupPolicyEditor
               :is-global="true"
               title="Global Cleanup Policy"
-              @saved="handleCleanupPolicySaved"
             />
           </div>
         </div>
@@ -519,15 +518,6 @@ const formatDuration = (seconds: number) => {
   return `${hours}h ${minutes}m`;
 };
 
-const handleCleanupPolicySaved = (policy: any) => {
-  if (props.settings) {
-    const updatedSettings = {
-      ...props.settings,
-      cleanup_policy: policy
-    };
-    emits('update', updatedSettings);
-  }
-};
 
 // Methods for per-streamer cleanup policy editor
 const openCleanupPolicyEditor = (streamer: StreamerRecordingSettings) => {

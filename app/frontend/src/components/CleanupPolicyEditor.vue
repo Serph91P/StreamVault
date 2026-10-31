@@ -380,18 +380,24 @@ async function savePolicy() {
     // Ensure all required properties are present
     const completePolicy = ensureCompletePolicy(policy.value);
     
+    let saved = false;
     if (props.isGlobal) {
       // Save global cleanup policy
-      await recordingSettings.updateCleanupPolicy(completePolicy);
+      saved = await recordingSettings.updateCleanupPolicy(completePolicy);
     } else if (props.streamerId) {
       // Save streamer-specific cleanup policy with global flag
-      await recordingSettings.updateStreamerCleanupPolicy(
+      saved = await recordingSettings.updateStreamerCleanupPolicy(
         props.streamerId, 
         completePolicy, 
         useGlobalPolicy.value
       );
     }
     
+    if (saved !== true) {
+      showError('Error saving cleanup policy. Please try again.');
+      return;
+    }
+
     showSuccess('Cleanup policy saved successfully');
     emit('saved', completePolicy);
     
