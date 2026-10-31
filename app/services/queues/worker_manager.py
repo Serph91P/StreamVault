@@ -177,21 +177,28 @@ class WorkerManager:
             if asyncio.iscoroutinefunction(handler):
                 # Async handler
                 if progress_callback:
-                    await handler(task.payload, progress_callback)
+                    result = await handler(task.payload, progress_callback)
                 else:
-                    await handler(task.payload)
+                    result = await handler(task.payload)
             else:
                 # Sync handler - run in thread pool
                 if progress_callback:
-                    await asyncio.get_event_loop().run_in_executor(
+                    result = await asyncio.get_event_loop().run_in_executor(
                         None, handler, task.payload, progress_callback
                     )
                 else:
-                    await asyncio.get_event_loop().run_in_executor(
+                    result = await asyncio.get_event_loop().run_in_executor(
                         None, handler, task.payload
                     )
 
-            # If we reach here, the task executed successfully
+            # Legacy handlers may return None; explicit negative outcomes use
+            # the same bounded retry/dependency path as raised exceptions.
+            if result is False:
+                raise RuntimeError("Task handler reported failure")
+            if isinstance(result, dict) and result.get("success") is False:
+                raise RuntimeError(
+                    result.get("error") or "Task handler reported failure"
+                )
             return True
 
         except Exception as e:
