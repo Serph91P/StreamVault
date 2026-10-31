@@ -47,6 +47,11 @@ class RecordingSettingsSchema(BaseModel):
     default_quality: str = Field(
         default="best", description="Default recording quality"
     )
+    supported_codecs: str = Field(
+        default="h264,h265",
+        pattern=r"^(?:h264|h265|av1)(?:,(?:h264|h265|av1))*$",
+        description="Global recording codec preferences (ordered h264, h265, av1 list)",
+    )
     use_chapters: bool = Field(
         default=True, description="Create chapters based on stream events"
     )

@@ -169,9 +169,10 @@ export const useRecordingStore = defineStore('recordings', () => {
     try {
       isLoading.value = true
       error.value = null
-      settings.value = await saveRecordingSettings(newSettings)
+      settings.value = await saveRecordingSettings({ ...settings.value, ...newSettings })
     } catch (err) {
       setError(err)
+      throw err
     } finally {
       isLoading.value = false
     }

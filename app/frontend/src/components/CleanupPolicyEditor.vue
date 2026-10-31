@@ -118,7 +118,7 @@
           @click="runCustomCleanupTest" 
           :disabled="isRunningCleanup"
         >
-          Test Current Settings
+          Apply Unsaved Policy (Deletes Recordings)
         </button>
       </div>
     </div>

@@ -8,13 +8,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
 from app.database import SessionLocal, get_async_db
-from app.services.communication.websocket_manager import ConnectionManager
+from app.services.communication.websocket_manager import (
+    ConnectionManager,
+    websocket_manager,
+)
 from app.services.core.auth_service import AuthService, AuthTokenError
 from app.services.core.settings_service import SettingsService
 from app.services.notification_service import NotificationService
 
 logger = logging.getLogger("streamvault")
-websocket_manager = ConnectionManager()
 event_registry = None
 recording_manager = None
 

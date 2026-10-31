@@ -1,5 +1,5 @@
 <template>
-  <nav v-if="isMobile" class="bottom-nav" aria-label="Primary mobile navigation">
+  <nav v-if="isMobile" class="bottom-nav" aria-label="Mobile Hauptnavigation">
     <div
       v-if="showMobileConnectivityStatus"
       class="mobile-connectivity-pill"
@@ -35,7 +35,7 @@
       </svg>
 
       <!-- Label -->
-      <span class="nav-label">{{ tab.label }}</span>
+      <span class="nav-label">{{ tab.mobileLabel || tab.label }}</span>
 
       <!-- Badge (notifications, live count, etc.) -->
       <span v-if="tab.badge" class="nav-badge">{{ tab.badge }}</span>
@@ -197,7 +197,7 @@ const mobileConnectivityLabel = computed(() => {
 
 .nav-tab {
   position: relative;
-  flex: 1;
+  flex: 1 1 0;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -206,7 +206,7 @@ const mobileConnectivityLabel = computed(() => {
 
   min-width: 44px;
   min-height: 52px;
-  padding: v.$spacing-1 v.$spacing-2;
+  padding: v.$spacing-1;
   border-radius: var(--radius-lg);
 
   background: transparent;
@@ -247,7 +247,10 @@ const mobileConnectivityLabel = computed(() => {
 }
 
 .nav-label {
-  font-size: 11px;
+  font-size: 10px;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  text-align: center;
   font-weight: v.$font-medium;
   line-height: 1;
   transition: font-weight v.$duration-200 v.$ease-in-out;

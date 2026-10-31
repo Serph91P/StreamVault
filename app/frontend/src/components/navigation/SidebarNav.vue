@@ -2,11 +2,11 @@
   <aside
     v-if="isDesktop"
     class="sidebar-nav"
-    aria-label="Application navigation"
+    aria-label="Anwendungsnavigation"
     :class="{ expanded: sidebarExpanded, collapsed: !sidebarExpanded }"
   >
     <!-- Navigation Items -->
-    <nav class="sidebar-nav-list" aria-label="Primary navigation">
+    <nav class="sidebar-nav-list" aria-label="Hauptnavigation">
       <router-link
         v-for="tab in navigationTabs"
         :key="tab.route"
@@ -15,6 +15,7 @@
         :class="{ active: isActiveRoute(tab.route) }"
         active-class="active"
         :aria-label="tab.label"
+        :aria-current="isActiveRoute(tab.route) ? 'page' : undefined"
       >
         <!-- Icon -->
         <svg class="nav-icon">
@@ -47,12 +48,12 @@
       <button
         @click="toggleSidebar"
         class="sidebar-toggle"
-        :aria-label="sidebarExpanded ? 'Collapse sidebar' : 'Expand sidebar'"
+        :aria-label="sidebarExpanded ? 'Navigation einklappen' : 'Navigation ausklappen'"
       >
         <svg class="toggle-icon">
           <use :href="sidebarExpanded ? '#icon-chevron-left' : '#icon-chevron-right'" />
         </svg>
-        <span v-if="sidebarExpanded" class="toggle-label">Collapse</span>
+        <span v-if="sidebarExpanded" class="toggle-label">Einklappen</span>
       </button>
     </div>
   </aside>
@@ -92,8 +93,8 @@ onMounted(() => {
   flex-direction: column;
 
   // Opaque tokenized shell surface: navigation does not use glass or blur.
-  background: var(--background-card);
-  border-right: 1px solid var(--border-color);
+  background: var(--sv-fdn-color-ink-950);
+  border-right: 1px solid var(--sv-fdn-color-ink-700);
   box-shadow: none;
 
   transition: width v.$duration-300 v.$ease-in-out;
@@ -119,8 +120,8 @@ onMounted(() => {
 
 .sidebar-footer {
   padding: v.$spacing-2;
-  border-top: 1px solid var(--glass-border);
-  background: var(--glass-bg-subtle);
+  border-top: 1px solid var(--sv-fdn-color-ink-700);
+  background: transparent;
   flex-shrink: 0;
 }
 
@@ -132,7 +133,7 @@ onMounted(() => {
   background: transparent;
   border: 1px solid transparent;
   border-radius: var(--radius-md);
-  color: var(--text-secondary);
+  color: var(--sv-fdn-color-ink-300);
 
   display: flex;
   align-items: center;
@@ -159,9 +160,9 @@ onMounted(() => {
   }
 
   &:hover {
-    background: var(--glass-bg-medium);
-    color: var(--text-primary);
-    border-color: var(--glass-border);
+    background: var(--sv-fdn-color-ink-700);
+    color: var(--sv-fdn-color-ink-50);
+    border-color: var(--sv-fdn-color-ink-500);
   }
 
   &:focus-visible {
@@ -189,7 +190,7 @@ onMounted(() => {
   min-height: 44px;
   padding: v.$spacing-2 v.$spacing-3;
   border-radius: var(--radius-lg);
-  color: var(--text-secondary);
+  color: var(--sv-fdn-color-ink-300);
   text-decoration: none;
   background: transparent;
   cursor: pointer;
@@ -201,8 +202,8 @@ onMounted(() => {
   overflow: hidden;
 
   &:hover:not(.active) {
-    background: var(--glass-bg-subtle);
-    color: var(--text-primary);
+    background: var(--sv-fdn-color-ink-700);
+    color: var(--sv-fdn-color-ink-50);
   }
 
   &.active {
@@ -253,7 +254,7 @@ onMounted(() => {
 
 .nav-description {
   font-size: 11px;
-  color: var(--text-secondary);
+  color: var(--sv-fdn-color-ink-300);
   line-height: 1.3;
   white-space: nowrap;
   overflow: hidden;

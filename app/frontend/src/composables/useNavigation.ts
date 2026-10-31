@@ -14,6 +14,7 @@ import { useLayoutQuery } from './useLayoutQuery'
 export interface NavigationTab {
   route: string
   label: string
+  mobileLabel?: string
   icon: string
   description?: string
   badge?: number | null
@@ -70,10 +71,11 @@ export function restoreVideoReturnScroll() {
 
 // Navigation configuration
 export const navigationTabs: NavigationTab[] = [
-  { route: '/', label: 'Overview', icon: 'home', description: 'Recording overview', badge: null },
-  { route: '/streamers', label: 'Streamers', icon: 'users', description: 'Manage creators', badge: null },
-  { route: '/videos', label: 'Library', icon: 'video', description: 'Find recordings', badge: null },
-  { route: '/system', label: 'System', icon: 'settings', description: 'Settings and diagnostics', badge: null },
+  { route: '/streamers', label: 'Kanäle', icon: 'users', description: 'Live-Status und Aufnahmen', badge: null },
+  { route: '/videos', label: 'Aufzeichnungen', mobileLabel: 'Aufnahmen', icon: 'video', description: 'Mediathek durchsuchen', badge: null },
+  { route: '/activity', label: 'Aktivität', icon: 'activity', description: 'Aufnahmen, Jobs und Verlauf', badge: null },
+  { route: '/settings', label: 'Einstellungen', mobileLabel: 'Optionen', icon: 'settings', description: 'Globale Vorgaben und Zugänge', badge: null },
+  { route: '/system', label: 'System', icon: 'server', description: 'Diagnose und Verwaltung', badge: null },
 ]
 
 export function useNavigation() {
@@ -87,6 +89,9 @@ export function useNavigation() {
 
   // Check if route is active
   const isActiveRoute = (tabRoute: string): boolean => {
+    if (tabRoute === '/streamers' && (route.path === '/' || route.path.startsWith('/add-streamer') || route.path.startsWith('/live/'))) return true
+    if (tabRoute === '/activity' && route.path === '/overview') return true
+    if (tabRoute === '/system' && (route.path === '/admin' || route.path === '/subscriptions')) return true
     if (tabRoute === '/') {
       return route.path === '/'
     }

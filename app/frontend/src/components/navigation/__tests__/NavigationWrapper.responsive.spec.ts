@@ -101,14 +101,14 @@ describe('NavigationWrapper responsive accessibility', () => {
     const desktop = await mountNavigation(1024)
 
     expect(desktop.viewport.query()).toBe('(max-width: 1023.98px)')
-    expect(desktop.wrapper.findAll('aside[aria-label="Application navigation"]')).toHaveLength(1)
-    expect(desktop.wrapper.findAll('nav[aria-label="Primary mobile navigation"]')).toHaveLength(0)
+    expect(desktop.wrapper.findAll('aside[aria-label="Anwendungsnavigation"]')).toHaveLength(1)
+    expect(desktop.wrapper.findAll('nav[aria-label="Mobile Hauptnavigation"]')).toHaveLength(0)
 
     desktop.viewport.setWidth(1023.98)
     await nextTick()
 
-    expect(desktop.wrapper.findAll('aside[aria-label="Application navigation"]')).toHaveLength(0)
-    expect(desktop.wrapper.findAll('nav[aria-label="Primary mobile navigation"]')).toHaveLength(1)
+    expect(desktop.wrapper.findAll('aside[aria-label="Anwendungsnavigation"]')).toHaveLength(0)
+    expect(desktop.wrapper.findAll('nav[aria-label="Mobile Hauptnavigation"]')).toHaveLength(1)
     expect(desktop.wrapper.findAll('.sidebar-nav-item, .sidebar-toggle')).toHaveLength(0)
     desktop.wrapper.unmount()
   })
@@ -144,14 +144,14 @@ describe('NavigationWrapper responsive accessibility', () => {
 
     await nextTick()
     expect(document.body.style.overflow).toBe('hidden')
-    expect(wrapper.findAll('nav[aria-label="Primary mobile navigation"]')).toHaveLength(1)
+    expect(wrapper.findAll('nav[aria-label="Mobile Hauptnavigation"]')).toHaveLength(1)
 
     viewport.setWidth(1024)
     await nextTick()
     await wrapper.setData({ open: false })
     await nextTick()
 
-    expect(wrapper.findAll('nav[aria-label="Primary mobile navigation"]')).toHaveLength(0)
+    expect(wrapper.findAll('nav[aria-label="Mobile Hauptnavigation"]')).toHaveLength(0)
     expect(document.body.style.overflow).toBe('')
     expect(document.activeElement).toBe(trigger)
     wrapper.unmount()

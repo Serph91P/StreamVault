@@ -3,7 +3,7 @@
     <PageHeader
       title="System"
       icon="settings"
-      subtitle="Open settings, administration, or subscription management."
+      subtitle="Zustand prüfen, Dienste verwalten und Twitch-Ereignisse kontrollieren."
     />
 
     <section class="system-hub-grid" aria-label="System tools">
@@ -12,8 +12,8 @@
           <svg><use href="#icon-settings" /></svg>
         </span>
         <span class="system-hub-copy">
-          <strong>Settings</strong>
-          <small>Preferences and application configuration</small>
+          <strong>Globale Einstellungen</strong>
+          <small>Aufnahmevorgaben, Zugänge und Anzeige</small>
         </span>
       </router-link>
       <router-link to="/admin" class="system-hub-card" aria-label="Admin tools">
@@ -21,8 +21,8 @@
           <svg><use href="#icon-wrench" /></svg>
         </span>
         <span class="system-hub-copy">
-          <strong>Admin tools</strong>
-          <small>System health, services, and background jobs</small>
+          <strong>Diagnose und Verwaltung</strong>
+          <small>Systemzustand, Dienste und Hintergrundaufgaben</small>
         </span>
       </router-link>
       <router-link to="/subscriptions" class="system-hub-card" aria-label="Subscriptions">
@@ -30,8 +30,8 @@
           <svg><use href="#icon-rss" /></svg>
         </span>
         <span class="system-hub-copy">
-          <strong>Subscriptions</strong>
-          <small>Manage subscribed streams and updates</small>
+          <strong>Twitch-Ereignisse (EventSub)</strong>
+          <small>Verbindungen für Live-Statusmeldungen prüfen und reparieren</small>
         </span>
       </router-link>
     </section>

@@ -11,17 +11,17 @@
 :root {
   // ===== PRIMARY BRAND COLORS =====
   --primary-50: #{$primary-50};
-  --primary-color: #{$primary-500};
-  --color-primary: #{$primary-500};         // Alias for compatibility
+  --primary-color: #{$primary-400};
+  --color-primary: #{$primary-400};         // Alias for compatibility
   --primary-color-light: #{$primary-400};
   --primary-color-dark: #{$primary-600};
   --primary-color-muted: #{rgba($primary-500, 0.1)};
-  --primary-color-rgb: 20, 184, 166;       // Teal-500 RGB
-  --primary-500-rgb: 20, 184, 166;
+  --primary-color-rgb: 167, 189, 255;
+  --primary-500-rgb: 49, 88, 201;
   --primary-bg: #{rgba($primary-500, 0.1)};
-  --primary-hover: #{$primary-600};
-  --primary-hover-color: #{$primary-600};
-  --primary-color-hover: #{$primary-600};
+  --primary-hover: #{$primary-300};
+  --primary-hover-color: #{$primary-300};
+  --primary-color-hover: #{$primary-300};
 
   // ===== ACCENT COLORS (Purple) =====
   --accent-color: #{$accent-500};
@@ -95,7 +95,7 @@
   --background-dark: #{$slate-900};         // #0f172a
   --background-darker: #{$slate-950};       // #020617
   --background-card: #{$slate-900};         // #0f172a (matches dark background for consistency)
-  --background-card-rgb: 15, 23, 42;        // slate-900 RGB for glass effects
+  --background-card-rgb: 29, 42, 61;
   --background-primary: #{$slate-950};      // Darkest background
   --background-secondary: #{$slate-900};    // Card background (darker)
   --background-tertiary: #{$slate-800};     // Lighter background
@@ -107,7 +107,7 @@
   --text-muted: #{$slate-500};
   --text-muted-color: #{$slate-500};
   --text-color: #{$slate-50};
-  --text-on-primary: #ffffff;
+  --text-on-primary: #{$slate-950};
   --text-on-warning: #{$slate-900};
   --dark-color: #{$slate-900};
 
@@ -279,6 +279,7 @@
 // LIGHT MODE THEME
 // ============================================================================
 [data-theme="light"] {
+  --primary-color-rgb: 41, 76, 175;
   // ===== PRIMARY BRAND COLORS (Light Mode) =====
   --primary-50: #{$primary-50};
   --primary-color: #{$primary-600};

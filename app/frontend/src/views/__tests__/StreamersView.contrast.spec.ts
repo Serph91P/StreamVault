@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import source from '../StreamersView.vue?raw'
 
+
 function relativeLuminance(hex: string) {
   const channels = hex.match(/[a-f0-9]{2}/gi)!.map(channel => Number.parseInt(channel, 16) / 255)
   const linear = channels.map(channel => (
@@ -24,6 +25,6 @@ describe('StreamersView active filter badge contrast', () => {
     expect(badgeRule).toContain('color: white;')
     expect(badgeRule).not.toMatch(/rgba\s*\(/)
     expect(badgeRule).not.toMatch(/opacity\s*:/)
-    expect(contrast('ffffff', '134e4a')).toBeGreaterThanOrEqual(4.5)
+    expect(contrast('ffffff', '192f6e')).toBeGreaterThanOrEqual(4.5)
   })
 })

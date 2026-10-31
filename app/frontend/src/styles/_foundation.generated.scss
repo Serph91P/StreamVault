@@ -30,18 +30,22 @@
   --sv-fdn-color-amber-700: #b45309;
   --sv-fdn-color-blue-400: #60a5fa;
   --sv-fdn-color-blue-700: #1d4ed8;
+  --sv-fdn-color-brand-400: #a7bdff;
+  --sv-fdn-color-brand-700: #3158c9;
+  --sv-fdn-color-brand-800: #294caf;
+  --sv-fdn-color-brand-900: #213f93;
   --sv-fdn-color-green-400: #4ade80;
   --sv-fdn-color-green-700: #047857;
   --sv-fdn-color-ink-100: #f1f5f9;
   --sv-fdn-color-ink-200: #e2e8f0;
   --sv-fdn-color-ink-300: #cbd5e1;
   --sv-fdn-color-ink-400: #94a3b8;
-  --sv-fdn-color-ink-50: #f8fafc;
+  --sv-fdn-color-ink-50: #eef2f7;
   --sv-fdn-color-ink-500: #64748b;
-  --sv-fdn-color-ink-700: #293a52;
-  --sv-fdn-color-ink-800: #17263b;
-  --sv-fdn-color-ink-900: #0f1b2d;
-  --sv-fdn-color-ink-950: #08111f;
+  --sv-fdn-color-ink-700: #394a62;
+  --sv-fdn-color-ink-800: #243348;
+  --sv-fdn-color-ink-900: #1d2a3d;
+  --sv-fdn-color-ink-950: #141d2b;
   --sv-fdn-color-red-400: #f87171;
   --sv-fdn-color-red-600: #dc2626;
   --sv-fdn-color-red-700: #b91c1c;
@@ -71,10 +75,10 @@
   --sv-fdn-space-5: 1.25rem;
   --sv-fdn-space-6: 1.5rem;
   --sv-fdn-space-8: 2rem;
-  --sv-sem-action-focus: var(--sv-fdn-color-teal-400);
-  --sv-sem-action-primary: var(--sv-fdn-color-teal-700);
-  --sv-sem-action-primary-active: var(--sv-fdn-color-teal-800);
-  --sv-sem-action-primary-hover: var(--sv-fdn-color-teal-600);
+  --sv-sem-action-focus: var(--sv-fdn-color-brand-400);
+  --sv-sem-action-primary: var(--sv-fdn-color-brand-700);
+  --sv-sem-action-primary-active: var(--sv-fdn-color-brand-900);
+  --sv-sem-action-primary-hover: var(--sv-fdn-color-brand-800);
   --sv-sem-border-default: var(--sv-fdn-color-ink-700);
   --sv-sem-border-strong: var(--sv-fdn-color-ink-500);
   --sv-sem-status-danger: var(--sv-fdn-color-red-400);
@@ -93,10 +97,10 @@
 }
 
 [data-theme="light"] {
-  --sv-sem-action-focus: var(--sv-fdn-color-teal-700);
-  --sv-sem-action-primary: var(--sv-fdn-color-teal-800);
-  --sv-sem-action-primary-active: var(--sv-fdn-color-teal-600);
-  --sv-sem-action-primary-hover: var(--sv-fdn-color-teal-700);
+  --sv-sem-action-focus: var(--sv-fdn-color-brand-700);
+  --sv-sem-action-primary: var(--sv-fdn-color-brand-700);
+  --sv-sem-action-primary-active: var(--sv-fdn-color-brand-900);
+  --sv-sem-action-primary-hover: var(--sv-fdn-color-brand-800);
   --sv-sem-border-default: var(--sv-fdn-color-ink-300);
   --sv-sem-border-strong: var(--sv-fdn-color-ink-500);
   --sv-sem-status-danger: var(--sv-fdn-color-red-700);

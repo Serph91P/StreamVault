@@ -14,7 +14,7 @@ test('issue 828 keeps native VideoCard keyboard navigation and the Overview retu
   await page.setViewportSize({ width: 390, height: 844 })
   await page.route('**/api/videos/*/stream', localSeekMedia)
 
-  await page.goto('/', { waitUntil: 'domcontentloaded' })
+  await page.goto('/overview', { waitUntil: 'domcontentloaded' })
   const overviewUrl = page.url()
   const videoLink = page.locator('.dashboard-video-grid .video-card-link').first()
   await expect(videoLink).toBeVisible()

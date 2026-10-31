@@ -35,7 +35,7 @@ async function openStreamers(page: Page, theme: Theme) {
     localStorage.setItem('streamvault-theme', selectedTheme)
   }, theme)
   await page.goto('/streamers')
-  await expect(page.getByRole('heading', { name: 'Streamers', exact: true })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Meine Kanäle', exact: true })).toBeVisible()
 }
 
 for (const theme of ['dark', 'light'] as const) {
@@ -97,7 +97,7 @@ for (const theme of ['dark', 'light'] as const) {
 
   test(`Streamers heading retains its exact color-contrast pass in ${theme} theme`, async ({ page }) => {
     await openStreamers(page, theme)
-    const heading = page.getByRole('heading', { name: 'Streamers', exact: true })
+    const heading = page.getByRole('heading', { name: 'Meine Kanäle', exact: true })
     await page.addScriptTag({ content: axe.source })
     const result = await heading.evaluate(async (node) => (
       (window as typeof window & { axe: typeof axe }).axe.run(node, {

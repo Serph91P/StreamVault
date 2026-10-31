@@ -29,6 +29,10 @@ def _index_html_path():
 spa_router = APIRouter()
 
 
+@spa_router.get("/activity")
+@spa_router.get("/overview")
+@spa_router.get("/system")
+@spa_router.get("/onboarding")
 @spa_router.get("/streamers")
 @spa_router.get("/videos")
 @spa_router.get("/subscriptions")
@@ -65,7 +69,7 @@ async def serve_manifest():
                 media_type="application/manifest+json",
                 headers={"Cache-Control": "public, max-age=86400"},
             )
-        except (FileNotFoundError, PermissionError):
+        except FileNotFoundError, PermissionError:
             continue
     return Response(status_code=404)
 
@@ -103,7 +107,7 @@ async def serve_push_sw_helper():
                 media_type="application/javascript",
                 headers={"Cache-Control": "public, max-age=3600"},
             )
-        except (FileNotFoundError, PermissionError):
+        except FileNotFoundError, PermissionError:
             continue
     return Response(status_code=404)
 
@@ -172,7 +176,7 @@ async def service_worker():
                         "Expires": "0",
                     },
                 )
-        except (FileNotFoundError, PermissionError):
+        except FileNotFoundError, PermissionError:
             continue
     return Response(status_code=404)
 
@@ -189,7 +193,7 @@ async def serve_browserconfig():
                 media_type="application/xml",
                 headers={"Cache-Control": "public, max-age=86400"},
             )
-        except (FileNotFoundError, PermissionError):
+        except FileNotFoundError, PermissionError:
             continue
     return Response(status_code=404)
 
@@ -231,7 +235,7 @@ async def serve_favicon():
                 media_type="image/x-icon",
                 headers={"Cache-Control": "public, max-age=86400"},
             )
-        except (FileNotFoundError, PermissionError):
+        except FileNotFoundError, PermissionError:
             continue
     return Response(status_code=404)
 
@@ -252,7 +256,7 @@ async def serve_favicon_png():
                     media_type=media_type,
                     headers={"Cache-Control": "public, max-age=86400"},
                 )
-            except (FileNotFoundError, PermissionError):
+            except FileNotFoundError, PermissionError:
                 continue
     return Response(status_code=404)
 

@@ -16,7 +16,7 @@ export function useForceRecording() {
       
       try {
         const checkResponse = await streamersApi.checkLiveStatus(streamerId)
-        isLive = checkResponse?.data?.is_live || false
+        isLive = checkResponse?.is_live || false
       } catch (apiError) {
         // If API check fails, mark as failed but don't assume the stream is live
         // This prevents unnecessary recording attempts on definitely offline streams
@@ -42,7 +42,7 @@ export function useForceRecording() {
       
       const response = await recordingApi.forceStartRecording(streamerId)
       
-      if (response?.data?.status === 'success') {
+      if (response?.status === 'success') {
         // Success feedback will be sent via WebSocket from backend
         // Call success callback if provided (for local state updates)
         if (onSuccess) {

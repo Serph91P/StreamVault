@@ -1,20 +1,21 @@
 <template>
+    <template v-if="context === 'global'">
       <div class="settings-group">
         <div class="settings-group-header">
           <h3 class="settings-group-title">
             <svg><use href="#icon-send" /></svg>
-            Delivery
+            Zustellung
           </h3>
-          <p class="settings-group-desc">Where notifications are sent and whether they are active</p>
+          <p class="settings-group-desc">Ziel der Benachrichtigungen und globaler Hauptschalter</p>
         </div>
 
         <div class="input-with-tooltip">
           <BaseInput
             v-model="data.notificationUrl"
-            label="Notification Service URL"
-            placeholder="e.g., discord://webhook1,telegram://bot_token/chat_id"
+            label="URL des Benachrichtigungsdienstes"
+            placeholder="Apprise-URL eingeben"
             :error="notificationUrlError"
-            hint="Use any Apprise URL, or separate multiple services with commas."
+            hint="Apprise-URL verwenden. Mehrere Dienste durch Kommas trennen."
             @focus="showTooltip = true"
             @update:model-value="handleInput"
             @blur="handleBlur"
@@ -26,15 +27,15 @@
             @mouseleave="handleTooltipMouseLeave"
           >
             <div class="tooltip">
-              StreamVault supports over 100 notification services including Discord, Telegram, Ntfy,
-              Pushover, Slack and more. Check the
+              StreamVault unterstützt über 100 Benachrichtigungsdienste, darunter Discord, Telegram, Ntfy,
+              Pushover und Slack. Unterstützte Dienste und URL-Formate stehen in der
               <a
                 href="https://github.com/caronc/apprise/wiki#notification-services"
                 target="_blank"
                 rel="noopener noreferrer"
                 @click.stop
                 class="tooltip-link"
-              >Apprise Documentation</a> for supported services and URL formats.
+              >Apprise-Dokumentation</a>.
             </div>
           </div>
         </div>
@@ -42,7 +43,7 @@
         <div class="form-check">
           <label>
             <input type="checkbox" v-model="data.notificationsEnabled" />
-            Enable Notifications
+            Benachrichtigungen aktivieren
           </label>
         </div>
       </div>
@@ -51,26 +52,26 @@
         <div class="settings-group-header">
           <h3 class="settings-group-title">
             <svg><use href="#icon-radio" /></svg>
-            Stream Events
+            Streamereignisse
           </h3>
-          <p class="settings-group-desc">Choose which stream events trigger notifications</p>
+          <p class="settings-group-desc">Bei welchen Ereignissen soll eine Nachricht gesendet werden?</p>
         </div>
         <div class="checkbox-group">
           <label>
             <input type="checkbox" v-model="data.notifyOnlineGlobal" />
-            Stream Online
+            Stream startet
           </label>
           <label>
             <input type="checkbox" v-model="data.notifyOfflineGlobal" />
-            Stream Offline
+            Stream endet
           </label>
           <label>
             <input type="checkbox" v-model="data.notifyUpdateGlobal" />
-            Title / Category Changes
+            Titel oder Kategorie ändern sich
           </label>
           <label>
             <input type="checkbox" v-model="data.notifyFavoriteCategoryGlobal" />
-            Favorite Category Streams
+            Stream in einer Lieblingskategorie
           </label>
         </div>
       </div>
@@ -80,28 +81,27 @@
         <div class="settings-group-header">
           <h3 class="settings-group-title">
             <svg><use href="#icon-video" /></svg>
-            Recording Events
-            <span class="badge badge-advanced">Advanced</span>
+            Aufnahmeereignisse
           </h3>
           <p class="settings-group-desc">
-            Configure which recording events trigger external notifications (Discord, Telegram, etc.)
+            Externe Benachrichtigungen zu Aufnahmen einstellen, zum Beispiel für Discord oder Telegram.
           </p>
         </div>
         <div class="checkbox-group">
           <label>
             <input type="checkbox" v-model="data.notifyRecordingStarted" />
-            Recording Started
-            <span class="label-hint">(may be noisy - every stream triggers recording)</span>
+            Aufnahme gestartet
+            <span class="label-hint">(kann viele Nachrichten erzeugen)</span>
           </label>
           <label>
             <input type="checkbox" v-model="data.notifyRecordingFailed" />
-            Recording Failed ⚠️
-            <span class="label-hint label-recommended">(RECOMMENDED - know when recordings fail)</span>
+            Aufnahme fehlgeschlagen
+            <span class="label-hint label-recommended">(empfohlen, um Fehler zu bemerken)</span>
           </label>
           <label>
             <input type="checkbox" v-model="data.notifyRecordingCompleted" />
-            Recording Completed
-            <span class="label-hint">(may be noisy - most recordings complete normally)</span>
+            Aufnahme abgeschlossen
+            <span class="label-hint">(kann viele Nachrichten erzeugen)</span>
           </label>
         </div>
       </div>
@@ -112,49 +112,50 @@
           class="btn btn-primary"
           :disabled="isSaving || !canSave"
         >
-          {{ isSaving ? 'Saving...' : 'Save Settings' }}
+          {{ isSaving ? 'Wird gespeichert...' : 'Einstellungen speichern' }}
         </button>
         <p class="diagnostics-note">
-          Delivery tests live in Admin Diagnostics so notification settings stay focused on preferences.
+          Zustellungstests findest du in der Admin-Diagnose.
         </p>
       </div>
 
-    <!-- Streamer Notification Table -->
-    <div class="settings-group streamer-notifications">
+    </template>
+    <!-- Channel controls are never part of global settings. -->
+    <div v-if="context !== 'global'" class="settings-group streamer-notifications">
       <div class="settings-group-header">
         <h3 class="settings-group-title">
           <svg><use href="#icon-users" /></svg>
-          Per-Streamer Notifications
+          {{ context === 'manage' ? 'Benachrichtigungen für alle Kanäle' : 'Benachrichtigungen für diesen Kanal' }}
         </h3>
-        <p class="settings-group-desc">Override the global events for individual streamers</p>
+        <p class="settings-group-desc">{{ context === 'manage' ? 'Online-, Offline- und Änderungsereignisse für alle Kanäle schalten. Lieblingskategorien bleiben unverändert.' : 'Diese Einstellungen überschreiben die globalen Streamereignisse.' }}</p>
       </div>
-      <div class="table-controls">
-        <BaseButton variant="secondary" @click="toggleAllStreamers(true)">Enable All</BaseButton>
-        <BaseButton variant="secondary" @click="toggleAllStreamers(false)">Disable All</BaseButton>
+      <div v-if="context === 'manage'" class="table-controls">
+        <BaseButton variant="secondary" @click="toggleAllStreamers(true)">Für alle aktivieren</BaseButton>
+        <BaseButton variant="secondary" @click="toggleAllStreamers(false)">Für alle deaktivieren</BaseButton>
       </div>
 
-      <div class="table-wrapper">
+      <div v-if="context === 'channel'" class="table-wrapper">
         <table class="data-table">
           <thead>
             <tr>
-              <th>Streamer</th>
-              <th>
+              <th>Kanal</th>
+              <th v-if="showOverrides">
                 Online
-                <div class="th-tooltip">Notify when stream starts</div>
+                <div class="th-tooltip">Bei Streamstart benachrichtigen</div>
               </th>
-              <th>
+              <th v-if="showOverrides">
                 Offline
-                <div class="th-tooltip">Notify when stream ends</div>
+                <div class="th-tooltip">Bei Streamende benachrichtigen</div>
               </th>
-              <th>
-                Updates
-                <div class="th-tooltip">Notify on title/category changes</div>
+              <th v-if="showOverrides">
+                Änderungen
+                <div class="th-tooltip">Bei Titel- oder Kategorieänderungen benachrichtigen</div>
               </th>
-              <th>
-                Favorites
-                <div class="th-tooltip">Notify when streaming favorite games</div>
+              <th v-if="showOverrides">
+                Lieblingskategorien
+                <div class="th-tooltip">Bei Streams in Lieblingskategorien benachrichtigen</div>
               </th>
-              <th>Actions</th>
+              <th>Aktionen</th>
             </tr>
           </thead>
           <tbody>
@@ -166,35 +167,35 @@
                     :alt="streamer.username || ''"
                   />
                 </div>
-                <span class="streamer-name">{{ streamer.username || 'Unknown Streamer' }}</span>
-              </td>              <td data-label="Online">
+                <span class="streamer-name">{{ streamer.username || 'Unbekannter Kanal' }}</span>
+              </td>              <td v-if="showOverrides" data-label="Online">
                 <input
                   type="checkbox"
-                  :aria-label="`Notify when ${streamer.username || 'streamer'} goes online`"
+                  :aria-label="`Bei Streamstart von ${streamer.username || 'Kanal'} benachrichtigen`"
                   v-model="streamer.notify_online"
                   @change="updateStreamerSettings(streamer.streamer_id, { notify_online: streamer.notify_online })"
                 />
               </td>
-              <td data-label="Offline">
+              <td v-if="showOverrides" data-label="Offline">
                 <input
                   type="checkbox"
-                  :aria-label="`Notify when ${streamer.username || 'streamer'} goes offline`"
+                  :aria-label="`Bei Streamende von ${streamer.username || 'Kanal'} benachrichtigen`"
                   v-model="streamer.notify_offline"
                   @change="updateStreamerSettings(streamer.streamer_id, { notify_offline: streamer.notify_offline })"
                 />
               </td>
-              <td data-label="Updates">
+              <td v-if="showOverrides" data-label="Änderungen">
                 <input
                   type="checkbox"
-                  :aria-label="`Notify about ${streamer.username || 'streamer'} updates`"
+                  :aria-label="`Bei Änderungen von ${streamer.username || 'Kanal'} benachrichtigen`"
                   v-model="streamer.notify_update"
                   @change="updateStreamerSettings(streamer.streamer_id, { notify_update: streamer.notify_update })"
                 />
               </td>
-              <td data-label="Favorites">
+              <td v-if="showOverrides" data-label="Lieblingskategorien">
                 <input
                   type="checkbox"
-                  :aria-label="`Notify about ${streamer.username || 'streamer'} favorite categories`"
+                  :aria-label="`Bei Lieblingskategorien von ${streamer.username || 'Kanal'} benachrichtigen`"
                   v-model="streamer.notify_favorite_category"
                   @change="updateStreamerSettings(streamer.streamer_id, { notify_favorite_category: streamer.notify_favorite_category })"
                 />
@@ -203,11 +204,11 @@
                   <button
                     @click="toggleAllForStreamer(streamer.streamer_id, true)"
                     class="btn btn-sm btn-secondary"
-                  >On</button>
+                  >Alle an</button>
                   <button
                     @click="toggleAllForStreamer(streamer.streamer_id, false)"
                     class="btn btn-sm btn-secondary"
-                  >Off</button>
+                  >Alle aus</button>
                 </div>
               </td>
             </tr>
@@ -218,7 +219,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onUnmounted } from 'vue'
+import { ref, computed, onUnmounted, type PropType } from 'vue'
 import { UI } from '@/config/constants'
 import BaseButton from '@/components/base/BaseButton.vue'
 import BaseInput from '@/components/base/BaseInput.vue'
@@ -226,6 +227,11 @@ import type { NotificationSettings, StreamerNotificationSettings } from '@/types
 
 // Props
 const props = defineProps({
+  showOverrides: { type: Boolean, default: true },
+  context: {
+    type: String as PropType<'global' | 'channel' | 'manage'>,
+    default: 'global'
+  },
   settings: {
     type: Object as () => NotificationSettings,
     required: true
@@ -401,7 +407,8 @@ const toggleAllForStreamer = (streamerId: number, enabled: boolean) => {
   const settingsUpdate: Partial<StreamerNotificationSettings> = {
     notify_online: enabled,
     notify_offline: enabled,
-    notify_update: enabled
+    notify_update: enabled,
+    ...(props.context === 'channel' ? { notify_favorite_category: enabled } : {})
   }
 
   emit('update-streamer-settings', streamerId, settingsUpdate)

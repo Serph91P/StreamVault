@@ -26,7 +26,7 @@ async function seedNotifications(page: Page, count: number) {
 }
 
 async function selectSettingsSection(page: Page, section: string, accessibleName: RegExp) {
-  const mobileSelect = page.getByLabel('Choose settings section')
+  const mobileSelect = page.getByLabel('Einstellungsbereich wählen')
   if (await mobileSelect.isVisible()) await mobileSelect.selectOption(section)
   else await page.getByRole('button', { name: accessibleName }).click()
 }
@@ -48,7 +48,7 @@ test('Settings deep link retains dirty panel state and moves focus on section ch
   await page.route('**/api/twitch/manual-token', route => route.fulfill({ json: { saved: true } }))
   await page.goto('/settings?section=twitch')
   const content = page.locator('.settings-content')
-  await expect(page.getByRole('heading', { name: 'Twitch Connection' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Twitch-Verbindung' })).toBeVisible()
   await expect(content).toBeFocused()
   await expect(content).toHaveCSS('outline-style', 'solid')
   await expect(content).toHaveCSS('outline-width', '2px')
@@ -56,11 +56,11 @@ test('Settings deep link retains dirty panel state and moves focus on section ch
 
   const token = page.getByLabel('Twitch OAuth token')
   await token.fill('unsaved-local-matrix-value')
-  await selectSettingsSection(page, 'notifications', /^Notifications /)
-  await expect(page.getByRole('heading', { name: 'Notifications', exact: true })).toBeVisible()
+  await selectSettingsSection(page, 'notifications', /^Benachrichtigungen /)
+  await expect(page.getByRole('heading', { name: 'Benachrichtigungen', exact: true })).toBeVisible()
   await expect(content).toBeFocused()
 
-  await selectSettingsSection(page, 'twitch', /^Twitch Connection /)
+  await selectSettingsSection(page, 'twitch', /^Twitch-Verbindung /)
   await expect(token).toHaveValue('unsaved-local-matrix-value')
   await page.getByRole('button', { name: 'Cancel' }).click()
   await expect(token).toHaveValue('')
@@ -70,7 +70,7 @@ test('Settings deep link retains dirty panel state and moves focus on section ch
   await expect(page.getByText('Twitch OAuth token saved securely')).toBeVisible()
 
   await page.goto('/settings?section=notifications')
-  await expect(page.getByRole('heading', { name: 'Notifications', exact: true })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Benachrichtigungen', exact: true })).toBeVisible()
 })
 
 test('Settings deep link focuses after settings data resolves before its lazy panel', async ({ page }) => {
@@ -83,8 +83,8 @@ test('Settings deep link focuses after settings data resolves before its lazy pa
   })
 
   await page.goto('/settings?section=notifications')
-  const content = page.getByRole('region', { name: 'Notifications settings' })
-  await expect(page.getByLabel('Notification Service URL')).toBeVisible()
+  const content = page.getByRole('region', { name: 'Benachrichtigungen – Einstellungen', exact: true })
+  await expect(page.getByLabel('URL des Benachrichtigungsdienstes')).toBeVisible()
   await expect(content).toBeFocused()
   await expect(content).toHaveCSS('outline-style', 'solid')
   await expect(content).toHaveCSS('outline-width', '2px')
@@ -125,17 +125,17 @@ test('Settings lazy panel failure is visible, retryable, and restores panel focu
     return route.continue()
   })
   await page.goto('/settings?section=notifications')
-  await expect(page.getByRole('alert')).toContainText('could not be loaded')
+  await expect(page.getByRole('alert')).toContainText('konnte nicht geladen werden')
   expect(panelHostRequestUrls).toHaveLength(1)
-  await page.getByRole('button', { name: 'Retry' }).click()
-  await expect(page.getByRole('alert')).toContainText('could not be loaded')
-  await expect(page.getByRole('button', { name: 'Retry' })).toBeVisible()
+  await page.getByRole('button', { name: 'Erneut versuchen' }).click()
+  await expect(page.getByRole('alert')).toContainText('konnte nicht geladen werden')
+  await expect(page.getByRole('button', { name: 'Erneut versuchen' })).toBeVisible()
   expect(panelHostRequestUrls).toHaveLength(2)
-  await page.getByRole('button', { name: 'Retry' }).click()
+  await page.getByRole('button', { name: 'Erneut versuchen' }).click()
   await expect(page.locator('.panel-load-error')).toHaveCount(0)
-  await expect(page.getByRole('heading', { name: 'Notifications', exact: true })).toBeVisible()
-  await expect(page.getByLabel('Notification Service URL')).toBeVisible()
-  const content = page.getByRole('region', { name: 'Notifications settings' })
+  await expect(page.getByRole('heading', { name: 'Benachrichtigungen', exact: true })).toBeVisible()
+  await expect(page.getByLabel('URL des Benachrichtigungsdienstes')).toBeVisible()
+  const content = page.getByRole('region', { name: 'Benachrichtigungen – Einstellungen', exact: true })
   await expect(content).toBeFocused()
   await expect(content).toHaveCSS('outline-style', 'solid')
   await expect(content).toHaveCSS('outline-width', '2px')
@@ -145,8 +145,8 @@ test('Settings lazy panel failure is visible, retryable, and restores panel focu
   expect(new Set(panelHostCssRequestUrls).size).toBe(panelHostCssRequestUrls.length)
   expect(helperRequests).toBeGreaterThanOrEqual(1)
 
-  await selectSettingsSection(page, 'twitch', /^Twitch Connection /)
-  await expect(page.getByRole('heading', { name: 'Twitch Connection' })).toBeVisible()
+  await selectSettingsSection(page, 'twitch', /^Twitch-Verbindung /)
+  await expect(page.getByRole('heading', { name: 'Twitch-Verbindung' })).toBeVisible()
   await expectSettingsPanelStyles(page)
 })
 

@@ -19,6 +19,7 @@
     "app/frontend/scripts/__tests__/inventory-frontend.spec.ts",
     "app/frontend/scripts/__tests__/output-budgets.spec.ts",
     "app/frontend/scripts/__tests__/responsive-tokens.spec.ts",
+    "app/frontend/scripts/__tests__/settings-panel-css.spec.ts",
     "app/frontend/scripts/__tests__/ux06-loading.spec.ts",
     "app/frontend/scripts/build-output-budgets.json",
     "app/frontend/scripts/design-token-allowlist.json",
@@ -48,10 +49,12 @@
     "app/frontend/src/components/VideoPlayer.vue",
     "app/frontend/src/components/VideoTabs.vue",
     "app/frontend/src/components/WebSocketMonitor.vue",
+    "app/frontend/src/components/__tests__/AddStreamerForm.persistence.spec.ts",
     "app/frontend/src/components/__tests__/AppShell.connectivity.spec.ts",
     "app/frontend/src/components/__tests__/BackgroundQueueMonitor.recovery.spec.ts",
     "app/frontend/src/components/__tests__/BackgroundQueueMonitor.spec.ts",
     "app/frontend/src/components/__tests__/NotificationFeed.spec.ts",
+    "app/frontend/src/components/__tests__/TwitchImportForm.contract.spec.ts",
     "app/frontend/src/components/__tests__/VideoPlayer.chapters.spec.ts",
     "app/frontend/src/components/admin/AdminPanel.vue",
     "app/frontend/src/components/admin/BackgroundQueueAdmin.vue",
@@ -107,6 +110,7 @@
     "app/frontend/src/components/player/PlayerError.vue",
     "app/frontend/src/components/player/PlayerStatus.vue",
     "app/frontend/src/components/settings/ApiKeysPanel.vue",
+    "app/frontend/src/components/settings/ChannelSettingsPanel.vue",
     "app/frontend/src/components/settings/FavoritesSettingsPanel.vue",
     "app/frontend/src/components/settings/LoggingPanel.vue",
     "app/frontend/src/components/settings/NotificationSettingsPanel.vue",
@@ -115,11 +119,15 @@
     "app/frontend/src/components/settings/RecordingSettingsPanel.vue",
     "app/frontend/src/components/settings/SettingsPanelHost.vue",
     "app/frontend/src/components/settings/TwitchConnectionPanel.vue",
+    "app/frontend/src/components/settings/__tests__/ChannelSettingsPanel.spec.ts",
     "app/frontend/src/components/settings/__tests__/ProxySettingsPanel.spec.ts",
     "app/frontend/src/components/settings/__tests__/RecordingSettingsPanel.auth-priority.spec.ts",
+    "app/frontend/src/components/settings/__tests__/SettingsContext.spec.ts",
     "app/frontend/src/components/settings/__tests__/SettingsPanelHost.spec.ts",
     "app/frontend/src/components/streamers/StreamerSettingsFields.vue",
     "app/frontend/src/composables/__tests__/hlsPlayback.spec.ts",
+    "app/frontend/src/composables/__tests__/useCategoryImages.spec.ts",
+    "app/frontend/src/composables/__tests__/useForceRecording.spec.ts",
     "app/frontend/src/composables/__tests__/useLayoutQuery.spec.ts",
     "app/frontend/src/composables/__tests__/useModal.spec.ts",
     "app/frontend/src/composables/__tests__/useNavigation.return.spec.ts",
@@ -155,6 +163,7 @@
     "app/frontend/src/directives/ripple.ts",
     "app/frontend/src/main.ts",
     "app/frontend/src/mocks/mockData.ts",
+    "app/frontend/src/router/__tests__/channelFirst.spec.ts",
     "app/frontend/src/router/index.ts",
     "app/frontend/src/schemas/streamerSettings.schema.ts",
     "app/frontend/src/services/__tests__/api-real.api-keys.spec.ts",
@@ -162,12 +171,14 @@
     "app/frontend/src/services/__tests__/api-real.proxy.spec.ts",
     "app/frontend/src/services/__tests__/api-real.streamers.spec.ts",
     "app/frontend/src/services/__tests__/api-real.subscriptions.spec.ts",
+    "app/frontend/src/services/__tests__/api-real.twitch.spec.ts",
     "app/frontend/src/services/__tests__/api-real.video.spec.ts",
     "app/frontend/src/services/__tests__/api.mock.proxy.spec.ts",
     "app/frontend/src/services/__tests__/api.mock.streamers.spec.ts",
     "app/frontend/src/services/__tests__/api.mock.subscriptions.spec.ts",
     "app/frontend/src/services/__tests__/api.mock.video.spec.ts",
     "app/frontend/src/services/__tests__/recording-auth-priority.spec.ts",
+    "app/frontend/src/services/__tests__/recording-settings-save.spec.ts",
     "app/frontend/src/services/__tests__/recording-status.spec.ts",
     "app/frontend/src/services/__tests__/session.spec.ts",
     "app/frontend/src/services/api-real.ts",
@@ -179,6 +190,7 @@
     "app/frontend/src/services/session.ts",
     "app/frontend/src/services/storage.ts",
     "app/frontend/src/shims-vue.d.ts",
+    "app/frontend/src/stores/__tests__/backgroundQueue.spec.ts",
     "app/frontend/src/stores/backgroundQueue.ts",
     "app/frontend/src/stores/counter.ts",
     "app/frontend/src/stores/notifications.ts",
@@ -217,8 +229,10 @@
     "app/frontend/src/utils/playerClock.ts",
     "app/frontend/src/utils/pwaDebug.ts",
     "app/frontend/src/utils/recordingDuration.ts",
+    "app/frontend/src/views/ActivityView.vue",
     "app/frontend/src/views/AddStreamerView.vue",
     "app/frontend/src/views/AdminView.vue",
+    "app/frontend/src/views/ChannelManagementView.vue",
     "app/frontend/src/views/HomeView.vue",
     "app/frontend/src/views/LivePlayerView.vue",
     "app/frontend/src/views/LoginView.vue",
@@ -231,8 +245,10 @@
     "app/frontend/src/views/TheWelcome.vue",
     "app/frontend/src/views/VideoPlayerView.vue",
     "app/frontend/src/views/VideosView.vue",
+    "app/frontend/src/views/__tests__/AddStreamerView.callback.spec.ts",
     "app/frontend/src/views/__tests__/HomeView.recording-status.spec.ts",
     "app/frontend/src/views/__tests__/StreamerDetailView.spec.ts",
+    "app/frontend/src/views/__tests__/StreamersView.channelFirst.spec.ts",
     "app/frontend/src/views/__tests__/StreamersView.contrast.spec.ts",
     "app/frontend/src/views/__tests__/SubscriptionsView.spec.ts",
     "app/frontend/src/views/__tests__/SystemBackNavigation.spec.ts",
@@ -242,6 +258,7 @@
     "app/frontend/tests/audit/baselineObservation.ts",
     "app/frontend/tests/audit/gateEvidence.ts",
     "app/frontend/tests/audit/interactionAudit.ts",
+    "app/frontend/tests/e2e/channel-first.spec.ts",
     "app/frontend/tests/e2e/final-local-state-matrix.spec.ts",
     "app/frontend/tests/e2e/foundation.spec.ts",
     "app/frontend/tests/e2e/frontend-baseline.spec.ts",
@@ -281,11 +298,21 @@
     "app/frontend/tests/fixtures/issue894-player.spec.ts",
     "app/frontend/tests/fixtures/issue896-player.config.ts",
     "app/frontend/tests/fixtures/issue896-player.spec.ts",
+    "app/frontend/tests/fixtures/issue902-artwork.config.ts",
+    "app/frontend/tests/fixtures/issue902-artwork.spec.ts",
+    "app/frontend/tests/fixtures/issue903-streamers.config.ts",
+    "app/frontend/tests/fixtures/issue903-streamers.spec.ts",
+    "app/frontend/tests/fixtures/issue904-notifications.config.ts",
+    "app/frontend/tests/fixtures/issue904-notifications.spec.ts",
+    "app/frontend/tests/fixtures/issue906-headers.config.ts",
+    "app/frontend/tests/fixtures/issue906-headers.spec.ts",
     "app/frontend/tests/fixtures/media/issue828Media.ts",
     "app/frontend/tests/fixtures/media/issue894Media.ts",
     "app/frontend/tests/fixtures/recording-active-status-contract.json",
     "app/frontend/tests/fixtures/settings-loader.config.ts",
     "app/frontend/tests/fixtures/settings-loader.spec.ts",
+    "app/frontend/tests/fixtures/settings-parity.config.ts",
+    "app/frontend/tests/fixtures/settings-parity.spec.ts",
     "app/frontend/tests/unit/baselineObservation.spec.ts",
     "app/frontend/tests/unit/gateEvidence.spec.ts",
     "app/frontend/tests/unit/interactionAudit.spec.ts",
@@ -308,7 +335,19 @@
     {
       "path": "/",
       "name": "home",
+      "component": "StreamersView",
+      "file": "app/frontend/src/router/index.ts"
+    },
+    {
+      "path": "/overview",
+      "name": "overview",
       "component": "HomeView",
+      "file": "app/frontend/src/router/index.ts"
+    },
+    {
+      "path": "/activity",
+      "name": "activity",
+      "component": "ActivityView",
       "file": "app/frontend/src/router/index.ts"
     },
     {
@@ -321,6 +360,12 @@
       "path": "/streamers",
       "name": "streamers",
       "component": "StreamersView",
+      "file": "app/frontend/src/router/index.ts"
+    },
+    {
+      "path": "/streamers/manage",
+      "name": "channel-management",
+      "component": "() => import('../views/ChannelManagementView.vue')",
       "file": "app/frontend/src/router/index.ts"
     },
     {
@@ -425,6 +470,8 @@
     "/videos/42?from=library#details",
     "/videos/42",
     "/add-streamer",
+    "/streamers/manage",
+    "/add-streamer?auth_success=true",
     "/videos/1",
     "/streamers/77?tab=videos",
     "/streamers/42?tab=videos&source=history",
@@ -1433,7 +1480,7 @@
     },
     {
       "method": "GET",
-      "path": "/api/realtime/events?since=${since}",
+      "path": "/api/realtime/events?since=${since}${generationQuery}",
       "source": "app/frontend/src/services/realtime.ts",
       "auth": "cookie credentials include",
       "headers": []
@@ -1649,7 +1696,9 @@
     "app/frontend/src/stores/recordings.ts",
     "app/frontend/src/views/HomeView.vue",
     "app/frontend/src/views/StreamerDetailView.vue",
-    "app/frontend/src/views/StreamersView.vue"
+    "app/frontend/src/views/StreamersView.vue",
+    "app/frontend/tests/fixtures/issue904-notifications.spec.ts",
+    "app/frontend/tests/fixtures/settings-parity.spec.ts"
   ],
   "storage": [
     "streamvault-theme",
@@ -1668,6 +1717,7 @@
     "app/frontend/src/components/ToastNotification.vue",
     "app/frontend/src/components/VideoModal.vue",
     "app/frontend/src/components/VideoPlayer.vue",
+    "app/frontend/src/components/__tests__/AddStreamerForm.persistence.spec.ts",
     "app/frontend/src/components/__tests__/BackgroundQueueMonitor.spec.ts",
     "app/frontend/src/components/__tests__/VideoPlayer.chapters.spec.ts",
     "app/frontend/src/components/admin/AdminPanel.vue",
@@ -1684,6 +1734,7 @@
     "app/frontend/src/components/icons/IconSprite.vue",
     "app/frontend/src/components/navigation/__tests__/NavigationWrapper.responsive.spec.ts",
     "app/frontend/src/components/notifications/NotificationFilters.vue",
+    "app/frontend/src/components/settings/ChannelSettingsPanel.vue",
     "app/frontend/src/components/settings/FavoritesSettingsPanel.vue",
     "app/frontend/src/components/settings/LoggingPanel.vue",
     "app/frontend/src/components/settings/PWAPanel.vue",
@@ -1712,6 +1763,7 @@
     "app/frontend/src/views/StreamerDetailView.vue",
     "app/frontend/src/views/SubscriptionsView.vue",
     "app/frontend/src/views/VideoPlayerView.vue",
+    "app/frontend/src/views/__tests__/StreamerDetailView.spec.ts",
     "app/frontend/src/views/__tests__/VideoPlayerView.spec.ts",
     "app/frontend/src/views/__tests__/VideosView.spec.ts",
     "app/frontend/tests/e2e/final-local-state-matrix.spec.ts",
@@ -1724,6 +1776,9 @@
     "app/frontend/tests/fixtures/issue828-real.spec.ts",
     "app/frontend/tests/fixtures/issue894-player.spec.ts",
     "app/frontend/tests/fixtures/issue896-player.spec.ts",
+    "app/frontend/tests/fixtures/issue903-streamers.spec.ts",
+    "app/frontend/tests/fixtures/issue904-notifications.spec.ts",
+    "app/frontend/tests/fixtures/settings-parity.spec.ts",
     "app/frontend/tests/unit/issue828Motion.spec.ts",
     "app/frontend/vite.config.ts"
   ],
@@ -1773,6 +1828,7 @@
     "app/frontend/src/components/navigation/__tests__/NavigationWrapper.responsive.spec.ts",
     "app/frontend/src/components/notifications/NotificationItem.vue",
     "app/frontend/src/components/settings/ApiKeysPanel.vue",
+    "app/frontend/src/components/settings/ChannelSettingsPanel.vue",
     "app/frontend/src/components/settings/FavoritesSettingsPanel.vue",
     "app/frontend/src/components/settings/LoggingPanel.vue",
     "app/frontend/src/components/settings/NotificationSettingsPanel.vue",
@@ -1818,6 +1874,7 @@
     "app/frontend/scripts/__tests__/api-surface-cleanup.spec.ts",
     "app/frontend/scripts/__tests__/eslint-config.spec.ts",
     "app/frontend/scripts/__tests__/foundation-gates.spec.ts",
+    "app/frontend/scripts/__tests__/settings-panel-css.spec.ts",
     "app/frontend/scripts/__tests__/ux06-loading.spec.ts",
     "app/frontend/scripts/design-token-allowlist.json",
     "app/frontend/src/App.vue",
@@ -1840,10 +1897,12 @@
     "app/frontend/src/components/VideoModal.vue",
     "app/frontend/src/components/VideoPlayer.vue",
     "app/frontend/src/components/WebSocketMonitor.vue",
+    "app/frontend/src/components/__tests__/AddStreamerForm.persistence.spec.ts",
     "app/frontend/src/components/__tests__/AppShell.connectivity.spec.ts",
     "app/frontend/src/components/__tests__/BackgroundQueueMonitor.recovery.spec.ts",
     "app/frontend/src/components/__tests__/BackgroundQueueMonitor.spec.ts",
     "app/frontend/src/components/__tests__/NotificationFeed.spec.ts",
+    "app/frontend/src/components/__tests__/TwitchImportForm.contract.spec.ts",
     "app/frontend/src/components/__tests__/VideoPlayer.chapters.spec.ts",
     "app/frontend/src/components/admin/AdminPanel.vue",
     "app/frontend/src/components/admin/BackgroundQueueAdmin.vue",
@@ -1873,6 +1932,7 @@
     "app/frontend/src/components/player/PlayerError.vue",
     "app/frontend/src/components/player/PlayerStatus.vue",
     "app/frontend/src/components/settings/ApiKeysPanel.vue",
+    "app/frontend/src/components/settings/ChannelSettingsPanel.vue",
     "app/frontend/src/components/settings/FavoritesSettingsPanel.vue",
     "app/frontend/src/components/settings/LoggingPanel.vue",
     "app/frontend/src/components/settings/NotificationSettingsPanel.vue",
@@ -1880,8 +1940,12 @@
     "app/frontend/src/components/settings/ProxySettingsPanel.vue",
     "app/frontend/src/components/settings/RecordingSettingsPanel.vue",
     "app/frontend/src/components/settings/TwitchConnectionPanel.vue",
+    "app/frontend/src/components/settings/__tests__/ChannelSettingsPanel.spec.ts",
     "app/frontend/src/components/settings/__tests__/ProxySettingsPanel.spec.ts",
     "app/frontend/src/components/settings/__tests__/RecordingSettingsPanel.auth-priority.spec.ts",
+    "app/frontend/src/components/settings/__tests__/SettingsContext.spec.ts",
+    "app/frontend/src/composables/__tests__/useCategoryImages.spec.ts",
+    "app/frontend/src/composables/__tests__/useForceRecording.spec.ts",
     "app/frontend/src/composables/__tests__/useModal.spec.ts",
     "app/frontend/src/composables/__tests__/useNotificationSettings.spec.ts",
     "app/frontend/src/composables/__tests__/usePWA.spec.ts",
@@ -1910,6 +1974,7 @@
     "app/frontend/src/schemas/streamerSettings.schema.ts",
     "app/frontend/src/services/__tests__/api-real.auth-refresh.spec.ts",
     "app/frontend/src/services/__tests__/api.mock.proxy.spec.ts",
+    "app/frontend/src/services/__tests__/recording-settings-save.spec.ts",
     "app/frontend/src/services/__tests__/recording-status.spec.ts",
     "app/frontend/src/services/__tests__/session.spec.ts",
     "app/frontend/src/services/api-real.ts",
@@ -1943,6 +2008,7 @@
     "app/frontend/src/utils/apiCache.ts",
     "app/frontend/src/utils/logger.ts",
     "app/frontend/src/utils/pwaDebug.ts",
+    "app/frontend/src/views/AddStreamerView.vue",
     "app/frontend/src/views/HomeView.vue",
     "app/frontend/src/views/LivePlayerView.vue",
     "app/frontend/src/views/LoginView.vue",
@@ -1955,6 +2021,7 @@
     "app/frontend/src/views/VideosView.vue",
     "app/frontend/src/views/__tests__/HomeView.recording-status.spec.ts",
     "app/frontend/src/views/__tests__/StreamerDetailView.spec.ts",
+    "app/frontend/src/views/__tests__/StreamersView.channelFirst.spec.ts",
     "app/frontend/src/views/__tests__/SubscriptionsView.spec.ts",
     "app/frontend/src/views/__tests__/VideoPlayerView.spec.ts",
     "app/frontend/src/views/__tests__/VideosView.spec.ts",
@@ -1979,8 +2046,13 @@
     "app/frontend/tests/fixtures/issue828SyntheticApi.ts",
     "app/frontend/tests/fixtures/issue894-player.spec.ts",
     "app/frontend/tests/fixtures/issue896-player.spec.ts",
+    "app/frontend/tests/fixtures/issue902-artwork.spec.ts",
+    "app/frontend/tests/fixtures/issue903-streamers.spec.ts",
+    "app/frontend/tests/fixtures/issue904-notifications.spec.ts",
+    "app/frontend/tests/fixtures/issue906-headers.spec.ts",
     "app/frontend/tests/fixtures/settings-loader.config.ts",
     "app/frontend/tests/fixtures/settings-loader.spec.ts",
+    "app/frontend/tests/fixtures/settings-parity.spec.ts",
     "app/frontend/tests/unit/baselineObservation.spec.ts",
     "app/frontend/tests/unit/gateEvidence.spec.ts",
     "app/frontend/tests/unit/issue828Browser.spec.ts",
@@ -2001,7 +2073,8 @@
     "app/frontend/src/services/api.ts",
     "app/frontend/src/views/LivePlayerView.vue",
     "app/frontend/src/views/VideosView.vue",
-    "app/frontend/tests/e2e/ux06-player.spec.ts"
+    "app/frontend/tests/e2e/ux06-player.spec.ts",
+    "app/frontend/tests/fixtures/settings-loader.spec.ts"
   ],
   "pwa": [
     "app/frontend/package-lock.json",
@@ -2032,6 +2105,7 @@
     "app/frontend/src/components/settings/NotificationSettingsPanel.vue",
     "app/frontend/src/components/settings/PWAPanel.vue",
     "app/frontend/src/components/settings/TwitchConnectionPanel.vue",
+    "app/frontend/src/components/settings/__tests__/SettingsPanelHost.spec.ts",
     "app/frontend/src/composables/__tests__/usePWA.spec.ts",
     "app/frontend/src/composables/__tests__/useWebSocket.spec.ts",
     "app/frontend/src/composables/useAuth.ts",
@@ -2048,6 +2122,7 @@
     "app/frontend/src/services/__tests__/api-real.proxy.spec.ts",
     "app/frontend/src/services/__tests__/api-real.streamers.spec.ts",
     "app/frontend/src/services/__tests__/api-real.subscriptions.spec.ts",
+    "app/frontend/src/services/__tests__/api-real.twitch.spec.ts",
     "app/frontend/src/services/__tests__/api-real.video.spec.ts",
     "app/frontend/src/services/__tests__/session.spec.ts",
     "app/frontend/src/services/api-real.ts",
@@ -2067,6 +2142,7 @@
     "app/frontend/src/views/StreamersView.vue",
     "app/frontend/src/views/VideoPlayerView.vue",
     "app/frontend/src/views/VideosView.vue",
+    "app/frontend/src/views/__tests__/AddStreamerView.callback.spec.ts",
     "app/frontend/src/views/__tests__/HomeView.recording-status.spec.ts",
     "app/frontend/src/views/__tests__/StreamerDetailView.spec.ts",
     "app/frontend/src/views/__tests__/SystemBackNavigation.spec.ts",
@@ -2074,6 +2150,7 @@
     "app/frontend/src/views/__tests__/VideoPlayerView.spec.ts",
     "app/frontend/src/views/__tests__/VideosView.spec.ts",
     "app/frontend/tests/audit/interactionAudit.ts",
+    "app/frontend/tests/e2e/channel-first.spec.ts",
     "app/frontend/tests/e2e/final-local-state-matrix.spec.ts",
     "app/frontend/tests/e2e/frontend-baseline.spec.ts",
     "app/frontend/tests/e2e/pr5-responsive-shell.spec.ts",
@@ -2092,8 +2169,18 @@
     "app/frontend/tests/fixtures/issue894-player.spec.ts",
     "app/frontend/tests/fixtures/issue896-player.config.ts",
     "app/frontend/tests/fixtures/issue896-player.spec.ts",
+    "app/frontend/tests/fixtures/issue902-artwork.config.ts",
+    "app/frontend/tests/fixtures/issue902-artwork.spec.ts",
+    "app/frontend/tests/fixtures/issue903-streamers.config.ts",
+    "app/frontend/tests/fixtures/issue903-streamers.spec.ts",
+    "app/frontend/tests/fixtures/issue904-notifications.config.ts",
+    "app/frontend/tests/fixtures/issue904-notifications.spec.ts",
+    "app/frontend/tests/fixtures/issue906-headers.config.ts",
+    "app/frontend/tests/fixtures/issue906-headers.spec.ts",
     "app/frontend/tests/fixtures/settings-loader.config.ts",
     "app/frontend/tests/fixtures/settings-loader.spec.ts",
+    "app/frontend/tests/fixtures/settings-parity.config.ts",
+    "app/frontend/tests/fixtures/settings-parity.spec.ts",
     "app/frontend/tests/unit/lighthouseLifecycle.spec.ts",
     "app/frontend/tests/unit/pwaManifestOwnership.spec.ts",
     "app/frontend/vite.config.ts"
@@ -2441,7 +2528,7 @@
     },
     {
       "file": "app/frontend/src/styles/_variables.scss",
-      "line": 203,
+      "line": 201,
       "match": "@media (max-width: XXXpx"
     },
     {
@@ -2566,7 +2653,7 @@
     },
     {
       "file": "app/frontend/src/views/VideoPlayerView.vue",
-      "line": 1269,
+      "line": 1316,
       "match": "@media (max-width: 767px"
     }
   ],
@@ -2863,17 +2950,17 @@
     },
     {
       "file": "app/frontend/src/components/cards/__tests__/StreamerCard.spec.ts",
-      "line": 73,
+      "line": 92,
       "match": "document.body"
     },
     {
       "file": "app/frontend/src/components/cards/__tests__/StreamerCard.spec.ts",
-      "line": 124,
+      "line": 143,
       "match": "document.body"
     },
     {
       "file": "app/frontend/src/components/cards/__tests__/StreamerCard.spec.ts",
-      "line": 135,
+      "line": 154,
       "match": "document.body"
     },
     {
@@ -2949,6 +3036,11 @@
     {
       "file": "app/frontend/src/components/settings/LoggingPanel.vue",
       "line": 306,
+      "match": "document.body"
+    },
+    {
+      "file": "app/frontend/src/components/settings/__tests__/SettingsPanelHost.spec.ts",
+      "line": 38,
       "match": "document.body"
     },
     {
@@ -3153,12 +3245,12 @@
     },
     {
       "file": "app/frontend/src/router/index.ts",
-      "line": 121,
+      "line": 125,
       "match": "document.documentElement"
     },
     {
       "file": "app/frontend/src/router/index.ts",
-      "line": 122,
+      "line": 126,
       "match": "document.body"
     },
     {
@@ -3248,48 +3340,58 @@
     },
     {
       "file": "app/frontend/src/views/StreamerDetailView.vue",
-      "line": 530,
+      "line": 540,
       "match": "document.getElementById"
     },
     {
       "file": "app/frontend/src/views/VideoPlayerView.vue",
-      "line": 380,
+      "line": 399,
       "match": "document.createElement"
     },
     {
       "file": "app/frontend/src/views/VideoPlayerView.vue",
-      "line": 384,
+      "line": 403,
       "match": "document.body"
     },
     {
       "file": "app/frontend/src/views/VideoPlayerView.vue",
-      "line": 386,
+      "line": 405,
       "match": "document.body"
     },
     {
       "file": "app/frontend/src/views/VideoPlayerView.vue",
-      "line": 437,
+      "line": 456,
       "match": "document.execCommand"
     },
     {
       "file": "app/frontend/src/views/__tests__/StreamerDetailView.spec.ts",
-      "line": 113,
+      "line": 115,
       "match": "document.body"
     },
     {
       "file": "app/frontend/src/views/__tests__/StreamerDetailView.spec.ts",
-      "line": 164,
+      "line": 184,
       "match": "document.body"
     },
     {
       "file": "app/frontend/src/views/__tests__/StreamerDetailView.spec.ts",
-      "line": 233,
+      "line": 290,
       "match": "document.body"
     },
     {
       "file": "app/frontend/src/views/__tests__/StreamerDetailView.spec.ts",
-      "line": 313,
+      "line": 371,
       "match": "document.body"
+    },
+    {
+      "file": "app/frontend/tests/e2e/channel-first.spec.ts",
+      "line": 26,
+      "match": "document.documentElement"
+    },
+    {
+      "file": "app/frontend/tests/e2e/channel-first.spec.ts",
+      "line": 26,
+      "match": "document.documentElement"
     },
     {
       "file": "app/frontend/tests/e2e/foundation.spec.ts",
@@ -3383,12 +3485,12 @@
     },
     {
       "file": "app/frontend/tests/e2e/mock-routes.spec.ts",
-      "line": 14,
+      "line": 17,
       "match": "document.documentElement"
     },
     {
       "file": "app/frontend/tests/e2e/mock-routes.spec.ts",
-      "line": 15,
+      "line": 18,
       "match": "document.documentElement"
     },
     {
@@ -3533,27 +3635,27 @@
     },
     {
       "file": "app/frontend/tests/e2e/ui-standards.spec.ts",
-      "line": 78,
+      "line": 79,
       "match": "document.documentElement"
     },
     {
       "file": "app/frontend/tests/e2e/ui-standards.spec.ts",
-      "line": 103,
+      "line": 104,
       "match": "document.documentElement"
     },
     {
       "file": "app/frontend/tests/e2e/ui-standards.spec.ts",
-      "line": 107,
+      "line": 108,
       "match": "document.querySelector"
     },
     {
       "file": "app/frontend/tests/e2e/ui-standards.spec.ts",
-      "line": 110,
+      "line": 111,
       "match": "document.body"
     },
     {
       "file": "app/frontend/tests/e2e/ui-standards.spec.ts",
-      "line": 114,
+      "line": 115,
       "match": "document.documentElement"
     },
     {
@@ -3585,6 +3687,41 @@
       "file": "app/frontend/tests/fixtures/issue896-player.spec.ts",
       "line": 349,
       "match": "document.querySelector"
+    },
+    {
+      "file": "app/frontend/tests/fixtures/issue903-streamers.spec.ts",
+      "line": 124,
+      "match": "document.documentElement"
+    },
+    {
+      "file": "app/frontend/tests/fixtures/issue906-headers.spec.ts",
+      "line": 147,
+      "match": "document.documentElement"
+    },
+    {
+      "file": "app/frontend/tests/fixtures/issue906-headers.spec.ts",
+      "line": 147,
+      "match": "document.documentElement"
+    },
+    {
+      "file": "app/frontend/tests/fixtures/issue906-headers.spec.ts",
+      "line": 168,
+      "match": "document.documentElement"
+    },
+    {
+      "file": "app/frontend/tests/fixtures/issue906-headers.spec.ts",
+      "line": 170,
+      "match": "document.documentElement"
+    },
+    {
+      "file": "app/frontend/tests/fixtures/settings-parity.spec.ts",
+      "line": 140,
+      "match": "document.documentElement"
+    },
+    {
+      "file": "app/frontend/tests/fixtures/settings-parity.spec.ts",
+      "line": 140,
+      "match": "document.documentElement"
     },
     {
       "file": "app/frontend/tests/unit/interactionAudit.spec.ts",
@@ -3748,7 +3885,7 @@
     },
     {
       "file": "app/frontend/vite.config.ts",
-      "line": 52,
+      "line": 63,
       "match": "document.createElement"
     }
   ],
@@ -3860,8 +3997,38 @@
     },
     {
       "file": "app/frontend/src/components/settings/NotificationSettingsPanel.vue",
-      "line": 314,
+      "line": 320,
       "match": "const KNOWN_SCHEMES = ["
+    },
+    {
+      "file": "app/frontend/src/components/settings/__tests__/ChannelSettingsPanel.spec.ts",
+      "line": 26,
+      "match": "const global = {"
+    },
+    {
+      "file": "app/frontend/src/components/settings/__tests__/SettingsContext.spec.ts",
+      "line": 15,
+      "match": "const channel = {"
+    },
+    {
+      "file": "app/frontend/src/components/settings/__tests__/SettingsContext.spec.ts",
+      "line": 16,
+      "match": "const recording = {"
+    },
+    {
+      "file": "app/frontend/src/components/settings/__tests__/SettingsContext.spec.ts",
+      "line": 17,
+      "match": "const notification = {"
+    },
+    {
+      "file": "app/frontend/src/components/settings/__tests__/SettingsContext.spec.ts",
+      "line": 18,
+      "match": "const notificationSettings = {"
+    },
+    {
+      "file": "app/frontend/src/components/settings/__tests__/SettingsContext.spec.ts",
+      "line": 19,
+      "match": "const global = {"
     },
     {
       "file": "app/frontend/src/composables/__tests__/useNotificationSettings.spec.ts",
@@ -3920,18 +4087,23 @@
     },
     {
       "file": "app/frontend/src/router/index.ts",
-      "line": 22,
+      "line": 23,
       "match": "const WELCOME_PATHS = new "
     },
     {
       "file": "app/frontend/src/router/index.ts",
-      "line": 23,
+      "line": 24,
       "match": "const WIZARD_PATHS = new "
     },
     {
       "file": "app/frontend/src/router/index.ts",
-      "line": 24,
+      "line": 25,
       "match": "const PUBLIC_PATHS = new "
+    },
+    {
+      "file": "app/frontend/src/services/__tests__/recording-settings-save.spec.ts",
+      "line": 6,
+      "match": "const settings = {"
     },
     {
       "file": "app/frontend/src/services/api-real.ts",
@@ -4065,42 +4237,42 @@
     },
     {
       "file": "app/frontend/src/views/SettingsView.vue",
-      "line": 256,
+      "line": 261,
       "match": "let panelHostRequest = 0"
     },
     {
       "file": "app/frontend/src/views/SettingsView.vue",
-      "line": 257,
+      "line": 262,
       "match": "let panelHostAttempt = 0"
     },
     {
       "file": "app/frontend/src/views/SettingsView.vue",
-      "line": 258,
+      "line": 263,
       "match": "let acceptsPanelHost = true"
     },
     {
       "file": "app/frontend/src/views/SettingsView.vue",
-      "line": 377,
+      "line": 373,
       "match": "const defaultNotificationSettings = {"
     },
     {
       "file": "app/frontend/src/views/StreamerDetailView.vue",
-      "line": 511,
+      "line": 521,
       "match": "const cockpitTabs = ["
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 236,
+      "line": 241,
       "match": "const validFilters = new "
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 247,
+      "line": 252,
       "match": "const REFRESH_INTERVAL = 3"
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 249,
+      "line": 254,
       "match": "const sortOptions = ["
     },
     {
@@ -4110,7 +4282,7 @@
     },
     {
       "file": "app/frontend/src/views/__tests__/StreamerDetailView.spec.ts",
-      "line": 60,
+      "line": 62,
       "match": "const streams = ["
     },
     {
@@ -4187,6 +4359,11 @@
       "file": "app/frontend/tests/fixtures/foundation-harness/FoundationHarness.vue",
       "line": 12,
       "match": "const query = new "
+    },
+    {
+      "file": "app/frontend/tests/fixtures/issue902-artwork.spec.ts",
+      "line": 5,
+      "match": "const chapters = ["
     }
   ],
   "listenersAndTimers": [
@@ -4352,37 +4529,37 @@
     },
     {
       "file": "app/frontend/src/components/settings/NotificationSettingsPanel.vue",
-      "line": 272,
+      "line": 278,
       "match": "clearTimeout("
     },
     {
       "file": "app/frontend/src/components/settings/NotificationSettingsPanel.vue",
-      "line": 276,
+      "line": 282,
       "match": "setTimeout("
     },
     {
       "file": "app/frontend/src/components/settings/NotificationSettingsPanel.vue",
-      "line": 284,
+      "line": 290,
       "match": "clearTimeout("
     },
     {
       "file": "app/frontend/src/components/settings/NotificationSettingsPanel.vue",
-      "line": 291,
+      "line": 297,
       "match": "clearTimeout("
     },
     {
       "file": "app/frontend/src/components/settings/NotificationSettingsPanel.vue",
-      "line": 298,
+      "line": 304,
       "match": "setTimeout("
     },
     {
       "file": "app/frontend/src/components/settings/NotificationSettingsPanel.vue",
-      "line": 306,
+      "line": 312,
       "match": "clearTimeout("
     },
     {
       "file": "app/frontend/src/components/settings/NotificationSettingsPanel.vue",
-      "line": 309,
+      "line": 315,
       "match": "clearTimeout("
     },
     {
@@ -4547,11 +4724,6 @@
     },
     {
       "file": "app/frontend/src/composables/useWebSocket.ts",
-      "line": 64,
-      "match": "addEventListener("
-    },
-    {
-      "file": "app/frontend/src/composables/useWebSocket.ts",
       "line": 65,
       "match": "addEventListener("
     },
@@ -4562,37 +4734,42 @@
     },
     {
       "file": "app/frontend/src/composables/useWebSocket.ts",
-      "line": 100,
+      "line": 67,
+      "match": "addEventListener("
+    },
+    {
+      "file": "app/frontend/src/composables/useWebSocket.ts",
+      "line": 101,
       "match": "clearTimeout("
     },
     {
       "file": "app/frontend/src/composables/useWebSocket.ts",
-      "line": 174,
+      "line": 175,
       "match": "clearTimeout("
     },
     {
       "file": "app/frontend/src/composables/useWebSocket.ts",
-      "line": 226,
+      "line": 227,
       "match": "clearTimeout("
     },
     {
       "file": "app/frontend/src/composables/useWebSocket.ts",
-      "line": 290,
+      "line": 291,
       "match": "clearTimeout("
     },
     {
       "file": "app/frontend/src/composables/useWebSocket.ts",
-      "line": 314,
+      "line": 315,
       "match": "setTimeout("
     },
     {
       "file": "app/frontend/src/composables/useWebSocket.ts",
-      "line": 337,
+      "line": 338,
       "match": "setTimeout("
     },
     {
       "file": "app/frontend/src/composables/useWebSocket.ts",
-      "line": 385,
+      "line": 393,
       "match": "clearTimeout("
     },
     {
@@ -4707,32 +4884,32 @@
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 389,
+      "line": 394,
       "match": "setInterval("
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 398,
+      "line": 403,
       "match": "clearInterval("
     },
     {
       "file": "app/frontend/src/views/VideoPlayerView.vue",
-      "line": 392,
+      "line": 411,
       "match": "setTimeout("
     },
     {
       "file": "app/frontend/src/views/VideoPlayerView.vue",
-      "line": 445,
+      "line": 464,
       "match": "setTimeout("
     },
     {
       "file": "app/frontend/src/views/VideoPlayerView.vue",
-      "line": 476,
+      "line": 495,
       "match": "addEventListener("
     },
     {
       "file": "app/frontend/src/views/VideoPlayerView.vue",
-      "line": 481,
+      "line": 500,
       "match": "removeEventListener("
     },
     {
@@ -4909,17 +5086,17 @@
     },
     {
       "file": "app/frontend/src/components/TwitchImportForm.vue",
-      "line": 243,
+      "line": 242,
       "match": ": any"
     },
     {
       "file": "app/frontend/src/components/TwitchImportForm.vue",
-      "line": 257,
+      "line": 256,
       "match": ": any"
     },
     {
       "file": "app/frontend/src/components/TwitchImportForm.vue",
-      "line": 282,
+      "line": 289,
       "match": ": any"
     },
     {
@@ -4989,32 +5166,32 @@
     },
     {
       "file": "app/frontend/src/components/settings/RecordingSettingsPanel.vue",
-      "line": 380,
+      "line": 384,
       "match": ": any"
     },
     {
       "file": "app/frontend/src/components/settings/RecordingSettingsPanel.vue",
-      "line": 412,
+      "line": 416,
       "match": ": any"
     },
     {
       "file": "app/frontend/src/components/settings/RecordingSettingsPanel.vue",
-      "line": 522,
+      "line": 526,
       "match": ": any"
     },
     {
       "file": "app/frontend/src/components/settings/RecordingSettingsPanel.vue",
-      "line": 543,
+      "line": 547,
       "match": ": any"
     },
     {
       "file": "app/frontend/src/components/settings/SettingsPanelHost.vue",
-      "line": 25,
+      "line": 28,
       "match": ": any"
     },
     {
       "file": "app/frontend/src/components/settings/SettingsPanelHost.vue",
-      "line": 40,
+      "line": 43,
       "match": ": any"
     },
     {
@@ -5153,38 +5330,13 @@
       "match": ": any"
     },
     {
-      "file": "app/frontend/src/views/SettingsView.vue",
-      "line": 475,
+      "file": "app/frontend/src/views/StreamerDetailView.vue",
+      "line": 653,
       "match": ": any"
     },
     {
       "file": "app/frontend/src/views/StreamerDetailView.vue",
-      "line": 621,
-      "match": ": any"
-    },
-    {
-      "file": "app/frontend/src/views/StreamerDetailView.vue",
-      "line": 677,
-      "match": ": any"
-    },
-    {
-      "file": "app/frontend/src/views/StreamerDetailView.vue",
-      "line": 856,
-      "match": ": any"
-    },
-    {
-      "file": "app/frontend/src/views/StreamerDetailView.vue",
-      "line": 861,
-      "match": ": any"
-    },
-    {
-      "file": "app/frontend/src/views/StreamerDetailView.vue",
-      "line": 865,
-      "match": ": any"
-    },
-    {
-      "file": "app/frontend/src/views/StreamerDetailView.vue",
-      "line": 883,
+      "line": 709,
       "match": ": any"
     },
     {
@@ -5194,87 +5346,102 @@
     },
     {
       "file": "app/frontend/src/views/StreamerDetailView.vue",
-      "line": 920,
+      "line": 895,
       "match": ": any"
     },
     {
       "file": "app/frontend/src/views/StreamerDetailView.vue",
-      "line": 965,
+      "line": 899,
       "match": ": any"
     },
     {
       "file": "app/frontend/src/views/StreamerDetailView.vue",
-      "line": 969,
+      "line": 941,
+      "match": ": any"
+    },
+    {
+      "file": "app/frontend/src/views/StreamerDetailView.vue",
+      "line": 971,
+      "match": ": any"
+    },
+    {
+      "file": "app/frontend/src/views/StreamerDetailView.vue",
+      "line": 1016,
+      "match": ": any"
+    },
+    {
+      "file": "app/frontend/src/views/StreamerDetailView.vue",
+      "line": 1020,
       "match": ": any"
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 429,
+      "line": 434,
       "match": ": any"
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 437,
+      "line": 442,
       "match": ": any"
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 443,
+      "line": 448,
       "match": ": any"
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 493,
+      "line": 498,
       "match": ": any"
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 539,
+      "line": 544,
       "match": ": any"
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 545,
+      "line": 550,
       "match": ": any"
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 551,
+      "line": 556,
       "match": ": any"
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 555,
+      "line": 560,
       "match": ": any"
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 559,
+      "line": 564,
       "match": ": any"
     },
     {
       "file": "app/frontend/src/views/SubscriptionsView.vue",
-      "line": 256,
+      "line": 247,
       "match": ": any"
     },
     {
       "file": "app/frontend/src/views/SubscriptionsView.vue",
-      "line": 289,
+      "line": 280,
       "match": ": any"
     },
     {
       "file": "app/frontend/src/views/VideoPlayerView.vue",
-      "line": 326,
+      "line": 345,
       "match": ": any"
     },
     {
       "file": "app/frontend/src/views/VideoPlayerView.vue",
-      "line": 341,
+      "line": 360,
       "match": ": any"
     },
     {
       "file": "app/frontend/src/views/VideoPlayerView.vue",
-      "line": 363,
+      "line": 382,
       "match": ": any"
     },
     {
@@ -6118,7 +6285,7 @@
     },
     {
       "file": "app/frontend/src/components/navigation/SidebarNav.vue",
-      "line": 48,
+      "line": 49,
       "match": "@click="
     },
     {
@@ -6189,6 +6356,11 @@
     {
       "file": "app/frontend/src/components/settings/ApiKeysPanel.vue",
       "line": 84,
+      "match": "@click="
+    },
+    {
+      "file": "app/frontend/src/components/settings/ChannelSettingsPanel.vue",
+      "line": 6,
       "match": "@click="
     },
     {
@@ -6263,22 +6435,22 @@
     },
     {
       "file": "app/frontend/src/components/settings/NotificationSettingsPanel.vue",
-      "line": 132,
-      "match": "@click="
-    },
-    {
-      "file": "app/frontend/src/components/settings/NotificationSettingsPanel.vue",
       "line": 133,
       "match": "@click="
     },
     {
       "file": "app/frontend/src/components/settings/NotificationSettingsPanel.vue",
-      "line": 204,
+      "line": 134,
       "match": "@click="
     },
     {
       "file": "app/frontend/src/components/settings/NotificationSettingsPanel.vue",
-      "line": 208,
+      "line": 205,
+      "match": "@click="
+    },
+    {
+      "file": "app/frontend/src/components/settings/NotificationSettingsPanel.vue",
+      "line": 209,
       "match": "@click="
     },
     {
@@ -6533,7 +6705,7 @@
     },
     {
       "file": "app/frontend/src/views/SettingsView.vue",
-      "line": 86,
+      "line": 91,
       "match": "@click="
     },
     {
@@ -6578,37 +6750,37 @@
     },
     {
       "file": "app/frontend/src/views/StreamerDetailView.vue",
-      "line": 444,
+      "line": 452,
       "match": "@click="
     },
     {
       "file": "app/frontend/src/views/StreamerDetailView.vue",
-      "line": 445,
+      "line": 453,
       "match": "@click="
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 13,
+      "line": 46,
       "match": "@click="
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 49,
+      "line": 62,
       "match": "@click="
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 65,
+      "line": 78,
       "match": "@click="
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 81,
+      "line": 90,
       "match": "@click="
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 93,
+      "line": 128,
       "match": "@click="
     },
     {
@@ -6618,22 +6790,22 @@
     },
     {
       "file": "app/frontend/src/views/SubscriptionsView.vue",
-      "line": 24,
+      "line": 13,
       "match": "@click="
     },
     {
       "file": "app/frontend/src/views/SubscriptionsView.vue",
-      "line": 31,
+      "line": 20,
       "match": "@click="
     },
     {
       "file": "app/frontend/src/views/SubscriptionsView.vue",
-      "line": 43,
+      "line": 32,
       "match": "@click="
     },
     {
       "file": "app/frontend/src/views/SubscriptionsView.vue",
-      "line": 110,
+      "line": 100,
       "match": "@click="
     },
     {
@@ -6648,32 +6820,32 @@
     },
     {
       "file": "app/frontend/src/views/VideoPlayerView.vue",
-      "line": 126,
+      "line": 138,
       "match": "@click="
     },
     {
       "file": "app/frontend/src/views/VideoPlayerView.vue",
-      "line": 130,
+      "line": 142,
       "match": "@click="
     },
     {
       "file": "app/frontend/src/views/VideoPlayerView.vue",
-      "line": 140,
+      "line": 152,
       "match": "@click="
     },
     {
       "file": "app/frontend/src/views/VideoPlayerView.vue",
-      "line": 151,
+      "line": 163,
       "match": "@click="
     },
     {
       "file": "app/frontend/src/views/VideoPlayerView.vue",
-      "line": 171,
+      "line": 183,
       "match": "@click="
     },
     {
       "file": "app/frontend/src/views/VideoPlayerView.vue",
-      "line": 172,
+      "line": 184,
       "match": "@click="
     },
     {
@@ -6743,12 +6915,12 @@
     },
     {
       "file": "app/frontend/src/views/__tests__/VideoPlayerView.spec.ts",
-      "line": 58,
+      "line": 60,
       "match": "@click="
     },
     {
       "file": "app/frontend/src/views/__tests__/VideoPlayerView.spec.ts",
-      "line": 64,
+      "line": 66,
       "match": "@click="
     },
     {
@@ -7010,57 +7182,57 @@
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 447,
-      "match": "confirm("
-    },
-    {
-      "file": "app/frontend/src/views/StreamersView.vue",
       "line": 452,
       "match": "confirm("
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 465,
+      "line": 457,
+      "match": "confirm("
+    },
+    {
+      "file": "app/frontend/src/views/StreamersView.vue",
+      "line": 470,
       "match": "alert("
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 467,
+      "line": 472,
       "match": "alert("
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 474,
+      "line": 479,
       "match": "alert("
     },
     {
       "file": "app/frontend/src/views/SubscriptionsView.vue",
-      "line": 252,
+      "line": 243,
       "match": "alert("
     },
     {
       "file": "app/frontend/src/views/SubscriptionsView.vue",
-      "line": 258,
+      "line": 249,
       "match": "alert("
     },
     {
       "file": "app/frontend/src/views/SubscriptionsView.vue",
-      "line": 266,
+      "line": 257,
       "match": "confirm("
     },
     {
       "file": "app/frontend/src/views/SubscriptionsView.vue",
-      "line": 280,
+      "line": 271,
       "match": "confirm("
     },
     {
       "file": "app/frontend/src/views/SubscriptionsView.vue",
-      "line": 285,
+      "line": 276,
       "match": "alert("
     },
     {
       "file": "app/frontend/src/views/SubscriptionsView.vue",
-      "line": 291,
+      "line": 282,
       "match": "alert("
     }
   ],
@@ -7103,17 +7275,17 @@
     },
     {
       "file": "app/frontend/src/components/TwitchImportForm.vue",
-      "line": 363,
+      "line": 368,
       "match": "transition: all"
     },
     {
       "file": "app/frontend/src/components/TwitchImportForm.vue",
-      "line": 521,
+      "line": 526,
       "match": "transition: all"
     },
     {
       "file": "app/frontend/src/components/TwitchImportForm.vue",
-      "line": 678,
+      "line": 683,
       "match": "transition: all"
     },
     {
@@ -7193,7 +7365,7 @@
     },
     {
       "file": "app/frontend/src/components/settings/RecordingSettingsPanel.vue",
-      "line": 686,
+      "line": 690,
       "match": "transition: all"
     },
     {
@@ -7363,82 +7535,82 @@
     },
     {
       "file": "app/frontend/src/views/SettingsView.vue",
-      "line": 596,
+      "line": 570,
       "match": "transition: all"
     },
     {
       "file": "app/frontend/src/views/SettingsView.vue",
-      "line": 881,
+      "line": 855,
       "match": "transition: all"
     },
     {
       "file": "app/frontend/src/views/StreamerDetailView.vue",
-      "line": 1035,
+      "line": 1086,
       "match": "transition: all"
     },
     {
       "file": "app/frontend/src/views/StreamerDetailView.vue",
-      "line": 1226,
+      "line": 1277,
       "match": "transition: all"
     },
     {
       "file": "app/frontend/src/views/StreamerDetailView.vue",
-      "line": 1316,
+      "line": 1367,
       "match": "transition: all"
     },
     {
       "file": "app/frontend/src/views/StreamerDetailView.vue",
-      "line": 1531,
+      "line": 1582,
       "match": "transition: all"
     },
     {
       "file": "app/frontend/src/views/StreamerDetailView.vue",
-      "line": 1644,
+      "line": 1695,
       "match": "transition: all"
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 664,
+      "line": 680,
       "match": "transition: all"
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 733,
+      "line": 749,
       "match": "transition: all"
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 760,
+      "line": 776,
       "match": "transition: all"
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 805,
+      "line": 821,
       "match": "transition: all"
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 856,
+      "line": 872,
       "match": "transition: all"
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 992,
+      "line": 1008,
       "match": "transition: all"
     },
     {
       "file": "app/frontend/src/views/VideoPlayerView.vue",
-      "line": 685,
+      "line": 704,
       "match": "transition: all"
     },
     {
       "file": "app/frontend/src/views/VideoPlayerView.vue",
-      "line": 926,
+      "line": 946,
       "match": "transition: all"
     },
     {
       "file": "app/frontend/src/views/VideoPlayerView.vue",
-      "line": 973,
+      "line": 1020,
       "match": "transition: all"
     },
     {
@@ -7567,12 +7739,12 @@
   "potentialUndersizeTargets": [
     {
       "file": "app/frontend/src/components/AppShell.vue",
-      "line": 542,
+      "line": 543,
       "match": "width: 22px"
     },
     {
       "file": "app/frontend/src/components/AppShell.vue",
-      "line": 543,
+      "line": 544,
       "match": "height: 22px"
     },
     {
@@ -7987,32 +8159,32 @@
     },
     {
       "file": "app/frontend/src/components/TwitchImportForm.vue",
-      "line": 388,
+      "line": 393,
       "match": "width: 5px"
     },
     {
       "file": "app/frontend/src/components/TwitchImportForm.vue",
-      "line": 389,
+      "line": 394,
       "match": "height: 5px"
     },
     {
       "file": "app/frontend/src/components/TwitchImportForm.vue",
-      "line": 453,
+      "line": 458,
       "match": "width: 40px"
     },
     {
       "file": "app/frontend/src/components/TwitchImportForm.vue",
-      "line": 454,
+      "line": 459,
       "match": "height: 40px"
     },
     {
       "file": "app/frontend/src/components/TwitchImportForm.vue",
-      "line": 561,
+      "line": 566,
       "match": "width: 24px"
     },
     {
       "file": "app/frontend/src/components/TwitchImportForm.vue",
-      "line": 562,
+      "line": 567,
       "match": "height: 24px"
     },
     {
@@ -8437,57 +8609,57 @@
     },
     {
       "file": "app/frontend/src/components/navigation/BottomNav.vue",
-      "line": 264,
+      "line": 267,
       "match": "min-width: 18px"
     },
     {
       "file": "app/frontend/src/components/navigation/BottomNav.vue",
-      "line": 265,
+      "line": 268,
       "match": "height: 18px"
-    },
-    {
-      "file": "app/frontend/src/components/navigation/SidebarNav.vue",
-      "line": 148,
-      "match": "width: 18px"
     },
     {
       "file": "app/frontend/src/components/navigation/SidebarNav.vue",
       "line": 149,
+      "match": "width: 18px"
+    },
+    {
+      "file": "app/frontend/src/components/navigation/SidebarNav.vue",
+      "line": 150,
       "match": "height: 18px"
     },
     {
       "file": "app/frontend/src/components/navigation/SidebarNav.vue",
-      "line": 229,
+      "line": 230,
       "match": "width: 20px"
     },
     {
       "file": "app/frontend/src/components/navigation/SidebarNav.vue",
-      "line": 230,
+      "line": 231,
       "match": "height: 20px"
-    },
-    {
-      "file": "app/frontend/src/components/navigation/SidebarNav.vue",
-      "line": 273,
-      "match": "min-width: 20px"
     },
     {
       "file": "app/frontend/src/components/navigation/SidebarNav.vue",
       "line": 274,
+      "match": "min-width: 20px"
+    },
+    {
+      "file": "app/frontend/src/components/navigation/SidebarNav.vue",
+      "line": 275,
       "match": "height: 20px"
     },
     {
       "file": "app/frontend/src/components/navigation/SidebarNav.vue",
-      "line": 279,
+      "line": 280,
       "match": "height: 20px"
-    },
-    {
-      "file": "app/frontend/src/components/navigation/SidebarNav.vue",
-      "line": 284,
-      "match": "width: 16px"
     },
     {
       "file": "app/frontend/src/components/navigation/SidebarNav.vue",
       "line": 285,
+      "match": "width: 16px"
+    },
+    {
+      "file": "app/frontend/src/components/navigation/SidebarNav.vue",
+      "line": 286,
       "match": "height: 16px"
     },
     {
@@ -8602,12 +8774,12 @@
     },
     {
       "file": "app/frontend/src/components/settings/RecordingSettingsPanel.vue",
-      "line": 577,
+      "line": 581,
       "match": "width: 24px"
     },
     {
       "file": "app/frontend/src/components/settings/RecordingSettingsPanel.vue",
-      "line": 578,
+      "line": 582,
       "match": "height: 24px"
     },
     {
@@ -9417,52 +9589,52 @@
     },
     {
       "file": "app/frontend/src/views/AddStreamerView.vue",
-      "line": 152,
+      "line": 158,
       "match": "width: 16px"
     },
     {
       "file": "app/frontend/src/views/AddStreamerView.vue",
-      "line": 153,
+      "line": 159,
       "match": "height: 16px"
     },
     {
       "file": "app/frontend/src/views/AddStreamerView.vue",
-      "line": 180,
+      "line": 186,
       "match": "width: 32px"
     },
     {
       "file": "app/frontend/src/views/AddStreamerView.vue",
-      "line": 181,
+      "line": 187,
       "match": "height: 32px"
     },
     {
       "file": "app/frontend/src/views/AddStreamerView.vue",
-      "line": 250,
+      "line": 256,
       "match": "width: 28px"
     },
     {
       "file": "app/frontend/src/views/AddStreamerView.vue",
-      "line": 251,
+      "line": 257,
       "match": "height: 28px"
     },
     {
       "file": "app/frontend/src/views/AddStreamerView.vue",
-      "line": 285,
+      "line": 291,
       "match": "width: 20px"
     },
     {
       "file": "app/frontend/src/views/AddStreamerView.vue",
-      "line": 286,
+      "line": 292,
       "match": "height: 20px"
     },
     {
       "file": "app/frontend/src/views/AddStreamerView.vue",
-      "line": 302,
+      "line": 308,
       "match": "width: 24px"
     },
     {
       "file": "app/frontend/src/views/AddStreamerView.vue",
-      "line": 302,
+      "line": 308,
       "match": "height: 24px"
     },
     {
@@ -9652,353 +9824,333 @@
     },
     {
       "file": "app/frontend/src/views/SettingsView.vue",
-      "line": 627,
+      "line": 601,
       "match": "width: 20px"
     },
     {
       "file": "app/frontend/src/views/SettingsView.vue",
-      "line": 628,
+      "line": 602,
       "match": "height: 20px"
     },
     {
       "file": "app/frontend/src/views/SettingsView.vue",
-      "line": 658,
+      "line": 632,
       "match": "width: 16px"
     },
     {
       "file": "app/frontend/src/views/SettingsView.vue",
-      "line": 659,
+      "line": 633,
       "match": "height: 16px"
     },
     {
       "file": "app/frontend/src/views/SettingsView.vue",
-      "line": 702,
+      "line": 676,
       "match": "width: 18px"
     },
     {
       "file": "app/frontend/src/views/SettingsView.vue",
-      "line": 703,
+      "line": 677,
       "match": "height: 18px"
     },
     {
       "file": "app/frontend/src/views/SettingsView.vue",
-      "line": 884,
+      "line": 858,
       "match": "width: 20px"
     },
     {
       "file": "app/frontend/src/views/SettingsView.vue",
-      "line": 885,
+      "line": 859,
       "match": "height: 20px"
     },
     {
       "file": "app/frontend/src/views/SettingsView.vue",
-      "line": 969,
+      "line": 943,
       "match": "width: 20px"
     },
     {
       "file": "app/frontend/src/views/SettingsView.vue",
-      "line": 970,
+      "line": 944,
       "match": "height: 20px"
     },
     {
       "file": "app/frontend/src/views/StreamerDetailView.vue",
-      "line": 1027,
+      "line": 1078,
       "match": "min-height: 40px"
     },
     {
       "file": "app/frontend/src/views/StreamerDetailView.vue",
-      "line": 1038,
+      "line": 1089,
       "match": "width: 18px"
     },
     {
       "file": "app/frontend/src/views/StreamerDetailView.vue",
-      "line": 1039,
+      "line": 1090,
       "match": "height: 18px"
     },
     {
       "file": "app/frontend/src/views/StreamerDetailView.vue",
-      "line": 1091,
+      "line": 1142,
       "match": "width: 32px"
     },
     {
       "file": "app/frontend/src/views/StreamerDetailView.vue",
-      "line": 1092,
+      "line": 1143,
       "match": "height: 32px"
     },
     {
       "file": "app/frontend/src/views/StreamerDetailView.vue",
-      "line": 1106,
+      "line": 1157,
       "match": "width: 16px"
     },
     {
       "file": "app/frontend/src/views/StreamerDetailView.vue",
-      "line": 1107,
+      "line": 1158,
       "match": "height: 16px"
     },
     {
       "file": "app/frontend/src/views/StreamerDetailView.vue",
-      "line": 1201,
+      "line": 1252,
       "match": "width: 18px"
     },
     {
       "file": "app/frontend/src/views/StreamerDetailView.vue",
-      "line": 1202,
+      "line": 1253,
       "match": "height: 18px"
     },
     {
       "file": "app/frontend/src/views/StreamerDetailView.vue",
-      "line": 1231,
+      "line": 1282,
       "match": "width: 18px"
     },
     {
       "file": "app/frontend/src/views/StreamerDetailView.vue",
-      "line": 1232,
+      "line": 1283,
       "match": "height: 18px"
     },
     {
       "file": "app/frontend/src/views/StreamerDetailView.vue",
-      "line": 1290,
+      "line": 1341,
       "match": "height: 6px"
     },
     {
       "file": "app/frontend/src/views/StreamerDetailView.vue",
-      "line": 1324,
+      "line": 1375,
       "match": "width: 16px"
     },
     {
       "file": "app/frontend/src/views/StreamerDetailView.vue",
-      "line": 1325,
+      "line": 1376,
       "match": "height: 16px"
     },
     {
       "file": "app/frontend/src/views/StreamerDetailView.vue",
-      "line": 1425,
+      "line": 1476,
       "match": "width: 14px"
     },
     {
       "file": "app/frontend/src/views/StreamerDetailView.vue",
-      "line": 1426,
+      "line": 1477,
       "match": "height: 14px"
     },
     {
       "file": "app/frontend/src/views/StreamerDetailView.vue",
-      "line": 1459,
-      "match": "width: 20px"
-    },
-    {
-      "file": "app/frontend/src/views/StreamerDetailView.vue",
-      "line": 1460,
-      "match": "height: 20px"
-    },
-    {
-      "file": "app/frontend/src/views/StreamerDetailView.vue",
       "line": 1510,
-      "match": "width: 16px"
+      "match": "width: 20px"
     },
     {
       "file": "app/frontend/src/views/StreamerDetailView.vue",
       "line": 1511,
+      "match": "height: 20px"
+    },
+    {
+      "file": "app/frontend/src/views/StreamerDetailView.vue",
+      "line": 1561,
+      "match": "width: 16px"
+    },
+    {
+      "file": "app/frontend/src/views/StreamerDetailView.vue",
+      "line": 1562,
       "match": "height: 16px"
     },
     {
       "file": "app/frontend/src/views/StreamerDetailView.vue",
-      "line": 1652,
+      "line": 1703,
       "match": "width: 10px"
     },
     {
       "file": "app/frontend/src/views/StreamerDetailView.vue",
-      "line": 1653,
+      "line": 1704,
       "match": "height: 10px"
     },
     {
       "file": "app/frontend/src/views/StreamerDetailView.vue",
-      "line": 1730,
+      "line": 1781,
       "match": "width: 8px"
     },
     {
       "file": "app/frontend/src/views/StreamerDetailView.vue",
-      "line": 1731,
+      "line": 1782,
       "match": "height: 8px"
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 609,
+      "line": 625,
       "match": "width: 6px"
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 610,
+      "line": 626,
       "match": "height: 6px"
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 623,
+      "line": 639,
       "match": "width: 18px"
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 624,
+      "line": 640,
       "match": "height: 18px"
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 667,
+      "line": 683,
       "match": "width: 18px"
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 668,
+      "line": 684,
       "match": "height: 18px"
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 717,
+      "line": 733,
       "match": "width: 18px"
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 718,
+      "line": 734,
       "match": "height: 18px"
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 763,
+      "line": 779,
       "match": "width: 16px"
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 764,
+      "line": 780,
       "match": "height: 16px"
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 828,
+      "line": 844,
       "match": "min-width: 20px"
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 829,
+      "line": 845,
       "match": "height: 20px"
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 859,
+      "line": 875,
       "match": "width: 18px"
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 860,
+      "line": 876,
       "match": "height: 18px"
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 910,
+      "line": 926,
       "match": "width: 16px"
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 911,
+      "line": 927,
       "match": "height: 16px"
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 995,
+      "line": 1011,
       "match": "width: 16px"
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 996,
+      "line": 1012,
       "match": "height: 16px"
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 1152,
+      "line": 1168,
       "match": "width: 18px"
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 1153,
+      "line": 1169,
       "match": "height: 18px"
-    },
-    {
-      "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 1172,
-      "match": "min-width: 18px"
-    },
-    {
-      "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 1173,
-      "match": "height: 18px"
-    },
-    {
-      "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 1187,
-      "match": "width: 22px"
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
       "line": 1188,
+      "match": "min-width: 18px"
+    },
+    {
+      "file": "app/frontend/src/views/StreamersView.vue",
+      "line": 1189,
+      "match": "height: 18px"
+    },
+    {
+      "file": "app/frontend/src/views/StreamersView.vue",
+      "line": 1203,
+      "match": "width: 22px"
+    },
+    {
+      "file": "app/frontend/src/views/StreamersView.vue",
+      "line": 1204,
       "match": "height: 22px"
     },
     {
       "file": "app/frontend/src/views/SubscriptionsView.vue",
-      "line": 345,
-      "match": "width: 32px"
-    },
-    {
-      "file": "app/frontend/src/views/SubscriptionsView.vue",
-      "line": 346,
-      "match": "height: 32px"
-    },
-    {
-      "file": "app/frontend/src/views/SubscriptionsView.vue",
-      "line": 375,
+      "line": 328,
       "match": "width: 18px"
     },
     {
       "file": "app/frontend/src/views/SubscriptionsView.vue",
-      "line": 376,
+      "line": 329,
       "match": "height: 18px"
     },
     {
       "file": "app/frontend/src/views/SubscriptionsView.vue",
-      "line": 452,
+      "line": 395,
       "match": "width: 18px"
     },
     {
       "file": "app/frontend/src/views/SubscriptionsView.vue",
-      "line": 453,
+      "line": 396,
       "match": "height: 18px"
     },
     {
       "file": "app/frontend/src/views/SubscriptionsView.vue",
-      "line": 529,
+      "line": 472,
       "match": "width: 20px"
     },
     {
       "file": "app/frontend/src/views/SubscriptionsView.vue",
-      "line": 530,
+      "line": 473,
       "match": "height: 20px"
     },
     {
       "file": "app/frontend/src/views/SubscriptionsView.vue",
-      "line": 594,
+      "line": 537,
       "match": "width: 16px"
     },
     {
       "file": "app/frontend/src/views/SubscriptionsView.vue",
-      "line": 595,
+      "line": 538,
       "match": "height: 16px"
-    },
-    {
-      "file": "app/frontend/src/views/SubscriptionsView.vue",
-      "line": 656,
-      "match": "width: 24px"
-    },
-    {
-      "file": "app/frontend/src/views/SubscriptionsView.vue",
-      "line": 657,
-      "match": "height: 24px"
     },
     {
       "file": "app/frontend/src/views/SystemHubView.vue",
@@ -10012,87 +10164,87 @@
     },
     {
       "file": "app/frontend/src/views/VideoPlayerView.vue",
-      "line": 576,
+      "line": 595,
       "match": "min-height: 36px"
     },
     {
       "file": "app/frontend/src/views/VideoPlayerView.vue",
-      "line": 690,
+      "line": 709,
       "match": "width: 14px"
     },
     {
       "file": "app/frontend/src/views/VideoPlayerView.vue",
-      "line": 691,
+      "line": 710,
       "match": "height: 14px"
     },
     {
       "file": "app/frontend/src/views/VideoPlayerView.vue",
-      "line": 707,
+      "line": 726,
       "match": "min-height: 28px"
     },
     {
       "file": "app/frontend/src/views/VideoPlayerView.vue",
-      "line": 768,
+      "line": 787,
       "match": "width: 12px"
     },
     {
       "file": "app/frontend/src/views/VideoPlayerView.vue",
-      "line": 769,
+      "line": 788,
       "match": "height: 12px"
     },
     {
       "file": "app/frontend/src/views/VideoPlayerView.vue",
-      "line": 833,
+      "line": 852,
       "match": "width: 18px"
     },
     {
       "file": "app/frontend/src/views/VideoPlayerView.vue",
-      "line": 834,
+      "line": 853,
       "match": "height: 18px"
     },
     {
       "file": "app/frontend/src/views/VideoPlayerView.vue",
-      "line": 905,
+      "line": 924,
       "match": "width: 4px"
     },
     {
       "file": "app/frontend/src/views/VideoPlayerView.vue",
-      "line": 980,
+      "line": 1027,
       "match": "width: 16px"
     },
     {
       "file": "app/frontend/src/views/VideoPlayerView.vue",
-      "line": 981,
+      "line": 1028,
       "match": "height: 16px"
     },
     {
       "file": "app/frontend/src/views/VideoPlayerView.vue",
-      "line": 1068,
+      "line": 1115,
       "match": "width: 14px"
     },
     {
       "file": "app/frontend/src/views/VideoPlayerView.vue",
-      "line": 1069,
+      "line": 1116,
       "match": "height: 14px"
     },
     {
       "file": "app/frontend/src/views/VideoPlayerView.vue",
-      "line": 1208,
+      "line": 1255,
       "match": "width: 16px"
     },
     {
       "file": "app/frontend/src/views/VideoPlayerView.vue",
-      "line": 1209,
+      "line": 1256,
       "match": "height: 16px"
     },
     {
       "file": "app/frontend/src/views/VideoPlayerView.vue",
-      "line": 1232,
+      "line": 1279,
       "match": "width: 14px"
     },
     {
       "file": "app/frontend/src/views/VideoPlayerView.vue",
-      "line": 1233,
+      "line": 1280,
       "match": "height: 14px"
     },
     {
@@ -11252,31 +11404,31 @@
     "schemaVersion": 1,
     "generatedBy": "app/frontend/scripts/inventory-frontend.mjs",
     "sourceRoot": "app/frontend",
-    "frontendFiles": 300,
-    "routes": 18,
-    "navigationDestinations": 15,
+    "frontendFiles": 327,
+    "routes": 21,
+    "navigationDestinations": 17,
     "apiCalls": 146,
-    "websocketConsumers": 12,
+    "websocketConsumers": 14,
     "storage": 2,
-    "overlays": 70,
+    "overlays": 76,
     "forms": 7,
     "tables": 6,
-    "destructiveActions": 65,
-    "states": 175,
-    "players": 13,
-    "pwa": 93,
+    "destructiveActions": 66,
+    "states": 191,
+    "players": 14,
+    "pwa": 107,
     "breakpoints": 94,
-    "directDomMutations": 236,
-    "moduleScopeMutableState": 87,
+    "directDomMutations": 246,
+    "moduleScopeMutableState": 95,
     "listenersAndTimers": 128,
-    "anyTypes": 91,
+    "anyTypes": 89,
     "nonsemanticActions": 18,
-    "clickSemantics": 282,
+    "clickSemantics": 283,
     "nativeDialogs": 54,
     "vHtml": 0,
     "transitionAll": 84,
     "raw100vh": 15,
-    "potentialUndersizeTargets": 531,
+    "potentialUndersizeTargets": 527,
     "backendRoutes": 205
   }
 }

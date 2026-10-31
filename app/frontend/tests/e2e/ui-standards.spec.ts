@@ -15,8 +15,9 @@ interface AxeViolation {
 }
 
 const routes = [
-  { path: '/', heading: 'Live Streamers', readySelectors: ['.home-view', '.dashboard-video-grid'] },
-  { path: '/streamers', heading: 'Streamers', readySelectors: ['.streamers-view', '.streamer-wrapper', '.view-details-link'] },
+  { path: '/', heading: 'Meine Kanäle', readySelectors: ['.streamers-view', '.streamer-wrapper', '.view-details-link'] },
+  { path: '/overview', heading: 'Live Streamers', readySelectors: ['.home-view', '.dashboard-video-grid'] },
+  { path: '/streamers', heading: 'Meine Kanäle', readySelectors: ['.streamers-view', '.streamer-wrapper', '.view-details-link'] },
   { path: '/streamers/1', heading: 'Streamer Alpha', readySelectors: ['.streamer-detail-view', '.streamer-control-header', '#streamer-detail-title'] },
   { path: '/videos', heading: 'Videos', readySelectors: ['.videos-view', '.video-wrapper'] },
 ]
@@ -97,7 +98,7 @@ test('canonical interaction tokens expose the product target contract', async ({
 test('reduced motion suppresses nonessential motion without disabling scrolling', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' })
   await page.goto('/streamers')
-  await expect(page.getByRole('heading', { name: 'Streamers', exact: true })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Meine Kanäle', exact: true })).toBeVisible()
   await expect(page.locator('.streamer-card.is-recording')).toBeVisible()
   await page.evaluate(() => {
     document.documentElement.style.scrollBehavior = 'smooth'

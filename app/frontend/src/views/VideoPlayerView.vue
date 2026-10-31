@@ -480,7 +480,7 @@ const deleteVideo = async () => {
     showDeleteModal.value = false
 
     // Navigate back to videos list or streamer page
-    router.push({ name: 'Videos' })
+    router.push({ name: 'videos' })
 
   } catch (err) {
     console.error('Delete failed:', err)

@@ -2,7 +2,7 @@
   <template v-if="showShell">
     <header class="app-header glass-header">
       <div class="header-content">
-        <span class="app-logo" aria-label="StreamVault">StreamVault</span>
+        <router-link to="/" class="app-logo" aria-label="StreamVault - Meine Kanäle">StreamVault</router-link>
 
         <div class="header-actions" aria-label="Global utilities">
           <div class="activity-utilities" aria-label="Activity utilities">
@@ -288,6 +288,7 @@ watch(() => props.showShell, (showShell) => {
 
 .app-logo {
   font-size: var(--text-base);
+  text-decoration: none;
   font-weight: v.$font-bold;
   color: var(--text-primary);
   line-height: 1;

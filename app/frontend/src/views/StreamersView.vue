@@ -1,37 +1,34 @@
 <template>
   <div class="page-view streamers-view">
     <PageHeader
-      title="Streamers"
+      title="Meine Kanäle"
       icon="users"
-      :subtitle="isLoading ? 'Manage your tracked streamers' : `Manage your tracked streamers \u2022 ${liveStreamers.length} live now`"
+      :subtitle="isLoading ? 'Kanäle werden geladen …' : `${liveStreamers.length} live · ${recordingStreamers.length} Aufnahmen laufen`"
     >
       <template #actions>
         <div class="header-actions">
-          <BaseButton
-            :variant="autoRefresh ? 'primary' : 'secondary'"
-            size="sm"
-            @click="toggleAutoRefresh"
-          >
-            <svg class="icon" aria-hidden="true">
-              <use href="#icon-refresh-cw" />
-            </svg>
-            Auto refresh {{ autoRefresh ? 'On' : 'Off' }}
-          </BaseButton>
+          <router-link to="/streamers/manage" class="btn btn-secondary btn-sm">Kanäle verwalten</router-link>
+          <router-link to="/add-streamer/import" class="btn btn-secondary btn-sm">Follows importieren</router-link>
           <router-link to="/add-streamer" class="btn btn-primary btn-sm add-streamer-link" v-ripple>
             <svg class="icon" aria-hidden="true">
               <use href="#icon-plus" />
             </svg>
-            Add Streamer
+            Kanal hinzufügen
           </router-link>
         </div>
       </template>
     </PageHeader>
 
+    <p v-if="unreadProblems" class="channel-problems" role="status">
+      {{ unreadProblems }} ungelesene Warnungen oder Fehler.
+      <router-link to="/activity?tab=history">Meldungen ansehen</router-link>
+    </p>
+
     <!-- Status counts live in the filter tabs below, where they are clickable;
          a separate stat-tile row duplicated the same numbers. -->
 
     <!-- Controls Bar -->
-    <div class="controls-bar" aria-label="Search, filter, and sort streamers">
+    <div class="controls-bar" aria-label="Kanäle suchen, filtern und sortieren">
       <!-- Search -->
       <div class="search-box">
         <svg class="icon">
@@ -40,16 +37,16 @@
         <input
           v-model="searchQuery"
           type="text"
-          placeholder="Search channel name or display name"
+          placeholder="Kanal suchen"
           class="search-input"
-          aria-label="Search streamers"
+          aria-label="Kanäle suchen"
         />
         <button
           v-if="searchQuery"
           @click="searchQuery = ''"
           class="clear-btn"
-          aria-label="Clear streamer search"
-          title="Clear streamer search"
+          aria-label="Kanalsuche leeren"
+          title="Kanalsuche leeren"
         >
           <svg class="icon">
             <use href="#icon-x" />
@@ -58,7 +55,7 @@
       </div>
 
       <!-- Filter Tabs -->
-      <div class="filter-tabs" aria-label="Filter streamers by status">
+      <div class="filter-tabs" aria-label="Kanäle nach Status filtern">
         <button
           v-for="tab in filterTabs"
           :key="tab.value"
@@ -76,13 +73,13 @@
       </div>
 
       <!-- View Toggle -->
-      <div class="view-toggle" aria-label="Choose streamer layout">
+      <div class="view-toggle" aria-label="Kanalansicht wählen">
         <button
           @click="viewMode = 'grid'"
           :class="{ active: viewMode === 'grid' }"
           class="toggle-btn"
-          aria-label="Show streamers as grid"
-          title="Show streamers as grid"
+          aria-label="Kacheln anzeigen"
+          title="Kacheln anzeigen"
           v-ripple
         >
           <svg class="icon">
@@ -93,8 +90,8 @@
           @click="viewMode = 'list'"
           :class="{ active: viewMode === 'list' }"
           class="toggle-btn"
-          aria-label="Show streamers as list"
-          title="Show streamers as list"
+          aria-label="Liste anzeigen"
+          title="Liste anzeigen"
           v-ripple
         >
           <svg class="icon">
@@ -108,12 +105,12 @@
         <svg class="sort-icon" aria-hidden="true">
           <use href="#icon-list-ordered" />
         </svg>
-        <span class="sort-label">Sort</span>
+        <span class="sort-label">Sortierung</span>
         <span class="sort-value">{{ currentSortLabel }}</span>
         <select
           v-model="sortBy"
           class="sort-control"
-          aria-label="Sort streamers"
+          aria-label="Kanäle sortieren"
         >
           <option v-for="option in sortOptions" :key="option.value" :value="option.value">
             {{ option.label }}
@@ -123,12 +120,15 @@
 
       <div class="results-info">
         <span>
-          Showing {{ filteredAndSortedStreamers.length }} of {{ streamers.length }} streamers
-          <template v-if="activeFilter !== 'all'">in {{ activeFilterLabel }}</template>
-          <template v-if="searchQuery"> matching "{{ searchQuery }}"</template>
+          {{ filteredAndSortedStreamers.length }} von {{ streamers.length }} Kanälen
+          <template v-if="activeFilter !== 'all'"> · {{ activeFilterLabel }}</template>
+          <template v-if="searchQuery"> · „{{ searchQuery }}“</template>
         </span>
-        <span v-if="lastUpdateTime">Updated {{ formatLastUpdate(lastUpdateTime) }}</span>
-        <button @click="handleRefresh" class="refresh-btn" aria-label="Refresh streamers" title="Refresh streamers" v-ripple>
+        <span v-if="lastUpdateTime">Stand {{ formatLastUpdate(lastUpdateTime) }}</span>
+        <BaseButton variant="ghost" size="sm" :aria-pressed="autoRefresh" @click="toggleAutoRefresh">
+          Hintergrundabgleich: {{ autoRefresh ? 'an' : 'aus' }}
+        </BaseButton>
+        <button @click="handleRefresh" class="refresh-btn" aria-label="Kanalstatus erneut abrufen" title="Kanalstatus erneut abrufen" v-ripple>
           <svg class="icon" :class="{ spinning: isRefreshing }">
             <use href="#icon-refresh-cw" />
           </svg>
@@ -148,34 +148,34 @@
     <!-- Empty State -->
     <EmptyState
       v-else-if="fetchError"
-      title="Streamers could not load"
+      title="Kanäle konnten nicht geladen werden"
       :description="fetchError"
       icon="alert-circle"
       tone="danger"
-      tone-label="Recoverable streamers loading error"
-      retry-label="Try Again"
+      tone-label="Verbindung zum Server prüfen"
+      retry-label="Erneut versuchen"
       retry-icon="refresh-cw"
       @retry="handleRefresh"
     />
 
     <EmptyState
-      v-else-if="filteredAndSortedStreamers.length === 0 && !searchQuery"
-      title="No Streamers Yet"
-      description="Add your first streamer to start tracking and recording their content."
+      v-else-if="streamers.length === 0"
+      title="Noch keine Kanäle"
+      description="Füge einen Kanal hinzu oder importiere deine Twitch-Follows, um Streams automatisch aufzunehmen."
       icon="users"
-      action-label="Add Streamer"
+      action-label="Kanal hinzufügen"
       action-icon="plus"
       @action="$router.push('/add-streamer')"
     />
 
     <!-- No Search Results -->
     <EmptyState
-      v-else-if="filteredAndSortedStreamers.length === 0 && searchQuery"
-      title="No Results Found"
-      :description="`No streamers match '${searchQuery}'`"
+      v-else-if="filteredAndSortedStreamers.length === 0"
+      title="Keine passenden Kanäle"
+      description="Zu dieser Suche oder diesem Status gibt es gerade keine Kanäle. Die übrigen Kanäle sind weiterhin vorhanden."
       icon="search"
-      action-label="Clear Search"
-      @action="searchQuery = ''"
+      action-label="Alle Kanäle anzeigen"
+      @action="searchQuery = ''; activeFilter = 'all'"
     />
 
     <!-- Streamers Grid/List -->
@@ -204,6 +204,7 @@ import { appStorage } from '@/services/storage'
 import { useRoute } from 'vue-router'
 import { streamersApi } from '@/services/api'
 import { useRealtimeStore } from '@/stores/realtime'
+import { useNotificationStore } from '@/stores/notifications'
 import { hasRealtimeEventType } from '@/types/events'
 import { useForceRecording } from '@/composables/useForceRecording'  // NEW: Import composable
 import LoadingSkeleton from '@/components/LoadingSkeleton.vue'
@@ -214,6 +215,10 @@ import StreamerCard from '@/components/cards/StreamerCard.vue'
 
 // Real-time store for live updates
 const realtime = useRealtimeStore()
+const notifications = useNotificationStore()
+const unreadProblems = computed(() => notifications.notifications.filter(
+  event => !event.read && ['warning', 'error', 'critical'].includes(event.severity)
+).length)
 const route = useRoute()
 
 // Force recording composable
@@ -225,7 +230,7 @@ const isRefreshing = ref(false)
 const streamers = ref<any[]>([])
 const searchQuery = ref('')
 // Grid/list choice survives reloads
-const viewMode = ref<'grid' | 'list'>(appStorage.getViewMode('streamers') ?? 'grid')
+const viewMode = ref<'grid' | 'list'>(appStorage.getViewMode('streamers') ?? 'list')
 watch(viewMode, (mode) => appStorage.setViewMode('streamers', mode))
 const sortBy = ref('live-first')
 const activeFilter = ref('all')
@@ -247,21 +252,21 @@ let refreshInterval: number | null = null
 const REFRESH_INTERVAL = 30000 // 30 seconds
 
 const sortOptions = [
-  { label: 'Live first', value: 'live-first' },
+  { label: 'Live zuerst', value: 'live-first' },
   { label: 'Name A-Z', value: 'name' },
   { label: 'Name Z-A', value: 'name-desc' },
-  { label: 'Recently added', value: 'recently-added' },
-  { label: 'Most videos', value: 'most-videos' },
+  { label: 'Zuletzt hinzugefügt', value: 'recently-added' },
+  { label: 'Meiste Aufzeichnungen', value: 'most-videos' },
 ]
 
 const currentSortLabel = computed(() =>
-  sortOptions.find((option) => option.value === sortBy.value)?.label ?? 'Live first'
+  sortOptions.find((option) => option.value === sortBy.value)?.label ?? 'Live zuerst'
 )
 
 // Filter tabs with counts
 const filterTabs = computed(() => [
   {
-    label: 'All',
+    label: 'Alle',
     value: 'all',
     count: streamers.value.length
   },
@@ -271,7 +276,7 @@ const filterTabs = computed(() => [
     count: liveStreamers.value.length
   },
   {
-    label: 'Recording',
+    label: 'Wird aufgenommen',
     value: 'recording',
     count: recordingStreamers.value.length
   },
@@ -365,7 +370,7 @@ async function fetchStreamers() {
   } catch (error) {
     console.error('Failed to fetch streamers:', error)
     streamers.value = []
-    fetchError.value = 'Check your backend connection, then retry the streamers list.'
+    fetchError.value = 'Prüfe die Verbindung zum Server und lade die Kanäle erneut.'
   }
 }
 
@@ -416,13 +421,13 @@ function formatLastUpdate(date: Date): string {
   const diffMs = now.getTime() - date.getTime()
   const diffSec = Math.floor(diffMs / 1000)
 
-  if (diffSec < 60) return `${diffSec}s ago`
+  if (diffSec < 60) return 'gerade eben'
 
   const diffMin = Math.floor(diffSec / 60)
-  if (diffMin < 60) return `${diffMin}m ago`
+  if (diffMin < 60) return `vor ${diffMin} Min.`
 
   const diffHour = Math.floor(diffMin / 60)
-  return `${diffHour}h ago`
+  return `vor ${diffHour} Std.`
 }
 
 // Handle force record action
@@ -590,6 +595,17 @@ onUnmounted(() => {
 .streamers-view {
   // .page-view provides padding/sizing via global styles
   // Page-specific overrides only
+}
+
+.channel-problems {
+  margin-bottom: var(--spacing-5);
+  padding: var(--spacing-3) var(--spacing-4);
+  border: 1px solid var(--warning-color);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  background: var(--background-card);
+
+  a { margin-left: var(--spacing-2); }
 }
 
 .auto-refresh-indicator {
