@@ -136,6 +136,10 @@ jobs:
           rm -rf dist || true
           node scripts/build-artifact-provenance.mjs build --mode real
 
+      - name: Run real-build admin queue lifecycle regression
+        working-directory: app/frontend
+        run: npx playwright test --config tests/fixtures/background-queue-lifecycle.config.ts
+
       - name: Run real-build WebSocket transition test
         working-directory: app/frontend
         run: STREAMVAULT_REUSE_VERIFIED_REAL_BUILD=true npx playwright test --config tests/e2e/websocket-setup-transition.playwright.config.ts
