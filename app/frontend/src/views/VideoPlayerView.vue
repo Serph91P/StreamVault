@@ -49,10 +49,11 @@
 
           <!-- Video Player - directly in card, no wrapper -->
           <VideoPlayer
+            :key="loadGeneration"
             ref="videoPlayerRef"
             :video-src="chapterData.video_url"
             :chapters="chapterData.chapters"
-            :stream-id="parseInt(streamId)"
+            :stream-id="chapterData.stream_id"
             :theater-mode="effectiveTheaterMode"
             @chapter-change="onChapterChange"
             @video-ready="onVideoReady"
@@ -77,7 +78,7 @@
               </div>
               <div class="info-row">
                 <span class="info-label">Stream ID</span>
-                <span class="info-value">#{{ streamId }}</span>
+                <span class="info-value">#{{ chapterData.stream_id }}</span>
               </div>
               <div class="info-row">
                 <span class="info-label">Recorded</span>
@@ -135,11 +136,11 @@
               Actions
             </h3>
             <div class="action-buttons">
-              <button class="action-btn" @click="downloadVideo" :disabled="isDownloading" v-ripple>
+              <button class="action-btn" @click="downloadVideo" :disabled="!actionsReady || isDownloading" v-ripple>
                 <svg class="action-icon"><use href="#icon-download" /></svg>
                 {{ isDownloading ? 'Downloading...' : 'Download' }}
               </button>
-              <button class="action-btn" @click="shareVideo" :disabled="isSharing" v-ripple>
+              <button class="action-btn" @click="shareVideo" :disabled="!actionsReady || isSharing" v-ripple>
                 <svg class="action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <circle cx="18" cy="5" r="3"/>
                   <circle cx="6" cy="12" r="3"/>
@@ -149,7 +150,7 @@
                 </svg>
                 {{ isSharing ? 'Generating...' : 'Share' }}
               </button>
-              <button class="action-btn danger" @click="showDeleteModal = true" :disabled="isDeleting" v-ripple>
+              <button class="action-btn danger" @click="showDeleteModal = true" :disabled="!actionsReady || isDeleting" v-ripple>
                 <svg class="action-icon"><use href="#icon-trash-2" /></svg>
                 {{ isDeleting ? 'Deleting...' : 'Delete' }}
               </button>
@@ -181,7 +182,7 @@
       <p class="modal-warning">All associated files including metadata, thumbnails, and chapters will be permanently deleted.</p>
       <template #footer>
         <BaseButton variant="secondary" @click="showDeleteModal = false">Cancel</BaseButton>
-        <BaseButton variant="danger" :loading="isDeleting" @click="deleteVideo">
+        <BaseButton variant="danger" :disabled="!actionsReady" :loading="isDeleting" @click="deleteVideo">
           {{ isDeleting ? 'Deleting...' : 'Delete Forever' }}
         </BaseButton>
       </template>
@@ -190,7 +191,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { returnFromVideo } from '@/composables/useNavigation'
 import { useCategoryImages } from '@/composables/useCategoryImages'
@@ -282,9 +283,31 @@ const copied = ref(false)
 const showDeleteModal = ref(false)
 const shareUrlInput = ref<HTMLInputElement | null>(null)
 const videoPlayerRef = ref<InstanceType<typeof VideoPlayer> | null>(null)
+const loadGeneration = ref(0)
+const readyStreamId = ref<number | null>(null)
+const actionsReady = computed(() => !isLoading.value && !error.value &&
+  chapterData.value !== null && chapterData.value.stream_id === Number(streamId.value) &&
+  readyStreamId.value === chapterData.value.stream_id)
+let downloadTimer: ReturnType<typeof setTimeout> | undefined
+let copiedTimer: ReturnType<typeof setTimeout> | undefined
 
 
 const loadChapterData = async () => {
+  const generation = ++loadGeneration.value
+  chapterData.value = null
+  readyStreamId.value = null
+  currentChapterIndex.value = 0
+  theaterMode.value = false
+  failedChapterArtwork.value.clear()
+  showDeleteModal.value = false
+  shareUrl.value = null
+  shareExpiresIn.value = 'the backend-defined period'
+  copied.value = false
+  isDownloading.value = false
+  isSharing.value = false
+  isDeleting.value = false
+  clearTimeout(downloadTimer)
+  clearTimeout(copiedTimer)
   try {
     isLoading.value = true
     error.value = null
@@ -298,6 +321,7 @@ const loadChapterData = async () => {
       videoApi.getChapters(selectedStreamId),
       videoApi.getAll()
     ])
+    if (generation !== loadGeneration.value) return
     if (!Array.isArray(chapterResponse)) {
       throw new Error('Invalid chapter response.')
     }
@@ -343,9 +367,10 @@ const loadChapterData = async () => {
       video_url: videoApi.getVideoStreamUrl(selectedStreamId)
     }
   } catch (err: any) {
+    if (generation !== loadGeneration.value) return
     error.value = err instanceof Error ? err.message : 'Failed to load video data. Please try again.'
   } finally {
-    isLoading.value = false
+    if (generation === loadGeneration.value) isLoading.value = false
   }
 }
 
@@ -362,7 +387,10 @@ const onChapterChange = (_chapter: any, index: number) => {
 }
 
 const onVideoReady = (duration: number) => {
-  if (chapterData.value) chapterData.value.duration = duration
+  if (chapterData.value && chapterData.value.stream_id === Number(streamId.value) && Number.isFinite(duration) && duration >= 0) {
+    chapterData.value.duration = duration
+    readyStreamId.value = chapterData.value.stream_id
+  }
 }
 
 // Helper functions
@@ -392,13 +420,14 @@ const seekToChapter = (chapter: any) => {
  * Download the video file
  */
 const downloadVideo = () => {
-  if (isDownloading.value) return
+  if (!actionsReady.value || isDownloading.value) return
+  const id = chapterData.value!.stream_id
   isDownloading.value = true
   try {
-    const downloadUrl = videoApi.getVideoStreamUrl(Number(streamId.value))
+    const downloadUrl = chapterData.value!.video_url
     const link = document.createElement('a')
     link.href = downloadUrl
-    link.download = `${streamerName.value || 'stream'}_${streamId.value}.mp4`
+    link.download = `${streamerName.value || 'stream'}_${id}.mp4`
     link.style.display = 'none'
     document.body.appendChild(link)
     link.click()
@@ -408,21 +437,24 @@ const downloadVideo = () => {
     console.error('Download failed:', err)
     error.value = 'Failed to start download'
   }
-  setTimeout(() => { isDownloading.value = false }, 1000)
+  downloadTimer = setTimeout(() => { isDownloading.value = false }, 1000)
 }
 
 /**
  * Generate and display a share URL for the video
  */
 const shareVideo = async () => {
-  if (isSharing.value) return
+  if (!actionsReady.value || isSharing.value) return
+  const generation = loadGeneration.value
+  const id = chapterData.value!.stream_id
 
   try {
     isSharing.value = true
     shareUrl.value = null
     copied.value = false
 
-    const data = await videoApi.createShareToken(Number(streamId.value), {})
+    const data = await videoApi.createShareToken(id, {})
+    if (generation !== loadGeneration.value) return
 
     if (data.success && data.share_url) {
       shareUrl.value = data.share_url
@@ -433,9 +465,10 @@ const shareVideo = async () => {
 
   } catch (err) {
     console.error('Share failed:', err)
+    if (generation !== loadGeneration.value) return
     error.value = err instanceof Error ? err.message : 'Failed to generate share URL'
   } finally {
-    isSharing.value = false
+    if (generation === loadGeneration.value) isSharing.value = false
   }
 }
 
@@ -443,12 +476,15 @@ const shareVideo = async () => {
  * Copy the share URL to clipboard
  */
 const copyShareUrl = async () => {
-  if (!shareUrl.value) return
+  if (!actionsReady.value || !shareUrl.value) return
+  const generation = loadGeneration.value
 
   try {
     await navigator.clipboard.writeText(shareUrl.value)
+    if (generation !== loadGeneration.value) return
     markCopied()
   } catch (err) {
+    if (generation !== loadGeneration.value) return
     console.error('Copy failed:', err)
     // Fallback: select the input text
     if (shareUrlInput.value) {
@@ -461,7 +497,8 @@ const copyShareUrl = async () => {
 
 const markCopied = () => {
   copied.value = true
-  setTimeout(() => { copied.value = false }, 2000)
+  clearTimeout(copiedTimer)
+  copiedTimer = setTimeout(() => { copied.value = false }, 2000)
 }
 
 
@@ -469,12 +506,15 @@ const markCopied = () => {
  * Delete the video and associated files
  */
 const deleteVideo = async () => {
-  if (isDeleting.value) return
+  if (!actionsReady.value || !showDeleteModal.value || isDeleting.value) return
+  const generation = loadGeneration.value
+  const id = chapterData.value!.stream_id
 
   try {
     isDeleting.value = true
 
-    await videoApi.delete(Number(streamId.value))
+    await videoApi.delete(id)
+    if (generation !== loadGeneration.value) return
 
     // Success - close modal and navigate back
     showDeleteModal.value = false
@@ -483,20 +523,27 @@ const deleteVideo = async () => {
     router.push({ name: 'Videos' })
 
   } catch (err) {
+    if (generation !== loadGeneration.value) return
     console.error('Delete failed:', err)
     error.value = err instanceof Error ? err.message : 'Failed to delete video'
   } finally {
-    isDeleting.value = false
+    if (generation === loadGeneration.value) isDeleting.value = false
   }
 }
+
+// Invalidate old work before another click or an already-resolved promise can run.
+watch(streamId, () => { void loadChapterData() }, { immediate: true, flush: 'sync' })
 
 onMounted(() => {
   updateViewportMode()
   window.addEventListener('resize', updateViewportMode)
-  loadChapterData()
+
 })
 
 onUnmounted(() => {
+  ++loadGeneration.value
+  clearTimeout(downloadTimer)
+  clearTimeout(copiedTimer)
   window.removeEventListener('resize', updateViewportMode)
 })
 </script>

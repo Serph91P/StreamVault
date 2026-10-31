@@ -1,5 +1,5 @@
-import { flushPromises, mount } from '@vue/test-utils'
-import { defineComponent, h, nextTick } from 'vue'
+import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
+import { defineComponent, h, nextTick, reactive } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import VideoPlayerView from '../VideoPlayerView.vue'
 import videoPlayerViewSource from '../VideoPlayerView.vue?raw'
@@ -17,8 +17,9 @@ const mocks = vi.hoisted(() => ({
   seekToChapter: vi.fn()
 }))
 
+const reactiveRoute = reactive(mocks.route)
 vi.mock('vue-router', () => ({
-  useRoute: () => mocks.route,
+  useRoute: () => reactiveRoute,
   useRouter: () => ({ back: mocks.routerBack, push: mocks.routerPush })
 }))
 
@@ -45,7 +46,9 @@ const VideoPlayerStub = defineComponent({
   }
 })
 
-async function mountView() {
+enableAutoUnmount(afterEach)
+
+async function mountView(ready = true) {
   const wrapper = mount(VideoPlayerView, {
     global: {
       directives: { ripple: {} },
@@ -69,12 +72,16 @@ async function mountView() {
   })
   await flushPromises()
   await nextTick()
+  if (ready && wrapper.findComponent(VideoPlayerStub).exists()) {
+    wrapper.getComponent(VideoPlayerStub).vm.$emit('video-ready', 900)
+    await nextTick()
+  }
   return wrapper
 }
 
 beforeEach(() => {
   window.history.replaceState({}, '', '/videos/42')
-  mocks.route.params = { id: '42' }
+  reactiveRoute.params = { id: '42' }
   mocks.route.query = {}
   mocks.getCategoryImage.mockResolvedValue({ image_url: '/api/media/categories/synthetic-artwork.jpg' })
   mocks.getAll.mockResolvedValue([{
@@ -99,8 +106,111 @@ beforeEach(() => {
 })
 
 afterEach(() => {
-  vi.clearAllMocks()
+  vi.resetAllMocks()
   vi.unstubAllGlobals()
+})
+
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  let reject!: (error: Error) => void
+  const promise = new Promise<T>((yes, no) => { resolve = yes; reject = no })
+  return { promise, resolve, reject }
+}
+
+const secondVideo = { id: 43, title: 'Second recording', streamer_name: 'second-streamer', duration: 120, created_at: '2026-10-01T12:00:00Z' }
+const secondChapters = [{ id: 3, title: 'Second chapter', start: 0, end: 120 }]
+
+describe('VideoPlayerView route identity', () => {
+  it.each<Record<string, string>>([{ id: '43' }, { streamerId: '7', streamId: '43' }])('reloads metadata, chapters and source and resets dialogs/player on %j', async params => {
+    const wrapper = await mountView()
+    const oldPlayer = wrapper.getComponent(VideoPlayerStub).vm
+    oldPlayer.$emit('toggle-theater')
+    oldPlayer.$emit('chapter-change', {}, 1)
+    await wrapper.findAll('.action-btn')[1].trigger('click')
+    await flushPromises()
+    await wrapper.findAll('.action-btn')[2].trigger('click')
+    expect(wrapper.find('.modal-stub').exists()).toBe(true)
+    mocks.getAll.mockResolvedValue([secondVideo])
+    mocks.getChapters.mockResolvedValue(secondChapters)
+    reactiveRoute.params = params
+    await flushPromises()
+    expect(wrapper.get('.video-title').text()).toBe('Second recording')
+    expect(wrapper.getComponent(VideoPlayerStub).props()).toMatchObject({ streamId: 43, videoSrc: '/api/videos/43/stream', chapters: secondChapters })
+    expect(wrapper.getComponent(VideoPlayerStub).vm).not.toBe(oldPlayer)
+    expect(wrapper.find('.modal-stub').exists()).toBe(false)
+    expect(wrapper.find('.share-url-input').exists()).toBe(false)
+    expect(wrapper.classes()).not.toContain('theater-mode')
+    expect(wrapper.findAll('.chapter-item.active')).toHaveLength(1)
+    expect(wrapper.findAll('.action-btn').every(button => button.attributes('disabled') !== undefined)).toBe(true)
+    wrapper.getComponent(VideoPlayerStub).vm.$emit('video-ready', 120)
+    await nextTick()
+    expect(wrapper.findAll('.action-btn').every(button => button.attributes('disabled') === undefined)).toBe(true)
+    await wrapper.findAll('.action-btn')[1].trigger('click')
+    expect(mocks.createShareToken).toHaveBeenLastCalledWith(43, {})
+  })
+
+  it('does not permit actions before the displayed media has emitted ready', async () => {
+    const wrapper = await mountView(false)
+    expect(wrapper.findAll('.action-btn').every(button => button.attributes('disabled') !== undefined)).toBe(true)
+    const vm = wrapper.vm as unknown as { downloadVideo: () => void; shareVideo: () => Promise<void>; deleteVideo: () => Promise<void> }
+    vm.downloadVideo(); await vm.shareVideo(); await vm.deleteVideo()
+    expect(mocks.createShareToken).not.toHaveBeenCalled()
+    expect(mocks.delete).not.toHaveBeenCalled()
+  })
+
+  it.each(['success', 'error'])('ignores an obsolete %s load through 42 -> 43 -> 42 -> 43', async outcome => {
+    const old = deferred<unknown[]>()
+    mocks.getChapters.mockReturnValueOnce(old.promise)
+    const wrapper = await mountView(false)
+    for (const id of ['43', '42', '43']) {
+      mocks.getAll.mockResolvedValue([secondVideo])
+      mocks.getChapters.mockResolvedValue(secondChapters)
+      reactiveRoute.params = { id }
+      await flushPromises()
+    }
+    expect(wrapper.get('.video-title').text()).toBe('Second recording')
+    if (outcome === 'success') old.resolve([{ id: 1, title: 'Obsolete', start: 0, end: 10 }])
+    else old.reject(new Error('Obsolete load error'))
+    await flushPromises()
+    expect(wrapper.get('.video-title').text()).toBe('Second recording')
+    expect(wrapper.getComponent(VideoPlayerStub).props('chapters')).toEqual(secondChapters)
+    expect(wrapper.find('.player-error').exists()).toBe(false)
+  })
+
+  it('keeps loading and rejects old confirmation while a replacement is pending', async () => {
+    const wrapper = await mountView()
+    await wrapper.findAll('.action-btn')[2].trigger('click')
+    const pending = deferred<unknown[]>()
+    mocks.getChapters.mockReturnValueOnce(pending.promise)
+    reactiveRoute.params = { id: '43' }
+    await nextTick()
+    expect(wrapper.find('.video-player-stub').exists()).toBe(false)
+    expect(wrapper.find('.modal-stub').exists()).toBe(false)
+    const vm = wrapper.vm as unknown as { downloadVideo: () => void; shareVideo: () => Promise<void>; deleteVideo: () => Promise<void> }
+    await vm.deleteVideo(); await vm.shareVideo(); vm.downloadVideo()
+    expect(mocks.delete).not.toHaveBeenCalled()
+    expect(mocks.createShareToken).not.toHaveBeenCalled()
+  })
+
+  it.each(['share', 'delete'])('ignores stale %s completions, including after returning to the same ID', async action => {
+    const wrapper = await mountView()
+    const pending = deferred<unknown>()
+    if (action === 'share') {
+      mocks.createShareToken.mockReturnValueOnce(pending.promise)
+      await wrapper.findAll('.action-btn')[1].trigger('click')
+    } else {
+      mocks.delete.mockReturnValueOnce(pending.promise)
+      await wrapper.findAll('.action-btn')[2].trigger('click')
+      await wrapper.findAll('.base-button')[1].trigger('click')
+    }
+    reactiveRoute.params = { id: '43' }; await flushPromises()
+    reactiveRoute.params = { id: '42' }; await flushPromises()
+    pending.resolve({ success: true, share_url: 'https://example.invalid/obsolete' })
+    await flushPromises()
+    expect(wrapper.find('.share-url-input').exists()).toBe(false)
+    expect(mocks.routerPush).not.toHaveBeenCalled()
+    expect(wrapper.find('.player-error').exists()).toBe(false)
+  })
 })
 
 describe('VideoPlayerView backend playback contract', () => {
@@ -108,7 +218,7 @@ describe('VideoPlayerView backend playback contract', () => {
     ['primary route', { id: '42' }],
     ['legacy route', { streamerId: '7', streamId: '42' }]
   ])('loads numeric backend chapters for the %s', async (_name, params) => {
-    mocks.route.params = params
+    reactiveRoute.params = params
     const wrapper = await mountView()
 
     expect(mocks.getChapters).toHaveBeenCalledWith(42)

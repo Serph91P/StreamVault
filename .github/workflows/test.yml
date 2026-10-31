@@ -140,6 +140,10 @@ jobs:
         working-directory: app/frontend
         run: STREAMVAULT_REUSE_VERIFIED_REAL_BUILD=true npx playwright test --config tests/e2e/websocket-setup-transition.playwright.config.ts
 
+      - name: Run real-build player route identity regressions
+        working-directory: app/frontend
+        run: npx playwright test --config tests/fixtures/issue950-player.config.ts
+
       - name: Run real-build system page header regressions
         working-directory: app/frontend
         run: STREAMVAULT_REUSE_VERIFIED_REAL_BUILD=true npx playwright test --config tests/fixtures/issue906-headers.config.ts
