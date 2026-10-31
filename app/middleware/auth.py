@@ -8,7 +8,14 @@ from urllib.parse import urlsplit
 
 logger = logging.getLogger("streamvault")
 
-_EXACT_PUBLIC_PATHS = frozenset({"/api/openapi.json"})
+_EXACT_PUBLIC_PATHS = frozenset(
+    {
+        "/api/openapi.json",
+        "/icon-512x512.png",
+        "/maskable-icon-192x192.png",
+        "/maskable-icon-512x512.png",
+    }
+)
 _PUBLIC_PATH_PREFIXES = (
     "/auth/login",
     "/auth/setup",
