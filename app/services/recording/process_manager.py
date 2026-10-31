@@ -2409,19 +2409,17 @@ class ProcessManager:
         - Recording data is intact and should not be marked as failed
         - This prevents false negatives in recording status
         """
-        async with self.lock:
-            if process_id not in self.active_processes:
-                # PRODUCTION FIX: Process not found should be considered success
-                # This is NOT a breaking change - it fixes a logic bug where
-                # recordings were incorrectly marked as "failed" when the process
-                # had already terminated naturally (which is normal behavior)
-                logger.info(
-                    f"Process {process_id} not found in active processes - assuming already terminated"
-                )
-                return True  # Process already terminated = success, not failure
-
-            process = self.active_processes[process_id]
-            segment_info = self.long_stream_processes.get(process_id)
+        rotation_locks = getattr(self, "rotation_locks", None)
+        if rotation_locks is None:
+            rotation_locks = self.rotation_locks = {}
+        recording_lock = rotation_locks.setdefault(process_id, asyncio.Lock())
+        async with recording_lock:
+            async with self.lock:
+                if process_id not in self.active_processes:
+                    logger.info("Process %s already terminated", process_id)
+                    return True
+                process = self.active_processes[process_id]
+                segment_info = self.long_stream_processes.get(process_id)
             if segment_info and segment_info.get("upstream_channel_key"):
                 if segment_info.get("upstream_activated", True):
                     try:
@@ -2447,7 +2445,13 @@ class ProcessManager:
                     )
                     return False
 
-            self.active_processes.pop(process_id)
+            async with self.lock:
+                if (
+                    self.active_processes.get(process_id) is not process
+                    or self.long_stream_processes.get(process_id) is not segment_info
+                ):
+                    return False
+                self.active_processes.pop(process_id)
             if segment_info:
                 if segment_info["monitor_task"]:
                     segment_info["monitor_task"].cancel()
@@ -2461,7 +2465,12 @@ class ProcessManager:
                         segment_info["upstream_process_start_fingerprint"],
                     )
                     if not stopped:
-                        self.active_processes[process_id] = process
+                        async with self.lock:
+                            if (
+                                self.long_stream_processes.get(process_id)
+                                is segment_info
+                            ):
+                                self.active_processes.setdefault(process_id, process)
                         return False
                 else:
                     process.terminate()
@@ -2472,7 +2481,9 @@ class ProcessManager:
 
                 # Finalize segmented recording if needed
                 if segment_info:
-                    self.long_stream_processes.pop(process_id, None)
+                    async with self.lock:
+                        if self.long_stream_processes.get(process_id) is segment_info:
+                            self.long_stream_processes.pop(process_id)
                     await self._finalize_segmented_recording(segment_info)
 
                 if segment_info and segment_info.get("upstream_channel_key"):
@@ -2483,6 +2494,12 @@ class ProcessManager:
                     )
 
                 return True
+            except asyncio.CancelledError:
+                if process.returncode is None:
+                    async with self.lock:
+                        if self.long_stream_processes.get(process_id) is segment_info:
+                            self.active_processes.setdefault(process_id, process)
+                raise
             except asyncio.TimeoutError:
                 process.kill()
                 await process.wait()
@@ -2491,14 +2508,18 @@ class ProcessManager:
                 self._release_streamlink_output_secrets(process)
 
                 # Still try to finalize if it was segmented
-                if process_id in self.long_stream_processes:
-                    segment_info = self.long_stream_processes.pop(process_id)
+                if segment_info:
+                    async with self.lock:
+                        if self.long_stream_processes.get(process_id) is segment_info:
+                            self.long_stream_processes.pop(process_id)
                     await self._finalize_segmented_recording(segment_info)
 
                 return True
             except Exception as e:
                 if process.returncode is None:
-                    self.active_processes[process_id] = process
+                    async with self.lock:
+                        if self.long_stream_processes.get(process_id) is segment_info:
+                            self.active_processes.setdefault(process_id, process)
                 else:
                     self._release_streamlink_output_secrets(process)
                 logger.error(f"Failed to terminate process {process_id}: {e}")
