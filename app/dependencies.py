@@ -116,6 +116,15 @@ def get_current_user(
     return user
 
 
+def require_admin_user(
+    user=Depends(get_current_user),
+    identity: AuthIdentity = Depends(get_current_identity),
+):
+    if not user.is_admin or "admin" not in identity.scopes:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    return user
+
+
 async def get_event_registry():
     global event_registry
     if not event_registry:
