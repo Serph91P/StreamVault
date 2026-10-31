@@ -59,11 +59,11 @@ async function editor(isGlobal: boolean, inPanel = false) {
   store.settings = structuredClone(settings)
   store.streamerSettings = [structuredClone(channel)]
   const wrapper = inPanel
-    ? mount(RecordingSettingsPanel, { attachTo: document.body, props: { settings: store.settings, streamerSettings: store.streamerSettings, activeRecordings: [], section: isGlobal ? 'storage' : 'recording' } })
+    ? mount(RecordingSettingsPanel, { attachTo: document.body, attrs: { context: isGlobal ? 'global' : 'channel' }, props: { settings: store.settings, streamerSettings: store.streamerSettings, activeRecordings: [], section: isGlobal ? 'storage' : 'recording' } })
     : mount(CleanupPolicyEditor, { props: { title: 'Synthetic policy', isGlobal, streamerId: isGlobal ? undefined : 7 } })
   wrappers.push(wrapper)
   if (inPanel && !isGlobal) {
-    await wrapper.get('button[title="Configure cleanup policy for this streamer"]').trigger('click')
+    await wrapper.get('.actions-cell button[title]').trigger('click')
   }
   await flushPromises()
   const form = wrapper.getComponent(CleanupPolicyEditor)
