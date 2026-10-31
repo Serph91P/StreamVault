@@ -368,13 +368,14 @@ class TaskQueueManager:
                             exc_info=True,
                         )
 
-                        # Mark task as failed
-                        if self.progress_tracker:
-                            self.progress_tracker.update_task_status(
-                                task.id, TaskStatus.FAILED
-                            )
-
-                        await self.mark_task_completed(task.id, success=False)
+                        retrying = await self.worker_manager._handle_task_failure(
+                            task,
+                            f"Task execution failed: {e}",
+                            worker_name,
+                            task_queue=streamer_queue,
+                        )
+                        if not retrying:
+                            await self.mark_task_completed(task.id, success=False)
 
                     finally:
                         # Always mark task as done in the queue to prevent hanging
