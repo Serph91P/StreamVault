@@ -1,231 +1,109 @@
-# StreamVault - Safe Update Scripts
+# StreamVault safe-update helpers
 
-Scripts for safely updating StreamVault without interrupting active recordings.
+These Bash helpers wait for recordings to finish before updating the supplied
+Compose installation. They do not provide zero downtime or prevent a new recording
+from starting between the status check and shutdown. Schedule maintenance accordingly.
 
-## 📋 Scripts Overview
+## Installation layout and configuration
 
-### 1. `check_safe_to_update.sh`
-Checks if any recordings are currently active.
+Keep the repository layout intact:
 
-**Usage:**
+```text
+streamvault/
+  scripts/check_safe_to_update.sh
+  scripts/safe_docker_update.sh
+  docker/docker-compose.yml
+```
+
+The update helper resolves paths from its own location, changes to `docker/`, and
+passes the absolute `docker/docker-compose.yml` to every Compose invocation. This
+preserves Compose's `docker/`-relative mounts and project identity even when invoked
+from another working directory. It does not discover another stack or a root Compose
+file. Configure the supplied Compose installation normally; the helpers never source
+an environment file. Compose itself loads its normal configuration from `docker/`.
+
+Requirements: Bash, curl (supporting `--header @-`), jq **or** Python 3, Docker CLI
+and either Docker Compose v2 or legacy `docker-compose`. The scripts are executable
+in Git. If an installation stripped their modes, restore both before running:
+
 ```bash
-# Simple check (exit 0 if safe, 1 if not)
+chmod +x scripts/check_safe_to_update.sh scripts/safe_docker_update.sh
+```
+
+Export these in the process that runs the helper (do not put a key in command-line
+arguments, logs, or source control):
+
+- `STREAMVAULT_API_KEY`: an **existing**, active StreamVault API key belonging to
+  an authorized active user. The key is sent as `X-API-Key` to the read-only status
+  endpoint, not used to grant update/admin rights. Docker access is separate.
+- `STREAMVAULT_API_URL`: default `http://localhost:7000`, matching the supplied
+  `7000:7000` port mapping. For a custom host/port or reverse proxy, use the direct
+  StreamVault origin (HTTPS for remote access). It must point to the **same instance**
+  as the Compose installation being updated. No URL or credential discovery occurs.
+
+The protected `GET /api/status/recordings-active` request uses `Accept:
+application/json`. Missing credentials, HTTP 401/403/5xx, login/setup redirects,
+network failures, and invalid responses abort the check. Requests have a 5-second
+connection timeout and a 15-second total timeout; redirects are not followed.
+Only HTTP 200 and consistent, correctly typed `safe_to_update`,
+`has_active_recordings`, `active_count` and `active_streamers` fields are accepted.
+Both parsers enforce the same decision: idle means `true`, `false`, `0`, and `[]`.
+
+## Check only
+
+From the repository root, with the environment above already configured:
+
+```bash
 ./scripts/check_safe_to_update.sh
-
-# Wait for recordings to finish (up to 60 minutes)
-./scripts/check_safe_to_update.sh --wait --max-wait-minutes 60
+./scripts/check_safe_to_update.sh --wait --max-wait-minutes 30
 ```
 
-**Exit Codes:**
-- `0` - Safe to update (no active recordings)
-- `1` - Not safe (recordings in progress)
-- `2` - Error checking status
+- `0`: verified idle.
+- `1`: verified active, or waiting deadline reached.
+- `2`: unknown/error (including missing commands, invalid arguments or auth failure).
 
-**Examples:**
+`--wait` polls every 60 seconds, shortening the last sleep to the remaining wait.
+The default wait budget is 60 minutes. `--max-wait-minutes` accepts 0 through
+999999999 (at most nine decimal digits, including leading zeros); zero checks once
+without waiting. Elapsed time is monotonic Bash time; an in-flight request can take
+up to its request timeout. Unknown status aborts immediately rather than being retried.
+
+## Protected update
+
 ```bash
-# Use in CI/CD pipelines
-./scripts/check_safe_to_update.sh && docker-compose restart
-
-# Wait for recordings to finish before updating
-./scripts/check_safe_to_update.sh --wait --max-wait-minutes 30 && ./deploy.sh
-```
-
----
-
-### 2. `safe_docker_update.sh`
-Fully automated Docker update with recording protection.
-
-**Usage:**
-```bash
-# Safe update (waits for recordings to finish)
-./scripts/safe_docker_update.sh
-
-# Force update (skip recording check - DANGEROUS)
-./scripts/safe_docker_update.sh --force
-
-# Custom wait time
-./scripts/safe_docker_update.sh --max-wait-minutes 120
-```
-
-**What it does:**
-1. ✅ Checks for active recordings
-2. ✅ Waits for them to finish (optional timeout)
-3. ✅ Pulls latest Docker images
-4. ✅ Stops containers
-5. ✅ Starts updated containers
-6. ✅ Verifies services are running
-
-**Examples:**
-```bash
-# Safe update with 30-minute timeout
 ./scripts/safe_docker_update.sh --max-wait-minutes 30
+# Absolute invocation from any directory works too:
+/path/to/streamvault/scripts/safe_docker_update.sh
+```
 
-# Emergency update (interrupts recordings)
+The helper requires a successful recording check **before** `pull`, `down`, and
+`up -d`. Missing or non-executable checkers are fatal, never silently skipped.
+A guard result of `1` is preserved; all other failures produce `2`.
+After starting, it resolves the `app` container and inspects its configured health
+check (the supplied Compose file probes `/api/health/live` on port 7000).
+It waits up to 24 polls, five seconds apart, for `healthy`; missing/unhealthy status,
+inspection/start failures, and timeout return `2`, never a success message.
+Exit `0` means the app healthcheck passed, not that media/provider workflows were
+exercised. The helper does not roll back a partially completed update.
+
+### Explicit emergency bypass
+
+```bash
 ./scripts/safe_docker_update.sh --force
 ```
 
----
+This existing emergency path can interrupt recordings. It bypasses the guard **only**
+after the operator types exactly `yes`; rejection or EOF cancels without updating
+(exit `0`). Do not use it for normal automation or to hide an unknown status.
 
-## 🔌 API Endpoint
-
-### `GET /api/status/recordings-active`
-
-Check recording status programmatically.
-
-**Response:**
-```json
-{
-  "has_active_recordings": false,
-  "active_count": 0,
-  "safe_to_update": true,
-  "active_streamers": [],
-  "timestamp": "2025-11-09T10:30:00Z",
-  "message": "No active recordings - safe to update"
-}
-```
-
-**Example with active recordings:**
-```json
-{
-  "has_active_recordings": true,
-  "active_count": 2,
-  "safe_to_update": false,
-  "active_streamers": ["CohhCarnage", "Bonjwa"],
-  "timestamp": "2025-11-09T10:30:00Z",
-  "message": "2 recording(s) in progress - wait before updating"
-}
-```
-
-**cURL Example:**
-```bash
-curl http://localhost:8000/api/status/recordings-active
-```
-
----
-
-## 🚀 CI/CD Integration Examples
-
-### GitHub Actions
-```yaml
-name: Deploy StreamVault
-
-on:
-  push:
-    branches: [main]
-
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check if safe to update
-        run: |
-          ssh user@server './streamvault/scripts/check_safe_to_update.sh --wait --max-wait-minutes 60'
-      
-      - name: Deploy
-        run: |
-          ssh user@server './streamvault/scripts/safe_docker_update.sh'
-```
-
-### GitLab CI
-```yaml
-deploy:
-  stage: deploy
-  script:
-    - ssh user@server './streamvault/scripts/safe_docker_update.sh --max-wait-minutes 30'
-  only:
-    - main
-```
-
-### Jenkins
-```groovy
-stage('Deploy') {
-  steps {
-    sh '''
-      ssh user@server './streamvault/scripts/check_safe_to_update.sh --wait'
-      ssh user@server 'cd streamvault && docker-compose pull && docker-compose up -d'
-    '''
-  }
-}
-```
-
-### Cron Job (Automatic Updates)
-```bash
-# /etc/cron.d/streamvault-update
-# Update every Sunday at 3 AM if no recordings are active
-0 3 * * 0 user /path/to/streamvault/scripts/safe_docker_update.sh --max-wait-minutes 120
-```
-
----
-
-## ⚙️ Configuration
-
-### Environment Variables
-
-**`STREAMVAULT_API_URL`**  
-API endpoint for status checks (default: `http://localhost:8000`)
+## Local regression checks (no daemon or real API)
 
 ```bash
-export STREAMVAULT_API_URL="http://streamvault.local:8000"
-./scripts/check_safe_to_update.sh
+uv run pytest tests/test_safe_update_scripts.py -v
+bash -n scripts/check_safe_to_update.sh scripts/safe_docker_update.sh
 ```
 
----
-
-## 🛡️ Safety Features
-
-- ✅ **Zero-Downtime Updates** - Waits for recordings to finish
-- ✅ **Automatic Retry** - Checks status periodically
-- ✅ **Timeout Protection** - Prevents infinite waiting
-- ✅ **Detailed Logging** - Shows which streamers are recording
-- ✅ **Exit Codes** - Scriptable for automation
-- ✅ **Force Mode** - Emergency updates when needed
-
----
-
-## 📝 Requirements
-
-- **jq** or **python3** (for JSON parsing)
-- **curl** (for API calls)
-- **docker-compose** or **docker compose** (for updates)
-
-**Install dependencies (Ubuntu/Debian):**
-```bash
-sudo apt-get install jq curl
-```
-
-**Install dependencies (macOS):**
-```bash
-brew install jq curl
-```
-
----
-
-## 🐛 Troubleshooting
-
-### "Failed to connect to StreamVault API"
-**Solution:** Check if StreamVault is running:
-```bash
-docker-compose ps
-curl http://localhost:8000/health
-```
-
-### "Neither jq nor python3 found"
-**Solution:** Install jq:
-```bash
-sudo apt-get install jq  # Ubuntu/Debian
-brew install jq          # macOS
-```
-
-### Scripts not executable
-**Solution:** Make them executable:
-```bash
-chmod +x scripts/*.sh
-```
-
----
-
-## 📚 More Information
-
-- **API Documentation**: `/docs` endpoint (Swagger UI)
-- **Recording Status**: `/api/status/active-recordings`
-- **System Status**: `/api/status/system`
+Tests execute disposable layout copies with a closed command PATH and synthetic
+credentials. Docker, curl and sleep are harmless shell stubs; jq/Python parser paths
+run real parsers. No actual stack update, daemon restart or operator credentials are
+needed. A real deployment/restart health acceptance is a separate authorized step.

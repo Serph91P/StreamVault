@@ -1,181 +1,109 @@
 #!/bin/bash
-#
-# StreamVault - Safe Update Check Script
-# 
-# This script checks if it's safe to perform updates by verifying
-# that no recordings are currently in progress.
-#
-# Usage:
-#   ./check_safe_to_update.sh [--wait] [--max-wait-minutes 60]
-#
-# Exit codes:
-#   0 - Safe to update (no active recordings)
-#   1 - Not safe to update (recordings in progress)
-#   2 - Error checking status
-#
-# Examples:
-#   # Simple check
-#   ./check_safe_to_update.sh && docker-compose restart
-#
-#   # Wait up to 30 minutes for recordings to finish
-#   ./check_safe_to_update.sh --wait --max-wait-minutes 30
-#
+# Exit 0: verified idle; 1: active recordings/deadline; 2: unknown/error.
+set -euo pipefail
 
-set -e
-
-# Configuration
-API_URL="${STREAMVAULT_API_URL:-http://localhost:8000}"
-ENDPOINT="${API_URL}/api/status/recordings-active"
+API_URL="${STREAMVAULT_API_URL:-http://localhost:7000}"
+ENDPOINT="${API_URL%/}/api/status/recordings-active"
 WAIT_MODE=false
 MAX_WAIT_MINUTES=60
-CHECK_INTERVAL=60  # Check every 60 seconds
+CHECK_INTERVAL=60
 
-# Color output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+error() { echo "Error: $*" >&2; exit 2; }
 
-# Parse arguments
 while [[ $# -gt 0 ]]; do
     case $1 in
-        --wait)
-            WAIT_MODE=true
-            shift
-            ;;
+        --wait) WAIT_MODE=true; shift ;;
         --max-wait-minutes)
-            MAX_WAIT_MINUTES="$2"
-            shift 2
-            ;;
+            [[ $# -ge 2 && $2 =~ ^[0-9]{1,9}$ ]] || error "--max-wait-minutes requires non-negative minutes (up to 9 digits)"
+            MAX_WAIT_MINUTES=$((10#$2)); shift 2 ;;
         --help)
-            echo "Usage: $0 [--wait] [--max-wait-minutes 60]"
-            echo ""
-            echo "Options:"
-            echo "  --wait                  Wait for recordings to finish (default: false)"
-            echo "  --max-wait-minutes N    Maximum minutes to wait (default: 60)"
-            echo "  --help                  Show this help message"
-            exit 0
-            ;;
-        *)
-            echo "Unknown option: $1"
-            echo "Use --help for usage information"
-            exit 2
-            ;;
+            echo "Usage: $0 [--wait] [--max-wait-minutes N]"
+            exit 0 ;;
+        *) error "Unknown option: $1" ;;
     esac
 done
 
-# Function to check status
-check_status() {
-    local response
-    response=$(curl -s -f "$ENDPOINT" 2>/dev/null)
-    
-    if [ $? -ne 0 ]; then
-        echo -e "${RED}✗ Error: Failed to connect to StreamVault API${NC}" >&2
-        echo -e "${YELLOW}  Make sure StreamVault is running at: ${API_URL}${NC}" >&2
-        return 2
-    fi
-    
-    echo "$response"
-}
-
-# Function to parse JSON (requires jq or python)
-get_json_value() {
-    local json="$1"
-    local key="$2"
-    
-    # Try jq first
-    if command -v jq &> /dev/null; then
-        echo "$json" | jq -r ".$key"
-    # Fallback to python
-    elif command -v python3 &> /dev/null; then
-        echo "$json" | python3 -c "import sys, json; print(json.load(sys.stdin)['$key'])"
-    else
-        echo -e "${RED}Error: Neither jq nor python3 found. Please install one of them.${NC}" >&2
-        exit 2
-    fi
-}
-
-# Main logic
-echo -e "${BLUE}🔍 Checking StreamVault recording status...${NC}"
-echo -e "${BLUE}   API: ${ENDPOINT}${NC}"
-echo ""
-
-if [ "$WAIT_MODE" = true ]; then
-    echo -e "${YELLOW}⏳ Wait mode enabled - will wait up to ${MAX_WAIT_MINUTES} minutes for recordings to finish${NC}"
-    echo ""
+command -v curl >/dev/null || error "curl is required"
+if command -v jq >/dev/null; then
+    PARSER=jq
+elif command -v python3 >/dev/null; then
+    PARSER=python3
+else
+    error "jq or python3 is required"
 fi
+[[ -n ${STREAMVAULT_API_KEY:-} ]] || error "Set STREAMVAULT_API_KEY to an existing authorized API key"
+[[ $STREAMVAULT_API_KEY != *$'\n'* && $STREAMVAULT_API_KEY != *$'\r'* ]] || error "Invalid API key header"
 
-start_time=$(date +%s)
+# Validate the complete safety decision, not a truthy value or a missing field.
+parse_count() {
+    if [[ $PARSER == jq ]]; then
+        jq -ers '
+            if length != 1 then error("Expected one response") else .[0] end |
+            if type != "object" then error("Expected object") else . end |
+            if (.safe_to_update | type) != "boolean" or
+               (.has_active_recordings | type) != "boolean" or
+               (.active_count | type) != "number" or
+               (.active_streamers | type) != "array"
+            then error("Invalid safety fields") else . end |
+            if .active_count < 0 or .active_count != (.active_count | floor) or
+               .safe_to_update != (.active_count == 0) or
+               .has_active_recordings != (.active_count > 0) or
+               any(.active_streamers[]; type != "string") or
+               (.active_count == 0 and (.active_streamers | length) != 0)
+            then error("Inconsistent safety fields") else (.active_count | floor) end
+        '
+    else
+        python3 -c '
+import json, math, sys
+try:
+    data = json.load(sys.stdin)
+    if not isinstance(data, dict):
+        raise ValueError("Expected object")
+    count = data["active_count"]
+    if (type(count) not in (int, float) or not math.isfinite(count) or count < 0 or count != int(count)
+        or type(data["safe_to_update"]) is not bool or data["safe_to_update"] != (count == 0)
+        or type(data["has_active_recordings"]) is not bool or data["has_active_recordings"] != (count > 0)):
+        raise ValueError("Invalid safety fields")
+    streamers = data["active_streamers"]
+    if (not isinstance(streamers, list) or not all(isinstance(s, str) for s in streamers)
+        or (count == 0 and streamers)):
+        raise ValueError("Invalid streamers")
+    print(int(count))
+except (ValueError, KeyError, TypeError, OverflowError):
+    sys.exit(2)
+'
+    fi
+}
+
+start_time=$SECONDS
 max_wait_seconds=$((MAX_WAIT_MINUTES * 60))
-
 while true; do
-    # Check current status
-    response=$(check_status)
-    status_code=$?
-    
-    if [ $status_code -eq 2 ]; then
-        exit 2
+    # Never follow redirects to login/setup, and keep credentials out of argv/logs.
+    if ! response=$(printf 'X-API-Key: %s\n' "$STREAMVAULT_API_KEY" |
+        curl --silent --show-error --fail --connect-timeout 5 --max-time 15 \
+            --write-out '\n%{http_code}' --header @- --header 'Accept: application/json' "$ENDPOINT"); then
+        error "Recording status unavailable (network/HTTP/authentication failure)"
     fi
-    
-    # Parse response
-    safe_to_update=$(get_json_value "$response" "safe_to_update")
-    active_count=$(get_json_value "$response" "active_count")
-    message=$(get_json_value "$response" "message")
-    
-    # Get active streamers if any
-    if [ "$active_count" != "0" ]; then
-        active_streamers=$(get_json_value "$response" "active_streamers" | tr -d '[]"' | tr ',' '\n')
+    [[ ${response##*$'\n'} == 200 ]] || error "Recording status did not return HTTP 200"
+    response=${response%$'\n'*}
+    if ! active_count=$(printf '%s' "$response" | parse_count 2>/dev/null); then
+        error "Invalid recording status; refusing update"
     fi
-    
-    # Check if safe to update
-    if [ "$safe_to_update" = "true" ]; then
-        echo -e "${GREEN}✓ Safe to update!${NC}"
-        echo -e "${GREEN}  ${message}${NC}"
+    if [[ $active_count == 0 ]]; then
+        echo "Safe to update: no active recordings"
         exit 0
     fi
-    
-    # Not safe - check if we should wait
-    if [ "$WAIT_MODE" = false ]; then
-        echo -e "${RED}✗ Not safe to update${NC}"
-        echo -e "${YELLOW}  ${message}${NC}"
-        echo ""
-        echo -e "${YELLOW}Active recordings:${NC}"
-        while IFS= read -r streamer; do
-            [ -z "$streamer" ] && continue
-            echo -e "  • ${streamer}"
-        done <<< "$active_streamers"
-        echo ""
-        echo -e "${BLUE}Tip: Use --wait to automatically wait for recordings to finish${NC}"
+    if [[ $WAIT_MODE == false ]]; then
+        echo "Not safe to update: $active_count active recording(s)"
         exit 1
     fi
-    
-    # Wait mode - check timeout
-    current_time=$(date +%s)
-    elapsed=$((current_time - start_time))
-    remaining=$((max_wait_seconds - elapsed))
-    
-    if [ $elapsed -ge $max_wait_seconds ]; then
-        echo -e "${RED}✗ Timeout: Recordings still active after ${MAX_WAIT_MINUTES} minutes${NC}"
-        echo -e "${YELLOW}  ${message}${NC}"
-        echo ""
-        echo -e "${YELLOW}Active recordings:${NC}"
-        while IFS= read -r streamer; do
-            [ -z "$streamer" ] && continue
-            echo -e "  • ${streamer}"
-        done <<< "$active_streamers"
+    remaining=$((max_wait_seconds - (SECONDS - start_time)))
+    if (( remaining <= 0 )); then
+        echo "Timeout: recordings still active" >&2
         exit 1
     fi
-    
-    # Show waiting status
-    remaining_minutes=$((remaining / 60))
-    echo -e "${YELLOW}⏳ ${active_count} recording(s) in progress - waiting... (${remaining_minutes}m remaining)${NC}"
-    while IFS= read -r streamer; do
-        [ -z "$streamer" ] && continue
-        echo -e "   • ${streamer}"
-    done <<< "$active_streamers"
-    
-    # Wait before next check
-    sleep $CHECK_INTERVAL
-    echo "" # New line for next iteration
+    echo "Waiting: $active_count active recording(s)"
+    delay=$CHECK_INTERVAL
+    (( remaining >= delay )) || delay=$remaining
+    sleep "$delay" || error "Waiting interrupted"
 done
