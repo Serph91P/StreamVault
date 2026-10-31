@@ -102,8 +102,14 @@ with tempfile.TemporaryDirectory(prefix="policy-947-", dir=os.environ["TMPDIR"])
                     f"backend readiness timeout: {diagnostic}"
                 )
                 time.sleep(0.1)
+            browser_env = env.copy()
+            # Backend XDG isolation must not hide the installed browser cache.
+            for key in ("XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_CACHE_HOME"):
+                browser_env.pop(key, None)
+                if key in os.environ:
+                    browser_env[key] = os.environ[key]
             subprocess.run(
-                ["node", str(here / "browser.mjs")], env=env, check=True, timeout=240
+                ["node", str(here / "browser.mjs")], env=browser_env, check=True, timeout=240
             )
             (args.output / "build-provenance.json").write_text(
                 json.dumps(provenance, indent=2)
