@@ -45,7 +45,8 @@ parse_count() {
                (.active_count | type) != "number" or
                (.active_streamers | type) != "array"
             then error("Invalid safety fields") else . end |
-            if .active_count < 0 or .active_count != (.active_count | floor) or
+            if (.active_count | isfinite | not) or
+               .active_count < 0 or .active_count != (.active_count | floor) or
                .safe_to_update != (.active_count == 0) or
                .has_active_recordings != (.active_count > 0) or
                any(.active_streamers[]; type != "string") or

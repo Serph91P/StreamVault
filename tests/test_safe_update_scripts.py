@@ -146,6 +146,8 @@ BAD = [
     json.dumps(dict(IDLE, active_count="0")),
     json.dumps(dict(IDLE, active_count=False)),
     json.dumps(dict(IDLE, active_count=-1)),
+    json.dumps(dict(ACTIVE, active_count=float("inf"))),
+    json.dumps(ACTIVE).replace('"active_count": 1', '"active_count": 1e309'),
     json.dumps(dict(IDLE, active_count=1)),
     json.dumps(dict(IDLE, has_active_recordings=True)),
     json.dumps(dict(IDLE, active_streamers="oops")),
@@ -173,10 +175,18 @@ def test_status_is_validated_before_any_update(
     sandbox, parser, update, response, expected
 ):
     result, mutations = run(
-        sandbox, parser, update, ("--max-wait-minutes", "0"), response
+        sandbox,
+        parser,
+        update,
+        ("--max-wait-minutes", "1" if expected == 2 else "0"),
+        response,
+        direct=True,
+        SLEEP_EXIT="99",
     )
     assert result.returncode == expected, result.stdout + result.stderr
     assert bool(mutations) == (update and expected == 0)
+    if expected == 2:
+        assert "Waiting:" not in result.stdout
 
 
 @pytest.mark.parametrize("parser", ["jq", "python"])
@@ -222,7 +232,9 @@ def test_invalid_arguments_are_errors(sandbox, args, update):
 def test_missing_required_command_is_closed(sandbox, command):
     if command != "parsers":
         (sandbox[1] / command).unlink()
-    result, mutations = run(sandbox, parser="none", update=True)
+    result, mutations = run(
+        sandbox, parser="none" if command == "parsers" else "jq", update=True
+    )
     assert result.returncode == 2, result.stdout + result.stderr
     assert not mutations
 
