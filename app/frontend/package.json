@@ -69,12 +69,10 @@
     "vue-tsc": "^3.3.11"
   },
   "overrides": {
-    "serialize-javascript": "7.1.2",
     "vite-plugin-pwa": {
       "vite": "$vite"
     },
     "@babel/core": "7.29.7",
-    "fast-uri": "3.1.8",
     "browserslist": "4.28.8",
     "@humanfs/node": "0.16.8",
     "immutable": "5.1.9",
