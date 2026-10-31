@@ -41,9 +41,15 @@ for dir_path in _test_dirs:
     if dir_path:
         Path(dir_path).mkdir(parents=True, exist_ok=True)
 
-# Ensure we use SQLite for testing if no DATABASE_URL is set
-os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
+# Explicit test configuration belongs here, never in production URL resolution.
+# Opt-in PostgreSQL exercises the application's normal validated settings path.
+if postgres_test_url := os.environ.get("STREAMVAULT_POSTGRES_TEST_URL"):
+    os.environ["DATABASE_URL"] = postgres_test_url
+else:
+    os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
 
+# Unit-test mode and database are explicit configuration, not import detection.
+os.environ.setdefault("ENVIRONMENT", "test")
 # Set required Twitch credentials for testing (mock values)
 os.environ.setdefault("TWITCH_APP_ID", "test_app_id")
 os.environ.setdefault("TWITCH_APP_SECRET", "test_app_secret")

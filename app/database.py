@@ -19,7 +19,6 @@ Compatibility seam (temporary):
 
 import logging
 import os
-import sys
 from typing import AsyncGenerator, Dict, Optional
 
 from sqlalchemy import MetaData, create_engine
@@ -34,16 +33,10 @@ from sqlalchemy.ext.asyncio import (
 from sqlalchemy.orm import declarative_base, sessionmaker
 from sqlalchemy.pool import StaticPool
 
-# Get DATABASE_URL from environment (used as a fallback during early
-# initialization; settings remain authoritative).
+# Compatibility metadata only; URL selection uses validated settings below.
 DATABASE_URL = os.getenv("DATABASE_URL")
 
-if not DATABASE_URL:
-    DATABASE_URL = "sqlite:///:memory:"
-
 logger = logging.getLogger("streamvault")
-
-is_testing = "pytest" in sys.modules or "import_test.py" in sys.argv[0]
 
 _SYNC_DRIVERNAMES: Dict[str, str] = {
     "postgresql": "postgresql+psycopg",
@@ -245,30 +238,23 @@ class _SessionLocalProxy:
 
 
 def get_database_url() -> str:
+    """Resolve explicit validated configuration without test-framework policy.
+
+    Unit tests configure SQLite or inject DatabaseLifecycle(url); importing a
+    test runner never changes the chosen database. No connection is opened here.
     """
-    Resolve the validated database URL for connections.
+    from app.config.settings import settings
 
-    Settings are authoritative; the environment variable is used as a
-    fallback and in-memory SQLite is used in testing.
-    """
-    try:
-        from app.config.settings import settings
-
-        url = settings.DATABASE_URL
-        if not url:
-            url = DATABASE_URL
-    except ImportError:
-        url = DATABASE_URL
-
+    url = settings.DATABASE_URL
     if not url:
         raise ValueError("DATABASE_URL is not set.")
-
-    if is_testing:
-        # Keep fast unit tests isolated on SQLite, but allow the explicitly
-        # opt-in UX09 integration suite to exercise the application's real
-        # SessionLocal/public seams against its dedicated PostgreSQL database.
-        return os.getenv("STREAMVAULT_POSTGRES_TEST_URL") or "sqlite:///:memory:"
-
+    if (
+        settings.ENVIRONMENT != "test"
+        and make_url(url).get_backend_name() != "postgresql"
+    ):
+        raise ValueError(
+            "PostgreSQL DATABASE_URL is required outside explicit test configuration."
+        )
     return url
 
 
