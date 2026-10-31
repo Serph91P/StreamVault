@@ -235,6 +235,8 @@ async def get_all_streamer_recording_settings():
                         max_streams=settings.max_streams,
                         twitch_auth_priority=settings.twitch_auth_priority,
                         cleanup_policy=cleanup_policy,
+                        use_global_cleanup_policy=settings.use_global_cleanup_policy
+                        is not False,
                     )
                 )
 
