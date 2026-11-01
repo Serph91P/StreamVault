@@ -59,6 +59,7 @@
             <div class="notification-title-stack">
               <h3 id="notification-panel-title">Notifications</h3>
               <p class="notification-panel-count">{{ notificationPanelSubtitle }}</p>
+              <p class="notification-panel-count">History and read/unread are local to this browser. Mark all read and Clear all are global.</p>
             </div>
             <div class="notification-header-actions">
               <button
@@ -66,7 +67,8 @@
                 class="glass-btn-text mark-read-btn"
                 aria-label="Mark all notifications read"
                 title="Mark all notifications read"
-                @click="markAsRead"
+                :disabled="notificationFeedRef?.isMutating"
+                @click="notificationFeedRef?.markAllRead($event)"
               >
                 Mark all read
               </button>
@@ -75,7 +77,8 @@
                 class="glass-btn-text clear-all-btn"
                 aria-label="Clear all notifications"
                 title="Clear all notifications"
-                @click="clearAllNotifications"
+                :disabled="notificationFeedRef?.isMutating"
+                @click="notificationFeedRef?.clearAllNotifications($event)"
               >
                 Clear all
               </button>
@@ -85,9 +88,8 @@
             </div>
           </div>
           <NotificationFeed
-            @notifications-read="markAsRead"
+            ref="notificationFeedRef"
             @close-panel="closeNotificationPanel"
-            @clear-all="clearAllNotifications"
             @close="closeNotificationPanel"
           />
         </div>
@@ -154,6 +156,7 @@ const {
   reconnectNow
 } = useWebSocket()
 const notificationStore = useNotificationStore()
+const notificationFeedRef = ref<InstanceType<typeof NotificationFeed> | null>(null)
 const unreadCount = computed(() => notificationStore.unreadCount)
 const notificationCount = computed(() => notificationStore.totalCount)
 const notificationPanelSubtitle = computed(() => {
@@ -235,15 +238,6 @@ async function logout() {
 function toggleNotifications() {
   if (showNotifications.value) closeNotificationPanel()
   else openNotificationPanel()
-}
-
-async function clearAllNotifications() {
-  await notificationStore.clearAll()
-  closeNotificationPanel()
-}
-
-function markAsRead() {
-  notificationStore.markAllRead()
 }
 
 watch(() => props.showShell, (showShell) => {
