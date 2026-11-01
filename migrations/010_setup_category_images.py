@@ -18,7 +18,11 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def run_migration():
+from sqlalchemy.engine import Engine
+from app.services.system.migration_service import migration_session
+
+
+def run_migration(target_engine: Engine | None = None):
     """Setup category image caching system"""
     try:
         logger.info("🔄 Setting up category image caching...")
@@ -57,7 +61,7 @@ def run_migration():
         try:
             from app.database import SessionLocal
 
-            with SessionLocal() as session:
+            with migration_session(target_engine, SessionLocal) as session:
                 category_names = [
                     row[0]
                     for row in session.execute(

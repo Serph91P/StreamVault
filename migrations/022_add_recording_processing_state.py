@@ -44,8 +44,12 @@ DROP TABLE IF EXISTS recording_processing_state;
 """
 
 
-def upgrade():
-    with engine.begin() as conn:
+from sqlalchemy.engine import Engine
+
+
+def upgrade(target_engine: Engine | None = None):
+    active_engine = target_engine if target_engine is not None else engine
+    with active_engine.begin() as conn:
         conn.execute(text(SQL_CREATE))
 
 

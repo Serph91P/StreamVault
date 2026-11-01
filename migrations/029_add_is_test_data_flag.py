@@ -9,9 +9,13 @@ from sqlalchemy import text
 from app.database import SessionLocal
 
 
-def upgrade():
+from sqlalchemy.engine import Engine
+from app.services.system.migration_service import migration_session
+
+
+def upgrade(target_engine: Engine | None = None):
     """Add is_test_data flag to streamers table"""
-    with SessionLocal() as db:
+    with migration_session(target_engine, SessionLocal) as db:
         try:
             # Add is_test_data column to streamers
             db.execute(
@@ -50,7 +54,9 @@ def downgrade():
     with SessionLocal() as db:
         try:
             db.execute(text("DROP INDEX IF EXISTS idx_streamers_test_data;"))
-            db.execute(text("ALTER TABLE streamers DROP COLUMN IF EXISTS is_test_data;"))
+            db.execute(
+                text("ALTER TABLE streamers DROP COLUMN IF EXISTS is_test_data;")
+            )
 
             db.commit()
             print("✅ Migration 029: Removed is_test_data flag from streamers")

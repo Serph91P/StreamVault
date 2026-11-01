@@ -25,12 +25,15 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("streamvault")
 
 
-def upgrade():
+from sqlalchemy.engine import Engine
+
+
+def upgrade(target_engine: Engine | None = None):
     """Add offline_image_url column to streamers table"""
     logger.info("📦 Adding offline_image_url column to streamers table...")
 
     try:
-        with engine.connect() as conn:
+        with (target_engine if target_engine is not None else engine).connect() as conn:
             # Add offline_image_url column
             conn.execute(
                 text(

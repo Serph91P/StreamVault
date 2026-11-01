@@ -3,6 +3,7 @@
 Migration 021: Add chapters_xml_path column to stream_metadata
 Adds a column to store XML chapter file paths for Emby/Jellyfin compatibility
 """
+
 import os
 import sys
 import logging
@@ -16,21 +17,26 @@ parent_dir = os.path.dirname(current_dir)
 sys.path.insert(0, parent_dir)
 
 from app.config.settings import settings
+from sqlalchemy.engine import Engine
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def run_migration():
+def run_migration(target_engine: Engine | None = None):
     """Add chapters_xml_path column to stream_metadata"""
     session = None
     try:
         # Validate DATABASE_URL
-        if not settings.DATABASE_URL:
+        if target_engine is None and not settings.DATABASE_URL:
             raise ValueError("DATABASE_URL not configured")
 
         # Connect to the database
-        engine = create_engine(settings.DATABASE_URL)
+        engine = (
+            target_engine
+            if target_engine is not None
+            else create_engine(settings.DATABASE_URL)
+        )
         Session = sessionmaker(bind=engine)
         session = Session()
 
@@ -75,11 +81,23 @@ def run_migration():
                 logger.info(f"🔄 Adding {column_name} column...")
                 # Use hardcoded, whitelisted values for security
                 if column_name == "chapters_xml_path":
-                    session.execute(text("ALTER TABLE stream_metadata ADD COLUMN chapters_xml_path TEXT"))
+                    session.execute(
+                        text(
+                            "ALTER TABLE stream_metadata ADD COLUMN chapters_xml_path TEXT"
+                        )
+                    )
                 elif column_name == "tvshow_nfo_path":
-                    session.execute(text("ALTER TABLE stream_metadata ADD COLUMN tvshow_nfo_path TEXT"))
+                    session.execute(
+                        text(
+                            "ALTER TABLE stream_metadata ADD COLUMN tvshow_nfo_path TEXT"
+                        )
+                    )
                 elif column_name == "season_nfo_path":
-                    session.execute(text("ALTER TABLE stream_metadata ADD COLUMN season_nfo_path TEXT"))
+                    session.execute(
+                        text(
+                            "ALTER TABLE stream_metadata ADD COLUMN season_nfo_path TEXT"
+                        )
+                    )
 
                 columns_added += 1
                 logger.info(f"✅ Added {column_name} column to stream_metadata")
@@ -92,7 +110,9 @@ def run_migration():
         else:
             logger.info("✅ All metadata path columns already exist")
 
-        logger.info("✅ Migration 021 completed successfully: Added chapters_xml_path and related columns")
+        logger.info(
+            "✅ Migration 021 completed successfully: Added chapters_xml_path and related columns"
+        )
         return True
 
     except (DatabaseError, OperationalError) as e:

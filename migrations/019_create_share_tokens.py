@@ -11,9 +11,13 @@ from app.database import get_db
 logger = logging.getLogger("streamvault")
 
 
-def upgrade():
+from sqlalchemy.engine import Engine
+from app.services.system.migration_service import migration_session
+
+
+def upgrade(target_engine: Engine | None = None):
     """Create share tokens table"""
-    db = next(get_db())
+    db = migration_session(target_engine, lambda: next(get_db()))
     try:
         logger.info("Migration 019: Creating share tokens table")
 

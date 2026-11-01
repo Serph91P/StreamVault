@@ -13,6 +13,7 @@ when a streamer is offline, providing better context to users.
 
 Backfills data from the most recent ended stream for each streamer.
 """
+
 import os
 import sys
 import logging
@@ -23,17 +24,22 @@ from sqlalchemy.orm import sessionmaker
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.config.settings import settings
+from sqlalchemy.engine import Engine
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def run_migration():
+def run_migration(target_engine: Engine | None = None):
     """Add last stream info columns to streamers table and backfill from most recent streams"""
     session = None
     try:
         # Connect to the database
-        engine = create_engine(settings.DATABASE_URL)
+        engine = (
+            target_engine
+            if target_engine is not None
+            else create_engine(settings.DATABASE_URL)
+        )
         Session = sessionmaker(bind=engine)
         session = Session()
 
@@ -55,24 +61,40 @@ def run_migration():
         existing_columns = [row[0] for row in result.fetchall()]
 
         if len(existing_columns) == 4:
-            logger.info("✅ All last stream info columns already exist in streamers table")
+            logger.info(
+                "✅ All last stream info columns already exist in streamers table"
+            )
             return
 
         # Add the columns (nullable since we'll backfill)
         if "last_stream_title" not in existing_columns:
-            session.execute(text("ALTER TABLE streamers ADD COLUMN last_stream_title VARCHAR"))
+            session.execute(
+                text("ALTER TABLE streamers ADD COLUMN last_stream_title VARCHAR")
+            )
             logger.info("✅ Added last_stream_title column")
 
         if "last_stream_category_name" not in existing_columns:
-            session.execute(text("ALTER TABLE streamers ADD COLUMN last_stream_category_name VARCHAR"))
+            session.execute(
+                text(
+                    "ALTER TABLE streamers ADD COLUMN last_stream_category_name VARCHAR"
+                )
+            )
             logger.info("✅ Added last_stream_category_name column")
 
         if "last_stream_viewer_count" not in existing_columns:
-            session.execute(text("ALTER TABLE streamers ADD COLUMN last_stream_viewer_count INTEGER"))
+            session.execute(
+                text(
+                    "ALTER TABLE streamers ADD COLUMN last_stream_viewer_count INTEGER"
+                )
+            )
             logger.info("✅ Added last_stream_viewer_count column")
 
         if "last_stream_ended_at" not in existing_columns:
-            session.execute(text("ALTER TABLE streamers ADD COLUMN last_stream_ended_at TIMESTAMP WITH TIME ZONE"))
+            session.execute(
+                text(
+                    "ALTER TABLE streamers ADD COLUMN last_stream_ended_at TIMESTAMP WITH TIME ZONE"
+                )
+            )
             logger.info("✅ Added last_stream_ended_at column")
 
         session.commit()
@@ -128,13 +150,20 @@ def run_migration():
                     WHERE id = :streamer_id
                 """
                     ),
-                    {"title": title, "category_name": category_name, "ended_at": ended_at, "streamer_id": streamer_id},
+                    {
+                        "title": title,
+                        "category_name": category_name,
+                        "ended_at": ended_at,
+                        "streamer_id": streamer_id,
+                    },
                 )
 
                 updated_count += 1
 
                 if updated_count % 10 == 0:
-                    logger.info(f"Backfilled {updated_count}/{len(streamers_to_update)} streamers...")
+                    logger.info(
+                        f"Backfilled {updated_count}/{len(streamers_to_update)} streamers..."
+                    )
 
         session.commit()
         logger.info(f"✅ Backfilled last stream info for {updated_count} streamers")

@@ -20,6 +20,7 @@ import logging
 import importlib.util
 import inspect as py_inspect
 from contextlib import contextmanager
+from collections.abc import Callable
 from pathlib import Path
 from typing import Iterator, List, Tuple
 
@@ -39,13 +40,35 @@ from sqlalchemy import (
 )
 
 from app.database import engine
+from sqlalchemy.engine import Engine
+from sqlalchemy.orm import Session
 
 logger = logging.getLogger("streamvault")
 
 _MIGRATIONS_SAFE_NAME = "migrations"
 
 
+def migration_session(
+    target_engine: Engine | None, legacy_factory: Callable[[], Session]
+) -> Session:
+    """Keep historical call sites compatible without borrowing their global DB."""
+    if target_engine is None:
+        return legacy_factory()
+    return Session(bind=target_engine, autoflush=False, expire_on_commit=False)
+
+
 class MigrationService:
+    @staticmethod
+    def for_engine(target_engine: Engine) -> type["MigrationService"]:
+        """Bind orchestration to one caller-owned engine, leaving legacy callers intact."""
+
+        class BoundMigrationService(MigrationService):
+            @staticmethod
+            def _engine() -> Engine:
+                return target_engine
+
+        return BoundMigrationService
+
     _POSTGRES_MIGRATION_LOCK_ID = 6005076117384319316
     ALEMBIC_LEGACY_BASELINE = "20260922_legacy"
     LEGACY_MIGRATION_IDENTITIES = (
@@ -120,11 +143,11 @@ class MigrationService:
     @contextmanager
     def _migration_orchestration_lock(cls) -> Iterator[None]:
         """Serialize the complete migration sequence between PostgreSQL processes."""
-        if engine.dialect.name != "postgresql":
+        if cls._engine().dialect.name != "postgresql":
             yield
             return
 
-        with engine.connect() as lock_connection:
+        with cls._engine().connect() as lock_connection:
             logger.info("Waiting for PostgreSQL migration orchestration lock...")
             lock_connection.execute(
                 text("SELECT pg_advisory_lock(:lock_id)"),
@@ -157,8 +180,8 @@ class MigrationService:
             Column("success", Boolean, nullable=False, server_default=text("TRUE")),
         )
 
-    @staticmethod
-    def ensure_migrations_table():
+    @classmethod
+    def ensure_migrations_table(cls):
         """Create the migrations table if it doesn't exist (dialect-agnostic).
 
         Uses SQLAlchemy inspection instead of PostgreSQL-only
@@ -166,12 +189,12 @@ class MigrationService:
         ``name``/missing-column fixups are preserved.
         """
         try:
-            with engine.connect() as connection:
+            with cls._engine().connect() as connection:
                 inspector = sa_inspect(connection)
                 if not inspector.has_table(_MIGRATIONS_SAFE_NAME):
                     logger.info("Creating migrations table...")
-                    table = MigrationService._migrations_table_definition()
-                    with engine.begin() as setup_connection:
+                    table = cls._migrations_table_definition()
+                    with cls._engine().begin() as setup_connection:
                         table.create(setup_connection, checkfirst=True)
                     logger.info("✅ Migrations table created")
                     return
@@ -182,7 +205,7 @@ class MigrationService:
                 }
                 if "script_name" not in columns:
                     logger.info("Updating migrations table schema...")
-                    with engine.begin() as setup_connection:
+                    with cls._engine().begin() as setup_connection:
                         if "name" in columns:
                             setup_connection.execute(
                                 text(
@@ -205,11 +228,11 @@ class MigrationService:
             logger.error(f"❌ Failed to ensure migrations table: {e}")
             raise
 
-    @staticmethod
-    def is_migration_applied(migration_name: str) -> bool:
+    @classmethod
+    def is_migration_applied(cls, migration_name: str) -> bool:
         """Check if a migration has been applied (successfully)."""
         try:
-            with engine.connect() as connection:
+            with cls._engine().connect() as connection:
                 result = connection.execute(
                     text(
                         "SELECT COUNT(*) FROM migrations "
@@ -222,8 +245,8 @@ class MigrationService:
             logger.error(f"Error checking migration status: {e}")
             raise
 
-    @staticmethod
-    def mark_migration_applied(migration_name: str, success: bool = True):
+    @classmethod
+    def mark_migration_applied(cls, migration_name: str, success: bool = True):
         """Record a successful migration only.
 
         A failed migration is never recorded (``success=False`` is a no-op) so
@@ -237,7 +260,7 @@ class MigrationService:
             )
             return
         try:
-            with engine.begin() as connection:
+            with cls._engine().begin() as connection:
                 connection.execute(
                     text(
                         """
@@ -335,10 +358,10 @@ class MigrationService:
             command.stamp(config, cls.ALEMBIC_LEGACY_BASELINE)
             command.upgrade(config, "head")
 
-    @staticmethod
-    def run_safe_migrations():
+    @classmethod
+    def run_safe_migrations(cls):
         """Run all database migrations safely (alias for run_migrations)"""
-        return MigrationService.run_migrations()
+        return cls.run_migrations()
 
     @staticmethod
     def get_all_migration_scripts() -> List[str]:
@@ -439,8 +462,8 @@ class MigrationService:
                 return migration_function(engine=target_engine)
         return migration_function()
 
-    @staticmethod
-    def run_migration_script(script_path: str) -> Tuple[bool, str]:
+    @classmethod
+    def run_migration_script(cls, script_path: str) -> Tuple[bool, str]:
         """Run a single migration script.
 
         Only successful migrations are recorded; a raised exception leaves no
@@ -451,7 +474,7 @@ class MigrationService:
             logger.info(f"Running migration: {script_name}")
 
             # Check if this migration was already applied
-            if MigrationService.is_migration_applied(script_name):
+            if cls.is_migration_applied(script_name):
                 logger.info(f"Migration {script_name} already applied, skipping")
                 return True, "Already applied"
 
@@ -465,17 +488,13 @@ class MigrationService:
 
             # For simple Alembic-style migrations, we'll use direct SQLAlchemy
             if hasattr(migration_module, "upgrade"):
-                MigrationService._invoke(
-                    migration_module.upgrade, MigrationService._engine()
-                )
+                cls._invoke(migration_module.upgrade, cls._engine())
             elif hasattr(migration_module, "run_migration"):
-                MigrationService._invoke(
-                    migration_module.run_migration, MigrationService._engine()
-                )
+                cls._invoke(migration_module.run_migration, cls._engine())
             else:
                 return False, "Migration has no upgrade() or run_migration() function"
 
-            MigrationService.mark_migration_applied(script_name)
+            cls.mark_migration_applied(script_name)
             logger.info(f"✅ Successfully applied migration: {script_name}")
             return True, "Migration completed successfully"
 
@@ -487,7 +506,7 @@ class MigrationService:
             return False, str(e)
 
     @staticmethod
-    def _engine():
+    def _engine() -> Engine:
         """Return the active engine used for migration orchestration."""
         lifecycle = getattr(engine, "_lifecycle", None)
         return lifecycle.sync_engine if lifecycle is not None else engine
@@ -523,7 +542,7 @@ class MigrationService:
     def get_applied_migrations(cls) -> List[str]:
         """Get list of migration scripts that have already been applied"""
         try:
-            with engine.connect() as connection:
+            with cls._engine().connect() as connection:
                 result = connection.execute(
                     text(
                         "SELECT script_name FROM migrations WHERE success = TRUE "
@@ -551,7 +570,7 @@ class MigrationService:
 
             for attempt in range(max_retries):
                 try:
-                    with engine.connect() as conn:
+                    with cls._engine().connect() as conn:
                         conn.execute(text("SELECT 1"))
                     logger.info("✅ Database connection successful")
                     break

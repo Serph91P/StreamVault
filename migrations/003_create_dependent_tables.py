@@ -4,6 +4,7 @@ Migration 003: Create dependent tables
 Creates: recordings, stream_events, notification_settings, favorite_categories,
          streamer_recording_settings, stream_metadata, active_recording_state
 """
+
 import os
 import sys
 import logging
@@ -14,17 +15,22 @@ from sqlalchemy.orm import sessionmaker
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.config.settings import settings
+from sqlalchemy.engine import Engine
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def run_migration():
+def run_migration(target_engine: Engine | None = None):
     """Create tables that depend on main entities"""
     session = None
     try:
         # Connect to the database
-        engine = create_engine(settings.DATABASE_URL)
+        engine = (
+            target_engine
+            if target_engine is not None
+            else create_engine(settings.DATABASE_URL)
+        )
         Session = sessionmaker(bind=engine)
         session = Session()
 
@@ -186,7 +192,9 @@ def run_migration():
                 logger.info("✅ Removed legacy output_path field")
 
         except Exception as legacy_error:
-            logger.warning(f"Non-critical legacy field migration warning: {legacy_error}")
+            logger.warning(
+                f"Non-critical legacy field migration warning: {legacy_error}"
+            )
             # Continue with migration even if legacy field handling fails
 
         logger.info("✅ Created streamer_recording_settings table")
