@@ -179,7 +179,9 @@ async def lifespan(app: FastAPI):
         )
         phase("optional-preparation")
 
-        recording_manager = get_lifespan_service(app, get_recording_manager)()
+        recording_manager = await run_in_thread_pool(
+            get_lifespan_service(app, get_recording_manager)
+        )
         app.state.recording_manager = recording_manager
         reconciled_leases = await recording_manager.reconcile_leases()
         logger.info("Reconciled %s stale Twitch upstream leases", reconciled_leases)

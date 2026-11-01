@@ -8,6 +8,7 @@ backward compatibility.
 
 from collections.abc import Callable, Mapping
 from functools import partial
+from threading import Lock
 from typing import Any
 
 from fastapi import FastAPI
@@ -92,6 +93,8 @@ def _configure_app(
             else DatabaseLifecycle(settings=settings)
         )
     application.state.database_lifecycle = database
+    application.state.recording_manager = None
+    application.state.recording_manager_lock = Lock()
     application.state.websocket_manager = (
         websocket_manager if legacy_default else ConnectionManager()
     )
