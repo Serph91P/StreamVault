@@ -11,7 +11,10 @@ from sqlalchemy.orm import Session
 
 from app.database import SessionLocal, database_lifecycle
 from app.bootstrap.settings import resolve_app_settings
-from app.services.communication.websocket_manager import ConnectionManager
+from app.services.communication.websocket_manager import (
+    ConnectionManager,
+    websocket_manager,
+)
 from app.services.core.auth_service import AuthService, AuthTokenError
 from app.services.core.settings_service import SettingsService
 from app.services.notification_service import NotificationService
@@ -21,7 +24,6 @@ from app.services.background_queue_service import (
 )
 
 logger = logging.getLogger("streamvault")
-websocket_manager = ConnectionManager()
 event_registry = None
 recording_manager = None
 

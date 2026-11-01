@@ -64,6 +64,18 @@ def test_public_openapi_routes_and_middleware_preserve_verified_base():
         and defaults.confirmed is False
         and defaults.candidates == []
     )
+    # Reuse reviewed PR969's exact additive generation query contract; the frozen
+    # pre-modernization snapshot remains unchanged for every other field.
+    realtime_parameters = schema["paths"]["/api/realtime/events"]["get"]["parameters"]
+    assert realtime_parameters.pop() == {
+        "name": "generation",
+        "in": "query",
+        "required": False,
+        "schema": {
+            "anyOf": [{"type": "string", "maxLength": 36}, {"type": "null"}],
+            "title": "Generation",
+        },
+    }
     assert schema == expected["openapi"]
 
     # Handler modules may move; registration order, route kind and methods may not.

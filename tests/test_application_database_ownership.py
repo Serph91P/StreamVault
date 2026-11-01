@@ -110,6 +110,32 @@ async def test_factory_auth_cookies_and_tokens_use_only_its_configuration(
                     {"scope": "first"}
                 ]
                 assert second_replay.json()["events"] == []
+                generation_reset = await first.get(
+                    "/api/realtime/events",
+                    params={
+                        "since": 1,
+                        "generation": second_replay.json()["generation"],
+                    },
+                )
+                assert generation_reset.status_code == 200
+                assert generation_reset.json()["reset"] is True
+                assert (
+                    generation_reset.json()["events"] == first_replay.json()["events"]
+                )
+                current_generation = await first.get(
+                    "/api/realtime/events",
+                    params={
+                        "since": 1,
+                        "generation": first_replay.json()["generation"],
+                    },
+                )
+                assert current_generation.json()["reset"] is False
+                assert current_generation.json()["events"] == []
+                assert (
+                    await first.get(
+                        "/api/realtime/events", params={"generation": "x" * 37}
+                    )
+                ).status_code == 422
                 applications[0].state.background_queue_service.add_external_task(
                     "scope-first", "scope.probe", {"scope": "first"}
                 )
