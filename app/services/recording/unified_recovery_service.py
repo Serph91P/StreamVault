@@ -1180,76 +1180,129 @@ class UnifiedRecoveryService:
         except Exception as e:
             logger.error(f"❌ Error in final database cleanup: {e}")
 
+    def _prepare_concat(
+        self, segments_dir: Path, output_path: Path, owned_paths: list[Path]
+    ) -> tuple[Path, Path] | None:
+        segments = sorted(segments_dir.glob("*.ts"), key=lambda path: path.name)
+        if not segments or output_path.exists():
+            return None
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            prefix=".recovery-",
+            suffix=".ffconcat",
+            dir=segments_dir,
+            delete=False,
+        ) as manifest:
+            manifest_path = Path(manifest.name)
+            owned_paths.append(manifest_path)
+            for segment in segments:
+                name = str(segment.absolute())
+                if "\n" in name or "\r" in name:
+                    raise ValueError("Concat filenames cannot contain line breaks")
+                escaped = name.replace("'", "'\\''")
+                manifest.write(f"file '{escaped}'\n")
+        with tempfile.NamedTemporaryFile(
+            prefix=".recovery-",
+            suffix=output_path.suffix,
+            dir=output_path.parent,
+            delete=False,
+        ) as output:
+            temporary_output = Path(output.name)
+            owned_paths.append(temporary_output)
+        return manifest_path, temporary_output
+
+    def _publish_concat(self, temporary: Path, output: Path) -> bool:
+        if not temporary.is_file() or temporary.stat().st_size == 0:
+            return False
+        # Same-directory link publishes atomically without replacing an existing target.
+        output.hardlink_to(temporary)
+        return True
+
+    def _cleanup_concat_paths(self, paths: list[Path]) -> None:
+        for path in paths:
+            try:
+                path.unlink(missing_ok=True)
+            except OSError as error:
+                logger.warning("Could not remove owned concat temporary: %s", error)
+
     async def _concatenate_segments_util(
         self, segments_dir: Path, output_path: Path
     ) -> Optional[Path]:
-        """Utility method to concatenate segments using ffmpeg"""
+        """Concatenate closed segments; own the child and only operation-local files."""
+        owned_paths: list[Path] = []
+        creation: asyncio.Task[asyncio.subprocess.Process] | None = None
+        interrupted = False
         try:
-            pass
-
-            # Get all segment files in order
-            segment_files = sorted(segments_dir.glob("*.ts"), key=lambda x: x.name)
-            if not segment_files:
-                logger.error(f"No segment files found in {segments_dir}")
-                return None
-
-            # Create concat list file
-            concat_file = segments_dir / "concat_list.txt"
-            with open(concat_file, "w") as f:
-                for segment in segment_files:
-                    f.write(f"file '{segment.absolute()}'\n")
-
-            # Run ffmpeg concatenation
-            cmd = [
-                "ffmpeg",
-                "-f",
-                "concat",
-                "-safe",
-                "0",
-                "-i",
-                str(concat_file),
-                "-c",
-                "copy",
-                "-avoid_negative_ts",
-                "make_zero",
-                str(output_path),
-            ]
-
-            logger.info(f"Running concatenation: {' '.join(cmd)}")
-
-            # CRITICAL: Use async subprocess to prevent blocking the event loop
-            # This prevents frontend from being blocked during startup recovery
-            process = await asyncio.create_subprocess_exec(
-                *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+            prepared = await run_in_thread_pool(
+                self._prepare_concat, segments_dir, output_path, owned_paths
             )
-
-            try:
-                # Wait for completion with 1 hour timeout
-                stdout, stderr = await asyncio.wait_for(
-                    process.communicate(), timeout=3600
-                )
-            except asyncio.TimeoutError:
-                logger.error("❌ FFmpeg concatenation timeout (1 hour)")
-                process.kill()
-                await process.wait()
+            if prepared is None:
                 return None
-
-            # Clean up concat file
-            if concat_file.exists():
-                concat_file.unlink()
-
-            if process.returncode == 0 and output_path.exists():
-                logger.info(f"✅ Concatenation successful: {output_path}")
-                return output_path
-            else:
+            manifest, temporary = prepared
+            creation = asyncio.create_task(
+                asyncio.create_subprocess_exec(
+                    "ffmpeg",
+                    "-nostdin",
+                    "-y",
+                    "-f",
+                    "concat",
+                    "-safe",
+                    "0",
+                    "-i",
+                    str(manifest),
+                    "-c",
+                    "copy",
+                    "-avoid_negative_ts",
+                    "make_zero",
+                    str(temporary),
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+            )
+            process = await asyncio.shield(creation)
+            _, stderr = await asyncio.wait_for(process.communicate(), timeout=3600)
+            if process.returncode != 0:
                 logger.error(
-                    f"❌ FFmpeg concatenation failed: {stderr.decode() if stderr else 'Unknown error'}"
+                    "FFmpeg concatenation failed: %s", stderr.decode(errors="replace")
                 )
                 return None
-
-        except Exception as e:
-            logger.error(f"❌ Error in segment concatenation: {e}")
+            if await run_in_thread_pool(self._publish_concat, temporary, output_path):
+                return output_path
             return None
+        except asyncio.TimeoutError:
+            logger.error("FFmpeg concatenation timeout (1 hour)")
+            return None
+        except Exception as error:
+            logger.error("Error in segment concatenation: %s", error)
+            return None
+        finally:
+
+            async def cleanup() -> None:
+                try:
+                    if creation is not None:
+                        try:
+                            child = await creation
+                        except Exception:
+                            return
+                        if child.returncode is None:
+                            try:
+                                child.kill()
+                            except ProcessLookupError:
+                                pass
+                        await child.communicate()
+                finally:
+                    await run_in_thread_pool(self._cleanup_concat_paths, owned_paths)
+
+            drain = asyncio.create_task(cleanup())
+            while not drain.done():
+                try:
+                    await asyncio.shield(drain)
+                except asyncio.CancelledError:
+                    interrupted = True
+            await drain
+            if interrupted:
+                raise asyncio.CancelledError
 
     async def _check_if_streamer_still_live(self, recording_id: int) -> bool:
         """Check if the streamer for this recording is still live on Twitch"""
