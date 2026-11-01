@@ -29,6 +29,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import Dict, Optional, Set
 
 from app.database import SessionLocal
@@ -47,6 +48,7 @@ from app.utils.security import (
     sanitize_proxy_url_for_logging,
 )
 from app.utils.streamlink_utils import _add_proxy_settings
+from app.utils.async_db_utils import run_in_thread_pool
 
 logger = logging.getLogger("streamvault")
 
@@ -143,16 +145,18 @@ class LiveStreamingService:
         self._cleanup_task: Optional[asyncio.Task] = None
         self._lock = asyncio.Lock()
         self._coordinator = coordinator or twitch_upstream_coordinator
-        self._output_root = Path(output_root or "/tmp/streamvault-live")
+        self._output_root: Path | None = Path(output_root) if output_root else None
+        self._temporary_output: TemporaryDirectory[str] | None = None
         self._pending_starts: Dict[tuple, asyncio.Future] = {}
         self._streamlink_output_secrets = {}
         self._supervisor = supervisor or TaskSupervisor("live-streaming")
 
     async def start(self):
         """Start the background cleanup task"""
+        if self._supervisor.closed:
+            self._supervisor = TaskSupervisor("live-streaming")
+        await self._get_output_root()
         if self._cleanup_task is None or self._cleanup_task.done():
-            if self._supervisor.closed:
-                self._supervisor = TaskSupervisor("live-streaming")
             self._cleanup_task = self._supervisor.create_task(
                 "cleanup-loop", self._cleanup_loop()
             )
@@ -173,8 +177,31 @@ class LiveStreamingService:
                 )
 
         await self._supervisor.shutdown()
+        async with self._lock:
+            await run_in_thread_pool(self._cleanup_output_root)
 
         logger.info("Live streaming service stopped")
+
+    def _initialize_output_root(self) -> Path:
+        if self._output_root is None:
+            self._temporary_output = TemporaryDirectory(prefix="streamvault-live-")
+            self._output_root = Path(self._temporary_output.name)
+        return self._output_root
+
+    async def _get_output_root(self) -> Path:
+        async with self._lock:
+            if self._supervisor.closed:
+                raise RuntimeError("Live streaming service is stopped")
+            if self._output_root is not None:
+                return self._output_root
+            # Publish ownership inside the drained worker, even if startup is cancelled.
+            return await run_in_thread_pool(self._initialize_output_root)
+
+    def _cleanup_output_root(self) -> None:
+        if self._temporary_output is not None:
+            self._temporary_output.cleanup()
+            self._temporary_output = None
+            self._output_root = None
 
     async def start_stream(
         self,
@@ -261,6 +288,8 @@ class LiveStreamingService:
             raise RuntimeError(
                 f"FFmpeg not found at '{ffmpeg_bin}'. Live streaming unavailable."
             )
+        output_root = await self._get_output_root()
+        temporary_output = self._temporary_output
 
         # Generate unique session ID
         session_id = str(uuid.uuid4())[:8]
@@ -284,15 +313,26 @@ class LiveStreamingService:
             )
 
         # Create output directory for HLS segments
-        output_dir = self._output_root / session_id
+        output_dir = output_root / session_id
 
         streamlink_process = None
         streamlink_identity = None
         ffmpeg_process = None
         ffmpeg_identity = None
         active_lease = None
-        try:
+        directory_created = False
+
+        def create_output_directory() -> None:
+            nonlocal directory_created
             output_dir.mkdir(parents=True, exist_ok=True)
+            directory_created = True
+
+        try:
+            async with self._lock:
+                # Reservation may have awaited beyond shutdown and root cleanup.
+                if self._supervisor.closed:
+                    raise RuntimeError("Live streaming service is stopped")
+                await run_in_thread_pool(create_output_directory)
             # Get fresh OAuth token and proxy settings
             streamlink_cmd = await self._build_streamlink_command(
                 streamer_name,
@@ -551,7 +591,15 @@ class LiveStreamingService:
                 )
             if streamlink_process is not None:
                 self._streamlink_output_secrets.pop(streamlink_process, None)
-            shutil.rmtree(output_dir, ignore_errors=True)
+            if directory_created:
+                async with self._lock:
+                    if (
+                        temporary_output is None
+                        or self._temporary_output is temporary_output
+                    ):
+                        await run_in_thread_pool(
+                            shutil.rmtree, output_dir, ignore_errors=True
+                        )
             raise
 
     async def _stop_existing_user_streams(
