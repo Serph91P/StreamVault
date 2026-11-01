@@ -9,15 +9,17 @@ from threading import Event
 import pytest
 
 from app.utils.ffmpeg_utils import embed_metadata_with_ffmpeg_wrapper
+from app.services.media.thumbnail_service import ThumbnailService
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("repeat_cancel", [False, True])
-async def test_cancelled_embedding_drains_real_child_and_removes_its_metadata(
-    tmp_path, monkeypatch, repeat_cancel
+@pytest.mark.parametrize("operation", ["embedding", "thumbnail"])
+async def test_cancelled_media_operation_drains_real_child_and_owned_files(
+    tmp_path, monkeypatch, repeat_cancel, operation
 ):
     source = tmp_path / "source.ts"
-    output = tmp_path / "output.mp4"
+    output = tmp_path / ("output.mp4" if operation == "embedding" else "output.jpg")
     subprocess.run(
         [
             "ffmpeg",
@@ -53,7 +55,8 @@ async def test_cancelled_embedding_drains_real_child_and_removes_its_metadata(
     async def create(*args, **kwargs):
         process = await original_create(*args, **kwargs)
         children.append(process)
-        metadata_files.append(Path(args[4]))
+        if operation == "embedding":
+            metadata_files.append(Path(args[4]))
         return process
 
     async def communicate(process, input=None):
@@ -72,14 +75,20 @@ async def test_cancelled_embedding_drains_real_child_and_removes_its_metadata(
 
     monkeypatch.setattr(asyncio, "create_subprocess_exec", create)
     monkeypatch.setattr(asyncio.subprocess.Process, "communicate", communicate)
-    task = asyncio.create_task(
+    coroutine = (
         embed_metadata_with_ffmpeg_wrapper(
             str(source), str(output), {"title": "cancelled"}
         )
+        if operation == "embedding"
+        else ThumbnailService().extract_thumbnail_from_video(
+            str(source), str(output), "00:00:00"
+        )
     )
+    task = asyncio.create_task(coroutine)
     try:
         await asyncio.wait_for(started.wait(), 3)
-        assert metadata_files[0].is_file()
+        if operation == "embedding":
+            assert metadata_files[0].is_file()
         task.cancel()
         if repeat_cancel:
             await asyncio.wait_for(draining.wait(), 3)
@@ -90,7 +99,7 @@ async def test_cancelled_embedding_drains_real_child_and_removes_its_metadata(
         assert children[0].returncode is not None, (
             "cancellation must reap its real child"
         )
-        assert not metadata_files[0].exists(), (
+        assert all(not path.exists() for path in metadata_files), (
             "cancellation must remove its owned metadata"
         )
         assert not output.exists(), (

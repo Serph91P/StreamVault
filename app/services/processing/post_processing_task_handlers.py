@@ -48,7 +48,7 @@ class PostProcessingTaskHandlers:
         self._broadcast_tasks: set[asyncio.Task[None]] = set()
         self._debounce_tasks: dict[int, asyncio.Task[None]] = {}
         self.metadata_service = MetadataService(session_factory=session_factory)
-        self.thumbnail_service = ThumbnailService()
+        self.thumbnail_service = ThumbnailService(session_factory=session_factory)
         # TTLCache for debouncing broadcasts (prevents memory leaks with automatic expiration)
         self._broadcast_debounce: TTLCache[int, ProcessingStatus] = TTLCache(
             maxsize=CACHE_CONFIG.SMALL_CACHE_SIZE,

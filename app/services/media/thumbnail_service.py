@@ -6,11 +6,13 @@ import time
 from PIL import Image
 import io
 from typing import Optional
+from collections.abc import Callable
 
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import Session, joinedload
 
 from app.database import SessionLocal
 from app.models import Stream, StreamMetadata
+from app.utils.async_db_utils import run_in_thread_pool
 
 # unified_image_service imported lazily to avoid directory creation at import time
 
@@ -18,8 +20,28 @@ logger = logging.getLogger("streamvault")
 
 
 class ThumbnailService:
-    def __init__(self):
-        pass
+    def __init__(self, *, session_factory: Callable[[], Session] | None = None):
+        self._session_factory = session_factory
+
+    def _sessions(self) -> Session:
+        return (self._session_factory or SessionLocal)()
+
+    def _persist_thumbnail(self, stream_id: int, thumbnail_path: str) -> None:
+        with self._sessions() as db:
+            metadata = (
+                db.query(StreamMetadata)
+                .filter(StreamMetadata.stream_id == stream_id)
+                .first()
+            )
+            if metadata is None:
+                metadata = StreamMetadata(stream_id=stream_id)
+                db.add(metadata)
+            metadata.thumbnail_path = thumbnail_path
+            db.commit()
+
+    @staticmethod
+    def _valid_thumbnail(path: str, minimum_size: int = 1000) -> bool:
+        return os.path.exists(path) and os.path.getsize(path) > minimum_size
 
     async def close(self):
         """Close resources (now handled by unified_image_service)"""
@@ -454,6 +476,9 @@ class ThumbnailService:
         self, video_path: str, output_path: str, timestamp: str = "00:05:00"
     ) -> bool:
         """Extrahiert ein Thumbnail aus der Video-Datei an einer bestimmten Zeitstelle"""
+        process: asyncio.subprocess.Process | None = None
+        communicated = False
+        cancelled = False
         try:
             # Verwende FFmpeg, um ein Frame aus der Mitte des Videos zu extrahieren
             cmd = [
@@ -475,11 +500,9 @@ class ThumbnailService:
             )
 
             stdout, stderr = await process.communicate()
-
-            if (
-                process.returncode == 0
-                and os.path.exists(output_path)
-                and os.path.getsize(output_path) > 1000
+            communicated = True
+            if process.returncode == 0 and await run_in_thread_pool(
+                self._valid_thumbnail, output_path
             ):
                 logger.info(
                     f"Successfully extracted thumbnail from video at {timestamp}: {output_path}"
@@ -495,9 +518,40 @@ class ThumbnailService:
                     )
                 return False
 
+        except asyncio.CancelledError:
+            cancelled = True
+            raise
         except Exception as e:
             logger.error(f"Error extracting thumbnail from video: {e}", exc_info=True)
             return False
+        finally:
+
+            async def cleanup() -> None:
+                try:
+                    if process is not None and not communicated:
+                        if process.returncode is None:
+                            try:
+                                process.kill()
+                            except ProcessLookupError:
+                                pass
+                        await process.communicate()
+                finally:
+                    if cancelled and process is not None:
+                        await run_in_thread_pool(
+                            Path(output_path).unlink, missing_ok=True
+                        )
+
+            drain = asyncio.create_task(cleanup())
+            interrupted = False
+            while not drain.done():
+                try:
+                    await asyncio.shield(drain)
+                except asyncio.CancelledError:
+                    cancelled = True
+                    interrupted = True
+            drain.result()
+            if interrupted:
+                raise asyncio.CancelledError
 
     async def ensure_thumbnail_with_fallback(
         self, stream_id: int, output_dir: str, video_path: str = None
@@ -678,7 +732,7 @@ class ThumbnailService:
         """
         try:
             mp4_path_obj = Path(mp4_path)
-            if not mp4_path_obj.exists():
+            if not await run_in_thread_pool(mp4_path_obj.exists):
                 logger.error(f"MP4 file not found: {mp4_path}")
                 return None
 
@@ -690,9 +744,9 @@ class ThumbnailService:
             logger.info(f"Creating unified thumbnail: {mp4_path} -> {thumbnail_path}")
 
             # Check if thumbnail already exists and is valid
-            if (
-                thumbnail_path.exists() and thumbnail_path.stat().st_size > 1024
-            ):  # At least 1KB
+            if await run_in_thread_pool(
+                self._valid_thumbnail, str(thumbnail_path), 1024
+            ):
                 logger.debug(f"Valid thumbnail already exists: {thumbnail_path}")
                 return str(thumbnail_path)
 
@@ -701,20 +755,11 @@ class ThumbnailService:
                 str(mp4_path), str(thumbnail_path), "00:00:05"
             )
 
-            if success and thumbnail_path.exists():
+            if success and await run_in_thread_pool(thumbnail_path.exists):
                 # Update database metadata
-                with SessionLocal() as db:
-                    metadata = (
-                        db.query(StreamMetadata)
-                        .filter(StreamMetadata.stream_id == stream_id)
-                        .first()
-                    )
-                    if not metadata:
-                        metadata = StreamMetadata(stream_id=stream_id)
-                        db.add(metadata)
-
-                    metadata.thumbnail_path = str(thumbnail_path)
-                    db.commit()
+                await run_in_thread_pool(
+                    self._persist_thumbnail, stream_id, str(thumbnail_path)
+                )
 
                 logger.info(f"Successfully created unified thumbnail: {thumbnail_path}")
                 return str(thumbnail_path)
