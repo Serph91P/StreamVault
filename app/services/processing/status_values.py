@@ -24,3 +24,16 @@ class ProcessingStatusData(TypedDict):
 class ProcessingStatus(TypedDict):
     type: Literal["recording_processing_status"]
     data: ProcessingStatusData
+
+
+class RecordingAvailableData(TypedDict):
+    stream_id: int
+    streamer_id: int
+    streamer_name: str
+    recording_path: str
+    title: str | None
+
+
+class RecordingAvailable(TypedDict):
+    type: Literal["recording_available"]
+    data: RecordingAvailableData

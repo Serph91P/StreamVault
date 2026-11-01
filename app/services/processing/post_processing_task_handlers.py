@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.database import SessionLocal
 from app.models import Stream, StreamMetadata, RecordingProcessingState, Recording
-from app.services.processing.status_values import ProcessingStatus
+from app.services.processing.status_values import ProcessingStatus, RecordingAvailable
 from app.utils.async_db_utils import run_in_thread_pool
 from app.services.media.metadata_service import MetadataService
 from app.services.media.thumbnail_service import ThumbnailService
@@ -338,6 +338,110 @@ class PostProcessingTaskHandlers:
                 logger.debug(f"Could not persist chapters failed status: {persist_err}")
             raise
 
+    def _load_remux_inputs(
+        self, stream_id: int, ts_file_path: str, streamer_name: str
+    ) -> tuple[dict[str, str | None], list[dict[str, str | float]] | None]:
+        if not os.path.exists(ts_file_path):
+            raise Exception(f"TS file not found: {ts_file_path}")
+        with self._sessions() as db:
+            stream = db.query(Stream).filter(Stream.id == stream_id).first()
+            if not stream:
+                raise Exception(f"Stream {stream_id} not found")
+            metadata = (
+                db.query(StreamMetadata)
+                .filter(StreamMetadata.stream_id == stream_id)
+                .first()
+            )
+            metadata_dict = {
+                "title": stream.title or f"{streamer_name} Stream",
+                "artist": streamer_name,
+                "date": stream.started_at.strftime("%Y-%m-%d")
+                if stream.started_at
+                else None,
+                "creation_time": stream.started_at.isoformat()
+                if stream.started_at
+                else None,
+                "comment": f"Stream by {streamer_name}",
+                "genre": stream.category_name or "Livestream",
+            }
+            chapters: list[dict[str, str | float]] | None = None
+            if metadata and metadata.chapters_ffmpeg_path:
+                try:
+                    import re
+
+                    chapters_list: list[dict[str, str | float]] = []
+                    if os.path.exists(metadata.chapters_ffmpeg_path):
+                        with open(
+                            metadata.chapters_ffmpeg_path, "r", encoding="utf-8"
+                        ) as file:
+                            content = file.read()
+                        for block in re.split(r"\n\[CHAPTER\]\n", content)[1:]:
+                            chapter_data = {}
+                            for line in block.strip().split("\n"):
+                                if "=" in line:
+                                    key, value = line.split("=", 1)
+                                    chapter_data[key] = value
+                            if {"START", "END", "title"} <= chapter_data.keys():
+                                chapters_list.append(
+                                    {
+                                        "start_time": int(chapter_data["START"])
+                                        / 1000.0,
+                                        "end_time": int(chapter_data["END"]) / 1000.0,
+                                        "title": chapter_data["title"],
+                                    }
+                                )
+                        if chapters_list:
+                            chapters = chapters_list
+                            logger.info(
+                                "Loaded %s chapters for embedding", len(chapters_list)
+                            )
+                except Exception as error:
+                    logger.warning(
+                        "Failed to load chapters from %s: %s",
+                        metadata.chapters_ffmpeg_path,
+                        error,
+                    )
+            return metadata_dict, chapters
+
+    def _finish_remux(
+        self, stream_id: int, output_path: str
+    ) -> RecordingAvailable | None:
+        with self._sessions() as db:
+            stream = (
+                db.query(Stream)
+                .options(joinedload(Stream.streamer))
+                .filter(Stream.id == stream_id)
+                .first()
+            )
+            if stream is None:
+                logger.warning(
+                    "Stream %s not found for recording_path update", stream_id
+                )
+                return None
+            old_path = stream.recording_path
+            stream.recording_path = output_path
+            streamer = stream.streamer
+            notification: RecordingAvailable | None = None
+            if streamer is not None:
+                notification = {
+                    "type": "recording_available",
+                    "data": {
+                        "stream_id": stream_id,
+                        "streamer_id": stream.streamer_id,
+                        "streamer_name": streamer.username,
+                        "recording_path": output_path,
+                        "title": stream.title,
+                    },
+                }
+            db.commit()
+            logger.info(
+                "Updated Stream.recording_path for stream %s: %s -> %s",
+                stream_id,
+                old_path,
+                output_path,
+            )
+        return notification
+
     async def handle_mp4_remux(self, payload, progress_callback=None):
         """Handle MP4 remux task"""
         stream_id = payload["stream_id"]
@@ -373,92 +477,17 @@ class PostProcessingTaskHandlers:
 
         # Log to structured logging service
         if self.logging_service:
-            self.logging_service.log_recording_activity(
+            await run_in_thread_pool(
+                self.logging_service.log_recording_activity,
                 "MP4_REMUX_START",
                 streamer_name,
                 f"Remuxing {ts_file_path} to {mp4_output_path}",
             )
 
         try:
-            # Check if TS file exists
-            if not os.path.exists(ts_file_path):
-                raise Exception(f"TS file not found: {ts_file_path}")
-
-            # Get stream metadata for embedding
-            with self._sessions() as db:
-                stream = db.query(Stream).filter(Stream.id == stream_id).first()
-                if not stream:
-                    raise Exception(f"Stream {stream_id} not found")
-
-                # Get metadata for embedding
-                metadata = (
-                    db.query(StreamMetadata)
-                    .filter(StreamMetadata.stream_id == stream_id)
-                    .first()
-                )
-
-                # Build metadata dict for embedding
-                metadata_dict = {
-                    "title": stream.title or f"{streamer_name} Stream",
-                    "artist": streamer_name,
-                    "date": stream.started_at.strftime("%Y-%m-%d")
-                    if stream.started_at
-                    else None,
-                    "creation_time": stream.started_at.isoformat()
-                    if stream.started_at
-                    else None,
-                    "comment": f"Stream by {streamer_name}",
-                    "genre": stream.category_name or "Livestream",
-                }
-
-                # Get chapters if available
-                chapters = None
-                if metadata and metadata.chapters_ffmpeg_path:
-                    # Load chapters from FFmpeg format file
-                    try:
-                        chapters_list = []
-                        if os.path.exists(metadata.chapters_ffmpeg_path):
-                            with open(
-                                metadata.chapters_ffmpeg_path, "r", encoding="utf-8"
-                            ) as f:
-                                content = f.read()
-                                # Parse FFmpeg chapters format
-                                import re
-
-                                chapter_blocks = re.split(r"\n\[CHAPTER\]\n", content)
-                                for block in chapter_blocks[1:]:  # Skip metadata part
-                                    lines = block.strip().split("\n")
-                                    chapter_data = {}
-                                    for line in lines:
-                                        if "=" in line:
-                                            key, value = line.split("=", 1)
-                                            chapter_data[key] = value
-
-                                    if (
-                                        "START" in chapter_data
-                                        and "END" in chapter_data
-                                        and "title" in chapter_data
-                                    ):
-                                        chapters_list.append(
-                                            {
-                                                "start_time": int(chapter_data["START"])
-                                                / 1000.0,  # Convert ms to seconds
-                                                "end_time": int(chapter_data["END"])
-                                                / 1000.0,
-                                                "title": chapter_data["title"],
-                                            }
-                                        )
-
-                            if chapters_list:
-                                chapters = chapters_list
-                                logger.info(
-                                    f"Loaded {len(chapters_list)} chapters for embedding"
-                                )
-                    except Exception as e:
-                        logger.warning(
-                            f"Failed to load chapters from {metadata.chapters_ffmpeg_path}: {e}"
-                        )
-                        chapters = None
+            metadata_dict, chapters = await run_in_thread_pool(
+                self._load_remux_inputs, stream_id, ts_file_path, streamer_name
+            )
 
             # Convert TS to MP4 with metadata
             result = await ffmpeg_utils.embed_metadata_with_ffmpeg_wrapper(
@@ -479,60 +508,16 @@ class PostProcessingTaskHandlers:
             if not await ffmpeg_utils.validate_mp4(mp4_output_path):
                 raise Exception("MP4 validation failed")
 
-            # Update Stream.recording_path to the MP4 file
-            with self._sessions() as db:
-                stream = (
-                    db.query(Stream)
-                    .options(joinedload(Stream.streamer))
-                    .filter(Stream.id == stream_id)
-                    .first()
-                )
-                if stream:
-                    # Capture old path only for logging
-                    old_path = stream.recording_path
-                    stream.recording_path = mp4_output_path
-                    db.commit()
-                    logger.info(
-                        f"Updated Stream.recording_path for stream {stream_id}: {old_path} -> {mp4_output_path}"
-                    )
-
-                    # Send WebSocket notification that recording is now available
-                    try:
-                        # Get streamer info via relationship (already loaded)
-                        streamer = stream.streamer
-                        if streamer and websocket_manager:
-                            # Send recording available notification
-                            import asyncio
-
-                            async def send_notification():
-                                await websocket_manager.send_notification(
-                                    {
-                                        "type": "recording_available",
-                                        "data": {
-                                            "stream_id": stream_id,
-                                            "streamer_id": stream.streamer_id,
-                                            "streamer_name": streamer.username,
-                                            "recording_path": mp4_output_path,
-                                            "title": stream.title,
-                                        },
-                                    }
-                                )
-
-                            # Run async notification in the event loop
-                            try:
-                                asyncio.get_running_loop()  # Check if loop exists
-                                asyncio.create_task(send_notification())
-                            except RuntimeError:
-                                # No running event loop, so create one
-                                asyncio.run(send_notification())
-
-                    except Exception as e:
-                        logger.warning(
-                            f"Failed to send recording_available WebSocket notification: {e}"
-                        )
-                else:
+            notification = await run_in_thread_pool(
+                self._finish_remux, stream_id, mp4_output_path
+            )
+            if notification is not None:
+                try:
+                    await self.connection_manager.send_notification(dict(notification))
+                except Exception as error:
                     logger.warning(
-                        f"Stream {stream_id} not found for recording_path update"
+                        "Failed to send recording_available WebSocket notification: %s",
+                        error,
                     )
 
             log_with_context(
