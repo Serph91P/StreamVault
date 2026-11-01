@@ -2,7 +2,8 @@
 
 import asyncio
 import ssl
-from collections.abc import Mapping, Sequence
+from collections.abc import AsyncIterator, Mapping, Sequence
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from http.cookiejar import Cookie, CookieJar
 from typing import Literal
@@ -29,6 +30,13 @@ class HTTPReply:
     status_code: int
     headers: Mapping[str, str]
     body: bytes
+
+
+@dataclass(frozen=True, slots=True)
+class HTTPStreamReply:
+    status_code: int
+    headers: Mapping[str, str]
+    chunks: AsyncIterator[bytes]
 
 
 class HTTPClientError(RuntimeError):
@@ -94,6 +102,31 @@ class ManagedHTTPClient:
         data: Mapping[str, str] | None = None,
         json: object = None,
     ) -> HTTPReply:
+        async with self.stream(
+            method, url, headers=headers, params=params, data=data, json=json
+        ) as response:
+            chunks = [chunk async for chunk in response.chunks]
+            return HTTPReply(response.status_code, response.headers, b"".join(chunks))
+
+    async def _limited_chunks(self, response: httpx.Response) -> AsyncIterator[bytes]:
+        size = 0
+        async for chunk in response.aiter_bytes():
+            size += len(chunk)
+            if size > self.policy.max_response_bytes:
+                raise HTTPClientError("response_too_large")
+            yield chunk
+
+    @asynccontextmanager
+    async def stream(
+        self,
+        method: str,
+        url: str,
+        *,
+        headers: Mapping[str, str] | None = None,
+        params: Mapping[str, str | Sequence[str]] | None = None,
+        data: Mapping[str, str] | None = None,
+        json: object = None,
+    ) -> AsyncIterator[HTTPStreamReply]:
         try:
             async with asyncio.timeout(self.policy.total_timeout):
                 client = await self._get_client()
@@ -104,15 +137,10 @@ class ManagedHTTPClient:
                         raise HTTPClientError(
                             "status", status_code=response.status_code
                         )
-                    chunks: list[bytes] = []
-                    size = 0
-                    async for chunk in response.aiter_bytes():
-                        size += len(chunk)
-                        if size > self.policy.max_response_bytes:
-                            raise HTTPClientError("response_too_large")
-                        chunks.append(chunk)
-                    return HTTPReply(
-                        response.status_code, dict(response.headers), b"".join(chunks)
+                    yield HTTPStreamReply(
+                        response.status_code,
+                        dict(response.headers),
+                        self._limited_chunks(response),
                     )
         except (httpx.TimeoutException, TimeoutError):
             raise HTTPClientError("timeout") from None
