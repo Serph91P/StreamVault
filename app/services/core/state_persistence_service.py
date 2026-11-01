@@ -8,6 +8,7 @@ enabling recovery after application restarts.
 import errno
 import os
 import logging
+from collections.abc import Callable
 
 try:
     import psutil
@@ -18,11 +19,14 @@ except ImportError:
 import asyncio
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Any
+from sqlalchemy.orm import Session
 
 from app.database import SessionLocal
 from app.models import ActiveRecordingState
 from app.utils.structured_logging import log_with_context
 from app.config.constants import ASYNC_DELAYS
+from app.services.core.state_values import ActiveRecordingSnapshot
+from app.utils.async_db_utils import run_in_thread_pool
 
 logger = logging.getLogger("streamvault")
 
@@ -30,11 +34,15 @@ logger = logging.getLogger("streamvault")
 class StatePersistenceService:
     """Service for managing persistent state of active recordings"""
 
-    def __init__(self):
+    def __init__(self, *, session_factory: Callable[[], Session] | None = None):
+        self._session_factory = session_factory
         self.heartbeat_interval = 60  # seconds
         self.stale_timeout = 300  # 5 minutes
         self.is_running = False
         self.heartbeat_task: Optional[asyncio.Task] = None
+
+    def _sessions(self) -> Session:
+        return (self._session_factory or SessionLocal)()
 
     async def start(self):
         """Start the state persistence service"""
@@ -79,11 +87,38 @@ class StatePersistenceService:
         force_mode: bool = False,
         quality: str = "best",
         config: Optional[Dict[str, Any]] = None,
-    ) -> ActiveRecordingState:
+    ) -> ActiveRecordingSnapshot:
+        return await run_in_thread_pool(
+            self._save_active_recording,
+            stream_id,
+            recording_id,
+            process_id,
+            process_identifier,
+            streamer_name,
+            started_at,
+            ts_output_path,
+            force_mode,
+            quality,
+            config,
+        )
+
+    def _save_active_recording(
+        self,
+        stream_id: int,
+        recording_id: int,
+        process_id: int,
+        process_identifier: str,
+        streamer_name: str,
+        started_at: datetime,
+        ts_output_path: str,
+        force_mode: bool = False,
+        quality: str = "best",
+        config: Optional[Dict[str, Any]] = None,
+    ) -> ActiveRecordingSnapshot:
         """Save an active recording to persistent storage"""
 
         try:
-            with SessionLocal() as db:
+            with self._sessions() as db:
                 # Check if entry already exists
                 existing = (
                     db.query(ActiveRecordingState)
@@ -125,6 +160,7 @@ class StatePersistenceService:
                     db.add(state)
 
                 db.commit()
+                db.refresh(state)
 
                 log_with_context(
                     logger,
@@ -135,17 +171,20 @@ class StatePersistenceService:
                     operation="state_persistence",
                 )
 
-                return state
+                return ActiveRecordingSnapshot.from_row(state)
 
         except Exception as e:
             logger.error(f"Error saving active recording state: {e}", exc_info=True)
             raise
 
     async def remove_active_recording(self, stream_id: int) -> bool:
+        return await run_in_thread_pool(self._remove_active_recording, stream_id)
+
+    def _remove_active_recording(self, stream_id: int) -> bool:
         """Remove an active recording from persistent storage"""
 
         try:
-            with SessionLocal() as db:
+            with self._sessions() as db:
                 result = (
                     db.query(ActiveRecordingState)
                     .filter(ActiveRecordingState.stream_id == stream_id)
@@ -174,10 +213,13 @@ class StatePersistenceService:
             return False
 
     async def update_heartbeat(self, stream_id: int) -> bool:
+        return await run_in_thread_pool(self._update_heartbeat, stream_id)
+
+    def _update_heartbeat(self, stream_id: int) -> bool:
         """Update heartbeat for an active recording"""
 
         try:
-            with SessionLocal() as db:
+            with self._sessions() as db:
                 # Use explicit transaction with rollback on error
                 try:
                     state = (
@@ -206,32 +248,38 @@ class StatePersistenceService:
             logger.error(f"Error updating heartbeat: {e}", exc_info=True)
             return False
 
-    async def get_all_active_recordings(self) -> List[ActiveRecordingState]:
+    async def get_all_active_recordings(self) -> list[ActiveRecordingSnapshot]:
+        return await run_in_thread_pool(self._get_all_active_recordings)
+
+    def _get_all_active_recordings(self) -> list[ActiveRecordingSnapshot]:
         """Get all active recordings from persistent storage"""
 
         try:
-            with SessionLocal() as db:
+            with self._sessions() as db:
                 states = (
                     db.query(ActiveRecordingState)
                     .filter(ActiveRecordingState.status == "active")
                     .all()
                 )
 
-                return states
+                return [ActiveRecordingSnapshot.from_row(state) for state in states]
 
         except Exception as e:
             logger.error(f"Error getting active recordings: {e}", exc_info=True)
             return []
 
-    async def load_state(self) -> List[ActiveRecordingState]:
+    async def load_state(self) -> list[ActiveRecordingSnapshot]:
         """Load all active recordings from persistent storage"""
         return await self.get_all_active_recordings()
 
     async def cleanup_stale_entries(self) -> int:
+        return await run_in_thread_pool(self._cleanup_stale_entries)
+
+    def _cleanup_stale_entries(self) -> int:
         """Clean up stale entries where processes no longer exist"""
 
         try:
-            with SessionLocal() as db:
+            with self._sessions() as db:
                 states = (
                     db.query(ActiveRecordingState)
                     .filter(ActiveRecordingState.status == "active")
@@ -282,7 +330,7 @@ class StatePersistenceService:
 
             for state in states:
                 # Verify process still exists
-                if not self._process_exists(state.process_id):
+                if not await run_in_thread_pool(self._process_exists, state.process_id):
                     logger.warning(
                         f"Process {state.process_id} no longer exists, cannot recover {state.streamer_name}"
                     )
@@ -290,7 +338,7 @@ class StatePersistenceService:
                     continue
 
                 # Verify output file exists
-                if not os.path.exists(state.ts_output_path):
+                if not await run_in_thread_pool(os.path.exists, state.ts_output_path):
                     logger.warning(
                         f"Output file {state.ts_output_path} not found, cannot recover {state.streamer_name}"
                     )
@@ -350,6 +398,9 @@ class StatePersistenceService:
             return False
 
     async def _refresh_heartbeats_for_live_processes(self) -> int:
+        return await run_in_thread_pool(self._refresh_heartbeats)
+
+    def _refresh_heartbeats(self) -> int:
         """Refresh last_heartbeat for every active entry whose process is still alive.
 
         Without this the entries get marked stale after stale_timeout and pruned,
@@ -357,7 +408,7 @@ class StatePersistenceService:
         truth: as long as the recorder PID is alive, the entry is fresh.
         """
         try:
-            with SessionLocal() as db:
+            with self._sessions() as db:
                 states = (
                     db.query(ActiveRecordingState)
                     .filter(ActiveRecordingState.status == "active")
