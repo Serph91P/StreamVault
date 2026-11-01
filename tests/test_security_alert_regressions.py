@@ -27,6 +27,7 @@ def _category_image_service(categories_dir: Path) -> CategoryImageService:
     service.download_service = download_service
     service.categories_dir = categories_dir
     service._category_cache = {}
+    service._cache_loaded = True
     service._background_tasks = set()
     return service
 

@@ -22,7 +22,6 @@ class StreamArtworkService:
     def __init__(self, download_service: Optional[ImageDownloadService] = None):
         self.download_service = download_service or ImageDownloadService()
         self.artwork_dir = None
-        self._ensure_artwork_dir()
 
     def _ensure_artwork_dir(self):
         """Ensure artwork directory exists"""

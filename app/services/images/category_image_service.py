@@ -34,7 +34,7 @@ class CategoryImageService:
         )
         self._background_tasks: Set[asyncio.Task] = set()
         self.categories_dir = None
-        self._load_existing_cache()
+        self._cache_loaded = False
 
     def _ensure_categories_dir(self):
         """Ensure categories directory exists"""
@@ -65,6 +65,7 @@ class CategoryImageService:
             logger.info(
                 f"Loaded category image cache: {len(self._category_cache)} categories"
             )
+            self._cache_loaded = True
         except Exception as e:
             logger.error(f"Error loading category image cache: {e}")
             # Cache is already initialized as TTLCache in __init__, just clear it
@@ -209,6 +210,8 @@ class CategoryImageService:
 
     def get_cached_category_image(self, category_name: str) -> Optional[str]:
         """Get cached category image path"""
+        if not self._cache_loaded:
+            self._load_existing_cache()
         # First check the memory cache (fastest)
         cached_path = self._category_cache.get(category_name)
         if cached_path:
@@ -261,6 +264,8 @@ class CategoryImageService:
         self, category_name: str
     ) -> Optional[str]:
         """Get cached category image path and trigger download if not cached (for API usage)"""
+        if not self._cache_loaded:
+            self._load_existing_cache()
         # First check the memory cache (fastest)
         cached_path = self._category_cache.get(category_name)
         if cached_path:
@@ -427,6 +432,8 @@ class CategoryImageService:
 
     def get_category_cache_stats(self) -> Dict[str, int]:
         """Get statistics about category image cache"""
+        if not self._cache_loaded:
+            self._load_existing_cache()
         return {
             "cached_categories": len(self._category_cache),
             "failed_downloads": len(

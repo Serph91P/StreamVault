@@ -96,6 +96,9 @@ async def lifespan(app: FastAPI):
     setup_logging(runtime_settings)
     logger.info("Starting application initialization")
     try:
+        from app.bootstrap.storage import prepare_storage_directories
+
+        await asyncio.to_thread(prepare_storage_directories, runtime_settings)
         from app.services.system.migration_service import MigrationService
 
         if not MigrationService.run_safe_migrations():

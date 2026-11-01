@@ -28,26 +28,21 @@ class ImageDownloadService:
     """Handles HTTP downloads and common image operations"""
 
     def __init__(self):
+        from app.config.settings import get_settings
+
         self.session: Optional[aiohttp.ClientSession] = None
         self.config_manager = ConfigManager()
         self._failed_downloads: Set[str] = set()
 
         # Initialize directories
         self._initialized = False
-        self.recordings_dir = None
-        self.images_base_dir = None
+        self.recordings_dir = Path(get_settings().RECORDING_DIRECTORY)
+        self.images_base_dir = self.recordings_dir / ".media"
 
     def _ensure_initialized(self):
         """Ensure the service is initialized (lazy initialization)"""
         if not self._initialized:
             try:
-                # Use settings for recordings directory (supports Docker and local dev)
-                from app.config.settings import settings
-
-                self.recordings_dir = Path(settings.RECORDING_DIRECTORY)
-
-                # Use unified .media directory instead of separate .images and .artwork
-                self.images_base_dir = self.recordings_dir / ".media"
                 self.images_base_dir.mkdir(parents=True, exist_ok=True)
 
                 # Create subdirectories for organization
@@ -177,5 +172,4 @@ class ImageDownloadService:
 
     def get_images_base_dir(self) -> Path:
         """Get the base images directory"""
-        self._ensure_initialized()
         return self.images_base_dir

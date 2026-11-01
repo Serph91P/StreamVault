@@ -484,28 +484,35 @@ def register_static_mounts(app) -> None:
     # Mount data directory - use local path if Docker path doesn't exist
     data_dir = "/app/data" if os.path.exists("/app/data") else "app/data"
     try:
-        os.makedirs(data_dir, exist_ok=True)
-        app.mount("/data", StaticFiles(directory=data_dir), name="data")
+        app.mount(
+            "/data", StaticFiles(directory=data_dir, check_dir=False), name="data"
+        )
     except Exception as e:
         logger.warning(f"Could not mount /data directory: {e}")
 
     # Mount images directory for unified image service
     # Use settings for recordings directory (supports both Docker and local dev)
-    recordings_dir = settings.RECORDING_DIRECTORY
+    mounted_settings = getattr(app.state, "settings", None)
+    recordings_dir = getattr(
+        mounted_settings, "RECORDING_DIRECTORY", settings.RECORDING_DIRECTORY
+    )
     images_dir = Path(recordings_dir) / ".media"
-    # Create the directory if it doesn't exist
-    images_dir.mkdir(parents=True, exist_ok=True)
-    # Create subdirectories
-    (images_dir / "profiles").mkdir(parents=True, exist_ok=True)
-    (images_dir / "categories").mkdir(parents=True, exist_ok=True)
-    (images_dir / "artwork").mkdir(parents=True, exist_ok=True)
+
     # Mount the images directory under both /data/images and /api/media for compatibility
-    app.mount("/data/images", StaticFiles(directory=str(images_dir)), name="images")
-    app.mount("/api/media", StaticFiles(directory=str(images_dir)), name="media")
+    app.mount(
+        "/data/images",
+        StaticFiles(directory=str(images_dir), check_dir=False),
+        name="images",
+    )
+    app.mount(
+        "/api/media",
+        StaticFiles(directory=str(images_dir), check_dir=False),
+        name="media",
+    )
     # Backward-compatibility mount: many services store absolute-like paths starting with
     # "/recordings/.media/..." in the database. Expose the same path prefix from the API
     app.mount(
         "/recordings/.media",
-        StaticFiles(directory=str(images_dir)),
+        StaticFiles(directory=str(images_dir), check_dir=False),
         name="images-compat",
     )

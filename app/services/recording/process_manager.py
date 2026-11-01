@@ -135,9 +135,7 @@ class ProcessManager:
             from app.services.system.logging_service import logging_service
 
             self.logging_service = logging_service
-            logger.info(
-                f"✅ ProcessManager: Logging service initialized - {logging_service.logs_base_dir}"
-            )
+            logger.debug("ProcessManager logging handle attached")
         except Exception as e:
             logger.warning(
                 f"❌ ProcessManager: Could not initialize logging service: {e}"
