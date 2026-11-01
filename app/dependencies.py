@@ -14,6 +14,10 @@ from app.services.communication.websocket_manager import ConnectionManager
 from app.services.core.auth_service import AuthService, AuthTokenError
 from app.services.core.settings_service import SettingsService
 from app.services.notification_service import NotificationService
+from app.services.background_queue_service import (
+    BackgroundQueueService,
+    background_queue_service,
+)
 
 logger = logging.getLogger("streamvault")
 websocket_manager = ConnectionManager()
@@ -214,6 +218,13 @@ def get_image_service():
     from app.services.unified_image_service import unified_image_service
 
     return unified_image_service
+
+
+def get_background_queue_service(connection: HTTPConnection) -> BackgroundQueueService:
+    queue: BackgroundQueueService = getattr(
+        connection.app.state, "background_queue_service", background_queue_service
+    )
+    return queue
 
 
 async def get_category_service(db: AsyncSession = Depends(get_async_db)):

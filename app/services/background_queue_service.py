@@ -17,6 +17,7 @@ from typing import Dict, Any, Optional, Callable, Awaitable
 from .queues import TaskQueueManager
 from .queues.task_progress_tracker import QueueTask, TaskStatus, TaskPriority
 from app.observability import service_metrics
+from app.services.communication.websocket_manager import ConnectionManager
 
 logger = logging.getLogger("streamvault")
 
@@ -27,8 +28,8 @@ process_monitor = None
 class BackgroundQueueService:
     """Backward compatibility wrapper for the refactored queue services
 
-    SINGLETON PATTERN: Use `background_queue_service` global instance.
-    All parts of the application share the same queue to ensure consistent job tracking.
+    Default construction preserves the legacy singleton. Composition roots use
+    ``for_application`` for their own handlers, workers and task metadata.
     """
 
     # Singleton instance tracking
@@ -51,6 +52,21 @@ class BackgroundQueueService:
                 )
             return
 
+        self._initialize(max_workers, websocket_manager)
+        BackgroundQueueService._initialized = True
+        logger.debug("BackgroundQueueService singleton initialized")
+
+    @classmethod
+    def for_application(
+        cls, websocket_manager: ConnectionManager, max_workers: int = 3
+    ) -> "BackgroundQueueService":
+        instance = object.__new__(cls)
+        instance._initialize(max_workers, websocket_manager)
+        return instance
+
+    def _initialize(
+        self, max_workers: int, websocket_manager: ConnectionManager | None
+    ) -> None:
         # Initialize the refactored queue manager with streamer isolation enabled for production
         self.queue_manager = TaskQueueManager(
             max_workers=max_workers,
@@ -76,9 +92,6 @@ class BackgroundQueueService:
         self.dependency_manager = self.queue_manager.dependency_manager
         self.dependency_worker = None
         self.stats = self.queue_manager.progress_tracker.stats
-
-        BackgroundQueueService._initialized = True
-        logger.debug("BackgroundQueueService singleton initialized")
 
     async def start(self):
         """Start the background queue service"""

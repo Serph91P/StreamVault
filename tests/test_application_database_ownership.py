@@ -110,6 +110,15 @@ async def test_factory_auth_cookies_and_tokens_use_only_its_configuration(
                     {"scope": "first"}
                 ]
                 assert second_replay.json()["events"] == []
+                applications[0].state.background_queue_service.add_external_task(
+                    "scope-first", "scope.probe", {"scope": "first"}
+                )
+                own_task = await first.get("/api/background-queue/tasks/scope-first")
+                foreign_task = await second.get(
+                    "/api/background-queue/tasks/scope-first"
+                )
+                assert own_task.status_code == 200
+                assert foreign_task.status_code == 404
                 foreign = first.cookies.get("access_token")
                 denied = await second.get(
                     "/auth/check", headers={"cookie": f"access_token={foreign}"}
@@ -125,6 +134,8 @@ async def test_factory_auth_cookies_and_tokens_use_only_its_configuration(
                     "authenticated": True
                 }
     finally:
+        for app in applications:
+            await app.state.background_queue_service.queue_manager.progress_tracker.cleanup_background_tasks()
         for lifecycle in lifecycles:
             await lifecycle.adispose()
 
