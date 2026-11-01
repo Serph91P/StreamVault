@@ -101,6 +101,7 @@ class LiveStreamSession:
         self.created_at = datetime.utcnow()
         self.last_accessed = datetime.utcnow()
         self.is_active = True
+        self._stop_lock = asyncio.Lock()
 
     def touch(self):
         """Update last accessed timestamp"""
@@ -354,15 +355,35 @@ class LiveStreamingService:
             except asyncio.CancelledError:
                 streamlink_identity = await identity_task
                 raise
-            self._supervisor.track_process(
-                f"{session_id}:streamlink",
-                streamlink_process,
-                reaper=lambda timeout: self._reap_process(
+
+            async def reap_owned_streamlink(timeout):
+                if streamlink_process.returncode is None:
+                    try:
+                        await self._coordinator.assert_local_process_cleanup_authorized(
+                            channel_key=channel_key,
+                            generation=reservation.generation,
+                            process_pid=streamlink_process.pid,
+                            process_group_id=streamlink_identity.process_group_id,
+                            process_start_fingerprint=streamlink_identity.fingerprint,
+                            expected_purpose="LIVE",
+                            requesting_owner_user_id=int(user_id)
+                            if user_id is not None
+                            else None,
+                            expected_live_session_id=session_id,
+                        )
+                    except Exception:
+                        return False
+                return await self._reap_process(
                     streamlink_process,
                     process_group_id=streamlink_identity.process_group_id,
                     process_start_fingerprint=streamlink_identity.fingerprint,
                     timeout=timeout,
-                ),
+                )
+
+            self._supervisor.track_process(
+                f"{session_id}:streamlink",
+                streamlink_process,
+                reaper=reap_owned_streamlink,
             )
             activation = asyncio.create_task(
                 self._coordinator.activate(
@@ -640,13 +661,42 @@ class LiveStreamingService:
     ) -> bool:
         async with self._lock:
             session = self.sessions.get(session_id)
-            if not session or not session.is_active:
+            if not session:
                 return False
             if monitored_session is not None and session is not monitored_session:
                 return False
             if requesting_user_id is not None and session.user_id != requesting_user_id:
                 raise TwitchUpstreamStopForbidden("not_lease_owner")
-            session.is_active = False
+        async with session._stop_lock:
+            async with self._lock:
+                if self.sessions.get(session_id) is not session:
+                    return False
+            cleanup = asyncio.create_task(
+                self._finish_session_stop(
+                    session_id,
+                    session,
+                    requesting_user_id,
+                    monitored_session,
+                    leader_exited,
+                )
+            )
+            try:
+                return await asyncio.shield(cleanup)
+            except asyncio.CancelledError:
+                await cleanup
+                raise
+
+    async def _finish_session_stop(
+        self,
+        session_id,
+        session,
+        requesting_user_id,
+        monitored_session,
+        leader_exited,
+    ) -> bool:
+        was_active = session.is_active
+        session.is_active = False
+        streamlink_authorized = True
 
         try:
             if session.lease_generation is not None:
@@ -668,7 +718,12 @@ class LiveStreamingService:
                     "expected_purpose": "LIVE",
                     "requesting_owner_user_id": owner_user_id,
                 }
-                if leader_exited:
+                if not was_active:
+                    await self._coordinator.assert_local_process_cleanup_authorized(
+                        **authorization,
+                        expected_live_session_id=session_id,
+                    )
+                elif leader_exited:
                     if (
                         monitored_session is None
                         or session.streamlink_process.returncode is None
@@ -681,15 +736,24 @@ class LiveStreamingService:
                 else:
                     await self._coordinator.assert_stop_authorized(**authorization)
         except PermissionError as error:
-            session.is_active = True
-            raise TwitchUpstreamStopForbidden("not_lease_owner") from error
+            if was_active:
+                session.is_active = True
+                raise TwitchUpstreamStopForbidden("not_lease_owner") from error
+            streamlink_authorized = False
+        except Exception:
+            if was_active:
+                session.is_active = True
+                raise
+            streamlink_authorized = False
         except BaseException:
-            session.is_active = True
+            session.is_active = was_active
             raise
 
         logger.info(f"[LIVE] Stopping session {session_id} ({session.streamer_name})")
 
-        streamlink_reaped = await self._reap_process(
+        streamlink_reaped = (
+            streamlink_authorized or session.streamlink_process.returncode is not None
+        ) and await self._reap_process(
             session.streamlink_process,
             process_group_id=session.process_group_id,
             process_start_fingerprint=session.process_start_fingerprint,
@@ -699,19 +763,35 @@ class LiveStreamingService:
             process_group_id=session.ffmpeg_process_group_id,
             process_start_fingerprint=session.ffmpeg_process_start_fingerprint,
         )
+        for suffix in ("media-pipe", "streamlink-stderr", "ffmpeg-stderr"):
+            await self._supervisor.cancel_task(f"{session_id}:{suffix}")
+        if streamlink_reaped:
+            await self._supervisor.release_process(f"{session_id}:streamlink")
+        if ffmpeg_reaped:
+            await self._supervisor.release_process(f"{session_id}:ffmpeg")
         if not streamlink_reaped or not ffmpeg_reaped:
-            session.is_active = True
+            session.is_active = was_active
             raise TwitchUpstreamStopForbidden("process_identity_changed")
 
-        await self._supervisor.release_process(f"{session_id}:streamlink")
-        await self._supervisor.release_process(f"{session_id}:ffmpeg")
-
-        if session.lease_generation is not None:
-            await self._coordinator.release(
-                channel_key=session.channel_key,
-                generation=session.lease_generation,
-                reason="live_stopped",
-            )
+        if session.lease_generation is not None and streamlink_authorized:
+            if was_active:
+                await self._coordinator.release(
+                    channel_key=session.channel_key,
+                    generation=session.lease_generation,
+                    reason="live_stopped",
+                )
+            else:
+                await self._coordinator.release(
+                    channel_key=session.channel_key,
+                    generation=session.lease_generation,
+                    reason="live_stopped",
+                    expected_process_identity=(
+                        session.streamlink_process.pid,
+                        session.process_group_id,
+                        session.process_start_fingerprint,
+                    ),
+                    expected_live_session_id=session_id,
+                )
 
         # Cleanup files
         try:
@@ -723,10 +803,10 @@ class LiveStreamingService:
 
         # Remove from tracking
         async with self._lock:
-            if session_id in self.sessions:
+            if self.sessions.get(session_id) is session:
                 del self.sessions[session_id]
-            if session.user_id and session.user_id in self.user_sessions:
-                self.user_sessions[session.user_id].discard(session_id)
+                if session.user_id and session.user_id in self.user_sessions:
+                    self.user_sessions[session.user_id].discard(session_id)
 
         logger.info(f"[LIVE] Session {session_id} stopped and cleaned up")
         return True
@@ -929,6 +1009,9 @@ class LiveStreamingService:
                 ffmpeg_process.stdin.close()
         except Exception as error:
             logger.error("[LIVE] Stream pipe ended (%s)", type(error).__name__)
+        finally:
+            if ffmpeg_process.stdin:
+                ffmpeg_process.stdin.close()
 
     async def _monitor_session(self, session_id: str):
         """Monitor a session and auto-cleanup if processes die"""
@@ -946,6 +1029,12 @@ class LiveStreamingService:
                     )
                     if not heartbeat_ok:
                         session.is_active = False
+                        await self._stop_monitored_session(
+                            session_id,
+                            session,
+                            leader_exited=session.streamlink_process.returncode
+                            is not None,
+                        )
                         break
                 # Check if processes are still running
                 streamlink_done = session.streamlink_process.returncode is not None
@@ -965,6 +1054,8 @@ class LiveStreamingService:
 
                 await asyncio.sleep(2)
 
+        except TwitchUpstreamStopForbidden:
+            logger.warning("[LIVE] Local session cleanup fenced: %s", session_id)
         except Exception as e:
             logger.error(f"[LIVE] Error monitoring session {session_id}: {e}")
             await self.stop_stream(session_id)

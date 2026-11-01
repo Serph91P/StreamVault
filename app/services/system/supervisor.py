@@ -112,6 +112,21 @@ class TaskSupervisor:
         if self._processes.get(name) is tracked:
             self._processes.pop(name, None)
 
+    async def cancel_task(self, name: str) -> None:
+        """Drain one owner's task without affecting sibling sessions."""
+        task = self._tasks.get(name)
+        if task is None or task is asyncio.current_task():
+            return
+        if not task.done():
+            task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+        finally:
+            if self._tasks.get(name) is task:
+                self._tasks.pop(name, None)
+
     async def shutdown(self, process_timeout: float = 5.0) -> None:
         """Cancel/await tasks and terminate/reap processes, once, in reverse order."""
         async with self._shutdown_lock:

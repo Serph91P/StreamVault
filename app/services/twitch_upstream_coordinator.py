@@ -227,9 +227,16 @@ class TwitchUpstreamCoordinator:
         channel_key: str,
         generation: int,
         reason: str,
+        expected_process_identity: Optional[tuple[int, int, str]] = None,
+        expected_live_session_id: Optional[str] = None,
     ) -> bool:
         return await asyncio.to_thread(
-            self._release, channel_key, generation, reason[:64]
+            self._release,
+            channel_key,
+            generation,
+            reason[:64],
+            expected_process_identity,
+            expected_live_session_id,
         )
 
     async def reconcile(self, *, batch_size: int = 100) -> int:
@@ -259,6 +266,76 @@ class TwitchUpstreamCoordinator:
             expected_purpose,
             requesting_owner_user_id,
         )
+
+    async def assert_local_process_cleanup_authorized(
+        self,
+        *,
+        channel_key: str,
+        generation: int,
+        process_pid: int,
+        process_group_id: int,
+        process_start_fingerprint: str,
+        expected_purpose: str,
+        requesting_owner_user_id: Optional[int],
+        expected_live_session_id: str,
+    ) -> None:
+        """Fence cleanup of a locally spawned child, including after revocation.
+
+        The caller must still verify its saved native identity before signaling.
+        A replacement lease may never be stopped merely because it adopted the
+        same physical process as the caller's old session.
+        """
+        await asyncio.to_thread(
+            self._assert_local_process_cleanup_authorized,
+            channel_key,
+            generation,
+            process_pid,
+            process_group_id,
+            process_start_fingerprint,
+            expected_purpose,
+            requesting_owner_user_id,
+            expected_live_session_id,
+        )
+
+    def _assert_local_process_cleanup_authorized(
+        self,
+        channel_key,
+        generation,
+        process_pid,
+        process_group_id,
+        process_start_fingerprint,
+        expected_purpose,
+        requesting_owner_user_id,
+        expected_live_session_id,
+    ) -> None:
+        with self._session_factory() as db:
+            lease = db.execute(
+                select(TwitchUpstreamLease).where(
+                    TwitchUpstreamLease.channel_key == channel_key
+                )
+            ).scalar_one_or_none()
+            if (
+                lease is not None
+                and (
+                    lease.process_pid,
+                    lease.process_group_id,
+                    lease.process_start_fingerprint,
+                )
+                == (process_pid, process_group_id, process_start_fingerprint)
+                and (
+                    lease.generation,
+                    lease.purpose,
+                    lease.owner_user_id,
+                    lease.live_session_id,
+                )
+                != (
+                    generation,
+                    expected_purpose,
+                    requesting_owner_user_id,
+                    expected_live_session_id,
+                )
+            ):
+                raise PermissionError("replacement process owner")
 
     async def assert_exited_process_cleanup_authorized(
         self,
@@ -821,7 +898,14 @@ class TwitchUpstreamCoordinator:
         finally:
             db.close()
 
-    def _release(self, channel_key, generation, reason):
+    def _release(
+        self,
+        channel_key,
+        generation,
+        reason,
+        expected_process_identity=None,
+        expected_live_session_id=None,
+    ):
         now = self._utcnow()
         db = self._session_factory()
         try:
@@ -835,6 +919,23 @@ class TwitchUpstreamCoordinator:
                 )
             ).scalar_one_or_none()
             if not lease:
+                db.rollback()
+                return False
+            if (
+                expected_process_identity is not None
+                and (
+                    lease.process_pid,
+                    lease.process_group_id,
+                    lease.process_start_fingerprint,
+                )
+                != expected_process_identity
+            ):
+                db.rollback()
+                return False
+            if (
+                expected_live_session_id is not None
+                and lease.live_session_id != expected_live_session_id
+            ):
                 db.rollback()
                 return False
             stale_requesters = (
