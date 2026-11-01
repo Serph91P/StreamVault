@@ -43,6 +43,7 @@ from app.services.system.logging_service import logging_service
 from app.services.init.background_queue_init import enqueue_recording_post_processing
 
 if TYPE_CHECKING:
+    from app.services.api.twitch_api import TwitchAPIService
     from app.services.background_queue_service import BackgroundQueueService
     from app.services.recording.recording_manager import RecordingManager
 
@@ -117,6 +118,7 @@ class UnifiedRecoveryService:
         settings: Settings | None = None,
         recording_manager: RecordingManager | None = None,
         queue_service: BackgroundQueueService | None = None,
+        twitch_api: TwitchAPIService | None = None,
     ):
         context = (session_factory, settings, recording_manager, queue_service)
         if any(value is not None for value in context) and any(
@@ -127,6 +129,7 @@ class UnifiedRecoveryService:
         self.settings = settings
         self.recording_manager = recording_manager
         self.queue_service = queue_service
+        self.twitch_api = twitch_api
         self.recordings_base_path = Path(
             settings.RECORDING_DIRECTORY if settings is not None else "/recordings"
         )
@@ -1327,54 +1330,35 @@ class UnifiedRecoveryService:
             if interrupted:
                 raise asyncio.CancelledError
 
-    async def _check_if_streamer_still_live(self, recording_id: int) -> bool:
-        """Check if the streamer for this recording is still live on Twitch"""
-        try:
-            with self._sessions() as db:
-                recording = (
-                    db.query(Recording)
-                    .options(joinedload(Recording.stream).joinedload(Stream.streamer))
-                    .filter(Recording.id == recording_id)
-                    .first()
-                )
-
-                if (
-                    not recording
-                    or not recording.stream
-                    or not recording.stream.streamer
-                ):
-                    return False
-
-                streamer = recording.stream.streamer
-
-                # Check Twitch API for live status
-                from app.services.streamer_service import StreamerService
-                from app.services.communication.websocket_manager import (
-                    websocket_manager,
-                )
-                from app.events.handler_registry import EventHandlerRegistry
-                from app.config.settings import settings
-
-                event_handler_registry = EventHandlerRegistry(
-                    connection_manager=websocket_manager, settings=settings
-                )
-
-                streamer_service = StreamerService(
-                    db, websocket_manager, event_handler_registry
-                )
-                is_live = await streamer_service.check_streamer_live_status(
-                    streamer.twitch_id
-                )
-
-                logger.info(
-                    f"📡 Live status check for {streamer.username}: {'LIVE' if is_live else 'OFFLINE'}"
-                )
-                return is_live
-
-        except Exception as e:
-            logger.error(
-                f"❌ Error checking live status for recording {recording_id}: {e}"
+    def _live_twitch_id(self, recording_id: int) -> str | None:
+        with self._sessions() as db:
+            return db.scalar(
+                select(Streamer.twitch_id)
+                .join(Stream, Stream.streamer_id == Streamer.id)
+                .join(Recording, Recording.stream_id == Stream.id)
+                .where(Recording.id == recording_id)
             )
+
+    async def _check_if_streamer_still_live(self, recording_id: int) -> bool:
+        """Close the catalog scope before consulting this owner's provider."""
+        try:
+            twitch_id = await run_in_thread_pool(self._live_twitch_id, recording_id)
+            if twitch_id is None:
+                return False
+            client = self.twitch_api
+            if client is None:
+                from app.services.api.twitch_api import twitch_api
+
+                client = twitch_api
+            is_live = bool(await client.get_streams(user_ids=[twitch_id]))
+            logger.info(
+                "Live status check for recording %s: %s",
+                recording_id,
+                "LIVE" if is_live else "OFFLINE",
+            )
+            return is_live
+        except Exception:
+            logger.error("Live status check failed for recording %s", recording_id)
             return False  # Assume offline on error
 
     async def _check_if_stream_has_active_recording(
