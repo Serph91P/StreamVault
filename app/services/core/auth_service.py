@@ -386,6 +386,11 @@ class AuthService:
         return self.resolve_legacy_session(token) is not None
 
     async def cleanup_expired_sessions(self) -> int:
+        """Compatibility entrypoint for existing session-bound callers."""
+        return self.cleanup_expired_sessions_sync()
+
+    def cleanup_expired_sessions_sync(self) -> int:
+        """Blocking operation; callers own the complete session/worker scope."""
         cutoff = datetime.now(timezone.utc) - timedelta(
             hours=self.session_timeout_hours
         )

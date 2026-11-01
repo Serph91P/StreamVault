@@ -3,6 +3,26 @@ import threading
 from types import SimpleNamespace
 
 import pytest
+from starlette.websockets import WebSocket, WebSocketState
+
+from app.services.communication.websocket_manager import ConnectionManager
+
+
+async def connected_manager():
+    async def receive():
+        return {"type": "websocket.connect"}
+
+    async def send(_message):
+        pass
+
+    socket = WebSocket(
+        {"type": "websocket", "headers": [], "client": ("127.0.0.1", 12345)},
+        receive,
+        send,
+    )
+    manager = ConnectionManager()
+    assert await manager.connect(socket)
+    return manager, socket
 
 
 @pytest.mark.asyncio
@@ -18,6 +38,8 @@ async def test_configured_lifespan_migrates_and_disposes_only_its_database_off_l
     import app.services.system.persistent_key_service as key_module
 
     lifecycle = DatabaseLifecycle(f"sqlite:///{tmp_path / 'owned.db'}")
+    own_manager, own_socket = await connected_manager()
+    peer_manager, peer_socket = await connected_manager()
     bound_calls = []
     foreign_disposals = []
     key_calls = []
@@ -66,6 +88,7 @@ async def test_configured_lifespan_migrates_and_disposes_only_its_database_off_l
         state=SimpleNamespace(
             legacy_default=False,
             database_lifecycle=lifecycle,
+            websocket_manager=own_manager,
             settings=get_settings().model_copy(
                 update={"RECORDING_DIRECTORY": str(tmp_path / "recordings")}
             ),
@@ -92,7 +115,13 @@ async def test_configured_lifespan_migrates_and_disposes_only_its_database_off_l
             assert key_calls == []
         assert foreign_disposals == []
         assert lifecycle._sync_engine is None
+        assert own_socket.application_state == WebSocketState.DISCONNECTED
+        assert not own_manager.active_connections and not own_manager._sender_tasks
+        assert peer_socket.application_state == WebSocketState.CONNECTED
+        assert len(peer_manager.active_connections) == 1
     finally:
+        await own_manager.close_all()
+        await peer_manager.close_all()
         await lifecycle.adispose()
 
 

@@ -1,11 +1,14 @@
 import asyncio
+from collections.abc import Callable
 from contextlib import asynccontextmanager
 from types import SimpleNamespace
 
 from fastapi import FastAPI
+from sqlalchemy.orm import Session
 
 from app.config.constants import TIMEOUTS
 from app.config.logging_config import setup_logging
+from app.config.settings import Settings
 from app.database import SessionLocal, database_lifecycle
 from app.dependencies import (
     get_event_registry,
@@ -21,13 +24,20 @@ from app.utils.async_db_utils import run_in_thread_pool
 logger = setup_logging()
 
 
-async def _run_session_cleanup() -> None:
+async def _run_session_cleanup(
+    session_factory: Callable[[], Session] = SessionLocal,
+    settings: Settings | None = None,
+) -> None:
     """Periodically clean up expired sessions without retaining a DB lock."""
+
+    def cleanup() -> int:
+        with session_factory() as db:
+            return AuthService(db=db, settings=settings).cleanup_expired_sessions_sync()
+
     while True:
         await asyncio.sleep(6 * 3600)
         try:
-            with SessionLocal() as db:
-                expired_count = await AuthService(db=db).cleanup_expired_sessions()
+            expired_count = await run_in_thread_pool(cleanup)
             if expired_count:
                 logger.info("Cleaned up %s expired sessions", expired_count)
         except asyncio.CancelledError:
@@ -182,7 +192,15 @@ async def lifespan(app: FastAPI):
             "log-cleanup", logging_service._schedule_cleanup(interval_hours=24)
         )
         supervisor.create_task("recording-cleanup", _run_recording_cleanup())
-        supervisor.create_task("session-cleanup", _run_session_cleanup())
+        supervisor.create_task(
+            "session-cleanup",
+            _run_session_cleanup(
+                SessionLocal
+                if legacy_context
+                else runtime_database.sync_session_factory,
+                runtime_settings,
+            ),
+        )
 
         from app.services.init.startup_init import initialize_background_services
 
@@ -234,5 +252,8 @@ async def lifespan(app: FastAPI):
                 "recording-manager",
                 lambda: recording_manager.shutdown(timeout=TIMEOUTS.GRACEFUL_SHUTDOWN),
             )
+        connection_manager = getattr(app.state, "websocket_manager", None)
+        if connection_manager is not None:
+            await _shutdown_step("websocket-connections", connection_manager.close_all)
         await _shutdown_step("database", runtime_database.adispose)
         logger.info("Application shutdown complete")
