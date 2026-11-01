@@ -45,7 +45,7 @@ async function mountView() {
         BaseButton: BaseButtonStub,
         BaseIconButton: BaseButtonStub,
         LoadingSkeleton: true,
-        EmptyState: { props: ['title'], template: '<div class="empty-state">{{ title }}</div>' },
+        EmptyState: { props: ['title'], emits: ['retry'], template: '<div class="empty-state">{{ title }}<button class="retry-load" @click="$emit(\'retry\')">Retry load</button></div>' },
         VideoCard: {
           props: ['video'],
           emits: ['play', 'select'],
@@ -227,6 +227,17 @@ describe('VideosView library workflow', () => {
     // Even a programmatic duplicate must not mutate until the catalog is known again.
     await confirm.trigger('click')
     expect(mocks.deleteMultiple).toHaveBeenCalledTimes(1)
+    await wrapper.findAll('.modal button').find(button => button.text().includes('No, keep'))!.trigger('click')
+    let refresh!: (catalog: unknown[]) => void
+    mocks.getAll.mockImplementationOnce(() => new Promise(resolve => { refresh = resolve }))
+    await wrapper.get('.retry-load').trigger('click')
+    await wrapper.findAll('header button').find(button => button.text().includes('Delete'))!.trigger('click')
+    const retry = wrapper.findAll('.modal button').find(button => button.text().includes('Yes, delete'))!
+    expect(retry.attributes('disabled')).toBeDefined()
+    refresh([{ id: 12, title: 'Night run' }])
+    await flushPromises()
+    expect(retry.attributes('disabled')).toBeUndefined()
+    expect(wrapper.findAll('input:checked')).toHaveLength(1)
     wrapper.unmount()
   })
 

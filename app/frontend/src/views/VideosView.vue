@@ -315,7 +315,7 @@
         <button type="button" class="btn-action btn-secondary" :disabled="isDeleting" @click="showDeleteConfirm = false">
           No, keep videos
         </button>
-        <button type="button" class="btn-action btn-danger" :disabled="isDeleting || !!fetchError || selectedVideos.length === 0" @click="confirmBatchDelete">
+        <button type="button" class="btn-action btn-danger" :disabled="isDeleting || isLoading || !!fetchError || selectedVideos.length === 0" @click="confirmBatchDelete">
           <svg v-if="!isDeleting" class="icon">
             <use href="#icon-trash" />
           </svg>
@@ -598,7 +598,7 @@ function handleBatchDelete() {
 }
 
 async function confirmBatchDelete() {
-  if (selectedVideos.value.length === 0 || isDeleting.value || fetchError.value) return
+  if (selectedVideos.value.length === 0 || isDeleting.value || isLoading.value || fetchError.value) return
 
   const idsToDelete = [...selectedVideos.value]
   isDeleting.value = true
