@@ -8,24 +8,23 @@
           <p class="settings-group-desc">Where notifications are sent and whether they are active</p>
         </div>
 
-        <div class="input-with-tooltip">
+        <div>
           <BaseInput
             v-model="data.notificationUrl"
             label="Notification Service URL"
             placeholder="e.g., discord://webhook1,telegram://bot_token/chat_id"
             :error="notificationUrlError"
             hint="Use any Apprise URL, or separate multiple services with commas."
-            @focus="showTooltip = true"
             @update:model-value="handleInput"
             @blur="handleBlur"
           />
-          <div
-            v-if="showTooltip"
-            class="tooltip-wrapper"
-            @mouseenter="handleTooltipMouseEnter"
-            @mouseleave="handleTooltipMouseLeave"
+          <details
+            ref="urlHelp"
+            class="notification-url-help"
+            @keydown.esc.stop.prevent="closeUrlHelp"
           >
-            <div class="tooltip">
+            <summary>Notification URL help</summary>
+            <p>
               StreamVault supports over 100 notification services including Discord, Telegram, Ntfy,
               Pushover, Slack and more. Check the
               <a
@@ -33,10 +32,9 @@
                 target="_blank"
                 rel="noopener noreferrer"
                 @click.stop
-                class="tooltip-link"
               >Apprise Documentation</a> for supported services and URL formats.
-            </div>
-          </div>
+            </p>
+          </details>
         </div>
 
         <div class="form-check">
@@ -262,8 +260,13 @@ const data = ref({
 // Add these new refs for validation
 const showValidationError = ref(false)
 const inputTimeout = ref<number | null>(null)
-const showTooltip = ref(false)
-let tooltipTimeout: number | undefined = undefined
+const urlHelp = ref<HTMLDetailsElement | null>(null)
+
+const closeUrlHelp = () => {
+  if (!urlHelp.value?.open) return
+  urlHelp.value.open = false
+  urlHelp.value.querySelector('summary')?.focus()
+}
 
 // Handle input with debounce
 const handleInput = () => {
@@ -286,27 +289,10 @@ const handleBlur = () => {
   showValidationError.value = true
 }
 
-const handleTooltipMouseEnter = () => {
-  if (tooltipTimeout) {
-    window.clearTimeout(tooltipTimeout)
-    tooltipTimeout = undefined
-  }
-  showTooltip.value = true
-}
-
-const handleTooltipMouseLeave = () => {
-  tooltipTimeout = window.setTimeout(() => {
-    showTooltip.value = false
-  }, UI.SEARCH_DEBOUNCE_MS)
-}
-
 // Cleanup timeout on component unmount
 onUnmounted(() => {
   if (inputTimeout.value) {
     clearTimeout(inputTimeout.value)
-  }
-  if (tooltipTimeout) {
-    window.clearTimeout(tooltipTimeout)
   }
 })
 
@@ -422,6 +408,27 @@ const toggleAllStreamers = (enabled: boolean) => {
 <style scoped lang="scss">
 @use '@/styles/variables' as v;
 @use '@/styles/mixins' as m;
+
+.notification-url-help {
+  margin-block: var(--spacing-3);
+  color: var(--text-secondary);
+
+  summary {
+    min-height: 44px;
+    padding-block: var(--spacing-3);
+    cursor: pointer;
+  }
+
+  p {
+    margin: 0;
+    padding-block: var(--spacing-2);
+  }
+
+  a {
+    color: var(--primary-color);
+    text-decoration: underline;
+  }
+}
 
 // ============================================================================
 // NOTIFICATION SETTINGS PANEL - Unified Design
