@@ -7,6 +7,8 @@ import tempfile
 from datetime import datetime
 from typing import Optional, Dict, Any
 
+from app.utils.async_db_utils import run_in_thread_pool
+
 
 logger = logging.getLogger("streamvault")
 
@@ -21,6 +23,11 @@ async def validate_mp4(mp4_path: str) -> bool:
     Returns:
         True if valid, False otherwise
     """
+    return await run_in_thread_pool(_validate_mp4_file, mp4_path)
+
+
+def _validate_mp4_file(mp4_path: str) -> bool:
+    """Keep the existing basic file check entirely inside the blocking scope."""
     try:
         # First check basic file properties
         if not os.path.exists(mp4_path) or os.path.getsize(mp4_path) < 10000:

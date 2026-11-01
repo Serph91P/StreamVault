@@ -9,7 +9,7 @@ import os
 import copy
 from collections.abc import Callable
 from pathlib import Path
-from typing import Optional, Tuple
+
 from cachetools import TTLCache
 
 from sqlalchemy import select
@@ -64,18 +64,19 @@ class PostProcessingTaskHandlers:
             logger.warning(f"Could not initialize logging service: {e}")
             self.logging_service = None
 
-    def _check_stream_exists(
-        self, stream_id: int, task_name: str, task_id: str = None
-    ) -> Tuple[bool, Optional[Stream]]:
-        """
-        Check if a stream still exists before processing.
-        Returns (exists, stream_obj) tuple.
-        If stream doesn't exist, logs a warning and returns (False, None).
-        """
-        try:
-            with self._sessions() as db:
-                stream = db.query(Stream).filter(Stream.id == stream_id).first()
-                if not stream:
+    async def _check_stream_exists(
+        self, stream_id: int, task_name: str, task_id: str | None = None
+    ) -> tuple[bool, None]:
+        """Check in a complete worker scope; never export a detached stream."""
+
+        def work() -> bool:
+            try:
+                with self._sessions() as db:
+                    exists = (
+                        db.scalar(select(Stream.id).where(Stream.id == stream_id))
+                        is not None
+                    )
+                if not exists:
                     log_with_context(
                         logger,
                         "warning",
@@ -84,11 +85,12 @@ class PostProcessingTaskHandlers:
                         stream_id=stream_id,
                         operation=f"{task_name}_skip",
                     )
-                    return False, None
-                return True, stream
-        except Exception as e:
-            logger.error(f"Error checking stream existence for {task_name}: {e}")
-            return False, None
+                return exists
+            except Exception as e:
+                logger.error(f"Error checking stream existence for {task_name}: {e}")
+                return False
+
+        return await run_in_thread_pool(work), None
 
     async def handle_metadata_generation(self, payload, progress_callback=None):
         """Handle metadata generation task"""
@@ -109,7 +111,7 @@ class PostProcessingTaskHandlers:
         )
 
         # Check if stream still exists before processing
-        exists, _ = self._check_stream_exists(
+        exists, _ = await self._check_stream_exists(
             stream_id, "metadata_generation", local_payload.get("task_id")
         )
         if not exists:
@@ -271,7 +273,7 @@ class PostProcessingTaskHandlers:
         )
 
         # Check if stream still exists before processing
-        exists, _ = self._check_stream_exists(
+        exists, _ = await self._check_stream_exists(
             stream_id, "chapters_generation", payload.get("task_id")
         )
         if not exists:
@@ -356,7 +358,7 @@ class PostProcessingTaskHandlers:
         )
 
         # Check if stream still exists before processing
-        exists, _ = self._check_stream_exists(
+        exists, _ = await self._check_stream_exists(
             stream_id, "mp4_remux", payload.get("task_id")
         )
         if not exists:
@@ -590,7 +592,7 @@ class PostProcessingTaskHandlers:
         )
 
         # Check if stream still exists before processing
-        exists, _ = self._check_stream_exists(
+        exists, _ = await self._check_stream_exists(
             stream_id, "thumbnail_generation", payload.get("task_id")
         )
         if not exists:
@@ -677,7 +679,7 @@ class PostProcessingTaskHandlers:
         )
 
         # Check if stream still exists before processing
-        exists, _ = self._check_stream_exists(
+        exists, _ = await self._check_stream_exists(
             stream_id, "mp4_validation", payload.get("task_id")
         )
         if not exists:
@@ -691,34 +693,33 @@ class PostProcessingTaskHandlers:
             logger.debug(f"mp4_validation: failed to mark running: {e}")
 
         try:
-            # Check if MP4 exists
-            if not os.path.exists(mp4_path):
-                raise Exception(f"MP4 file not found: {mp4_path}")
 
-            # Check MP4 size
-            mp4_size = os.path.getsize(mp4_path)
-            min_size_bytes = min_size_mb * 1024 * 1024
+            def checked_file_size() -> int:
+                if not os.path.exists(mp4_path):
+                    raise Exception(f"MP4 file not found: {mp4_path}")
 
-            if mp4_size < min_size_bytes:
-                raise Exception(
-                    f"MP4 file too small: {mp4_size} bytes (minimum: {min_size_bytes} bytes)"
-                )
+                mp4_size = os.path.getsize(mp4_path)
+                min_size_bytes = min_size_mb * 1024 * 1024
+                if mp4_size < min_size_bytes:
+                    raise Exception(
+                        f"MP4 file too small: {mp4_size} bytes (minimum: {min_size_bytes} bytes)"
+                    )
 
-            # Validate size ratio if requested
-            if validate_size_ratio and os.path.exists(ts_file_path):
-                ts_size = os.path.getsize(ts_file_path)
-                if ts_size > 0:
-                    size_ratio = mp4_size / ts_size
+                if validate_size_ratio and os.path.exists(ts_file_path):
+                    ts_size = os.path.getsize(ts_file_path)
+                    if ts_size > 0:
+                        size_ratio = mp4_size / ts_size
+                        if size_ratio < 0.7:
+                            raise Exception(
+                                f"MP4 file too small compared to TS - Ratio: {size_ratio:.2f}"
+                            )
+                        elif size_ratio > 1.1:
+                            logger.warning(
+                                f"MP4 file larger than TS - Ratio: {size_ratio:.2f} (this is usually okay)"
+                            )
+                return mp4_size
 
-                    # MP4 should be between 70% and 110% of TS size
-                    if size_ratio < 0.7:
-                        raise Exception(
-                            f"MP4 file too small compared to TS - Ratio: {size_ratio:.2f}"
-                        )
-                    elif size_ratio > 1.1:
-                        logger.warning(
-                            f"MP4 file larger than TS - Ratio: {size_ratio:.2f} (this is usually okay)"
-                        )
+            mp4_size = await run_in_thread_pool(checked_file_size)
 
             # Use FFmpeg utils validation
             is_valid = await ffmpeg_utils.validate_mp4(mp4_path)
