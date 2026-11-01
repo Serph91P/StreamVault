@@ -6,7 +6,15 @@ Central coordinator that uses all other refactored services for recording operat
 """
 
 import logging
+from collections.abc import Callable
+from time import monotonic
 from typing import Dict, Any, Optional, List
+from sqlalchemy.orm import Session
+from app.config.settings import Settings
+from app.services.background_queue_service import BackgroundQueueService
+from app.services.communication.websocket_manager import ConnectionManager
+from app.services.core.state_persistence_service import StatePersistenceService
+from app.services.twitch_upstream_coordinator import TwitchUpstreamCoordinator
 
 # websocket_manager will be imported when needed to avoid circular imports
 from .recording_database_service import RecordingDatabaseService
@@ -31,19 +39,59 @@ logger = logging.getLogger("streamvault")
 class RecordingOrchestrator:
     """Central coordinator for all recording operations"""
 
-    def __init__(self, db=None):
+    def __init__(
+        self,
+        db=None,
+        *,
+        settings: Settings | None = None,
+        session_factory: Callable[[], Session] | None = None,
+        connection_manager: ConnectionManager | None = None,
+        queue_service: BackgroundQueueService | None = None,
+    ):
+        context = (settings, session_factory, connection_manager, queue_service)
+        owned = any(value is not None for value in context)
+        if owned and (db is not None or any(value is None for value in context)):
+            raise ValueError(
+                "Recording application context requires settings, session factory, socket manager and queue, without a borrowed session"
+            )
         # Initialize existing managers
-        self.config_manager = ConfigManager()
+        self.config_manager = (
+            ConfigManager(session_factory=session_factory, settings=settings)
+            if owned
+            else ConfigManager()
+        )
 
         # Initialize refactored services first (needed for callback)
-        self.database_service = RecordingDatabaseService(db)
-        self.state_manager = RecordingStateManager(self.config_manager)
+        self.database_service = (
+            RecordingDatabaseService(session_factory=session_factory)
+            if owned
+            else RecordingDatabaseService(db)
+        )
+        self.state_manager = (
+            RecordingStateManager.for_application(
+                self.config_manager,
+                StatePersistenceService(session_factory=session_factory),
+            )
+            if owned
+            else RecordingStateManager(self.config_manager)
+        )
         # Import websocket_manager here to avoid circular imports
-        from app.dependencies import websocket_manager
+        if not owned:
+            from app.dependencies import websocket_manager
 
-        self.websocket_service = RecordingWebSocketService(websocket_manager)
-        self.post_processing_coordinator = PostProcessingCoordinator(
-            self.config_manager, self.websocket_service
+            connection_manager = websocket_manager
+
+        self.websocket_service = RecordingWebSocketService(connection_manager)
+        self.post_processing_coordinator = (
+            PostProcessingCoordinator(
+                self.config_manager,
+                self.websocket_service,
+                queue_service=queue_service,
+                settings=settings,
+                session_factory=session_factory,
+            )
+            if owned
+            else PostProcessingCoordinator(self.config_manager, self.websocket_service)
         )
 
         # Create post-processing callback for ProcessManager dependency injection
@@ -100,9 +148,19 @@ class RecordingOrchestrator:
                 logger.error(f"Error in post-processing callback: {e}", exc_info=True)
 
         # Initialize ProcessManager with the post-processing callback
-        self.process_manager = ProcessManager(
-            config_manager=self.config_manager,
-            post_processing_callback=post_processing_callback,
+        self.process_manager = (
+            ProcessManager.for_application(
+                config_manager=self.config_manager,
+                post_processing_callback=post_processing_callback,
+                upstream_coordinator=TwitchUpstreamCoordinator(
+                    session_factory, monotonic_clock=monotonic
+                ),
+            )
+            if owned
+            else ProcessManager(
+                config_manager=self.config_manager,
+                post_processing_callback=post_processing_callback,
+            )
         )
 
         # Initialize remaining managers

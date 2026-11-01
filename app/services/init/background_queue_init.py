@@ -4,9 +4,15 @@ Sets up the background queue service with task handlers and dependency managemen
 """
 
 import logging
+from collections.abc import Callable
+from sqlalchemy.orm import Session
+from app.config.settings import Settings
 from typing import Any, Optional
 
-from app.services.background_queue_service import background_queue_service
+from app.services.background_queue_service import (
+    BackgroundQueueService,
+    background_queue_service,
+)
 from app.services.processing.post_processing_task_handlers import (
     post_processing_task_handlers,
 )
@@ -198,13 +204,18 @@ async def enqueue_recording_post_processing(
     streamer_name: Optional[str] = None,
     started_at: Optional[str] = None,
     cleanup_ts_file: bool = True,
+    *,
+    queue_service: BackgroundQueueService | None = None,
+    settings: Settings | None = None,
+    session_factory: Callable[[], Session] | None = None,
 ):
     """Enqueue a complete post-processing chain for a recording.
 
     Backward-compatible wrapper: accepts either a payload dict as first arg
     or the original individual parameters.
     """
-    queue_service = get_background_queue_service()
+    if queue_service is None:
+        queue_service = get_background_queue_service()
 
     # Backward compatibility: support being called with a single payload dict
     if isinstance(stream_id, dict) and recording_id is None:
@@ -218,6 +229,8 @@ async def enqueue_recording_post_processing(
                 streamer_name=payload.get("streamer_name"),
                 started_at=payload.get("started_at"),
                 cleanup_ts_file=payload.get("cleanup_ts_file", True),
+                settings=settings,
+                session_factory=session_factory,
             )
         except Exception as e:
             # Log and fall through to raise with clearer context below
@@ -235,6 +248,8 @@ async def enqueue_recording_post_processing(
         streamer_name=streamer_name,
         started_at=started_at,
         cleanup_ts_file=cleanup_ts_file,
+        settings=settings,
+        session_factory=session_factory,
     )
 
 

@@ -23,9 +23,11 @@ logger = logging.getLogger("streamvault")
 class RecordingService:
     """Backward compatibility wrapper for the refactored recording services"""
 
-    def __init__(self, db=None):
+    def __init__(self, db=None, *, orchestrator: RecordingOrchestrator | None = None):
         # Initialize the orchestrator which manages all refactored services
-        self.orchestrator = RecordingOrchestrator(db)
+        self.orchestrator = (
+            orchestrator if orchestrator is not None else RecordingOrchestrator(db)
+        )
 
         # Legacy properties for compatibility
         self.db = self.orchestrator.database_service.db
@@ -42,7 +44,11 @@ class RecordingService:
         # Use settings for recordings directory (supports Docker and local dev)
         from app.config.settings import settings
 
-        self.recordings_directory = settings.RECORDING_DIRECTORY
+        self.recordings_directory = (
+            self.config_manager.get_recordings_directory()
+            if orchestrator is not None
+            else settings.RECORDING_DIRECTORY
+        )
 
         # Legacy shutdown properties
         self._shutdown_event = self.orchestrator.lifecycle_manager._shutdown_event

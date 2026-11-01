@@ -790,33 +790,40 @@ class TaskQueueManager:
                 "ts_file_path, output_dir, streamer_name, and started_at must not be empty or None"
             )
 
-        # Create task factory and generate tasks
-        task_factory = RecordingTaskFactory()
-        tasks = task_factory.create_post_processing_chain(
-            stream_id=stream_id,
-            recording_id=recording_id,
-            ts_file_path=ts_file_path,
-            output_dir=output_dir,
-            streamer_name=streamer_name,
-            started_at=started_at,
-            cleanup_ts_file=cleanup_ts_file,
-        )
-        # Persist created task IDs for the recording
-        try:
-            from app.database import SessionLocal
-            from app.models import RecordingProcessingState
+        def build_tasks():
+            task_factory = RecordingTaskFactory()
+            tasks = task_factory.create_post_processing_chain(
+                stream_id=stream_id,
+                recording_id=recording_id,
+                ts_file_path=ts_file_path,
+                output_dir=output_dir,
+                streamer_name=streamer_name,
+                started_at=started_at,
+                cleanup_ts_file=cleanup_ts_file,
+                settings=kwargs.get("settings"),
+                session_factory=kwargs.get("session_factory"),
+            )
+            # Persist IDs before transferring plain task values to the event loop.
+            try:
+                from app.database import SessionLocal
+                from app.models import RecordingProcessingState
 
-            with SessionLocal() as db:
-                state = (
-                    db.query(RecordingProcessingState)
-                    .filter(RecordingProcessingState.recording_id == recording_id)
-                    .first()
-                )
-                if state:
-                    state.set_task_ids({t.type: t.id for t in tasks})
-                    db.commit()
-        except Exception:
-            pass
+                with (kwargs.get("session_factory") or SessionLocal)() as db:
+                    state = (
+                        db.query(RecordingProcessingState)
+                        .filter(RecordingProcessingState.recording_id == recording_id)
+                        .first()
+                    )
+                    if state:
+                        state.set_task_ids({t.type: t.id for t in tasks})
+                        db.commit()
+            except Exception:
+                pass
+            return tasks
+
+        from app.utils.async_db_utils import run_in_thread_pool
+
+        tasks = await run_in_thread_pool(build_tasks)
 
         # Add tasks to dependency manager and create corresponding queue tasks for tracking
         for task in tasks:
