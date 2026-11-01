@@ -166,10 +166,6 @@ class RecordingService:
 
     # Legacy methods for backward compatibility
 
-    def _ensure_db_session(self):
-        """Legacy method - handled by database service"""
-        self.orchestrator.database_service._ensure_db_session()
-
     async def _update_recording_status(
         self, recording_id: int, status: str, path: str, duration_seconds: int
     ):

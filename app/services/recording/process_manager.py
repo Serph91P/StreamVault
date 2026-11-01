@@ -2283,7 +2283,7 @@ class ProcessManager:
 
                 if recording_id:
                     # Get recording data using correct recording_id
-                    recording_data = recording_service.orchestrator.database_service.get_recording_by_id(
+                    recording_data = await recording_service.orchestrator.database_service.get_recording_by_id(
                         recording_id
                     )
                     if recording_data:

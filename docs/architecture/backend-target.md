@@ -116,6 +116,23 @@ peer/cache isolation and every persisted scalar field. This constructor seam is
 not yet complete root-service wiring, and remaining async callers must still be
 migrated rather than invoking blocking cache-miss reads on the event loop.
 
+`RecordingDatabaseService` now creates one complete session/transaction in the
+blocking worker for each operation and materializes frozen recording/stream/
+streamer-identity values before commit/close. Writes flush and refresh before
+projection to preserve database-normalized PostgreSQL timestamp/default values.
+All recording getters, including the compatibility name `get_recording_by_id`,
+are awaitable; every known runtime caller awaits them. No `next(get_db())`,
+retained session or lifecycle-side direct DAO session access remains in this
+component. The legacy close/introspection hooks remain harmless; a live Session
+constructor argument is rejected in favor of `session_factory` ownership.
+Initial timeline events are a single guarded transaction (PostgreSQL stream-row
+lock; the existing SQLite-test `BEGIN IMMEDIATE` pattern), preserving the online
+and preceding category event without duplicates under competing writers. Native
+SQLite cancellation proves checked-in connections before cancellation returns;
+real PostgreSQL proves the read/check waits behind an external row owner and
+both competing operations leave one timeline. Other recording/metadata/provider
+services and their root wiring are **not** covered by this component's boundary.
+
 Feature repositories own query/loading/transaction details. Application services
 own decisions, state transitions and explicit outcomes. API adapters own bounded
 request validation, current-user/scopes/CSRF enforcement and mapping to unchanged

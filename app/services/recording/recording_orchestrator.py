@@ -51,7 +51,9 @@ class RecordingOrchestrator:
             """Callback for ProcessManager to trigger post-processing"""
             try:
                 # Get recording data needed for post-processing
-                recording_data = self.database_service.get_recording_by_id(recording_id)
+                recording_data = await self.database_service.get_recording_by_id(
+                    recording_id
+                )
                 if recording_data:
                     # Update recording status first
                     await self.database_service.update_recording_status(
@@ -70,11 +72,7 @@ class RecordingOrchestrator:
                             # Create recording data dict for post-processing
                             recording_data_dict = {
                                 "streamer_name": streamer_data.username,
-                                "started_at": (
-                                    recording_data.started_at.isoformat()
-                                    if recording_data.started_at
-                                    else None
-                                ),
+                                "started_at": recording_data.start_time.isoformat(),
                                 "stream_id": stream_data.id,
                                 "recording_id": recording_id,
                             }
@@ -277,10 +275,6 @@ class RecordingOrchestrator:
         await self.lifecycle_manager.wait_for_shutdown()
 
     # Legacy compatibility methods (delegate to appropriate services)
-
-    def _ensure_db_session(self):
-        """Legacy method - handled by database service"""
-        self.database_service._ensure_db_session()
 
     async def _update_recording_status(
         self, recording_id: int, status: str, path: str, duration_seconds: int
