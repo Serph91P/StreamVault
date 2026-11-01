@@ -144,6 +144,10 @@ jobs:
         working-directory: app/frontend
         run: STREAMVAULT_REUSE_VERIFIED_REAL_BUILD=true npx playwright test --config tests/fixtures/issue906-headers.config.ts
 
+      - name: Run real-build subscription failure and retry regressions
+        working-directory: app/frontend
+        run: STREAMVAULT_REUSE_VERIFIED_REAL_BUILD=true npx playwright test --config tests/fixtures/issue1006-subscriptions.config.ts
+
       - name: Run real-build long-recording mobile player regressions
         working-directory: app/frontend
         run: npx playwright test --config tests/fixtures/issue894-player.config.ts
