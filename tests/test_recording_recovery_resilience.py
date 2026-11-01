@@ -7,7 +7,14 @@ from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
-from app.models import Recording, Stream, Streamer, TwitchUpstreamLease, User
+from app.models import (
+    Recording,
+    Stream,
+    Streamer,
+    StreamMetadata,
+    TwitchUpstreamLease,
+    User,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -24,7 +31,9 @@ def test_state_persistence_process_exists_has_os_fallback() -> None:
 
 
 def test_startup_recovery_defers_when_live_status_cannot_be_verified() -> None:
-    source = (ROOT / "app/services/init/startup_init.py").read_text(encoding="utf-8")
+    source = (ROOT / "app/services/recording/startup_recovery.py").read_text(
+        encoding="utf-8"
+    )
 
     api_error_block = source.split("except Exception as api_error:", 1)[1]
     api_error_block = api_error_block.split("if is_still_live:", 1)[0]
@@ -60,6 +69,7 @@ def recovery_database(tmp_path):
             Stream.__table__,
             Recording.__table__,
             TwitchUpstreamLease.__table__,
+            StreamMetadata.__table__,
         ],
     )
     Session = sessionmaker(bind=engine)
@@ -252,26 +262,21 @@ async def test_startup_failed_resume_preserves_recoverable_recording(
     import importlib
 
     import app.database
-    from app.services import streamer_service as streamer_service_module
-    from app.events import handler_registry
+    from app.services.api.twitch_api import twitch_api
 
     startup_init = importlib.import_module("app.services.init.startup_init")
 
     Session, values = recovery_database
     calls = []
 
-    class StreamerService:
-        def __init__(self, *args, **kwargs):
-            pass
-
-        async def check_streamer_live_status(self, twitch_id):
-            return True
-
     class RecordingService:
         def is_stream_active(self, stream_id):
             return False
 
         async def start_recording(self, stream_id, streamer_id, **kwargs):
+            assert Session.kw["bind"].pool.checkedout() == 0, (
+                "startup must close its catalog before admission"
+            )
             with Session() as db:
                 prior = db.get(Recording, values["recording_id"])
                 assert prior.status == "recording"
@@ -280,17 +285,15 @@ async def test_startup_failed_resume_preserves_recoverable_recording(
             calls.append((stream_id, streamer_id, kwargs))
             return None
 
-    class EventHandlerRegistry:
-        def __init__(self, *args, **kwargs):
-            pass
+    async def live(**kwargs):
+        assert Session.kw["bind"].pool.checkedout() == 0
+        return [{"id": "fixture-live"}]
 
     monkeypatch.setattr(app.database, "SessionLocal", Session)
-    monkeypatch.setattr(streamer_service_module, "StreamerService", StreamerService)
+    monkeypatch.setattr(twitch_api, "get_streams", live)
     monkeypatch.setattr(
         startup_init, "get_recording_manager", lambda: RecordingService()
     )
-    monkeypatch.setattr(handler_registry, "EventHandlerRegistry", EventHandlerRegistry)
-
     await startup_init.cleanup_zombie_recordings()
 
     assert calls == [

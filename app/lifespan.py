@@ -15,6 +15,7 @@ from app.dependencies import (
     get_event_registry,
     get_lifespan_service,
     get_recording_manager,
+    _get_application_twitch_api,
 )
 
 from app.services.core.session_maintenance import cleanup_expired_sessions
@@ -220,13 +221,19 @@ async def lifespan(app: FastAPI):
 
         if not legacy_context:
             queue_manager = app.state.background_queue_manager
-        background_initializer = initialize_background_services
+        runtime_twitch = None
+        if hasattr(app.state, "twitch_api_lock"):
+            runtime_twitch = await run_in_thread_pool(_get_application_twitch_api, app)
+        background_initializer = partial(
+            initialize_background_services,
+            recording_manager=recording_manager,
+            twitch_api=runtime_twitch,
+        )
         if queue_manager is not None:
             background_initializer = partial(
-                initialize_background_services,
+                background_initializer,
                 queue_manager=queue_manager,
                 capture_checker=recording_manager.is_capture_running,
-                recording_manager=recording_manager,
             )
         await background_initializer(
             supervisor=supervisor,

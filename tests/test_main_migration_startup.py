@@ -203,6 +203,13 @@ async def test_lifespan_uses_factory_service_overrides_for_startup_and_shutdown(
     async def config_update():
         return True
 
+    async def background_init(
+        supervisor, session_factory, settings, recording_manager, twitch_api
+    ):
+        assert isinstance(recording_manager, RecordingManager)
+        assert twitch_api is None  # This wiring fixture has no factory HTTP slot.
+        await record("background-init")
+
     module_overrides = {
         "app.services.system.persistent_key_service": SimpleNamespace(
             bootstrap_persistent_keys=lambda: calls.append("keys-bootstrap")
@@ -229,9 +236,7 @@ async def test_lifespan_uses_factory_service_overrides_for_startup_and_shutdown(
             )
         ),
         "app.services.init.startup_init": SimpleNamespace(
-            initialize_background_services=lambda supervisor, session_factory, settings: (
-                record("background-init")
-            ),
+            initialize_background_services=background_init,
             shutdown_background_services=lambda supervisor: record("background-stop"),
         ),
         "app.services.proxy.proxy_health_service": SimpleNamespace(
