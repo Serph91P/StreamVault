@@ -168,6 +168,27 @@ async def test_recovery_discovery_and_enqueue_use_only_owned_closed_worker_scope
             )
             assert probe.read_bytes() == b"existing data must not be a write probe"
             assert database.sync_engine.pool.checkedout() == 0
+        queries.clear()
+        found = await asyncio.gather(
+            *(
+                service._find_recording_by_path(str(failed[0]["ts_path"]))
+                for service, (_, failed) in zip(services, results, strict=True)
+            )
+        )
+        peer_before = await run_in_thread_pool(snapshot, databases[1])
+        output_path = str(
+            services[0].recordings_base_path / "alice" / "concatenated.ts"
+        )
+        await services[0]._update_recording_after_concatenation(7, output_path)
+        assert found == [7, 7]
+        assert queries and loop_thread not in queries
+        with databases[0].sync_session_factory() as session:
+            updated = session.get(Recording, 7)
+            assert updated.path == output_path
+            assert updated.status == "completed" and updated.end_time is not None
+        assert snapshot(databases[1]) == peer_before
+        for database in databases:
+            assert database.sync_engine.pool.checkedout() == 0
     finally:
         for app in applications:
             await app.state.background_queue_manager.shutdown()

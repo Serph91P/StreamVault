@@ -745,6 +745,9 @@ class UnifiedRecoveryService:
             return False
 
     async def _find_recording_by_path(self, file_path: str) -> Optional[int]:
+        return await run_in_thread_pool(self._find_recording_by_path_sync, file_path)
+
+    def _find_recording_by_path_sync(self, file_path: str) -> int | None:
         """Find recording ID by file path"""
         try:
             with self._sessions() as db:
@@ -1070,7 +1073,14 @@ class UnifiedRecoveryService:
 
     async def _update_recording_after_concatenation(
         self, recording_id: int, file_path: str
-    ):
+    ) -> None:
+        await run_in_thread_pool(
+            self._update_recording_after_concatenation_sync, recording_id, file_path
+        )
+
+    def _update_recording_after_concatenation_sync(
+        self, recording_id: int, file_path: str
+    ) -> None:
         """Update recording in database after successful concatenation"""
         try:
             with self._sessions() as db:
@@ -1081,7 +1091,7 @@ class UnifiedRecoveryService:
                     recording.status = "completed"
                     recording.path = file_path
                     if not recording.end_time:
-                        recording.end_time = datetime.utcnow()
+                        recording.end_time = datetime.now(timezone.utc)
                     db.commit()
                     logger.info(
                         f"✅ Updated recording {recording_id} status to completed"
