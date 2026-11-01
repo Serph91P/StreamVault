@@ -16,7 +16,7 @@ exact candidate head and each required check; intermediate counts below do not.
 | #941 | Native HTTP/HTTPS health probes use configured trusted host | implemented; `test_packaged_health_command.py`, native images/restart; final image rerun pending |
 | #942 | Immutable native image/build/runtime/API identity | implemented; OCI/ENV/authenticated version before/after native PG restart; final head rerun pending |
 | #944 | Distinct IPv6 identities and trust-safe parsing | implemented; 36 native parser cases plus adjacent security cases |
-| #951 | Recovery scan has no mutation side effects | pending |
+| #951 | Recovery scan has no mutation side effects | implemented; lookup/preview/real mounted GET+POST all-table snapshots8RED→native815PASS; explicit write-phase adoption; true PG18two-thread/two-session control duplicates, candidate one identity for segment+TS paths |
 | #952 | No recovery/post-processing of active writer's media | pending |
 | #953 | Retention preserves catalog/retry target on required-file deletion failure | implemented; all-table snapshots, permission/I/O/partial-sidecar/segments/no-op/path controls + idempotent retry; 11focusedPASS, native combined807PASS; final PG/CI pending |
 | #954 | Identical bounded retry/backoff/dependency policy in both queue modes | implemented; eight real worker/clock cases, exact 1/2 budgets, single retry count |

@@ -358,6 +358,15 @@ class UnifiedRecoveryService:
             recording_id = recording_info["recording_id"]
             streamer_name = recording_info["streamer_name"]
 
+            if recording_id is None:
+                with SessionLocal() as db:
+                    recording_id = await self._create_recording_from_orphaned_path(
+                        db, str(expected_ts_path)
+                    )
+                if recording_id is None:
+                    return False
+                recording_info["recording_id"] = recording_id
+
             logger.info(
                 f"🔄 PROCESSING_ORPHANED: recording_id={recording_id}, streamer={streamer_name}"
             )
@@ -639,7 +648,7 @@ class UnifiedRecoveryService:
         Enhanced lookup strategy:
         1. Try exact path match first
         2. If no match, try matching by filename pattern in the same directory
-        3. As last resort, create a new Recording entry if we can match streamer/stream
+        Missing rows remain undiscovered identities until explicit recovery adopts them.
         """
         result = {}
         try:
@@ -678,17 +687,7 @@ class UnifiedRecoveryService:
                             )
                             continue
 
-                    # Last resort: try to create recording from segments directory info
-                    recording_id = await self._create_recording_from_orphaned_path(
-                        db, path
-                    )
-                    if recording_id:
-                        result[path] = recording_id
-                        logger.info(
-                            f"Created new recording {recording_id} for orphaned path {path}"
-                        )
-                    else:
-                        result[path] = None
+                    result[path] = None
 
         except Exception as e:
             logger.error(f"Error in batch recording lookup: {e}")
@@ -790,6 +789,7 @@ class UnifiedRecoveryService:
             streamer = (
                 db.query(Streamer)
                 .filter(Streamer.username.ilike(streamer_name))
+                .with_for_update()
                 .first()
             )
             if not streamer:
@@ -797,6 +797,11 @@ class UnifiedRecoveryService:
                     f"Streamer '{streamer_name}' not found in database for path {file_path}"
                 )
                 return None
+
+            # The existing streamer row serializes same-channel adoption across workers.
+            existing = db.query(Recording).filter(Recording.path == file_path).first()
+            if existing is not None:
+                return existing.id
 
             # Extract info from filename
             filename_timestamp = self._parse_timestamp_from_filename(path.name)

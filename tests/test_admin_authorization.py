@@ -197,6 +197,74 @@ def test_mounted_single_recording_recovery_contract(admin_stack, monkeypatch, ca
         assert db.get(Recording, recording_id).status == "stopped"
 
 
+@pytest.mark.parametrize("endpoint", ["statistics", "scan"])
+def test_mounted_recovery_preview_is_read_only(admin_stack, monkeypatch, endpoint):
+    import importlib
+
+    from app.models import Stream, Streamer
+    from app.services.recording.recording_manager import RecordingManager
+    from app.services.recording.unified_recovery_service import UnifiedRecoveryService
+
+    app, _settings, factory, sentinel, _queue = admin_stack
+    headers = credential_headers(admin_stack, "jwt", "admin")
+    root = sentinel.parent / "recordings"
+    directory = root / "synthetic951" / "Season 2026" / "synthetic951_orphan_segments"
+    directory.mkdir(parents=True)
+    media = directory / "segment_001.ts"
+    media.write_bytes(b"synthetic original segment")
+    with factory() as db:
+        streamer = Streamer(username="synthetic951", twitch_id="synthetic951")
+        db.add(streamer)
+        db.flush()
+        start = datetime.now(timezone.utc) - timedelta(hours=2)
+        db.add(
+            Stream(
+                streamer_id=streamer.id,
+                started_at=start,
+                ended_at=start + timedelta(hours=1),
+            )
+        )
+        db.commit()
+    service = UnifiedRecoveryService()
+    service.recordings_base_path = root
+    manager = RecordingManager.__new__(RecordingManager)
+    manager._service = SimpleNamespace(get_active_recordings=lambda: {})
+    recovery = importlib.import_module(
+        "app.services.recording.unified_recovery_service"
+    )
+    api = importlib.import_module("app.api.unified_recovery_endpoints")
+
+    async def get_service():
+        return service
+
+    monkeypatch.setattr(recovery, "SessionLocal", factory)
+    monkeypatch.setattr(recovery, "get_recording_manager", lambda: manager)
+    monkeypatch.setattr(api, "get_unified_recovery_service", get_service)
+
+    def snapshot():
+        with factory() as db:
+            return {
+                table.name: list(db.execute(select(table)).tuples())
+                for table in Base.metadata.sorted_tables
+            }
+
+    before = snapshot()
+    client = TestClient(app)
+    try:
+        url = f"/api/recording/recovery/{endpoint}"
+        response = (
+            client.get(url, headers=headers)
+            if endpoint == "statistics"
+            else client.post(url, json={"dry_run": True}, headers=headers)
+        )
+    finally:
+        client.close()
+    assert response.status_code == 200
+    assert response.json()["statistics"]["orphaned_segments"] == 1
+    assert snapshot() == before
+    assert media.read_bytes() == b"synthetic original segment"
+
+
 def credential_headers(stack, mode, state):
     _app, settings, factory, _sentinel, _queue = stack
     headers = {"accept": "application/json"}
