@@ -542,6 +542,19 @@ class CleanupService:
                 )
                 files_to_delete = []
                 directories_to_check = set()
+                required_directories = set()
+                deletion_failed = False
+                removed_candidates = set()
+                from app.models import Recording
+
+                associated_recordings = (
+                    db.query(Recording).filter(Recording.stream_id == stream.id).all()
+                )
+                files_to_delete.extend(
+                    recording.path
+                    for recording in associated_recordings
+                    if recording.path
+                )
 
                 # Get the base directory for this recording
                 recording_dir = None
@@ -556,7 +569,7 @@ class CleanupService:
                         directories_to_check.add(recording_dir)
 
                 # Add main recording file
-                if stream.recording_path and os.path.exists(stream.recording_path):
+                if stream.recording_path:
                     files_to_delete.append(stream.recording_path)
 
                 # Add all metadata files from database (only actually generated files)
@@ -576,7 +589,7 @@ class CleanupService:
 
                     # Add existing per-stream files to deletion list
                     for file_path in per_stream_files:
-                        if file_path and os.path.exists(file_path):
+                        if file_path:
                             files_to_delete.append(file_path)
 
                     # SHARED FILES HANDLING:
@@ -589,9 +602,7 @@ class CleanupService:
                             f"Preserving tvshow.nfo (belongs to streamer, not stream): {metadata.tvshow_nfo_path}"
                         )
 
-                    if metadata.season_nfo_path and os.path.exists(
-                        metadata.season_nfo_path
-                    ):
+                    if metadata.season_nfo_path:
                         # Check if other streams exist in the same season directory
                         season_dir = os.path.dirname(metadata.season_nfo_path)
                         other_streams_in_season = (
@@ -619,35 +630,28 @@ class CleanupService:
                         hasattr(metadata, "segments_dir_path")
                         and metadata.segments_dir_path
                     ):
-                        if os.path.exists(metadata.segments_dir_path) and os.path.isdir(
-                            metadata.segments_dir_path
-                        ):
-                            directories_to_check.add(metadata.segments_dir_path)
-                            logger.debug(
-                                f"Will check segments directory from DB: {metadata.segments_dir_path}"
-                            )
+                        directories_to_check.add(metadata.segments_dir_path)
+                        required_directories.add(metadata.segments_dir_path)
 
                 # Fallback: Derive segments directory from recording_path if not in DB
                 if stream.recording_path:
                     segments_dir_derived = stream.recording_path.replace(
                         ".mp4", "_segments"
                     ).replace(".ts", "_segments")
-                    if os.path.exists(segments_dir_derived) and os.path.isdir(
-                        segments_dir_derived
-                    ):
-                        directories_to_check.add(segments_dir_derived)
-                        logger.debug(
-                            f"Will check segments directory (derived): {segments_dir_derived}"
-                        )
+                    directories_to_check.add(segments_dir_derived)
+                    required_directories.add(segments_dir_derived)
 
                 # Delete all collected files (using exact DB paths only)
+                files_to_delete = list(dict.fromkeys(files_to_delete))
                 for file_path in files_to_delete:
                     try:
-                        if os.path.exists(file_path) or os.path.islink(file_path):
-                            os.remove(file_path)
-                            deleted_paths.append(file_path)
-                            logger.info(f"Deleted file: {file_path}")
+                        validate_path_security(file_path, "access")
+                        os.remove(file_path)
+                        removed_candidates.add(file_path)
+                    except FileNotFoundError:
+                        pass
                     except Exception as e:
+                        deletion_failed = True
                         logger.error(f"Failed to delete file {file_path}: {e}")
 
                 # Delete segment directories if they exist and are not actively being used
@@ -665,19 +669,38 @@ class CleanupService:
                             continue
 
                         try:
+                            validate_path_security(dir_path, "delete")
                             shutil.rmtree(dir_path)
                             logger.info(f"Deleted segment directory: {dir_path}")
                         except Exception as e:
+                            deletion_failed = True
                             logger.error(f"Failed to delete directory {dir_path}: {e}")
+
+                for required_path in dict.fromkeys(
+                    [*files_to_delete, *required_directories]
+                ):
+                    try:
+                        os.lstat(required_path)
+                    except FileNotFoundError:
+                        if required_path in removed_candidates:
+                            deleted_paths.append(required_path)
+                        continue
+                    except OSError as e:
+                        logger.error(
+                            "Cannot verify deletion of %s: %s", required_path, e
+                        )
+                    deletion_failed = True
+
+                if deletion_failed:
+                    logger.error(
+                        "Retaining catalog for stream %s: required deletion failed or absence is unverified",
+                        stream.id,
+                    )
+                    continue
 
                 # Delete associated recordings BEFORE deleting the stream
                 # This prevents IntegrityError: null value in column "stream_id" violates not-null constraint
                 # Even though we have ondelete="CASCADE", SQLAlchemy's cascade behavior requires explicit deletion
-                from app.models import Recording
-
-                associated_recordings = (
-                    db.query(Recording).filter(Recording.stream_id == stream.id).all()
-                )
                 for recording in associated_recordings:
                     db.delete(recording)
                     logger.debug(

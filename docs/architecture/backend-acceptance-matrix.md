@@ -18,7 +18,7 @@ exact candidate head and each required check; intermediate counts below do not.
 | #944 | Distinct IPv6 identities and trust-safe parsing | implemented; 36 native parser cases plus adjacent security cases |
 | #951 | Recovery scan has no mutation side effects | pending |
 | #952 | No recovery/post-processing of active writer's media | pending |
-| #953 | Retention preserves catalog/retry target on required-file deletion failure | pending; no success count until verified absence, idempotent retry |
+| #953 | Retention preserves catalog/retry target on required-file deletion failure | implemented; all-table snapshots, permission/I/O/partial-sidecar/segments/no-op/path controls + idempotent retry; 11focusedPASS, native combined807PASS; final PG/CI pending |
 | #954 | Identical bounded retry/backoff/dependency policy in both queue modes | implemented; eight real worker/clock cases, exact 1/2 budgets, single retry count |
 | #955 | Negative handler outcome cannot complete or release dependants | implemented; twenty cases, real segment failure and no output |
 | #956 | Lease-loss cleans only owned live resources, preserves replacement/fencing | pending |
