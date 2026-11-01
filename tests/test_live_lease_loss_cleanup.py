@@ -12,7 +12,7 @@ import pytest
 import pytest_asyncio
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
+
 
 from app.database import Base
 from app.models import TwitchUpstreamLease
@@ -23,7 +23,8 @@ from app.services.twitch_upstream_coordinator import TwitchUpstreamCoordinator
 @pytest_asyncio.fixture
 async def live(tmp_path):
     engine = create_engine(
-        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
+        f"sqlite:///{tmp_path / 'live-leases.db'}",
+        connect_args={"check_same_thread": False},
     )
     with engine.begin() as connection:
         Base.metadata.create_all(connection)
@@ -144,6 +145,19 @@ async def test_heartbeat_loss_reaps_owned_children_and_pipe(live, reason):
         assert (
             list(db.execute(select(TwitchUpstreamLease.__table__)).tuples()) == before
         )
+
+
+@pytest.mark.asyncio
+async def test_live_fixture_uses_distinct_connections_for_concurrent_transactions(live):
+    _, _, _, factory, _, _ = live
+    with factory() as first:
+        original = first.connection().connection.driver_connection
+
+        def another_transaction():
+            with factory() as second:
+                return second.connection().connection.driver_connection is original
+
+        assert await asyncio.to_thread(another_transaction) is False
 
 
 @pytest.mark.asyncio

@@ -10,7 +10,7 @@ from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
-from app.models import Streamer, StreamerRecordingSettings
+from app.models import Recording, Stream, Streamer, StreamerRecordingSettings
 from app.routes.recording import (
     _is_pending_auth_handoff,
     update_streamer_recording_settings,
@@ -201,7 +201,12 @@ class TwitchAuthPrioritySchedulerTests(unittest.TestCase):
             engine = create_engine(f"sqlite:///{Path(directory) / 'settings.db'}")
             Base.metadata.create_all(
                 engine,
-                tables=[Streamer.__table__, StreamerRecordingSettings.__table__],
+                tables=[
+                    Streamer.__table__,
+                    Stream.__table__,
+                    Recording.__table__,
+                    StreamerRecordingSettings.__table__,
+                ],
             )
             Session = sessionmaker(bind=engine, expire_on_commit=False)
             with Session() as db:
@@ -226,10 +231,17 @@ class TwitchAuthPrioritySchedulerTests(unittest.TestCase):
 
     def test_unrelated_settings_update_preserves_stored_priority(self) -> None:
         with TemporaryDirectory() as directory:
-            engine = create_engine(f"sqlite:///{Path(directory) / 'settings-preserve.db'}")
+            engine = create_engine(
+                f"sqlite:///{Path(directory) / 'settings-preserve.db'}"
+            )
             Base.metadata.create_all(
                 engine,
-                tables=[Streamer.__table__, StreamerRecordingSettings.__table__],
+                tables=[
+                    Streamer.__table__,
+                    Stream.__table__,
+                    Recording.__table__,
+                    StreamerRecordingSettings.__table__,
+                ],
             )
             Session = sessionmaker(bind=engine, expire_on_commit=False)
             with Session() as db:

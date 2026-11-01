@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
-from sqlalchemy import create_engine, inspect
+from sqlalchemy import create_engine, inspect, event
 from sqlalchemy.orm import Session
 from sqlalchemy.dialects import postgresql, sqlite
 from sqlalchemy.schema import CreateIndex, CreateTable, CreateSchema, DropSchema
@@ -179,6 +179,19 @@ def test_feature_relationship_graph_round_trips_in_an_isolated_database(
             session.add_all(
                 [favorite, preferences, notifications, read_state, metadata, active]
             )
+            for number, status in enumerate(("processing", "completed", None), 1):
+                other = models.Streamer(
+                    twitch_id=f"graph-other-{number}", username=f"graph-other-{number}"
+                )
+                session.add(other)
+                if status is not None:
+                    session.add(
+                        models.Recording(
+                            stream=models.Stream(streamer=other),
+                            start_time=now,
+                            status=status,
+                        )
+                    )
             session.commit()
             ids = user.id, streamer.id, stream.id, recording.id
         with Session(engine) as session:
@@ -201,6 +214,29 @@ def test_feature_relationship_graph_round_trips_in_an_isolated_database(
             assert stream.active_recording_state.recording is recording
             assert stream.active_recording_state.get_config() == {"quality": "best"}
             assert recording.stream is stream
+            # Getter access must not run one hidden query per ORM instance.
+            statements = []
+
+            def observed(*_args):
+                statements.append(True)
+
+            event.listen(engine, "before_cursor_execute", observed)
+            try:
+                rows = session.query(models.Streamer).order_by(models.Streamer.id).all()
+                assert [row.is_recording for row in rows] == [True, False, False, False]
+                assert len(statements) == 1
+                session.expunge_all()
+                assert [row.is_recording for row in rows] == [True, False, False, False]
+                assert len(statements) == 1
+            finally:
+                event.remove(engine, "before_cursor_execute", observed)
+        with Session(engine) as session:
+            recording = session.get(models.Recording, ids[3])
+            recording.status = "completed"
+            session.commit()
+        with Session(engine) as session:
+            assert session.get(models.Streamer, ids[1]).is_recording is False
+        assert models.Streamer().is_recording is False
     finally:
         with engine.begin() as connection:
             if schema is not None:

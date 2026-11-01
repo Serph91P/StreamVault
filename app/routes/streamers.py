@@ -903,7 +903,7 @@ async def get_streamer(
         "username": streamer.username,
         "display_name": streamer.username,  # Fallback to username
         "is_live": streamer.is_live,
-        "is_recording": streamer.is_recording,  # FIXED: Use property that queries Recording table
+        "is_recording": streamer.is_recording,  # Loaded recording-status snapshot.
         # FIXED: Use StreamerRecordingSettings, not auto_record
         "recording_enabled": recording_settings.enabled if recording_settings else True,
         "recording_quality": recording_settings.quality if recording_settings else None,

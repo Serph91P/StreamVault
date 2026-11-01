@@ -91,10 +91,19 @@ annotations do not silently tighten persisted data. No migration or stored value
 change accompanies extraction. Dormant priority/handoff storage is unchanged.
 
 Models must ultimately hold persistence/data invariants, not session creation,
-SQL queries, filesystem probes, provider calls or worker scheduling. Extraction
-alone does **not** fulfill that rule: the legacy `Streamer.is_recording` query and
-proxy codec resolution still require explicit read/service-boundary closure.
-Do not merely relocate those effects behind new properties.
+filesystem probes, provider calls or worker scheduling. `Streamer.is_recording`
+now reads a typed SQLAlchemy `column_property` snapshot computed by an indexed,
+correlated EXISTS in the caller's ordinary SELECT. Its getter has no session or
+query lookup; transient models remain false, and loaded values survive detach.
+This is a query-time snapshot, not an implicit live poll: callers that reuse a
+session after a state transition must explicitly refresh/requery. Ordinary ORM
+expiration rules still apply; this is not permission to transport ORM instances
+across task/session boundaries. SQLite and actual PostgreSQL observe one SELECT
+for four status values instead of five, with unchanged status predicate/schema.
+The standard mapping is documented at
+<https://docs.sqlalchemy.org/en/20/orm/mapped_sql_expr.html#using-column-property>.
+Proxy codec resolution and other legacy model/session boundaries remain open;
+extraction and this projection do **not** fulfill the whole hybrid-I/O contract.
 
 Feature repositories own query/loading/transaction details. Application services
 own decisions, state transitions and explicit outcomes. API adapters own bounded
