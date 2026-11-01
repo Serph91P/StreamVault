@@ -315,7 +315,7 @@
         <button type="button" class="btn-action btn-secondary" :disabled="isDeleting" @click="showDeleteConfirm = false">
           No, keep videos
         </button>
-        <button type="button" class="btn-action btn-danger" :disabled="isDeleting" @click="confirmBatchDelete">
+        <button type="button" class="btn-action btn-danger" :disabled="isDeleting || isLoading || !!fetchError || selectedVideos.length === 0" @click="confirmBatchDelete">
           <svg v-if="!isDeleting" class="icon">
             <use href="#icon-trash" />
           </svg>
@@ -539,10 +539,10 @@ async function fetchVideos() {
 
     // Backend returns array directly (not wrapped in { data: [] })
     videos.value = Array.isArray(response) ? response : (response.data || [])
+    selectedVideos.value = selectedVideos.value.filter(id => videos.value.some(video => video.id === id))
   } catch (error: any) {
     console.error('[VideosView] Failed to fetch videos:', error)
     fetchError.value = error?.message || 'An unexpected error occurred while loading videos.'
-    videos.value = []
   } finally {
     isLoading.value = false
     await restoreVideoReturnScroll()
@@ -598,18 +598,27 @@ function handleBatchDelete() {
 }
 
 async function confirmBatchDelete() {
-  if (selectedVideos.value.length === 0 || isDeleting.value) return
+  if (selectedVideos.value.length === 0 || isDeleting.value || isLoading.value || fetchError.value) return
 
   const idsToDelete = [...selectedVideos.value]
   isDeleting.value = true
   deleteError.value = ''
 
   try {
-    await videoApi.deleteMultiple(idsToDelete)
-    videos.value = videos.value.filter(video => !idsToDelete.includes(video.id))
-    selectedVideos.value = []
-    selectMode.value = false
-    showDeleteConfirm.value = false
+    const outcomes = await videoApi.deleteMultiple(idsToDelete)
+    const failed = outcomes.filter(outcome => outcome.status === 'rejected')
+    selectedVideos.value = failed.map(outcome => outcome.id)
+    // A rejected response can still follow a committed delete; only the catalog confirms survivors.
+    await fetchVideos()
+    if (failed.length || fetchError.value) {
+      const reason = failed[0]?.reason
+      deleteError.value = `${outcomes.length - failed.length} deleted; ${failed.length} failed. ${reason instanceof Error ? reason.message : ''} ${fetchError.value
+        ? 'Library refresh failed. Close and reload before retrying.'
+        : selectedVideos.value.length ? 'Only remaining failed videos are selected for retry.' : 'No failed videos remain.'}`
+    } else {
+      selectMode.value = false
+      showDeleteConfirm.value = false
+    }
   } catch (error: any) {
     console.error('[VideosView] Failed to delete selected videos:', error)
     deleteError.value = error?.message || 'Failed to delete selected videos. Please try again.'
