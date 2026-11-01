@@ -19,7 +19,7 @@ const routes = [
   { path: '/overview', heading: 'Live Streamers', readySelectors: ['.home-view', '.dashboard-video-grid'] },
   { path: '/streamers', heading: 'Meine Kanäle', readySelectors: ['.streamers-view', '.streamer-wrapper', '.view-details-link'] },
   { path: '/streamers/1', heading: 'Streamer Alpha', readySelectors: ['.streamer-detail-view', '.streamer-control-header', '#streamer-detail-title'] },
-  { path: '/videos', heading: 'Videos', readySelectors: ['.videos-view', '.video-wrapper'] },
+  { path: '/videos', heading: 'Aufzeichnungen', readySelectors: ['.videos-view', '.video-wrapper'] },
 ]
 
 async function setTheme(page: Page, theme: Theme) {
@@ -123,7 +123,7 @@ test('reduced motion suppresses nonessential motion without disabling scrolling'
 
 test('active video filters are native keyboard-removable controls', async ({ page }) => {
   await page.goto('/videos')
-  await expect(page.getByRole('heading', { name: 'Videos', exact: true })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Aufzeichnungen', exact: true })).toBeVisible()
   await page.getByRole('button', { name: 'Filters' }).click()
   await page.getByLabel('Filter videos by streamer').selectOption({ index: 1 })
   await page.getByLabel('Filter videos by date').selectOption('week')

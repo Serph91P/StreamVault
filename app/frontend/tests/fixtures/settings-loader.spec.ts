@@ -74,9 +74,9 @@ for (const scenario of ['fresh assets', 'a cached loader from the previous deplo
     await expect(page.getByLabel('URL des Benachrichtigungsdienstes')).toBeVisible()
     await expect(page.locator('.panel-load-error')).toHaveCount(0)
     await expect(page.getByRole('region', { name: 'Benachrichtigungen – Einstellungen', exact: true })).toBeFocused()
-    await switchSection(page, 'twitch', /^Twitch-Verbindung /)
+    await switchSection(page, 'twitch', /^Twitch-Verbindung$/)
     await expect(page.getByLabel('Twitch OAuth token')).toBeVisible()
-    await switchSection(page, 'notifications', /^Benachrichtigungen /)
+    await switchSection(page, 'notifications', /^Benachrichtigungen$/)
     await expect(page.getByLabel('URL des Benachrichtigungsdienstes')).toBeVisible()
     await page.reload()
     await expect(page.getByLabel('URL des Benachrichtigungsdienstes')).toBeVisible()
@@ -97,15 +97,15 @@ test('every settings option displays only its own panel in both navigation direc
       directiveWarnings.push(message.text())
   })
   const sections = [
-    { id: 'notifications', name: /^Benachrichtigungen /, marker: () => page.getByLabel('URL des Benachrichtigungsdienstes') },
-    { id: 'recording', name: /^Aufnahme /, marker: () => page.getByRole('heading', { name: 'Globale Aufnahmevorgaben', exact: true }) },
-    { id: 'storage', name: /^Speicher und Aufbewahrung /, marker: () => page.getByRole('heading', { name: 'Speicher und Aufbewahrung', level: 3, exact: true }) },
-    { id: 'favorites', name: /^Lieblingsspiele /, marker: () => page.getByPlaceholder('Search for game...') },
-    { id: 'pwa', name: /^App und Mobilgeräte /, marker: () => page.getByRole('heading', { name: 'Progressive Web App', exact: true }) },
-    { id: 'api-keys', name: /^API-Schlüssel /, marker: () => page.getByRole('button', { name: 'Create API Key', exact: true }) },
-    { id: 'proxy', name: /^Proxy-Verwaltung /, marker: () => page.getByRole('heading', { name: 'Proxy System Status', exact: true }) },
-    { id: 'twitch', name: /^Twitch-Verbindung /, marker: () => page.getByLabel('Twitch OAuth token') },
-    { id: 'about', name: /^Über StreamVault /, marker: () => page.getByText('Automatische Aufzeichnung und Verwaltung von Twitch-Streams.', { exact: true }) },
+    { id: 'notifications', name: /^Benachrichtigungen$/, marker: () => page.getByLabel('URL des Benachrichtigungsdienstes') },
+    { id: 'recording', name: /^Aufnahme$/, marker: () => page.getByRole('heading', { name: 'Globale Aufnahmevorgaben', exact: true }) },
+    { id: 'storage', name: /^Speicher und Aufbewahrung$/, marker: () => page.getByRole('heading', { name: 'Speicher und Aufbewahrung', level: 3, exact: true }) },
+    { id: 'favorites', name: /^Lieblingsspiele$/, marker: () => page.getByPlaceholder('Search for game...') },
+    { id: 'pwa', name: /^App und Mobilgeräte$/, marker: () => page.getByRole('heading', { name: 'Progressive Web App', exact: true }) },
+    { id: 'api-keys', name: /^API-Schlüssel$/, marker: () => page.getByRole('button', { name: 'Create API Key', exact: true }) },
+    { id: 'proxy', name: /^Proxy-Verwaltung$/, marker: () => page.getByRole('heading', { name: 'Proxy System Status', exact: true }) },
+    { id: 'twitch', name: /^Twitch-Verbindung$/, marker: () => page.getByLabel('Twitch OAuth token') },
+    { id: 'about', name: /^Über StreamVault$/, marker: () => page.getByText('Automatische Aufzeichnung und Verwaltung von Twitch-Streams.', { exact: true }) },
   ]
   await page.goto('/settings?section=notifications')
   await expect(sections[0].marker()).toBeVisible()
@@ -137,13 +137,13 @@ test('keeps an unsaved notification draft through About without saving it', asyn
   const draft = 'https://synthetic.invalid/unsaved-settings-draft'
   await input.fill(draft)
   for (let visit = 0; visit < 3; visit++) {
-    await switchSection(page, 'about', /^Über StreamVault /)
+    await switchSection(page, 'about', /^Über StreamVault$/)
     await expect(page.getByText('Automatische Aufzeichnung und Verwaltung von Twitch-Streams.', { exact: true })).toBeVisible()
     await expect(input).toBeHidden()
-    await switchSection(page, 'recording', /^Aufnahme /)
+    await switchSection(page, 'recording', /^Aufnahme$/)
     await expect(page.getByRole('heading', { name: 'Globale Aufnahmevorgaben', exact: true })).toBeVisible()
     await expect(input).toBeHidden()
-    await switchSection(page, 'notifications', /^Benachrichtigungen /)
+    await switchSection(page, 'notifications', /^Benachrichtigungen$/)
     await expect(input).toHaveValue(draft)
   }
   expect(writes).toEqual([])
@@ -171,7 +171,7 @@ test('opens About directly before lazily visiting a settings panel', async ({ pa
   await expect(page.getByText('Automatische Aufzeichnung und Verwaltung von Twitch-Streams.', { exact: true })).toBeVisible()
   await expect(page.getByLabel('URL des Benachrichtigungsdienstes')).toHaveCount(0)
   expect(mediaRequests).toEqual([])
-  await switchSection(page, 'notifications', /^Benachrichtigungen /)
+  await switchSection(page, 'notifications', /^Benachrichtigungen$/)
   await expect(page.getByLabel('URL des Benachrichtigungsdienstes')).toBeVisible()
   expect(hostRequests.length).toBeGreaterThan(0)
   expect(mediaRequests).toEqual([])

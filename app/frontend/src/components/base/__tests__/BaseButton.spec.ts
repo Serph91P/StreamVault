@@ -26,6 +26,23 @@ describe('BaseButton', () => {
     expect(wrapper.emitted('click')).toBeUndefined()
   })
 
+  it('keeps the action name while loading without a custom loading label', async () => {
+    const wrapper = mount(BaseButton, { slots: { default: 'Save changes' } })
+    await wrapper.setProps({ loading: true })
+
+    const button = wrapper.get('button')
+    const labelId = button.attributes('aria-labelledby')
+    expect(labelId).toBeTruthy()
+    expect(wrapper.get(`[id="${labelId}"]`).text()).toBe('Save changes')
+    expect(button.attributes('aria-busy')).toBe('true')
+    await button.trigger('click')
+    expect(wrapper.emitted('click')).toBeUndefined()
+
+    await wrapper.setProps({ loading: false })
+    expect(button.attributes('aria-labelledby')).toBeUndefined()
+    expect(button.text()).toBe('Save changes')
+  })
+
   it('maps ordinary and primary buttons to the documented 44px and 48px target contracts', () => {
     const ordinary = mount(BaseButton, {
       props: { variant: 'secondary' },

@@ -1,12 +1,13 @@
 <template>
   <SurfaceCard
     variant="subtle"
+    :padding="false"
     hoverable
     class="streamer-card"
     :class="{ 'actions-open': showActions, 'is-live': isLive, 'is-recording': streamer.is_recording, 'list-mode': viewMode === 'list' }"
   >
     <div class="streamer-card-content">
-      <!-- Avatar/Thumbnail - CENTERED -->
+      <!-- Channel identity -->
       <div class="streamer-avatar-container">
         <div class="streamer-avatar" :class="{ 'is-live': isLive }">
           <img
@@ -25,7 +26,7 @@
         </div>
       </div>
 
-      <!-- Streamer Name - ALWAYS VISIBLE, FULL WIDTH, MAX 2 LINES -->
+      <!-- Public channel link -->
       <a
         :href="`https://twitch.tv/${streamer.username}`"
         target="_blank"
@@ -417,24 +418,11 @@ onUnmounted(() => {
   // Card-specific overrides
   :deep(.surface-card-body) {
     padding: var(--spacing-4);
-    min-height: 240px;
+    min-height: 0;
     overflow: visible;
     display: flex;
     flex-direction: column;
     flex: 1;
-  }
-
-  // RECORDING indicator: pulsing ring on a pseudo-element animating only
-  // opacity/transform (compositor-friendly). The previous box-shadow keyframe
-  // animation forced a repaint every frame on every recording card.
-  &.is-recording::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    border: 2px solid rgba(239, 68, 68, 0.7);
-    border-radius: var(--radius-xl);
-    pointer-events: none;
-    animation: pulse-recording 2s ease-in-out infinite;
   }
 
   // When actions dropdown is open, increase z-index to appear above other cards
@@ -445,28 +433,29 @@ onUnmounted(() => {
 }
 
 .streamer-card-content {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  align-content: start;
   align-items: center;
-  gap: var(--spacing-2);
+  gap: var(--spacing-2) var(--spacing-3);
   flex: 1;
   min-height: 0;
   position: relative;
   touch-action: pan-x pan-y;
 }
 
-/* Avatar Container - CENTERED */
+/* Compact identity, aligned with the title and metadata */
 .streamer-avatar-container {
   width: 100%;
   display: flex;
-  justify-content: center;
-  margin-bottom: var(--spacing-1);
+  justify-content: flex-start;
+  margin-bottom: 0;
 }
 
 .streamer-avatar {
   position: relative;
-  width: 72px;
-  height: 72px;
+  width: 48px;
+  height: 48px;
   flex-shrink: 0;
   border-radius: var(--radius-xl);
   overflow: hidden;
@@ -475,7 +464,6 @@ onUnmounted(() => {
 
   &.is-live {
     border-color: var(--danger-color);
-    box-shadow: 0 0 0 3px rgba(var(--danger-color-rgb), 0.2);
   }
 
   img {
@@ -501,27 +489,30 @@ onUnmounted(() => {
   }
 }
 
-/* Streamer Name - FULL WIDTH, CENTERED, MAX 2 LINES */
+/* Channel identity */
 .streamer-name-link {
   position: relative;
   z-index: 2;
   text-decoration: none;
   color: inherit;
-  display: block;
-  width: 100%;  /* Full width */
-  text-align: center;  /* Centered */
+  min-width: 0;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  padding-right: 44px;
+  text-align: left;
   transition: color v.$duration-200 v.$ease-out;
 
   &:hover {
-    color: var(--primary-color);
+    color: var(--sv-sem-action-foreground);
 
     .streamer-name {
-      color: var(--primary-color);
+      color: var(--sv-sem-action-foreground);
     }
   }
 
   &:focus-visible {
-    outline: 2px solid var(--primary-color);
+    outline: 2px solid var(--sv-sem-action-focus);
     outline-offset: 2px;
     border-radius: var(--radius-sm);
   }
@@ -551,18 +542,20 @@ onUnmounted(() => {
   position: relative;
   z-index: 2;
   display: flex;
-  justify-content: center;
+  justify-content: flex-start;
   align-items: center;
   gap: var(--spacing-2);
   flex-wrap: wrap;
   width: 100%;
+  grid-column: 1 / -1;
   min-height: 28px;
 }
 
-/* Stream Info - CENTERED */
+/* Stream information */
 .stream-info-container {
+  grid-column: 1 / -1;
   width: 100%;
-  text-align: center;
+  text-align: left;
   // Preserve the title's content height instead of allocating a zero flex basis
   // and shrinking .live-info to nothing in compact grid cards.
   flex: 1 0 auto;
@@ -603,7 +596,7 @@ onUnmounted(() => {
 }
 
 .stream-title {
-  font-size: var(--text-base);
+  font-size: var(--text-sm);
   font-weight: v.$font-medium;
   color: var(--text-primary);
   line-height: 1.5;
@@ -666,11 +659,12 @@ onUnmounted(() => {
   white-space: nowrap;
 }
 
-/* Stats - AT BOTTOM, CENTERED */
+/* Quiet metadata */
 .streamer-stats {
+  grid-column: 1 / -1;
   display: flex;
   gap: var(--spacing-2);
-  justify-content: center;
+  justify-content: flex-start;
   align-items: center;
   flex-wrap: wrap;
   margin-top: auto;
@@ -679,6 +673,8 @@ onUnmounted(() => {
 }
 
 .view-details-link {
+  grid-column: 1 / -1;
+  justify-self: start;
   position: relative;
   z-index: 2;
   display: inline-flex;
@@ -687,7 +683,7 @@ onUnmounted(() => {
   min-height: 44px;
   padding: var(--spacing-2) var(--spacing-3);
   border-radius: var(--radius-md);
-  color: var(--sv-sem-action-primary);
+  color: var(--sv-sem-action-foreground);
   font-size: var(--text-sm);
   font-weight: v.$font-semibold;
   text-decoration: none;
@@ -697,15 +693,9 @@ onUnmounted(() => {
   }
 
   &:focus-visible {
-    outline: 2px solid var(--primary-color);
+    outline: 2px solid var(--sv-sem-action-focus);
     outline-offset: 2px;
   }
-}
-
-// Dark mode is the unqualified root; use the high-contrast focus token rather
-// than the light-oriented primary action color on an in-flow card surface.
-:root:not([data-theme="light"]) .view-details-link {
-  color: var(--sv-sem-action-focus);
 }
 
 .stat {
@@ -723,87 +713,31 @@ onUnmounted(() => {
   }
 }
 
-/* LIVE stats - More prominent */
-.stat-viewers {
-  color: var(--sv-sem-status-danger);
-  font-weight: v.$font-semibold;
-}
-
-// List-mode's nested .stat rule has higher specificity than the semantic
-// variants above. Keep the status information legible on its card surface.
+// Only live viewer counts need a status accent; archive metadata stays quiet.
 .streamer-card-content .streamer-stats .stat-viewers {
   color: var(--sv-sem-status-danger);
 }
 
-.streamer-card-content .streamer-stats .stat-vods {
-  color: var(--sv-sem-status-success);
-}
+.stat-category {
+  max-width: 180px;
+  min-width: 0;
 
-// The light success token is intended for larger status UI and falls just
-// below AA for normal 14px metadata on the subtle card surface. Keep the VOD
-// accent, but use the established darker primary accent in the light theme.
-[data-theme="light"] .streamer-card-content .streamer-stats .stat-vods {
-  color: var(--sv-sem-action-primary);
-}
-
-.streamer-card-content .streamer-stats .stat-category {
-  color: var(--sv-sem-text-primary);
-}
-
-.streamer-card-content .streamer-stats .stat-time,
-.streamer-card-content .stream-info-container .streamer-description,
-.streamer-card-content .stream-info-container .last-stream-title,
-.streamer-card-content .stream-info-container .last-stream-category {
-  color: var(--sv-sem-text-secondary);
+  span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 }
 
 .streamer-card-content :deep(.status-badge-offline) {
   color: var(--sv-sem-text-secondary);
 }
 
-.stat-category {
-  color: var(--text-primary);
-  font-weight: v.$font-medium;
-
-  /* Truncate long category names */
-  max-width: 150px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.stat-vods {
-  color: var(--primary-color);
-}
-
-[data-theme="light"] .stat-vods {
-  color: v.$primary-800;
-}
-
-[data-theme="light"] .status-row :deep(.status-badge-offline) {
-  color: var(--text-primary);
-}
-
-.stat-time {
-  color: var(--text-secondary);
-}
-
-.stat-live {
-  color: var(--danger-color);
-  font-weight: v.$font-semibold;
-}
-
-.stat-recording {
-  color: var(--danger-text-color);
-  font-size: var(--text-xs);
-  font-weight: v.$font-semibold;
-}
-
 /* Actions - TOP RIGHT CORNER (ABSOLUTE POSITIONING) */
 .streamer-actions {
   position: absolute;
-  top: var(--spacing-2);
-  right: var(--spacing-2);
+  top: 0;
+  right: 0;
   z-index: 2;
 }
 
@@ -855,7 +789,7 @@ onUnmounted(() => {
   }
 
   &:focus-visible {
-    outline: 2px solid var(--primary-color);
+    outline: 2px solid var(--sv-sem-action-focus);
     outline-offset: 2px;
   }
 }
@@ -864,8 +798,8 @@ onUnmounted(() => {
   position: fixed;
 
   // Solid background - a backdrop-filter on top of it had no visible effect.
-  background: var(--glass-bg-solid);
-  border: 1px solid var(--glass-border);
+  background: var(--sv-sem-surface-raised);
+  border: 1px solid var(--sv-sem-border-default);
   border-radius: var(--radius-md);
   box-shadow: var(--glass-shadow-lg);
 
@@ -935,14 +869,13 @@ onUnmounted(() => {
 @include m.respond-below('sm') {  // < 640px
   .streamer-card {
     :deep(.surface-card-body) {
-      min-height: 260px;
-      max-height: 300px;
+      min-height: 0;
     }
   }
 
   .streamer-avatar {
-    width: 80px;
-    height: 80px;
+    width: 48px;
+    height: 48px;
   }
 }
 
@@ -966,8 +899,9 @@ onUnmounted(() => {
 
   .streamer-card-content {
     display: grid;
-    grid-template-columns: auto 1fr auto auto auto;
+    grid-template-columns: 48px minmax(120px, 1fr) minmax(0, 1.4fr) minmax(0, 1fr) auto;
     grid-template-rows: auto auto;
+    align-content: center;
     align-items: center;
     gap: var(--spacing-1) var(--spacing-4);
     width: 100%;
@@ -993,6 +927,7 @@ onUnmounted(() => {
     grid-row: 1;
     grid-column: 2;
     align-self: end;
+    min-height: 44px;
     text-align: left;
     width: auto;
     padding: 0;
@@ -1151,30 +1086,4 @@ onUnmounted(() => {
   }
 }
 
-// Animations
-@keyframes pulse-live {
-  0%, 100% {
-    opacity: 1;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0.7;
-    transform: scale(1.2);
-  }
-}
-
-@keyframes pulse-recording {
-  0% {
-    opacity: 0.9;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0;
-    transform: scale(1.025);
-  }
-  100% {
-    opacity: 0;
-    transform: scale(1);
-  }
-}
 </style>

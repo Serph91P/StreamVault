@@ -684,8 +684,8 @@ select.form-control option {
 }
 
 .btn-danger {
-  background-color: var(--danger-color);
-  color: white;
+  background-color: var(--sv-fdn-color-red-700);
+  color: var(--sv-sem-text-inverse);
 }
 
 .btn:hover:not(:disabled) {

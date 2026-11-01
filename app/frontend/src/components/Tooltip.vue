@@ -35,7 +35,7 @@ defineProps<{
   align-items: center;
   justify-content: center;
   background-color: rgba(255, 255, 255, 0.15);
-  color: var(--text-on-primary);
+  color: var(--sv-sem-text-primary);
   border-radius: 50%;
   font-size: 12px;
   font-weight: bold;

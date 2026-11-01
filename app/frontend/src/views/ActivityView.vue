@@ -25,7 +25,7 @@ const showHistory = computed(() => route.query.tab === 'history')
       <router-link to="/activity?tab=history" :aria-current="showHistory ? 'page' : undefined">Benachrichtigungsverlauf</router-link>
     </nav>
     <NotificationFeed v-if="showHistory" />
-    <HomeView v-else />
+    <HomeView v-else embedded />
   </div>
 </template>
 
@@ -47,7 +47,7 @@ const showHistory = computed(() => route.query.tab === 'history')
     border-bottom: 2px solid transparent;
 
     &[aria-current] {
-      color: var(--primary-color);
+      color: var(--sv-sem-action-foreground);
       border-bottom-color: currentColor;
     }
   }

@@ -1038,8 +1038,9 @@ onUnmounted(() => {
   }
 
   &.danger:hover:not(:disabled) {
-    background: var(--danger-color);
-    border-color: var(--danger-color);
+    background: var(--sv-fdn-color-red-700);
+    border-color: var(--sv-fdn-color-red-700);
+    color: var(--sv-sem-text-inverse);
   }
 
   &:disabled {
@@ -1195,9 +1196,9 @@ onUnmounted(() => {
   }
 
   &.confirm {
-    background: var(--danger-color);
-    border: 1px solid var(--danger-color);
-    color: white;
+    background: var(--sv-fdn-color-red-700);
+    border: 1px solid var(--sv-fdn-color-red-700);
+    color: var(--sv-sem-text-inverse);
 
     &:hover:not(:disabled) {
       filter: brightness(1.1);

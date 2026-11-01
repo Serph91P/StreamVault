@@ -299,9 +299,9 @@ onMounted(load)
   cursor: not-allowed;
 }
 .btn-primary {
-  background: var(--primary-color);
-  border-color: var(--primary-color);
-  color: var(--text-on-primary);
+  background: var(--sv-cmp-button-background);
+  border-color: var(--sv-cmp-button-background);
+  color: var(--sv-cmp-button-foreground);
 }
 .btn-danger {
   background: rgba(255, 80, 80, 0.15);

@@ -7,7 +7,7 @@ const routes = [
   { path: '/streamers/manage', heading: 'Kanalverwaltung' },
   { path: '/streamers', heading: 'Meine Kanäle' },
   { path: '/streamers/1', heading: 'Streamer Alpha' },
-  { path: '/videos', heading: 'Videos' },
+  { path: '/videos', heading: 'Aufzeichnungen' },
 ]
 
 for (const route of routes) {

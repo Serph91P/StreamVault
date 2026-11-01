@@ -1662,13 +1662,13 @@ onMounted(() => {
 }
 
 .file-ext.mp4 {
-  background: var(--success-color);
-  color: white;
+  background: var(--sv-fdn-color-green-700);
+  color: var(--sv-sem-text-inverse);
 }
 
 .file-ext.ts {
-  background: var(--info-color);
-  color: white;
+  background: var(--sv-fdn-color-blue-700);
+  color: var(--sv-sem-text-inverse);
 }
 
 .more-files {

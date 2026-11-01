@@ -361,7 +361,6 @@
 
 // Settings View with Vue.js tab design
 .settings-view {
-  @extend .content-view;
 
   .settings-container {
     background: v.$background-card;

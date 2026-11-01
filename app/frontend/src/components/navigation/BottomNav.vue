@@ -30,7 +30,7 @@
       :aria-current="isActiveRoute(tab.route) ? 'page' : undefined"
     >
       <!-- Icon -->
-      <svg class="nav-icon">
+      <svg class="nav-icon" aria-hidden="true">
         <use :href="`#icon-${tab.icon}`" />
       </svg>
 
@@ -111,8 +111,8 @@ const mobileConnectivityLabel = computed(() => {
   backface-visibility: hidden;
 
   // Opaque tokenized shell surface: navigation does not use glass or blur.
-  background: var(--background-card);
-  border-top: 1px solid var(--border-color);
+  background: var(--sv-sem-surface-panel);
+  border-top: 1px solid var(--sv-sem-border-default);
   box-shadow: none;
 
   display: flex;
@@ -137,10 +137,9 @@ const mobileConnectivityLabel = computed(() => {
   min-height: 44px;
   padding: v.$spacing-2 v.$spacing-3;
   border: 1px solid var(--border-color);
-  border-radius: var(--radius-full);
-  background: var(--background-card);
-  box-shadow: var(--shadow-md);
-  color: var(--text-primary);
+  border-radius: var(--sv-fdn-radius-md);
+  background: var(--sv-sem-surface-panel);
+  color: var(--sv-sem-text-primary);
   font-size: v.$text-xs;
   font-weight: v.$font-semibold;
   line-height: 1.2;
@@ -187,9 +186,9 @@ const mobileConnectivityLabel = computed(() => {
   min-height: 44px;
   padding: 0 v.$spacing-2;
   border: 1px solid var(--glass-border-hover);
-  border-radius: var(--radius-full);
-  background: var(--glass-bg-subtle);
-  color: var(--text-primary);
+  border-radius: var(--sv-fdn-radius-md);
+  background: var(--sv-sem-surface-raised);
+  color: var(--sv-sem-text-primary);
   font-size: v.$text-xs;
   font-weight: v.$font-semibold;
   cursor: pointer;
@@ -197,7 +196,7 @@ const mobileConnectivityLabel = computed(() => {
 
 .nav-tab {
   position: relative;
-  flex: 1 1 0;
+  flex: 1 1 auto;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -206,30 +205,22 @@ const mobileConnectivityLabel = computed(() => {
 
   min-width: 44px;
   min-height: 52px;
-  padding: v.$spacing-1;
-  border-radius: var(--radius-lg);
+  padding: v.$spacing-1 2px;
+  border-radius: var(--sv-fdn-radius-md);
 
   background: transparent;
   border: none;
   cursor: pointer;
-  color: var(--text-secondary);
-  transition: all v.$duration-200 v.$ease-in-out;
+  color: var(--sv-sem-text-secondary);
 
   &:hover {
-    background: var(--glass-bg-subtle);
-    color: var(--text-primary);
+    background: var(--sv-sem-surface-raised);
+    color: var(--sv-sem-text-primary);
   }
 
   &.active {
-    color: var(--primary-color);
-
-    [data-theme="light"] & {
-      color: v.$primary-700;
-    }
-
-    .nav-icon {
-      transform: scale(1.1);
-    }
+    background: var(--sv-sem-surface-raised);
+    color: var(--sv-sem-action-focus);
 
     .nav-label {
       font-weight: v.$font-semibold;
@@ -247,9 +238,9 @@ const mobileConnectivityLabel = computed(() => {
 }
 
 .nav-label {
-  font-size: 10px;
+  font-size: 11px;
   max-width: 100%;
-  overflow-wrap: anywhere;
+  white-space: nowrap;
   text-align: center;
   font-weight: v.$font-medium;
   line-height: 1;
@@ -262,8 +253,8 @@ const mobileConnectivityLabel = computed(() => {
   right: calc(50% - 24px);
   display: inline-grid;
   place-items: center;
-  background: var(--danger-color);
-  color: white;
+  background: var(--sv-sem-action-primary);
+  color: var(--sv-sem-text-inverse);
   min-width: 18px;
   height: 18px;
   padding: 0 v.$spacing-1;
@@ -272,6 +263,9 @@ const mobileConnectivityLabel = computed(() => {
   font-weight: v.$font-bold;
   line-height: 1;
   text-align: center;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bottom-nav, .nav-icon, .nav-label { transition: none; }
 }
 </style>

@@ -7,14 +7,14 @@
     >
       <template #actions>
         <div class="header-actions">
-          <router-link to="/streamers/manage" class="btn btn-secondary btn-sm">Kanäle verwalten</router-link>
-          <router-link to="/add-streamer/import" class="btn btn-secondary btn-sm">Follows importieren</router-link>
           <router-link to="/add-streamer" class="btn btn-primary btn-sm add-streamer-link" v-ripple>
             <svg class="icon" aria-hidden="true">
               <use href="#icon-plus" />
             </svg>
             Kanal hinzufügen
           </router-link>
+          <router-link to="/streamers/manage" class="btn btn-secondary btn-sm">Kanäle verwalten</router-link>
+          <router-link to="/add-streamer/import" class="btn btn-secondary btn-sm">Follows importieren</router-link>
         </div>
       </template>
     </PageHeader>
@@ -62,10 +62,11 @@
           @click="activeFilter = tab.value"
           :class="{ active: activeFilter === tab.value }"
           :aria-pressed="activeFilter === tab.value"
+          :aria-label="`${tab.label} ${tab.count}`"
           class="filter-tab"
           v-ripple
         >
-          {{ tab.label }}
+          {{ tab.value === 'recording' ? 'Aufnahme' : tab.label }}
           <span v-if="tab.count !== undefined" class="tab-badge">
             {{ tab.count }}
           </span>
@@ -77,6 +78,7 @@
         <button
           @click="viewMode = 'grid'"
           :class="{ active: viewMode === 'grid' }"
+          :aria-pressed="viewMode === 'grid'"
           class="toggle-btn"
           aria-label="Kacheln anzeigen"
           title="Kacheln anzeigen"
@@ -89,6 +91,7 @@
         <button
           @click="viewMode = 'list'"
           :class="{ active: viewMode === 'list' }"
+          :aria-pressed="viewMode === 'list'"
           class="toggle-btn"
           aria-label="Liste anzeigen"
           title="Liste anzeigen"
@@ -181,10 +184,9 @@
     <!-- Streamers Grid/List -->
     <div v-else class="streamers-container" :class="[`view-${viewMode}`, viewMode === 'grid' ? 'grid-streamers' : '']">
       <div
-        v-for="(streamer, index) in filteredAndSortedStreamers"
+        v-for="streamer in filteredAndSortedStreamers"
         :key="streamer.id"
         class="streamer-wrapper"
-        :style="{ animationDelay: `${index * 50}ms` }"
       >
         <StreamerCard
           :streamer="streamer"
@@ -608,27 +610,6 @@ onUnmounted(() => {
   a { margin-left: var(--spacing-2); }
 }
 
-.auto-refresh-indicator {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--spacing-2);
-  padding: var(--spacing-1) var(--spacing-2);
-  background: rgba(var(--success-500-rgb), 0.1);
-  color: var(--success-text-color);
-  border-radius: var(--radius-md);
-  font-size: var(--text-xs);
-  font-weight: v.$font-medium;
-}
-
-.pulse-dot {
-  display: inline-block;
-  width: 6px;
-  height: 6px;
-  background: var(--success-text-color);
-  border-radius: 50%;
-  animation: pulse 2s ease-in-out infinite;
-}
-
 .header-actions {
   display: flex;
   align-items: center;
@@ -654,61 +635,6 @@ onUnmounted(() => {
   text-decoration: none;
 }
 
-@keyframes pulse {
-  0%, 100% {
-    opacity: 1;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0.5;
-    transform: scale(1.2);
-  }
-}
-
-.btn-action {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--spacing-2);
-  padding: var(--spacing-3) var(--spacing-4);
-  min-height: 44px;
-  border-radius: var(--radius-lg);
-  font-size: var(--text-sm);
-  font-weight: v.$font-semibold;
-  border: none;
-  cursor: pointer;
-  text-decoration: none;
-  transition: all v.$duration-200 v.$ease-out;
-
-  .icon {
-    width: 18px;
-    height: 18px;
-    stroke: currentColor;
-    fill: none;
-  }
-
-  &.btn-primary {
-    background: v.$primary-700;
-    color: white;
-
-    &:hover {
-      background: v.$primary-800;  /* Darker green when ON */
-      box-shadow: var(--shadow-md);
-    }
-  }
-
-  &.btn-secondary {
-    background: var(--background-card);
-    color: var(--text-primary);
-    border: 1px solid var(--border-color);
-
-    &:hover {
-      background: var(--primary-color);  /* Green background when hovering OFF state */
-      border-color: var(--primary-color);
-      color: white;  /* White text when hovering */
-    }
-  }
-}
-
 // Controls Bar
 .controls-bar {
   display: grid;
@@ -716,6 +642,8 @@ onUnmounted(() => {
   gap: var(--spacing-3);
   align-items: center;
   margin-bottom: var(--spacing-4);
+  padding-bottom: var(--spacing-3);
+  border-bottom: 1px solid var(--sv-sem-border-default);
 }
 
 $ctrl-h: 44px;
@@ -739,18 +667,18 @@ $ctrl-h: 44px;
   .search-input {
     width: 100%;
     // Match the 48px filter/sort groups (40px controls in 3px padding + border)
-    min-height: calc(#{$ctrl-h} + 8px);
+    min-height: 48px;
     padding: 0 var(--spacing-10);
     background: var(--background-card);
     border: 1px solid var(--border-color);
-    border-radius: var(--radius-lg);
+    border-radius: var(--radius-md);
     color: var(--text-primary);
     font-size: var(--text-sm);
     transition: all v.$duration-200 v.$ease-out;
 
     &:focus {
       outline: none;
-      border-color: var(--primary-color);
+      border-color: var(--sv-sem-action-foreground);
       box-shadow: 0 0 0 3px rgba(var(--primary-500-rgb), 0.1);
     }
 
@@ -798,8 +726,8 @@ $ctrl-h: 44px;
   display: flex;
   gap: var(--spacing-1);
   background: var(--background-card);
-  border-radius: var(--radius-lg);
-  padding: 3px;
+  border-radius: var(--radius-md);
+  padding: 1px;
   border: 1px solid var(--border-color);
 }
 
@@ -821,20 +749,18 @@ $ctrl-h: 44px;
   transition: all v.$duration-200 v.$ease-out;
 
   &.active {
-    background: v.$primary-800;
-    color: white;
+    background: var(--sv-sem-surface-selected);
+    color: var(--sv-sem-text-primary);
 
     .tab-badge {
-      // Keep the compact count pill opaque: alpha compositing against the
-      // active teal surface made its white small text fail contrast in light UI.
-      background: v.$primary-900;
-      color: white;
+      background: var(--sv-sem-surface-panel);
+      color: var(--sv-sem-text-primary);
     }
   }
 
   &:hover:not(.active) {
     background: rgba(var(--primary-500-rgb), 0.1);
-    color: var(--primary-color);
+    color: var(--sv-sem-action-foreground);
   }
 
   .tab-badge {
@@ -856,14 +782,14 @@ $ctrl-h: 44px;
   display: flex;
   gap: var(--spacing-1);
   background: var(--background-card);
-  border-radius: var(--radius-lg);
-  padding: 3px;
+  border-radius: var(--radius-md);
+  padding: 1px;
   border: 1px solid var(--border-color);
 }
 
 .toggle-btn {
-  width: $ctrl-h;
-  min-height: $ctrl-h;
+  width: 48px;
+  min-height: 48px;
   padding: 0;
   background: transparent;
   border: none;
@@ -879,10 +805,10 @@ $ctrl-h: 44px;
   }
 
   &.active {
-    background: v.$primary-700;
+    background: var(--sv-sem-surface-selected);
 
     .icon {
-      stroke: white;
+      stroke: var(--sv-sem-text-primary);
     }
   }
 
@@ -900,11 +826,11 @@ $ctrl-h: 44px;
   margin: 0;
   // Match the visual height of .filter-tabs / .view-toggle, whose 40px
   // buttons sit inside 3px padding + 1px border.
-  min-height: calc(#{$ctrl-h} + 8px);
+  min-height: 48px;
   min-width: 180px;
   padding: 0 var(--spacing-8) 0 var(--spacing-3);
   border: 1px solid var(--border-color);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-md);
   background: var(--background-card);
   cursor: pointer;
   overflow: hidden;
@@ -971,7 +897,7 @@ $ctrl-h: 44px;
 }
 
 .sort-control-wrap:focus-within {
-  border-color: var(--primary-color);
+  border-color: var(--sv-sem-action-foreground);
   box-shadow: 0 0 0 3px rgba(var(--primary-500-rgb), 0.1);
 }
 
@@ -979,7 +905,8 @@ $ctrl-h: 44px;
 .results-info {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: flex-start;
+  flex-wrap: wrap;
   gap: var(--spacing-2);
   grid-column: 1 / -1;
   min-height: $ctrl-h;
@@ -1056,21 +983,6 @@ $ctrl-h: 44px;
   }
 }
 
-.streamer-wrapper {
-  // Keep the staggered entrance movement without fading readable content
-  // through low-contrast intermediate colors.
-  animation: fade-in-up v.$duration-500 v.$ease-out backwards;
-}
-
-@keyframes fade-in-up {
-  from {
-    transform: translateY(20px);
-  }
-  to {
-    transform: translateY(0);
-  }
-}
-
 @include m.respond-below('lg') {  // < 1024px
   .controls-bar {
     grid-template-columns: minmax(0, 1fr) auto minmax(204px, auto);
@@ -1081,41 +993,73 @@ $ctrl-h: 44px;
   }
 }
 
-@include m.respond-below('md') {  // < 768px: stack controls at equal width
+@include m.respond-below('md') {
   .controls-bar {
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: 102px minmax(0, 1fr);
+    gap: var(--spacing-2);
   }
 
   .filter-tabs {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 0.9fr) minmax(0, 1.25fr) minmax(0, 1fr);
     width: 100%;
-    overflow-x: auto;
+    min-width: 0;
+  }
 
-    .filter-tab {
-      flex: 1;
-      justify-content: center;
-      white-space: nowrap;
+  .filter-tab {
+    justify-content: center;
+    min-width: 0;
+    padding-inline: 2px;
+    flex-wrap: wrap;
+    white-space: nowrap;
+    gap: var(--spacing-1);
+    font-size: var(--text-xs);
+
+    .tab-badge {
+      min-width: 18px;
+      height: 18px;
+      font-size: 11px;
     }
   }
 
   .view-toggle {
-    width: 100%;
+    width: auto;
+    gap: 0;
 
     .toggle-btn {
-      flex: 1;
-      width: auto;
+      flex: 0 0 48px;
+      width: 48px;
+      min-width: 48px;
+      min-height: 48px;
     }
   }
 
   .sort-control-wrap {
     width: 100%;
+    min-width: 0;
+    min-height: 48px;
+  }
+
+  .sort-label,
+  .sort-icon {
+    display: none;
+  }
+
+  .sort-value {
+    min-width: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    line-height: 1.3;
   }
 
   .results-info {
     justify-content: flex-start;
+    padding-inline: 0;
   }
 }
 
-@include m.respond-below('sm') {  // < 640px
+@include m.respond-below('sm') {
   .streamers-view {
     padding: var(--spacing-4) var(--spacing-3);
 
@@ -1125,101 +1069,37 @@ $ctrl-h: 44px;
       width: 100%;
     }
 
-    :deep(.page-header-content) {
-      flex-direction: column;
-      gap: var(--spacing-3);
-    }
-
     .header-actions {
       display: grid;
       grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
 
-      :deep(.btn),
-      .add-streamer-link {
+      :deep(.btn) {
         justify-content: center;
         min-width: 0;
+        padding-inline: var(--spacing-2);
+      }
+
+      .add-streamer-link {
+        grid-column: 1 / -1;
       }
     }
   }
 
-  .btn-action {
-    flex: 1;
-    justify-content: center;
-    min-height: 44px;  // Touch-friendly
-  }
-
-  .controls-bar {
-    gap: var(--spacing-2);
-    grid-template-columns: minmax(0, 1fr) auto;
-  }
-
-  .search-box {
-    .search-input {
-      min-height: 44px;  // Touch-friendly
-      font-size: 16px;  // Prevent iOS zoom
-      padding: 0 var(--spacing-10);
-    }
-
-    .clear-btn {
-      width: 44px;
-      height: 44px;
-
-      .icon {
-        width: 18px;
-        height: 18px;
-      }
-    }
-  }
-
-  .filter-tabs {
-    grid-column: 1 / -1;
-    width: 100%;
-    justify-content: stretch;
-
-    .filter-tab {
-      flex: 1;
-      justify-content: center;
-      min-height: 44px;  // WCAG 2.5.5 / Apple HIG touch-target
-      padding: var(--spacing-2) var(--spacing-2);
-      font-size: var(--text-xs);
-
-      .tab-badge {
-        font-size: 10px;
-        min-width: 18px;
-        height: 18px;
-      }
-    }
-  }
-
-  .view-toggle {
-    flex: none;  // Fixed width
-
-    .toggle-btn {
-      min-width: 44px;  // Touch-friendly
-      min-height: 44px;
-      padding: var(--spacing-2);
-
-      .icon {
-        width: 22px;
-        height: 22px;
-      }
-    }
-  }
-
-  .sort-control-wrap {
-    grid-column: 1 / -1;
-    min-height: 44px;
+  .search-box .search-input {
+    min-height: 48px;
+    font-size: 16px;
   }
 
   .sort-control {
     min-width: 0;
-    min-height: 44px;
     font-size: 16px;
   }
+}
 
-  .results-info {
-    width: 100%;
-    justify-content: flex-start;
+// At the narrowest supported width, give all status names and counts room.
+@include m.respond-below('xs') {
+  .filter-tabs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 </style>

@@ -278,6 +278,7 @@
     "app/frontend/tests/e2e/streamers-filter-badge-contrast.spec.ts",
     "app/frontend/tests/e2e/system-hub.spec.ts",
     "app/frontend/tests/e2e/touch-gestures.spec.ts",
+    "app/frontend/tests/e2e/ui-consistency.spec.ts",
     "app/frontend/tests/e2e/ui-readiness.spec.ts",
     "app/frontend/tests/e2e/ui-standards.spec.ts",
     "app/frontend/tests/e2e/ux06-player.spec.ts",
@@ -1990,6 +1991,7 @@
     "app/frontend/src/stores/recordings.ts",
     "app/frontend/src/styles/_animations.scss",
     "app/frontend/src/styles/_components.scss",
+    "app/frontend/src/styles/_foundation-bridge.scss",
     "app/frontend/src/styles/_foundation.generated.scss",
     "app/frontend/src/styles/_glass-system.scss",
     "app/frontend/src/styles/_layout.scss",
@@ -2037,6 +2039,7 @@
     "app/frontend/tests/e2e/pwa-offline-navigation.spec.ts",
     "app/frontend/tests/e2e/streamers-filter-badge-contrast.spec.ts",
     "app/frontend/tests/e2e/touch-gestures.spec.ts",
+    "app/frontend/tests/e2e/ui-consistency.spec.ts",
     "app/frontend/tests/e2e/ui-standards.spec.ts",
     "app/frontend/tests/e2e/ux06-player.spec.ts",
     "app/frontend/tests/fixtures/foundation-harness/FoundationHarness.vue",
@@ -2158,6 +2161,7 @@
     "app/frontend/tests/e2e/pwa-offline-navigation.spec.ts",
     "app/frontend/tests/e2e/streamers-filter-badge-contrast.spec.ts",
     "app/frontend/tests/e2e/touch-gestures.spec.ts",
+    "app/frontend/tests/e2e/ui-consistency.spec.ts",
     "app/frontend/tests/e2e/ui-readiness.spec.ts",
     "app/frontend/tests/e2e/ui-standards.spec.ts",
     "app/frontend/tests/e2e/ux06-player.spec.ts",
@@ -2203,7 +2207,7 @@
     },
     {
       "file": "app/frontend/src/components/base/BasePanel.vue",
-      "line": 146,
+      "line": 145,
       "match": "@media (max-width: 767px"
     },
     {
@@ -2223,57 +2227,57 @@
     },
     {
       "file": "app/frontend/src/styles/_components.scss",
-      "line": 826,
+      "line": 441,
       "match": "@media (min-width: map.get(v.$breakpoints, 'md'"
     },
     {
       "file": "app/frontend/src/styles/_components.scss",
-      "line": 867,
+      "line": 482,
       "match": "@media (max-width: map.get(v.$breakpoints, 'sm'"
     },
     {
       "file": "app/frontend/src/styles/_components.scss",
-      "line": 893,
+      "line": 508,
       "match": "@media (max-width: map.get(v.$breakpoints, 'sm'"
     },
     {
       "file": "app/frontend/src/styles/_components.scss",
-      "line": 969,
+      "line": 584,
       "match": "@media (min-width: map.get(v.$breakpoints, 'md'"
     },
     {
       "file": "app/frontend/src/styles/_components.scss",
-      "line": 975,
+      "line": 590,
       "match": "@media (min-width: map.get(v.$breakpoints, 'lg'"
     },
     {
       "file": "app/frontend/src/styles/_components.scss",
-      "line": 1285,
+      "line": 887,
       "match": "@media (min-width: map.get(v.$breakpoints, 'md'"
     },
     {
       "file": "app/frontend/src/styles/_components.scss",
-      "line": 1374,
+      "line": 976,
       "match": "@media (min-width: map.get(v.$breakpoints, 'md'"
     },
     {
       "file": "app/frontend/src/styles/_components.scss",
-      "line": 1466,
+      "line": 1068,
       "match": "@media (min-width: map.get(v.$breakpoints, 'md'"
     },
     {
       "file": "app/frontend/src/styles/_components.scss",
-      "line": 1616,
+      "line": 1218,
       "match": "@media (min-width: map.get(v.$breakpoints, 'md'"
     },
     {
       "file": "app/frontend/src/styles/_components.scss",
-      "line": 1898,
+      "line": 1500,
       "match": "@media (min-width: map.get(v.$breakpoints, 'md'"
     },
     {
       "file": "app/frontend/src/styles/_components.scss",
-      "line": 2451,
+      "line": 2053,
       "match": "@media (max-width: map.get(v.$breakpoints, 'sm'"
     },
     {
@@ -2568,77 +2572,77 @@
     },
     {
       "file": "app/frontend/src/styles/_views.scss",
-      "line": 375,
+      "line": 374,
       "match": "@media (min-width: map.get(v.$breakpoints, 'md'"
     },
     {
       "file": "app/frontend/src/styles/_views.scss",
-      "line": 464,
+      "line": 463,
       "match": "@media (max-width: map.get(v.$breakpoints, 'sm'"
     },
     {
       "file": "app/frontend/src/styles/_views.scss",
-      "line": 511,
+      "line": 510,
       "match": "@media (min-width: map.get(v.$breakpoints, 'md'"
     },
     {
       "file": "app/frontend/src/styles/_views.scss",
-      "line": 568,
+      "line": 567,
       "match": "@media (max-width: map.get(v.$breakpoints, 'md'"
     },
     {
       "file": "app/frontend/src/styles/_views.scss",
-      "line": 572,
+      "line": 571,
       "match": "@media (min-width: map.get(v.$breakpoints, 'md'"
     },
     {
       "file": "app/frontend/src/styles/_views.scss",
-      "line": 604,
+      "line": 603,
       "match": "@media (min-width: map.get(v.$breakpoints, 'md'"
     },
     {
       "file": "app/frontend/src/styles/_views.scss",
-      "line": 617,
+      "line": 616,
       "match": "@media (min-width: map.get(v.$breakpoints, 'md'"
     },
     {
       "file": "app/frontend/src/styles/_views.scss",
-      "line": 638,
+      "line": 637,
       "match": "@media (min-width: map.get(v.$breakpoints, 'md'"
     },
     {
       "file": "app/frontend/src/styles/_views.scss",
-      "line": 653,
+      "line": 652,
       "match": "@media (max-width: map.get(v.$breakpoints, 'sm'"
     },
     {
       "file": "app/frontend/src/styles/_views.scss",
-      "line": 720,
+      "line": 719,
       "match": "@media (min-width: map.get(v.$breakpoints, 'md'"
     },
     {
       "file": "app/frontend/src/styles/_views.scss",
-      "line": 752,
+      "line": 751,
       "match": "@media (min-width: map.get(v.$breakpoints, 'md'"
     },
     {
       "file": "app/frontend/src/styles/_views.scss",
-      "line": 768,
+      "line": 767,
       "match": "@media (max-width: map.get(v.$breakpoints, 'sm'"
     },
     {
       "file": "app/frontend/src/styles/_views.scss",
-      "line": 811,
+      "line": 810,
       "match": "@media (min-width: map.get(v.$breakpoints, 'md'"
     },
     {
       "file": "app/frontend/src/styles/_views.scss",
-      "line": 885,
+      "line": 884,
       "match": "@media (min-width: map.get(v.$breakpoints, 'md'"
     },
     {
       "file": "app/frontend/src/styles/_views.scss",
-      "line": 889,
+      "line": 888,
       "match": "@media (min-width: map.get(v.$breakpoints, 'lg'"
     },
     {
@@ -2652,9 +2656,19 @@
       "match": "@media (max-width: 540px"
     },
     {
+      "file": "app/frontend/src/views/StreamersView.vue",
+      "line": 1100,
+      "match": "@media (max-width: 360px"
+    },
+    {
       "file": "app/frontend/src/views/VideoPlayerView.vue",
-      "line": 1316,
+      "line": 1317,
       "match": "@media (max-width: 767px"
+    },
+    {
+      "file": "app/frontend/src/views/VideosView.vue",
+      "line": 1362,
+      "match": "@media (max-width: 360px"
     }
   ],
   "directDomMutations": [
@@ -2935,7 +2949,7 @@
     },
     {
       "file": "app/frontend/src/components/cards/StreamerCard.vue",
-      "line": 383,
+      "line": 384,
       "match": "document.querySelector"
     },
     {
@@ -3340,7 +3354,7 @@
     },
     {
       "file": "app/frontend/src/views/StreamerDetailView.vue",
-      "line": 540,
+      "line": 497,
       "match": "document.getElementById"
     },
     {
@@ -3619,6 +3633,11 @@
       "match": "document.documentElement"
     },
     {
+      "file": "app/frontend/tests/e2e/streamers-filter-badge-contrast.spec.ts",
+      "line": 62,
+      "match": "document.querySelector"
+    },
+    {
       "file": "app/frontend/tests/e2e/system-hub.spec.ts",
       "line": 39,
       "match": "document.documentElement"
@@ -3626,6 +3645,21 @@
     {
       "file": "app/frontend/tests/e2e/system-hub.spec.ts",
       "line": 39,
+      "match": "document.documentElement"
+    },
+    {
+      "file": "app/frontend/tests/e2e/ui-consistency.spec.ts",
+      "line": 74,
+      "match": "document.documentElement"
+    },
+    {
+      "file": "app/frontend/tests/e2e/ui-consistency.spec.ts",
+      "line": 74,
+      "match": "document.documentElement"
+    },
+    {
+      "file": "app/frontend/tests/e2e/ui-consistency.spec.ts",
+      "line": 86,
       "match": "document.documentElement"
     },
     {
@@ -4237,47 +4271,47 @@
     },
     {
       "file": "app/frontend/src/views/SettingsView.vue",
-      "line": 261,
+      "line": 252,
       "match": "let panelHostRequest = 0"
     },
     {
       "file": "app/frontend/src/views/SettingsView.vue",
-      "line": 262,
+      "line": 253,
       "match": "let panelHostAttempt = 0"
     },
     {
       "file": "app/frontend/src/views/SettingsView.vue",
-      "line": 263,
+      "line": 254,
       "match": "let acceptsPanelHost = true"
     },
     {
       "file": "app/frontend/src/views/SettingsView.vue",
-      "line": 373,
+      "line": 364,
       "match": "const defaultNotificationSettings = {"
     },
     {
       "file": "app/frontend/src/views/StreamerDetailView.vue",
-      "line": 521,
+      "line": 478,
       "match": "const cockpitTabs = ["
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 241,
+      "line": 243,
       "match": "const validFilters = new "
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 252,
+      "line": 254,
       "match": "const REFRESH_INTERVAL = 3"
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 254,
+      "line": 256,
       "match": "const sortOptions = ["
     },
     {
       "file": "app/frontend/src/views/VideosView.vue",
-      "line": 375,
+      "line": 376,
       "match": "const sortOptions = ["
     },
     {
@@ -4344,6 +4378,11 @@
       "file": "app/frontend/tests/e2e/stream-history.spec.ts",
       "line": 4,
       "match": "const viewports = ["
+    },
+    {
+      "file": "app/frontend/tests/e2e/ui-consistency.spec.ts",
+      "line": 4,
+      "match": "const widths = ["
     },
     {
       "file": "app/frontend/tests/e2e/ui-standards.spec.ts",
@@ -4499,12 +4538,12 @@
     },
     {
       "file": "app/frontend/src/components/cards/StreamerCard.vue",
-      "line": 395,
+      "line": 396,
       "match": "addEventListener("
     },
     {
       "file": "app/frontend/src/components/cards/StreamerCard.vue",
-      "line": 399,
+      "line": 400,
       "match": "removeEventListener("
     },
     {
@@ -4884,12 +4923,12 @@
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 394,
+      "line": 396,
       "match": "setInterval("
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 403,
+      "line": 405,
       "match": "clearInterval("
     },
     {
@@ -5291,7 +5330,7 @@
     },
     {
       "file": "app/frontend/src/views/HomeView.vue",
-      "line": 545,
+      "line": 547,
       "match": ": any"
     },
     {
@@ -5331,92 +5370,92 @@
     },
     {
       "file": "app/frontend/src/views/StreamerDetailView.vue",
-      "line": 653,
+      "line": 610,
       "match": ": any"
     },
     {
       "file": "app/frontend/src/views/StreamerDetailView.vue",
-      "line": 709,
+      "line": 666,
       "match": ": any"
     },
     {
       "file": "app/frontend/src/views/StreamerDetailView.vue",
-      "line": 890,
+      "line": 847,
       "match": ": any"
     },
     {
       "file": "app/frontend/src/views/StreamerDetailView.vue",
-      "line": 895,
+      "line": 852,
       "match": ": any"
     },
     {
       "file": "app/frontend/src/views/StreamerDetailView.vue",
-      "line": 899,
+      "line": 856,
       "match": ": any"
     },
     {
       "file": "app/frontend/src/views/StreamerDetailView.vue",
-      "line": 941,
+      "line": 898,
       "match": ": any"
     },
     {
       "file": "app/frontend/src/views/StreamerDetailView.vue",
-      "line": 971,
+      "line": 928,
       "match": ": any"
     },
     {
       "file": "app/frontend/src/views/StreamerDetailView.vue",
-      "line": 1016,
+      "line": 973,
       "match": ": any"
     },
     {
       "file": "app/frontend/src/views/StreamerDetailView.vue",
-      "line": 1020,
+      "line": 977,
       "match": ": any"
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 434,
+      "line": 436,
       "match": ": any"
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 442,
+      "line": 444,
       "match": ": any"
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 448,
+      "line": 450,
       "match": ": any"
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 498,
+      "line": 500,
       "match": ": any"
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 544,
+      "line": 546,
       "match": ": any"
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 550,
+      "line": 552,
       "match": ": any"
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 556,
+      "line": 558,
       "match": ": any"
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 560,
+      "line": 562,
       "match": ": any"
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 564,
+      "line": 566,
       "match": ": any"
     },
     {
@@ -5446,19 +5485,19 @@
     },
     {
       "file": "app/frontend/src/views/VideosView.vue",
-      "line": 542,
+      "line": 543,
       "match": ": any"
     },
     {
       "file": "app/frontend/src/views/VideosView.vue",
-      "line": 613,
+      "line": 614,
       "match": ": any"
     }
   ],
   "nonsemanticActions": [
     {
       "file": "app/frontend/src/components/AppShell.vue",
-      "line": 45,
+      "line": 46,
       "match": "<div v-if=\"showNotifications\" class=\"glass-popup-backdrop\" aria-hidden=\"true\" @click"
     },
     {
@@ -5528,7 +5567,7 @@
     },
     {
       "file": "app/frontend/src/components/cards/StreamerCard.vue",
-      "line": 157,
+      "line": 158,
       "match": "<div\n            v-if=\"showActions\"\n            :id=\"actionsMenuId\"\n            class=\"actions-dropdown\"\n            :style=\"dropdownStyle\"\n            role=\"menu\"\n            :ari"
     },
     {
@@ -5555,37 +5594,37 @@
     },
     {
       "file": "app/frontend/src/components/AppShell.vue",
-      "line": 20,
+      "line": 21,
       "match": "@click.stop="
     },
     {
       "file": "app/frontend/src/components/AppShell.vue",
-      "line": 33,
+      "line": 34,
       "match": "@click="
     },
     {
       "file": "app/frontend/src/components/AppShell.vue",
-      "line": 45,
+      "line": 46,
       "match": "@click="
     },
     {
       "file": "app/frontend/src/components/AppShell.vue",
-      "line": 69,
+      "line": 70,
       "match": "@click="
     },
     {
       "file": "app/frontend/src/components/AppShell.vue",
-      "line": 78,
+      "line": 79,
       "match": "@click="
     },
     {
       "file": "app/frontend/src/components/AppShell.vue",
-      "line": 82,
+      "line": 83,
       "match": "@click="
     },
     {
       "file": "app/frontend/src/components/AppShell.vue",
-      "line": 119,
+      "line": 120,
       "match": "@click="
     },
     {
@@ -6235,27 +6274,27 @@
     },
     {
       "file": "app/frontend/src/components/cards/StreamerCard.vue",
-      "line": 137,
+      "line": 138,
       "match": "@click.stop="
     },
     {
       "file": "app/frontend/src/components/cards/StreamerCard.vue",
-      "line": 167,
+      "line": 168,
       "match": "@click="
     },
     {
       "file": "app/frontend/src/components/cards/StreamerCard.vue",
-      "line": 173,
+      "line": 174,
       "match": "@click="
     },
     {
       "file": "app/frontend/src/components/cards/StreamerCard.vue",
-      "line": 179,
+      "line": 180,
       "match": "@click="
     },
     {
       "file": "app/frontend/src/components/cards/StreamerCard.vue",
-      "line": 185,
+      "line": 186,
       "match": "@click="
     },
     {
@@ -6285,7 +6324,7 @@
     },
     {
       "file": "app/frontend/src/components/navigation/SidebarNav.vue",
-      "line": 49,
+      "line": 42,
       "match": "@click="
     },
     {
@@ -6625,7 +6664,7 @@
     },
     {
       "file": "app/frontend/src/views/HomeView.vue",
-      "line": 118,
+      "line": 117,
       "match": "@click="
     },
     {
@@ -6700,12 +6739,12 @@
     },
     {
       "file": "app/frontend/src/views/SettingsView.vue",
-      "line": 47,
+      "line": 46,
       "match": "@click="
     },
     {
       "file": "app/frontend/src/views/SettingsView.vue",
-      "line": 91,
+      "line": 86,
       "match": "@click="
     },
     {
@@ -6730,32 +6769,32 @@
     },
     {
       "file": "app/frontend/src/views/StreamerDetailView.vue",
-      "line": 136,
+      "line": 133,
       "match": "@click="
     },
     {
       "file": "app/frontend/src/views/StreamerDetailView.vue",
-      "line": 243,
+      "line": 201,
       "match": "@click="
     },
     {
       "file": "app/frontend/src/views/StreamerDetailView.vue",
-      "line": 356,
+      "line": 314,
       "match": "@click="
     },
     {
       "file": "app/frontend/src/views/StreamerDetailView.vue",
-      "line": 357,
+      "line": 315,
       "match": "@click="
     },
     {
       "file": "app/frontend/src/views/StreamerDetailView.vue",
-      "line": 452,
+      "line": 410,
       "match": "@click="
     },
     {
       "file": "app/frontend/src/views/StreamerDetailView.vue",
-      "line": 453,
+      "line": 411,
       "match": "@click="
     },
     {
@@ -6770,22 +6809,22 @@
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 78,
+      "line": 79,
       "match": "@click="
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 90,
-      "match": "@click="
-    },
-    {
-      "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 128,
+      "line": 92,
       "match": "@click="
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
       "line": 131,
+      "match": "@click="
+    },
+    {
+      "file": "app/frontend/src/views/StreamersView.vue",
+      "line": 134,
       "match": "@click="
     },
     {
@@ -6860,57 +6899,57 @@
     },
     {
       "file": "app/frontend/src/views/VideosView.vue",
-      "line": 71,
+      "line": 72,
       "match": "@click="
     },
     {
       "file": "app/frontend/src/views/VideosView.vue",
-      "line": 85,
+      "line": 86,
       "match": "@click="
     },
     {
       "file": "app/frontend/src/views/VideosView.vue",
-      "line": 98,
+      "line": 99,
       "match": "@click="
     },
     {
       "file": "app/frontend/src/views/VideosView.vue",
-      "line": 113,
+      "line": 114,
       "match": "@click="
     },
     {
       "file": "app/frontend/src/views/VideosView.vue",
-      "line": 177,
+      "line": 178,
       "match": "@click="
     },
     {
       "file": "app/frontend/src/views/VideosView.vue",
-      "line": 193,
+      "line": 194,
       "match": "@click="
     },
     {
       "file": "app/frontend/src/views/VideosView.vue",
-      "line": 203,
+      "line": 204,
       "match": "@click="
     },
     {
       "file": "app/frontend/src/views/VideosView.vue",
-      "line": 213,
+      "line": 214,
       "match": "@click="
     },
     {
       "file": "app/frontend/src/views/VideosView.vue",
-      "line": 315,
+      "line": 316,
       "match": "@click="
     },
     {
       "file": "app/frontend/src/views/VideosView.vue",
-      "line": 318,
+      "line": 319,
       "match": "@click="
     },
     {
       "file": "app/frontend/src/views/__tests__/HomeView.recording-status.spec.ts",
-      "line": 54,
+      "line": 55,
       "match": "@click="
     },
     {
@@ -6967,7 +7006,7 @@
   "nativeDialogs": [
     {
       "file": "app/frontend/src/components/AppShell.vue",
-      "line": 230,
+      "line": 231,
       "match": "confirm("
     },
     {
@@ -7182,18 +7221,13 @@
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 452,
+      "line": 454,
       "match": "confirm("
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 457,
+      "line": 459,
       "match": "confirm("
-    },
-    {
-      "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 470,
-      "match": "alert("
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
@@ -7202,7 +7236,12 @@
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 479,
+      "line": 474,
+      "match": "alert("
+    },
+    {
+      "file": "app/frontend/src/views/StreamersView.vue",
+      "line": 481,
       "match": "alert("
     },
     {
@@ -7325,22 +7364,17 @@
     },
     {
       "file": "app/frontend/src/components/cards/StreamCard.vue",
-      "line": 442,
+      "line": 443,
       "match": "transition: all"
     },
     {
       "file": "app/frontend/src/components/cards/StreamCard.vue",
-      "line": 590,
+      "line": 587,
       "match": "transition: all"
     },
     {
       "file": "app/frontend/src/components/cards/VideoCard.vue",
-      "line": 491,
-      "match": "transition: all"
-    },
-    {
-      "file": "app/frontend/src/components/navigation/BottomNav.vue",
-      "line": 216,
+      "line": 488,
       "match": "transition: all"
     },
     {
@@ -7380,77 +7414,67 @@
     },
     {
       "file": "app/frontend/src/styles/_components.scss",
-      "line": 376,
+      "line": 459,
       "match": "transition: all"
     },
     {
       "file": "app/frontend/src/styles/_components.scss",
-      "line": 545,
+      "line": 480,
       "match": "transition: all"
     },
     {
       "file": "app/frontend/src/styles/_components.scss",
-      "line": 844,
+      "line": 544,
       "match": "transition: all"
     },
     {
       "file": "app/frontend/src/styles/_components.scss",
-      "line": 865,
+      "line": 1009,
       "match": "transition: all"
     },
     {
       "file": "app/frontend/src/styles/_components.scss",
-      "line": 929,
+      "line": 1908,
       "match": "transition: all"
     },
     {
       "file": "app/frontend/src/styles/_components.scss",
-      "line": 1407,
+      "line": 2032,
       "match": "transition: all"
     },
     {
       "file": "app/frontend/src/styles/_components.scss",
-      "line": 2306,
+      "line": 2083,
       "match": "transition: all"
     },
     {
       "file": "app/frontend/src/styles/_components.scss",
-      "line": 2430,
-      "match": "transition: all"
-    },
-    {
-      "file": "app/frontend/src/styles/_components.scss",
-      "line": 2481,
-      "match": "transition: all"
-    },
-    {
-      "file": "app/frontend/src/styles/_components.scss",
-      "line": 2493,
+      "line": 2095,
       "match": "transition: all"
     },
     {
       "file": "app/frontend/src/styles/_glass-system.scss",
-      "line": 134,
+      "line": 77,
       "match": "transition: all"
     },
     {
       "file": "app/frontend/src/styles/_glass-system.scss",
-      "line": 246,
+      "line": 187,
       "match": "transition: all"
     },
     {
       "file": "app/frontend/src/styles/_glass-system.scss",
-      "line": 281,
+      "line": 222,
       "match": "transition: all"
     },
     {
       "file": "app/frontend/src/styles/_glass-system.scss",
-      "line": 499,
+      "line": 438,
       "match": "transition: all"
     },
     {
       "file": "app/frontend/src/styles/_glass-system.scss",
-      "line": 510,
+      "line": 449,
       "match": "transition: all"
     },
     {
@@ -7500,22 +7524,17 @@
     },
     {
       "file": "app/frontend/src/styles/_views.scss",
-      "line": 428,
+      "line": 427,
       "match": "transition: all"
     },
     {
       "file": "app/frontend/src/styles/_views.scss",
-      "line": 900,
+      "line": 899,
       "match": "transition: all"
     },
     {
       "file": "app/frontend/src/styles/_views.scss",
-      "line": 978,
-      "match": "transition: all"
-    },
-    {
-      "file": "app/frontend/src/styles/main.scss",
-      "line": 214,
+      "line": 977,
       "match": "transition: all"
     },
     {
@@ -7534,43 +7553,38 @@
       "match": "transition: all"
     },
     {
-      "file": "app/frontend/src/views/SettingsView.vue",
-      "line": 570,
-      "match": "transition: all"
-    },
-    {
-      "file": "app/frontend/src/views/SettingsView.vue",
-      "line": 855,
+      "file": "app/frontend/src/views/StreamerDetailView.vue",
+      "line": 1037,
       "match": "transition: all"
     },
     {
       "file": "app/frontend/src/views/StreamerDetailView.vue",
-      "line": 1086,
+      "line": 1221,
       "match": "transition: all"
     },
     {
       "file": "app/frontend/src/views/StreamerDetailView.vue",
-      "line": 1277,
+      "line": 1309,
       "match": "transition: all"
     },
     {
       "file": "app/frontend/src/views/StreamerDetailView.vue",
-      "line": 1367,
+      "line": 1515,
       "match": "transition: all"
     },
     {
       "file": "app/frontend/src/views/StreamerDetailView.vue",
-      "line": 1582,
-      "match": "transition: all"
-    },
-    {
-      "file": "app/frontend/src/views/StreamerDetailView.vue",
-      "line": 1695,
+      "line": 1628,
       "match": "transition: all"
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 680,
+      "line": 677,
+      "match": "transition: all"
+    },
+    {
+      "file": "app/frontend/src/views/StreamersView.vue",
+      "line": 704,
       "match": "transition: all"
     },
     {
@@ -7580,22 +7594,12 @@
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 776,
+      "line": 798,
       "match": "transition: all"
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 821,
-      "match": "transition: all"
-    },
-    {
-      "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 872,
-      "match": "transition: all"
-    },
-    {
-      "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 1008,
+      "line": 935,
       "match": "transition: all"
     },
     {
@@ -7615,47 +7619,42 @@
     },
     {
       "file": "app/frontend/src/views/VideosView.vue",
-      "line": 705,
+      "line": 726,
       "match": "transition: all"
     },
     {
       "file": "app/frontend/src/views/VideosView.vue",
-      "line": 791,
+      "line": 828,
       "match": "transition: all"
     },
     {
       "file": "app/frontend/src/views/VideosView.vue",
-      "line": 893,
+      "line": 967,
       "match": "transition: all"
     },
     {
       "file": "app/frontend/src/views/VideosView.vue",
-      "line": 1034,
+      "line": 992,
       "match": "transition: all"
     },
     {
       "file": "app/frontend/src/views/VideosView.vue",
-      "line": 1059,
+      "line": 1095,
       "match": "transition: all"
     },
     {
       "file": "app/frontend/src/views/VideosView.vue",
-      "line": 1165,
+      "line": 1123,
       "match": "transition: all"
     },
     {
       "file": "app/frontend/src/views/VideosView.vue",
-      "line": 1198,
+      "line": 1149,
       "match": "transition: all"
     },
     {
       "file": "app/frontend/src/views/VideosView.vue",
-      "line": 1226,
-      "match": "transition: all"
-    },
-    {
-      "file": "app/frontend/src/views/VideosView.vue",
-      "line": 1236,
+      "line": 1159,
       "match": "transition: all"
     }
   ],
@@ -7697,7 +7696,7 @@
     },
     {
       "file": "app/frontend/src/styles/_components.scss",
-      "line": 2136,
+      "line": 1738,
       "match": "height: 100vh"
     },
     {
@@ -7707,7 +7706,7 @@
     },
     {
       "file": "app/frontend/src/styles/main.scss",
-      "line": 117,
+      "line": 115,
       "match": "min-height: 100vh"
     },
     {
@@ -7739,12 +7738,32 @@
   "potentialUndersizeTargets": [
     {
       "file": "app/frontend/src/components/AppShell.vue",
-      "line": 543,
+      "line": 386,
+      "match": "width: 20px"
+    },
+    {
+      "file": "app/frontend/src/components/AppShell.vue",
+      "line": 387,
+      "match": "height: 20px"
+    },
+    {
+      "file": "app/frontend/src/components/AppShell.vue",
+      "line": 398,
+      "match": "min-width: 18px"
+    },
+    {
+      "file": "app/frontend/src/components/AppShell.vue",
+      "line": 399,
+      "match": "height: 18px"
+    },
+    {
+      "file": "app/frontend/src/components/AppShell.vue",
+      "line": 571,
       "match": "width: 22px"
     },
     {
       "file": "app/frontend/src/components/AppShell.vue",
-      "line": 544,
+      "line": 572,
       "match": "height: 22px"
     },
     {
@@ -8419,248 +8438,238 @@
     },
     {
       "file": "app/frontend/src/components/cards/StreamCard.vue",
-      "line": 490,
+      "line": 489,
       "match": "width: 18px"
     },
     {
       "file": "app/frontend/src/components/cards/StreamCard.vue",
-      "line": 491,
+      "line": 490,
       "match": "height: 18px"
     },
     {
       "file": "app/frontend/src/components/cards/StreamCard.vue",
-      "line": 538,
+      "line": 535,
       "match": "width: 32px"
     },
     {
       "file": "app/frontend/src/components/cards/StreamCard.vue",
-      "line": 539,
+      "line": 536,
       "match": "height: 32px"
     },
     {
       "file": "app/frontend/src/components/cards/StreamCard.vue",
-      "line": 548,
+      "line": 545,
       "match": "width: 18px"
     },
     {
       "file": "app/frontend/src/components/cards/StreamCard.vue",
-      "line": 549,
+      "line": 546,
       "match": "height: 18px"
     },
     {
       "file": "app/frontend/src/components/cards/StreamCard.vue",
-      "line": 593,
+      "line": 590,
       "match": "width: 18px"
     },
     {
       "file": "app/frontend/src/components/cards/StreamCard.vue",
-      "line": 594,
+      "line": 591,
       "match": "height: 18px"
     },
     {
       "file": "app/frontend/src/components/cards/StreamCard.vue",
-      "line": 641,
+      "line": 633,
       "match": "width: 16px"
     },
     {
       "file": "app/frontend/src/components/cards/StreamCard.vue",
-      "line": 642,
+      "line": 634,
       "match": "height: 16px"
     },
     {
       "file": "app/frontend/src/components/cards/StreamerCard.vue",
-      "line": 497,
+      "line": 485,
       "match": "width: 32px"
     },
     {
       "file": "app/frontend/src/components/cards/StreamerCard.vue",
-      "line": 498,
+      "line": 486,
       "match": "height: 32px"
     },
     {
       "file": "app/frontend/src/components/cards/StreamerCard.vue",
-      "line": 559,
+      "line": 551,
       "match": "min-height: 28px"
     },
     {
       "file": "app/frontend/src/components/cards/StreamerCard.vue",
-      "line": 719,
+      "line": 709,
       "match": "width: 16px"
     },
     {
       "file": "app/frontend/src/components/cards/StreamerCard.vue",
-      "line": 720,
+      "line": 710,
       "match": "height: 16px"
     },
     {
       "file": "app/frontend/src/components/cards/StreamerCard.vue",
-      "line": 830,
+      "line": 764,
       "match": "width: 20px"
     },
     {
       "file": "app/frontend/src/components/cards/StreamerCard.vue",
-      "line": 831,
+      "line": 765,
       "match": "height: 20px"
     },
     {
       "file": "app/frontend/src/components/cards/StreamerCard.vue",
-      "line": 915,
+      "line": 849,
       "match": "width: 16px"
     },
     {
       "file": "app/frontend/src/components/cards/StreamerCard.vue",
-      "line": 916,
+      "line": 850,
       "match": "height: 16px"
     },
     {
       "file": "app/frontend/src/components/cards/StreamerCard.vue",
-      "line": 1014,
+      "line": 949,
       "match": "min-height: 22px"
     },
     {
       "file": "app/frontend/src/components/cards/StreamerCard.vue",
-      "line": 1063,
+      "line": 998,
       "match": "width: 12px"
     },
     {
       "file": "app/frontend/src/components/cards/StreamerCard.vue",
-      "line": 1064,
+      "line": 999,
       "match": "height: 12px"
     },
     {
       "file": "app/frontend/src/components/cards/VideoCard.vue",
-      "line": 494,
+      "line": 491,
       "match": "width: 32px"
     },
     {
       "file": "app/frontend/src/components/cards/VideoCard.vue",
-      "line": 495,
+      "line": 492,
       "match": "height: 32px"
     },
     {
       "file": "app/frontend/src/components/cards/VideoCard.vue",
-      "line": 522,
+      "line": 515,
       "match": "width: 20px"
     },
     {
       "file": "app/frontend/src/components/cards/VideoCard.vue",
-      "line": 523,
+      "line": 516,
       "match": "height: 20px"
     },
     {
       "file": "app/frontend/src/components/cards/VideoCard.vue",
-      "line": 610,
+      "line": 603,
       "match": "width: 14px"
     },
     {
       "file": "app/frontend/src/components/cards/VideoCard.vue",
-      "line": 611,
+      "line": 604,
       "match": "height: 14px"
     },
     {
       "file": "app/frontend/src/components/cards/VideoCard.vue",
-      "line": 639,
+      "line": 632,
       "match": "width: 36px"
     },
     {
       "file": "app/frontend/src/components/cards/VideoCard.vue",
-      "line": 640,
+      "line": 633,
       "match": "height: 36px"
     },
     {
       "file": "app/frontend/src/components/cards/VideoCard.vue",
-      "line": 682,
+      "line": 675,
       "match": "width: 28px"
     },
     {
       "file": "app/frontend/src/components/cards/VideoCard.vue",
-      "line": 683,
+      "line": 676,
       "match": "height: 28px"
     },
     {
       "file": "app/frontend/src/components/cards/VideoCard.vue",
-      "line": 731,
+      "line": 724,
       "match": "width: 32px"
     },
     {
       "file": "app/frontend/src/components/cards/VideoCard.vue",
-      "line": 732,
+      "line": 725,
       "match": "height: 32px"
     },
     {
       "file": "app/frontend/src/components/navigation/BottomNav.vue",
-      "line": 151,
+      "line": 150,
       "match": "width: 8px"
     },
     {
       "file": "app/frontend/src/components/navigation/BottomNav.vue",
-      "line": 152,
+      "line": 151,
       "match": "height: 8px"
     },
     {
       "file": "app/frontend/src/components/navigation/BottomNav.vue",
-      "line": 241,
+      "line": 232,
       "match": "width: 22px"
     },
     {
       "file": "app/frontend/src/components/navigation/BottomNav.vue",
-      "line": 242,
+      "line": 233,
       "match": "height: 22px"
     },
     {
       "file": "app/frontend/src/components/navigation/BottomNav.vue",
-      "line": 267,
+      "line": 258,
       "match": "min-width: 18px"
     },
     {
       "file": "app/frontend/src/components/navigation/BottomNav.vue",
-      "line": 268,
+      "line": 259,
       "match": "height: 18px"
     },
     {
       "file": "app/frontend/src/components/navigation/SidebarNav.vue",
-      "line": 149,
+      "line": 142,
       "match": "width: 18px"
     },
     {
       "file": "app/frontend/src/components/navigation/SidebarNav.vue",
-      "line": 150,
+      "line": 143,
       "match": "height: 18px"
     },
     {
       "file": "app/frontend/src/components/navigation/SidebarNav.vue",
-      "line": 230,
+      "line": 214,
       "match": "width: 20px"
     },
     {
       "file": "app/frontend/src/components/navigation/SidebarNav.vue",
-      "line": 231,
+      "line": 215,
       "match": "height: 20px"
     },
     {
       "file": "app/frontend/src/components/navigation/SidebarNav.vue",
-      "line": 274,
+      "line": 249,
       "match": "min-width: 20px"
     },
     {
       "file": "app/frontend/src/components/navigation/SidebarNav.vue",
-      "line": 275,
+      "line": 250,
       "match": "height: 20px"
     },
     {
       "file": "app/frontend/src/components/navigation/SidebarNav.vue",
-      "line": 280,
+      "line": 255,
       "match": "height: 20px"
-    },
-    {
-      "file": "app/frontend/src/components/navigation/SidebarNav.vue",
-      "line": 285,
-      "match": "width: 16px"
-    },
-    {
-      "file": "app/frontend/src/components/navigation/SidebarNav.vue",
-      "line": 286,
-      "match": "height: 16px"
     },
     {
       "file": "app/frontend/src/components/notifications/NotificationItem.vue",
@@ -8859,327 +8868,272 @@
     },
     {
       "file": "app/frontend/src/styles/_components.scss",
-      "line": 162,
-      "match": "min-height: 32px"
+      "line": 130,
+      "match": "width: 18px"
     },
     {
       "file": "app/frontend/src/styles/_components.scss",
-      "line": 381,
-      "match": "width: 20px"
+      "line": 131,
+      "match": "height: 18px"
     },
     {
       "file": "app/frontend/src/styles/_components.scss",
-      "line": 382,
-      "match": "height: 20px"
-    },
-    {
-      "file": "app/frontend/src/styles/_components.scss",
-      "line": 447,
-      "match": "width: 32px"
-    },
-    {
-      "file": "app/frontend/src/styles/_components.scss",
-      "line": 448,
-      "match": "height: 32px"
-    },
-    {
-      "file": "app/frontend/src/styles/_components.scss",
-      "line": 449,
-      "match": "min-width: 32px"
-    },
-    {
-      "file": "app/frontend/src/styles/_components.scss",
-      "line": 450,
-      "match": "min-height: 32px"
-    },
-    {
-      "file": "app/frontend/src/styles/_components.scss",
-      "line": 454,
-      "match": "width: 16px"
-    },
-    {
-      "file": "app/frontend/src/styles/_components.scss",
-      "line": 455,
-      "match": "height: 16px"
-    },
-    {
-      "file": "app/frontend/src/styles/_components.scss",
-      "line": 467,
-      "match": "width: 24px"
-    },
-    {
-      "file": "app/frontend/src/styles/_components.scss",
-      "line": 468,
-      "match": "height: 24px"
-    },
-    {
-      "file": "app/frontend/src/styles/_components.scss",
-      "line": 498,
+      "line": 240,
       "match": "min-width: 18px"
     },
     {
       "file": "app/frontend/src/styles/_components.scss",
-      "line": 499,
+      "line": 241,
       "match": "height: 18px"
     },
     {
       "file": "app/frontend/src/styles/_components.scss",
-      "line": 503,
+      "line": 244,
       "match": "height: 18px"
     },
     {
       "file": "app/frontend/src/styles/_components.scss",
-      "line": 749,
+      "line": 364,
       "match": "width: 20px"
     },
     {
       "file": "app/frontend/src/styles/_components.scss",
-      "line": 750,
+      "line": 365,
       "match": "height: 20px"
     },
     {
       "file": "app/frontend/src/styles/_components.scss",
-      "line": 858,
+      "line": 473,
       "match": "height: 36px"
     },
     {
       "file": "app/frontend/src/styles/_components.scss",
-      "line": 923,
+      "line": 538,
       "match": "width: 18px"
     },
     {
       "file": "app/frontend/src/styles/_components.scss",
-      "line": 924,
+      "line": 539,
       "match": "height: 18px"
     },
     {
       "file": "app/frontend/src/styles/_components.scss",
-      "line": 943,
+      "line": 558,
       "match": "width: 4px"
     },
     {
       "file": "app/frontend/src/styles/_components.scss",
-      "line": 944,
+      "line": 559,
       "match": "height: 8px"
     },
     {
       "file": "app/frontend/src/styles/_components.scss",
-      "line": 1147,
+      "line": 752,
       "match": "height: 1px"
     },
     {
       "file": "app/frontend/src/styles/_components.scss",
-      "line": 1521,
+      "line": 1123,
       "match": "width: 10px"
     },
     {
       "file": "app/frontend/src/styles/_components.scss",
-      "line": 1522,
+      "line": 1124,
       "match": "height: 10px"
     },
     {
       "file": "app/frontend/src/styles/_components.scss",
-      "line": 1573,
+      "line": 1175,
       "match": "height: 24px"
     },
     {
       "file": "app/frontend/src/styles/_components.scss",
-      "line": 1770,
+      "line": 1372,
       "match": "width: 4px"
     },
     {
       "file": "app/frontend/src/styles/_components.scss",
-      "line": 1778,
+      "line": 1380,
       "match": "width: 20px"
     },
     {
       "file": "app/frontend/src/styles/_components.scss",
-      "line": 1779,
+      "line": 1381,
       "match": "height: 20px"
     },
     {
       "file": "app/frontend/src/styles/_components.scss",
-      "line": 1780,
+      "line": 1382,
       "match": "width: 3px"
     },
     {
       "file": "app/frontend/src/styles/_components.scss",
-      "line": 1789,
+      "line": 1391,
       "match": "width: 16px"
     },
     {
       "file": "app/frontend/src/styles/_components.scss",
-      "line": 1790,
+      "line": 1392,
       "match": "height: 16px"
     },
     {
       "file": "app/frontend/src/styles/_components.scss",
-      "line": 1791,
+      "line": 1393,
       "match": "width: 2px"
     },
     {
       "file": "app/frontend/src/styles/_components.scss",
-      "line": 1929,
+      "line": 1531,
       "match": "width: 3px"
     },
     {
       "file": "app/frontend/src/styles/_components.scss",
-      "line": 1962,
+      "line": 1564,
       "match": "height: 2px"
     },
     {
       "file": "app/frontend/src/styles/_components.scss",
-      "line": 2022,
+      "line": 1624,
       "match": "width: 24px"
     },
     {
       "file": "app/frontend/src/styles/_components.scss",
-      "line": 2023,
+      "line": 1625,
       "match": "height: 24px"
     },
     {
       "file": "app/frontend/src/styles/_components.scss",
-      "line": 2181,
+      "line": 1783,
       "match": "width: 32px"
     },
     {
       "file": "app/frontend/src/styles/_components.scss",
-      "line": 2182,
+      "line": 1784,
       "match": "height: 32px"
     },
     {
       "file": "app/frontend/src/styles/_components.scss",
-      "line": 2217,
+      "line": 1819,
       "match": "width: 8px"
     },
     {
       "file": "app/frontend/src/styles/_components.scss",
-      "line": 2478,
+      "line": 2080,
       "match": "height: 2px"
     },
     {
       "file": "app/frontend/src/styles/_components.scss",
-      "line": 2505,
+      "line": 2107,
       "match": "height: 2px"
     },
     {
       "file": "app/frontend/src/styles/_glass-system.scss",
-      "line": 297,
+      "line": 238,
       "match": "width: 18px"
     },
     {
       "file": "app/frontend/src/styles/_glass-system.scss",
-      "line": 298,
+      "line": 239,
       "match": "height: 18px"
     },
     {
       "file": "app/frontend/src/styles/_glass-system.scss",
-      "line": 366,
-      "match": "min-height: 40px"
-    },
-    {
-      "file": "app/frontend/src/styles/_glass-system.scss",
-      "line": 367,
-      "match": "min-width: 40px"
-    },
-    {
-      "file": "app/frontend/src/styles/_glass-system.scss",
-      "line": 387,
+      "line": 326,
       "match": "min-width: 18px"
     },
     {
       "file": "app/frontend/src/styles/_glass-system.scss",
-      "line": 388,
+      "line": 327,
       "match": "height: 18px"
     },
     {
       "file": "app/frontend/src/styles/_glass-system.scss",
-      "line": 394,
+      "line": 333,
       "match": "height: 18px"
     },
     {
       "file": "app/frontend/src/styles/_glass-system.scss",
-      "line": 425,
+      "line": 364,
       "match": "width: 6px"
     },
     {
       "file": "app/frontend/src/styles/_glass-system.scss",
-      "line": 426,
+      "line": 365,
       "match": "height: 6px"
     },
     {
       "file": "app/frontend/src/styles/_glass-system.scss",
-      "line": 440,
+      "line": 379,
       "match": "width: 6px"
     },
     {
       "file": "app/frontend/src/styles/_glass-system.scss",
-      "line": 441,
+      "line": 380,
       "match": "height: 6px"
     },
     {
       "file": "app/frontend/src/styles/_glass-system.scss",
-      "line": 494,
+      "line": 433,
       "match": "height: 26px"
     },
     {
       "file": "app/frontend/src/styles/_glass-system.scss",
-      "line": 506,
+      "line": 445,
       "match": "width: 20px"
     },
     {
       "file": "app/frontend/src/styles/_glass-system.scss",
-      "line": 507,
+      "line": 446,
       "match": "height: 20px"
     },
     {
       "file": "app/frontend/src/styles/_glass-system.scss",
-      "line": 616,
+      "line": 555,
       "match": "height: 14px"
     },
     {
       "file": "app/frontend/src/styles/_glass-system.scss",
-      "line": 622,
+      "line": 561,
       "match": "height: 20px"
     },
     {
       "file": "app/frontend/src/styles/_glass-system.scss",
-      "line": 628,
+      "line": 567,
       "match": "width: 40px"
     },
     {
       "file": "app/frontend/src/styles/_glass-system.scss",
-      "line": 629,
+      "line": 568,
       "match": "height: 40px"
     },
     {
       "file": "app/frontend/src/styles/_glass-system.scss",
-      "line": 649,
+      "line": 588,
       "match": "height: 1px"
     },
     {
       "file": "app/frontend/src/styles/_glass-system.scss",
-      "line": 655,
+      "line": 594,
       "match": "height: 2px"
     },
     {
       "file": "app/frontend/src/styles/_glass-system.scss",
-      "line": 675,
+      "line": 614,
       "match": "width: 14px"
     },
     {
       "file": "app/frontend/src/styles/_glass-system.scss",
-      "line": 676,
+      "line": 615,
       "match": "height: 14px"
     },
     {
       "file": "app/frontend/src/styles/_glass-system.scss",
-      "line": 686,
+      "line": 625,
       "match": "width: 8px"
     },
     {
       "file": "app/frontend/src/styles/_glass-system.scss",
-      "line": 687,
+      "line": 626,
       "match": "height: 8px"
     },
     {
@@ -9259,37 +9213,37 @@
     },
     {
       "file": "app/frontend/src/styles/_mixins.scss",
-      "line": 149,
+      "line": 95,
       "match": "width: 4px"
     },
     {
       "file": "app/frontend/src/styles/_mixins.scss",
-      "line": 188,
+      "line": 134,
       "match": "width: 5px"
     },
     {
       "file": "app/frontend/src/styles/_mixins.scss",
-      "line": 189,
+      "line": 135,
       "match": "height: 5px"
     },
     {
       "file": "app/frontend/src/styles/_mixins.scss",
-      "line": 264,
+      "line": 200,
       "match": "width: 1px"
     },
     {
       "file": "app/frontend/src/styles/_mixins.scss",
-      "line": 265,
+      "line": 201,
       "match": "height: 1px"
     },
     {
       "file": "app/frontend/src/styles/_mixins.scss",
-      "line": 287,
+      "line": 223,
       "match": "width: 8px"
     },
     {
       "file": "app/frontend/src/styles/_mixins.scss",
-      "line": 288,
+      "line": 224,
       "match": "height: 8px"
     },
     {
@@ -9499,92 +9453,62 @@
     },
     {
       "file": "app/frontend/src/styles/_views.scss",
-      "line": 415,
+      "line": 414,
       "match": "height: 1px"
     },
     {
       "file": "app/frontend/src/styles/_views.scss",
-      "line": 439,
+      "line": 438,
       "match": "height: 2px"
     },
     {
       "file": "app/frontend/src/styles/_views.scss",
-      "line": 632,
+      "line": 631,
       "match": "width: 40px"
     },
     {
       "file": "app/frontend/src/styles/_views.scss",
-      "line": 633,
+      "line": 632,
       "match": "height: 40px"
     },
     {
       "file": "app/frontend/src/styles/_views.scss",
-      "line": 680,
+      "line": 679,
       "match": "height: 2px"
     },
     {
       "file": "app/frontend/src/styles/_views.scss",
-      "line": 681,
+      "line": 680,
       "match": "width: 30px"
+    },
+    {
+      "file": "app/frontend/src/styles/_views.scss",
+      "line": 961,
+      "match": "height: 2px"
     },
     {
       "file": "app/frontend/src/styles/_views.scss",
       "line": 962,
-      "match": "height: 2px"
-    },
-    {
-      "file": "app/frontend/src/styles/_views.scss",
-      "line": 963,
       "match": "width: 30px"
     },
     {
       "file": "app/frontend/src/styles/main.scss",
-      "line": 224,
-      "match": "width: 18px"
-    },
-    {
-      "file": "app/frontend/src/styles/main.scss",
-      "line": 225,
-      "match": "height: 18px"
-    },
-    {
-      "file": "app/frontend/src/styles/main.scss",
-      "line": 476,
-      "match": "width: 20px"
-    },
-    {
-      "file": "app/frontend/src/styles/main.scss",
-      "line": 477,
-      "match": "height: 20px"
-    },
-    {
-      "file": "app/frontend/src/styles/main.scss",
-      "line": 527,
-      "match": "width: 20px"
-    },
-    {
-      "file": "app/frontend/src/styles/main.scss",
-      "line": 528,
-      "match": "height: 20px"
-    },
-    {
-      "file": "app/frontend/src/styles/main.scss",
-      "line": 616,
+      "line": 206,
       "match": "width: 8px"
     },
     {
       "file": "app/frontend/src/styles/main.scss",
-      "line": 617,
+      "line": 207,
       "match": "height: 8px"
     },
     {
       "file": "app/frontend/src/styles/main.scss",
-      "line": 666,
+      "line": 256,
       "match": "width: 1px"
     },
     {
       "file": "app/frontend/src/styles/main.scss",
-      "line": 667,
+      "line": 257,
       "match": "height: 1px"
     },
     {
@@ -9649,47 +9573,42 @@
     },
     {
       "file": "app/frontend/src/views/HomeView.vue",
-      "line": 830,
+      "line": 806,
       "match": "width: 16px"
     },
     {
       "file": "app/frontend/src/views/HomeView.vue",
-      "line": 831,
+      "line": 807,
       "match": "height: 16px"
     },
     {
       "file": "app/frontend/src/views/HomeView.vue",
-      "line": 846,
-      "match": "width: 38px"
+      "line": 822,
+      "match": "width: 24px"
     },
     {
       "file": "app/frontend/src/views/HomeView.vue",
-      "line": 847,
-      "match": "height: 38px"
+      "line": 823,
+      "match": "height: 24px"
     },
     {
       "file": "app/frontend/src/views/HomeView.vue",
-      "line": 853,
+      "line": 828,
       "match": "width: 20px"
     },
     {
       "file": "app/frontend/src/views/HomeView.vue",
-      "line": 854,
+      "line": 829,
       "match": "height: 20px"
     },
     {
       "file": "app/frontend/src/views/HomeView.vue",
-      "line": 938,
-      "match": "min-height: 36px"
-    },
-    {
-      "file": "app/frontend/src/views/HomeView.vue",
-      "line": 949,
+      "line": 935,
       "match": "width: 16px"
     },
     {
       "file": "app/frontend/src/views/HomeView.vue",
-      "line": 950,
+      "line": 936,
       "match": "height: 16px"
     },
     {
@@ -9824,293 +9743,238 @@
     },
     {
       "file": "app/frontend/src/views/SettingsView.vue",
-      "line": 601,
-      "match": "width: 20px"
-    },
-    {
-      "file": "app/frontend/src/views/SettingsView.vue",
-      "line": 602,
-      "match": "height: 20px"
-    },
-    {
-      "file": "app/frontend/src/views/SettingsView.vue",
-      "line": 632,
-      "match": "width: 16px"
-    },
-    {
-      "file": "app/frontend/src/views/SettingsView.vue",
-      "line": 633,
-      "match": "height: 16px"
-    },
-    {
-      "file": "app/frontend/src/views/SettingsView.vue",
-      "line": 676,
+      "line": 581,
       "match": "width: 18px"
     },
     {
       "file": "app/frontend/src/views/SettingsView.vue",
-      "line": 677,
+      "line": 582,
       "match": "height: 18px"
     },
     {
       "file": "app/frontend/src/views/SettingsView.vue",
-      "line": 858,
+      "line": 637,
+      "match": "width: 18px"
+    },
+    {
+      "file": "app/frontend/src/views/SettingsView.vue",
+      "line": 638,
+      "match": "height: 18px"
+    },
+    {
+      "file": "app/frontend/src/views/SettingsView.vue",
+      "line": 814,
       "match": "width: 20px"
     },
     {
       "file": "app/frontend/src/views/SettingsView.vue",
-      "line": 859,
+      "line": 815,
       "match": "height: 20px"
     },
     {
       "file": "app/frontend/src/views/SettingsView.vue",
-      "line": 943,
+      "line": 875,
       "match": "width: 20px"
     },
     {
       "file": "app/frontend/src/views/SettingsView.vue",
-      "line": 944,
+      "line": 876,
       "match": "height: 20px"
     },
     {
       "file": "app/frontend/src/views/StreamerDetailView.vue",
-      "line": 1078,
-      "match": "min-height: 40px"
-    },
-    {
-      "file": "app/frontend/src/views/StreamerDetailView.vue",
-      "line": 1089,
+      "line": 1040,
       "match": "width: 18px"
     },
     {
       "file": "app/frontend/src/views/StreamerDetailView.vue",
-      "line": 1090,
+      "line": 1041,
       "match": "height: 18px"
     },
     {
       "file": "app/frontend/src/views/StreamerDetailView.vue",
-      "line": 1142,
+      "line": 1094,
       "match": "width: 32px"
     },
     {
       "file": "app/frontend/src/views/StreamerDetailView.vue",
-      "line": 1143,
+      "line": 1095,
       "match": "height: 32px"
     },
     {
       "file": "app/frontend/src/views/StreamerDetailView.vue",
-      "line": 1157,
+      "line": 1109,
       "match": "width: 16px"
     },
     {
       "file": "app/frontend/src/views/StreamerDetailView.vue",
-      "line": 1158,
+      "line": 1110,
       "match": "height: 16px"
     },
     {
       "file": "app/frontend/src/views/StreamerDetailView.vue",
-      "line": 1252,
+      "line": 1202,
       "match": "width: 18px"
     },
     {
       "file": "app/frontend/src/views/StreamerDetailView.vue",
-      "line": 1253,
+      "line": 1203,
       "match": "height: 18px"
     },
     {
       "file": "app/frontend/src/views/StreamerDetailView.vue",
-      "line": 1282,
+      "line": 1226,
       "match": "width: 18px"
+    },
+    {
+      "file": "app/frontend/src/views/StreamerDetailView.vue",
+      "line": 1227,
+      "match": "height: 18px"
     },
     {
       "file": "app/frontend/src/views/StreamerDetailView.vue",
       "line": 1283,
-      "match": "height: 18px"
-    },
-    {
-      "file": "app/frontend/src/views/StreamerDetailView.vue",
-      "line": 1341,
       "match": "height: 6px"
     },
     {
       "file": "app/frontend/src/views/StreamerDetailView.vue",
-      "line": 1375,
+      "line": 1317,
       "match": "width: 16px"
     },
     {
       "file": "app/frontend/src/views/StreamerDetailView.vue",
-      "line": 1376,
+      "line": 1318,
       "match": "height: 16px"
     },
     {
       "file": "app/frontend/src/views/StreamerDetailView.vue",
-      "line": 1476,
+      "line": 1409,
       "match": "width: 14px"
     },
     {
       "file": "app/frontend/src/views/StreamerDetailView.vue",
-      "line": 1477,
+      "line": 1410,
       "match": "height: 14px"
     },
     {
       "file": "app/frontend/src/views/StreamerDetailView.vue",
-      "line": 1510,
+      "line": 1443,
       "match": "width: 20px"
     },
     {
       "file": "app/frontend/src/views/StreamerDetailView.vue",
-      "line": 1511,
+      "line": 1444,
       "match": "height: 20px"
     },
     {
       "file": "app/frontend/src/views/StreamerDetailView.vue",
-      "line": 1561,
+      "line": 1494,
       "match": "width: 16px"
     },
     {
       "file": "app/frontend/src/views/StreamerDetailView.vue",
-      "line": 1562,
+      "line": 1495,
       "match": "height: 16px"
     },
     {
       "file": "app/frontend/src/views/StreamerDetailView.vue",
-      "line": 1703,
+      "line": 1636,
       "match": "width: 10px"
     },
     {
       "file": "app/frontend/src/views/StreamerDetailView.vue",
-      "line": 1704,
+      "line": 1637,
       "match": "height: 10px"
     },
     {
       "file": "app/frontend/src/views/StreamerDetailView.vue",
-      "line": 1781,
+      "line": 1714,
       "match": "width: 8px"
     },
     {
       "file": "app/frontend/src/views/StreamerDetailView.vue",
-      "line": 1782,
+      "line": 1715,
       "match": "height: 8px"
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 625,
-      "match": "width: 6px"
-    },
-    {
-      "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 626,
-      "match": "height: 6px"
-    },
-    {
-      "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 639,
+      "line": 620,
       "match": "width: 18px"
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 640,
+      "line": 621,
       "match": "height: 18px"
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 683,
+      "line": 661,
       "match": "width: 18px"
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 684,
+      "line": 662,
       "match": "height: 18px"
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 733,
-      "match": "width: 18px"
-    },
-    {
-      "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 734,
-      "match": "height: 18px"
-    },
-    {
-      "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 779,
+      "line": 707,
       "match": "width: 16px"
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 780,
+      "line": 708,
       "match": "height: 16px"
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 844,
+      "line": 770,
       "match": "min-width: 20px"
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 845,
+      "line": 771,
       "match": "height: 20px"
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 875,
+      "line": 801,
       "match": "width: 18px"
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 876,
+      "line": 802,
       "match": "height: 18px"
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 926,
+      "line": 852,
       "match": "width: 16px"
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 927,
+      "line": 853,
       "match": "height: 16px"
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 1011,
+      "line": 938,
       "match": "width: 16px"
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 1012,
+      "line": 939,
       "match": "height: 16px"
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 1168,
-      "match": "width: 18px"
-    },
-    {
-      "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 1169,
-      "match": "height: 18px"
-    },
-    {
-      "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 1188,
+      "line": 1020,
       "match": "min-width: 18px"
     },
     {
       "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 1189,
+      "line": 1021,
       "match": "height: 18px"
-    },
-    {
-      "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 1203,
-      "match": "width: 22px"
-    },
-    {
-      "file": "app/frontend/src/views/StreamersView.vue",
-      "line": 1204,
-      "match": "height: 22px"
     },
     {
       "file": "app/frontend/src/views/SubscriptionsView.vue",
@@ -10219,142 +10083,132 @@
     },
     {
       "file": "app/frontend/src/views/VideoPlayerView.vue",
-      "line": 1115,
+      "line": 1116,
       "match": "width: 14px"
     },
     {
       "file": "app/frontend/src/views/VideoPlayerView.vue",
-      "line": 1116,
+      "line": 1117,
       "match": "height: 14px"
-    },
-    {
-      "file": "app/frontend/src/views/VideoPlayerView.vue",
-      "line": 1255,
-      "match": "width: 16px"
     },
     {
       "file": "app/frontend/src/views/VideoPlayerView.vue",
       "line": 1256,
-      "match": "height: 16px"
+      "match": "width: 16px"
     },
     {
       "file": "app/frontend/src/views/VideoPlayerView.vue",
-      "line": 1279,
-      "match": "width: 14px"
+      "line": 1257,
+      "match": "height: 16px"
     },
     {
       "file": "app/frontend/src/views/VideoPlayerView.vue",
       "line": 1280,
+      "match": "width: 14px"
+    },
+    {
+      "file": "app/frontend/src/views/VideoPlayerView.vue",
+      "line": 1281,
       "match": "height: 14px"
     },
     {
       "file": "app/frontend/src/views/VideosView.vue",
-      "line": 708,
-      "match": "width: 18px"
-    },
-    {
-      "file": "app/frontend/src/views/VideosView.vue",
-      "line": 709,
-      "match": "height: 18px"
-    },
-    {
-      "file": "app/frontend/src/views/VideosView.vue",
-      "line": 776,
+      "line": 711,
       "match": "width: 20px"
     },
     {
       "file": "app/frontend/src/views/VideosView.vue",
-      "line": 777,
+      "line": 712,
       "match": "height: 20px"
     },
     {
       "file": "app/frontend/src/views/VideosView.vue",
-      "line": 821,
+      "line": 756,
       "match": "width: 16px"
     },
     {
       "file": "app/frontend/src/views/VideosView.vue",
-      "line": 822,
+      "line": 757,
       "match": "height: 16px"
     },
     {
       "file": "app/frontend/src/views/VideosView.vue",
-      "line": 860,
+      "line": 795,
       "match": "width: 20px"
     },
     {
       "file": "app/frontend/src/views/VideosView.vue",
-      "line": 861,
+      "line": 796,
       "match": "height: 20px"
     },
     {
       "file": "app/frontend/src/views/VideosView.vue",
-      "line": 896,
+      "line": 831,
       "match": "width: 18px"
     },
     {
       "file": "app/frontend/src/views/VideosView.vue",
-      "line": 897,
+      "line": 832,
       "match": "height: 18px"
     },
     {
       "file": "app/frontend/src/views/VideosView.vue",
-      "line": 911,
+      "line": 846,
       "match": "min-width: 20px"
     },
     {
       "file": "app/frontend/src/views/VideosView.vue",
-      "line": 912,
+      "line": 847,
       "match": "height: 20px"
     },
     {
       "file": "app/frontend/src/views/VideosView.vue",
-      "line": 959,
+      "line": 894,
       "match": "width: 18px"
     },
     {
       "file": "app/frontend/src/views/VideosView.vue",
-      "line": 960,
+      "line": 895,
       "match": "height: 18px"
     },
     {
       "file": "app/frontend/src/views/VideosView.vue",
-      "line": 1063,
+      "line": 997,
       "match": "width: 16px"
     },
     {
       "file": "app/frontend/src/views/VideosView.vue",
-      "line": 1064,
+      "line": 998,
       "match": "height: 16px"
     },
     {
       "file": "app/frontend/src/views/VideosView.vue",
-      "line": 1105,
+      "line": 1039,
       "match": "width: 14px"
     },
     {
       "file": "app/frontend/src/views/VideosView.vue",
-      "line": 1106,
+      "line": 1040,
       "match": "height: 14px"
     },
     {
       "file": "app/frontend/src/views/VideosView.vue",
-      "line": 1217,
+      "line": 1140,
       "match": "width: 24px"
     },
     {
       "file": "app/frontend/src/views/VideosView.vue",
-      "line": 1218,
+      "line": 1141,
       "match": "height: 24px"
     },
     {
       "file": "app/frontend/src/views/VideosView.vue",
-      "line": 1230,
+      "line": 1153,
       "match": "width: 16px"
     },
     {
       "file": "app/frontend/src/views/VideosView.vue",
-      "line": 1231,
+      "line": 1154,
       "match": "height: 16px"
     },
     {
@@ -11404,7 +11258,7 @@
     "schemaVersion": 1,
     "generatedBy": "app/frontend/scripts/inventory-frontend.mjs",
     "sourceRoot": "app/frontend",
-    "frontendFiles": 327,
+    "frontendFiles": 328,
     "routes": 21,
     "navigationDestinations": 17,
     "apiCalls": 146,
@@ -11414,21 +11268,21 @@
     "forms": 7,
     "tables": 6,
     "destructiveActions": 66,
-    "states": 191,
+    "states": 193,
     "players": 14,
-    "pwa": 107,
-    "breakpoints": 94,
-    "directDomMutations": 246,
-    "moduleScopeMutableState": 95,
+    "pwa": 108,
+    "breakpoints": 96,
+    "directDomMutations": 250,
+    "moduleScopeMutableState": 96,
     "listenersAndTimers": 128,
     "anyTypes": 89,
     "nonsemanticActions": 18,
     "clickSemantics": 283,
     "nativeDialogs": 54,
     "vHtml": 0,
-    "transitionAll": 84,
+    "transitionAll": 76,
     "raw100vh": 15,
-    "potentialUndersizeTargets": 527,
+    "potentialUndersizeTargets": 498,
     "backendRoutes": 205
   }
 }

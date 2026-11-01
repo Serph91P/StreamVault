@@ -1,9 +1,9 @@
 <template>
   <div class="page-view videos-view">
     <PageHeader
-      title="Videos"
+      title="Aufzeichnungen"
       icon="video"
-      subtitle="Browse and manage all recorded streams"
+      subtitle="Aufgezeichnete Streams durchsuchen und verwalten"
     >
       <template #actions>
         <BaseButton
@@ -65,6 +65,7 @@
           type="text"
           placeholder="Search videos by title or streamer..."
           class="search-input"
+          aria-label="Search videos"
         />
         <BaseIconButton
           v-if="searchQuery"
@@ -110,7 +111,7 @@
       </div>
 
       <!-- Filters Button -->
-      <button @click="showFilters = !showFilters" class="filters-btn" v-ripple>
+      <button @click="showFilters = !showFilters" class="filters-btn" :aria-expanded="showFilters" aria-controls="video-filters" v-ripple>
         <svg class="icon">
           <use href="#icon-filter" />
         </svg>
@@ -138,7 +139,7 @@
     <!-- Filter Panel (grid-rows collapse: animating max-height re-layouts
          every frame and stutters; 0fr->1fr interpolates smoothly) -->
     <div class="filter-collapse" :class="{ open: showFilters }" :inert="!showFilters">
-      <div class="filter-panel">
+      <div id="video-filters" class="filter-panel">
         <!-- Streamer Filter -->
         <div class="filter-group">
           <label class="filter-label">Streamer</label>
@@ -649,18 +650,16 @@ onMounted(() => {
 }
 
 .brief-stats {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--spacing-3);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-4) var(--spacing-6);
   margin: 0;
+  padding-bottom: var(--spacing-4);
+  border-bottom: 1px solid var(--sv-sem-border-default);
 }
 
 .brief-stat {
-  min-width: 120px;
-  padding: var(--spacing-4);
-  background: rgba(var(--background-card-rgb), 0.72);
-  border: 1px solid rgba(var(--border-color-rgb), 0.8);
-  border-radius: var(--radius-xl);
+  min-width: 88px;
 
   dt {
     margin: 0;
@@ -674,13 +673,9 @@ onMounted(() => {
   dd {
     margin: var(--spacing-1) 0 0;
     color: var(--text-primary);
-    font-size: var(--text-2xl);
+    font-size: var(--text-lg);
     font-weight: v.$font-bold;
     line-height: 1;
-  }
-
-  &.total dd {
-    color: var(--primary-color);
   }
 
   &.failed dd {
@@ -692,81 +687,21 @@ onMounted(() => {
   }
 }
 
-.btn-action {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--spacing-2);
-  padding: var(--spacing-3) var(--spacing-4);
-  border-radius: var(--radius-lg);
-  font-size: var(--text-sm);
-  font-weight: v.$font-semibold;
-  border: none;
-  cursor: pointer;
-  transition: all v.$duration-200 v.$ease-out;
-
-  .icon {
-    width: 18px;
-    height: 18px;
-    stroke: currentColor;
-    fill: none;
-  }
-
-  &.btn-primary {
-    background: v.$primary-700;
-    color: white;
-
-    &:hover {
-      background: v.$primary-800;
-      box-shadow: var(--shadow-md);
-    }
-  }
-
-  &.btn-secondary {
-    background: var(--background-card);
-    color: var(--text-primary);
-    border: 1px solid var(--border-color);
-
-    &:hover {
-      background: rgba(var(--primary-500-rgb), 0.1);
-      border-color: var(--primary-color);
-      color: var(--primary-color);
-
-      [data-theme="light"] & {
-        background: var(--primary-50);
-        color: var(--primary-700);
-      }
-    }
-  }
-
-  &.btn-danger {
-    background: v.$danger-700;
-    color: white;
-
-    &:hover {
-      background: var(--danger-600);
-      box-shadow: var(--shadow-md);
-    }
-  }
-}
-
 // Controls Bar
 .controls-bar {
   display: flex;
   gap: var(--spacing-3);
   margin-bottom: var(--spacing-4);
-  padding: var(--spacing-3);
+  padding-bottom: var(--spacing-3);
   flex-wrap: wrap;
   align-items: center;
-  background: var(--background-card);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-sm);
+  border-bottom: 1px solid var(--sv-sem-border-default);
 }
 
 .search-box {
   position: relative;
   flex: 1;
-  min-width: 280px;
+  min-width: min(280px, 100%);
 
   .icon {
     position: absolute;
@@ -781,18 +716,18 @@ onMounted(() => {
 
   .search-input {
     width: 100%;
-    min-height: 46px;
+    min-height: 48px;
     padding: 0 var(--spacing-10);
     background: var(--background-card);
     border: 1px solid var(--border-color);
-    border-radius: var(--radius-lg);
+    border-radius: var(--radius-md);
     color: var(--text-primary);
     font-size: var(--text-sm);
     transition: all v.$duration-200 v.$ease-out;
 
     &:focus {
       outline: none;
-      border-color: var(--primary-color);
+      border-color: var(--sv-sem-action-foreground);
       box-shadow: 0 0 0 3px rgba(var(--primary-500-rgb), 0.1);
     }
 
@@ -838,10 +773,10 @@ onMounted(() => {
   display: flex;
   gap: var(--spacing-1);
   background: var(--background-card);
-  border-radius: var(--radius-lg);
-  padding: var(--spacing-1);
+  border-radius: var(--radius-md);
+  padding: 1px;
   border: 1px solid var(--border-color);
-  min-height: 44px;
+  min-height: 48px;
 }
 
 .toggle-btn {
@@ -864,10 +799,10 @@ onMounted(() => {
   }
 
   &.active {
-    background: v.$primary-700;
+    background: var(--sv-sem-surface-selected);
 
     .icon {
-      stroke: white;
+      stroke: var(--sv-sem-text-primary);
     }
   }
 
@@ -881,11 +816,11 @@ onMounted(() => {
   display: inline-flex;
   align-items: center;
   gap: var(--spacing-2);
-  min-height: 46px;
+  min-height: 48px;
   padding: 0 var(--spacing-4);
   background: var(--background-card);
   border: 1px solid var(--border-color);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-md);
   color: var(--text-primary);
   font-size: var(--text-sm);
   font-weight: v.$font-medium;
@@ -900,8 +835,8 @@ onMounted(() => {
   }
 
   &:hover {
-    border-color: var(--primary-color);
-    color: var(--primary-color);
+    border-color: var(--sv-sem-action-foreground);
+    color: var(--sv-sem-action-foreground);
   }
 
   .filter-badge {
@@ -927,10 +862,10 @@ onMounted(() => {
   // Neutralize the global `label { margin-bottom }` form style - it pushed
   // this control 4px above its flex-centered neighbors
   margin: 0;
-  min-height: 46px;
+  min-height: 48px;
   padding: 0 var(--spacing-8) 0 var(--spacing-3);
   border: 1px solid var(--border-color);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-md);
   background: var(--background-card);
   cursor: pointer;
   overflow: hidden;
@@ -993,7 +928,7 @@ onMounted(() => {
 }
 
 .sort-control-wrap:focus-within {
-  border-color: var(--primary-color);
+  border-color: var(--sv-sem-action-foreground);
   box-shadow: 0 0 0 3px rgba(var(--primary-500-rgb), 0.1);
 }
 
@@ -1001,10 +936,8 @@ onMounted(() => {
 .filter-panel {
   display: flex;
   gap: var(--spacing-4);
-  padding: var(--spacing-5);
-  background: var(--background-card);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-lg);
+  padding: var(--spacing-3) 0;
+  border-bottom: 1px solid var(--sv-sem-border-default);
   margin-bottom: var(--spacing-5);
   flex-wrap: wrap;
 }
@@ -1035,7 +968,7 @@ onMounted(() => {
   min-height: 44px;
 
   &:hover {
-    border-color: var(--primary-color);
+    border-color: var(--sv-sem-action-foreground);
   }
 
   &:focus {
@@ -1058,6 +991,7 @@ onMounted(() => {
   cursor: pointer;
   transition: all v.$duration-200 v.$ease-out;
   align-self: flex-end;
+  min-height: 44px;
 
   .icon {
     width: 16px;
@@ -1084,9 +1018,9 @@ onMounted(() => {
     align-items: center;
     gap: var(--spacing-1);
     padding: var(--spacing-1) var(--spacing-3);
-    background: rgba(var(--primary-500-rgb), 0.12);
-    border: 1px solid rgba(var(--primary-500-rgb), 0.25);
-    border-radius: var(--radius-full);
+    background: var(--sv-sem-surface-raised);
+    border: 1px solid var(--sv-sem-border-default);
+    border-radius: var(--radius-md);
     font-size: var(--text-xs);
     font-weight: v.$font-medium;
     color: var(--text-primary);
@@ -1127,19 +1061,15 @@ onMounted(() => {
   align-items: center;
   justify-content: space-between;
   gap: var(--spacing-3);
-  width: fit-content;
-  max-width: 100%;
-  margin: 0 0 var(--spacing-4) auto;
-  padding: var(--spacing-2) var(--spacing-3);
-  background: rgba(var(--background-card-rgb, 20, 22, 29), 0.72);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-full);
-  font-size: var(--text-xs);
+  flex-wrap: wrap;
+  min-height: 44px;
+  margin: 0 0 var(--spacing-3);
+  font-size: var(--text-sm);
   color: var(--text-secondary);
 
   .selected-count {
     padding: var(--spacing-1) var(--spacing-2);
-    background: rgba(var(--primary-700-rgb), 0.16);
+    background: var(--sv-sem-surface-selected);
     color: var(--text-primary);
     border-radius: var(--radius-md);
     font-weight: v.$font-semibold;
@@ -1172,10 +1102,6 @@ onMounted(() => {
     outline: 2px solid rgba(var(--primary-500-rgb), 0.75);
     outline-offset: 3px;
     border-radius: var(--radius-xl);
-
-    :deep(.video-card) {
-      box-shadow: 0 0 0 1px rgba(var(--primary-500-rgb), 0.3), 0 12px 32px rgba(var(--primary-500-rgb), 0.18);
-    }
   }
 }
 
@@ -1189,18 +1115,15 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(15, 23, 42, 0.58);
-  backdrop-filter: blur(var(--glass-blur-md));
-  -webkit-backdrop-filter: blur(var(--glass-blur-md));
+  background: var(--sv-sem-surface-raised);
+  color: var(--sv-sem-text-primary);
   border: none;
   border-radius: var(--radius-full);
   cursor: pointer;
   transition: all v.$duration-200 v.$ease-out;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
 
   &:hover {
-    background: rgba(15, 23, 42, 0.78);
-    transform: scale(1.05);
+    background: var(--sv-sem-surface-selected);
   }
 
   input[type="checkbox"] {
@@ -1219,10 +1142,10 @@ onMounted(() => {
     display: flex;
     align-items: center;
     justify-content: center;
-    border: 2px solid rgba(255, 255, 255, 0.85);
+    border: 2px solid var(--sv-sem-text-secondary);
     border-radius: var(--radius-md);
-    background: rgba(255, 255, 255, 0.1);
-    color: white;
+    background: var(--sv-sem-surface-panel);
+    color: var(--sv-sem-text-primary);
     transition: all v.$duration-200 v.$ease-out;
   }
 
@@ -1237,8 +1160,9 @@ onMounted(() => {
   }
 
   input[type="checkbox"]:checked + .checkbox-box {
-    border-color: var(--primary-color);
-    background: var(--primary-color);
+    border-color: var(--sv-sem-action-foreground);
+    background: var(--sv-sem-action-primary);
+    color: var(--sv-sem-text-inverse);
   }
 
   input[type="checkbox"]:checked + .checkbox-box .checkbox-check {
@@ -1247,7 +1171,7 @@ onMounted(() => {
   }
 
   input[type="checkbox"]:focus-visible + .checkbox-box {
-    outline: 2px solid white;
+    outline: 2px solid var(--sv-sem-action-focus);
     outline-offset: 3px;
   }
 
@@ -1312,10 +1236,6 @@ onMounted(() => {
 
 // Responsive - Use SCSS mixins for breakpoints
 @include m.respond-below('lg') {  // < 1024px
-  .brief-stats {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-
   .controls-bar {
     flex-wrap: wrap;
     align-items: center;
@@ -1338,10 +1258,6 @@ onMounted(() => {
     margin-bottom: var(--spacing-4);
   }
 
-  .brief-stats {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
   .brief-stat {
     min-width: 0;
   }
@@ -1353,7 +1269,7 @@ onMounted(() => {
   }
 
   .filter-panel {
-    padding: var(--spacing-4);
+    padding: var(--spacing-3) 0;
     gap: var(--spacing-3);
   }
 
@@ -1370,20 +1286,55 @@ onMounted(() => {
 
   // Search and view controls
   .search-box {
+    .search-input { font-size: 16px; }
+
     order: -1;  // Move search to top on mobile
     width: 100%;
-    margin-bottom: var(--spacing-3);
+    margin-bottom: 0;
   }
 
-  .view-toggle,
-  .filters-btn,
-  .sort-control-wrap {
-    flex: 1;  // Equal width controls
+  .controls-bar {
+    display: grid;
+    grid-template-columns: 100px auto minmax(0, 1fr);
+    gap: var(--spacing-2);
+  }
+
+  .search-box {
+    grid-column: 1 / -1;
+    min-width: 0;
+  }
+
+  .view-toggle {
+    gap: 0;
+
+    .toggle-btn {
+      flex: 0 0 48px;
+      width: 48px;
+      min-height: 48px;
+    }
+  }
+
+  .filters-btn {
     justify-content: center;
+    padding-inline: var(--spacing-2);
   }
 
-  .view-toggle .toggle-btn {
-    flex: 1;
+  .sort-control-wrap {
+    min-width: 0;
+    min-height: 48px;
+    justify-content: flex-start;
+  }
+
+  .sort-label,
+  .sort-icon {
+    display: none;
+  }
+
+  .sort-value {
+    min-width: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    line-height: 1.3;
   }
 
   .filter-panel {
@@ -1406,6 +1357,15 @@ onMounted(() => {
   .results-info {
     align-items: stretch;
     flex-direction: column;
+  }
+}
+@include m.respond-below('xs') {
+  .controls-bar {
+    grid-template-columns: 100px minmax(0, 1fr);
+  }
+
+  .sort-control-wrap {
+    grid-column: 1 / -1;
   }
 }
 </style>

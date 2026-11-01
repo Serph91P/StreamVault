@@ -56,11 +56,11 @@ test('Settings deep link retains dirty panel state and moves focus on section ch
 
   const token = page.getByLabel('Twitch OAuth token')
   await token.fill('unsaved-local-matrix-value')
-  await selectSettingsSection(page, 'notifications', /^Benachrichtigungen /)
+  await selectSettingsSection(page, 'notifications', /^Benachrichtigungen$/)
   await expect(page.getByRole('heading', { name: 'Benachrichtigungen', exact: true })).toBeVisible()
   await expect(content).toBeFocused()
 
-  await selectSettingsSection(page, 'twitch', /^Twitch-Verbindung /)
+  await selectSettingsSection(page, 'twitch', /^Twitch-Verbindung$/)
   await expect(token).toHaveValue('unsaved-local-matrix-value')
   await page.getByRole('button', { name: 'Cancel' }).click()
   await expect(token).toHaveValue('')
@@ -145,7 +145,7 @@ test('Settings lazy panel failure is visible, retryable, and restores panel focu
   expect(new Set(panelHostCssRequestUrls).size).toBe(panelHostCssRequestUrls.length)
   expect(helperRequests).toBeGreaterThanOrEqual(1)
 
-  await selectSettingsSection(page, 'twitch', /^Twitch-Verbindung /)
+  await selectSettingsSection(page, 'twitch', /^Twitch-Verbindung$/)
   await expect(page.getByRole('heading', { name: 'Twitch-Verbindung' })).toBeVisible()
   await expectSettingsPanelStyles(page)
 })

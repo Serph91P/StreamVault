@@ -441,19 +441,19 @@ onMounted(() => {
 }
 
 .status-badge.live {
-  background-color: var(--danger-color);
-  color: white;
+  background-color: var(--sv-fdn-color-red-700);
+  color: var(--sv-sem-text-inverse);
 }
 
 .status-badge.recording {
-  background-color: var(--success-color);
-  color: white;
+  background-color: var(--sv-fdn-color-green-700);
+  color: var(--sv-sem-text-inverse);
   animation: pulse 2s infinite;
 }
 
 .status-badge.not-recording {
-  background-color: var(--warning-color);
-  color: white;
+  background-color: var(--sv-fdn-color-amber-700);
+  color: var(--sv-sem-text-inverse);
 }
 
 @keyframes pulse {
@@ -497,8 +497,8 @@ onMounted(() => {
 }
 
 .btn-danger {
-  background-color: var(--danger-color);
-  color: white;
+  background-color: var(--sv-fdn-color-red-700);
+  color: var(--sv-sem-text-inverse);
 }
 
 .btn-danger:hover:not(:disabled) {

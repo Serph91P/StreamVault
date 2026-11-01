@@ -66,7 +66,7 @@ withDefaults(defineProps<Props>(), {
 
 .page-header-content {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: var(--spacing-4);
 }
@@ -98,10 +98,9 @@ withDefaults(defineProps<Props>(), {
   flex-shrink: 0;
   max-width: 100%;
   gap: var(--spacing-2);
-  padding: 0 var(--spacing-3);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-  color: var(--text-primary);
+  padding: 0 var(--spacing-1);
+  border-radius: var(--sv-fdn-radius-md);
+  color: var(--sv-sem-text-secondary);
   font-size: var(--text-sm);
   font-weight: 600;
   text-decoration: none;
@@ -116,8 +115,7 @@ withDefaults(defineProps<Props>(), {
   }
 
   &:hover {
-    border-color: var(--primary-color);
-    color: var(--primary-color);
+    color: var(--sv-sem-action-focus);
   }
 }
 
@@ -126,7 +124,7 @@ withDefaults(defineProps<Props>(), {
   height: 1.5rem;
   flex-shrink: 0;
   margin-top: 0.25rem;
-  color: var(--primary-color);
+  color: var(--sv-sem-text-secondary);
 
   &.m-hide {
     @include m.respond-below('md') {
@@ -137,11 +135,12 @@ withDefaults(defineProps<Props>(), {
 
 .page-header-title-text {
   font-size: var(--text-2xl);
-  font-weight: 700;
+  font-weight: 600;
+  letter-spacing: -0.025em;
   line-height: 1.25;
   // Page headers globally use a decorative gradient; this semantic title must remain solid for contrast checks.
   background-image: none;
-  color: var(--text-primary);
+  color: var(--sv-sem-text-primary);
   margin: 0;
   display: flex;
   align-items: center;
@@ -202,7 +201,7 @@ withDefaults(defineProps<Props>(), {
   .page-header-end {
     flex: 1 1 100%;
     justify-content: flex-start;
-    padding-left: calc(1rem + var(--spacing-3));
+    padding-left: 0;
   }
 
   .page-header--nested .page-header-end {
