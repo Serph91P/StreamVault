@@ -19,6 +19,7 @@ const notificationStore = useNotificationStore()
 const router = useRouter()
 const isLoading = ref(false)
 const errorMessage = ref('')
+const isMutating = ref(false)
 
 const notifications = computed(() => notificationStore.filteredNotifications)
 const totalCount = computed(() => notificationStore.totalCount)
@@ -77,18 +78,29 @@ function removeNotification(id: string): void {
   notificationStore.remove(id)
 }
 
-function markAllRead(event?: Event): void {
+async function markAllRead(event?: Event): Promise<void> {
   event?.preventDefault()
   event?.stopPropagation()
-  notificationStore.markAllRead()
+  if (isMutating.value) return
+  isMutating.value = true
+  errorMessage.value = ''
+  const marked = await notificationStore.markAllRead()
+  isMutating.value = false
+  if (!marked) {
+    errorMessage.value = 'Notifications could not be marked read. Existing local read states were preserved.'
+    return
+  }
   emit('notifications-read')
 }
 
 async function clearAllNotifications(event?: Event): Promise<void> {
   event?.preventDefault()
   event?.stopPropagation()
+  if (isMutating.value) return
+  isMutating.value = true
   errorMessage.value = ''
   const cleared = await notificationStore.clearAll()
+  isMutating.value = false
   if (!cleared) {
     errorMessage.value = 'Notifications could not be cleared. Existing local items were preserved.'
     return
@@ -122,6 +134,9 @@ function closeFeed(): void {
 onMounted(() => {
   refreshNotifications()
 })
+
+// The compact shell header delegates to the same owner as the standalone feed.
+defineExpose({ markAllRead, clearAllNotifications, isMutating })
 </script>
 
 <template>
@@ -137,6 +152,7 @@ onMounted(() => {
           <p class="section-subtitle">{{ subtitle }}</p>
           <p class="channel-explainer">
             In-app events arrive live over WebSocket. External delivery still uses your configured Apprise and push targets.
+            Individual read/unread and history are local to this browser. Mark all read and Clear all also update the server-wide timestamp.
           </p>
         </div>
       </div>
@@ -146,6 +162,7 @@ onMounted(() => {
           type="button"
           class="header-action mark-read-action"
           aria-label="Mark all notifications read"
+          :disabled="isMutating"
           @click="markAllRead"
         >
           Mark all read
@@ -155,6 +172,7 @@ onMounted(() => {
           type="button"
           class="header-action clear-action"
           aria-label="Clear all notifications"
+          :disabled="isMutating"
           @click="clearAllNotifications"
         >
           Clear all

@@ -86,6 +86,7 @@ function notificationGroupTitle(timestamp: string): string {
 export const useNotificationStore = defineStore('notifications', () => {
   const notifications = ref<StoredNotification[]>([])
   const filter = ref<NotificationFilter>('all')
+  let lastReadWatermark: number | null = null
 
   const sortedNotifications = computed(() => sortedLimited(notifications.value))
 
@@ -185,6 +186,9 @@ export const useNotificationStore = defineStore('notifications', () => {
 
   function load(): void {
     notifications.value = sortedLimited(readNotifications())
+    lastReadWatermark = notifications.value.reduce<number | null>((latest, n) =>
+      typeof n.read_watermark === 'number' ? Math.max(latest ?? 0, n.read_watermark) : latest,
+    lastReadWatermark)
     writeNotifications(notifications.value)
   }
 
@@ -208,20 +212,22 @@ export const useNotificationStore = defineStore('notifications', () => {
       const readTs =
         (backendState as Record<string, unknown>).last_read_timestamp ||
         (backendState as Record<string, unknown>).last_read
-      if (readTs) {
-        const readAt = new Date(readTs as string).getTime()
-        let changed = false
+      const readAt = readTs ? new Date(readTs as string).getTime() : 0
+      if (Number.isFinite(readAt)) {
+        const newestReadAt = Math.max(lastReadWatermark ?? 0, readAt)
+        lastReadWatermark = newestReadAt
         notifications.value.forEach((n) => {
           const notificationTime = new Date(n.timestamp).getTime()
-          if (!n.read && Number.isFinite(notificationTime) && notificationTime <= readAt) {
+          // An unchanged/stale snapshot is not a new global read intent.
+          // For a pre-sync local action, the first snapshot establishes its baseline only.
+          if (n.read_watermark !== null && newestReadAt > (n.read_watermark ?? 0) &&
+            Number.isFinite(notificationTime) && notificationTime <= newestReadAt) {
             n.read = true
-            n.read_at = n.read_at || readTs as string
-            changed = true
+            n.read_at = n.read_at || new Date(newestReadAt).toISOString()
           }
+          n.read_watermark = Math.max(n.read_watermark ?? 0, newestReadAt)
         })
-        if (changed) {
-          persist()
-        }
+        persist()
       }
       return true
     } catch (error) {
@@ -258,25 +264,38 @@ export const useNotificationStore = defineStore('notifications', () => {
     if (existingIndex >= 0) {
       newNotification.read = notifications.value[existingIndex].read
       newNotification.read_at = notifications.value[existingIndex].read_at
+      newNotification.read_watermark = notifications.value[existingIndex].read_watermark
       notifications.value[existingIndex] = newNotification
     } else {
+      if (lastReadWatermark !== null) {
+        newNotification.read_watermark = lastReadWatermark
+        if (new Date(newNotification.timestamp).getTime() <= lastReadWatermark) {
+          newNotification.read = true
+          newNotification.read_at = new Date(lastReadWatermark).toISOString()
+        }
+      }
       notifications.value.unshift(newNotification)
     }
 
     persist()
   }
 
-  function markAllRead(): void {
+  async function markAllRead(): Promise<boolean> {
     const now = new Date().toISOString()
+    try {
+      await notificationApi.markRead(now)
+    } catch (error) {
+      console.error('Failed to mark notifications as read on backend:', error)
+      return false
+    }
+    lastReadWatermark = Math.max(lastReadWatermark ?? 0, new Date(now).getTime())
     notifications.value.forEach((n) => {
       n.read = true
       n.read_at = n.read_at || now
+      n.read_watermark = lastReadWatermark
     })
     persist()
-
-    notificationApi.markRead(now).catch((error) => {
-      console.error('Failed to mark notifications as read on backend:', error)
-    })
+    return true
   }
 
   function markRead(id: string): void {
@@ -284,11 +303,8 @@ export const useNotificationStore = defineStore('notifications', () => {
     if (n && !n.read) {
       n.read = true
       n.read_at = new Date().toISOString()
+      n.read_watermark = lastReadWatermark
       persist()
-
-      notificationApi.markRead(n.read_at).catch((error) => {
-        console.error('Failed to mark notification as read on backend:', error)
-      })
     }
   }
 
@@ -297,6 +313,7 @@ export const useNotificationStore = defineStore('notifications', () => {
     if (n) {
       n.read = false
       n.read_at = undefined
+      n.read_watermark = lastReadWatermark
       persist()
     }
   }

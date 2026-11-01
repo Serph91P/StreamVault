@@ -2,7 +2,7 @@ import { defineConfig } from '@playwright/test'
 import { fileURLToPath } from 'node:url'
 const command = process.env.STREAMVAULT_REUSE_VERIFIED_REAL_BUILD === 'true' ? 'verify' : 'build'
 export default defineConfig({
-  testDir: '.', testMatch: 'issue904-notifications.spec.ts',
+  testDir: '.', testMatch: ['issue904-notifications.spec.ts', 'issue989-read-state.spec.ts'],
   timeout: 30_000, expect: { timeout: 10_000 }, workers: 1, reporter: 'list',
   outputDir: fileURLToPath(new URL('../../test-results/issue904-notifications', import.meta.url)),
   metadata: { useMockData: false, evidence: 'REAL frontend; synthetic HTTP/WebSocket protocol, no store injection' },
