@@ -187,6 +187,25 @@ async def test_recovery_discovery_and_enqueue_use_only_owned_closed_worker_scope
             assert updated.path == output_path
             assert updated.status == "completed" and updated.end_time is not None
         assert snapshot(databases[1]) == peer_before
+        queries.clear()
+        paths = [
+            str(service.recordings_base_path / "alice" / "Season 2026" / "orphaned.ts")
+            for service in services
+        ]
+        adopted = await asyncio.gather(
+            *(
+                service._adopt_recording(path)
+                for service, path in zip(services, paths, strict=True)
+            )
+        )
+        assert all(isinstance(identity, int) for identity in adopted)
+        assert queries and loop_thread not in queries
+        for database, identity, path in zip(databases, adopted, paths, strict=True):
+            with database.sync_session_factory() as session:
+                created = session.get(Recording, identity)
+                assert created.path == path and created.status == "stopped"
+                assert created.stream_id != 70
+            assert database.sync_engine.pool.checkedout() == 0
         for database in databases:
             assert database.sync_engine.pool.checkedout() == 0
     finally:

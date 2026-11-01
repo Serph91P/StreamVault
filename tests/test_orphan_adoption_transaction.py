@@ -33,16 +33,15 @@ def media_file(directory: Path, filename: str) -> Path:
     return path
 
 
-@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "filename",
     ["synthetic - S202601E19 - 2026-01-08T22-00-00.ts", "synthetic_orphan.ts"],
 )
-async def test_adoption_commits_offline_stream_and_recording(adoption, filename):
+def test_adoption_commits_offline_stream_and_recording(adoption, filename):
     service, db, directory = adoption
     path = media_file(directory, filename)
     before = datetime.now(timezone.utc)
-    recording_id = await service._create_recording_from_orphaned_path(db, str(path))
+    recording_id = service._create_recording_from_orphaned_path(db, str(path))
     assert recording_id is not None
     db.expire_all()
     recording = db.get(Recording, recording_id)
@@ -69,8 +68,7 @@ async def test_adoption_commits_offline_stream_and_recording(adoption, filename)
     assert path.read_bytes() == b"synthetic original media bytes"
 
 
-@pytest.mark.asyncio
-async def test_adoption_reuses_matching_offline_stream(adoption):
+def test_adoption_reuses_matching_offline_stream(adoption):
     service, db, directory = adoption
     original = Stream(
         streamer_id=db.scalar(select(Streamer.id)),
@@ -82,7 +80,7 @@ async def test_adoption_reuses_matching_offline_stream(adoption):
     db.add(original)
     db.commit()
     path = media_file(directory, "synthetic - S202601E19 - 2026-01-08T22-00-00.ts")
-    recording_id = await service._create_recording_from_orphaned_path(db, str(path))
+    recording_id = service._create_recording_from_orphaned_path(db, str(path))
     recording = db.get(Recording, recording_id)
     assert recording is not None
     assert recording.stream_id == original.id
@@ -90,9 +88,8 @@ async def test_adoption_reuses_matching_offline_stream(adoption):
     assert original.ended_at == datetime(2026, 1, 8, 23)
 
 
-@pytest.mark.asyncio
 @pytest.mark.parametrize("table", ["streams", "recordings"])
-async def test_adoption_insert_failure_is_atomic_and_actionable(adoption, table):
+def test_adoption_insert_failure_is_atomic_and_actionable(adoption, table):
     service, db, directory = adoption
     path = media_file(directory, "synthetic - S202601E19 - 2026-01-08T22-00-00.ts")
     engine = db.get_bind()
@@ -106,7 +103,7 @@ async def test_adoption_insert_failure_is_atomic_and_actionable(adoption, table)
     event.listen(engine, "before_cursor_execute", reject_insert)
     try:
         with pytest.raises(DomainError) as error:
-            await service._create_recording_from_orphaned_path(db, str(path))
+            service._create_recording_from_orphaned_path(db, str(path))
         assert error.value.code == "recovery_adoption_failed"
         assert "retry" in error.value.message.lower()
     finally:
@@ -116,17 +113,16 @@ async def test_adoption_insert_failure_is_atomic_and_actionable(adoption, table)
     assert db.scalars(select(Recording)).all() == []
     assert path.read_bytes() == b"synthetic original media bytes"
     # The rolled-back session remains usable for the same operation's retry.
-    assert await service._create_recording_from_orphaned_path(db, str(path)) is not None
+    assert service._create_recording_from_orphaned_path(db, str(path)) is not None
     assert len(db.scalars(select(Stream)).all()) == 1
     assert len(db.scalars(select(Recording)).all()) == 1
 
 
-@pytest.mark.asyncio
-async def test_unidentified_streamer_does_not_create_rows(adoption):
+def test_unidentified_streamer_does_not_create_rows(adoption):
     service, db, directory = adoption
     unknown = directory.parent.parent / "unknown"
     unknown.mkdir()
     path = media_file(unknown, "unknown.ts")
-    assert await service._create_recording_from_orphaned_path(db, str(path)) is None
+    assert service._create_recording_from_orphaned_path(db, str(path)) is None
     assert db.scalars(select(Stream)).all() == []
     assert db.scalars(select(Recording)).all() == []

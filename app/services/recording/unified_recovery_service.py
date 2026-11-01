@@ -461,10 +461,7 @@ class UnifiedRecoveryService:
                 return False
 
             if recording_id is None:
-                with self._sessions() as db:
-                    recording_id = await self._create_recording_from_orphaned_path(
-                        db, str(expected_ts_path)
-                    )
+                recording_id = await self._adopt_recording(str(expected_ts_path))
                 if recording_id is None:
                     return False
                 recording_info["recording_id"] = recording_id
@@ -875,7 +872,17 @@ class UnifiedRecoveryService:
 
         return None
 
-    async def _create_recording_from_orphaned_path(
+    async def _adopt_recording(self, file_path: str) -> int | None:
+        return await run_in_thread_pool(self._adopt_recording_sync, file_path)
+
+    def _adopt_recording_sync(self, file_path: str) -> int | None:
+        with self._sessions() as db:
+            # SQLite has no row locks; serialize adoption before its first catalog read.
+            if db.get_bind().dialect.name == "sqlite":
+                db.connection().exec_driver_sql("BEGIN IMMEDIATE")
+            return self._create_recording_from_orphaned_path(db, file_path)
+
+    def _create_recording_from_orphaned_path(
         self, db: Session, file_path: str
     ) -> Optional[int]:
         """Create a new Recording entry for an orphaned segments directory

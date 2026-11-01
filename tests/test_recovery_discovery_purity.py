@@ -8,7 +8,6 @@ from types import SimpleNamespace
 import pytest
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
 
 from app.database import Base
 from app.models import Recording, Stream, Streamer
@@ -19,9 +18,7 @@ from app.services.recording.unified_recovery_service import UnifiedRecoveryServi
 
 @pytest.fixture
 def discovery(tmp_path, monkeypatch):
-    engine = create_engine(
-        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
-    )
+    engine = create_engine(f"sqlite:///{tmp_path / 'discovery.db'}")
     with engine.begin() as connection:
         Base.metadata.create_all(connection)
     factory = sessionmaker(engine)
@@ -151,8 +148,7 @@ async def test_explicit_adoption_reuses_one_row_across_service_instances(
         (segments / "segment_001.ts").write_bytes(b"original segment bytes")
 
     async def adopt(instance):
-        with factory() as db:
-            return await instance._create_recording_from_orphaned_path(db, str(path))
+        return await instance._adopt_recording(str(path))
 
     ids = await asyncio.gather(adopt(service), adopt(UnifiedRecoveryService()))
     assert ids[0] is not None and ids[0] == ids[1]

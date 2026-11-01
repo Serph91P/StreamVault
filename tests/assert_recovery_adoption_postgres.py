@@ -4,7 +4,6 @@ Run with STREAMVAULT_POSTGRES_TEST_URL pointing to an owned empty test database.
 No provider, processing, migration or production-data claim is made.
 """
 
-import asyncio
 import json
 import os
 import tempfile
@@ -54,10 +53,8 @@ def main() -> None:
                 def adopt() -> int | None:
                     with factory() as db:
                         start.wait(timeout=10)
-                        return asyncio.run(
-                            UnifiedRecoveryService()._create_recording_from_orphaned_path(
-                                db, str(path)
-                            )
+                        return UnifiedRecoveryService()._create_recording_from_orphaned_path(
+                            db, str(path)
                         )
 
                 with ThreadPoolExecutor(max_workers=2) as workers:
