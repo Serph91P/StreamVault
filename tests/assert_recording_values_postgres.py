@@ -2,6 +2,8 @@
 
 import asyncio
 import os
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from threading import Event, get_ident
 from uuid import uuid4
 
@@ -18,6 +20,12 @@ from app.models import (
     Streamer,
     StreamerRecordingSettings,
     StreamEvent,
+    RecordingProcessingState,
+    StreamMetadata,
+)
+from app.services.communication.websocket_manager import ConnectionManager
+from app.services.processing.post_processing_task_handlers import (
+    PostProcessingTaskHandlers,
 )
 from app.services.recording.config_manager import ConfigManager
 from app.services.recording.recording_database_service import RecordingDatabaseService
@@ -100,6 +108,120 @@ async def check_concurrent_timeline(engine, sessions, service, schema):
     assert await run_in_thread_pool(read_types) == ["channel.update", "stream.online"]
 
 
+async def check_processing_context(
+    engine, sessions, schema, stream_id, recording_id, label
+):
+    manager = ConnectionManager()
+    handlers = PostProcessingTaskHandlers(
+        session_factory=sessions, connection_manager=manager
+    )
+    locked, release = Event(), Event()
+    state_reads = []
+
+    def observe(_connection, _cursor, statement, *_):
+        if (
+            statement.lstrip().upper().startswith("SELECT")
+            and schema + ".recording_processing_state" in statement
+        ):
+            state_reads.append(statement)
+
+    def hold_row():
+        with sessions() as session, session.begin():
+            assert (
+                session.scalar(
+                    select(Recording.id)
+                    .where(Recording.id == recording_id)
+                    .with_for_update()
+                )
+                == recording_id
+            )
+            locked.set()
+            assert release.wait(15), "test did not release the recording row"
+
+    def blocked_writers():
+        with engine.connect() as connection:
+            return connection.scalar(
+                text(
+                    "SELECT count(*) FROM pg_stat_activity WHERE wait_event_type = 'Lock' AND query LIKE :pattern"
+                ),
+                {"pattern": "%" + schema + "%"},
+            )
+
+    def read_status():
+        with sessions() as session:
+            state = session.scalar(
+                select(RecordingProcessingState).where(
+                    RecordingProcessingState.recording_id == recording_id
+                )
+            )
+            return state.metadata_status, state.chapters_status
+
+    event.listen(engine, "before_cursor_execute", observe)
+    lock_task = asyncio.create_task(run_in_thread_pool(hold_row))
+    writers = []
+    try:
+        try:
+            assert await asyncio.to_thread(locked.wait, 10)
+            writers = [
+                asyncio.create_task(
+                    handlers._record_status(recording_id, stream_id, step, "completed")
+                )
+                for step in ("metadata", "chapters")
+            ]
+            deadline = asyncio.get_running_loop().time() + 10
+            while await run_in_thread_pool(blocked_writers) < 2:
+                assert asyncio.get_running_loop().time() < deadline, (
+                    "both status writers must reach the real recording lock"
+                )
+                await asyncio.sleep(0.01)
+            assert not state_reads, (
+                "state reads must wait for ownership of the recording row"
+            )
+        finally:
+            release.set()
+            await asyncio.gather(lock_task, *writers, return_exceptions=True)
+            event.remove(engine, "before_cursor_execute", observe)
+        await asyncio.gather(*writers)
+        assert await run_in_thread_pool(read_status) == ("completed", "completed")
+        with TemporaryDirectory(prefix="processing-boundary-") as directory:
+            target = Path(directory) / label / "episode.mp4"
+            target.parent.mkdir()
+
+            def seed_metadata():
+                with sessions.begin() as session:
+                    session.add(StreamMetadata(stream_id=stream_id))
+
+            await run_in_thread_pool(seed_metadata)
+            paths = await handlers.metadata_service.ensure_all_chapter_formats(
+                stream_id, str(target)
+            )
+            assert paths and set(paths) == {"vtt", "srt", "ffmpeg", "xml"}
+            assert all(Path(filename).is_file() for filename in paths.values())
+            assert "artist=" + label in Path(paths["ffmpeg"]).read_text()
+            assert "title=" + label in Path(paths["ffmpeg"]).read_text()
+
+            def read_paths():
+                with sessions() as session:
+                    value = session.scalar(
+                        select(StreamMetadata).where(
+                            StreamMetadata.stream_id == stream_id
+                        )
+                    )
+                    return (
+                        value.chapters_vtt_path,
+                        value.chapters_srt_path,
+                        value.chapters_ffmpeg_path,
+                        value.chapters_xml_path,
+                    )
+
+            assert await run_in_thread_pool(read_paths) == tuple(
+                paths[key] for key in ("vtt", "srt", "ffmpeg", "xml")
+            )
+    finally:
+        await handlers.cleanup()
+        await manager.close_all()
+
+
 async def main() -> None:
     engine = create_engine(os.environ["STREAMVAULT_POSTGRES_TEST_URL"])
     assert engine.dialect.name == "postgresql"
@@ -176,6 +298,9 @@ async def main() -> None:
             await service.ensure_initial_stream_events(stream.id)
             await service.ensure_initial_stream_events(stream.id)
             await check_concurrent_timeline(engine, sessions, service, schema)
+            await check_processing_context(
+                engine, sessions, schema, stream.id, recording.id, label
+            )
             with_error = {"streamer_id": 1, "twitch_stream_id": "same-id"}
             try:
                 await service.create_stream(with_error)
@@ -218,7 +343,7 @@ async def main() -> None:
                     "stream.online",
                 ]
         print(
-            "PASS: PostgreSQL recording/config peer isolation, frozen values, off-loop SQL, checked-in scopes, rollback, timelines and updates"
+            "PASS: PostgreSQL recording/config peer isolation, frozen values, off-loop SQL, checked-in scopes, rollback, timelines, serialized processing status and four persisted chapter formats"
         )
     finally:
         for schema in reversed(schemas):
