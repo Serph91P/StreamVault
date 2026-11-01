@@ -448,6 +448,9 @@ class UnifiedRecoveryService:
         )
         return failed
 
+    def _segment_count(self, directory: Path) -> int:
+        return sum(1 for _ in directory.glob("*.ts"))
+
     async def _process_orphaned_recording(
         self, recording_info: OrphanedRecoveryInput
     ) -> bool:
@@ -547,12 +550,12 @@ class UnifiedRecoveryService:
                 logger.info(
                     f"🛑 Streamer {streamer_name} has active recording - processing old segments as separate episode"
                 )
-            logger.info(
-                f"📦 This will concatenate {len(list(segments_dir.glob('*.ts')))} segments in background"
-            )
+            count = await run_in_thread_pool(self._segment_count, segments_dir)
+            logger.info("This will concatenate %s segments in background", count)
 
             # Log to dedicated file
-            logging_service.log_post_processing_activity(
+            await run_in_thread_pool(
+                logging_service.log_post_processing_activity,
                 "CONCATENATION_START",
                 streamer_name,
                 f"Starting concatenation for orphaned recording {recording_id}: {segments_dir.name}",
@@ -564,7 +567,7 @@ class UnifiedRecoveryService:
                 segments_dir, expected_ts_path
             )
 
-            if result and result.exists():
+            if result and await run_in_thread_pool(result.exists):
                 logger.info(f"✅ CONCATENATION_SUCCESS: {expected_ts_path}")
 
                 # Update database if we have a recording_id
@@ -574,20 +577,22 @@ class UnifiedRecoveryService:
                     )
 
                 # Trigger post-processing
-                await self._trigger_post_processing(
+                accepted = await self._trigger_post_processing(
                     recording_id, str(expected_ts_path), streamer_name
                 )
 
-                logging_service.log_post_processing_activity(
+                await run_in_thread_pool(
+                    logging_service.log_post_processing_activity,
                     "CONCATENATION_SUCCESS",
                     streamer_name,
                     f"Successfully concatenated orphaned recording {recording_id}",
                 )
 
-                return True
+                return accepted
             else:
                 logger.error(f"❌ CONCATENATION_FAILED: {segments_dir}")
-                logging_service.log_post_processing_activity(
+                await run_in_thread_pool(
+                    logging_service.log_post_processing_activity,
                     "CONCATENATION_FAILED",
                     streamer_name,
                     f"Failed to concatenate orphaned recording {recording_id}",

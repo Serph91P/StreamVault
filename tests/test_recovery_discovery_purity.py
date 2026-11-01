@@ -2,7 +2,9 @@
 
 import asyncio
 import importlib
+import os
 from datetime import datetime, timedelta, timezone
+from threading import get_ident
 from types import SimpleNamespace
 
 import pytest
@@ -158,3 +160,76 @@ async def test_explicit_adoption_reuses_one_row_across_service_instances(
     assert await service._batch_find_recordings_by_paths([str(path)]) == {
         str(path): ids[0]
     }
+
+
+@pytest.mark.asyncio
+async def test_concat_completion_requires_post_processing_admission(
+    discovery, monkeypatch
+):
+    service, factory, directory = discovery
+    segments = directory / "synthetic_small_segments"
+    segments.mkdir()
+    original = segments / "segment_001.ts"
+    child = await asyncio.create_subprocess_exec(
+        "ffmpeg",
+        "-v",
+        "error",
+        "-f",
+        "lavfi",
+        "-i",
+        "anullsrc=r=8000:cl=mono",
+        "-t",
+        "0.001",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "8k",
+        "-f",
+        "mpegts",
+        str(original),
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    _, error = await child.communicate()
+    assert child.returncode == 0, error.decode()
+    source_bytes = original.read_bytes()
+    probes = []
+    loop_thread = get_ident()
+    native_stat = os.stat
+    native_scandir = os.scandir
+
+    def scandir(path):
+        if isinstance(path, (str, os.PathLike)) and str(path).startswith(
+            str(directory)
+        ):
+            probes.append(get_ident())
+        return native_scandir(path)
+
+    def stat(path, *args, **kwargs):
+        if isinstance(path, (str, os.PathLike)) and str(path).startswith(
+            str(directory)
+        ):
+            probes.append(get_ident())
+        return native_stat(path, *args, **kwargs)
+
+    async def offline(recording_id):
+        return False  # Only the external provider decision is controlled here.
+
+    monkeypatch.setattr(service, "_check_if_streamer_still_live", offline)
+    output = directory / "synthetic_small.ts"
+    with monkeypatch.context() as watched:
+        watched.setattr(os, "stat", stat)
+        watched.setattr(os, "scandir", scandir)
+        result = await service._process_orphaned_recording(
+            {
+                "recording_id": None,
+                "streamer_name": "synthetic",
+                "segments_dir": segments,
+                "expected_ts_path": output,
+            }
+        )
+    assert result is False  # A real concatenation is not an accepted processing chain.
+    assert probes and loop_thread not in probes
+    assert 0 < output.stat().st_size < 1024
+    assert original.read_bytes() == source_bytes
+    assert factory.kw["bind"].pool.checkedout() == 0
