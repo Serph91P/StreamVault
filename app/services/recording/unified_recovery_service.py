@@ -224,7 +224,8 @@ class UnifiedRecoveryService:
             logger.info(f"🔍 UNIFIED_RECOVERY_COMPLETE: {stats}")
 
             # Log to dedicated recovery file
-            logging_service.log_recording_activity_to_file(
+            await run_in_thread_pool(
+                logging_service.log_recording_activity_to_file,
                 "SYSTEM_RECOVERY",
                 "UnifiedRecovery",
                 f"Recovery scan completed: orphaned={stats.orphaned_segments}, "

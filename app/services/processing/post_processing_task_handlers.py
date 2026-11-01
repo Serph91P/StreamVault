@@ -7,6 +7,7 @@ import asyncio
 import logging
 import os
 import copy
+from typing import TYPE_CHECKING
 from collections.abc import Callable
 from pathlib import Path
 
@@ -31,6 +32,9 @@ from app.config.constants import CACHE_CONFIG, ASYNC_DELAYS
 
 logger = logging.getLogger("streamvault")
 
+if TYPE_CHECKING:
+    from app.services.recording.unified_recovery_service import UnifiedRecoveryService
+
 
 class PostProcessingTaskHandlers:
     """Collection of task handlers for post-processing operations"""
@@ -40,8 +44,10 @@ class PostProcessingTaskHandlers:
         *,
         session_factory: Callable[[], Session] | None = None,
         connection_manager: ConnectionManager | None = None,
+        recovery_service_factory: Callable[[], "UnifiedRecoveryService"] | None = None,
     ):
         self._session_factory = session_factory
+        self._recovery_service_factory = recovery_service_factory
         self.connection_manager = (
             connection_manager if connection_manager is not None else websocket_manager
         )
@@ -1016,8 +1022,11 @@ class PostProcessingTaskHandlers:
                 get_unified_recovery_service,
             )
 
-            # Get the unified recovery service
-            recovery_service = await get_unified_recovery_service()
+            recovery_service = (
+                await run_in_thread_pool(self._recovery_service_factory)
+                if self._recovery_service_factory is not None
+                else await get_unified_recovery_service()
+            )
 
             # Run comprehensive recovery scan
             stats = await recovery_service.comprehensive_recovery_scan(
@@ -1044,8 +1053,8 @@ class PostProcessingTaskHandlers:
                 error=str(e),
                 operation="unified_recovery_error",
             )
-            # Don't raise - recovery failures shouldn't crash the background queue
-            logger.exception("Full error details:")
+            # Let the existing queue retry/failure channel own the outcome.
+            raise
 
     async def cleanup(self):
         """Clean up services"""

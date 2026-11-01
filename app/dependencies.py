@@ -219,8 +219,7 @@ def get_application_twitch_api(connection: HTTPConnection):
     return _get_application_twitch_api(connection.app)
 
 
-def get_application_recovery_service(connection: HTTPConnection):
-    app = connection.app
+def _get_application_recovery_service(app: FastAPI):
     with app.state.unified_recovery_lock:
         if app.state.unified_recovery_service is None:
             from app.services.recording.unified_recovery_service import (
@@ -230,11 +229,15 @@ def get_application_recovery_service(connection: HTTPConnection):
             app.state.unified_recovery_service = UnifiedRecoveryService(
                 session_factory=app.state.database_lifecycle.sync_session_factory,
                 settings=resolve_app_settings(app),
-                recording_manager=get_application_recording_manager(connection),
+                recording_manager=get_lifespan_service(app, get_recording_manager)(),
                 queue_service=app.state.background_queue_service,
                 twitch_api=_get_application_twitch_api(app),
             )
         return app.state.unified_recovery_service
+
+
+def get_application_recovery_service(connection: HTTPConnection):
+    return _get_application_recovery_service(connection.app)
 
 
 def get_streamer_service(

@@ -17,7 +17,7 @@ from app.config.logging_config import setup_logging
 from app.bootstrap.settings import resolve_app_settings
 from app.core.exceptions import install_exception_handlers
 from app.database import DatabaseLifecycle, database_lifecycle
-from app.dependencies import websocket_manager
+from app.dependencies import websocket_manager, _get_application_recovery_service
 from app.services.communication.websocket_manager import ConnectionManager
 from app.services.init.background_queue_init import (
     BackgroundQueueManager,
@@ -123,6 +123,9 @@ def _configure_app(
             task_handlers=PostProcessingTaskHandlers(
                 session_factory=lambda: owned_database.sync_session_factory(),
                 connection_manager=application.state.websocket_manager,
+                recovery_service_factory=partial(
+                    _get_application_recovery_service, application
+                ),
             ),
         )
     )
