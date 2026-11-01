@@ -206,6 +206,22 @@ async def test_recovery_discovery_and_enqueue_use_only_owned_closed_worker_scope
                 assert created.path == path and created.status == "stopped"
                 assert created.stream_id != 70
             assert database.sync_engine.pool.checkedout() == 0
+        with databases[0].sync_session_factory() as session:
+            session.add(
+                Recording(
+                    id=17,
+                    stream_id=70,
+                    status="recording",
+                    start_time=datetime.now(timezone.utc),
+                )
+            )
+            session.commit()
+        queries.clear()
+        activity = await asyncio.gather(
+            *(service._check_if_stream_has_active_recording(7) for service in services)
+        )
+        assert activity == [True, False]
+        assert queries and loop_thread not in queries
         for database in databases:
             assert database.sync_engine.pool.checkedout() == 0
     finally:

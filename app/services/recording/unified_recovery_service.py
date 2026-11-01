@@ -1304,62 +1304,60 @@ class UnifiedRecoveryService:
         segments immediately.
         """
         try:
-            with self._sessions() as db:
-                # Get the stream_id for the orphaned recording
-                orphaned_recording = (
-                    db.query(Recording)
-                    .filter(Recording.id == orphaned_recording_id)
-                    .first()
-                )
-
-                if not orphaned_recording:
-                    return False
-
-                stream_id = orphaned_recording.stream_id
-
-                # Check if there's another recording with status='recording' for this stream
-                # that is NOT the orphaned recording
-                active_recording = (
-                    db.query(Recording)
-                    .filter(
-                        Recording.stream_id == stream_id,
-                        Recording.id != orphaned_recording_id,
-                        Recording.status == "recording",
-                    )
-                    .first()
-                )
-
-                if active_recording:
-                    logger.info(
-                        f"🔍 Found active recording {active_recording.id} for stream {stream_id} "
-                        f"(orphaned recording: {orphaned_recording_id})"
-                    )
-                    return True
-
-                # Query the process-scoped manager's local cache. The durable
-                # lease remains the cross-instance ownership authority.
-                try:
-                    recording_manager = self._recording_owner()
-                    active_recordings = recording_manager.get_active_recordings()
-
-                    for rec_id, rec_data in active_recordings.items():
-                        if (
-                            rec_data.get("stream_id") == stream_id
-                            and rec_id != orphaned_recording_id
-                        ):
-                            logger.info(
-                                f"🔍 Found in-memory active recording {rec_id} for stream {stream_id} "
-                                f"(orphaned recording: {orphaned_recording_id})"
-                            )
-                            return True
-                except Exception as e:
-                    logger.debug(f"Could not check in-memory recordings: {e}")
-
+            activity = await run_in_thread_pool(
+                self._stream_recording_activity, orphaned_recording_id
+            )
+            if activity is None:
                 return False
+            stream_id, active_id = activity
+            if active_id is not None:
+                logger.info(
+                    "Found active recording %s for stream %s (orphaned recording: %s)",
+                    active_id,
+                    stream_id,
+                    orphaned_recording_id,
+                )
+                return True
 
-        except Exception as e:
-            logger.error(f"❌ Error checking for active recording: {e}")
+            # The app-local cache stays on its owning loop; durable leases remain authority.
+            try:
+                active_recordings = self._recording_owner().get_active_recordings()
+                for rec_id, rec_data in active_recordings.items():
+                    if (
+                        rec_data.get("stream_id") == stream_id
+                        and rec_id != orphaned_recording_id
+                    ):
+                        logger.info(
+                            "Found in-memory active recording %s for stream %s (orphaned recording: %s)",
+                            rec_id,
+                            stream_id,
+                            orphaned_recording_id,
+                        )
+                        return True
+            except Exception as error:
+                logger.debug("Could not check in-memory recordings: %s", error)
             return False
+        except Exception as error:
+            logger.error("Error checking for active recording: %s", error)
+            return False
+
+    def _stream_recording_activity(
+        self, recording_id: int
+    ) -> tuple[int, int | None] | None:
+        with self._sessions() as db:
+            recording = db.get(Recording, recording_id)
+            if recording is None:
+                return None
+            active = (
+                db.query(Recording)
+                .filter(
+                    Recording.stream_id == recording.stream_id,
+                    Recording.id != recording_id,
+                    Recording.status == "recording",
+                )
+                .first()
+            )
+            return recording.stream_id, active.id if active is not None else None
 
     async def _resume_live_recording(
         self, recording_id: int, segments_dir: Path, streamer_name: str
