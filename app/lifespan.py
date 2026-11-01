@@ -226,6 +226,7 @@ async def lifespan(app: FastAPI):
                 initialize_background_services,
                 queue_manager=queue_manager,
                 capture_checker=recording_manager.is_capture_running,
+                recording_manager=recording_manager,
             )
         await background_initializer(
             supervisor=supervisor,
