@@ -83,11 +83,26 @@ async def test_factory_queue_recovery_uses_its_own_service_and_reports_failure(
             )
         for index, app in enumerate(applications):
             queue = app.state.background_queue_service
-            task_id = await queue.enqueue_task(
-                "unified_recovery",
-                {"max_age_hours": 72, "dry_run": True},
-                max_retries=0,
-            )
+            if index == 0:
+                startup = importlib.import_module("app.services.init.startup_init")
+                enqueued = []
+                original_enqueue = queue.enqueue_task
+
+                async def capture_enqueue(*args, **kwargs):
+                    result = await original_enqueue(*args, **kwargs)
+                    enqueued.append(result)
+                    return result
+
+                monkeypatch.setattr(queue, "enqueue_task", capture_enqueue)
+                await startup.unified_recovery_scan(queue_service=queue)
+                assert len(enqueued) == 1
+                task_id = enqueued[0]
+            else:
+                task_id = await queue.enqueue_task(
+                    "unified_recovery",
+                    {"max_age_hours": 72, "dry_run": True},
+                    max_retries=0,
+                )
 
             async def finished():
                 while task_id not in queue.completed_tasks:

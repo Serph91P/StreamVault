@@ -414,7 +414,10 @@ async def initialize_background_services(
 
             # UNIFIED RECOVERY: Only run AFTER active recordings are resumed
             # This ensures we only post-process recordings that are actually offline
-            await unified_recovery_scan()
+            if queue_manager is None:
+                await unified_recovery_scan()
+            else:
+                await unified_recovery_scan(queue_service=queue_manager.queue_service)
 
         # Initialize image sync service for automatic image downloads
         await initialize_image_sync_service()
@@ -518,7 +521,7 @@ async def verify_queue_readiness(
         return False
 
 
-async def unified_recovery_scan():
+async def unified_recovery_scan(*, queue_service: BackgroundQueueService | None = None):
     """Unified recovery scan - enqueued to background queue to prevent frontend blocking"""
     try:
         logger.info("🔄 Scheduling unified recovery scan in background queue...")
@@ -526,7 +529,8 @@ async def unified_recovery_scan():
         from app.services.init.background_queue_init import get_background_queue_service
 
         # Get background queue service
-        queue_service = get_background_queue_service()
+        if queue_service is None:
+            queue_service = get_background_queue_service()
 
         if not queue_service or not queue_service.is_running:
             logger.warning("⚠️ Background queue not running - skipping unified recovery")
