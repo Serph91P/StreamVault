@@ -134,6 +134,34 @@ describe('local item read state versus global watermark', () => {
     expect(store.notifications.find(item => item.id === 'late')?.read).toBe(false)
   })
 
+  it('keeps live items beyond a pending mark-all cutoff unread through reply, reload, sync and replay', async () => {
+    let store = fresh()
+    store.addFromEvent(event('A'))
+    store.addFromEvent(event('future', newer))
+    await store.syncBackendState()
+    let release!: () => void
+    api.markRead.mockImplementationOnce(() => new Promise(resolve => {
+      release = () => { state(watermark); resolve({ success: true, last_read_timestamp: watermark }) }
+    }))
+    const pending = store.markAllRead()
+    expect(api.markRead).toHaveBeenCalledExactlyOnceWith(watermark)
+    store.addFromEvent(event('live', '2026-10-09T14:00:01.000Z'))
+    store.addFromEvent(event('at-cutoff', watermark))
+    store.addFromEvent(event('late-old', '2026-10-09T11:00:00.000Z'))
+    expect(reads(store)).toEqual({ future: false, live: false, 'at-cutoff': false, A: false, 'late-old': false })
+    release()
+    expect(await pending).toBe(true)
+    for (let replay = 0; replay < 2; replay++) {
+      expect(reads(store)).toEqual({ future: false, live: false, 'at-cutoff': true, A: true, 'late-old': true })
+      expect(store.unreadCount).toBe(2)
+      store = fresh()
+      await store.syncBackendState()
+      store.addFromEvent(event('live', '2026-10-09T14:00:01.000Z'))
+      await store.syncBackendState()
+    }
+    expect(api.markRead).toHaveBeenCalledTimes(1)
+  })
+
   it('does not report global mark-all success or alter local items when the server rejects it', async () => {
     const store = fresh()
     store.addFromEvent(event('A'))

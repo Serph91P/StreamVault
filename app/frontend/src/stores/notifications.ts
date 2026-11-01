@@ -290,8 +290,11 @@ export const useNotificationStore = defineStore('notifications', () => {
     }
     lastReadWatermark = Math.max(lastReadWatermark ?? 0, Date.parse(now))
     notifications.value.forEach((n) => {
-      n.read = true
-      n.read_at = n.read_at || now
+      // The response must not read live events newer than this request's cutoff.
+      if (Date.parse(n.timestamp) <= Date.parse(now)) {
+        n.read = true
+        n.read_at = n.read_at || now
+      }
       n.read_watermark = lastReadWatermark
     })
     persist()
