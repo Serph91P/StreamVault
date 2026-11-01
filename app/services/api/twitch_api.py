@@ -122,12 +122,13 @@ class TwitchAPIService:
         params: Mapping[str, str | Sequence[str]] | None = None,
         data: Mapping[str, str] | None = None,
         headers: Mapping[str, str] | None = None,
+        json_body: Mapping[str, object] | None = None,
     ) -> HTTPReply:
         if self._closed:
             raise NonRetryableError("Twitch HTTP client is closed")
         try:
             return await self._http_client.request(
-                method, url, params=params, data=data, headers=headers
+                method, url, params=params, data=data, headers=headers, json=json_body
             )
         except HTTPClientError as error:
             if error.code == "status" and error.status_code is not None:
@@ -140,6 +141,36 @@ class TwitchAPIService:
             raise NonRetryableError(
                 f"Twitch HTTP request failed: {error.code}"
             ) from None
+
+    async def _eventsub_request(
+        self,
+        method: str,
+        *,
+        subscription_id: str | None = None,
+        payload: Mapping[str, object] | None = None,
+    ) -> HTTPReply:
+        token = await self.get_access_token()
+        return await self._request(
+            method,
+            f"{self.base_url}/eventsub/subscriptions",
+            params={"id": subscription_id} if subscription_id is not None else None,
+            json_body=payload,
+            headers={"Client-ID": self.client_id, "Authorization": f"Bearer {token}"},
+        )
+
+    async def list_eventsub_subscriptions(self) -> dict[str, object]:
+        response = await self._eventsub_request("GET")
+        return self._json(response) if response.status_code == 200 else {"data": []}
+
+    async def create_eventsub_subscription(self, payload: Mapping[str, object]) -> int:
+        response = await self._eventsub_request("POST", payload=payload)
+        return response.status_code
+
+    async def delete_eventsub_subscription(self, subscription_id: str) -> int:
+        response = await self._eventsub_request(
+            "DELETE", subscription_id=subscription_id
+        )
+        return response.status_code
 
     @staticmethod
     def _json(response: HTTPReply) -> dict[str, object]:

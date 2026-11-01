@@ -1,7 +1,9 @@
+from __future__ import annotations
+
 import logging
-import aiohttp
+
 import asyncio
-from typing import Dict, Callable, Awaitable, Any, Optional
+from typing import Dict, Callable, Awaitable, Any, Optional, TYPE_CHECKING
 from datetime import datetime, timezone, timedelta
 from cachetools import TTLCache
 
@@ -11,7 +13,10 @@ from sqlalchemy.orm import Session
 from app.services.communication.websocket_manager import ConnectionManager
 from app.services.notification_service import NotificationService
 from app.services.recording.config_manager import ConfigManager
-from app.services.api.twitch_api import twitch_api
+from app.services.api.twitch_api import (
+    TwitchAPIService,
+    twitch_api as default_twitch_api,
+)
 from app.models import (
     Streamer,
     Stream,
@@ -22,10 +27,13 @@ from app.models import (
     NotificationSettings,
     Recording,
 )
-from app.config.settings import settings as app_settings
+from app.config.settings import Settings, settings as app_settings
 from app.config.constants import CACHE_CONFIG, ASYNC_DELAYS
 
 logger = logging.getLogger("streamvault")
+
+if TYPE_CHECKING:
+    from app.services.recording.recording_manager import RecordingManager
 
 
 def get_recording_manager():
@@ -35,9 +43,21 @@ def get_recording_manager():
 
 
 class EventHandlerRegistry:
-    def __init__(self, connection_manager: ConnectionManager, settings=None):
-        self.recording_service = get_recording_manager()
-        self.config_manager = ConfigManager()
+    def __init__(
+        self,
+        connection_manager: ConnectionManager,
+        settings: Settings | None = None,
+        *,
+        session_factory: Callable[[], Session] | None = None,
+        recording_manager: RecordingManager | None = None,
+        notification_service: NotificationService | None = None,
+        twitch_api: TwitchAPIService | None = None,
+    ):
+        self.recording_service = recording_manager or get_recording_manager()
+        self._session_factory = session_factory
+        self.config_manager = ConfigManager(
+            session_factory=session_factory, settings=settings
+        )
         self.handlers: Dict[str, Callable[[Any], Awaitable[None]]] = {
             "stream.online": self.handle_stream_online,
             "stream.offline": self.handle_stream_offline,
@@ -45,10 +65,13 @@ class EventHandlerRegistry:
         }
         self.manager = connection_manager
         self.settings = settings or app_settings
-        self.notification_service = NotificationService(
-            websocket_manager=connection_manager
+        self.notification_service = notification_service or NotificationService(
+            websocket_manager=connection_manager,
+            session_factory=session_factory,
+            settings=settings,
         )
-        self._access_token = None
+        self.twitch_api = twitch_api or default_twitch_api
+
         self.eventsub = None
         # TTLCache for event deduplication (prevents memory leaks with automatic expiration)
         self._processed_events = TTLCache(
@@ -57,24 +80,7 @@ class EventHandlerRegistry:
         )
 
     async def get_access_token(self) -> str:
-        if not self._access_token:
-            async with aiohttp.ClientSession() as session:
-                async with session.post(
-                    "https://id.twitch.tv/oauth2/token",
-                    params={
-                        "client_id": self.settings.TWITCH_APP_ID,
-                        "client_secret": self.settings.TWITCH_APP_SECRET,
-                        "grant_type": "client_credentials",
-                    },
-                ) as response:
-                    if response.status == 200:
-                        data = await response.json()
-                        self._access_token = data["access_token"]
-                    else:
-                        raise ValueError(
-                            f"Failed to get access token: {response.status}"
-                        )
-        return self._access_token
+        return await self.twitch_api.get_access_token()
 
     async def initialize_eventsub(self):
         if self.eventsub:
@@ -97,71 +103,43 @@ class EventHandlerRegistry:
     async def subscribe_to_events(self, twitch_id: str):
         if not self.eventsub:
             raise ValueError("EventSub not initialized")
-
-        access_token = await self.get_access_token()
-        logger.debug(f"Starting batch subscription process for twitch_id: {twitch_id}")
-
-        async with aiohttp.ClientSession() as session:
-            for event_type in self.handlers.keys():
-                try:
-                    async with session.post(
-                        "https://api.twitch.tv/helix/eventsub/subscriptions",
-                        headers={
-                            "Client-ID": self.settings.TWITCH_APP_ID,
-                            "Authorization": f"Bearer {access_token}",
-                            "Content-Type": "application/json",
-                        },
-                        json={
-                            "type": event_type,
-                            "version": "1",
-                            "condition": {"broadcaster_user_id": twitch_id},
-                            "transport": {
-                                "method": "webhook",
-                                "callback": self.eventsub["callback_url"],
-                                "secret": self.eventsub["secret"],
-                            },
-                        },
-                    ) as response:
-                        if response.status == 202:
-                            logger.info(
-                                f"Subscribed to {event_type} for twitch_id: {twitch_id}"
-                            )
-                        else:
-                            error_data = await response.json()
-                            logger.error(
-                                f"Failed to subscribe to {event_type}. Status: {response.status}, Error: {error_data}"
-                            )
-                except Exception as e:
-                    logger.error(f"Error subscribing to {event_type}: {e}")
-                    raise
+        for event_type in self.handlers:
+            status = await self.twitch_api.create_eventsub_subscription(
+                {
+                    "type": event_type,
+                    "version": "1",
+                    "condition": {"broadcaster_user_id": twitch_id},
+                    "transport": {
+                        "method": "webhook",
+                        "callback": self.eventsub["callback_url"],
+                        "secret": self.eventsub["secret"],
+                    },
+                }
+            )
+            if status == 202:
+                logger.info("Subscribed to %s for twitch_id: %s", event_type, twitch_id)
+            else:
+                logger.error("EventSub subscription rejected (HTTP %s)", status)
 
     async def verify_subscription(
         self, subscription_id: str, max_attempts: int = 10
     ) -> bool:
-        access_token = await self.get_access_token()
-
-        for attempt in range(max_attempts):
+        await self.get_access_token()
+        for _ in range(max_attempts):
             try:
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(
-                        "https://api.twitch.tv/helix/eventsub/subscriptions",
-                        headers={
-                            "Client-ID": self.settings.TWITCH_APP_ID,
-                            "Authorization": f"Bearer {access_token}",
-                        },
-                    ) as response:
-                        if response.status == 200:
-                            data = await response.json()
-                            for sub in data.get("data", []):
-                                if (
-                                    sub["id"] == subscription_id
-                                    and sub["status"] == "enabled"
-                                ):
-                                    return True
-                        await asyncio.sleep(ASYNC_DELAYS.HANDLER_REGISTRY_RETRY)
-            except Exception as e:
-                logger.error(f"Error verifying subscription {subscription_id}: {e}")
-                await asyncio.sleep(ASYNC_DELAYS.HANDLER_REGISTRY_RETRY)
+                payload = await self.list_subscriptions()
+                values = payload.get("data", [])
+                if isinstance(values, list):
+                    for sub in values:
+                        if (
+                            isinstance(sub, dict)
+                            and sub.get("id") == subscription_id
+                            and sub.get("status") == "enabled"
+                        ):
+                            return True
+            except Exception as exc:
+                logger.error("EventSub verification failed (%s)", type(exc).__name__)
+            await asyncio.sleep(ASYNC_DELAYS.HANDLER_REGISTRY_RETRY)
         return False
 
     def is_duplicate_message(
@@ -749,50 +727,18 @@ class EventHandlerRegistry:
         except Exception as e:
             logger.error(f"Error handling stream update event: {e}", exc_info=True)
 
-    async def list_subscriptions(self):
-        logger.debug("Entering list_subscriptions()")
-        access_token = await self.get_access_token()
-        logger.debug(f"Using access_token: {access_token[:6]}... (truncated)")
+    async def list_subscriptions(self) -> dict[str, object]:
+        return await self.twitch_api.list_eventsub_subscriptions()
 
-        async with aiohttp.ClientSession() as session:
-            url = "https://api.twitch.tv/helix/eventsub/subscriptions"
-            headers = {
-                "Client-ID": self.settings.TWITCH_APP_ID,
-                "Authorization": f"Bearer {access_token}",
-            }
-            logger.debug(
-                f"Requesting Twitch subscriptions {url} with headers={headers}"
-            )
-            async with session.get(url, headers=headers) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    logger.debug(f"Received subscription data: {data}")
-                    return data
-                else:
-                    logger.error(
-                        f"Failed to list subscriptions: HTTP {response.status}"
-                    )
-                    return {"data": []}
-
-    async def delete_subscription(self, subscription_id: str):
-        access_token = await self.get_access_token()
-
-        async with aiohttp.ClientSession() as session:
-            async with session.delete(
-                f"https://api.twitch.tv/helix/eventsub/subscriptions?id={subscription_id}",
-                headers={
-                    "Client-ID": self.settings.TWITCH_APP_ID,
-                    "Authorization": f"Bearer {access_token}",
-                },
-            ) as response:
-                if response.status == 204:
-                    return {"id": subscription_id, "status": "deleted"}
-                else:
-                    return {
-                        "id": subscription_id,
-                        "status": "failed",
-                        "error": f"Status code: {response.status}",
-                    }
+    async def delete_subscription(self, subscription_id: str) -> dict[str, str]:
+        status = await self.twitch_api.delete_eventsub_subscription(subscription_id)
+        if status == 204:
+            return {"id": subscription_id, "status": "deleted"}
+        return {
+            "id": subscription_id,
+            "status": "failed",
+            "error": f"Status code: {status}",
+        }
 
     async def unsubscribe_from_events(self, twitch_id: str):
         """Unsubscribe from all EventSub events for a specific streamer"""
@@ -808,10 +754,21 @@ class EventHandlerRegistry:
 
             # Find and delete subscriptions for this broadcaster
             deleted_count = 0
-            for sub in subscriptions["data"]:
-                if sub.get("condition", {}).get("broadcaster_user_id") == twitch_id:
+            values = subscriptions["data"]
+            if not isinstance(values, list):
+                raise ValueError("Invalid EventSub subscription data")
+            for sub in values:
+                if not isinstance(sub, dict):
+                    raise ValueError("Invalid EventSub subscription row")
+                subscription_id = sub.get("id")
+                condition = sub.get("condition", {})
+                if not isinstance(subscription_id, str) or not isinstance(
+                    condition, dict
+                ):
+                    raise ValueError("Invalid EventSub subscription identity")
+                if condition.get("broadcaster_user_id") == twitch_id:
                     try:
-                        await self.delete_subscription(sub["id"])
+                        await self.delete_subscription(subscription_id)
                         deleted_count += 1
                         logger.info(
                             f"Deleted subscription {sub['id']} ({sub.get('type')}) for {twitch_id}"
@@ -836,9 +793,15 @@ class EventHandlerRegistry:
         subs = await self.list_subscriptions()
         results = []
 
-        for sub in subs.get("data", []):
+        values = subs.get("data", [])
+        if not isinstance(values, list):
+            raise ValueError("Invalid EventSub subscription data")
+        for sub in values:
+            if not isinstance(sub, dict) or not isinstance(sub.get("id"), str):
+                raise ValueError("Invalid EventSub subscription identity")
+            subscription_id = sub["id"]
             try:
-                result = await self.delete_subscription(sub["id"])
+                result = await self.delete_subscription(subscription_id)
                 results.append(result)
             except Exception as e:
                 logger.error(f"Failed to delete subscription {sub['id']}: {e}")
@@ -855,7 +818,7 @@ class EventHandlerRegistry:
     async def get_user_info(self, user_id: str) -> Optional[Dict[str, Any]]:
         """Get user info from Twitch API including profile image"""
         try:
-            users = await twitch_api.get_users_by_id([user_id])
+            users = await self.twitch_api.get_users_by_id([user_id])
             return users[0] if users else None
         except Exception as e:
             logger.error(f"Error fetching user info: {e}")
