@@ -754,6 +754,37 @@ class PostProcessingTaskHandlers:
                 )
             raise
 
+    @staticmethod
+    def _validate_cleanup_output(mp4_path: str | None) -> None:
+        if not mp4_path or not os.path.exists(mp4_path):
+            raise Exception("MP4 file not found, not removing source files")
+        mp4_size = os.path.getsize(mp4_path)
+        if mp4_size < 1024 * 1024:
+            raise Exception(
+                f"MP4 file too small ({mp4_size} bytes), not removing source files"
+            )
+
+    def _persist_removed_segments(self, stream_id: int, segments_path: str) -> None:
+        with self._sessions() as db:
+            metadata = (
+                db.query(StreamMetadata)
+                .filter(StreamMetadata.stream_id == stream_id)
+                .first()
+            )
+            if metadata is None:
+                metadata = StreamMetadata(stream_id=stream_id)
+                db.add(metadata)
+            if hasattr(metadata, "segments_dir_path"):
+                metadata.segments_dir_path = segments_path
+            if hasattr(metadata, "segments_removed"):
+                metadata.segments_removed = True
+            db.commit()
+            logger.debug(
+                "Updated StreamMetadata for stream %s: segments_removed=True, segments_dir_path=%s",
+                stream_id,
+                segments_path,
+            )
+
     async def handle_cleanup(self, payload, progress_callback=None):
         """Handle cleanup task with intelligent TS cleanup or stream deletion cleanup"""
         stream_id = payload["stream_id"]
@@ -784,14 +815,7 @@ class PostProcessingTaskHandlers:
 
         # For post-processing cleanup, validate MP4 file exists early (fail fast)
         if not is_deletion_cleanup:
-            if not mp4_path or not os.path.exists(mp4_path):
-                raise Exception("MP4 file not found, not removing source files")
-
-            mp4_size = os.path.getsize(mp4_path)
-            if mp4_size < 1024 * 1024:  # Less than 1MB
-                raise Exception(
-                    f"MP4 file too small ({mp4_size} bytes), not removing source files"
-                )
+            await run_in_thread_pool(self._validate_cleanup_output, mp4_path)
 
         log_with_context(
             logger,
@@ -818,7 +842,8 @@ class PostProcessingTaskHandlers:
             cleanup_type = (
                 "DELETION_CLEANUP" if is_deletion_cleanup else "POST_PROCESSING_CLEANUP"
             )
-            self.logging_service.log_recording_activity(
+            await run_in_thread_pool(
+                self.logging_service.log_recording_activity,
                 f"{cleanup_type}_START",
                 streamer_name,
                 f"Cleaning up {len(files_to_remove)} files for stream {stream_id}",
@@ -828,20 +853,23 @@ class PostProcessingTaskHandlers:
             removed_files = []
             segments_dirs_removed = []
             for file_path in files_to_remove:
-                if os.path.exists(file_path):
+                if await run_in_thread_pool(os.path.exists, file_path):
                     try:
+                        is_directory = await run_in_thread_pool(
+                            os.path.isdir, file_path
+                        )
                         logger.debug(
-                            f"🧹 CLEANUP_ATTEMPT: path={file_path} type={'dir' if os.path.isdir(file_path) else 'file'} intelligent={intelligent_cleanup and not is_deletion_cleanup}"
+                            f"🧹 CLEANUP_ATTEMPT: path={file_path} type={'dir' if is_directory else 'file'} intelligent={intelligent_cleanup and not is_deletion_cleanup}"
                         )
                         # Check if it's a directory
-                        if os.path.isdir(file_path):
+                        if is_directory:
                             # Track segments directories for DB update
                             if file_path.endswith("_segments"):
                                 segments_dirs_removed.append(file_path)
                             # Remove directory and all its contents
                             import shutil
 
-                            shutil.rmtree(file_path)
+                            await run_in_thread_pool(shutil.rmtree, file_path)
                             logger.info(f"Removed directory: {file_path}")
                             removed_files.append(file_path)
                         else:
@@ -862,7 +890,7 @@ class PostProcessingTaskHandlers:
                                     )
                             else:
                                 # Simple file removal
-                                os.remove(file_path)
+                                await run_in_thread_pool(os.remove, file_path)
                                 logger.info(f"Removed file: {file_path}")
                                 removed_files.append(file_path)
                     except Exception as e:
@@ -873,37 +901,11 @@ class PostProcessingTaskHandlers:
             # Update StreamMetadata with segments directory tracking
             if segments_dirs_removed and not is_deletion_cleanup:
                 try:
-                    with self._sessions() as db:
-                        from app.models import StreamMetadata
-
-                        metadata = (
-                            db.query(StreamMetadata)
-                            .filter(StreamMetadata.stream_id == stream_id)
-                            .first()
-                        )
-                        if metadata:
-                            # Store the first segments directory path (usually there's only one)
-                            if hasattr(metadata, "segments_dir_path"):
-                                metadata.segments_dir_path = segments_dirs_removed[0]
-                            if hasattr(metadata, "segments_removed"):
-                                metadata.segments_removed = True
-                            db.commit()
-                            logger.debug(
-                                f"Updated StreamMetadata for stream {stream_id}: segments_removed=True, "
-                                f"segments_dir_path={segments_dirs_removed[0]}"
-                            )
-                        else:
-                            # Create metadata record if it doesn't exist
-                            metadata = StreamMetadata(stream_id=stream_id)
-                            if hasattr(metadata, "segments_dir_path"):
-                                metadata.segments_dir_path = segments_dirs_removed[0]
-                            if hasattr(metadata, "segments_removed"):
-                                metadata.segments_removed = True
-                            db.add(metadata)
-                            db.commit()
-                            logger.debug(
-                                f"Created StreamMetadata for stream {stream_id} with segments tracking"
-                            )
+                    await run_in_thread_pool(
+                        self._persist_removed_segments,
+                        stream_id,
+                        segments_dirs_removed[0],
+                    )
                 except Exception as meta_err:
                     logger.debug(
                         f"Could not update StreamMetadata with segments info: {meta_err}"
