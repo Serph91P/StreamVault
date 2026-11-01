@@ -20,20 +20,17 @@ export const useRealtimeStore = defineStore('realtime', () => {
   const maxReconnectAttempts = computed(() => manager.maxReconnectAttemptCount)
   const isReconnecting = computed(() => reconnectAttempt.value > 0 && connectionStatus.value !== 'connected')
 
-  const handlers = new Map<string, Set<{ handler: EventHandler }>>()
+  const handlers = new Map<string, Map<object, EventHandler>>()
 
   function onEvent(type: string, handler: EventHandler): () => void {
     type = normalizeRealtimeEventType(type)
-    if (!handlers.has(type)) {
-      handlers.set(type, new Set())
-    }
-
+    const registrations = handlers.get(type) ?? new Map<object, EventHandler>()
+    handlers.set(type, registrations)
     // Each subscription owns its entry, even when aliases share a callback.
-    const registration = { handler }
-    handlers.get(type)!.add(registration)
+    const registration = {}
+    registrations.set(registration, handler)
     return () => {
-      handlers.get(type)?.delete(registration)
-      if (handlers.get(type)?.size === 0) handlers.delete(type)
+      if (registrations.delete(registration) && !registrations.size) handlers.delete(type)
     }
   }
 
@@ -45,9 +42,7 @@ export const useRealtimeStore = defineStore('realtime', () => {
   function dispatchEvent(event: RealtimeEvent<string>) {
     if (!event?.type) return
 
-    const callbacks = new Set<EventHandler>()
-    handlers.get(normalizeRealtimeEventType(event.type))?.forEach(({ handler }) => callbacks.add(handler))
-
+    const callbacks = new Set(handlers.get(normalizeRealtimeEventType(event.type))?.values())
     callbacks.forEach((handler) => handler(event))
   }
 

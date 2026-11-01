@@ -47,7 +47,7 @@ export const useRecordingStore = defineStore('recordings', () => {
   const hasError = computed(() => error.value !== null)
 
   let realtimeBindingCount = 0
-  let realtimeUnsubs: Array<() => void> = []
+  let realtimeUnsub: (() => void) | undefined
 
   function setError(value: unknown): void {
     error.value = value instanceof Error ? value.message : String(value)
@@ -92,16 +92,11 @@ export const useRecordingStore = defineStore('recordings', () => {
       return
     }
 
-    if (type === 'recording.stopped') {
+    if (type === 'recording.stopped' || (
+      type === 'recording.status_update' &&
+      ['completed', 'failed', 'stopped', 'cancelled'].includes(event.data?.status)
+    )) {
       removeActiveRecording(event.data?.recording_id, event.data?.streamer_id)
-      return
-    }
-
-    if (type === 'recording.status_update') {
-      const inactiveStatuses = ['completed', 'failed', 'stopped', 'cancelled']
-      if (inactiveStatuses.includes(event.data?.status)) {
-        removeActiveRecording(event.data?.recording_id, event.data?.streamer_id)
-      }
       return
     }
 
@@ -133,27 +128,24 @@ export const useRecordingStore = defineStore('recordings', () => {
   }
 
   function bindRealtime(): () => void {
-    realtimeBindingCount += 1
-    if (realtimeBindingCount === 1) {
-      const realtime = useRealtimeStore()
-      realtimeUnsubs = [
-        realtime.onEvent('active_recordings_update', applyRealtimeEvent),
-        realtime.onEvent('recording_started', applyRealtimeEvent),
-        realtime.onEvent('recording_stopped', applyRealtimeEvent),
-        realtime.onEvent('recording_status_update', applyRealtimeEvent),
-        realtime.onEvent('recording_completed', applyRealtimeEvent),
-        realtime.onEvent('recording_available', applyRealtimeEvent)
-      ]
+    if (realtimeBindingCount++ === 0) {
+      realtimeUnsub = useRealtimeStore().onEvents([
+        'active_recordings_update',
+        'recording.started',
+        'recording.stopped',
+        'recording.status_update',
+        'recording.completed',
+        'recording.available'
+      ], applyRealtimeEvent)
     }
 
     let bound = true
     return () => {
       if (!bound) return
       bound = false
-      realtimeBindingCount = Math.max(0, realtimeBindingCount - 1)
-      if (realtimeBindingCount === 0) {
-        realtimeUnsubs.forEach((fn) => fn())
-        realtimeUnsubs = []
+      if (--realtimeBindingCount === 0) {
+        realtimeUnsub?.()
+        realtimeUnsub = undefined
       }
     }
   }
