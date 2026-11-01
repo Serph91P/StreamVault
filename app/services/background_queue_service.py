@@ -12,7 +12,8 @@ Original God Class (613 lines) split into:
 
 import logging
 import warnings
-from typing import Dict, Any, Optional, Callable
+from datetime import datetime, timezone
+from typing import Dict, Any, Optional, Callable, Awaitable
 from .queues import TaskQueueManager
 from .queues.task_progress_tracker import QueueTask, TaskStatus, TaskPriority
 from app.observability import service_metrics
@@ -70,6 +71,7 @@ class BackgroundQueueService:
         self.external_tasks = self.queue_manager.progress_tracker.external_tasks
         self.workers = self.queue_manager.worker_manager.workers
         self.is_running = False
+        self.capture_checker: Callable[[int], Awaitable[bool | None]] | None = None
         self.task_handlers = self.queue_manager.worker_manager.task_handlers
         self.dependency_manager = self.queue_manager.dependency_manager
         self.dependency_worker = None
@@ -208,6 +210,28 @@ class BackgroundQueueService:
     def add_external_task(self, task_id: str, task_type: str, payload: Dict[str, Any]):
         """Add an external task for tracking"""
         self.queue_manager.add_external_task(task_id, task_type, payload)
+
+    async def recording_task_liveness(self, task_id: str) -> bool | None:
+        """None means capture authority is unavailable, never proof of completion."""
+        if self.capture_checker is None or not task_id.startswith("recording_"):
+            return None
+        try:
+            recording_id = int(task_id.removeprefix("recording_"))
+        except ValueError:
+            return None
+        if recording_id <= 0:
+            return None
+        return await self.capture_checker(recording_id)
+
+    async def heartbeat_recording_task(self, recording_id: int) -> bool:
+        task_id = f"recording_{recording_id}"
+        if await self.recording_task_liveness(task_id) is not True:
+            return False
+        task = self.external_tasks.get(task_id)
+        if task is None or task.status is not TaskStatus.RUNNING:
+            return False
+        task.last_progress_update = datetime.now(timezone.utc)
+        return True
 
     def update_external_task_progress(self, task_id: str, progress: float):
         """Update external task progress"""

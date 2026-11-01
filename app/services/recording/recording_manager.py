@@ -164,6 +164,13 @@ class RecordingManager:
             for recording in self._service.get_active_recordings().values()
         )
 
+    async def is_capture_running(self, recording_id: int) -> bool | None:
+        """Resolve recording identity before checking the actual owned child."""
+        status = self.get_status(recording_id)
+        if status is None or status.stream_id is None:
+            return False
+        return await self.process_manager.is_capture_running(status.stream_id)
+
     def get_status(self, recording_id: int) -> RecordingStatus | None:
         recording = self._service.get_active_recording(recording_id)
         return self._status_from_recording(recording_id, recording)

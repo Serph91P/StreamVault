@@ -68,12 +68,26 @@ def admin_stack(monkeypatch, tmp_path):
     monkeypatch.setattr(security, "validate_path_security", local_path)
     queue = SimpleNamespace(
         external_tasks={
-            "synthetic-job": SimpleNamespace(
-                task_type="recording", progress=100, status="running"
+            "recording_7": SimpleNamespace(
+                task_type="recording",
+                progress=100,
+                status="running",
+                started_at=None,
+                created_at=datetime.now(timezone.utc) - timedelta(hours=2),
             )
         },
         active_tasks={},
     )
+
+    async def capture_liveness(task_id):
+        assert task_id == "recording_7"
+        return False  # Explicitly abandoned capture, not an age-only completion.
+
+    def complete_task(task_id, *, success):
+        queue.external_tasks[task_id].status = "completed" if success else "failed"
+
+    queue.recording_task_liveness = capture_liveness
+    queue.complete_external_task = complete_task
     monkeypatch.setattr(admin, "_background_queue_service", queue)
     import app.services.background_queue_cleanup_service as cleanup
 
@@ -207,8 +221,8 @@ def test_admin_current_policy_before_database_and_file_effects(
         with factory() as db:
             assert (db.get(ShareTokenModel, 1) is None) == (state == "admin")
         assert sentinel.exists() == (state != "admin")
-        assert queue.external_tasks["synthetic-job"].status == (
-            "completed" if state == "admin" else "running"
+        assert queue.external_tasks["recording_7"].status == (
+            "failed" if state == "admin" else "running"
         )
         assert queue.active_tasks == {}
         if state != "admin":

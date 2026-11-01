@@ -1353,6 +1353,8 @@ class RecordingLifecycleManager:
             if not self.process_manager:
                 return
 
+            if background_queue_service:
+                await background_queue_service.heartbeat_recording_task(recording_id)
             progress = await self.process_manager.get_recording_progress(recording_id)
             if progress is not None and isinstance(progress, dict):
                 status = progress.get("status")

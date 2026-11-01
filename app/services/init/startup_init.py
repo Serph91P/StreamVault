@@ -42,6 +42,9 @@ async def initialize_background_queue_with_fixes():
         # Initialize with enhanced queue manager
         from app.services.init.background_queue_init import initialize_background_queue
 
+        background_queue_manager.queue_service.capture_checker = (
+            get_recording_manager().is_capture_running
+        )
         await initialize_background_queue(enable_streamer_isolation=enable_isolation)
 
         logger.info(

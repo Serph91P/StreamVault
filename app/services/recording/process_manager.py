@@ -2604,6 +2604,56 @@ class ProcessManager:
         for process_id in process_ids:
             await self.terminate_process(process_id)
 
+    async def is_capture_running(self, stream_id: int) -> bool | None:
+        """Read local child/fencing identity without renewing or claiming a lease."""
+        process_id = f"stream_{stream_id}"
+        async with self.lock:
+            process = self.active_processes.get(process_id)
+            info = self.long_stream_processes.get(process_id)
+            identity = (
+                {
+                    key: info.get(key)
+                    for key in (
+                        "upstream_generation",
+                        "upstream_process_group_id",
+                        "upstream_process_start_fingerprint",
+                    )
+                }
+                if info
+                else {}
+            )
+        if process is None:
+            return None if info else False
+        if process.returncode is not None:
+            return False
+        authorized = True
+        if info and info.get("upstream_channel_key"):
+            if not info.get("upstream_activated", True):
+                return None
+            try:
+                await self.upstream_coordinator.assert_stop_authorized(
+                    channel_key=info["upstream_channel_key"],
+                    generation=info["upstream_generation"],
+                    process_pid=process.pid,
+                    process_group_id=info["upstream_process_group_id"],
+                    process_start_fingerprint=info[
+                        "upstream_process_start_fingerprint"
+                    ],
+                )
+            except (PermissionError, KeyError):
+                authorized = False
+        async with self.lock:
+            if (
+                self.active_processes.get(process_id) is not process
+                or self.long_stream_processes.get(process_id) is not info
+                or (
+                    info
+                    and any(info.get(key) != value for key, value in identity.items())
+                )
+            ):
+                return None
+            return authorized and process.returncode is None
+
     def get_active_process_count(self) -> int:
         """Get the number of active recording processes"""
         return len(self.active_processes)
