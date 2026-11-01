@@ -4,6 +4,7 @@ Sets up the background queue service with task handlers and dependency managemen
 """
 
 import logging
+import asyncio
 from collections.abc import Callable
 from sqlalchemy.orm import Session
 from app.config.settings import Settings
@@ -14,8 +15,10 @@ from app.services.background_queue_service import (
     background_queue_service,
 )
 from app.services.processing.post_processing_task_handlers import (
+    PostProcessingTaskHandlers,
     post_processing_task_handlers,
 )
+from app.services.automatic_queue_recovery_service import AutomaticQueueRecoveryService
 
 logger = logging.getLogger("streamvault")
 
@@ -26,10 +29,30 @@ BackgroundQueueInit = None
 class BackgroundQueueManager:
     """Manager for background queue initialization and lifecycle"""
 
-    def __init__(self):
+    def __init__(
+        self,
+        *,
+        queue_service: BackgroundQueueService | None = None,
+        task_handlers: PostProcessingTaskHandlers | None = None,
+    ):
+        if (queue_service is None) != (task_handlers is None):
+            raise ValueError(
+                "Application queue and task handlers must be supplied together"
+            )
         self.is_initialized = False
-        self.queue_service = background_queue_service
-        self.task_handlers = post_processing_task_handlers
+        self.queue_service = (
+            queue_service if queue_service is not None else background_queue_service
+        )
+        self.task_handlers = (
+            task_handlers
+            if task_handlers is not None
+            else post_processing_task_handlers
+        )
+        self.recovery_service = (
+            AutomaticQueueRecoveryService(queue_service)
+            if queue_service is not None
+            else None
+        )
 
     async def initialize(self, enable_streamer_isolation: bool = True):
         """Initialize the background queue service with task handlers and production fixes"""
@@ -47,6 +70,13 @@ class BackgroundQueueManager:
             self.queue_service.queue_manager.enable_streamer_isolation = (
                 enable_streamer_isolation
             )
+            if not enable_streamer_isolation and not hasattr(
+                self.queue_service.queue_manager, "task_queue"
+            ):
+                self.queue_service.queue_manager.task_queue = asyncio.PriorityQueue()
+                self.queue_service.task_queue = (
+                    self.queue_service.queue_manager.task_queue
+                )
             if enable_streamer_isolation:
                 logger.info(
                     "✅ Enabled streamer isolation for production concurrency fix"
@@ -120,8 +150,9 @@ class BackgroundQueueManager:
                 get_recovery_service,
             )
 
-            recovery_service = get_recovery_service()
-            await recovery_service.start()
+            if self.recovery_service is None:
+                self.recovery_service = get_recovery_service()
+            await self.recovery_service.start()
             logger.info(
                 "✅ Automatic queue recovery service started for production reliability"
             )
@@ -142,12 +173,8 @@ class BackgroundQueueManager:
 
         # Stop automatic recovery service first
         try:
-            from app.services.automatic_queue_recovery_service import (
-                get_recovery_service,
-            )
-
-            recovery_service = get_recovery_service()
-            await recovery_service.stop()
+            if self.recovery_service is not None:
+                await self.recovery_service.stop()
             logger.info("✅ Automatic queue recovery service stopped")
         except Exception as e:
             logger.error(f"Error stopping automatic recovery service: {e}")
