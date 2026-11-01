@@ -7,15 +7,40 @@ This module handles all file-related operations like remuxing and cleanup.
 import os
 import asyncio
 from pathlib import Path
-from typing import Optional, Dict, Any, List
-from datetime import datetime
+from typing import Optional, TypedDict
+from time import monotonic
 import logging
 
 from app.config.constants import ASYNC_DELAYS
+from app.utils.async_db_utils import run_in_thread_pool
 
 # FFmpeg utilities now handled by background queue system
 
 logger = logging.getLogger("streamvault")
+
+
+class FfmpegFileOwner(TypedDict):
+    pid: int
+    name: str
+    cmdline: str
+
+
+def _existing_size(path: str) -> int | None:
+    return os.path.getsize(path) if os.path.exists(path) else None
+
+
+def _remove_stable_ts(ts_path: str, mp4_path: str, previous_size: int) -> bool:
+    size = _existing_size(mp4_path)
+    if size != previous_size or size is None or size <= 1024 * 1024:
+        return False
+    try:
+        with open(mp4_path, "rb") as file:
+            file.read(1024)
+        os.remove(ts_path)
+        return True
+    except Exception as error:
+        logger.warning("MP4 file not readable yet, will retry: %s", error)
+        return False
 
 
 async def intelligent_ts_cleanup(
@@ -34,22 +59,30 @@ async def intelligent_ts_cleanup(
         psutil_available: Whether psutil module is available
     """
     try:
-        if not output_path.endswith(".ts") or not os.path.exists(output_path):
+        if not output_path.endswith(".ts") or not await run_in_thread_pool(
+            os.path.exists, output_path
+        ):
             return
 
         mp4_path = output_path.replace(".ts", ".mp4")
-        start_time = datetime.now()
+        start_time = monotonic()
         check_interval = 10  # Check every 10 seconds
 
         logger.info(f"Starting intelligent process-aware TS cleanup for {output_path}")
 
         while True:
-            elapsed = (datetime.now() - start_time).total_seconds()
+            elapsed = monotonic() - start_time
+            if elapsed >= max_wait_time:
+                logger.warning(
+                    "Process-aware cleanup timeout (%ss), keeping TS file: %s",
+                    max_wait_time,
+                    output_path,
+                )
+                return False
 
             # Check if MP4 file exists and is stable
-            if os.path.exists(mp4_path):
-                mp4_size = os.path.getsize(mp4_path)
-
+            mp4_size = await run_in_thread_pool(_existing_size, mp4_path)
+            if mp4_size is not None:
                 # Check if any FFmpeg processes are working on our files
                 active_ffmpeg_processes = (
                     await check_ffmpeg_processes_for_file(output_path, mp4_path)
@@ -60,45 +93,31 @@ async def intelligent_ts_cleanup(
                 if not active_ffmpeg_processes:
                     # No FFmpeg processes working on our files, check if MP4 is stable
                     await asyncio.sleep(
-                        ASYNC_DELAYS.RECORDING_ERROR_RECOVERY
+                        min(
+                            ASYNC_DELAYS.RECORDING_ERROR_RECOVERY,
+                            max(0, max_wait_time - (monotonic() - start_time)),
+                        )
                     )  # Wait a bit
-
-                    if os.path.exists(mp4_path):
-                        new_mp4_size = os.path.getsize(mp4_path)
-
-                        if (
-                            new_mp4_size == mp4_size and new_mp4_size > 1024 * 1024
-                        ):  # Stable and > 1MB
-                            # Final verification: try to read the MP4 file
-                            try:
-                                with open(mp4_path, "rb") as f:
-                                    f.read(1024)  # Try to read first 1KB
-
-                                # MP4 is ready and stable, safe to remove TS
-                                os.remove(output_path)
-                                logger.info(
-                                    f"Process-aware cleanup: Removed TS file {output_path} (waited {elapsed:.0f}s)"
-                                )
-                                return True
-
-                            except Exception as e:
-                                logger.warning(
-                                    f"MP4 file not readable yet, will retry: {e}"
-                                )
+                    if monotonic() - start_time >= max_wait_time:
+                        return False
+                    if await run_in_thread_pool(
+                        _remove_stable_ts, output_path, mp4_path, mp4_size
+                    ):
+                        logger.info(
+                            "Process-aware cleanup: Removed TS file %s (waited %.0fs)",
+                            output_path,
+                            monotonic() - start_time,
+                        )
+                        return True
                 else:
                     logger.debug(
                         f"FFmpeg processes still active for our files: {len(active_ffmpeg_processes)} processes"
                     )
 
-            # Check if we've exceeded max wait time
-            if elapsed > max_wait_time:
-                logger.warning(
-                    f"Process-aware cleanup timeout ({max_wait_time}s), keeping TS file: {output_path}"
-                )
-                return False
-
             # Wait before next check
-            await asyncio.sleep(check_interval)
+            await asyncio.sleep(
+                min(check_interval, max(0, max_wait_time - (monotonic() - start_time)))
+            )
 
     except Exception as e:
         logger.error(
@@ -108,7 +127,13 @@ async def intelligent_ts_cleanup(
 
 async def check_ffmpeg_processes_for_file(
     ts_path: str, mp4_path: str
-) -> List[Dict[str, Any]]:
+) -> list[FfmpegFileOwner]:
+    return await run_in_thread_pool(_check_ffmpeg_processes_for_file, ts_path, mp4_path)
+
+
+def _check_ffmpeg_processes_for_file(
+    ts_path: str, mp4_path: str
+) -> list[FfmpegFileOwner]:
     """Check for running FFmpeg processes that might be working on our files.
 
     This uses psutil if available. If not, it returns an empty list.
@@ -125,9 +150,7 @@ async def check_ffmpeg_processes_for_file(
 
         active_processes = []
 
-        # Get the base filename without extension for matching
-        ts_basename = os.path.basename(ts_path)
-        mp4_basename = os.path.basename(mp4_path)
+        targets = {Path(ts_path).resolve(), Path(mp4_path).resolve()}
 
         for proc in psutil.process_iter(["pid", "name", "cmdline"]):
             try:
@@ -141,8 +164,19 @@ async def check_ffmpeg_processes_for_file(
                     if cmdline:
                         cmdline_str = " ".join(cmdline)
 
-                        # Check if this FFmpeg process is working with our files
-                        if ts_basename in cmdline_str or mp4_basename in cmdline_str:
+                        # Basenames are not ownership: another app may use the same filename.
+                        cwd = Path(proc.cwd())
+                        arguments = {
+                            (
+                                (
+                                    Path(argument)
+                                    if Path(argument).is_absolute()
+                                    else cwd / argument
+                                ).resolve()
+                            )
+                            for argument in cmdline
+                        }
+                        if targets & arguments:
                             active_processes.append(
                                 {
                                     "pid": proc_info["pid"],
@@ -170,6 +204,10 @@ async def check_ffmpeg_processes_for_file(
 
 
 async def find_existing_mp4(recording_dir: str, mp4_path: str) -> Optional[str]:
+    return await run_in_thread_pool(_find_existing_mp4, recording_dir, mp4_path)
+
+
+def _find_existing_mp4(recording_dir: str, mp4_path: str) -> Optional[str]:
     """
     Find existing MP4 file in recording directory
 

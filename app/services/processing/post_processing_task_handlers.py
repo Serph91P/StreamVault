@@ -985,15 +985,18 @@ class PostProcessingTaskHandlers:
                 pass
 
             # Run intelligent cleanup
-            await intelligent_ts_cleanup(ts_path, max_wait_time, psutil_available)
+            return await intelligent_ts_cleanup(
+                ts_path, max_wait_time, psutil_available
+            )
 
         except Exception as e:
             # Fallback to simple removal if intelligent cleanup fails
             logger.warning(
                 f"Intelligent cleanup failed, falling back to simple removal: {e}"
             )
-            if os.path.exists(ts_path):
-                os.remove(ts_path)
+            if await run_in_thread_pool(os.path.exists, ts_path):
+                await run_in_thread_pool(os.remove, ts_path)
+                return True
 
     async def handle_unified_recovery(self, payload, progress_callback=None):
         """Handle unified recovery scan task - runs in background to prevent frontend blocking"""
