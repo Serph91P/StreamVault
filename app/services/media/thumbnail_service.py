@@ -102,11 +102,15 @@ class ThumbnailService:
 
                 # Use unified_image_service for download
                 session = await unified_image_service._get_session()
-                async with session.get(url) as response:
-                    if response.status == 200:
+                async with session.stream(
+                    "GET", url, follow_redirects=True
+                ) as response:
+                    if response.status_code == 200:
                         content_type = response.headers.get("content-type", "")
                         if "image" in content_type:
-                            image_data = await response.read()
+                            image_data = b"".join(
+                                [chunk async for chunk in response.chunks]
+                            )
 
                             # Prüfen, ob es ein Platzhalter-Bild ist
                             if await self._is_placeholder_image(image_data):
@@ -124,7 +128,7 @@ class ThumbnailService:
                                 metadata = StreamMetadata(stream_id=stream_id)
                                 db.add(metadata)
 
-                            metadata.thumbnail_path = thumbnail_path
+                            metadata.thumbnail_path = str(thumbnail_path)
                             metadata.thumbnail_url = url
                             db.commit()
                         else:
@@ -169,7 +173,7 @@ class ThumbnailService:
                         return thumbnail_path
                     else:
                         logger.warning(
-                            f"Failed to download thumbnail, status: {response.status}"
+                            f"Failed to download thumbnail, status: {response.status_code}"
                         )
             except Exception as e:
                 logger.error(f"Error downloading thumbnail: {e}")

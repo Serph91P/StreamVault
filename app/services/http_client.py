@@ -50,6 +50,7 @@ class HTTPPolicy:
     max_connections: int = 20
     max_keepalive_connections: int = 10
     max_response_bytes: int = 2 * 1024 * 1024
+    max_redirects: int = 10
 
 
 @dataclass(frozen=True, slots=True)
@@ -118,6 +119,7 @@ class ManagedHTTPClient:
                         max_keepalive_connections=self.policy.max_keepalive_connections,
                     ),
                     follow_redirects=False,
+                    max_redirects=self.policy.max_redirects,
                 )
             return self._client
 
@@ -130,9 +132,16 @@ class ManagedHTTPClient:
         params: Mapping[str, str | Sequence[str]] | None = None,
         data: Mapping[str, str] | None = None,
         json: object = None,
+        follow_redirects: bool = False,
     ) -> HTTPReply:
         async with self.stream(
-            method, url, headers=headers, params=params, data=data, json=json
+            method,
+            url,
+            headers=headers,
+            params=params,
+            data=data,
+            json=json,
+            follow_redirects=follow_redirects,
         ) as response:
             chunks = [chunk async for chunk in response.chunks]
             return HTTPReply(response.status_code, response.headers, b"".join(chunks))
@@ -155,13 +164,20 @@ class ManagedHTTPClient:
         params: Mapping[str, str | Sequence[str]] | None = None,
         data: Mapping[str, str] | None = None,
         json: object = None,
+        follow_redirects: bool = False,
     ) -> AsyncIterator[HTTPStreamReply]:
         log_context = _managed_request.set(True)
         try:
             async with asyncio.timeout(self.policy.total_timeout):
                 client = await self._get_client()
                 async with client.stream(
-                    method, url, headers=headers, params=params, data=data, json=json
+                    method,
+                    url,
+                    headers=headers,
+                    params=params,
+                    data=data,
+                    json=json,
+                    follow_redirects=follow_redirects,
                 ) as response:
                     if not 200 <= response.status_code < 300:
                         raise HTTPClientError(
@@ -174,7 +190,7 @@ class ManagedHTTPClient:
                     )
         except (httpx.TimeoutException, TimeoutError):
             raise HTTPClientError("timeout") from None
-        except httpx.RequestError:
+        except (httpx.RequestError, httpx.InvalidURL):
             raise HTTPClientError("network") from None
         finally:
             _managed_request.reset(log_context)

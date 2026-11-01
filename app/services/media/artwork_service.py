@@ -308,11 +308,11 @@ class ArtworkService:
             from app.services.unified_image_service import unified_image_service
 
             session = await unified_image_service._get_session()
-            async with session.get(url) as response:
-                if response.status == 200:
+            async with session.stream("GET", url, follow_redirects=True) as response:
+                if response.status_code == 200:
                     content_type = response.headers.get("content-type", "")
                     if "image" in content_type:
-                        content = await response.read()
+                        content = b"".join([chunk async for chunk in response.chunks])
 
                         # Create parent directory if it doesn't exist
                         target_path.parent.mkdir(parents=True, exist_ok=True)
@@ -328,7 +328,7 @@ class ArtworkService:
                         )
                         return False
                 else:
-                    logger.warning(f"Failed to download image: HTTP {response.status}")
+                    logger.warning("Image HTTP failed: status=%s", response.status_code)
                     return False
 
         except Exception as e:

@@ -9,6 +9,20 @@ from tests.test_managed_http_client import server, types
 
 
 @pytest.mark.asyncio
+async def test_malformed_provider_url_is_a_safe_typed_failure():
+    Client, Policy, Error = types()
+    client = Client(Policy())
+    marker = "fixture-private-port"
+    try:
+        with pytest.raises(Error) as error:
+            await client.request("GET", f"http://127.0.0.1:{marker}/image")
+        assert error.value.code == "network"
+        assert marker not in str(error.value)
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("path", ["ok", "denied"])
 async def test_managed_transport_redacts_its_own_httpx_url_without_changing_other_contexts(
     path, caplog
