@@ -102,6 +102,10 @@ def _configure_app(
     application.state.database_lifecycle = database
     application.state.recording_manager = None
     application.state.recording_manager_lock = Lock()
+    application.state.twitch_api = None
+    application.state.twitch_api_lock = Lock()
+    application.state.unified_recovery_service = None
+    application.state.unified_recovery_lock = Lock()
     application.state.websocket_manager = (
         websocket_manager if legacy_default else ConnectionManager()
     )

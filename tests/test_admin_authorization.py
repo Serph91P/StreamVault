@@ -246,7 +246,7 @@ def test_mounted_recovery_preview_is_read_only(admin_stack, monkeypatch, endpoin
 
     monkeypatch.setattr(recovery, "SessionLocal", factory)
     monkeypatch.setattr(recovery, "get_recording_manager", lambda: manager)
-    monkeypatch.setattr(api, "get_unified_recovery_service", get_service)
+    app.dependency_overrides[api.get_application_recovery_service] = get_service
 
     def snapshot():
         with factory() as db:

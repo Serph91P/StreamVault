@@ -82,6 +82,14 @@ async def _shutdown_step(name: str, operation) -> None:
         logger.error("Shutdown step %s failed (%s)", name, type(error).__name__)
 
 
+async def _close_application_twitch(app: FastAPI) -> None:
+    client = getattr(app.state, "twitch_api", None)
+    if client is not None:
+        await client.close()
+        app.state.twitch_api = None
+        app.state.unified_recovery_service = None
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Run ordered startup phases and reverse, idempotent shutdown ownership."""
@@ -288,5 +296,6 @@ async def lifespan(app: FastAPI):
         connection_manager = getattr(app.state, "websocket_manager", None)
         if connection_manager is not None:
             await _shutdown_step("websocket-connections", connection_manager.close_all)
+        await _shutdown_step("twitch-http", lambda: _close_application_twitch(app))
         await _shutdown_step("database", runtime_database.adispose)
         logger.info("Application shutdown complete")

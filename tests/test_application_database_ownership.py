@@ -119,6 +119,20 @@ async def test_factory_auth_cookies_and_tokens_use_only_its_configuration(
                 )
                 assert own_task.status_code == 200
                 assert foreign_task.status_code == 404
+                for client, config, application in zip(
+                    (first, second), configurations, applications, strict=True
+                ):
+                    recovery = await client.get("/api/recording/recovery/status")
+                    assert recovery.status_code == 200
+                    assert (
+                        recovery.json()["status"]["recordings_base_path"]
+                        == config.RECORDING_DIRECTORY
+                    )
+                    assert application.state.unified_recovery_service is not None
+                    assert (
+                        application.state.unified_recovery_service.twitch_api
+                        is application.state.twitch_api
+                    )
                 foreign = first.cookies.get("access_token")
                 denied = await second.get(
                     "/auth/check", headers={"cookie": f"access_token={foreign}"}
@@ -136,6 +150,8 @@ async def test_factory_auth_cookies_and_tokens_use_only_its_configuration(
     finally:
         for app in applications:
             await app.state.background_queue_service.queue_manager.progress_tracker.cleanup_background_tasks()
+            if app.state.twitch_api is not None:
+                await app.state.twitch_api.close()
         for lifecycle in lifecycles:
             await lifecycle.adispose()
 

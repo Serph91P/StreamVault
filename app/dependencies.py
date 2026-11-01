@@ -205,6 +205,38 @@ def get_application_recording_manager(connection: HTTPConnection):
     return get_lifespan_service(connection.app, get_recording_manager)()
 
 
+def _get_application_twitch_api(app: FastAPI):
+    with app.state.twitch_api_lock:
+        if app.state.twitch_api is None:
+            from app.services.api.twitch_api import TwitchAPIService
+
+            app.state.twitch_api = TwitchAPIService(settings=resolve_app_settings(app))
+        return app.state.twitch_api
+
+
+def get_application_twitch_api(connection: HTTPConnection):
+    """Resolve a lazy app-owned HTTP pool in the synchronous adapter worker."""
+    return _get_application_twitch_api(connection.app)
+
+
+def get_application_recovery_service(connection: HTTPConnection):
+    app = connection.app
+    with app.state.unified_recovery_lock:
+        if app.state.unified_recovery_service is None:
+            from app.services.recording.unified_recovery_service import (
+                UnifiedRecoveryService,
+            )
+
+            app.state.unified_recovery_service = UnifiedRecoveryService(
+                session_factory=app.state.database_lifecycle.sync_session_factory,
+                settings=resolve_app_settings(app),
+                recording_manager=get_application_recording_manager(connection),
+                queue_service=app.state.background_queue_service,
+                twitch_api=_get_application_twitch_api(app),
+            )
+        return app.state.unified_recovery_service
+
+
 def get_streamer_service(
     db: Session = Depends(get_db), event_registry=Depends(get_event_registry)
 ):
