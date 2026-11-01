@@ -92,6 +92,54 @@ describe('shared system status lifecycle', () => {
     consumers.forEach(status => expect(status.activeRecordingsCount.value).toBe(1))
   })
 
+  it.each(['recording.stopped', 'recording.completed'])('preserves the existing %s payload precedence and effects', async type => {
+    const { status } = mount()
+    pending[1][0].resolve({ active_recordings: [{ id: 11, streamer_id: 1 }, { id: 12, streamer_id: 1 }, { id: 13, streamer_id: 2 }] })
+    pending[2][0].resolve({ streamers: [{ id: 1, is_recording: true }, { id: 2, is_recording: true }] })
+    settle(); await flush()
+    const emit = (data: unknown) => handlers.get(type)!.forEach(fn => fn({ data }))
+    const before = status.lastUpdate.value
+    emit(null)
+    expect(status.lastUpdate.value).toBe(before)
+    emit({ recording_id: 11, streamer_id: 1 })
+    expect(status.activeRecordings.value.map(rec => rec.id)).toEqual([12, 13])
+    expect(status.streamersStatus.value[0].is_recording).toBe(true)
+    expect(status.lastUpdate.value).not.toBe(before)
+    emit({ streamer_id: 1 })
+    expect(status.activeRecordings.value.map(rec => rec.id)).toEqual([13])
+    expect(status.streamersStatus.value.map(s => s.is_recording)).toEqual([false, true])
+    emit({ recording_id: 13 })
+    expect(status.activeRecordings.value).toEqual([])
+    expect(status.streamersStatus.value[1].is_recording).toBe(true)
+    counts(1)
+    expect(subscriberCount()).toBe(12)
+  })
+
+  it('preserves named-streamer event matching, field guards and unmatched-event no-ops', async () => {
+    const { status } = mount()
+    pending[2][0].resolve({ streamers: [{ id: 1, name: 'one', display_name: 'ONE', is_live: false }, { id: 2, name: 'two', display_name: 'TWO', is_live: false }] })
+    settle(); await flush()
+    const emit = (type: string, data: unknown) => handlers.get(type)!.forEach(fn => fn({ data }))
+    emit('channel.update', { streamer_name: 'ONE', title: 'fresh', category_name: 'games', language: 'de' })
+    expect(status.streamersStatus.value[0]).toMatchObject({ current_title: 'fresh', current_category: 'games', language: 'de' })
+    emit('channel.update', { streamer_name: 'one', title: '', category_name: '', language: '' })
+    expect(status.streamersStatus.value[0]).toMatchObject({ current_title: 'fresh', current_category: 'games', language: 'de' })
+    emit('stream.online', { streamer_name: 'one' })
+    expect(status.streamersStatus.value[0].is_live).toBe(true)
+    expect(status.streamersStatus.value[0].last_seen).toBeTruthy()
+    emit('stream.offline', { streamer_name: 'ONE' })
+    expect(status.streamersStatus.value[0]).toMatchObject({ is_live: false, current_title: null, current_category: null })
+    const before = status.lastUpdate.value
+    for (const type of ['channel.update', 'stream.online', 'stream.offline']) {
+      emit(type, null)
+      emit(type, { streamer_name: 'absent', title: 'ignored' })
+    }
+    expect(status.lastUpdate.value).toBe(before)
+    expect(status.streamersStatus.value[1]).toEqual({ id: 2, name: 'two', display_name: 'TWO', is_live: false })
+    counts(1)
+    expect(subscriberCount()).toBe(12)
+  })
+
   it('coalesces the old App mounted fetch with initial hydration', async () => {
     const { status } = mount(true)
     counts(1)
@@ -144,6 +192,19 @@ describe('shared system status lifecycle', () => {
     counts(2)
   })
 
+  it('coalesces concurrent force refreshes waiting for the same in-flight batch', async () => {
+    const a = mount().status; const b = mount().status; const c = mount().status
+    const refreshes = [a.forceRefresh(), b.forceRefresh(), c.forceRefresh()]
+    counts(1)
+    settle(); await flush()
+    counts(2)
+    settle(1); await Promise.all(refreshes)
+    counts(2)
+    expect(a.systemStatus.value).toEqual(responses[0].system)
+    expect(b.systemStatus.value).toEqual(responses[0].system)
+    expect(c.systemStatus.value).toEqual(responses[0].system)
+  })
+
   it('owns one emergency fallback only after the offline threshold', async () => {
     mount(); mount(); mount()
     settle(); await flush()
@@ -173,6 +234,7 @@ describe('shared system status lifecycle', () => {
 
   it('resets on logout and ignores old results after a new authenticated generation', async () => {
     const { status } = mount()
+    const queuedRefresh = status.forceRefresh()
     connection.value = 'offline'; await nextTick()
     connection.value = 'connected'; await nextTick()
     authenticated.value = false; await nextTick()
@@ -184,6 +246,8 @@ describe('shared system status lifecycle', () => {
     settle(1); await flush()
     pending[0][0].resolve({ system: { ...responses[0].system, total_streamers: 999 } })
     settle(); await flush()
+    await queuedRefresh
+    counts(2)
     expect(status.systemStatus.value?.total_streamers).toBe(0)
     expect(status.isLoading.value).toBe(false)
   })
