@@ -18,6 +18,7 @@ from app.models import (
     TwitchUpstreamLease,
 )
 from app.observability import service_metrics
+from app.utils.async_db_utils import run_in_thread_pool
 
 AUTHENTICATED_TWITCH_ACCOUNT = "streamvault-global-twitch-account"
 ACTIVE_STATES = ("STARTING", "ACTIVE", "ROTATING", "RECOVERING")
@@ -228,7 +229,7 @@ class TwitchUpstreamCoordinator:
         Both the Session and ORM values stay inside this worker-thread callback.
         Only detached result data crosses back to the event loop.
         """
-        return await asyncio.to_thread(self._run_capture_maintenance, operation)
+        return await run_in_thread_pool(self._run_capture_maintenance, operation)
 
     def _run_capture_maintenance[T](self, operation: Callable[[Session], T]) -> T:
         with self._session_factory() as db:

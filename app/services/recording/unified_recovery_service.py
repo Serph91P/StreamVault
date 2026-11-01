@@ -1156,34 +1156,52 @@ class UnifiedRecoveryService:
             await manager.upstream_coordinator.run_capture_maintenance(repair)
         )
 
-    async def _final_database_cleanup(self, stats: RecoveryStats):
-        """Final database cleanup after recovery"""
-        try:
-            with self._sessions() as db:
-                # Remove any recordings that have no associated files and are very old
-                cutoff = datetime.now() - timedelta(days=self.DATABASE_CLEANUP_DAYS)
+    async def _final_database_cleanup(self, stats: RecoveryStats) -> None:
+        """Remove old empty rows only after guarded positive capture-death evidence."""
+        from app.services.recording.media_ownership import CaptureState, capture_state
 
-                orphaned_db_records = (
+        try:
+            manager = self._recording_owner().process_manager
+            snapshots = await manager.capture_process_snapshot()
+
+            def cleanup(db: Session) -> int:
+                cutoff = datetime.now(timezone.utc) - timedelta(
+                    days=self.DATABASE_CLEANUP_DAYS
+                )
+                candidates = (
                     db.query(Recording)
                     .filter(
                         Recording.status == "recording",
                         Recording.start_time < cutoff,
                         Recording.path.is_(None),
                     )
+                    .with_for_update()
                     .all()
                 )
-
-                for recording in orphaned_db_records:
+                removed = 0
+                for recording in candidates:
+                    if (
+                        capture_state(
+                            db,
+                            recording,
+                            snapshots.get(f"stream_{recording.stream_id}"),
+                        )
+                        is not CaptureState.DEAD
+                    ):
+                        continue
                     logger.warning(
-                        f"🗑️ Removing orphaned DB record: recording_id={recording.id}"
+                        "Removing proven-dead orphaned DB record: recording_id=%s",
+                        recording.id,
                     )
                     db.delete(recording)
-                    stats.updated_database_entries += 1
+                    removed += 1
+                return removed
 
-                db.commit()
-
-        except Exception as e:
-            logger.error(f"❌ Error in final database cleanup: {e}")
+            stats.updated_database_entries += (
+                await manager.upstream_coordinator.run_capture_maintenance(cleanup)
+            )
+        except Exception as error:
+            logger.error("Error in final database cleanup: %s", error)
 
     def _prepare_concat(
         self, segments_dir: Path, output_path: Path, owned_paths: list[Path]

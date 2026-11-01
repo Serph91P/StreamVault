@@ -2,9 +2,9 @@
 
 import asyncio
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from threading import get_ident
+from threading import Event as ThreadEvent, get_ident
 
 import pytest
 from sqlalchemy import event, select
@@ -15,7 +15,10 @@ from app.config.settings import Settings
 from app.database import Base, DatabaseLifecycle
 from app.main import create_app
 from app.models import Recording, Stream, Streamer
-from app.services.recording.unified_recovery_service import UnifiedRecoveryService
+from app.services.recording.unified_recovery_service import (
+    RecoveryStats,
+    UnifiedRecoveryService,
+)
 from app.utils.async_db_utils import run_in_thread_pool
 
 
@@ -222,6 +225,75 @@ async def test_recovery_discovery_and_enqueue_use_only_owned_closed_worker_scope
         )
         assert activity == [True, False]
         assert queries and loop_thread not in queries
+        for database in databases:
+            with database.sync_session_factory() as session:
+                session.add(
+                    Recording(
+                        id=27,
+                        stream_id=70,
+                        status="recording",
+                        start_time=datetime.now(timezone.utc) - timedelta(days=30),
+                    )
+                )
+                session.commit()
+        queries.clear()
+        stats = [RecoveryStats(), RecoveryStats()]
+        await asyncio.gather(
+            *(
+                service._final_database_cleanup(statistics)
+                for service, statistics in zip(services, stats, strict=True)
+            )
+        )
+        assert queries and loop_thread not in queries
+        assert [statistics.updated_database_entries for statistics in stats] == [0, 0]
+        for database in databases:
+            with database.sync_session_factory() as session:
+                assert session.get(Recording, 27) is not None
+        dead_child = await asyncio.create_subprocess_exec("python", "-c", "pass")
+        await dead_child.wait()
+        recorders[1].process_manager.active_processes["stream_70"] = dead_child
+        await services[1]._final_database_cleanup(stats[1])
+        assert stats[1].updated_database_entries == 1
+        with databases[1].sync_session_factory() as session:
+            assert session.get(Recording, 27) is None
+        with databases[0].sync_session_factory() as session:
+            assert session.get(Recording, 27) is not None
+        started, release = ThreadEvent(), ThreadEvent()
+
+        def held_maintenance(session):
+            row = session.get(Recording, 7)
+            row.duration = 43
+            session.flush()
+            started.set()
+            assert release.wait(5)
+            return 43
+
+        maintenance = asyncio.create_task(
+            recorders[1].process_manager.upstream_coordinator.run_capture_maintenance(
+                held_maintenance
+            )
+        )
+        try:
+            assert await asyncio.to_thread(started.wait, 5)
+            maintenance.cancel()
+            await asyncio.sleep(0)
+            await asyncio.sleep(0)
+            assert not maintenance.done()
+            release.set()
+            with pytest.raises(asyncio.CancelledError):
+                await maintenance
+            assert databases[1].sync_engine.pool.checkedout() == 0
+            with databases[1].sync_session_factory() as session:
+                assert session.get(Recording, 7).duration == 43
+        finally:
+            release.set()
+            await asyncio.gather(maintenance, return_exceptions=True)
+
+            async def wait_closed():
+                while databases[1].sync_engine.pool.checkedout():
+                    await asyncio.sleep(0.001)
+
+            await asyncio.wait_for(wait_closed(), 5)
         for database in databases:
             assert database.sync_engine.pool.checkedout() == 0
     finally:
