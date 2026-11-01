@@ -371,7 +371,7 @@ def test_existing_user_install_bootstraps_jwt_once_and_tokens_survive_restart(
     app = FastAPI()
     app.include_router(auth_routes.router, prefix="/auth")
     app.dependency_overrides[get_auth_service] = get_test_auth_service
-    monkeypatch.setattr(auth_routes, "get_settings", lambda: first)
+
     with TestClient(app) as client:
         response = client.post(
             "/auth/login",
@@ -674,7 +674,7 @@ def test_postgres_concurrent_first_starts_share_one_identity(monkeypatch) -> Non
         app = FastAPI()
         app.include_router(auth_routes.router, prefix="/auth")
         app.dependency_overrides[get_auth_service] = get_postgres_auth_service
-        monkeypatch.setattr(auth_routes, "get_settings", lambda: login_settings)
+
         with TestClient(app) as client:
             response = client.post(
                 "/auth/login",

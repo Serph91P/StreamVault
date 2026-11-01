@@ -9,11 +9,11 @@ import pytest
 from fastapi import Depends
 from fastapi.testclient import TestClient
 from fastapi.routing import iter_route_contexts
-from sqlalchemy import create_engine, select
+from sqlalchemy import select
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
 
-from app.database import Base
+
+from app.database import Base, DatabaseLifecycle
 from app.dependencies import get_auth_service, get_db, require_admin_user
 from app.main import create_app
 from app.models import User
@@ -32,9 +32,8 @@ def admin_stack(monkeypatch, tmp_path):
         AUTH_JWT_AUDIENCE="admin-policy-api",
         AUTH_ACCESS_TOKEN_MINUTES=15,
     )
-    engine = create_engine(
-        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
-    )
+    lifecycle = DatabaseLifecycle("sqlite://")
+    engine = lifecycle.sync_engine
     Base.metadata.create_all(engine)
     factory = sessionmaker(bind=engine, expire_on_commit=False)
 
@@ -46,13 +45,12 @@ def admin_stack(monkeypatch, tmp_path):
         return AuthService(db, settings=settings)
 
     import app.database as database
-    import app.middleware.auth as middleware
+
     import app.config.settings as config
     import app.routes.admin as admin
 
     monkeypatch.setattr(database, "SessionLocal", factory)
-    monkeypatch.setattr(middleware, "SessionLocal", factory)
-    monkeypatch.setattr(middleware, "AuthService", lambda db: AuthService(db, settings))
+
     monkeypatch.setattr(
         config,
         "get_settings",
@@ -113,11 +111,12 @@ def admin_stack(monkeypatch, tmp_path):
     sentinel.write_bytes(b"synthetic recording")
     app = create_app(
         settings=settings,
+        database=lifecycle,
         service_overrides={get_db: test_db, get_auth_service: test_auth},
     )
     # No lifespan: no provider connections, schedulers or startup cleanup.
     yield app, settings, factory, sentinel, queue
-    engine.dispose()
+    lifecycle.dispose_sync()
 
 
 @pytest.mark.parametrize(

@@ -18,7 +18,7 @@ from app.dependencies import (
     get_db,
 )
 from app.schemas.auth import UserCreate
-from app.config.settings import get_settings
+
 from app.models import SystemState, User
 
 logger = logging.getLogger("streamvault")
@@ -114,7 +114,7 @@ async def setup_admin(
     response = JSONResponse(
         content={"message": "Admin account created", "success": True}
     )
-    settings = get_settings()
+    settings = auth_service.settings
     # FIX: Cookie-Pfad explizit auf Root setzen + max_age, damit es für alle Routen (/api/..., /videos, PWA) gesendet wird.
     # Vorheriger Zustand: Standard-Pfad "/auth" -> Cookie wurde bei anderen Pfaden nicht mitgesendet -> ständiges Ausloggen.
     response.set_cookie(
@@ -164,7 +164,7 @@ async def login(
             content={"message": "Login successful", "success": True}
         )
         # Set secure based on configuration, httponly=True for XSS protection
-        settings = get_settings()
+        settings = auth_service.settings
         # Siehe Kommentar oben: Pfad & max_age setzen
         response.set_cookie(
             key="access_token",
@@ -268,7 +268,7 @@ async def refresh_access_token(
         raise HTTPException(status_code=401, detail="Refresh token replay detected")
     except AuthTokenError:
         raise HTTPException(status_code=401, detail="Invalid refresh token")
-    settings = get_settings()
+    settings = auth_service.settings
     response = JSONResponse(content={"success": True})
     response.set_cookie(
         key="access_token",

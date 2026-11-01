@@ -95,7 +95,6 @@ def auth_stack(monkeypatch):
         "AuthService",
         lambda db: AuthService(db, settings=settings),
     )
-    monkeypatch.setattr(auth_routes, "get_settings", lambda: settings)
 
     app = FastAPI(openapi_url="/api/openapi.json")
     app.include_router(auth_routes.router, prefix="/auth")
@@ -364,7 +363,9 @@ def test_fresh_jwt_login_can_check_session_list_library_and_keepalive(auth_stack
     assert keepalive.json() == {"ok": True}
 
 
-def test_fresh_jwt_login_reaches_authenticated_media_contract(auth_stack, monkeypatch, tmp_path):
+def test_fresh_jwt_login_reaches_authenticated_media_contract(
+    auth_stack, monkeypatch, tmp_path
+):
     """JWT cookies must work for every player route without minting a legacy session."""
     app, _settings, _SessionFactory, _user_id, _legacy_token, _api_key = auth_stack
     media_file = tmp_path / "recording.mp4"
@@ -405,13 +406,17 @@ def test_fresh_jwt_login_reaches_authenticated_media_contract(auth_stack, monkey
 
     from app.config import settings as settings_module
 
-    monkeypatch.setattr(video_routes, "validate_path_security", lambda path, _mode: path)
+    monkeypatch.setattr(
+        video_routes, "validate_path_security", lambda path, _mode: path
+    )
     monkeypatch.setattr(video_routes, "validate_file_type", lambda *_args: None)
     monkeypatch.setattr(video_routes, "get_recordings_directory", lambda: str(tmp_path))
     monkeypatch.setattr(video_routes, "store_share_token", lambda *_args: None)
     monkeypatch.setattr(video_routes, "cleanup_expired_tokens", lambda: None)
     monkeypatch.setattr(
-        settings_module, "get_settings", lambda: SimpleNamespace(BASE_URL="https://test.invalid")
+        settings_module,
+        "get_settings",
+        lambda: SimpleNamespace(BASE_URL="https://test.invalid"),
     )
     app.dependency_overrides[get_db] = lambda: MediaDb()
 
@@ -423,7 +428,9 @@ def test_fresh_jwt_login_reaches_authenticated_media_contract(auth_stack, monkey
         thumbnail_response = client.get("/api/videos/1/thumbnail")
         chapters_response = client.get("/api/videos/1/chapters")
         share_response = client.post("/api/videos/1/share-token")
-        stream_response = client.get("/api/videos/1/stream", headers={"Range": "bytes=0-8"})
+        stream_response = client.get(
+            "/api/videos/1/stream", headers={"Range": "bytes=0-8"}
+        )
 
     assert login.status_code == 200
     assert "access_token" in login.cookies
@@ -442,7 +449,9 @@ def test_fresh_jwt_login_reaches_authenticated_media_contract(auth_stack, monkey
         }
     ]
     assert share_response.status_code == 200
-    assert share_response.json()["share_url"].startswith("https://test.invalid/api/videos/public/1?token=")
+    assert share_response.json()["share_url"].startswith(
+        "https://test.invalid/api/videos/public/1?token="
+    )
     assert stream_response.status_code == 206
     assert stream_response.content == b"synthetic"
 

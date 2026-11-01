@@ -204,5 +204,5 @@ def test_lifespan_owns_the_recording_manager_before_background_services() -> Non
     )
     assert "app.state.recording_manager" in source
     assert source.index("recording_manager.shutdown") < source.index(
-        "database_lifecycle.adispose"
+        "runtime_database.adispose"
     )

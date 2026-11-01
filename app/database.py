@@ -19,7 +19,10 @@ Compatibility seam (temporary):
 
 import logging
 import os
-from typing import AsyncGenerator, Dict, Optional
+from typing import TYPE_CHECKING, AsyncGenerator, Dict, Optional
+
+if TYPE_CHECKING:
+    from app.config.settings import Settings
 
 from sqlalchemy import MetaData, create_engine
 from sqlalchemy.engine import Engine, make_url
@@ -90,8 +93,11 @@ def _is_in_memory_sqlite(url: URL) -> bool:
 class DatabaseLifecycle:
     """Lazily own the sync + async engines and their session factories."""
 
-    def __init__(self, database_url: Optional[str] = None) -> None:
+    def __init__(
+        self, database_url: Optional[str] = None, *, settings: "Settings | None" = None
+    ) -> None:
         self._configured_url = database_url
+        self._settings = settings
         self._resolved_url: Optional[str] = None
         self._sync_engine: Optional[Engine] = None
         self._async_engine: Optional[AsyncEngine] = None
@@ -104,7 +110,7 @@ class DatabaseLifecycle:
             self._resolved_url = (
                 self._configured_url
                 if self._configured_url is not None
-                else get_database_url()
+                else get_database_url(self._settings)
             )
         return self._resolved_url
 
@@ -237,19 +243,22 @@ class _SessionLocalProxy:
         return getattr(self._lifecycle.sync_session_factory, item)
 
 
-def get_database_url() -> str:
+def get_database_url(configuration: "Settings | None" = None) -> str:
     """Resolve explicit validated configuration without test-framework policy.
 
     Unit tests configure SQLite or inject DatabaseLifecycle(url); importing a
     test runner never changes the chosen database. No connection is opened here.
     """
-    from app.config.settings import settings
+    if configuration is None:
+        from app.config.settings import settings
 
-    url = settings.DATABASE_URL
+        configuration = settings
+
+    url = configuration.DATABASE_URL
     if not url:
         raise ValueError("DATABASE_URL is not set.")
     if (
-        settings.ENVIRONMENT != "test"
+        configuration.ENVIRONMENT != "test"
         and make_url(url).get_backend_name() != "postgresql"
     ):
         raise ValueError(

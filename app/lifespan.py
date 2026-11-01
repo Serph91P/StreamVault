@@ -16,6 +16,7 @@ from app.services.core.auth_service import AuthService
 from app.services.images.image_sync_service import image_sync_service
 from app.services.system.supervisor import TaskSupervisor
 from app.tasks.websocket_broadcast_task import websocket_broadcast_task
+from app.utils.async_db_utils import run_in_thread_pool
 
 logger = setup_logging()
 
@@ -77,6 +78,7 @@ async def lifespan(app: FastAPI):
     if app is None:
         app = SimpleNamespace(state=SimpleNamespace(), dependency_overrides={})
     supervisor = TaskSupervisor("application")
+    runtime_database = getattr(app.state, "database_lifecycle", database_lifecycle)
     app.state.task_supervisor = supervisor
     app.state.startup_phases = []
     event_registry = None
@@ -98,17 +100,36 @@ async def lifespan(app: FastAPI):
     try:
         from app.bootstrap.storage import prepare_storage_directories
 
-        await asyncio.to_thread(prepare_storage_directories, runtime_settings)
+        await run_in_thread_pool(prepare_storage_directories, runtime_settings)
         from app.services.system.migration_service import MigrationService
 
-        if not MigrationService.run_safe_migrations():
+        def run_migrations() -> bool:
+            if runtime_database is database_lifecycle:
+                return MigrationService.run_safe_migrations()
+            return MigrationService.for_engine(
+                runtime_database.sync_engine
+            ).run_safe_migrations()
+
+        if not await run_in_thread_pool(run_migrations):
             raise RuntimeError("Database migrations did not complete successfully")
         phase("migrations")
 
         # Persistent identities must only be touched after a current schema exists.
         from app.services.system.persistent_key_service import bootstrap_persistent_keys
 
-        bootstrap_persistent_keys()
+        def bootstrap_keys() -> None:
+            if runtime_database is database_lifecycle:
+                bootstrap_persistent_keys()
+            else:
+                from app.services.system.persistent_key_service import (
+                    PersistentKeyBootstrapService,
+                )
+
+                PersistentKeyBootstrapService(
+                    runtime_database.sync_session_factory
+                ).bootstrap(runtime_settings)
+
+        await run_in_thread_pool(bootstrap_keys)
         phase("persistent-identities")
 
         from app.services.migration.image_migration_service import (
@@ -209,5 +230,5 @@ async def lifespan(app: FastAPI):
                 "recording-manager",
                 lambda: recording_manager.shutdown(timeout=TIMEOUTS.GRACEFUL_SHUTDOWN),
             )
-        await _shutdown_step("database", database_lifecycle.adispose)
+        await _shutdown_step("database", runtime_database.adispose)
         logger.info("Application shutdown complete")

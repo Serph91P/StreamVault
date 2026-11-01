@@ -2,7 +2,9 @@ from fastapi import Request
 from fastapi.responses import RedirectResponse, JSONResponse
 from app.services.core.auth_service import AuthService
 from app.services.core.api_key_service import ApiKeyService
-from app.database import SessionLocal
+from app.database import DatabaseLifecycle, SessionLocal
+from app.config.settings import Settings
+from sqlalchemy.orm import Session
 import logging
 from urllib.parse import urlsplit
 
@@ -136,8 +138,26 @@ def _is_valid_access_token(auth_service: AuthService, token: str | None) -> bool
 
 
 class AuthMiddleware:
-    def __init__(self, app):
+    def __init__(
+        self,
+        app,
+        *,
+        database: DatabaseLifecycle | None = None,
+        settings: Settings | None = None,
+    ):
         self.app = app
+        self._database = database
+        self._settings = settings
+
+    def _open_session(self) -> Session:
+        if self._database is None:
+            return SessionLocal()
+        return self._database.sync_session_factory()
+
+    def _auth_service(self, db: Session) -> AuthService:
+        if self._settings is None:
+            return AuthService(db=db)
+        return AuthService(db=db, settings=self._settings)
 
     async def __call__(self, scope, receive, send):
         if scope["type"] not in ("http", "websocket"):
@@ -163,9 +183,9 @@ class AuthMiddleware:
                 await ws.accept()
                 await ws.close(code=4001, reason="Authentication required")
                 return
-            db = SessionLocal()
+            db = self._open_session()
             try:
-                auth_service = AuthService(db=db)
+                auth_service = self._auth_service(db)
                 if not _is_valid_access_token(auth_service, access_token) and not (
                     session_token and await auth_service.validate_session(session_token)
                 ):
@@ -206,9 +226,9 @@ class AuthMiddleware:
             return await self.app(scope, receive, send)
 
         # Create per-request services
-        db = SessionLocal()
+        db = self._open_session()
         try:
-            auth_service = AuthService(db=db)
+            auth_service = self._auth_service(db)
 
             admin_exists = await auth_service.admin_exists()
 

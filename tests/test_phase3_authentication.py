@@ -435,7 +435,6 @@ def test_logout_route_revokes_refresh_family_and_clears_auth_cookies(
     app = FastAPI()
     app.include_router(auth_routes.router, prefix="/auth")
     app.dependency_overrides[get_auth_service] = get_test_auth_service
-    monkeypatch.setattr(auth_routes, "get_settings", lambda: auth_settings)
 
     try:
         with TestClient(app) as client:
@@ -527,7 +526,6 @@ def test_public_login_check_refresh_logout_flow(monkeypatch, auth_settings):
     app = FastAPI()
     app.include_router(auth_routes.router, prefix="/auth")
     app.dependency_overrides[get_auth_service] = get_test_auth_service
-    monkeypatch.setattr(auth_routes, "get_settings", lambda: auth_settings)
     auth_routes._login_attempts.clear()
 
     try:

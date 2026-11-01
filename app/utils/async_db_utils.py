@@ -7,6 +7,7 @@ layer over that lifecycle.
 """
 
 import asyncio
+from collections.abc import Callable
 from typing import Any, List
 from sqlalchemy import select, desc
 from sqlalchemy.orm import selectinload
@@ -132,17 +133,28 @@ async def batch_process_items(
             await asyncio.sleep(sleep_duration)
 
 
-async def run_in_thread_pool(func, *args, **kwargs):
-    """
-    Run a synchronous function in a thread pool to avoid blocking async context.
+async def run_in_thread_pool[T, **P](
+    func: Callable[P, T], *args: P.args, **kwargs: P.kwargs
+) -> T:
+    """Offload a complete resource scope, preserving context and draining on cancel.
 
-    Args:
-        func: Synchronous function to run
-        *args: Positional arguments for the function
-        **kwargs: Keyword arguments for the function
-
-    Returns:
-        Result of the function execution
+    The callback must create/use/close its sessions and return values, not ORM rows.
+    Blocking operations retain their own driver/operation timeout budgets.
     """
-    loop = asyncio.get_event_loop()
-    return await loop.run_in_executor(None, func, *args, **kwargs)
+    worker = asyncio.create_task(
+        asyncio.to_thread(func, *args, **kwargs), name="streamvault:blocking-operation"
+    )
+    try:
+        return await asyncio.shield(worker)
+    except asyncio.CancelledError:
+        # Cancelling an await cannot stop a thread; retain ownership until cleanup.
+        while not worker.done():
+            try:
+                await asyncio.shield(worker)
+            except asyncio.CancelledError:
+                continue
+            except Exception:
+                break
+        if not worker.cancelled():
+            worker.exception()
+        raise

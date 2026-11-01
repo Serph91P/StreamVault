@@ -1,13 +1,13 @@
 import logging
 from dataclasses import dataclass
-from collections.abc import Callable
+from collections.abc import AsyncIterator, Callable
 from typing import Generator
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
-from app.database import SessionLocal, get_async_db
+from app.database import SessionLocal, database_lifecycle
 from app.services.communication.websocket_manager import ConnectionManager
 from app.services.core.auth_service import AuthService, AuthTokenError
 from app.services.core.settings_service import SettingsService
@@ -33,16 +33,27 @@ class AuthIdentity:
     interactive: bool
 
 
-def get_db() -> Generator[Session, None, None]:
-    db = SessionLocal()
+def get_db(request: Request) -> Generator[Session, None, None]:
+    lifecycle = getattr(request.app.state, "database_lifecycle", database_lifecycle)
+    db = (
+        SessionLocal()
+        if lifecycle is database_lifecycle
+        else lifecycle.sync_session_factory()
+    )
     try:
         yield db
     finally:
         db.close()
 
 
-def get_auth_service(db: Session = Depends(get_db)) -> AuthService:
-    return AuthService(db=db)
+async def get_async_db(request: Request) -> AsyncIterator[AsyncSession]:
+    lifecycle = getattr(request.app.state, "database_lifecycle", database_lifecycle)
+    async with lifecycle.async_session_factory() as session:
+        yield session
+
+
+def get_auth_service(request: Request, db: Session = Depends(get_db)) -> AuthService:
+    return AuthService(db=db, settings=getattr(request.app.state, "settings", None))
 
 
 def _bearer(request: Request) -> str | None:

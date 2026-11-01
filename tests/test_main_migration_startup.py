@@ -1,7 +1,93 @@
 import sys
+import threading
 from types import SimpleNamespace
 
 import pytest
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("migration_success", [False, True])
+async def test_configured_lifespan_migrates_and_disposes_only_its_database_off_loop(
+    monkeypatch, tmp_path, migration_success
+):
+    from app import lifespan as module
+    from app.config.settings import get_settings
+    from app.database import DatabaseLifecycle
+    from app.services.system.migration_service import MigrationService
+    import app.services.system.persistent_key_service as key_module
+
+    lifecycle = DatabaseLifecycle(f"sqlite:///{tmp_path / 'owned.db'}")
+    bound_calls = []
+    foreign_disposals = []
+    key_calls = []
+    event_loop_thread = threading.get_ident()
+
+    class FailedMigrations:
+        @staticmethod
+        def run_safe_migrations():
+            return migration_success
+
+    def bind(engine):
+        bound_calls.append((engine, threading.get_ident()))
+        return FailedMigrations
+
+    def forbidden_default():
+        raise AssertionError("Configured application used process-default migrations")
+
+    def forbidden_default_keys():
+        raise AssertionError("Configured application used process-default keys")
+
+    class ScopedKeys:
+        def __init__(self, factory):
+            self.factory = factory
+
+        def bootstrap(self, configuration):
+            key_calls.append((self.factory, configuration, threading.get_ident()))
+            raise RuntimeError("scoped bootstrap stop")
+
+    async def foreign_dispose():
+        foreign_disposals.append(True)
+
+    monkeypatch.setattr(MigrationService, "for_engine", staticmethod(bind))
+    monkeypatch.setattr(
+        MigrationService, "run_safe_migrations", staticmethod(forbidden_default)
+    )
+    monkeypatch.setattr(key_module, "bootstrap_persistent_keys", forbidden_default_keys)
+    monkeypatch.setattr(key_module, "PersistentKeyBootstrapService", ScopedKeys)
+    monkeypatch.setattr(
+        module, "database_lifecycle", SimpleNamespace(adispose=foreign_dispose)
+    )
+    application = SimpleNamespace(
+        state=SimpleNamespace(
+            database_lifecycle=lifecycle,
+            settings=get_settings().model_copy(
+                update={"RECORDING_DIRECTORY": str(tmp_path / "recordings")}
+            ),
+        ),
+        dependency_overrides={},
+    )
+    try:
+        expected = (
+            "scoped bootstrap stop"
+            if migration_success
+            else "Database migrations did not complete successfully"
+        )
+        with pytest.raises(RuntimeError, match=expected):
+            async with module.lifespan(application):
+                pytest.fail("Failed migration must not reach ready")
+        assert len(bound_calls) == 1
+        assert bound_calls[0][1] != event_loop_thread
+        if migration_success:
+            assert len(key_calls) == 1
+            assert key_calls[0][0].kw["bind"] is bound_calls[0][0]
+            assert key_calls[0][1] is application.state.settings
+            assert key_calls[0][2] != event_loop_thread
+        else:
+            assert key_calls == []
+        assert foreign_disposals == []
+        assert lifecycle._sync_engine is None
+    finally:
+        await lifecycle.adispose()
 
 
 @pytest.mark.asyncio

@@ -13,6 +13,7 @@ from fastapi import FastAPI
 
 from app.config.logging_config import setup_logging
 from app.core.exceptions import install_exception_handlers
+from app.database import DatabaseLifecycle, database_lifecycle
 from app.lifespan import lifespan
 from app.middleware_all import install_http_middleware
 from app.middleware.auth import AuthMiddleware
@@ -64,10 +65,20 @@ def _configure_app(
     application: FastAPI,
     settings: Any | None,
     service_overrides: Mapping[Callable[..., Any], Callable[..., Any]] | None,
+    *,
+    legacy_default: bool = False,
+    database: DatabaseLifecycle | None = None,
 ) -> FastAPI:
     """Apply the stable StreamVault composition to one application instance."""
     if settings is not None:
         application.state.settings = settings
+    if database is None:
+        database = (
+            database_lifecycle
+            if legacy_default
+            else DatabaseLifecycle(settings=settings)
+        )
+    application.state.database_lifecycle = database
     if service_overrides:
         application.dependency_overrides.update(service_overrides)
 
@@ -111,7 +122,14 @@ def _configure_app(
     # ── exception handlers, middleware, then catch-all ──────────────────
     install_exception_handlers(application)
     install_http_middleware(application)
-    application.add_middleware(AuthMiddleware)
+    if legacy_default:
+        application.add_middleware(AuthMiddleware)
+    else:
+        application.add_middleware(
+            AuthMiddleware,
+            database=application.state.database_lifecycle,
+            settings=settings,
+        )
     application.include_router(catchall_router)
 
     return application
@@ -120,6 +138,8 @@ def _configure_app(
 def create_app(
     settings: Any | None = None,
     service_overrides: Mapping[Callable[..., Any], Callable[..., Any]] | None = None,
+    *,
+    database: DatabaseLifecycle | None = None,
 ) -> FastAPI:
     """Create the ASGI application, preserving the process-scoped default export.
 
@@ -128,7 +148,7 @@ def create_app(
     used by ``app.main:app``.
     """
     global _application
-    if settings is not None or service_overrides:
+    if settings is not None or service_overrides or database is not None:
         application = FastAPI(
             title="StreamVault API",
             version="2.0.0",
@@ -137,7 +157,9 @@ def create_app(
             openapi_url="/api/openapi.json",
             lifespan=lifespan,
         )
-        return _configure_app(application, settings, service_overrides)
+        return _configure_app(
+            application, settings, service_overrides, database=database
+        )
 
     if _application is None:
         _application = _configure_app(
@@ -151,6 +173,7 @@ def create_app(
             ),
             settings=None,
             service_overrides=None,
+            legacy_default=True,
         )
 
     return _application
