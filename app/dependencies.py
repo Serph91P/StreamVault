@@ -268,9 +268,25 @@ def get_notification_service() -> NotificationService:
     return NotificationService(websocket_manager=websocket_manager)
 
 
-def get_notification_service_factory() -> Callable[[], NotificationService]:
+def _get_application_notification_service(app: FastAPI) -> NotificationService:
+    with app.state.notification_service_lock:
+        service: NotificationService | None = app.state.notification_service
+        if service is None:
+            database = app.state.database_lifecycle
+            service = NotificationService(
+                websocket_manager=app.state.websocket_manager,
+                session_factory=lambda: database.sync_session_factory(),
+                settings=resolve_app_settings(app),
+            )
+            app.state.notification_service = service
+        return service
+
+
+def get_notification_service_factory(
+    connection: HTTPConnection,
+) -> Callable[[], NotificationService]:
     """Expose notification construction as a lazy, overrideable adapter seam."""
-    return get_notification_service
+    return partial(_get_application_notification_service, connection.app)
 
 
 def get_websocket_manager(connection: HTTPConnection) -> ConnectionManager:
