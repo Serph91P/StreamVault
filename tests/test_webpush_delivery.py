@@ -207,9 +207,14 @@ def test_http_failures_preserve_status_without_sensitive_logs(
 def push_db(receiver):
     from sqlalchemy import create_engine
     from sqlalchemy.orm import Session
+    from sqlalchemy.pool import StaticPool
     from app.models import PushSubscription, GlobalSettings
 
-    engine = create_engine("sqlite:///:memory:")
+    engine = create_engine(
+        "sqlite:///:memory:",
+        poolclass=StaticPool,
+        connect_args={"check_same_thread": False},
+    )
     PushSubscription.__table__.create(engine)
     GlobalSettings.__table__.create(engine)
     with Session(engine) as db:
@@ -274,11 +279,11 @@ async def test_event_pipeline_only_deactivates_confirmed_expired(
     enhanced, receiver, push_db, monkeypatch, caplog, status
 ):
     from importlib import import_module
-    from contextlib import nullcontext
+    from sqlalchemy.orm import sessionmaker
 
     module = import_module("app.services.notifications.push_notification_service")
     db, sub = push_db
-    monkeypatch.setattr(module, "SessionLocal", lambda: nullcontext(db))
+    monkeypatch.setattr(module, "SessionLocal", sessionmaker(bind=db.get_bind()))
     pipeline = module.PushNotificationService()
     pipeline.push_service = enhanced
 
