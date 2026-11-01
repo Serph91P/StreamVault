@@ -44,6 +44,7 @@ from app.utils.security import (
     sanitize_streamlink_output,
 )
 from app.services.recording.recording_auth_policy import is_twitch_auth_rejection
+from app.services.recording.media_ownership import LocalCapture
 from app.config.constants import ASYNC_DELAYS
 from app.services.twitch_upstream_coordinator import (
     AUTHENTICATED_TWITCH_ACCOUNT,
@@ -2603,6 +2604,23 @@ class ProcessManager:
         process_ids = list(self.active_processes.keys())
         for process_id in process_ids:
             await self.terminate_process(process_id)
+
+    async def capture_process_snapshot(self) -> dict[str, LocalCapture]:
+        """Copy primitive child identity, without exporting live Process objects."""
+        async with self.lock:
+            snapshots = {}
+            for process_id in (
+                self.active_processes.keys() | self.long_stream_processes.keys()
+            ):
+                process = self.active_processes.get(process_id)
+                info = self.long_stream_processes.get(process_id) or {}
+                snapshots[process_id] = LocalCapture(
+                    process.pid if process is not None else None,
+                    info.get("upstream_process_group_id"),
+                    info.get("upstream_process_start_fingerprint"),
+                    process is not None and process.returncode is not None,
+                )
+            return snapshots
 
     async def is_capture_running(self, stream_id: int) -> bool | None:
         """Read local child/fencing identity without renewing or claiming a lease."""

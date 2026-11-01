@@ -358,6 +358,9 @@ class UnifiedRecoveryService:
             recording_id = recording_info["recording_id"]
             streamer_name = recording_info["streamer_name"]
 
+            if str(expected_ts_path) in await self._get_active_recording_paths():
+                return False
+
             if recording_id is None:
                 with SessionLocal() as db:
                     recording_id = await self._create_recording_from_orphaned_path(
@@ -534,6 +537,9 @@ class UnifiedRecoveryService:
     ) -> bool:
         """Trigger post-processing for a recording"""
         try:
+            if ts_file_path in await self._get_active_recording_paths():
+                return False
+
             # Skip if no recording_id
             if recording_id is None:
                 logger.warning(
@@ -968,40 +974,41 @@ class UnifiedRecoveryService:
             logger.error(f"❌ Error updating recording {recording_id}: {e}")
 
     async def _fix_database_inconsistencies(self, stats: RecoveryStats, dry_run: bool):
-        """Fix database inconsistencies"""
-        try:
-            with SessionLocal() as db:
-                # Find recordings stuck in 'recording' status
-                stuck_recordings = (
-                    db.query(Recording).filter(Recording.status == "recording").all()
-                )
+        """Repair only positive death evidence, serialized with capture admission."""
+        if dry_run:
+            return
+        from app.services.recording.media_ownership import CaptureState, capture_state
 
-                for recording in stuck_recordings:
-                    # Check if recording should be completed
-                    if recording.path:
-                        ts_path = Path(recording.path)
-                        segments_dir = Path(
-                            str(recording.path).replace(".ts", "_segments")
-                        )
+        manager = get_recording_manager().process_manager
+        snapshots = await manager.capture_process_snapshot()
 
-                        # If TS file exists, mark as completed
-                        if ts_path.exists():
-                            if not dry_run:
-                                recording.status = "completed"
-                                if not recording.end_time:
-                                    recording.end_time = datetime.utcnow()
-                                stats.updated_database_entries += 1
+        def repair(db: Session) -> int:
+            updated = 0
+            recordings = (
+                db.query(Recording)
+                .filter(Recording.status == "recording")
+                .with_for_update()
+                .all()
+            )
+            for recording in recordings:
+                if not recording.path or not Path(recording.path).exists():
+                    continue
+                if (
+                    capture_state(
+                        db, recording, snapshots.get(f"stream_{recording.stream_id}")
+                    )
+                    is not CaptureState.DEAD
+                ):
+                    continue
+                recording.status = "completed"
+                if not recording.end_time:
+                    recording.end_time = datetime.utcnow()
+                updated += 1
+            return updated
 
-                        # If segments exist but no TS file, this will be handled by orphaned recovery
-                        elif segments_dir.exists() and list(segments_dir.glob("*.ts")):
-                            # Will be processed by orphaned recovery
-                            pass
-
-                if not dry_run:
-                    db.commit()
-
-        except Exception as e:
-            logger.error(f"❌ Error fixing database inconsistencies: {e}")
+        stats.updated_database_entries += (
+            await manager.upstream_coordinator.run_capture_maintenance(repair)
+        )
 
     async def _final_database_cleanup(self, stats: RecoveryStats):
         """Final database cleanup after recovery"""
@@ -1315,64 +1322,44 @@ class UnifiedRecoveryService:
             logger.error(f"❌ Error resuming recording: {e}")
             return False
 
-    async def _get_active_recording_paths(self) -> set:
-        """Get paths of currently active recordings to avoid processing them"""
-        active_paths = set()
+    async def _get_active_recording_paths(self) -> set[str]:
+        """Protect live/uncertain captures; age and stale caches are not authority."""
+        from app.services.recording.media_ownership import CaptureState, capture_state
+
         try:
-            # Get active recordings from the recording service with robust error handling
-            try:
-                recording_manager = get_recording_manager()
-                active_recordings = recording_manager.get_active_recordings()
-                for recording_data in active_recordings.values():
-                    if "file_path" in recording_data and recording_data["file_path"]:
-                        active_paths.add(recording_data["file_path"])
+            manager = get_recording_manager()
+            cached_paths = {
+                str(data["file_path"])
+                for data in manager.get_active_recordings().values()
+                if data.get("file_path")
+            }
+            snapshots = await manager.process_manager.capture_process_snapshot()
 
-                logger.debug(
-                    f"Retrieved {len(active_recordings)} active recordings from RecordingManager"
-                )
+            def protected_paths() -> set[str]:
+                paths = set(cached_paths)
+                with SessionLocal() as db:
+                    for recording in (
+                        db.query(Recording).filter(Recording.path.isnot(None)).all()
+                    ):
+                        state = capture_state(
+                            db,
+                            recording,
+                            snapshots.get(f"stream_{recording.stream_id}"),
+                        )
+                        if state is CaptureState.DEAD:
+                            paths.discard(recording.path)
+                        elif (
+                            state in {CaptureState.ALIVE, CaptureState.UNKNOWN}
+                            or recording.status == "recording"
+                        ):
+                            paths.add(recording.path)
+                return paths
 
-            except Exception as e:
-                logger.error(
-                    f"❌ CRITICAL: Failed to get active recordings from RecordingManager: {e}"
-                )
-                # This is a critical error - we cannot safely proceed without knowing active recordings
-                # Raise the exception to abort the recovery process
-                raise RuntimeError(
-                    f"Cannot safely perform recovery without active recording information: {e}"
-                )
-
-            # Also check database for recordings with status 'recording' that are very recent
-            with SessionLocal() as db:
-                recent_cutoff = datetime.now() - timedelta(
-                    hours=self.ACTIVE_RECORDING_CHECK_HOURS
-                )
-                active_db_recordings = (
-                    db.query(Recording)
-                    .filter(
-                        Recording.status == "recording",
-                        Recording.start_time >= recent_cutoff,
-                    )
-                    .all()
-                )
-
-                for recording in active_db_recordings:
-                    if recording.path:
-                        active_paths.add(recording.path)
-
-            logger.info(
-                f"🔍 ACTIVE_RECORDINGS_CHECK: Found {len(active_paths)} active recording paths"
-            )
-            return active_paths
-
-        except RuntimeError:
-            # Re-raise critical errors
-            raise
-        except Exception as e:
-            logger.error(f"❌ CRITICAL: Error getting active recording paths: {e}")
-            # For any other database errors, we also cannot safely proceed
+            return await asyncio.to_thread(protected_paths)
+        except Exception as error:
             raise RuntimeError(
-                f"Cannot safely perform recovery due to database error: {e}"
-            )
+                "Cannot safely inspect capture ownership for recovery"
+            ) from error
 
 
 # Singleton instance

@@ -8,16 +8,20 @@ from types import SimpleNamespace
 import pytest
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
 from app.database import Base
 from app.models import Recording, Stream, Streamer
+from app.services.recording.process_manager import ProcessManager
 from app.services.recording.recording_manager import RecordingManager
 from app.services.recording.unified_recovery_service import UnifiedRecoveryService
 
 
 @pytest.fixture
 def discovery(tmp_path, monkeypatch):
-    engine = create_engine("sqlite://")
+    engine = create_engine(
+        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
+    )
     with engine.begin() as connection:
         Base.metadata.create_all(connection)
     factory = sessionmaker(engine)
@@ -39,7 +43,13 @@ def discovery(tmp_path, monkeypatch):
     directory = root / "synthetic" / "Season 2026"
     directory.mkdir(parents=True)
     manager = RecordingManager.__new__(RecordingManager)
-    manager._service = SimpleNamespace(get_active_recordings=lambda: {})
+    processes = object.__new__(ProcessManager)
+    processes.active_processes = {}
+    processes.long_stream_processes = {}
+    processes.lock = asyncio.Lock()
+    manager._service = SimpleNamespace(
+        get_active_recordings=lambda: {}, process_manager=processes
+    )
     module = importlib.import_module("app.services.recording.unified_recovery_service")
     monkeypatch.setattr(module, "SessionLocal", factory)
     monkeypatch.setattr(module, "get_recording_manager", lambda: manager)

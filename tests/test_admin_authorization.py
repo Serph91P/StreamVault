@@ -228,7 +228,15 @@ def test_mounted_recovery_preview_is_read_only(admin_stack, monkeypatch, endpoin
     service = UnifiedRecoveryService()
     service.recordings_base_path = root
     manager = RecordingManager.__new__(RecordingManager)
-    manager._service = SimpleNamespace(get_active_recordings=lambda: {})
+    from app.services.recording.process_manager import ProcessManager
+
+    processes = object.__new__(ProcessManager)
+    processes.active_processes = {}
+    processes.long_stream_processes = {}
+    processes.lock = asyncio.Lock()
+    manager._service = SimpleNamespace(
+        get_active_recordings=lambda: {}, process_manager=processes
+    )
     recovery = importlib.import_module(
         "app.services.recording.unified_recovery_service"
     )
