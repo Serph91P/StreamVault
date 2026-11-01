@@ -82,11 +82,9 @@ class JSONFormatter(logging.Formatter):
 
 
 def setup_logging(app_settings=None):
-    """Setup logging with daily rotating files"""
+    """Look up the logger; explicit runtime settings configure its handlers."""
     if app_settings is None:
-        from app.config.settings import get_settings
-
-        app_settings = get_settings()
+        return logging.getLogger("streamvault")
 
     logger = logging.getLogger("streamvault")
     logger.setLevel(app_settings.LOG_LEVEL)

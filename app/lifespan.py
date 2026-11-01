@@ -90,6 +90,10 @@ async def lifespan(app: FastAPI):
         app.state.startup_phases.append(name)
         logger.info("Startup phase complete: %s", name)
 
+    from app.config.settings import get_settings
+
+    runtime_settings = getattr(app.state, "settings", None) or get_settings()
+    setup_logging(runtime_settings)
     logger.info("Starting application initialization")
     try:
         from app.services.system.migration_service import MigrationService
