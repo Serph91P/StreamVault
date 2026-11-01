@@ -26,7 +26,7 @@ exact candidate head and each required check; intermediate counts below do not.
 | #959 | Per-recording stop serialization, finalization outside global registry lock | implemented; native8real-child cases, original5RED/3controls → combined763PASS; stop/public-start concurrency, duplicates, cancellation, denial/replaced-owner controls |
 | #961 | External capture progress retains task liveness without masking death | implemented; 22 real-child/snapshot/startup/consumer regressions, original22RED → native combined791PASS; healthy/unknown never age-completed, dead/stale becomes FAILED; final image/CI gates pending |
 | #965 | Initialized worker reaches registered orphan handler | implemented; actual shared/isolated signatures/getter; scanner finding policy separate |
-| #966 | Mounted admin recovery reaches supported public recovery operation | pending; accepted #937 admin guard preserved first |
+| #966 | Mounted admin recovery reaches supported public recovery operation | implemented; real mounted HTTP + native adapter4RED/1control → combined796PASS; eligible enqueue, absent404, ineligible/error non500; accepted #937 guard unchanged |
 
 ## Original source coverage map (not a substitute for final criterion evidence)
 

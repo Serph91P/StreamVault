@@ -120,6 +120,83 @@ def admin_stack(monkeypatch, tmp_path):
     engine.dispose()
 
 
+@pytest.mark.parametrize(
+    "case", ["eligible", "missing", "too_small", "already_mp4", "enqueue_error"]
+)
+def test_mounted_single_recording_recovery_contract(admin_stack, monkeypatch, case):
+    """The real registered route must reach the native compatibility adapter."""
+    import importlib
+
+    from app.models import Recording, Stream, Streamer
+    from app.services.recording.orphaned_recovery_service import OrphanedRecoveryService
+
+    app, _settings, factory, media, _queue = admin_stack
+    media.write_bytes(b"synthetic-media-966" * 128 if case != "too_small" else b"tiny")
+    if case == "already_mp4":
+        media.with_suffix(".mp4").write_bytes(b"existing-final-media")
+    before = media.read_bytes()
+    with factory() as db:
+        streamer = Streamer(username="synthetic966", twitch_id="synthetic966")
+        db.add(streamer)
+        db.flush()
+        start = datetime.now(timezone.utc) - timedelta(hours=2)
+        stream = Stream(
+            streamer_id=streamer.id,
+            title="offline",
+            started_at=start,
+            ended_at=start + timedelta(hours=1),
+        )
+        db.add(stream)
+        db.flush()
+        recording = Recording(
+            stream_id=stream.id, path=str(media), status="stopped", start_time=start
+        )
+        db.add(recording)
+        db.commit()
+        recording_id, stream_id = recording.id, stream.id
+
+    adapter = OrphanedRecoveryService()
+    enqueued = []
+
+    async def get_adapter():
+        return adapter
+
+    async def enqueue(**payload):
+        enqueued.append(payload)
+        if case == "enqueue_error":
+            raise RuntimeError("synthetic enqueue failure")
+        return "synthetic-recovery-job"
+
+    recovery = importlib.import_module(
+        "app.services.recording.orphaned_recovery_service"
+    )
+    queue_init = importlib.import_module("app.services.init.background_queue_init")
+    monkeypatch.setattr(recovery, "get_orphaned_recovery_service", get_adapter)
+    monkeypatch.setattr(queue_init, "enqueue_recording_post_processing", enqueue)
+    headers = credential_headers(admin_stack, "jwt", "admin")
+    target_id = recording_id + 1000 if case == "missing" else recording_id
+    client = TestClient(app)
+    try:
+        response = client.post(
+            f"/api/admin/orphaned/recover/{target_id}", headers=headers
+        )
+    finally:
+        client.close()
+    assert response.status_code == (404 if case == "missing" else 200)
+    if case != "missing":
+        assert response.json()["success"] is (case == "eligible")
+    assert len(enqueued) == (1 if case in {"eligible", "enqueue_error"} else 0)
+    if enqueued:
+        assert enqueued[0]["recording_id"] == recording_id
+        assert enqueued[0]["stream_id"] == stream_id
+        assert enqueued[0]["ts_file_path"] == str(media)
+    if case == "eligible":
+        assert response.json()["data"]["file_size"] == len(before)
+    assert media.read_bytes() == before
+    with factory() as db:
+        assert db.get(Recording, recording_id).status == "stopped"
+
+
 def credential_headers(stack, mode, state):
     _app, settings, factory, _sentinel, _queue = stack
     headers = {"accept": "application/json"}

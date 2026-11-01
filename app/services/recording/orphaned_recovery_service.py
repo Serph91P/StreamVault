@@ -223,6 +223,9 @@ class OrphanedRecoveryService:
             )
             return False
 
+    validate_orphaned_recording = _validate_orphaned_recording
+    trigger_orphaned_recovery = _trigger_orphaned_recovery
+
     async def _cleanup_orphaned_segments(
         self, db, max_age_hours: int, dry_run: bool, result: Dict
     ) -> None:
