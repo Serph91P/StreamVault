@@ -1,7 +1,9 @@
 """Application-owned bounded HTTP transport; endpoint adapters own retry policy."""
 
 import asyncio
+import logging
 import ssl
+from contextvars import ContextVar
 from collections.abc import AsyncIterator, Mapping, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
@@ -11,6 +13,31 @@ from typing import Literal
 import httpx
 
 from app.utils.async_db_utils import run_in_thread_pool
+
+
+_managed_request: ContextVar[bool] = ContextVar("managed_http_request", default=False)
+
+
+class _TransportLogPrivacy(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        if _managed_request.get():
+            args = record.args
+            if (
+                record.name == "httpx"
+                and isinstance(args, tuple)
+                and len(args) >= 4
+                and isinstance(args[3], int)
+            ):
+                record.msg = "Managed HTTP request: method=%s status=%s"
+                record.args = (args[0], args[3])
+            else:
+                # httpcore DEBUG includes response headers, cookies and exception values.
+                record.msg = "Managed HTTP transport event"
+                record.args = ()
+        return True
+
+
+_transport_log_privacy = _TransportLogPrivacy()
 
 
 @dataclass(frozen=True, slots=True)
@@ -70,6 +97,8 @@ class ManagedHTTPClient:
         async with self._lock:
             if self._closed:
                 raise HTTPClientError("closed")
+            for name in ("httpx", "httpcore.connection", "httpcore.http11"):
+                logging.getLogger(name).addFilter(_transport_log_privacy)
             if self._client is None:
                 # Loading system CA files is blocking I/O, never factory/import work.
                 context = await run_in_thread_pool(ssl.create_default_context)
@@ -127,6 +156,7 @@ class ManagedHTTPClient:
         data: Mapping[str, str] | None = None,
         json: object = None,
     ) -> AsyncIterator[HTTPStreamReply]:
+        log_context = _managed_request.set(True)
         try:
             async with asyncio.timeout(self.policy.total_timeout):
                 client = await self._get_client()
@@ -146,6 +176,8 @@ class ManagedHTTPClient:
             raise HTTPClientError("timeout") from None
         except httpx.RequestError:
             raise HTTPClientError("network") from None
+        finally:
+            _managed_request.reset(log_context)
 
     async def close(self) -> None:
         async with self._lock:
