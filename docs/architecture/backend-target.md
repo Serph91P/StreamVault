@@ -105,6 +105,17 @@ The standard mapping is documented at
 Proxy codec resolution and other legacy model/session boundaries remain open;
 extraction and this projection do **not** fulfill the whole hybrid-I/O contract.
 
+`ConfigManager` now accepts a lazy session factory and explicit Settings; its
+blocking reads close their own complete session scopes and cache frozen typed
+`RecordingConfiguration`/`StreamerRecordingConfiguration` values, never detached
+ORM identities. The existing TTL/invalidation, null/quality fallback and default
+`/recordings` compatibility behavior are retained; explicit contexts use their
+configured recording root. The native two-database proof offloads complete reads
+with `run_in_thread_pool`, observes session closure before return and confirms
+peer/cache isolation and every persisted scalar field. This constructor seam is
+not yet complete root-service wiring, and remaining async callers must still be
+migrated rather than invoking blocking cache-miss reads on the event loop.
+
 Feature repositories own query/loading/transaction details. Application services
 own decisions, state transitions and explicit outcomes. API adapters own bounded
 request validation, current-user/scopes/CSRF enforcement and mapping to unchanged

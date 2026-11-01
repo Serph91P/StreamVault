@@ -7,9 +7,16 @@ This module handles all configuration access with efficient caching.
 import logging
 from datetime import datetime
 from typing import Optional
+from collections.abc import Callable
+from sqlalchemy.orm import Session
+from app.config.settings import Settings
 
 from app.database import SessionLocal
 from app.models import RecordingSettings, StreamerRecordingSettings
+from app.services.recording.configuration_values import (
+    RecordingConfiguration,
+    StreamerRecordingConfiguration,
+)
 
 logger = logging.getLogger("streamvault")
 
@@ -27,11 +34,18 @@ FILENAME_PRESETS = {
 class ConfigManager:
     """Manages and caches recording configuration settings"""
 
-    def __init__(self):
+    def __init__(
+        self,
+        *,
+        session_factory: Callable[[], Session] | None = None,
+        settings: Settings | None = None,
+    ):
+        self._session_factory = session_factory
+        self._settings = settings
         self.cache_timeout = 300  # 5 minutes cache timeout
         self.last_refresh = datetime.min
-        self._global_settings = None
-        self._streamer_settings = {}
+        self._global_settings: RecordingConfiguration | None = None
+        self._streamer_settings: dict[int, StreamerRecordingConfiguration | None] = {}
 
     def _is_cache_valid(self) -> bool:
         """Check if the cached settings are still valid"""
@@ -81,12 +95,17 @@ class ConfigManager:
         logger.error(f"Unexpected error accessing {table_name}: {error}")
         return "unexpected_error"
 
-    def get_global_settings(self) -> Optional[RecordingSettings]:
+    def get_global_settings(self) -> RecordingConfiguration | None:
         """Get global recording settings, using cache if valid"""
         if not self._global_settings or not self._is_cache_valid():
             try:
-                with SessionLocal() as db:
-                    self._global_settings = db.query(RecordingSettings).first()
+                with (self._session_factory or SessionLocal)() as db:
+                    row = db.query(RecordingSettings).first()
+                    self._global_settings = (
+                        RecordingConfiguration.from_model(row)
+                        if row is not None
+                        else None
+                    )
                     self.last_refresh = datetime.now()
             except Exception as e:
                 error_category = self._categorize_database_error(e, "RecordingSettings")
@@ -101,15 +120,20 @@ class ConfigManager:
 
     def get_streamer_settings(
         self, streamer_id: int
-    ) -> Optional[StreamerRecordingSettings]:
+    ) -> StreamerRecordingConfiguration | None:
         """Get streamer-specific recording settings, using cache if valid"""
         if streamer_id not in self._streamer_settings or not self._is_cache_valid():
             try:
-                with SessionLocal() as db:
-                    self._streamer_settings[streamer_id] = (
+                with (self._session_factory or SessionLocal)() as db:
+                    row = (
                         db.query(StreamerRecordingSettings)
                         .filter(StreamerRecordingSettings.streamer_id == streamer_id)
                         .first()
+                    )
+                    self._streamer_settings[streamer_id] = (
+                        StreamerRecordingConfiguration.from_model(row)
+                        if row is not None
+                        else None
                     )
                     self.last_refresh = datetime.now()
             except Exception as e:
@@ -178,12 +202,15 @@ class ConfigManager:
         return 0  # 0 means unlimited
 
     def get_output_directory(self) -> str:
-        """Get output directory - hardcoded for Docker consistency"""
-        return "/recordings"
+        """Use explicit context storage, retaining the legacy no-config default."""
+        return (
+            self._settings.RECORDING_DIRECTORY
+            if self._settings is not None
+            else "/recordings"
+        )
 
     def get_recordings_directory(self) -> str:
-        """Get recordings directory - hardcoded for Docker consistency"""
-        return "/recordings"
+        return self.get_output_directory()
 
     def get_check_interval(self) -> int:
         """Get check interval for recording service in seconds"""
