@@ -12,18 +12,14 @@
  * Note: Background Queue data is handled separately by useBackgroundQueue.ts
  */
 
-import { ref, computed, onMounted, onUnmounted, watch, readonly } from 'vue'
+import { ref, computed, getCurrentScope, shallowReactive, onMounted, onUnmounted, onScopeDispose, watch, readonly } from 'vue'
+import { defineStore, storeToRefs } from 'pinia'
 import { useRealtimeStore } from '@/stores/realtime'
 import { systemApi } from '@/services/api'
-import { logDebug, logError } from '@/utils/logger'
+import { logError } from '@/utils/logger'
 
 // Mock mode check
 const USE_MOCK_DATA = import.meta.env.VITE_USE_MOCK_DATA === 'true'
-
-// Configuration constants
-const _TIMEOUT_THRESHOLD_MS = 45000 // 45 seconds - fallback to REST if no WebSocket updates
-
-const cacheParams = (useCache: boolean) => useCache ? {} : { t: Date.now() }
 
 interface SystemStatus {
   active_recordings: number
@@ -86,15 +82,24 @@ interface NotificationStatus {
   timestamp: string
 }
 
-export function useSystemAndRecordingStatus() {
+const useSystemStatusStore = defineStore('systemStatus', () => {
+  const ownerScope = getCurrentScope()!
+  // App binds the existing auth lifecycle once; consumers never initiate auth checks.
+  let enabled = false
+  let consumers = 0
+  let stopReconnectWatch: (() => void) | undefined
+  let generation = 0
+  const inFlight = shallowReactive(new Map<string, Promise<void>>())
+  const resourceErrors = ref<Record<string, string>>({})
+
   // State
   const systemStatus = ref<SystemStatus | null>(null)
   const activeRecordings = ref<ActiveRecording[]>([])
   const streamersStatus = ref<StreamerStatus[]>([])
   const streamsStatus = ref<StreamStatus[]>([])
   const notificationsStatus = ref<NotificationStatus | null>(null)
-  const isLoading = ref(false)
-  const error = ref<string | null>(null)
+  const isLoading = computed(() => inFlight.size > 0)
+  const error = computed(() => Object.values(resourceErrors.value).join('; ') || null)
   const lastUpdate = ref<Date | null>(null)
   
   // WebSocket integration via central store
@@ -106,94 +111,48 @@ export function useSystemAndRecordingStatus() {
   const hasActiveRecordings = computed(() => activeRecordings.value.length > 0)
   const activeRecordingsCount = computed(() => activeRecordings.value.length)
   
-  // REST API functions for guaranteed current state
-  const fetchSystemStatus = async (useCache = true): Promise<void> => {
-    try {
-      isLoading.value = true
-      error.value = null
-      
-      const data = await systemApi.getStatus(cacheParams(useCache))
-      systemStatus.value = data.system
-      lastUpdate.value = new Date()
-      
-    } catch (err) {
-      error.value = err instanceof Error ? err.message : 'Unknown error'
-      logError('useSystemAndRecordingStatus', 'Failed to fetch system status', err)
-    } finally {
-      isLoading.value = false
-    }
+  // A resource shares only its current read, never a settled promise.
+  function read<T>(key: string, request: (params: Record<string, number>) => Promise<T>, apply: (data: T) => void, useCache: boolean): Promise<void> {
+    if (!stopReconnectWatch) return Promise.resolve()
+    const existing = inFlight.get(key)
+    if (existing) return existing
+    const startedGeneration = generation
+
+    const promise = (async () => {
+      try {
+        const data = await request(useCache ? {} : { t: Date.now() })
+        if (startedGeneration !== generation) return
+        apply(data)
+        delete resourceErrors.value[key]
+        lastUpdate.value = new Date()
+      } catch (err) {
+        if (startedGeneration !== generation) return
+        resourceErrors.value[key] = err instanceof Error ? err.message : 'Unknown error'
+        logError('systemStatus', key, err)
+      } finally {
+        if (startedGeneration === generation) {
+          inFlight.delete(key)
+        }
+      }
+    })()
+    inFlight.set(key, promise)
+    return promise
   }
-  
-  const fetchActiveRecordings = async (useCache = true): Promise<void> => {
-    try {
-      isLoading.value = true
-      error.value = null
-      
-      const data = await systemApi.getActiveRecordingsStatus(cacheParams(useCache))
-      activeRecordings.value = data.active_recordings || []
-      lastUpdate.value = new Date()
-      
-    } catch (err) {
-      error.value = err instanceof Error ? err.message : 'Unknown error'
-      logError('useSystemAndRecordingStatus', 'Failed to fetch active recordings', err)
-    } finally {
-      isLoading.value = false
-    }
-  }
-  
-  const fetchStreamersStatus = async (useCache = true): Promise<void> => {
-    try {
-      isLoading.value = true
-      error.value = null
-      
-      const data = await systemApi.getStreamersStatus(cacheParams(useCache))
-      streamersStatus.value = data.streamers || []
-      lastUpdate.value = new Date()
-      
-    } catch (err) {
-      error.value = err instanceof Error ? err.message : 'Unknown error'
-      logError('useSystemAndRecordingStatus', 'Failed to fetch streamers status', err)
-    } finally {
-      isLoading.value = false
-    }
-  }
-  
-  const fetchStreamsStatus = async (useCache = true): Promise<void> => {
-    try {
-      isLoading.value = true
-      error.value = null
-      
-      const data = await systemApi.getStreamsStatus(cacheParams(useCache))
-      streamsStatus.value = data.streams || []
-      lastUpdate.value = new Date()
-      
-    } catch (err) {
-      error.value = err instanceof Error ? err.message : 'Unknown error'
-      logError('useSystemAndRecordingStatus', 'Failed to fetch streams status', err)
-    } finally {
-      isLoading.value = false
-    }
-  }
-  
-  const fetchNotificationsStatus = async (useCache = true): Promise<void> => {
-    try {
-      isLoading.value = true
-      error.value = null
-      
-      const data = await systemApi.getNotificationsStatus(cacheParams(useCache))
-      notificationsStatus.value = data
-      lastUpdate.value = new Date()
-      
-    } catch (err) {
-      error.value = err instanceof Error ? err.message : 'Unknown error'
-      logError('useSystemAndRecordingStatus', 'Failed to fetch notifications status', err)
-    } finally {
-      isLoading.value = false
-    }
-  }
+
+  const fetchSystemStatus = (useCache = true) => read('system',
+    systemApi.getStatus, data => { systemStatus.value = data.system }, useCache)
+  const fetchActiveRecordings = (useCache = true) => read('recordings',
+    systemApi.getActiveRecordingsStatus, data => { activeRecordings.value = data.active_recordings || [] }, useCache)
+  const fetchStreamersStatus = (useCache = true) => read('streamers',
+    systemApi.getStreamersStatus, data => { streamersStatus.value = data.streamers || [] }, useCache)
+  const fetchStreamsStatus = (useCache = true) => read('streams',
+    systemApi.getStreamsStatus, data => { streamsStatus.value = data.streams || [] }, useCache)
+  const fetchNotificationsStatus = (useCache = true) => read('notifications',
+    systemApi.getNotificationsStatus, data => { notificationsStatus.value = data }, useCache)
   
   // Fetch all status data
   const fetchAllStatus = async (useCache = true): Promise<void> => {
+    if (!stopReconnectWatch) return
     // Mock mode: populate with realistic data without hitting backend
     if (USE_MOCK_DATA) {
       systemStatus.value = {
@@ -233,22 +192,21 @@ export function useSystemAndRecordingStatus() {
   }
   
   // Force refresh without cache
+  let queuedRefresh: Promise<void> | null = null
   const forceRefresh = (): Promise<void> => {
-    return fetchAllStatus(false)
+    if (!inFlight.size) return fetchAllStatus(false)
+    if (queuedRefresh) return queuedRefresh
+    const startedGeneration = generation
+    queuedRefresh = Promise.all([...inFlight.values()]).then(() => {
+      if (startedGeneration !== generation) return
+      queuedRefresh = null
+      return fetchAllStatus(false)
+    })
+    return queuedRefresh
   }
-  
-  // Watch connection status and refresh on reconnect
-  watch(() => realtime.connectionStatus, (status, oldStatus) => {
-    if (status === 'connected' && oldStatus !== 'connected') {
-      // Reconnected - refresh all data to ensure consistency
-      setTimeout(() => {
-        fetchAllStatus(false) // Force refresh without cache
-      }, 1000) // Small delay to allow WebSocket to stabilize
-    }
-  })
 
-  // WebSocket event subscriptions via central store
-  onMounted(() => {
+  // WebSocket event subscriptions via the existing central store.
+  const subscribeEvents = () => {
     const markupStreamer = (name: string) => {
       return streamersStatus.value.findIndex(
         s => s.name === name || s.display_name === name
@@ -415,22 +373,11 @@ export function useSystemAndRecordingStatus() {
         }
       })
     )
-  })
+  }
   
-  // Periodic refresh interval (DISABLED - WebSocket provides all updates)
-  let refreshInterval: ReturnType<typeof setTimeout> | null = null
-  
-  const startPeriodicRefresh = (_intervalMs = 30000) => {
-    // CRITICAL FIX: Disable polling - WebSocket handles all real-time updates
-    // This prevents unnecessary API traffic when WebSocket is working
-    logDebug('useSystemAndRecordingStatus', 'Periodic polling DISABLED - using WebSocket-only updates')
-    
-    // Only use as emergency fallback when WebSocket is completely dead
-    if (refreshInterval) {
-      clearInterval(refreshInterval)
-    }
-    
-    // Check every 60 seconds if WebSocket is dead for >2 minutes
+  let refreshInterval: ReturnType<typeof setInterval> | null = null
+  const startPeriodicRefresh = () => {
+    // Keep the existing 60s check and 120s emergency threshold, not regular polling.
     refreshInterval = setInterval(() => {
       const timeSinceLastUpdate = lastUpdate.value ? 
         Date.now() - lastUpdate.value.getTime() : 
@@ -439,32 +386,66 @@ export function useSystemAndRecordingStatus() {
       // EMERGENCY FALLBACK: Only fetch if WebSocket has been dead for 2+ minutes
       const EMERGENCY_THRESHOLD_MS = 120000 // 2 minutes
       if (!isOnline.value && timeSinceLastUpdate > EMERGENCY_THRESHOLD_MS) {
-        logError('useSystemAndRecordingStatus', `EMERGENCY FALLBACK: WebSocket dead for ${Math.floor(timeSinceLastUpdate / 1000)}s - using REST API`)
         fetchAllStatus(false) // Force refresh without cache
       }
     }, 60000) // Check every 60 seconds (reduced from 30s)
   }
   
-  const stopPeriodicRefresh = () => {
-    if (refreshInterval) {
-      clearInterval(refreshInterval)
-      refreshInterval = null
-    }
+  let reconnectTimeout: ReturnType<typeof setTimeout> | null = null
+
+  function stop() {
+    generation++
+    realtimeUnsubs.splice(0).forEach(fn => fn())
+    stopReconnectWatch?.()
+    stopReconnectWatch = undefined
+    if (reconnectTimeout !== null) clearTimeout(reconnectTimeout)
+    reconnectTimeout = null
+    if (refreshInterval !== null) clearInterval(refreshInterval)
+    refreshInterval = null
+    inFlight.clear()
+    queuedRefresh = null
+
+    resourceErrors.value = {}
+    systemStatus.value = null
+    activeRecordings.value = []
+    streamersStatus.value = []
+    streamsStatus.value = []
+    notificationsStatus.value = null
+    lastUpdate.value = null
   }
-  
-  // Lifecycle
-  onMounted(() => {
-    // Initial data fetch
-    fetchAllStatus(false) // Force initial fetch without cache
-    
-    // Start periodic refresh as fallback
+
+  function start() {
+    if (stopReconnectWatch || !consumers || !enabled || !ownerScope.active) return
+    // This watcher belongs to the shared owner, not the first mounting consumer.
+    stopReconnectWatch = ownerScope.run(() => watch(() => realtime.connectionStatus, status => {
+      if (reconnectTimeout !== null) clearTimeout(reconnectTimeout)
+      reconnectTimeout = null
+      if (status === 'connected') {
+        reconnectTimeout = setTimeout(() => {
+          reconnectTimeout = null
+          void forceRefresh()
+        }, 1000)
+      }
+    }))
+    subscribeEvents()
+    void fetchAllStatus(false)
     startPeriodicRefresh()
-  })
-  
-  onUnmounted(() => {
-    realtimeUnsubs.forEach((fn) => fn())
-    stopPeriodicRefresh()
-  })
+  }
+
+  function setActive(active: boolean) {
+    enabled = active
+    if (active) start()
+    else stop()
+  }
+  onScopeDispose(stop)
+
+  function retain() {
+    consumers++
+    start()
+  }
+  function release() {
+    if (--consumers === 0) stop()
+  }
   
   return {
     // State
@@ -473,8 +454,8 @@ export function useSystemAndRecordingStatus() {
     streamersStatus: readonly(streamersStatus),
     streamsStatus: readonly(streamsStatus),
     notificationsStatus: readonly(notificationsStatus),
-    isLoading: readonly(isLoading),
-    error: readonly(error),
+    isLoading,
+    error,
     lastUpdate: readonly(lastUpdate),
     
     // Computed
@@ -486,6 +467,23 @@ export function useSystemAndRecordingStatus() {
     fetchActiveRecordings,
     fetchStreamersStatus,
     fetchAllStatus,
-    forceRefresh
+    forceRefresh,
+    setActive,
+    retain,
+    release
+  }
+})
+
+export function useSystemAndRecordingStatus() {
+  const store = useSystemStatusStore()
+  onMounted(store.retain)
+  onUnmounted(store.release)
+  return {
+    ...storeToRefs(store),
+    fetchActiveRecordings: store.fetchActiveRecordings,
+    fetchStreamersStatus: store.fetchStreamersStatus,
+    fetchAllStatus: store.fetchAllStatus,
+    forceRefresh: store.forceRefresh,
+    setActive: store.setActive
   }
 }
