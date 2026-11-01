@@ -4,6 +4,12 @@ Startup initialization for background services
 
 import asyncio
 import logging
+from collections.abc import Callable
+from sqlalchemy.orm import Session
+from app.config.settings import Settings
+from app.database import SessionLocal
+from app.services.core.session_maintenance import cleanup_expired_sessions
+from app.utils.async_db_utils import run_in_thread_pool
 from app.services.init.background_queue_init import shutdown_background_queue
 from app.config.constants import ASYNC_DELAYS
 from app.services.system.supervisor import TaskSupervisor
@@ -56,24 +62,22 @@ async def initialize_background_queue_with_fixes():
         raise
 
 
-async def start_session_cleanup_service(supervisor: TaskSupervisor):
+async def start_session_cleanup_service(
+    supervisor: TaskSupervisor,
+    session_factory: Callable[[], Session] = SessionLocal,
+    settings: Settings | None = None,
+):
     """Start session cleanup service for production authentication reliability"""
     try:
         logger.info("Starting session cleanup service...")
 
         # Run initial cleanup
-        from app.database import SessionLocal
-        from app.services.core.auth_service import AuthService
-
-        db = SessionLocal()
-        try:
-            auth_service = AuthService(db)
-            cleaned_count = await auth_service.cleanup_expired_sessions()
-            logger.info(
-                f"✅ Session cleanup service started, cleaned {cleaned_count} expired sessions"
-            )
-        finally:
-            db.close()
+        cleaned_count = await run_in_thread_pool(
+            cleanup_expired_sessions, session_factory, settings
+        )
+        logger.info(
+            f"✅ Session cleanup service started, cleaned {cleaned_count} expired sessions"
+        )
 
         # Schedule periodic cleanup (every 6 hours)
         async def periodic_session_cleanup():
@@ -81,16 +85,13 @@ async def start_session_cleanup_service(supervisor: TaskSupervisor):
                 try:
                     await asyncio.sleep(ASYNC_DELAYS.SESSION_CLEANUP_INTERVAL)
 
-                    db = SessionLocal()
-                    try:
-                        auth_service = AuthService(db)
-                        cleaned_count = await auth_service.cleanup_expired_sessions()
-                        if cleaned_count > 0:
-                            logger.info(
-                                f"Periodic session cleanup: removed {cleaned_count} expired sessions"
-                            )
-                    finally:
-                        db.close()
+                    cleaned_count = await run_in_thread_pool(
+                        cleanup_expired_sessions, session_factory, settings
+                    )
+                    if cleaned_count > 0:
+                        logger.info(
+                            f"Periodic session cleanup: removed {cleaned_count} expired sessions"
+                        )
 
                 except asyncio.CancelledError:
                     break
@@ -353,6 +354,9 @@ async def initialize_vapid_keys():
 
 async def initialize_background_services(
     supervisor: TaskSupervisor | None = None,
+    *,
+    session_factory: Callable[[], Session] = SessionLocal,
+    settings: Settings | None = None,
 ):
     """Initialize all background services at startup with production fixes"""
     global _background_supervisor
@@ -388,7 +392,7 @@ async def initialize_background_services(
         await initialize_image_sync_service()
 
         # Start session cleanup service for production auth reliability
-        await start_session_cleanup_service(supervisor)
+        await start_session_cleanup_service(supervisor, session_factory, settings)
 
         # Start periodic zombie recording cleanup service
         await start_zombie_recording_cleanup_service(supervisor)

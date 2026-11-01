@@ -16,8 +16,11 @@ from app.lifespan import _run_session_cleanup
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "entrypoint", ["lifespan-periodic", "startup-initial-and-periodic"]
+)
 async def test_periodic_session_cleanup_uses_only_its_factory_off_loop(
-    tmp_path: Path, monkeypatch
+    tmp_path: Path, monkeypatch, entrypoint
 ) -> None:
     import app.lifespan as module
 
@@ -63,11 +66,23 @@ async def test_periodic_session_cleanup_uses_only_its_factory_off_loop(
     def foreign_session():
         raise AssertionError("periodic job borrowed the process-default session")
 
-    monkeypatch.setattr(module.asyncio, "sleep", one_cycle)
     monkeypatch.setattr(module, "SessionLocal", foreign_session)
     try:
-        with pytest.raises(asyncio.CancelledError):
-            await _run_session_cleanup(databases[0].sync_session_factory, settings)
+        if entrypoint == "lifespan-periodic":
+            monkeypatch.setattr(module.asyncio, "sleep", one_cycle)
+            with pytest.raises(asyncio.CancelledError):
+                await _run_session_cleanup(databases[0].sync_session_factory, settings)
+        else:
+            from app.services.init.startup_init import start_session_cleanup_service
+            from app.services.system.supervisor import TaskSupervisor
+
+            supervisor = TaskSupervisor("test-session-cleanup")
+            try:
+                await start_session_cleanup_service(
+                    supervisor, databases[0].sync_session_factory, settings
+                )
+            finally:
+                await supervisor.shutdown()
         assert query_threads and all(thread != loop_thread for thread in query_threads)
         event.remove(databases[0].sync_engine, "before_cursor_execute", record_thread)
         with databases[0].sync_session_factory() as db:

@@ -15,7 +15,8 @@ from app.dependencies import (
     get_lifespan_service,
     get_recording_manager,
 )
-from app.services.core.auth_service import AuthService
+
+from app.services.core.session_maintenance import cleanup_expired_sessions
 from app.services.images.image_sync_service import image_sync_service
 from app.services.system.supervisor import TaskSupervisor
 from app.tasks.websocket_broadcast_task import websocket_broadcast_task
@@ -30,14 +31,12 @@ async def _run_session_cleanup(
 ) -> None:
     """Periodically clean up expired sessions without retaining a DB lock."""
 
-    def cleanup() -> int:
-        with session_factory() as db:
-            return AuthService(db=db, settings=settings).cleanup_expired_sessions_sync()
-
     while True:
         await asyncio.sleep(6 * 3600)
         try:
-            expired_count = await run_in_thread_pool(cleanup)
+            expired_count = await run_in_thread_pool(
+                cleanup_expired_sessions, session_factory, settings
+            )
             if expired_count:
                 logger.info("Cleaned up %s expired sessions", expired_count)
         except asyncio.CancelledError:
@@ -204,7 +203,13 @@ async def lifespan(app: FastAPI):
 
         from app.services.init.startup_init import initialize_background_services
 
-        await initialize_background_services(supervisor=supervisor)
+        await initialize_background_services(
+            supervisor=supervisor,
+            session_factory=SessionLocal
+            if legacy_context
+            else runtime_database.sync_session_factory,
+            settings=runtime_settings,
+        )
         background_services_started = True
 
         await image_sync_service.start_sync_worker()
