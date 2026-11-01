@@ -99,6 +99,9 @@ async def lifespan(app: FastAPI):
     background_services_started = False
     image_sync_started = False
     websocket_started = False
+    broadcast_task = getattr(
+        app.state, "websocket_broadcast_task", websocket_broadcast_task
+    )
     proxy_started = False
 
     def phase(name: str) -> None:
@@ -214,7 +217,7 @@ async def lifespan(app: FastAPI):
 
         await image_sync_service.start_sync_worker()
         image_sync_started = True
-        await websocket_broadcast_task.start()
+        await broadcast_task.start()
         websocket_started = True
 
         from app.services.proxy.proxy_health_service import proxy_health_service
@@ -234,7 +237,7 @@ async def lifespan(app: FastAPI):
 
             await _shutdown_step("proxy-health", proxy_health_service.stop)
         if websocket_started:
-            await _shutdown_step("websocket-broadcast", websocket_broadcast_task.stop)
+            await _shutdown_step("websocket-broadcast", broadcast_task.stop)
         if image_sync_started:
             await _shutdown_step("image-sync", image_sync_service.stop_sync_worker)
         if background_services_started:

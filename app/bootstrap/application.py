@@ -23,6 +23,10 @@ from app.services.background_queue_service import (
     background_queue_service,
 )
 from app.lifespan import lifespan
+from app.tasks.websocket_broadcast_task import (
+    WebSocketBroadcastTask,
+    websocket_broadcast_task,
+)
 from app.middleware_all import install_http_middleware
 from app.middleware.auth import AuthMiddleware
 
@@ -95,6 +99,16 @@ def _configure_app(
         background_queue_service
         if legacy_default
         else BackgroundQueueService.for_application(application.state.websocket_manager)
+    )
+    owned_database = database
+    application.state.websocket_broadcast_task = (
+        websocket_broadcast_task
+        if legacy_default
+        else WebSocketBroadcastTask(
+            connection_manager=application.state.websocket_manager,
+            session_factory=lambda: owned_database.sync_session_factory(),
+            queue_service=application.state.background_queue_service,
+        )
     )
     if service_overrides:
         application.dependency_overrides.update(service_overrides)

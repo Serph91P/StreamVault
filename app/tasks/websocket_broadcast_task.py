@@ -6,11 +6,16 @@ import asyncio
 import logging
 import hashlib
 import json
+from collections.abc import Callable
+from typing import TypedDict
 from app.dependencies import websocket_manager
 from app.database import SessionLocal
 from app.models import Recording, Stream
 from sqlalchemy import and_
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import Session, joinedload
+from app.services.communication.websocket_manager import ConnectionManager
+from app.services.background_queue_service import BackgroundQueueService
+from app.utils.async_db_utils import run_in_thread_pool
 from datetime import datetime
 from app.config.constants import ASYNC_DELAYS
 
@@ -22,15 +27,83 @@ CLEANUP_INTERVAL_CYCLES = (
 logger = logging.getLogger("streamvault")
 
 
+class ActiveRecordingSnapshot(TypedDict):
+    id: int
+    stream_id: int
+    streamer_id: int | None
+    streamer_name: str
+    title: str | None
+    started_at: str | None
+    file_path: str | None
+    status: str
+    duration: int
+
+
 class WebSocketBroadcastTask:
     """Handles periodic WebSocket broadcasts for real-time updates"""
 
-    def __init__(self):
+    def __init__(
+        self,
+        *,
+        connection_manager: ConnectionManager | None = None,
+        session_factory: Callable[[], Session] | None = None,
+        queue_service: BackgroundQueueService | None = None,
+    ):
+        self._connection_manager = connection_manager
+        self._session_factory = session_factory
+        self._queue_service = queue_service
         self.is_running = False
         self._task = None
         # Cache for detecting changes
         self._last_recordings_hash = None
         self._last_queue_hash = None
+
+    @property
+    def connection_manager(self) -> ConnectionManager:
+        return (
+            self._connection_manager
+            if self._connection_manager is not None
+            else websocket_manager
+        )
+
+    def _load_active_recordings(self) -> list[ActiveRecordingSnapshot]:
+        factory = (
+            self._session_factory if self._session_factory is not None else SessionLocal
+        )
+        with factory() as db:
+            recordings = (
+                db.query(Recording)
+                .options(joinedload(Recording.stream).joinedload(Stream.streamer))
+                .filter(
+                    and_(
+                        Recording.status.in_(["recording", "processing"]),
+                        Recording.path.isnot(None),
+                    )
+                )
+                .all()
+            )
+            return [
+                ActiveRecordingSnapshot(
+                    id=recording.id,
+                    stream_id=recording.stream_id,
+                    streamer_id=recording.stream.streamer_id
+                    if recording.stream
+                    else None,
+                    streamer_name=recording.stream.streamer.username
+                    if recording.stream and recording.stream.streamer
+                    else "Unknown",
+                    title=recording.stream.title if recording.stream else "No Title",
+                    started_at=recording.start_time.isoformat()
+                    if recording.start_time
+                    else None,
+                    file_path=recording.path,
+                    status=recording.status,
+                    duration=self._calculate_duration(recording.start_time)
+                    if recording.start_time
+                    else 0,
+                )
+                for recording in recordings
+            ]
 
     async def start(self):
         """Start the background broadcast task"""
@@ -94,91 +167,44 @@ class WebSocketBroadcastTask:
             logger.error(f"Fatal error in WebSocket broadcast loop: {e}")
 
     async def _broadcast_active_recordings(self):
-        """Broadcast current active recordings to all WebSocket clients (only on changes)"""
+        """Publish a plain snapshot only after its worker-owned session closes."""
         try:
-            with SessionLocal() as db:
-                # Get all currently active recordings with joined relationships
-                active_recordings = (
-                    db.query(Recording)
-                    .options(joinedload(Recording.stream).joinedload(Stream.streamer))
-                    .filter(
-                        and_(
-                            Recording.status.in_(["recording", "processing"]),
-                            Recording.path.isnot(None),
-                        )
-                    )
-                    .all()
-                )
-
-                # Convert to dict format for frontend
-                recordings_data = []
-                for recording in active_recordings:
-                    recordings_data.append(
-                        {
-                            "id": recording.id,
-                            "stream_id": recording.stream_id,
-                            "streamer_id": recording.stream.streamer_id
-                            if recording.stream
-                            else None,
-                            "streamer_name": (
-                                recording.stream.streamer.username
-                                if recording.stream and recording.stream.streamer
-                                else "Unknown"
-                            ),
-                            "title": recording.stream.title
-                            if recording.stream
-                            else "No Title",
-                            "started_at": recording.start_time.isoformat()
-                            if recording.start_time
-                            else None,
-                            "file_path": recording.path,
-                            "status": recording.status,
-                            "duration": self._calculate_duration(recording.start_time)
-                            if recording.start_time
-                            else 0,
-                        }
-                    )
-
-                # Calculate hash of current data to check for changes
-                current_hash = hashlib.sha256(
-                    json.dumps(recordings_data, sort_keys=True).encode()
-                ).hexdigest()
-
-                # Only send if data has changed or no previous hash exists
-                if current_hash != self._last_recordings_hash:
-                    self._last_recordings_hash = current_hash
-
-                    # Send via WebSocket if we have connected clients
-                    if (
-                        websocket_manager
-                        and len(websocket_manager.active_connections) > 0
-                    ):
-                        await websocket_manager.send_active_recordings_update(
-                            recordings_data
-                        )
-                        logger.debug(
-                            f"Broadcasted {len(recordings_data)} active recordings to {len(websocket_manager.active_connections)} clients (data changed)"
-                        )
-                    elif websocket_manager:
-                        logger.debug(
-                            f"No WebSocket clients connected - skipping broadcast of {len(recordings_data)} recordings"
-                        )
-                    else:
-                        logger.warning(
-                            "WebSocket manager not available - cannot broadcast recordings"
-                        )
-                else:
+            recordings_data = await run_in_thread_pool(self._load_active_recordings)
+            current_hash = hashlib.sha256(
+                json.dumps(recordings_data, sort_keys=True).encode()
+            ).hexdigest()
+            if current_hash != self._last_recordings_hash:
+                self._last_recordings_hash = current_hash
+                manager = self.connection_manager
+                if manager and len(manager.active_connections) > 0:
+                    await manager.send_active_recordings_update(recordings_data)
                     logger.debug(
-                        f"Active recordings data unchanged - skipping broadcast ({len(recordings_data)} recordings)"
+                        f"Broadcasted {len(recordings_data)} active recordings to {len(manager.active_connections)} clients (data changed)"
                     )
-
+                elif manager:
+                    logger.debug(
+                        f"No WebSocket clients connected - skipping broadcast of {len(recordings_data)} recordings"
+                    )
+                else:
+                    logger.warning(
+                        "WebSocket manager not available - cannot broadcast recordings"
+                    )
+            else:
+                logger.debug(
+                    f"Active recordings data unchanged - skipping broadcast ({len(recordings_data)} recordings)"
+                )
         except Exception as e:
             logger.error(f"Error broadcasting active recordings: {e}")
 
     async def _broadcast_background_queue_status(self):
         """Broadcast current background queue status to all WebSocket clients"""
         try:
-            from app.services.background_queue_service import background_queue_service
+            if self._queue_service is None:
+                from app.services.background_queue_service import (
+                    background_queue_service,
+                )
+            else:
+                background_queue_service = self._queue_service
 
             if background_queue_service:
                 # Get queue statistics safely
@@ -252,16 +278,16 @@ class WebSocketBroadcastTask:
 
                         # Send via WebSocket if we have connected clients
                         if (
-                            websocket_manager
-                            and len(websocket_manager.active_connections) > 0
+                            self.connection_manager
+                            and len(self.connection_manager.active_connections) > 0
                         ):
                             message = {
                                 "type": "background_queue_update",
                                 "data": queue_data,
                             }
-                            await websocket_manager.send_notification(message)
+                            await self.connection_manager.send_notification(message)
                             logger.debug(
-                                f"Broadcasted queue status to {len(websocket_manager.active_connections)} clients: {len(active_tasks_data)} active, {len(recent_tasks_data)} recent (data changed)"
+                                f"Broadcasted queue status to {len(self.connection_manager.active_connections)} clients: {len(active_tasks_data)} active, {len(recent_tasks_data)} recent (data changed)"
                             )
                     else:
                         logger.debug(
@@ -289,7 +315,14 @@ class WebSocketBroadcastTask:
 
             logger.info("🧹 AUTO_CLEANUP: Starting automatic cleanup of stuck tasks")
 
-            cleanup_service = get_cleanup_service()
+            if self._queue_service is None:
+                cleanup_service = get_cleanup_service()
+            else:
+                from app.services.background_queue_cleanup_service import (
+                    BackgroundQueueCleanupService,
+                )
+
+                cleanup_service = BackgroundQueueCleanupService(self._queue_service)
 
             # Only cleanup stuck recordings and orphaned recovery tasks
             recording_result = await cleanup_service.cleanup_stuck_recording_tasks()

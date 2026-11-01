@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 import asyncio
 import copy
 from collections import deque
+from collections.abc import Mapping, Sequence
 from app.utils.client_ip import get_client_info
 
 logger = logging.getLogger("streamvault")
@@ -321,7 +322,7 @@ class ConnectionManager:
         return {"events": events, "gap": gap, **state}
 
     async def send_active_recordings_update(
-        self, active_recordings: List[Dict[str, Any]]
+        self, active_recordings: Sequence[Mapping[str, object]]
     ):
         """Send active recordings update to all connected clients"""
         message = {
