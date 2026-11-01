@@ -12,7 +12,7 @@ exact candidate head and each required check; intermediate counts below do not.
 
 | Audit | Requirement | Current evidence / disposition |
 |---|---|---|
-| #938 | Temporary cleanup never unlinks active/reserved/processing/recoverable media | pending; authoritative state, configured root, truthful dry-run/confirmation |
+| #938 | Temporary cleanup never unlinks active/reserved/processing/recoverable media | implemented: configured-root preview default, explicit identity-bound confirmation, catalog/lease/transition protection and no-follow unlink under native admission guard; original mounted route 3 native RED, candidate full 884 PASS/13 existing SKIP, new module 92% coverage; frontend 439 PASS/4 existing SKIP plus build/precache/budgets; final PG/image/browser/exact-head gates remain separate |
 | #941 | Native HTTP/HTTPS health probes use configured trusted host | implemented; `test_packaged_health_command.py`, native images/restart; final image rerun pending |
 | #942 | Immutable native image/build/runtime/API identity | implemented; OCI/ENV/authenticated version before/after native PG restart; final head rerun pending |
 | #944 | Distinct IPv6 identities and trust-safe parsing | implemented; 36 native parser cases plus adjacent security cases |

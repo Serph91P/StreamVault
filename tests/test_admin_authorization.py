@@ -373,7 +373,7 @@ def test_admin_current_policy_before_database_and_file_effects(
         ] == [expected] * 4
         with factory() as db:
             assert (db.get(ShareTokenModel, 1) is None) == (state == "admin")
-        assert sentinel.exists() == (state != "admin")
+        assert sentinel.exists()  # #938: even an admin preview must preserve media.
         assert queue.external_tasks["recording_7"].status == (
             "failed" if state == "admin" else "running"
         )

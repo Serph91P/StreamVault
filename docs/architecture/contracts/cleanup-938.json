@@ -1,0 +1,30 @@
+{
+  "TemporaryCleanupRequest": {
+    "additionalProperties": false,
+    "properties": {
+      "dry_run": {"default": true, "title": "Dry Run", "type": "boolean"},
+      "confirmed": {"default": false, "title": "Confirmed", "type": "boolean"},
+      "candidates": {
+        "items": {"$ref": "#/components/schemas/TemporaryFileCandidate"},
+        "maxItems": 100,
+        "title": "Candidates",
+        "type": "array"
+      }
+    },
+    "title": "TemporaryCleanupRequest",
+    "type": "object"
+  },
+  "TemporaryFileCandidate": {
+    "additionalProperties": false,
+    "properties": {
+      "path": {"maxLength": 4096, "minLength": 1, "title": "Path", "type": "string"},
+      "device": {"pattern": "^[0-9]{1,20}$", "title": "Device", "type": "string"},
+      "inode": {"pattern": "^[0-9]{1,20}$", "title": "Inode", "type": "string"},
+      "size": {"pattern": "^[0-9]{1,20}$", "title": "Size", "type": "string"},
+      "mtime_ns": {"pattern": "^[0-9]{1,20}$", "title": "Mtime Ns", "type": "string"}
+    },
+    "required": ["path", "device", "inode", "size", "mtime_ns"],
+    "title": "TemporaryFileCandidate",
+    "type": "object"
+  }
+}

@@ -17,7 +17,54 @@ BASELINE = json.loads((ROOT / "docs/architecture/contracts/base-842.json").read_
 def test_public_openapi_routes_and_middleware_preserve_verified_base():
     current = public_contract()
     expected = BASELINE["public"]
-    assert current["openapi"] == expected["openapi"]
+    # #938 intentionally replaces destructive no-body cleanup with optional preview/
+    # confirmation. Verify that exact additive contract before comparing the rest.
+    from app.services.system.temporary_cleanup_service import TemporaryCleanupRequest
+
+    schema = copy.deepcopy(current["openapi"])
+    operation = schema["paths"]["/api/admin/maintenance/cleanup-temp"]["post"]
+    baseline_operation = expected["openapi"]["paths"][
+        "/api/admin/maintenance/cleanup-temp"
+    ]["post"]
+    assert operation.pop("requestBody") == {
+        "content": {
+            "application/json": {
+                "schema": {
+                    "anyOf": [
+                        {"$ref": "#/components/schemas/TemporaryCleanupRequest"},
+                        {"type": "null"},
+                    ],
+                    "title": "Request",
+                }
+            }
+        }
+    }
+    assert (
+        operation["description"]
+        == "Preview expired, unowned temporary files; delete only confirmed identities."
+    )
+    operation["description"] = baseline_operation["description"]
+    if "422" not in baseline_operation["responses"]:
+        assert operation["responses"].pop("422") == {
+            "description": "Validation Error",
+            "content": {
+                "application/json": {
+                    "schema": {"$ref": "#/components/schemas/HTTPValidationError"}
+                }
+            },
+        }
+    cleanup_schemas = json.loads(
+        (ROOT / "docs/architecture/contracts/cleanup-938.json").read_text()
+    )
+    for name, definition in cleanup_schemas.items():
+        assert schema["components"]["schemas"].pop(name) == definition
+    defaults = TemporaryCleanupRequest()
+    assert (
+        defaults.dry_run is True
+        and defaults.confirmed is False
+        and defaults.candidates == []
+    )
+    assert schema == expected["openapi"]
 
     # Handler modules may move; registration order, route kind and methods may not.
     def signatures(routes):

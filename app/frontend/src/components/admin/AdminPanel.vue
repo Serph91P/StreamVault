@@ -367,8 +367,9 @@
       </div>
 
       <div v-if="cleanupResult" class="cleanup-result status-border status-border-success">
-        <h4>Cleanup Results</h4>
+        <h4>{{ cleanupResult.dry_run ? 'Cleanup Preview' : 'Cleanup Results' }}</h4>
         <ul>
+          <li v-if="cleanupResult.dry_run">Eligible expired temporary files: {{ cleanupResult.candidates.length }}</li>
           <li>Files removed: {{ cleanupResult.files_removed }}</li>
           <li>Space freed: {{ cleanupResult.space_freed_mb }}MB</li>
           <li v-if="cleanupResult.errors.length > 0">
@@ -606,7 +607,21 @@ const testResults = ref<any>(null)
 const testsLoading = ref(false)
 const availableTests = ref<any>(null)
 const showAvailableTests = ref(false)
-const cleanupResult = ref<any>(null)
+interface TemporaryCleanupCandidate {
+  path: string
+  device: string
+  inode: string
+  size: string
+  mtime_ns: string
+}
+interface TemporaryCleanupResult {
+  dry_run: boolean
+  files_removed: number
+  space_freed_mb: number
+  errors: string[]
+  candidates: TemporaryCleanupCandidate[]
+}
+const cleanupResult = ref<TemporaryCleanupResult | null>(null)
 const cleanupLoading = ref(false)
 const showLogsModal = ref(false)
 const logs = ref<any>(null)
@@ -779,14 +794,25 @@ const loadAvailableTests = async () => {
 const cleanupTempFiles = async () => {
   cleanupLoading.value = true
   try {
-    const response = await fetch('/api/admin/maintenance/cleanup-temp', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include'
-    })
-    cleanupResult.value = await response.json()
+    const send = async (body: { dry_run: boolean; confirmed?: boolean; candidates?: TemporaryCleanupCandidate[] }) => {
+      const response = await fetch('/api/admin/maintenance/cleanup-temp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(body)
+      })
+      const result: TemporaryCleanupResult & { detail?: string } = await response.json()
+      if (!response.ok) throw new Error(result.detail || `Cleanup failed: HTTP ${response.status}`)
+      return result
+    }
+    const preview = await send({ dry_run: true })
+    cleanupResult.value = preview
+    if (!preview.candidates.length || preview.errors.length) return
+    const paths = preview.candidates.map(candidate => candidate.path).join('\n')
+    if (!confirm(`Delete these ${preview.candidates.length} unowned temporary files older than 24 hours? Media and catalog-associated files are excluded.\n\n${paths}`)) return
+    cleanupResult.value = await send({ dry_run: false, confirmed: true, candidates: preview.candidates })
   } catch (error) {
-    console.error('Cleanup failed:', error)
+    cleanupResult.value = { dry_run: true, files_removed: 0, space_freed_mb: 0, candidates: [], errors: [error instanceof Error ? error.message : 'Cleanup failed'] }
   } finally {
     cleanupLoading.value = false
   }

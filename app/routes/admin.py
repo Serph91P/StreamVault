@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session, joinedload
 from typing import Dict, Any, List, Optional
 from pydantic import BaseModel
 from app.routes.admin_post_processing import router as post_processing_router
+from app.services.system.temporary_cleanup_service import TemporaryCleanupRequest
 
 # Import test service locally to avoid initialization issues
 # from app.services.test_service import test_service  # REMOVED
@@ -322,66 +323,35 @@ async def quick_health_check() -> Dict[str, Any]:
 
 
 @router.post("/maintenance/cleanup-temp")
-async def cleanup_temp_files() -> Dict[str, Any]:
-    """
-    Clean up temporary files from recording directory
-    """
+async def cleanup_temp_files(
+    request: TemporaryCleanupRequest | None = None, db: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    """Preview expired, unowned temporary files; delete only confirmed identities."""
+    import asyncio
+    from pathlib import Path
+    from sqlalchemy.orm import sessionmaker
+    from app.config.settings import get_settings
+    from app.utils.security import validate_path_security
+    from app.services.system.temporary_cleanup_service import cleanup_temporary_files
+
+    request = request or TemporaryCleanupRequest()
+    if not request.dry_run and not request.confirmed:
+        raise HTTPException(
+            status_code=400, detail="Cleanup requires explicit confirmation"
+        )
     try:
-        from pathlib import Path
-        from app.utils.security import validate_path_security
-        from app.config.settings import get_settings
-
-        settings = get_settings()
-        # SECURITY: Validate recording directory path
-        recording_dir_str = validate_path_security(
-            settings.RECORDING_DIRECTORY, "access"
+        configured_root = get_settings().RECORDING_DIRECTORY
+        root = await asyncio.to_thread(
+            lambda: Path(validate_path_security(configured_root, "access")).resolve(
+                strict=True
+            )
         )
-        recording_dir = Path(recording_dir_str)
-
-        cleanup_stats = {"files_removed": 0, "space_freed_mb": 0, "errors": []}
-
-        # Patterns for temporary files
-        temp_patterns = [
-            "**/*.ts",  # Temporary TS files
-            "**/*.h264",  # FFmpeg temp files
-            "**/*.aac",  # FFmpeg temp files
-            "**/*.tmp",  # General temp files
-            "**/streamlink_*.log.*",  # Old log files
-            "**/ffmpeg_*.log.*",  # Old FFmpeg logs
-        ]
-
-        for pattern in temp_patterns:
-            try:
-                for file_path in recording_dir.glob(pattern):
-                    if file_path.is_file():
-                        try:
-                            # SECURITY: Validate each file path before deletion
-                            validated_file = validate_path_security(
-                                str(file_path), "delete"
-                            )
-                            file_size = file_path.stat().st_size
-                            Path(validated_file).unlink()
-                            cleanup_stats["files_removed"] += 1
-                            cleanup_stats["space_freed_mb"] += file_size / (1024 * 1024)
-                        except HTTPException as he:
-                            cleanup_stats["errors"].append(
-                                f"Security: Skipped {file_path}: {he.detail}"
-                            )
-                        except Exception:
-                            cleanup_stats["errors"].append("Failed to remove file")
-            except Exception:
-                cleanup_stats["errors"].append("Error processing cleanup pattern")
-
-        cleanup_stats["space_freed_mb"] = round(cleanup_stats["space_freed_mb"], 2)
-
-        logger.info(
-            f"Cleanup completed: {cleanup_stats['files_removed']} files removed, {cleanup_stats['space_freed_mb']}MB freed"
-        )
-
-        return cleanup_stats
-
-    except Exception as e:
-        logger.error(f"Error in cleanup: {e}", exc_info=True)
+        factory = sessionmaker(bind=db.get_bind().engine)
+        return await cleanup_temporary_files(root, factory, request)
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Temporary cleanup failed")
         raise HTTPException(status_code=500, detail="Cleanup failed")
 
 
