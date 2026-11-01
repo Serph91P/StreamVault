@@ -77,14 +77,24 @@ identities, no new migration or existing-volume manipulation for code ownership.
 
 ## 4. Feature models and application boundaries
 
-`app/models/__init__.py` remains a compatibility export. Keep the existing
-`models/categories.py` slice; split `_legacy.py` into cohesive auth/session,
-streamer/stream/recording, application/proxy settings, notification/push and
-upstream-ownership model modules as appropriate to the actual relationships.
-They share existing Base/metadata and unchanged table/column/FK/index names.
-Models hold persistence/data invariants, not session creation, SQL queries,
-filesystem probes, provider calls or worker scheduling. Do not merely relocate
-those effects behind new properties.
+`app/models/__init__.py` remains a compatibility export. The existing typed
+`models/categories.py` slice is retained. The former monolith now has typed
+`Mapped`/`mapped_column` definitions in `identity`, `streams`, `recordings`,
+`notifications`, `system`, `upstream` and `proxies`; `_legacy.py` only reexports
+those identical classes. Relationships are explicit typed counterparts of the
+old backrefs, preserving cardinality/cascades. All 24 exported model definitions
+share the original Base; exact pre-extraction SQLite/PostgreSQL DDL, defaults,
+column/attribute names and relationships are frozen in
+`tests/fixtures/model-schema-baseline.json` (captured at b55754aa before edits).
+Nullable legacy columns remain nullable even when they have non-null defaults;
+annotations do not silently tighten persisted data. No migration or stored value
+change accompanies extraction. Dormant priority/handoff storage is unchanged.
+
+Models must ultimately hold persistence/data invariants, not session creation,
+SQL queries, filesystem probes, provider calls or worker scheduling. Extraction
+alone does **not** fulfill that rule: the legacy `Streamer.is_recording` query and
+proxy codec resolution still require explicit read/service-boundary closure.
+Do not merely relocate those effects behind new properties.
 
 Feature repositories own query/loading/transaction details. Application services
 own decisions, state transitions and explicit outcomes. API adapters own bounded
