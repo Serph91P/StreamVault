@@ -1,8 +1,9 @@
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from threading import get_ident
 
 import pytest
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
@@ -164,14 +165,25 @@ async def test_unified_success_stops_prior_only_after_fenced_resume(
     from app.services.recording import unified_recovery_service
 
     Session, values = recovery_database
+    loop_thread = get_ident()
+    queries = []
+    preparation_queries = []
+    with Session() as db:
+        engine = db.get_bind()
+    event.listen(
+        engine, "before_cursor_execute", lambda *_: queries.append(get_ident())
+    )
 
     class RecordingService:
         async def start_recording(self, stream_id, streamer_id, **kwargs):
+            preparation_queries.extend(queries)
+            assert engine.pool.checkedout() == 0
             with Session() as db:
                 prior = db.get(Recording, values["recording_id"])
                 assert prior.status == "recording"
                 assert prior.end_time is None
             assert kwargs["recovery_generation"] == 11
+            queries.clear()  # Exclude the upstream-boundary fixture's own readback.
             return 99
 
     monkeypatch.setattr(unified_recovery_service, "SessionLocal", Session)
@@ -190,6 +202,9 @@ async def test_unified_success_stops_prior_only_after_fenced_resume(
     )
 
     assert resumed is True
+    assert preparation_queries and loop_thread not in preparation_queries
+    assert queries and loop_thread not in queries
+    assert engine.pool.checkedout() == 0
     with Session() as db:
         prior = db.get(Recording, values["recording_id"])
         assert prior.status == "stopped"

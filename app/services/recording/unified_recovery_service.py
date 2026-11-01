@@ -30,6 +30,7 @@ from typing import (
 )
 from dataclasses import dataclass
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
 from app.core.exceptions import DomainError
@@ -91,6 +92,13 @@ class RecoveryProcessingInput:
     started_at: str
     output_dir: str
     file_size: int
+
+
+@dataclass(frozen=True)
+class RecoveryResumeInput:
+    stream_id: int
+    streamer_id: int
+    generation: int
 
 
 class UnifiedRecoveryService:
@@ -1359,6 +1367,46 @@ class UnifiedRecoveryService:
             )
             return recording.stream_id, active.id if active is not None else None
 
+    def _prepare_resume(self, recording_id: int) -> RecoveryResumeInput | None:
+        from app.models import TwitchUpstreamLease
+
+        with self._sessions() as db:
+            recording = db.get(Recording, recording_id)
+            if recording is None:
+                logger.error("Recording %s not found", recording_id)
+                return None
+            stream = db.get(Stream, recording.stream_id)
+            if stream is None or stream.streamer is None:
+                logger.error("Recording stream or streamer not found during recovery")
+                return None
+            generation = db.scalar(
+                select(TwitchUpstreamLease.generation).where(
+                    TwitchUpstreamLease.channel_key == stream.streamer.twitch_id,
+                    TwitchUpstreamLease.recording_id == recording_id,
+                )
+            )
+            if generation is None:
+                logger.warning(
+                    "No persisted upstream generation for recording %s; deferring recovery",
+                    recording_id,
+                )
+                return None
+            return RecoveryResumeInput(stream.id, stream.streamer_id, generation)
+
+    def _finish_prior_recording_after_resume(self, recording_id: int) -> None:
+        with self._sessions() as db:
+            recording = db.get(Recording, recording_id)
+            if recording is not None and recording.status == "recording":
+                now_utc = datetime.now(timezone.utc)
+                recording.status = "stopped"
+                recording.end_time = now_utc
+                if recording.start_time:
+                    start_time = recording.start_time
+                    if start_time.tzinfo is None:
+                        start_time = start_time.replace(tzinfo=timezone.utc)
+                    recording.duration = int((now_utc - start_time).total_seconds())
+                db.commit()
+
     async def _resume_live_recording(
         self, recording_id: int, segments_dir: Path, streamer_name: str
     ) -> bool:
@@ -1371,68 +1419,23 @@ class UnifiedRecoveryService:
                 f"🔄 Attempting to resume live recording for {streamer_name} (recording_id={recording_id})"
             )
 
-            # Get stream_id and streamer_id from recording
-            with self._sessions() as db:
-                recording = (
-                    db.query(Recording).filter(Recording.id == recording_id).first()
-                )
-                if not recording:
-                    logger.error(f"❌ Recording {recording_id} not found")
-                    return False
-
-                stream = (
-                    db.query(Stream).filter(Stream.id == recording.stream_id).first()
-                )
-                if not stream or not stream.streamer:
-                    logger.error(
-                        "Recording stream or streamer not found during recovery"
-                    )
-                    return False
-                stream_id = stream.id
-                streamer_id = stream.streamer_id
-                from app.models import TwitchUpstreamLease
-
-                recovery_generation = (
-                    db.query(TwitchUpstreamLease.generation)
-                    .filter(
-                        TwitchUpstreamLease.channel_key == stream.streamer.twitch_id,
-                        TwitchUpstreamLease.recording_id == recording_id,
-                    )
-                    .scalar()
-                )
-
-                if recovery_generation is None:
-                    logger.warning(
-                        "No persisted upstream generation for recording %s; "
-                        "deferring recovery",
-                        recording_id,
-                    )
-                    return False
+            value = await run_in_thread_pool(self._prepare_resume, recording_id)
+            if value is None:
+                return False
 
             # Start recording - this will automatically handle segment continuation
             resumed_recording_id = await recording_manager.start_recording(
-                stream_id,
-                streamer_id,
+                value.stream_id,
+                value.streamer_id,
                 resume_segments_dir=str(segments_dir),
-                recovery_generation=recovery_generation,
+                recovery_generation=value.generation,
             )
 
             if resumed_recording_id:
                 try:
-                    with self._sessions() as db:
-                        recording = db.get(Recording, recording_id)
-                        if recording and recording.status == "recording":
-                            now_utc = datetime.now(timezone.utc)
-                            recording.status = "stopped"
-                            recording.end_time = now_utc
-                            if recording.start_time:
-                                start_time = recording.start_time
-                                if start_time.tzinfo is None:
-                                    start_time = start_time.replace(tzinfo=timezone.utc)
-                                recording.duration = int(
-                                    (now_utc - start_time).total_seconds()
-                                )
-                            db.commit()
+                    await run_in_thread_pool(
+                        self._finish_prior_recording_after_resume, recording_id
+                    )
                 except Exception as bookkeeping_error:
                     logger.error(
                         "Recording %s resumed but prior-row bookkeeping failed: %s",
@@ -1440,7 +1443,8 @@ class UnifiedRecoveryService:
                         bookkeeping_error,
                     )
                 logger.info(f"✅ Successfully resumed recording for {streamer_name}")
-                logging_service.log_post_processing_activity(
+                await run_in_thread_pool(
+                    logging_service.log_post_processing_activity,
                     "RECORDING_RESUMED",
                     streamer_name,
                     f"Resumed live recording {recording_id} that was interrupted during restart",
