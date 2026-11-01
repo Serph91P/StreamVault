@@ -25,6 +25,7 @@ import type {
 } from '@/types/recording'
 import { CleanupPolicyType } from '@/types/recording'
 import type { RealtimeEvent } from '@/types/events'
+import { normalizeRealtimeEventType } from '@/types/events'
 
 function normalizeRecording(recording: ActiveRecording): ActiveRecording {
   return {
@@ -77,12 +78,13 @@ export const useRecordingStore = defineStore('recordings', () => {
   }
 
   function applyRealtimeEvent(event: RealtimeEvent<string>): void {
-    if (event.type === 'active_recordings_update' && Array.isArray(event.data)) {
+    const type = normalizeRealtimeEventType(event.type)
+    if (type === 'active_recordings_update' && Array.isArray(event.data)) {
       setActiveRecordings(event.data)
       return
     }
 
-    if (event.type === 'recording_started' && event.data) {
+    if (type === 'recording.started' && event.data) {
       upsertActiveRecording({
         ...event.data,
         id: event.data.recording_id ?? event.data.id
@@ -90,12 +92,12 @@ export const useRecordingStore = defineStore('recordings', () => {
       return
     }
 
-    if (event.type === 'recording_stopped') {
+    if (type === 'recording.stopped') {
       removeActiveRecording(event.data?.recording_id, event.data?.streamer_id)
       return
     }
 
-    if (event.type === 'recording_status_update') {
+    if (type === 'recording.status_update') {
       const inactiveStatuses = ['completed', 'failed', 'stopped', 'cancelled']
       if (inactiveStatuses.includes(event.data?.status)) {
         removeActiveRecording(event.data?.recording_id, event.data?.streamer_id)
@@ -103,7 +105,7 @@ export const useRecordingStore = defineStore('recordings', () => {
       return
     }
 
-    if (event.type === 'recording_completed') {
+    if (type === 'recording.completed') {
       if (event.data?.recording_id) {
         removeActiveRecording(event.data.recording_id)
         window.dispatchEvent(new CustomEvent('recording_completed', {
@@ -117,7 +119,7 @@ export const useRecordingStore = defineStore('recordings', () => {
       return
     }
 
-    if (event.type === 'recording_available' && event.data?.stream_id) {
+    if (type === 'recording.available' && event.data?.stream_id) {
       window.dispatchEvent(new CustomEvent('recording_available', {
         detail: {
           stream_id: event.data.stream_id,
@@ -144,7 +146,10 @@ export const useRecordingStore = defineStore('recordings', () => {
       ]
     }
 
+    let bound = true
     return () => {
+      if (!bound) return
+      bound = false
       realtimeBindingCount = Math.max(0, realtimeBindingCount - 1)
       if (realtimeBindingCount === 0) {
         realtimeUnsubs.forEach((fn) => fn())
