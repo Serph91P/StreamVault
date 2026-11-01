@@ -6,6 +6,7 @@ import logging
 import copy  # Add missing import for copy module
 import re
 import shutil
+from collections.abc import Callable
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Any
@@ -19,13 +20,18 @@ from app.services.system.logging_service import logging_service
 
 # artwork_service imported lazily to avoid directory creation at import time
 from app.utils.file_utils import sanitize_filename
+from app.utils.async_db_utils import run_in_thread_pool
 
 logger = logging.getLogger("streamvault")
 
 
 class MetadataService:
-    def __init__(self):
+    def __init__(self, *, session_factory: Callable[[], Session] | None = None):
+        self._session_factory = session_factory
         self.session: Optional[aiohttp.ClientSession] = None
+
+    def _sessions(self) -> Session:
+        return (self._session_factory or SessionLocal)()
 
     async def _get_session(self) -> aiohttp.ClientSession:
         """Liefert eine aktive HTTP-Session oder erstellt eine neue."""
@@ -354,7 +360,7 @@ class MetadataService:
         Future refactoring should migrate to async SQLAlchemy (AsyncSession/AsyncEngine).
         """
         try:
-            with SessionLocal() as db:
+            with self._sessions() as db:
                 # Query stream by ID with eager loading of related entities to avoid N+1 queries
                 # No filter on ended_at since we need to generate metadata for completed/ended streams during post-processing
                 stream = (
@@ -503,7 +509,7 @@ class MetadataService:
                 # 3) Chapters
                 try:
                     ok = await self.ensure_all_chapter_formats(
-                        stream_id, str(base_path_obj / f"{base_filename}.mp4"), db
+                        stream_id, str(base_path_obj / f"{base_filename}.mp4")
                     )
                     if not ok:
                         success = False
@@ -1229,7 +1235,7 @@ class MetadataService:
                     try:
                         eff_streamer = streamer
                         if eff_streamer is None:
-                            with SessionLocal() as s:
+                            with self._sessions() as s:
                                 eff_streamer = (
                                     s.query(Streamer)
                                     .filter(Streamer.id == stream.streamer_id)
@@ -1339,7 +1345,7 @@ class MetadataService:
                     if streamer and getattr(streamer, "username", None):
                         streamer_name = streamer.username
                     else:
-                        with SessionLocal() as session:
+                        with self._sessions() as session:
                             s_obj = (
                                 session.query(Streamer)
                                 .filter(Streamer.id == stream.streamer_id)
@@ -1759,7 +1765,7 @@ class MetadataService:
                         f.write(await response.read())
 
                     # Metadata aktualisieren
-                    with SessionLocal() as db:
+                    with self._sessions() as db:
                         metadata = (
                             db.query(StreamMetadata)
                             .filter(StreamMetadata.stream_id == stream_id)
@@ -1787,24 +1793,28 @@ class MetadataService:
         return None
 
     async def ensure_all_chapter_formats(
-        self, stream_id: int, mp4_path: str, db: Optional[Session] = None
-    ) -> Optional[Dict[str, str]]:
+        self, stream_id: int, mp4_path: str
+    ) -> dict[str, str] | None:
+        """Generate files and persist paths in one closed, worker-owned scope."""
+        return await run_in_thread_pool(
+            self._ensure_all_chapter_formats, stream_id, mp4_path
+        )
+
+    def _ensure_all_chapter_formats(
+        self, stream_id: int, mp4_path: str
+    ) -> dict[str, str] | None:
         """Stellt sicher, dass Kapitel in allen gängigen Formaten erstellt werden.
 
         Args:
             stream_id: ID des Streams
             mp4_path: Pfad zur MP4-Datei
-            db: Optional, Datenbank-Session
+
 
         Returns:
             Optional[Dict[str, str]]: Dictionary mit Pfaden zu allen erstellten Kapitelformaten oder None bei Fehler
         """
         try:
-            # Verwende übergebene Session oder erstelle eine neue
-            close_db = False
-            if db is None:
-                db = SessionLocal()
-                close_db = True
+            db = self._sessions()
 
             try:
                 stream = db.query(Stream).filter(Stream.id == stream_id).first()
@@ -1874,7 +1884,7 @@ class MetadataService:
 
                 # 1. WebVTT-Kapitel (für Plex/Browser)
                 vtt_path = base_path / f"{base_filename}.vtt"
-                await self._generate_vtt_chapters(stream, events, vtt_path)
+                self._generate_vtt_chapters(stream, events, vtt_path)
 
                 # 2. Exakte Dateinamen-Kopie für Plex
                 exact_vtt_path = mp4_path_obj.with_suffix(".vtt")
@@ -1883,19 +1893,17 @@ class MetadataService:
 
                 # 3. SRT-Kapitel (für Kodi/einige Player)
                 srt_path = base_path / f"{base_filename}.srt"
-                await self._generate_srt_chapters(stream, events, srt_path)
+                self._generate_srt_chapters(stream, events, srt_path)
 
                 # 4. FFmpeg Chapters-Datei
                 ffmpeg_chapters_path = (
                     base_path / f"{base_filename}-ffmpeg-chapters.txt"
                 )
-                await self._generate_ffmpeg_chapters(
-                    stream, events, ffmpeg_chapters_path
-                )
+                self._generate_ffmpeg_chapters(stream, events, ffmpeg_chapters_path)
 
                 # 5. Emby/Jellyfin XML Chapters
                 xml_chapters_path = base_path / f"{base_filename}.xml"
-                await self._generate_xml_chapters(stream, events, xml_chapters_path)
+                self._generate_xml_chapters(stream, events, xml_chapters_path)
 
                 # Metadaten aktualisieren
                 metadata = (
@@ -1926,13 +1934,12 @@ class MetadataService:
                     "xml": str(xml_chapters_path),
                 }
             finally:
-                if close_db:
-                    db.close()
+                db.close()
         except Exception as e:
             logger.error(f"Error generating all chapter formats: {e}", exc_info=True)
             return None
 
-    async def _generate_vtt_chapters(
+    def _generate_vtt_chapters(
         self, stream: Stream, events: List[StreamEvent], output_path: Path
     ) -> bool:
         """Erzeugt WebVTT-Kapitel-Datei.
@@ -2156,7 +2163,7 @@ class MetadataService:
 
         return start_offset, end_offset
 
-    async def _generate_srt_chapters(
+    def _generate_srt_chapters(
         self, stream: Stream, events: List[StreamEvent], output_path: Path
     ) -> bool:
         """Erzeugt SRT-Kapitel-Datei.
@@ -2245,7 +2252,7 @@ class MetadataService:
 
         return start_offset, end_offset
 
-    async def _generate_ffmpeg_chapters(
+    def _generate_ffmpeg_chapters(
         self, stream: Stream, events: List[StreamEvent], output_path: Path
     ) -> bool:
         """Erzeugt ffmpeg-kompatible Kapitel-Datei.
@@ -2268,7 +2275,7 @@ class MetadataService:
                     streamer_username = stream.streamer.username
                 else:
                     # Fallback to DB query if not preloaded (ensures backward compatibility)
-                    with SessionLocal() as db:
+                    with self._sessions() as db:
                         streamer = (
                             db.query(Streamer)
                             .filter(Streamer.id == stream.streamer_id)
@@ -2426,7 +2433,7 @@ class MetadataService:
 
         return start_offset_ms, end_offset_ms
 
-    async def _generate_xml_chapters(
+    def _generate_xml_chapters(
         self, stream: Stream, events: List[StreamEvent], output_path: Path
     ) -> bool:
         """Erzeugt XML-Kapitel-Datei für Emby/Jellyfin.
@@ -2537,7 +2544,7 @@ class MetadataService:
                 return None
 
             # Stream-Events aus den manuellen Kapiteln erstellen
-            with SessionLocal() as db:
+            with self._sessions() as db:
                 stream = db.query(Stream).filter(Stream.id == stream_id).first()
                 if not stream:
                     logger.warning(f"Stream with ID {stream_id} not found")
@@ -2573,7 +2580,7 @@ class MetadataService:
                 db.commit()
 
                 # Alle Kapitelformate mit den neuen Events erstellen
-                return await self.ensure_all_chapter_formats(stream_id, mp4_path, db)
+                return await self.ensure_all_chapter_formats(stream_id, mp4_path)
         except Exception as e:
             logger.error(f"Error importing manual chapters: {e}", exc_info=True)
             return None
@@ -2615,7 +2622,7 @@ class MetadataService:
             )
 
             # Get stream and related data with eager loading to avoid N+1 queries
-            with SessionLocal() as db:
+            with self._sessions() as db:
                 stream = (
                     db.query(Stream)
                     .options(
@@ -2691,7 +2698,7 @@ class MetadataService:
             mp4_path_obj = Path(mp4_path)
             base_path = mp4_path_obj.with_suffix("")
 
-            with SessionLocal() as db:
+            with self._sessions() as db:
                 stream = db.query(Stream).filter(Stream.id == stream_id).first()
                 if not stream:
                     logger.warning(
