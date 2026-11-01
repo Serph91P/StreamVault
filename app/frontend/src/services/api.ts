@@ -74,7 +74,7 @@ const mockStreamersApi = {
   checkLiveStatus: (streamerId: number) => mockResponse({ streamer_id: streamerId, is_live: false }),
 }
 
-let mockVideoCatalog = [...mockVideos]
+let mockVideoCatalog = mockVideos
 const mockVideoApi = {
   getAll: (_params: Record<string, any> = {}) => mockResponse([...mockVideoCatalog]),
   delete: (_id: number) => mockResponse({ success: true }),
