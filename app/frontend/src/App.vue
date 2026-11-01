@@ -56,13 +56,9 @@ const isAuthPage = computed(() => {
 
 // Provide hybrid status globally
 const hybridStatus = useSystemAndRecordingStatus()
+// The router already gates protected routes; do not repeat its auth HTTP checks.
+watch(() => route.matched.length > 0 && !isAuthPage.value, hybridStatus.setActive, { immediate: true, flush: 'sync' })
 provide('hybridStatus', hybridStatus)
-
-// Initialize hybrid status system
-onMounted(() => {
-  // Start the hybrid status system
-  hybridStatus.fetchAllStatus()
-})
 
 const notificationStore = useNotificationStore()
 
