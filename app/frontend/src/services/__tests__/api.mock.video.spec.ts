@@ -22,6 +22,10 @@ describe('mock video API facade', () => {
       expires_in: '24 hours'
     })
     await expect(videoApi.delete(42)).resolves.toEqual({ success: true })
+    const catalog = await videoApi.getAll()
+    const id = catalog[0].id
+    await expect(videoApi.deleteMultiple([id])).resolves.toEqual([{ id, status: 'fulfilled', value: { success: true } }])
+    expect((await videoApi.getAll()).some((video: { id: number }) => video.id === id)).toBe(false)
 
     expect(fetchMock).not.toHaveBeenCalled()
   })

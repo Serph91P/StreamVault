@@ -63,6 +63,8 @@ async function mountView() {
 }
 
 beforeEach(() => {
+  mocks.getAll.mockReset()
+  mocks.deleteMultiple.mockReset()
   window.history.replaceState({}, '', '/videos')
   mocks.route.path = '/videos'
   mocks.route.fullPath = '/videos'
@@ -73,7 +75,7 @@ beforeEach(() => {
     { id: 11, streamer_id: 1, title: 'Morning run', streamer_name: 'alpha', duration: 3600, file_size: 1024, created_at: '2026-09-23T10:00:00Z', status: 'ready' },
     { id: 12, streamer_id: 2, title: 'Night run', streamer_name: 'beta', duration: 7200, file_size: 2048, created_at: '2026-09-22T10:00:00Z', status: 'ready' },
   ])
-  mocks.deleteMultiple.mockResolvedValue([{ success: true }])
+  mocks.deleteMultiple.mockResolvedValue([{ id: 11, status: 'fulfilled' }, { id: 12, status: 'fulfilled' }])
 })
 
 afterEach(() => vi.clearAllMocks())
@@ -144,6 +146,88 @@ describe('VideosView library workflow', () => {
 
     expect(scrollTo).toHaveBeenCalledWith(0, 480)
     expect(window.history.state).not.toHaveProperty('svrs')
+  })
+
+  it('reconciles a partial result with the catalog and retries only failed survivors', async () => {
+    const wrapper = await mountView()
+    await wrapper.findAll('header button').find(button => button.text().includes('Select'))!.trigger('click')
+    for (const checkbox of wrapper.findAll('input[type="checkbox"]')) await checkbox.setValue(true)
+    await wrapper.findAll('header button').find(button => button.text().includes('Delete'))!.trigger('click')
+    mocks.deleteMultiple.mockResolvedValueOnce([
+      { id: 11, status: 'fulfilled' },
+      { id: 12, status: 'rejected', reason: new Error('Deletion forbidden') },
+    ])
+    mocks.getAll.mockResolvedValueOnce([
+      { id: 12, streamer_id: 2, title: 'Night run', streamer_name: 'beta', status: 'ready' },
+    ])
+    await wrapper.findAll('.modal button').find(button => button.text().includes('Yes, delete'))!.trigger('click')
+    await flushPromises()
+    expect(wrapper.findAll('.video-card').map(card => card.text())).toEqual(['Night run'])
+    expect(wrapper.text()).toContain('1 selected')
+    expect(wrapper.get('.delete-error').text()).toContain('1 deleted')
+    expect(wrapper.get('.delete-error').text()).toContain('1 failed')
+    expect(wrapper.get('.delete-error').text()).toContain('Deletion forbidden')
+    mocks.deleteMultiple.mockResolvedValueOnce([{ id: 12, status: 'fulfilled' }])
+    mocks.getAll.mockResolvedValueOnce([])
+    await wrapper.findAll('.modal button').find(button => button.text().includes('Yes, delete'))!.trigger('click')
+    await flushPromises()
+    expect(mocks.deleteMultiple).toHaveBeenLastCalledWith([12])
+    expect(wrapper.find('.modal').exists()).toBe(false)
+    expect(wrapper.findAll('.video-card')).toHaveLength(0)
+    expect(wrapper.text()).toContain('No Videos Yet')
+    wrapper.unmount()
+  })
+
+  it.each([
+    { name: 'all-success', outcomes: [{ id: 11, status: 'fulfilled' }, { id: 12, status: 'fulfilled' }], catalog: [], selected: 0 },
+    { name: 'all-fail', outcomes: [{ id: 11, status: 'rejected', reason: new Error('Denied') }, { id: 12, status: 'rejected', reason: new Error('Denied') }], catalog: [11, 12], selected: 2 },
+    { name: 'already absent failure', outcomes: [{ id: 11, status: 'fulfilled' }, { id: 12, status: 'rejected', reason: new Error('Missing') }], catalog: [], selected: 0 },
+  ])('reconciles $name without leaving successful or absent IDs selected', async ({ outcomes, catalog, selected }) => {
+    const wrapper = await mountView()
+    await wrapper.findAll('header button').find(button => button.text().includes('Select'))!.trigger('click')
+    for (const checkbox of wrapper.findAll('input[type="checkbox"]')) await checkbox.setValue(true)
+    await wrapper.findAll('header button').find(button => button.text().includes('Delete'))!.trigger('click')
+    mocks.deleteMultiple.mockResolvedValueOnce(outcomes)
+    mocks.getAll.mockResolvedValueOnce(catalog.map(id => ({ id, title: `Remaining ${id}` })))
+    await wrapper.findAll('.modal button').find(button => button.text().includes('Yes, delete'))!.trigger('click')
+    await flushPromises()
+    expect(wrapper.findAll('.video-card')).toHaveLength(catalog.length)
+    expect(wrapper.findAll('input:checked')).toHaveLength(selected)
+    if (outcomes.some(outcome => outcome.status === 'rejected')) {
+      expect(wrapper.get('.delete-error').text()).toContain('failed')
+      expect(wrapper.find('.modal').exists()).toBe(true)
+    } else expect(wrapper.find('.modal').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('keeps deletion guarded through the catalog refresh and never fabricates an empty catalog on refresh failure', async () => {
+    const wrapper = await mountView()
+    await wrapper.findAll('header button').find(button => button.text().includes('Select'))!.trigger('click')
+    for (const checkbox of wrapper.findAll('input[type="checkbox"]')) await checkbox.setValue(true)
+    await wrapper.findAll('header button').find(button => button.text().includes('Delete'))!.trigger('click')
+    let finish!: (outcomes: unknown[]) => void
+    mocks.deleteMultiple.mockImplementationOnce(() => new Promise(resolve => { finish = resolve }))
+    const confirm = wrapper.findAll('.modal button').find(button => button.text().includes('Yes, delete'))!
+    await confirm.trigger('click')
+    await confirm.trigger('click')
+    expect(mocks.deleteMultiple).toHaveBeenCalledTimes(1)
+    expect(confirm.attributes('disabled')).toBeDefined()
+    let failRefresh!: (error: Error) => void
+    mocks.getAll.mockImplementationOnce(() => new Promise((_, reject) => { failRefresh = reject }))
+    finish([{ id: 11, status: 'fulfilled' }, { id: 12, status: 'rejected', reason: new Error('Denied') }])
+    await flushPromises()
+    expect(confirm.attributes('disabled')).toBeDefined()
+    failRefresh(new Error('Catalog unavailable'))
+    await flushPromises()
+    expect(wrapper.text()).toContain('Failed to Load Videos')
+    expect(wrapper.text()).not.toContain('No Videos Yet')
+    expect(wrapper.get('.delete-error').text()).toContain('1 deleted')
+    expect(wrapper.get('.delete-error').text()).toContain('refresh')
+    expect(confirm.attributes('disabled')).toBeDefined()
+    // Even a programmatic duplicate must not mutate until the catalog is known again.
+    await confirm.trigger('click')
+    expect(mocks.deleteMultiple).toHaveBeenCalledTimes(1)
+    wrapper.unmount()
   })
 
   it('requires confirmation for bulk deletion and retains the selection after a failure', async () => {

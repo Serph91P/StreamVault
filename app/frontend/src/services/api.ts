@@ -27,6 +27,7 @@ import type {
 } from '@/types/proxy'
 import type { NotificationSettings, StreamerNotificationSettings } from '@/types/settings'
 import type { ApiKey, ApiKeyCreated } from '@/types/api-keys'
+import type { VideoDeleteOutcome } from '@/types/video'
 
 // Check if mock mode is enabled
 const USE_MOCK_DATA = import.meta.env.VITE_USE_MOCK_DATA === 'true'
@@ -73,10 +74,15 @@ const mockStreamersApi = {
   checkLiveStatus: (streamerId: number) => mockResponse({ streamer_id: streamerId, is_live: false }),
 }
 
+let mockVideoCatalog = [...mockVideos]
 const mockVideoApi = {
-  getAll: (_params: Record<string, any> = {}) => mockResponse(mockVideos),
+  getAll: (_params: Record<string, any> = {}) => mockResponse([...mockVideoCatalog]),
   delete: (_id: number) => mockResponse({ success: true }),
-  deleteMultiple: (ids: number[]) => mockResponse({ success: true, count: ids.length }),
+  deleteMultiple: async (ids: number[]): Promise<VideoDeleteOutcome[]> => {
+    await mockDelay(200)
+    mockVideoCatalog = mockVideoCatalog.filter(video => !ids.includes(video.id))
+    return ids.map(id => ({ id, status: 'fulfilled', value: { success: true } }))
+  },
   getVideoStreamUrl: (id: number): string => `/api/videos/${id}/stream`,
   getChapters: (_id: number) => mockResponse([
     { id: 1, title: 'Stream Start', start: 0, end: 600 }
