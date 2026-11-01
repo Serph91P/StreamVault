@@ -1,7 +1,8 @@
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query, Depends
 import logging
 
-from app.dependencies import websocket_manager, get_current_user
+from app.dependencies import get_websocket_manager, get_current_user
+from app.services.communication.websocket_manager import ConnectionManager
 
 logger = logging.getLogger("streamvault")
 
@@ -9,7 +10,10 @@ router = APIRouter()
 
 
 @router.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
+async def websocket_endpoint(
+    websocket: WebSocket,
+    websocket_manager: ConnectionManager = Depends(get_websocket_manager),
+):
     from app.utils.client_ip import get_real_client_ip
 
     real_ip = get_real_client_ip(websocket)
@@ -30,6 +34,7 @@ async def replay_realtime_events(
     since: int = Query(0, ge=0),
     limit: int = Query(500, ge=1, le=500),
     current_user=Depends(get_current_user),
+    websocket_manager: ConnectionManager = Depends(get_websocket_manager),
 ):
     """Return recent authenticated realtime events after a client cursor.
 

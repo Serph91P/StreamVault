@@ -93,6 +93,23 @@ async def test_factory_auth_cookies_and_tokens_use_only_its_configuration(
                     1
                 ]
                 assert second_favorites.json() == {"categories": []}
+                assert all(
+                    hasattr(app.state, "websocket_manager") for app in applications
+                )
+                first_manager, second_manager = (
+                    app.state.websocket_manager for app in applications
+                )
+                assert first_manager is not second_manager
+                await first_manager.send_notification(
+                    {"type": "scope.probe", "data": {"scope": "first"}}
+                )
+                first_replay = await first.get("/api/realtime/events")
+                second_replay = await second.get("/api/realtime/events")
+                assert first_replay.status_code == second_replay.status_code == 200
+                assert [event["data"] for event in first_replay.json()["events"]] == [
+                    {"scope": "first"}
+                ]
+                assert second_replay.json()["events"] == []
                 foreign = first.cookies.get("access_token")
                 denied = await second.get(
                     "/auth/check", headers={"cookie": f"access_token={foreign}"}

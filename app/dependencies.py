@@ -4,6 +4,7 @@ from collections.abc import AsyncIterator, Callable
 from typing import Generator
 
 from fastapi import Depends, FastAPI, HTTPException, Request
+from starlette.requests import HTTPConnection
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
@@ -195,9 +196,12 @@ def get_notification_service_factory() -> Callable[[], NotificationService]:
     return get_notification_service
 
 
-def get_websocket_manager() -> ConnectionManager:
-    """Overrideable adapter for the shared WebSocket manager."""
-    return websocket_manager
+def get_websocket_manager(connection: HTTPConnection) -> ConnectionManager:
+    """Resolve the manager at the HTTP/WebSocket adapter boundary."""
+    manager: ConnectionManager = getattr(
+        connection.app.state, "websocket_manager", websocket_manager
+    )
+    return manager
 
 
 def get_image_service():

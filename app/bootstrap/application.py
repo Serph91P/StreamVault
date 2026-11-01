@@ -16,6 +16,8 @@ from app.config.logging_config import setup_logging
 from app.bootstrap.settings import resolve_app_settings
 from app.core.exceptions import install_exception_handlers
 from app.database import DatabaseLifecycle, database_lifecycle
+from app.dependencies import websocket_manager
+from app.services.communication.websocket_manager import ConnectionManager
 from app.lifespan import lifespan
 from app.middleware_all import install_http_middleware
 from app.middleware.auth import AuthMiddleware
@@ -82,6 +84,9 @@ def _configure_app(
             else DatabaseLifecycle(settings=settings)
         )
     application.state.database_lifecycle = database
+    application.state.websocket_manager = (
+        websocket_manager if legacy_default else ConnectionManager()
+    )
     if service_overrides:
         application.dependency_overrides.update(service_overrides)
 
