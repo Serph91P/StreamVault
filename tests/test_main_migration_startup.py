@@ -7,8 +7,9 @@ import pytest
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("migration_success", [False, True])
+@pytest.mark.parametrize("shares_default_handle", [False, True])
 async def test_configured_lifespan_migrates_and_disposes_only_its_database_off_loop(
-    monkeypatch, tmp_path, migration_success
+    monkeypatch, tmp_path, migration_success, shares_default_handle
 ):
     from app import lifespan as module
     from app.config.settings import get_settings
@@ -55,10 +56,15 @@ async def test_configured_lifespan_migrates_and_disposes_only_its_database_off_l
     monkeypatch.setattr(key_module, "bootstrap_persistent_keys", forbidden_default_keys)
     monkeypatch.setattr(key_module, "PersistentKeyBootstrapService", ScopedKeys)
     monkeypatch.setattr(
-        module, "database_lifecycle", SimpleNamespace(adispose=foreign_dispose)
+        module,
+        "database_lifecycle",
+        lifecycle
+        if shares_default_handle
+        else SimpleNamespace(adispose=foreign_dispose),
     )
     application = SimpleNamespace(
         state=SimpleNamespace(
+            legacy_default=False,
             database_lifecycle=lifecycle,
             settings=get_settings().model_copy(
                 update={"RECORDING_DIRECTORY": str(tmp_path / "recordings")}

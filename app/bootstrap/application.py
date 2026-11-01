@@ -7,11 +7,13 @@ backward compatibility.
 """
 
 from collections.abc import Callable, Mapping
+from functools import partial
 from typing import Any
 
 from fastapi import FastAPI
 
 from app.config.logging_config import setup_logging
+from app.bootstrap.settings import resolve_app_settings
 from app.core.exceptions import install_exception_handlers
 from app.database import DatabaseLifecycle, database_lifecycle
 from app.lifespan import lifespan
@@ -70,6 +72,7 @@ def _configure_app(
     database: DatabaseLifecycle | None = None,
 ) -> FastAPI:
     """Apply the stable StreamVault composition to one application instance."""
+    application.state.legacy_default = legacy_default
     if settings is not None:
         application.state.settings = settings
     if database is None:
@@ -128,7 +131,7 @@ def _configure_app(
         application.add_middleware(
             AuthMiddleware,
             database=application.state.database_lifecycle,
-            settings=settings,
+            settings_provider=partial(resolve_app_settings, application),
         )
     application.include_router(catchall_router)
 

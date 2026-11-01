@@ -79,6 +79,10 @@ async def lifespan(app: FastAPI):
         app = SimpleNamespace(state=SimpleNamespace(), dependency_overrides={})
     supervisor = TaskSupervisor("application")
     runtime_database = getattr(app.state, "database_lifecycle", database_lifecycle)
+    legacy_context = (
+        getattr(app.state, "legacy_default", True)
+        and runtime_database is database_lifecycle
+    )
     app.state.task_supervisor = supervisor
     app.state.startup_phases = []
     event_registry = None
@@ -92,9 +96,9 @@ async def lifespan(app: FastAPI):
         app.state.startup_phases.append(name)
         logger.info("Startup phase complete: %s", name)
 
-    from app.config.settings import get_settings
+    from app.bootstrap.settings import resolve_app_settings
 
-    runtime_settings = getattr(app.state, "settings", None) or get_settings()
+    runtime_settings = resolve_app_settings(app)
     setup_logging(runtime_settings)
     logger.info("Starting application initialization")
     try:
@@ -104,7 +108,7 @@ async def lifespan(app: FastAPI):
         from app.services.system.migration_service import MigrationService
 
         def run_migrations() -> bool:
-            if runtime_database is database_lifecycle:
+            if legacy_context:
                 return MigrationService.run_safe_migrations()
             return MigrationService.for_engine(
                 runtime_database.sync_engine
@@ -118,7 +122,7 @@ async def lifespan(app: FastAPI):
         from app.services.system.persistent_key_service import bootstrap_persistent_keys
 
         def bootstrap_keys() -> None:
-            if runtime_database is database_lifecycle:
+            if legacy_context:
                 bootstrap_persistent_keys()
             else:
                 from app.services.system.persistent_key_service import (

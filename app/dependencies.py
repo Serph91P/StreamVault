@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
 from app.database import SessionLocal, database_lifecycle
+from app.bootstrap.settings import resolve_app_settings
 from app.services.communication.websocket_manager import ConnectionManager
 from app.services.core.auth_service import AuthService, AuthTokenError
 from app.services.core.settings_service import SettingsService
@@ -53,7 +54,7 @@ async def get_async_db(request: Request) -> AsyncIterator[AsyncSession]:
 
 
 def get_auth_service(request: Request, db: Session = Depends(get_db)) -> AuthService:
-    return AuthService(db=db, settings=getattr(request.app.state, "settings", None))
+    return AuthService(db=db, settings=resolve_app_settings(request.app))
 
 
 def _bearer(request: Request) -> str | None:

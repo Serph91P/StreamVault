@@ -7,6 +7,7 @@ from app.config.settings import Settings
 from sqlalchemy.orm import Session
 import logging
 from urllib.parse import urlsplit
+from collections.abc import Callable
 
 logger = logging.getLogger("streamvault")
 
@@ -143,11 +144,11 @@ class AuthMiddleware:
         app,
         *,
         database: DatabaseLifecycle | None = None,
-        settings: Settings | None = None,
+        settings_provider: Callable[[], Settings] | None = None,
     ):
         self.app = app
         self._database = database
-        self._settings = settings
+        self._settings_provider = settings_provider
 
     def _open_session(self) -> Session:
         if self._database is None:
@@ -155,9 +156,9 @@ class AuthMiddleware:
         return self._database.sync_session_factory()
 
     def _auth_service(self, db: Session) -> AuthService:
-        if self._settings is None:
+        if self._settings_provider is None:
             return AuthService(db=db)
-        return AuthService(db=db, settings=self._settings)
+        return AuthService(db=db, settings=self._settings_provider())
 
     async def __call__(self, scope, receive, send):
         if scope["type"] not in ("http", "websocket"):

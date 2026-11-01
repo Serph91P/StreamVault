@@ -121,6 +121,59 @@ def test_factory_accepts_an_explicit_lazy_database_lifecycle() -> None:
 
 
 @pytest.mark.asyncio
+async def test_default_configuration_is_resolved_independently_for_extra_factories(
+    tmp_path: Path, monkeypatch
+) -> None:
+    import app.bootstrap.settings as root_settings
+
+    default = get_settings()
+    default_issuer = default.AUTH_JWT_ISSUER
+    hydrated = default.model_copy(deep=True)
+    hydrated.apply_persistent_keys(
+        eventsub_secret=token_urlsafe(32),
+        vapid_public_key=token_urlsafe(65),
+        vapid_private_key=token_urlsafe(32),
+        jwt_secret=token_urlsafe(48),
+    )
+    for name in (
+        "AUTH_JWT_SECRET",
+        "EVENTSUB_SECRET",
+        "VAPID_PUBLIC_KEY",
+        "VAPID_PRIVATE_KEY",
+    ):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setattr(root_settings, "get_settings", lambda: hydrated)
+    lifecycles = [
+        DatabaseLifecycle(f"sqlite:///{tmp_path / (name + '.db')}")
+        for name in ("default-first", "default-second")
+    ]
+    applications = [create_app(database=lifecycle) for lifecycle in lifecycles]
+    assert all(not hasattr(app.state, "settings") for app in applications)
+    try:
+        for lifecycle, application in zip(lifecycles, applications, strict=True):
+            with lifecycle.sync_engine.begin() as connection:
+                Base.metadata.create_all(connection)
+            async with httpx.AsyncClient(
+                transport=httpx.ASGITransport(app=application),
+                base_url="http://localhost:8000",
+            ) as client:
+                assert (await client.get("/auth/check")).json() == {
+                    "setup_required": True
+                }
+        first, second = (app.state.settings for app in applications)
+        assert first is not second and first is not default and second is not default
+        borrowed_runtime_key = first.AUTH_JWT_SECRET == hydrated.AUTH_JWT_SECRET
+        assert not borrowed_runtime_key
+        assert not first.AUTH_JWT_SECRET
+        first.AUTH_JWT_ISSUER = "first-only"
+        assert second.AUTH_JWT_ISSUER == default_issuer
+        assert default.AUTH_JWT_ISSUER == default_issuer
+    finally:
+        for lifecycle in lifecycles:
+            await lifecycle.adispose()
+
+
+@pytest.mark.asyncio
 async def test_distinct_factories_keep_auth_database_state_separate(
     tmp_path: Path,
 ) -> None:
