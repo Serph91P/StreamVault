@@ -232,7 +232,7 @@ async def test_lifespan_uses_factory_service_overrides_for_startup_and_shutdown(
             initialize_background_services=lambda supervisor, session_factory, settings: (
                 record("background-init")
             ),
-            shutdown_background_services=lambda: record("background-stop"),
+            shutdown_background_services=lambda supervisor: record("background-stop"),
         ),
         "app.services.proxy.proxy_health_service": SimpleNamespace(
             proxy_health_service=SimpleNamespace(

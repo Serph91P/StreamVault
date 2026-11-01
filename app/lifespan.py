@@ -243,7 +243,10 @@ async def lifespan(app: FastAPI):
         if background_services_started:
             from app.services.init.startup_init import shutdown_background_services
 
-            await _shutdown_step("background-services", shutdown_background_services)
+            await _shutdown_step(
+                "background-services",
+                lambda: shutdown_background_services(supervisor=supervisor),
+            )
 
         await supervisor.shutdown(process_timeout=TIMEOUTS.GRACEFUL_SHUTDOWN)
 

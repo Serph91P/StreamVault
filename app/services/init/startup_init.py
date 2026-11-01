@@ -362,7 +362,7 @@ async def initialize_background_services(
     global _background_supervisor
     if supervisor is None:
         supervisor = TaskSupervisor("background-services")
-    _background_supervisor = supervisor
+        _background_supervisor = supervisor
     try:
         logger.info("Initializing background services with production fixes...")
 
@@ -838,15 +838,17 @@ async def initialize_image_sync_service():
         # Don't raise - this is not critical for startup
 
 
-async def shutdown_background_services():
+async def shutdown_background_services(supervisor: TaskSupervisor | None = None):
     """Shutdown all background services"""
     try:
         logger.info("Shutting down background services...")
 
         global _background_supervisor
-        if _background_supervisor is not None:
-            await _background_supervisor.shutdown()
-            _background_supervisor = None
+        target = supervisor if supervisor is not None else _background_supervisor
+        if target is not None:
+            await target.shutdown()
+            if target is _background_supervisor:
+                _background_supervisor = None
 
         # Shutdown image sync service
         from app.services.images.auto_image_sync_service import auto_image_sync_service
