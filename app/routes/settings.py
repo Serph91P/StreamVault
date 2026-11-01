@@ -15,6 +15,7 @@ from app.dependencies import (
 )
 from app.services.core.settings_service import SettingsService
 from app.services.notification_service import NotificationService
+from app.utils.async_db_utils import run_in_thread_pool
 import logging
 from datetime import datetime, timezone
 from collections.abc import Callable
@@ -237,7 +238,7 @@ async def update_settings(
         updated_settings = settings_service.update_global_settings(settings_data)
 
         notification_service = notification_service_factory()
-        notification_service._initialize_apprise()
+        await run_in_thread_pool(notification_service._initialize_apprise)
 
         # Regenerate Streamlink config after the updated settings are committed.
         try:
