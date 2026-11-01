@@ -4,11 +4,15 @@ import logging
 
 import asyncio
 from typing import Dict, Callable, Awaitable, Any, Optional, TYPE_CHECKING
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from cachetools import TTLCache
 
 from app.database import SessionLocal
-from app.events.event_catalog import prepare_offline, offline_recording_id
+from app.events.event_catalog import (
+    prepare_offline,
+    offline_recording_id,
+    prepare_online,
+)
 from app.utils.async_db_utils import run_in_thread_pool
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
@@ -198,178 +202,45 @@ class EventHandlerRegistry:
             logger.error(f"Error forgetting event fingerprint: {e}", exc_info=True)
 
     async def handle_stream_online(self, data: dict):
-        logger.info(
-            f"🎬 STREAM_ONLINE_EVENT: broadcaster_user_id={data.get('broadcaster_user_id')}, broadcaster_user_name={data.get('broadcaster_user_name')}, started_at={data.get('started_at')}"
-        )
-
         try:
             user_info = await self.get_user_info(data["broadcaster_user_id"])
-
-            with SessionLocal() as db:
-                streamer = (
-                    db.query(Streamer)
-                    .filter(Streamer.twitch_id == data["broadcaster_user_id"])
-                    .first()
+            snapshot = await run_in_thread_pool(
+                prepare_online,
+                self._session_factory or SessionLocal,
+                data,
+                user_info,
+                self.config_manager.is_recording_enabled,
+            )
+            if snapshot is None:
+                return
+            if not snapshot.new_stream:
+                if snapshot.resume_recording:
+                    await self.recording_service.start_recording(
+                        snapshot.stream_id, snapshot.streamer_id, force_mode=False
+                    )
+                return
+            await self.notification_service.send_stream_notification(
+                streamer_name=snapshot.username,
+                event_type="online",
+                details={
+                    "streamer_id": snapshot.streamer_id,
+                    "stream_id": snapshot.stream_id,
+                    "url": f"https://twitch.tv/{data['broadcaster_user_login']}",
+                    "started_at": data["started_at"],
+                    "title": snapshot.title,
+                    "category_name": snapshot.category_name,
+                    "language": snapshot.language,
+                    "profile_image_url": snapshot.profile_image_url,
+                    "twitch_login": data["broadcaster_user_login"],
+                    "is_live": True,
+                },
+            )
+            if await run_in_thread_pool(
+                self.config_manager.is_recording_enabled, snapshot.streamer_id
+            ):
+                await self.recording_service.start_recording(
+                    snapshot.stream_id, snapshot.streamer_id, force_mode=False
                 )
-
-                if streamer:
-                    # Deduplicate: Twitch redelivers stream.online when we do
-                    # not ACK in time. A second Stream row would leave duplicate
-                    # un-ended streams and mis-route channel.update chapter
-                    # events to the wrong recording.
-                    existing_stream = (
-                        db.query(Stream)
-                        .filter(Stream.streamer_id == streamer.id)
-                        .filter(Stream.twitch_stream_id == data["id"])
-                        .first()
-                    )
-                    if existing_stream:
-                        logger.info(
-                            f"🎬 STREAM_ALREADY_KNOWN: twitch_stream_id={data['id']} "
-                            f"already mapped to stream_id={existing_stream.id}; "
-                            "skipping duplicate stream.online event"
-                        )
-                        # A retry after a failed first attempt must still be able
-                        # to start the recording (dedup must not swallow it) —
-                        # but never for a stream that has already ended.
-                        if (
-                            existing_stream.ended_at is None
-                            and self.config_manager.is_recording_enabled(streamer.id)
-                        ):
-                            active_recording = (
-                                db.query(Recording)
-                                .filter(
-                                    Recording.stream_id == existing_stream.id,
-                                    Recording.status == "recording",
-                                )
-                                .first()
-                            )
-                            if not active_recording:
-                                logger.info(
-                                    f"🎬 RESUMING_RECORDING_FOR_KNOWN_STREAM: stream_id={existing_stream.id}"
-                                )
-                                await self.recording_service.start_recording(
-                                    existing_stream.id, streamer.id, force_mode=False
-                                )
-                        return
-
-                    if user_info and user_info.get("profile_image_url"):
-                        streamer.profile_image_url = user_info["profile_image_url"]
-                    if user_info and user_info.get("description"):
-                        streamer.description = user_info["description"]
-
-                    started_at = datetime.fromisoformat(
-                        data["started_at"].replace("Z", "+00:00")
-                    )
-
-                    # Close any stale still-open streams for this streamer so
-                    # channel.update events can never attach to an old session.
-                    stale_streams = (
-                        db.query(Stream)
-                        .filter(Stream.streamer_id == streamer.id)
-                        .filter(Stream.ended_at.is_(None))
-                        .all()
-                    )
-                    for stale_stream in stale_streams:
-                        logger.warning(
-                            f"🧹 CLOSING_STALE_STREAM: stream_id={stale_stream.id} "
-                            f"(twitch_stream_id={stale_stream.twitch_stream_id}) was "
-                            "still open when a new stream started"
-                        )
-                        stale_stream.ended_at = started_at
-
-                    stream = Stream(
-                        streamer_id=streamer.id,
-                        started_at=started_at,
-                        twitch_stream_id=data["id"],
-                        title=streamer.title,
-                        category_name=streamer.category_name,
-                        language=streamer.language,
-                    )
-                    db.add(stream)
-                    db.flush()
-
-                    # Debugging: Check that the stream was created correctly
-                    logger.info(
-                        f"🔍 STREAM_CREATED: stream_id={stream.id}, streamer_id={stream.streamer_id}, streamer_username={streamer.username}"
-                    )
-
-                    initial_event = StreamEvent(
-                        stream_id=stream.id,
-                        event_type="stream.online",
-                        title=streamer.title,
-                        category_name=streamer.category_name,
-                        language=streamer.language,
-                        timestamp=started_at,
-                    )
-                    db.add(initial_event)
-
-                    if streamer.category_name:
-                        pre_stream_event = StreamEvent(
-                            stream_id=stream.id,
-                            event_type="channel.update",
-                            title=streamer.title,
-                            category_name=streamer.category_name,
-                            language=streamer.language,
-                            timestamp=started_at - timedelta(seconds=1),
-                        )
-                        db.add(pre_stream_event)
-                        logger.debug(
-                            f"Added pre-stream category event for {streamer.category_name}"
-                        )
-
-                    streamer.is_live = True
-                    streamer.last_updated = datetime.now(timezone.utc)
-                    db.commit()
-
-                    # Send notification only via notification_service to avoid duplicates
-                    logger.info(
-                        f"🎬 SENDING_STREAM_ONLINE_NOTIFICATION: streamer={streamer.username}, streamer_id={streamer.id}"
-                    )
-                    await self.notification_service.send_stream_notification(
-                        streamer_name=streamer.username,
-                        event_type="online",
-                        details={
-                            "streamer_id": streamer.id,
-                            "stream_id": stream.id,
-                            "url": f"https://twitch.tv/{data['broadcaster_user_login']}",
-                            "started_at": data["started_at"],
-                            "title": streamer.title,
-                            "category_name": streamer.category_name,
-                            "language": streamer.language,
-                            # Use current profile image (cached if available)
-                            "profile_image_url": streamer.profile_image_url,
-                            "twitch_login": data["broadcaster_user_login"],
-                            "is_live": True,
-                        },
-                    )
-
-                    logger.info(
-                        f"🎬 STREAM_ONLINE_NOTIFICATION_SENT: streamer={streamer.username}"
-                    )
-
-                    # Check if recording is enabled for this streamer before starting
-                    if self.config_manager.is_recording_enabled(streamer.id):
-                        logger.info(
-                            f"🎬 RECORDING_ENABLED: Starting recording for streamer={streamer.username} (ID: {streamer.id})"
-                        )
-                        streamer_id = streamer.id
-                        stream_id = stream.id
-
-                        # Additional debugging for mismatch tracking
-                        logger.info(
-                            f"🔍 RECORDING_START_PARAMS: stream_id={stream_id}, streamer_id={streamer_id}, stream.streamer_id={stream.streamer_id}"
-                        )
-
-                        # Normal EventSub recordings use standard settings
-                        await self.recording_service.start_recording(
-                            stream_id, streamer_id, force_mode=False
-                        )
-                    else:
-                        logger.info(
-                            f"🎬 RECORDING_DISABLED: Not starting recording for streamer={streamer.username} (ID: {streamer.id}) - recording is disabled for this streamer"
-                        )
-
         except SQLAlchemyError as e:
             logger.error(f"Database error handling stream online event: {e}")
         except Exception as e:

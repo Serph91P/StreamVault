@@ -1,12 +1,12 @@
 """Worker-owned catalog transactions for EventSub handlers."""
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 from sqlalchemy.orm import Session
 
-from app.models import Recording, Stream, Streamer
+from app.models import Recording, Stream, Streamer, StreamEvent
 
 
 @dataclass(frozen=True)
@@ -73,3 +73,121 @@ def offline_recording_id(
             .first()
         )
         return recording.id if recording else None
+
+
+@dataclass(frozen=True)
+class OnlineEvent:
+    streamer_id: int
+    username: str
+    stream_id: int
+    profile_image_url: str | None
+    title: str | None
+    category_name: str | None
+    language: str | None
+    new_stream: bool
+    resume_recording: bool
+
+
+def _online_snapshot(
+    streamer: Streamer, stream: Stream, *, new_stream: bool, resume_recording: bool
+) -> OnlineEvent:
+    return OnlineEvent(
+        streamer_id=streamer.id,
+        username=streamer.username,
+        stream_id=stream.id,
+        profile_image_url=streamer.profile_image_url,
+        title=streamer.title,
+        category_name=streamer.category_name,
+        language=streamer.language,
+        new_stream=new_stream,
+        resume_recording=resume_recording,
+    )
+
+
+def prepare_online(
+    session_factory: Callable[[], Session],
+    data: Mapping[str, str],
+    user_info: Mapping[str, object] | None,
+    recording_enabled: Callable[[int], bool],
+) -> OnlineEvent | None:
+    with session_factory() as session:
+        streamer = (
+            session.query(Streamer)
+            .filter(Streamer.twitch_id == data["broadcaster_user_id"])
+            .first()
+        )
+        if streamer is None:
+            return None
+        existing = (
+            session.query(Stream)
+            .filter(
+                Stream.streamer_id == streamer.id, Stream.twitch_stream_id == data["id"]
+            )
+            .first()
+        )
+        if existing is not None:
+            resume = False
+            if existing.ended_at is None and recording_enabled(streamer.id):
+                active = (
+                    session.query(Recording)
+                    .filter(
+                        Recording.stream_id == existing.id,
+                        Recording.status == "recording",
+                    )
+                    .first()
+                )
+                resume = active is None
+            return _online_snapshot(
+                streamer, existing, new_stream=False, resume_recording=resume
+            )
+        if user_info:
+            profile = user_info.get("profile_image_url")
+            description = user_info.get("description")
+            if isinstance(profile, str) and profile:
+                streamer.profile_image_url = profile
+            if isinstance(description, str) and description:
+                streamer.description = description
+        started_at = datetime.fromisoformat(data["started_at"].replace("Z", "+00:00"))
+        for stale in (
+            session.query(Stream)
+            .filter(Stream.streamer_id == streamer.id, Stream.ended_at.is_(None))
+            .all()
+        ):
+            stale.ended_at = started_at
+        stream = Stream(
+            streamer_id=streamer.id,
+            started_at=started_at,
+            twitch_stream_id=data["id"],
+            title=streamer.title,
+            category_name=streamer.category_name,
+            language=streamer.language,
+        )
+        session.add(stream)
+        session.flush()
+        session.add(
+            StreamEvent(
+                stream_id=stream.id,
+                event_type="stream.online",
+                title=streamer.title,
+                category_name=streamer.category_name,
+                language=streamer.language,
+                timestamp=started_at,
+            )
+        )
+        if streamer.category_name:
+            session.add(
+                StreamEvent(
+                    stream_id=stream.id,
+                    event_type="channel.update",
+                    title=streamer.title,
+                    category_name=streamer.category_name,
+                    language=streamer.language,
+                    timestamp=started_at - timedelta(seconds=1),
+                )
+            )
+        streamer.is_live = True
+        streamer.last_updated = datetime.now(timezone.utc)
+        session.commit()
+        return _online_snapshot(
+            streamer, stream, new_stream=True, resume_recording=False
+        )
