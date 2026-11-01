@@ -27,6 +27,8 @@ async def test_registry_eventsub_and_user_http_use_only_their_injected_twitch_ow
 ):
     applications, clients, registries = [], [], []
     seen = []
+    created = []
+    versions = {"stream.online": "1", "stream.offline": "1", "channel.update": "2"}
     state = {"reject": False, "rows": None}
     caplog.set_level("DEBUG", logger="streamvault")
 
@@ -52,12 +54,16 @@ async def test_registry_eventsub_and_user_http_use_only_their_injected_twitch_ow
             )
         if request.method == "POST":
             payload = await request.json()
+            created.append((owner, payload))
             assert payload["type"] in {
                 "stream.online",
                 "stream.offline",
                 "channel.update",
             }
-            assert payload["version"] == "1"
+            if payload["version"] != versions[payload["type"]]:
+                return web.json_response(
+                    {"error": "unsupported event version"}, status=400
+                )
             assert payload["condition"] == {"broadcaster_user_id": f"user-{owner}"}
             assert payload["transport"] == {
                 "method": "webhook",
@@ -154,6 +160,23 @@ async def test_registry_eventsub_and_user_http_use_only_their_injected_twitch_ow
         assert sum(method == "POST" for _, method, _ in seen) == 6
         assert sum(method == "GET" for _, method, _ in seen) == 4
         assert sum(method == "DELETE" for _, method, _ in seen) == 2
+        assert len(created) == 6
+        assert {(owner, payload["type"]) for owner, payload in created} == {
+            (owner, event_type)
+            for owner in ("first", "second")
+            for event_type in ("stream.online", "stream.offline", "channel.update")
+        }
+        for owner, payload in created:
+            assert payload == {
+                "type": payload["type"],
+                "version": versions[payload["type"]],
+                "condition": {"broadcaster_user_id": f"user-{owner}"},
+                "transport": {
+                    "method": "webhook",
+                    "callback": f"https://{owner}.invalid/eventsub",
+                    "secret": f"fixture-{owner}-webhook",
+                },
+            }
         first = registries[0]
         state["rows"] = [
             {

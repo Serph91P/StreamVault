@@ -107,7 +107,7 @@ class EventHandlerRegistry:
             status = await self.twitch_api.create_eventsub_subscription(
                 {
                     "type": event_type,
-                    "version": "1",
+                    "version": "2" if event_type == "channel.update" else "1",
                     "condition": {"broadcaster_user_id": twitch_id},
                     "transport": {
                         "method": "webhook",
