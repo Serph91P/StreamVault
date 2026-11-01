@@ -4,13 +4,17 @@ Startup initialization for background services
 
 import asyncio
 import logging
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from sqlalchemy.orm import Session
 from app.config.settings import Settings
 from app.database import SessionLocal
 from app.services.core.session_maintenance import cleanup_expired_sessions
 from app.utils.async_db_utils import run_in_thread_pool
-from app.services.init.background_queue_init import shutdown_background_queue
+from app.services.init.background_queue_init import (
+    BackgroundQueueManager,
+    shutdown_background_queue,
+)
+from app.services.background_queue_service import BackgroundQueueService
 from app.config.constants import ASYNC_DELAYS
 from app.services.system.supervisor import TaskSupervisor
 
@@ -24,11 +28,20 @@ def get_recording_manager():
     return resolve_recording_manager()
 
 
-async def initialize_background_queue_with_fixes():
+async def initialize_background_queue_with_fixes(
+    *,
+    queue_manager: BackgroundQueueManager | None = None,
+    capture_checker: Callable[[int], Awaitable[bool | None]] | None = None,
+):
     """Initialize background queue with production concurrency and auth fixes"""
     try:
         # Check if already initialized to prevent double initialization
         from app.services.init.background_queue_init import background_queue_manager
+
+        if queue_manager is not None:
+            if capture_checker is None:
+                raise ValueError("An application queue requires its capture checker")
+            background_queue_manager = queue_manager
 
         if background_queue_manager.is_initialized:
             logger.info(
@@ -49,9 +62,16 @@ async def initialize_background_queue_with_fixes():
         from app.services.init.background_queue_init import initialize_background_queue
 
         background_queue_manager.queue_service.capture_checker = (
-            get_recording_manager().is_capture_running
+            capture_checker
+            if capture_checker is not None
+            else get_recording_manager().is_capture_running
         )
-        await initialize_background_queue(enable_streamer_isolation=enable_isolation)
+        if queue_manager is None:
+            await initialize_background_queue(
+                enable_streamer_isolation=enable_isolation
+            )
+        else:
+            await queue_manager.initialize(enable_streamer_isolation=enable_isolation)
 
         logger.info(
             f"✅ Background queue initialized with streamer isolation: {enable_isolation}"
@@ -357,6 +377,8 @@ async def initialize_background_services(
     *,
     session_factory: Callable[[], Session] = SessionLocal,
     settings: Settings | None = None,
+    queue_manager: BackgroundQueueManager | None = None,
+    capture_checker: Callable[[int], Awaitable[bool | None]] | None = None,
 ):
     """Initialize all background services at startup with production fixes"""
     global _background_supervisor
@@ -370,10 +392,16 @@ async def initialize_background_services(
         await initialize_vapid_keys()
 
         # Initialize background queue with production fixes
-        await initialize_background_queue_with_fixes()
-
-        # Verify queue readiness directly; do not hide startup ordering behind a delay.
-        queue_ready = await verify_queue_readiness()
+        if queue_manager is None:
+            await initialize_background_queue_with_fixes()
+            queue_ready = await verify_queue_readiness()
+        else:
+            await initialize_background_queue_with_fixes(
+                queue_manager=queue_manager, capture_checker=capture_checker
+            )
+            queue_ready = await verify_queue_readiness(
+                queue_service=queue_manager.queue_service
+            )
         if not queue_ready:
             logger.warning("⚠️ Background queue not ready - skipping recovery for now")
             # Don't run recovery immediately, let it run later via API
@@ -404,17 +432,24 @@ async def initialize_background_services(
         raise
 
 
-async def verify_queue_readiness() -> bool:
+async def verify_queue_readiness(
+    *, queue_service: BackgroundQueueService | None = None
+) -> bool:
     """Verify that the background queue is fully ready to accept tasks"""
     try:
         # Direct access to the queue manager through background queue service
         from app.services.init.background_queue_init import get_background_queue_service
 
         max_attempts = 3
+        application_queue_service = queue_service
         for attempt in range(max_attempts):
             try:
                 # Get the background queue service and check its status
-                queue_service = get_background_queue_service()
+                queue_service = (
+                    application_queue_service
+                    if application_queue_service is not None
+                    else get_background_queue_service()
+                )
 
                 if not queue_service:
                     logger.debug(f"⚠️ Queue service not found on attempt {attempt + 1}")
@@ -838,7 +873,11 @@ async def initialize_image_sync_service():
         # Don't raise - this is not critical for startup
 
 
-async def shutdown_background_services(supervisor: TaskSupervisor | None = None):
+async def shutdown_background_services(
+    supervisor: TaskSupervisor | None = None,
+    *,
+    queue_manager: BackgroundQueueManager | None = None,
+):
     """Shutdown all background services"""
     try:
         logger.info("Shutting down background services...")
@@ -856,7 +895,10 @@ async def shutdown_background_services(supervisor: TaskSupervisor | None = None)
         await auto_image_sync_service.stop_sync_worker()
 
         # Shutdown background queue
-        await shutdown_background_queue()
+        if queue_manager is None:
+            await shutdown_background_queue()
+        else:
+            await queue_manager.shutdown()
 
         logger.info("Background services shut down successfully")
 

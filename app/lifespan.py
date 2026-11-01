@@ -1,6 +1,7 @@
 import asyncio
 from collections.abc import Callable
 from contextlib import asynccontextmanager
+from functools import partial
 from types import SimpleNamespace
 
 from fastapi import FastAPI
@@ -92,6 +93,7 @@ async def lifespan(app: FastAPI):
         getattr(app.state, "legacy_default", True)
         and runtime_database is database_lifecycle
     )
+    queue_manager = None
     app.state.task_supervisor = supervisor
     app.state.startup_phases = []
     event_registry = None
@@ -208,7 +210,16 @@ async def lifespan(app: FastAPI):
 
         from app.services.init.startup_init import initialize_background_services
 
-        await initialize_background_services(
+        if not legacy_context:
+            queue_manager = app.state.background_queue_manager
+        background_initializer = initialize_background_services
+        if queue_manager is not None:
+            background_initializer = partial(
+                initialize_background_services,
+                queue_manager=queue_manager,
+                capture_checker=recording_manager.is_capture_running,
+            )
+        await background_initializer(
             supervisor=supervisor,
             session_factory=SessionLocal
             if legacy_context
@@ -245,10 +256,19 @@ async def lifespan(app: FastAPI):
         if background_services_started:
             from app.services.init.startup_init import shutdown_background_services
 
+            background_shutdown = partial(
+                shutdown_background_services, supervisor=supervisor
+            )
+            if queue_manager is not None:
+                background_shutdown = partial(
+                    background_shutdown, queue_manager=queue_manager
+                )
             await _shutdown_step(
                 "background-services",
-                lambda: shutdown_background_services(supervisor=supervisor),
+                background_shutdown,
             )
+        elif queue_manager is not None:
+            await _shutdown_step("background-queue", queue_manager.shutdown)
 
         await supervisor.shutdown(process_timeout=TIMEOUTS.GRACEFUL_SHUTDOWN)
 

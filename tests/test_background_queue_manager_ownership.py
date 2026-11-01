@@ -7,8 +7,14 @@ from threading import get_ident
 
 import pytest
 from sqlalchemy import event, select
+from starlette.requests import HTTPConnection
 
+from app import dependencies
+from app.config.settings import Settings
 from app.database import Base, DatabaseLifecycle
+from app.main import create_app
+from app.utils.async_db_utils import run_in_thread_pool
+
 from app.models import (
     Recording,
     RecordingProcessingState,
@@ -29,9 +35,12 @@ from app.services.processing.post_processing_task_handlers import (
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("isolated", [False, True])
+@pytest.mark.parametrize("composition", ["explicit", "factory"])
 async def test_queue_managers_execute_owned_chapters_and_stop_without_stopping_peer(
-    tmp_path, isolated
+    tmp_path, monkeypatch, isolated, composition
 ):
+    monkeypatch.setenv("STREAMVAULT_ENABLE_STREAMER_ISOLATION", str(isolated).lower())
+    startup_init = importlib.import_module("app.services.init.startup_init")
     recovery_module = importlib.import_module(
         "app.services.automatic_queue_recovery_service"
     )
@@ -42,12 +51,14 @@ async def test_queue_managers_execute_owned_chapters_and_stop_without_stopping_p
         for name in ("first", "second")
     ]
     managers = []
+    recording_managers = []
     sockets = []
     queries = []
     loop_thread = get_ident()
     started = datetime(2026, 10, 1, tzinfo=timezone.utc)
     try:
         for index, database in enumerate(databases):
+            recorder = None
             with database.sync_engine.begin() as connection:
                 connection.exec_driver_sql("BEGIN")
                 Base.metadata.create_all(connection)
@@ -82,17 +93,46 @@ async def test_queue_managers_execute_owned_chapters_and_stop_without_stopping_p
                 "before_cursor_execute",
                 lambda *_: queries.append(get_ident()),
             )
-            socket = ConnectionManager()
+            if composition == "factory":
+                app = create_app(
+                    settings=Settings(
+                        ENVIRONMENT="test",
+                        RECORDING_DIRECTORY=str(tmp_path / str(index)),
+                        _env_file=None,
+                    ),
+                    database=database,
+                )
+                manager = app.state.background_queue_manager
+                queue = app.state.background_queue_service
+                handlers = manager.task_handlers
+                socket = app.state.websocket_manager
+                assert manager.queue_service is queue
+                recorder = await run_in_thread_pool(
+                    dependencies.get_application_recording_manager,
+                    HTTPConnection({"type": "http", "app": app, "headers": []}),
+                )
+                recording_managers.append(recorder)
+            else:
+                socket = ConnectionManager()
+                queue = BackgroundQueueService.for_application(socket)
+                handlers = PostProcessingTaskHandlers(
+                    session_factory=database.sync_session_factory,
+                    connection_manager=socket,
+                )
+                manager = BackgroundQueueManager(
+                    queue_service=queue, task_handlers=handlers
+                )
             sockets.append(socket)
-            queue = BackgroundQueueService.for_application(socket)
-            handlers = PostProcessingTaskHandlers(
-                session_factory=database.sync_session_factory, connection_manager=socket
-            )
-            manager = BackgroundQueueManager(
-                queue_service=queue, task_handlers=handlers
-            )
             managers.append(manager)
-            await manager.initialize(enable_streamer_isolation=isolated)
+            if composition == "factory":
+                assert recorder is not None
+                await startup_init.initialize_background_queue_with_fixes(
+                    queue_manager=manager, capture_checker=recorder.is_capture_running
+                )
+                assert queue.capture_checker.__self__ is recorder
+                assert await startup_init.verify_queue_readiness(queue_service=queue)
+            else:
+                await manager.initialize(enable_streamer_isolation=isolated)
             assert manager.is_running()
             assert manager.recovery_service.background_queue_service is queue
             assert manager.recovery_service.recovery_task is not None
@@ -147,6 +187,8 @@ async def test_queue_managers_execute_owned_chapters_and_stop_without_stopping_p
     finally:
         for manager in managers:
             await manager.shutdown()
+        for recorder in recording_managers:
+            await recorder.shutdown()
         for socket in sockets:
             await socket.close_all()
         for database in databases:

@@ -19,6 +19,13 @@ from app.core.exceptions import install_exception_handlers
 from app.database import DatabaseLifecycle, database_lifecycle
 from app.dependencies import websocket_manager
 from app.services.communication.websocket_manager import ConnectionManager
+from app.services.init.background_queue_init import (
+    BackgroundQueueManager,
+    background_queue_manager,
+)
+from app.services.processing.post_processing_task_handlers import (
+    PostProcessingTaskHandlers,
+)
 from app.services.background_queue_service import (
     BackgroundQueueService,
     background_queue_service,
@@ -104,6 +111,17 @@ def _configure_app(
         else BackgroundQueueService.for_application(application.state.websocket_manager)
     )
     owned_database = database
+    application.state.background_queue_manager = (
+        background_queue_manager
+        if legacy_default
+        else BackgroundQueueManager(
+            queue_service=application.state.background_queue_service,
+            task_handlers=PostProcessingTaskHandlers(
+                session_factory=lambda: owned_database.sync_session_factory(),
+                connection_manager=application.state.websocket_manager,
+            ),
+        )
+    )
     application.state.websocket_broadcast_task = (
         websocket_broadcast_task
         if legacy_default
