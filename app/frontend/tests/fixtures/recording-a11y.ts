@@ -30,6 +30,7 @@ async function recordingApi(page: Page) {
       '/api/settings': {}, '/api/recording/settings': settings,
       '/api/recording/streamers': streamers, '/api/recording/active': [],
       '/api/recording/filename-presets': { status: 'success', data: FILENAME_PRESETS },
+      '/api/categories': { categories: [{ id: 1, name: 'Games' }, { id: 2, name: 'Music' }] },
       '/api/notifications/state': { notifications: [], unread_count: 0 },
       '/api/version': { version: 'synthetic-a11y-test' },
     }
@@ -110,37 +111,81 @@ for (const theme of ['light', 'dark'] as const) {
   })
 }
 
-test('streamer policy dialog exposes names for its visible controls', async ({ page }, testInfo) => {
-  await recordingApi(page)
-  await page.goto('/settings?section=recording')
-  await expect(page.getByText('channel-8', { exact: true })).toBeVisible()
-  await page.getByRole('button', { name: 'Policy', exact: true }).first().click()
-  const dialog = page.getByRole('dialog', { name: 'Cleanup Policy for channel-7', exact: true })
-  await expect(dialog).toBeVisible()
-  await dialog.getByLabel('Use Global Cleanup Policy', { exact: true }).uncheck()
-  await expect(dialog.getByRole('combobox')).toBeEnabled()
-  await page.addScriptTag({ content: axe.source })
-  const results = await page.evaluate(async () => window.axe.run('[role="dialog"]', {
-    runOnly: { type: 'rule', values: ['select-name', 'label'] },
-  }))
-  await testInfo.attach('policy-dialog-axe', { body: JSON.stringify(results, null, 2), contentType: 'application/json' })
-  expect(results.violations).toEqual([])
-})
+for (const theme of ['light', 'dark'] as const) {
+  test(`streamer policy dialog exposes names and native editing (${theme})`, async ({ page }, testInfo) => {
+    await page.emulateMedia({ colorScheme: theme, reducedMotion: 'reduce' })
+    const writes = await recordingApi(page)
+    await page.goto('/settings?section=recording')
+    await expect(page.getByText('channel-8', { exact: true })).toBeVisible()
+    await page.getByRole('button', { name: 'Policy', exact: true }).first().click()
+    const dialog = page.getByRole('dialog', { name: 'Cleanup Policy for channel-7', exact: true })
+    await expect(dialog).toBeVisible()
+    const inherit = dialog.getByLabel('Use Global Cleanup Policy', { exact: true })
+    await inherit.uncheck()
+    await expect(dialog.getByRole('listbox')).toBeVisible()
+    await page.addScriptTag({ content: axe.source })
+    const results = await page.evaluate(async () => window.axe.run('.cleanup-policy-editor form', {
+      runOnly: { type: 'rule', values: ['select-name', 'label', 'color-contrast'] },
+    }))
+    await testInfo.attach('policy-dialog-axe', { body: JSON.stringify(results, null, 2), contentType: 'application/json' })
+    expect(results.violations).toEqual([])
+    for (const name of ['Cleanup Policy:', 'Number of recordings to keep:', 'Preserve Categories:']) {
+      const control = dialog.getByLabel(name, { exact: true })
+      const id = await control.getAttribute('id')
+      expect(id).toBeTruthy()
+      await expect(page.locator(`[id="${id}"]`)).toHaveCount(1)
+      await dialog.locator(`label[for="${id}"]`).click()
+      await expect(control).toBeFocused()
+      await page.keyboard.press('Tab')
+      await page.keyboard.press('Shift+Tab')
+      await expect(control).toBeFocused()
+    }
+    const type = dialog.getByRole('combobox', { name: 'Cleanup Policy:', exact: true })
+    await type.focus()
+    await page.keyboard.press('Home')
+    await page.keyboard.press('ArrowDown')
+    await page.keyboard.press('Enter')
+    await expect(type).toHaveValue('size')
+    const threshold = dialog.getByRole('spinbutton', { name: 'Maximum storage size (GB):', exact: true })
+    await threshold.fill('23')
+    await expect(threshold).toHaveValue('23')
+    await type.selectOption('age')
+    await expect(dialog.getByRole('spinbutton', { name: 'Maximum age (days):', exact: true })).toHaveValue('23')
+    await dialog.getByRole('listbox', { name: 'Preserve Categories:', exact: true }).selectOption(['Games', 'Music'])
+    await expect(dialog.getByRole('listbox')).toHaveValues(['Games', 'Music'])
+    const favorites = dialog.getByRole('checkbox', { name: 'Preserve favorites', exact: true })
+    await favorites.focus()
+    await page.keyboard.press('Space')
+    await expect(favorites).not.toBeChecked()
+    await dialog.getByRole('button', { name: 'Save Cleanup Policy', exact: true }).click()
+    await expect.poll(() => writes).toEqual([{
+      path: '/api/recording/streamers/7/cleanup-policy',
+      body: { cleanup_policy: { type: 'age', threshold: 23, preserve_favorites: false, preserve_categories: ['Games', 'Music'] }, use_global_cleanup_policy: false },
+    }])
+  })
+}
 
-test('recording labelled values retain exact save transport and reload hydration', async ({ page }) => {
+test('recording labelled values retain exact save transport and reload hydration', async ({ page }, testInfo) => {
   const writes = await recordingApi(page)
   await page.goto('/settings?section=recording')
   const panel = page.getByRole('region', { name: 'Recording settings', exact: true })
   await expect(page.getByText('channel-8', { exact: true })).toBeVisible()
   await panel.getByLabel('Default Quality:', { exact: true }).selectOption('720p')
-  await panel.getByLabel('Filename Template:', { exact: true }).selectOption('plex')
-  await expect(panel.getByLabel('Custom Filename Template:', { exact: true })).toHaveValue('{streamer}/Season {year}-{month}/{streamer} - S{year}{month}E{episode:02d} - {title}')
+  const mock = testInfo.project.name.startsWith('mock-')
+  const preset = panel.getByLabel('Filename Template:', { exact: true })
+  if (mock) {
+    // The genuine mock API intentionally returns no presets (services/api.ts).
+    await expect(preset.locator('option')).toHaveCount(0)
+  } else {
+    await preset.selectOption('plex')
+    await expect(panel.getByLabel('Custom Filename Template:', { exact: true })).toHaveValue('{streamer}/Season {year}-{month}/{streamer} - S{year}{month}E{episode:02d} - {title}')
+  }
   await panel.getByLabel('Custom Filename Template:', { exact: true }).fill('saved/{title}')
   await panel.getByLabel('Supported Codecs:', { exact: true }).selectOption('av1')
   await panel.getByRole('button', { name: 'Save Settings', exact: true }).click()
   await expect.poll(() => writes.filter(item => item.path === '/api/recording/settings')).toEqual([{
     path: '/api/recording/settings', body: {
-      enabled: true, filename_template: 'saved/{title}', filename_preset: 'plex',
+      enabled: true, filename_template: 'saved/{title}', filename_preset: mock ? 'default' : 'plex',
       default_quality: '720p', use_chapters: true, use_category_as_chapter_title: false,
     },
   }])
