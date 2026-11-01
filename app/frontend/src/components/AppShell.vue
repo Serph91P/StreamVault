@@ -59,7 +59,7 @@
             <div class="notification-title-stack">
               <h3 id="notification-panel-title">Notifications</h3>
               <p class="notification-panel-count">{{ notificationPanelSubtitle }}</p>
-              <p class="notification-panel-count">Read/unread is local to this browser. Mark all read and Clear all update the global server state.</p>
+              <p class="notification-panel-count">History and read/unread are local to this browser. Mark all read and Clear all are global.</p>
             </div>
             <div class="notification-header-actions">
               <button

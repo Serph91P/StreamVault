@@ -152,7 +152,7 @@ defineExpose({ markAllRead, clearAllNotifications, isMutating })
           <p class="section-subtitle">{{ subtitle }}</p>
           <p class="channel-explainer">
             In-app events arrive live over WebSocket. External delivery still uses your configured Apprise and push targets.
-            Individual read/unread and history are local to this browser. Mark all read and Clear all also update the server-wide timestamp.
+            History and read/unread are local to this browser. Mark all read and Clear all are global.
           </p>
         </div>
       </div>
