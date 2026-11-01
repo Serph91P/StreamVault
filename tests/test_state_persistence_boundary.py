@@ -12,6 +12,9 @@ from sqlalchemy import event, inspect
 from app.database import Base, DatabaseLifecycle
 from app.models import ActiveRecordingState, Recording, Stream, Streamer
 from app.services.core.state_persistence_service import StatePersistenceService
+from app.services.recording.config_manager import ConfigManager
+from app.services.recording.recording_database_service import RecordingDatabaseService
+from app.services.recording.recording_state_manager import RecordingStateManager
 
 
 @pytest.mark.asyncio
@@ -117,9 +120,23 @@ async def test_state_persistence_owns_sessions_values_recovery_io_and_heartbeat(
             assert not await service.update_heartbeat(999)
             loaded = await service.load_state()
             assert len(loaded) == 1 and loaded[0].streamer_name == str(index)
+            state_manager = RecordingStateManager.for_application(
+                ConfigManager(session_factory=database.sync_session_factory), service
+            )
+            durable = await state_manager.load_state_from_persistence()
+            assert durable[1]["file_path"] == str(path)
             with monkeypatch.context() as watched:
                 watched.setattr(os, "stat", stat)
                 recovered = await service.recover_active_recordings()
+                restored = (
+                    await state_manager.recover_active_recordings_from_persistence(
+                        RecordingDatabaseService(
+                            session_factory=database.sync_session_factory
+                        )
+                    )
+                )
+            assert restored == [1]
+            assert state_manager.get_active_recording(1)["file_path"] == str(path)
             assert len(recovered) == 1 and recovered[0]["stream_id"] == 1
             assert recovered[0]["ts_output_path"] == str(path)
             assert await service._refresh_heartbeats_for_live_processes() == 1

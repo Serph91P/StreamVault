@@ -4,8 +4,7 @@ RecordingStateManager - Active recordings tracking and persistence
 Extracted from recording_service.py ULTRA-BOSS (1084 lines)
 Handles active recordings state, task tracking, and recovery after restarts.
 
-IMPORTANT: Use the global singleton `recording_state_manager` for all state operations.
-This ensures all RecordingService instances share the same state.
+Legacy callers share `recording_state_manager`; factories use `for_application`.
 """
 
 import logging
@@ -13,7 +12,12 @@ import asyncio
 from typing import Dict, Any, Optional, List
 from pathlib import Path
 from datetime import datetime
-from app.services.core.state_persistence_service import state_persistence_service
+from app.services.core.state_persistence_service import (
+    StatePersistenceService,
+    state_persistence_service,
+)
+from app.services.recording.config_manager import ConfigManager
+from app.utils.async_db_utils import run_in_thread_pool
 
 logger = logging.getLogger("streamvault")
 
@@ -21,8 +25,8 @@ logger = logging.getLogger("streamvault")
 class RecordingStateManager:
     """Manages active recording state and persistence
 
-    SINGLETON PATTERN: Use `recording_state_manager` global instance.
-    Do NOT create new instances unless you have a specific reason.
+    Legacy callers share `recording_state_manager`; application factories use
+    independent state/task maps and their own persistence service.
     """
 
     _instance: Optional["RecordingStateManager"] = None
@@ -42,14 +46,29 @@ class RecordingStateManager:
                 self.config_manager = config_manager
             return
 
-        self.config_manager = config_manager
+        self._initialize(config_manager, state_persistence_service)
+        RecordingStateManager._initialized = True
 
+    @classmethod
+    def for_application(
+        cls, config_manager: ConfigManager, persistence_service: StatePersistenceService
+    ) -> "RecordingStateManager":
+        instance = object.__new__(cls)
+        instance._initialize(config_manager, persistence_service)
+        return instance
+
+    def _initialize(
+        self,
+        config_manager: ConfigManager | None,
+        persistence_service: StatePersistenceService,
+    ) -> None:
+        self.config_manager = config_manager
+        self._persistence_service = persistence_service
         # Active recordings tracking
         self.active_recordings: Dict[int, Dict[str, Any]] = {}
         self.recording_tasks: Dict[int, asyncio.Task] = {}
 
-        RecordingStateManager._initialized = True
-        logger.debug("RecordingStateManager singleton initialized")
+        logger.debug("RecordingStateManager initialized")
 
     def add_active_recording(
         self, recording_id: int, recording_data: Dict[str, Any]
@@ -176,18 +195,23 @@ class RecordingStateManager:
         except Exception as e:
             logger.error(f"Failed to save state to persistence: {e}")
 
-    async def load_state_from_persistence(self) -> Dict[str, Any]:
+    async def load_state_from_persistence(self) -> dict[int, dict[str, str | None]]:
         """Load active recordings state from persistence"""
         try:
-            if not state_persistence_service:
+            if not self._persistence_service:
                 logger.warning("State persistence service not available")
                 return {}
 
-            state_data = await state_persistence_service.load_state()
+            state_data = await self._persistence_service.load_state()
             if state_data:
                 logger.info(f"Loaded {len(state_data)} recordings from persistence")
-                # Convert List[ActiveRecordingState] to Dict format expected by recovery logic
-                return {recording.recording_id: recording for recording in state_data}
+                return {
+                    recording.recording_id: {
+                        "file_path": recording.ts_output_path,
+                        "status": recording.status,
+                    }
+                    for recording in state_data
+                }
 
             return {}
 
@@ -266,7 +290,7 @@ class RecordingStateManager:
 
             # Check if recording file still exists
             file_path = recording_data.get("file_path") or recording.path
-            if file_path and not Path(file_path).exists():
+            if file_path and not await run_in_thread_pool(Path(file_path).exists):
                 logger.warning(f"Recording file {file_path} no longer exists")
                 # Mark recording as failed
                 await database_service.mark_recording_failed(

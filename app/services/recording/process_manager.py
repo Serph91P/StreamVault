@@ -48,8 +48,10 @@ from app.services.recording.media_ownership import LocalCapture
 from app.config.constants import ASYNC_DELAYS
 from app.services.twitch_upstream_coordinator import (
     AUTHENTICATED_TWITCH_ACCOUNT,
+    TwitchUpstreamCoordinator,
     twitch_upstream_coordinator,
 )
+from app.services.recording.config_manager import ConfigManager
 from app.services.system.supervisor import TaskSupervisor
 
 logger = logging.getLogger("streamvault")
@@ -64,9 +66,8 @@ ProcessStatus = None
 class ProcessManager:
     """Manages subprocess execution and cleanup for recording processes
 
-    SINGLETON PATTERN: Use `process_manager` global instance.
-    All RecordingOrchestrator instances share the same ProcessManager
-    to ensure consistent process tracking across the application.
+    Legacy callers share `process_manager`; `for_application` owns independent
+    child-process registries, callbacks, locks and supervision.
     """
 
     # Constants for segment file patterns (must match RecordingLifecycleManager)
@@ -110,6 +111,29 @@ class ProcessManager:
                 self.upstream_coordinator = upstream_coordinator
             return
 
+        self._initialize(config_manager, post_processing_callback, upstream_coordinator)
+        ProcessManager._initialized = True
+
+    @classmethod
+    def for_application(
+        cls,
+        *,
+        config_manager: ConfigManager,
+        post_processing_callback: Callable[[int, str], Awaitable[None]],
+        upstream_coordinator: TwitchUpstreamCoordinator,
+    ) -> "ProcessManager":
+        instance = object.__new__(cls)
+        instance._initialize(
+            config_manager, post_processing_callback, upstream_coordinator
+        )
+        return instance
+
+    def _initialize(
+        self,
+        config_manager: ConfigManager | None,
+        post_processing_callback: Callable[[int, str], Awaitable[None]] | None,
+        upstream_coordinator: TwitchUpstreamCoordinator | None,
+    ) -> None:
         self.active_processes = {}
         self.long_stream_processes = {}  # Track processes that need segmentation
         self.lock = asyncio.Lock()
@@ -149,8 +173,7 @@ class ProcessManager:
         # Shutdown management
         self._is_shutting_down = False
 
-        ProcessManager._initialized = True
-        logger.debug("ProcessManager singleton initialized")
+        logger.debug("ProcessManager initialized")
 
     def _get_streamlink_output_secrets(self, process) -> tuple[str, ...]:
         return getattr(self, "_streamlink_output_secrets", {}).get(process, ())
