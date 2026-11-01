@@ -8,6 +8,8 @@ from datetime import datetime, timezone, timedelta
 from cachetools import TTLCache
 
 from app.database import SessionLocal
+from app.events.event_catalog import prepare_offline, offline_recording_id
+from app.utils.async_db_utils import run_in_thread_pool
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 from app.services.communication.websocket_manager import ConnectionManager
@@ -374,124 +376,39 @@ class EventHandlerRegistry:
             logger.error(f"Error handling stream online event: {e}", exc_info=True)
 
     async def handle_stream_offline(self, data: dict):
-        logger.info(
-            f"🎬 STREAM_OFFLINE_EVENT: broadcaster_user_id={data.get('broadcaster_user_id')}, broadcaster_user_name={data.get('broadcaster_user_name')}"
-        )
-
         try:
-            logger.info(f"Stream offline event received: {data}")
-            with SessionLocal() as db:
-                streamer = (
-                    db.query(Streamer)
-                    .filter(Streamer.twitch_id == data["broadcaster_user_id"])
-                    .first()
+            session_factory = self._session_factory or SessionLocal
+            snapshot = await run_in_thread_pool(
+                prepare_offline, session_factory, data["broadcaster_user_id"]
+            )
+            if snapshot is None:
+                return
+            await self.notification_service.send_stream_notification(
+                streamer_name=snapshot.username,
+                event_type="offline",
+                details={
+                    "streamer_id": snapshot.streamer_id,
+                    "stream_id": snapshot.stream_id,
+                    "url": f"https://twitch.tv/{data['broadcaster_user_login']}",
+                    "profile_image_url": snapshot.profile_image_url,
+                    "twitch_login": data["broadcaster_user_login"],
+                    "is_live": False,
+                },
+            )
+            # Read fresh after notification, preserving the existing stop ordering.
+            recording_id = await run_in_thread_pool(
+                offline_recording_id, session_factory, snapshot
+            )
+            if recording_id is not None:
+                await self.recording_service.stop_recording(
+                    recording_id, reason="automatic"
                 )
-
-                if streamer:
-                    streamer.is_live = False
-                    streamer.last_updated = datetime.now(timezone.utc)
-
-                    open_streams = (
-                        db.query(Stream)
-                        .filter(Stream.streamer_id == streamer.id)
-                        .filter(Stream.ended_at.is_(None))
-                        .order_by(Stream.started_at.desc())
-                        .all()
-                    )
-                    stream = open_streams[0] if open_streams else None
-                    ended_at = datetime.now(timezone.utc)
-
-                    # Close ALL open streams — leftover un-ended rows would
-                    # attract future channel.update chapter events.
-                    # Recordings attached to older streams are intentionally not
-                    # stopped here; the recovery machinery (zombie cleanup) owns them.
-                    for open_stream in open_streams:
-                        open_stream.ended_at = ended_at
-
-                    if stream:
-                        # Update last stream info on streamer for offline display
-                        streamer.last_stream_title = stream.title
-                        streamer.last_stream_category_name = stream.category_name
-                        streamer.last_stream_ended_at = stream.ended_at
-                        # Note: last_stream_viewer_count will be updated when recording finishes
-                        # (not available in stream.offline event)
-
-                    db.commit()
-
-                    # Send notification only via notification_service to avoid duplicates
-                    logger.info(
-                        f"🎬 SENDING_STREAM_OFFLINE_NOTIFICATION: streamer={streamer.username}, streamer_id={streamer.id}"
-                    )
-                    await self.notification_service.send_stream_notification(
-                        streamer_name=streamer.username,
-                        event_type="offline",
-                        details={
-                            "streamer_id": streamer.id,
-                            "stream_id": stream.id if stream else None,
-                            "url": f"https://twitch.tv/{data['broadcaster_user_login']}",
-                            # Use current profile image (cached if available)
-                            "profile_image_url": streamer.profile_image_url,
-                            "twitch_login": data["broadcaster_user_login"],
-                            "is_live": False,
-                        },
-                    )
-
-                    logger.info(
-                        f"🎬 STREAM_OFFLINE_NOTIFICATION_SENT: streamer={streamer.username}"
-                    )
-                    logger.info(f"🎬 STOPPING_RECORDING: streamer_id={streamer.id}")
-
-                    # Find active recording for this streamer
-                    if stream and stream.id:
-                        # Find recording by stream ID if stream exists
-                        active_recording = (
-                            db.query(Recording)
-                            .filter(
-                                Recording.stream_id == stream.id,
-                                Recording.status == "recording",
-                            )
-                            .first()
-                        )
-                    else:
-                        # Fallback: Find recording by streamer ID if stream is None
-                        logger.warning(
-                            f"🎬 STREAM_IS_NONE: Finding recording by streamer_id={streamer.id}"
-                        )
-                        # Get the most recent stream for this streamer
-                        recent_stream = (
-                            db.query(Stream)
-                            .filter(Stream.streamer_id == streamer.id)
-                            .order_by(Stream.created_at.desc())
-                            .first()
-                        )
-
-                        if recent_stream:
-                            active_recording = (
-                                db.query(Recording)
-                                .filter(
-                                    Recording.stream_id == recent_stream.id,
-                                    Recording.status == "recording",
-                                )
-                                .first()
-                            )
-                        else:
-                            active_recording = None
-
-                    if active_recording:
-                        stream_id_info = stream.id if stream else "None"
-                        logger.info(
-                            f"🎬 FOUND_ACTIVE_RECORDING: recording_id={active_recording.id}, stream_id={stream_id_info}, streamer_id={streamer.id}"
-                        )
-                        # Automatic stop when stream goes offline
-                        await self.recording_service.stop_recording(
-                            active_recording.id, reason="automatic"
-                        )
-                    else:
-                        stream_id_info = stream.id if stream else "None"
-                        logger.warning(
-                            f"🎬 NO_ACTIVE_RECORDING_FOUND: streamer_id={streamer.id}, stream_id={stream_id_info}, status_filter='recording'"
-                        )
-
+            else:
+                logger.warning(
+                    "No active recording for offline streamer_id=%s stream_id=%s",
+                    snapshot.streamer_id,
+                    snapshot.stream_id,
+                )
         except SQLAlchemyError as e:
             logger.error(f"Database error handling stream offline event: {e}")
         except Exception as e:
