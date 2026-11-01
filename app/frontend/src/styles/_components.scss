@@ -878,7 +878,7 @@ input[type="radio"] {
 
 .help-text {
   font-size: 0.85rem;
-  color: v.$text-secondary;
+  color: var(--text-secondary);
   margin-top: 0.25rem;
   line-height: 1.4;
 }

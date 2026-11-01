@@ -31,8 +31,8 @@
             </div>
 
             <div class="form-group">
-              <label>Default Quality:</label>
-              <select v-model="data.default_quality" class="form-control">
+              <label :for="`${controlId}-quality`">Default Quality:</label>
+              <select :id="`${controlId}-quality`" v-model="data.default_quality" class="form-control">
                 <option v-for="option in QUALITY_OPTIONS" :key="option.value" :value="option.value">
                   {{ option.label }}
                 </option>
@@ -43,8 +43,8 @@
             </div>
 
             <div class="form-group">
-              <label>Filename Template:</label>
-              <select v-model="data.filename_preset" class="form-control" @change="updateFilenameFromPreset" :disabled="presetsLoading">
+              <label :for="`${controlId}-preset`">Filename Template:</label>
+              <select :id="`${controlId}-preset`" v-model="data.filename_preset" class="form-control" @change="updateFilenameFromPreset" :disabled="presetsLoading">
                 <option value="" v-if="presetsLoading">Loading presets...</option>
                 <option v-for="preset in FILENAME_PRESETS" :key="preset.value" :value="preset.value">
                   {{ preset.label }}
@@ -53,7 +53,8 @@
               <div v-if="presetsError" class="error-text">
                 Failed to load presets: {{ presetsError }}
               </div>
-              <input ref="filenameTemplateInput" v-model="data.filename_template" class="form-control" style="margin-top: 10px;" />
+              <label :for="`${controlId}-filename`">Custom Filename Template:</label>
+              <input :id="`${controlId}-filename`" ref="filenameTemplateInput" v-model="data.filename_template" class="form-control" />
               <div class="help-text">
                 Choose a preset or customize the filename template.
                 <br><strong>Available variables (click to insert):</strong>
@@ -106,8 +107,8 @@
               <h3 class="section-title">Advanced Codec Settings</h3>
             </div>
             <div class="form-group">
-              <label>Supported Codecs:</label>
-              <select v-model="data.supported_codecs" class="form-control">
+              <label :for="`${controlId}-codecs`">Supported Codecs:</label>
+              <select :id="`${controlId}-codecs`" v-model="data.supported_codecs" class="form-control">
                 <option value="h264">📺 H.264 Only - 1080p60 max, highest compatibility</option>
                 <option value="h265">🎬 H.265/HEVC Only - 1440p60, modern hardware required</option>
                 <option value="av1">🚀 AV1 Only - Experimental, newest hardware required</option>
@@ -269,12 +270,14 @@
                   <span class="streamer-name">{{ streamer.username || 'Unknown Streamer' }}</span>
                 </td>
                 <td data-label="Record">
-                  <input type="checkbox" v-model="streamer.enabled"
+                  <label :for="`${controlId}-${streamer.streamer_id}-enabled`">Record {{ streamer.username || 'streamer' }}</label>
+                  <input :id="`${controlId}-${streamer.streamer_id}-enabled`" type="checkbox" v-model="streamer.enabled"
                     :aria-label="`Record ${streamer.username || 'streamer'}`"
                     @change="updateStreamerSetting(streamer.streamer_id, { enabled: streamer.enabled })" />
                 </td>
                 <td data-label="Quality">
-                  <select v-model="streamer.quality"
+                  <label :for="`${controlId}-${streamer.streamer_id}-quality`">Quality for {{ streamer.username || 'streamer' }}</label>
+                  <select :id="`${controlId}-${streamer.streamer_id}-quality`" v-model="streamer.quality"
                     @change="updateStreamerSetting(streamer.streamer_id, { quality: streamer.quality })"
                     class="form-control form-control-sm">
                     <option value="">Use global default</option>
@@ -291,7 +294,8 @@
                 </td>
                 -->
                 <td data-label="Custom Filename">
-                  <input type="text" v-model="streamer.custom_filename"
+                  <label :for="`${controlId}-${streamer.streamer_id}-filename`">Custom Filename for {{ streamer.username || 'streamer' }}</label>
+                  <input :id="`${controlId}-${streamer.streamer_id}-filename`" type="text" v-model="streamer.custom_filename"
                     @change="updateStreamerSetting(streamer.streamer_id, { custom_filename: streamer.custom_filename })"
                     placeholder="Use global template" class="form-control form-control-sm" />
                 </td>
@@ -306,7 +310,7 @@
                     </button>
                     <button
                       @click="openCleanupPolicyEditor(streamer)"
-                      class="btn btn-info btn-sm"
+                      class="btn btn-secondary btn-sm"
                       :disabled="isLoading"
                       title="Configure cleanup policy for this streamer">
                       Policy
@@ -337,7 +341,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick } from 'vue';
+import { ref, watch, nextTick, useId } from 'vue';
 import { useRecordingSettings } from '@/composables/useRecordingSettings';
 import { useFilenamePresets } from '@/composables/useFilenamePresets';
 import { useToast } from '@/composables/useToast';
@@ -367,6 +371,7 @@ const emits = defineEmits<{
 
 const { isLoading, error } = useRecordingSettings();
 const toast = useToast();
+const controlId = useId();
 
 // Filename presets from API
 const { presets: FILENAME_PRESETS, isLoading: presetsLoading, error: presetsError } = useFilenamePresets();

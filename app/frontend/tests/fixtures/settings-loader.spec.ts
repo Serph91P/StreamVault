@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
+import './recording-a11y'
 
 // Run against isolated MOCK and REAL production artifacts.
 // REAL requests below are synthetic HTTP fixtures, not a live installation.
