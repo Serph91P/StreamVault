@@ -9,7 +9,6 @@ import type { StoredNotification } from '@/services/notificationStorage'
 import { normalizeNotificationTargetUrl } from '@/types/events'
 
 const emit = defineEmits<{
-  (e: 'notifications-read'): void
   (e: 'close-panel'): void
   (e: 'clear-all'): void
   (e: 'close'): void
@@ -87,10 +86,8 @@ async function markAllRead(event?: Event): Promise<void> {
   const marked = await notificationStore.markAllRead()
   isMutating.value = false
   if (!marked) {
-    errorMessage.value = 'Notifications could not be marked read. Existing local read states were preserved.'
-    return
+    errorMessage.value = 'Notifications could not be marked read.'
   }
-  emit('notifications-read')
 }
 
 async function clearAllNotifications(event?: Event): Promise<void> {

@@ -212,7 +212,7 @@ export const useNotificationStore = defineStore('notifications', () => {
       const readTs =
         (backendState as Record<string, unknown>).last_read_timestamp ||
         (backendState as Record<string, unknown>).last_read
-      const readAt = readTs ? new Date(readTs as string).getTime() : 0
+      const readAt = readTs ? Date.parse(readTs as string) : 0
       if (Number.isFinite(readAt)) {
         const newestReadAt = Math.max(lastReadWatermark ?? 0, readAt)
         lastReadWatermark = newestReadAt
@@ -225,7 +225,7 @@ export const useNotificationStore = defineStore('notifications', () => {
             n.read = true
             n.read_at = n.read_at || new Date(newestReadAt).toISOString()
           }
-          n.read_watermark = Math.max(n.read_watermark ?? 0, newestReadAt)
+          n.read_watermark = newestReadAt
         })
         persist()
       }
@@ -269,7 +269,7 @@ export const useNotificationStore = defineStore('notifications', () => {
     } else {
       if (lastReadWatermark !== null) {
         newNotification.read_watermark = lastReadWatermark
-        if (new Date(newNotification.timestamp).getTime() <= lastReadWatermark) {
+        if (Date.parse(newNotification.timestamp) <= lastReadWatermark) {
           newNotification.read = true
           newNotification.read_at = new Date(lastReadWatermark).toISOString()
         }
@@ -288,7 +288,7 @@ export const useNotificationStore = defineStore('notifications', () => {
       console.error('Failed to mark notifications as read on backend:', error)
       return false
     }
-    lastReadWatermark = Math.max(lastReadWatermark ?? 0, new Date(now).getTime())
+    lastReadWatermark = Math.max(lastReadWatermark ?? 0, Date.parse(now))
     notifications.value.forEach((n) => {
       n.read = true
       n.read_at = n.read_at || now
