@@ -10,21 +10,40 @@ This service consolidates all recovery operations into one robust system:
 Replaces multiple overlapping services with one unified approach.
 """
 
+from __future__ import annotations
+
 import asyncio
 import logging
+import tempfile
+from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Dict, List, Optional, Any
+from typing import (
+    Dict,
+    List,
+    Optional,
+    Any,
+    TYPE_CHECKING,
+    TypedDict,
+    NotRequired,
+    Literal,
+)
 from dataclasses import dataclass
 
 from sqlalchemy.orm import Session, joinedload
 
 from app.core.exceptions import DomainError
 from app.database import SessionLocal
+from app.config.settings import Settings
+from app.utils.async_db_utils import run_in_thread_pool
 from app.dependencies import get_recording_manager
 from app.models import Recording, Stream, Streamer
 from app.services.system.logging_service import logging_service
 from app.services.init.background_queue_init import enqueue_recording_post_processing
+
+if TYPE_CHECKING:
+    from app.services.background_queue_service import BackgroundQueueService
+    from app.services.recording.recording_manager import RecordingManager
 
 logger = logging.getLogger("streamvault")
 
@@ -43,6 +62,37 @@ class RecoveryStats:
     total_size_gb: float = 0.0
 
 
+class OrphanedRecoveryInput(TypedDict):
+    streamer_name: str
+    segments_dir: Path
+    expected_ts_path: Path
+    recording_id: int | None
+
+
+class OrphanedSegments(OrphanedRecoveryInput):
+    expected_mp4_path: Path
+    segment_files: list[Path]
+    size_gb: float
+    segment_time: datetime
+
+
+class FailedPostProcessing(TypedDict):
+    recording_id: int
+    ts_path: Path
+    mp4_path: Path
+    type: Literal["missing_mp4", "needs_concatenation"]
+    streamer_name: str
+    segments_dir: NotRequired[Path]
+
+
+@dataclass(frozen=True)
+class RecoveryProcessingInput:
+    stream_id: int
+    started_at: str
+    output_dir: str
+    file_size: int
+
+
 class UnifiedRecoveryService:
     """Unified service for all recording recovery operations"""
 
@@ -52,9 +102,37 @@ class UnifiedRecoveryService:
         1  # Hours to consider recent recordings as potentially active
     )
 
-    def __init__(self):
-        self.recordings_base_path = Path("/recordings")
+    def __init__(
+        self,
+        *,
+        session_factory: Callable[[], Session] | None = None,
+        settings: Settings | None = None,
+        recording_manager: RecordingManager | None = None,
+        queue_service: BackgroundQueueService | None = None,
+    ):
+        context = (session_factory, settings, recording_manager, queue_service)
+        if any(value is not None for value in context) and any(
+            value is None for value in context
+        ):
+            raise ValueError("Application recovery resources must be supplied together")
+        self._session_factory = session_factory
+        self.settings = settings
+        self.recording_manager = recording_manager
+        self.queue_service = queue_service
+        self.recordings_base_path = Path(
+            settings.RECORDING_DIRECTORY if settings is not None else "/recordings"
+        )
         self.is_running = False
+
+    def _sessions(self) -> Session:
+        return (self._session_factory or SessionLocal)()
+
+    def _recording_owner(self) -> RecordingManager:
+        return (
+            self.recording_manager
+            if self.recording_manager is not None
+            else get_recording_manager()
+        )
 
     async def comprehensive_recovery_scan(
         self, max_age_hours: int = 72, dry_run: bool = False
@@ -151,20 +229,31 @@ class UnifiedRecoveryService:
         finally:
             self.is_running = False
 
-    async def _scan_orphaned_segments(self, max_age_hours: int) -> List[Dict[str, Any]]:
+    async def _scan_orphaned_segments(
+        self, max_age_hours: int
+    ) -> list[OrphanedSegments]:
+        try:
+            paths = await self._get_active_recording_paths()
+            return await run_in_thread_pool(
+                self._scan_orphaned_segments_sync, max_age_hours, paths
+            )
+        except Exception as error:
+            logger.error("Error scanning orphaned segments: %s", error)
+            return []
+
+    def _scan_orphaned_segments_sync(
+        self, max_age_hours: int, active_recording_paths: set[str]
+    ) -> list[OrphanedSegments]:
         """Scan for orphaned segment directories that need concatenation"""
-        orphaned = []
+        orphaned: list[OrphanedSegments] = []
         cutoff_time = datetime.now() - timedelta(hours=max_age_hours)
 
         try:
             if not self.recordings_base_path.exists():
                 return orphaned
 
-            # Get currently active recordings to avoid processing them
-            active_recording_paths = await self._get_active_recording_paths()
-
             # Collect all potential orphaned recordings first, then batch DB queries
-            potential_orphans = []
+            potential_orphans: list[OrphanedSegments] = []
 
             for streamer_dir in self.recordings_base_path.iterdir():
                 if not streamer_dir.is_dir():
@@ -219,6 +308,7 @@ class UnifiedRecoveryService:
                                 potential_orphans.append(
                                     {
                                         "streamer_name": streamer_dir.name,
+                                        "recording_id": None,
                                         "segments_dir": item,
                                         "expected_ts_path": expected_ts,
                                         "expected_mp4_path": expected_mp4,
@@ -233,7 +323,7 @@ class UnifiedRecoveryService:
                 expected_paths = [
                     str(orphan["expected_ts_path"]) for orphan in potential_orphans
                 ]
-                recording_map = await self._batch_find_recordings_by_paths(
+                recording_map = self._batch_find_recordings_by_paths_sync(
                     expected_paths
                 )
 
@@ -259,16 +349,25 @@ class UnifiedRecoveryService:
 
     async def _scan_failed_post_processing(
         self, max_age_hours: int
-    ) -> List[Dict[str, Any]]:
+    ) -> list[FailedPostProcessing]:
+        try:
+            paths = await self._get_active_recording_paths()
+            return await run_in_thread_pool(
+                self._scan_failed_post_processing_sync, max_age_hours, paths
+            )
+        except Exception as error:
+            logger.error("Error scanning failed post-processing: %s", error)
+            return []
+
+    def _scan_failed_post_processing_sync(
+        self, max_age_hours: int, active_recording_paths: set[str]
+    ) -> list[FailedPostProcessing]:
         """Scan for recordings where .ts exists but .mp4 is missing or failed"""
-        failed = []
+        failed: list[FailedPostProcessing] = []
         cutoff_time = datetime.now() - timedelta(hours=max_age_hours)
 
         try:
-            # Get currently active recordings to avoid processing them
-            active_recording_paths = await self._get_active_recording_paths()
-
-            with SessionLocal() as db:
+            with self._sessions() as db:
                 # Find recordings that are completed but may have failed post-processing
                 recent_recordings = (
                     db.query(Recording)
@@ -304,7 +403,6 @@ class UnifiedRecoveryService:
                         failed.append(
                             {
                                 "recording_id": recording.id,
-                                "recording": recording,
                                 "ts_path": ts_path,
                                 "mp4_path": mp4_path,
                                 "type": "missing_mp4",
@@ -322,7 +420,6 @@ class UnifiedRecoveryService:
                             failed.append(
                                 {
                                     "recording_id": recording.id,
-                                    "recording": recording,
                                     "segments_dir": segments_dir,
                                     "ts_path": ts_path,
                                     "mp4_path": mp4_path,
@@ -343,7 +440,9 @@ class UnifiedRecoveryService:
         )
         return failed
 
-    async def _process_orphaned_recording(self, recording_info: Dict[str, Any]) -> bool:
+    async def _process_orphaned_recording(
+        self, recording_info: OrphanedRecoveryInput
+    ) -> bool:
         """Process a single orphaned recording intelligently
 
         CRITICAL LOGIC:
@@ -362,7 +461,7 @@ class UnifiedRecoveryService:
                 return False
 
             if recording_id is None:
-                with SessionLocal() as db:
+                with self._sessions() as db:
                     recording_id = await self._create_recording_from_orphaned_path(
                         db, str(expected_ts_path)
                     )
@@ -494,7 +593,9 @@ class UnifiedRecoveryService:
             logger.error(f"❌ Error processing orphaned recording: {e}")
             return False
 
-    async def _retry_post_processing(self, recording_info: Dict[str, Any]) -> bool:
+    async def _retry_post_processing(
+        self, recording_info: FailedPostProcessing
+    ) -> bool:
         """Retry post-processing for a failed recording"""
         try:
             recording_id = recording_info["recording_id"]
@@ -505,7 +606,9 @@ class UnifiedRecoveryService:
 
             # If we need concatenation first
             if recording_info["type"] == "needs_concatenation":
-                segments_dir = recording_info["segments_dir"]
+                segments_dir = recording_info.get("segments_dir")
+                if segments_dir is None:
+                    return False
                 result = await self._process_orphaned_recording(
                     {
                         "recording_id": recording_id,
@@ -532,6 +635,54 @@ class UnifiedRecoveryService:
             logger.error(f"❌ Error retrying post-processing: {e}")
             return False
 
+    def _prepare_post_processing(
+        self, recording_id: int, ts_file_path: str
+    ) -> RecoveryProcessingInput | None:
+        path = Path(ts_file_path)
+        if not path.exists():
+            logger.warning(
+                "SKIP_POST_PROCESSING: recording_id=%s, TS file does not exist: %s",
+                recording_id,
+                path,
+            )
+            return None
+        size = path.stat().st_size
+        if size < MIN_TS_FILE_SIZE_BYTES:
+            logger.warning(
+                "SKIP_POST_PROCESSING: recording_id=%s, TS file too small (%s bytes): %s",
+                recording_id,
+                size,
+                path,
+            )
+            return None
+        with self._sessions() as db:
+            recording = db.get(Recording, recording_id)
+            if recording is None:
+                logger.error("Recording %s not found in database", recording_id)
+                return None
+            if recording.start_time is None:
+                logger.warning(
+                    "Recording %s has no start_time; cannot trigger post-processing accurately",
+                    recording_id,
+                )
+                return None
+            value = RecoveryProcessingInput(
+                recording.stream_id,
+                recording.start_time.isoformat(),
+                str(path.parent),
+                size,
+            )
+        if not path.parent.exists():
+            logger.error("Output directory does not exist: %s", path.parent)
+            return None
+        try:
+            with tempfile.TemporaryFile(dir=path.parent):
+                pass
+        except Exception as error:
+            logger.error("Cannot write to output directory %s: %s", path.parent, error)
+            return None
+        return value
+
     async def _trigger_post_processing(
         self, recording_id: Optional[int], ts_file_path: str, streamer_name: str
     ) -> bool:
@@ -547,79 +698,37 @@ class UnifiedRecoveryService:
                 )
                 return False
 
-            # CRITICAL: Check if TS file exists before proceeding
-            ts_path = Path(ts_file_path)
-            if not ts_path.exists():
-                logger.warning(
-                    f"⚠️ SKIP_POST_PROCESSING: recording_id={recording_id}, TS file does not exist: {ts_file_path}"
-                )
+            value = await run_in_thread_pool(
+                self._prepare_post_processing, recording_id, ts_file_path
+            )
+            if value is None:
                 return False
-
-            # Check file size to ensure it's not empty/corrupted
-            file_size = ts_path.stat().st_size
-            if file_size < MIN_TS_FILE_SIZE_BYTES:  # Less than 1KB
-                logger.warning(
-                    f"⚠️ SKIP_POST_PROCESSING: recording_id={recording_id}, TS file too small ({file_size} bytes): {ts_file_path}"
-                )
-                return False
-
-            # Get recording data from database to get stream_id and other info
-            with SessionLocal() as db:
-                recording = (
-                    db.query(Recording).filter(Recording.id == recording_id).first()
-                )
-                if not recording:
-                    logger.error(f"❌ Recording {recording_id} not found in database")
-                    return False
-
-                # Get required parameters
-                stream_id = recording.stream_id
-                output_dir = Path(ts_file_path).parent
-
-                # Validate that we have the required start_time
-                if recording.start_time:
-                    started_at = recording.start_time.isoformat()
-                else:
-                    logger.warning(
-                        f"⚠️ Recording {recording_id} has no start_time; cannot trigger post-processing accurately."
-                    )
-                    return False
 
             logger.info(
-                f"🔄 TRIGGERING_POST_PROCESSING: recording_id={recording_id}, file_size={file_size / 1024 / 1024:.1f}MB"
+                "TRIGGERING_POST_PROCESSING: recording_id=%s, file_size=%.1fMB",
+                recording_id,
+                value.file_size / 1024 / 1024,
             )
-
-            # Additional validation: ensure output directory exists and is writable
-            output_dir = Path(ts_file_path).parent
-            if not output_dir.exists():
-                logger.error(f"❌ Output directory does not exist: {output_dir}")
-                return False
-
-            # Test if we can write to the output directory
-            try:
-                test_file = output_dir / f"test_write_{recording_id}.tmp"
-                test_file.touch()
-                test_file.unlink()
-            except Exception as e:
-                logger.error(f"❌ Cannot write to output directory {output_dir}: {e}")
-                return False
-
             # Use the background queue system directly
             success = await enqueue_recording_post_processing(
-                stream_id=stream_id,
+                stream_id=value.stream_id,
                 recording_id=recording_id,
                 ts_file_path=ts_file_path,
-                output_dir=str(output_dir),
+                output_dir=value.output_dir,
                 streamer_name=streamer_name,
-                started_at=started_at,
+                started_at=value.started_at,
                 cleanup_ts_file=True,
+                settings=self.settings,
+                session_factory=self._session_factory,
+                queue_service=self.queue_service,
             )
 
             if success:
                 logger.info(
                     f"✅ POST_PROCESSING_TRIGGERED: recording_id={recording_id}"
                 )
-                logging_service.log_post_processing_activity(
+                await run_in_thread_pool(
+                    logging_service.log_post_processing_activity,
                     "POST_PROCESSING_START",
                     streamer_name,
                     f"Successfully triggered post-processing for recording {recording_id}",
@@ -629,7 +738,7 @@ class UnifiedRecoveryService:
                     f"❌ POST_PROCESSING_TRIGGER_FAILED: recording_id={recording_id}"
                 )
 
-            return success
+            return bool(success)
 
         except Exception as e:
             logger.error(f"❌ Error triggering post-processing: {e}", exc_info=True)
@@ -638,7 +747,7 @@ class UnifiedRecoveryService:
     async def _find_recording_by_path(self, file_path: str) -> Optional[int]:
         """Find recording ID by file path"""
         try:
-            with SessionLocal() as db:
+            with self._sessions() as db:
                 recording = (
                     db.query(Recording).filter(Recording.path == file_path).first()
                 )
@@ -649,6 +758,13 @@ class UnifiedRecoveryService:
     async def _batch_find_recordings_by_paths(
         self, file_paths: List[str]
     ) -> Dict[str, Optional[int]]:
+        return await run_in_thread_pool(
+            self._batch_find_recordings_by_paths_sync, file_paths
+        )
+
+    def _batch_find_recordings_by_paths_sync(
+        self, file_paths: list[str]
+    ) -> dict[str, int | None]:
         """Batch find recording IDs by file paths for improved performance
 
         Enhanced lookup strategy:
@@ -658,7 +774,7 @@ class UnifiedRecoveryService:
         """
         result = {}
         try:
-            with SessionLocal() as db:
+            with self._sessions() as db:
                 # Query all recordings with matching paths in one go (exact match)
                 recordings = (
                     db.query(Recording).filter(Recording.path.in_(file_paths)).all()
@@ -957,7 +1073,7 @@ class UnifiedRecoveryService:
     ):
         """Update recording in database after successful concatenation"""
         try:
-            with SessionLocal() as db:
+            with self._sessions() as db:
                 recording = (
                     db.query(Recording).filter(Recording.id == recording_id).first()
                 )
@@ -979,7 +1095,7 @@ class UnifiedRecoveryService:
             return
         from app.services.recording.media_ownership import CaptureState, capture_state
 
-        manager = get_recording_manager().process_manager
+        manager = self._recording_owner().process_manager
         snapshots = await manager.capture_process_snapshot()
 
         def repair(db: Session) -> int:
@@ -1013,7 +1129,7 @@ class UnifiedRecoveryService:
     async def _final_database_cleanup(self, stats: RecoveryStats):
         """Final database cleanup after recovery"""
         try:
-            with SessionLocal() as db:
+            with self._sessions() as db:
                 # Remove any recordings that have no associated files and are very old
                 cutoff = datetime.now() - timedelta(days=self.DATABASE_CLEANUP_DAYS)
 
@@ -1113,7 +1229,7 @@ class UnifiedRecoveryService:
     async def _check_if_streamer_still_live(self, recording_id: int) -> bool:
         """Check if the streamer for this recording is still live on Twitch"""
         try:
-            with SessionLocal() as db:
+            with self._sessions() as db:
                 recording = (
                     db.query(Recording)
                     .options(joinedload(Recording.stream).joinedload(Stream.streamer))
@@ -1171,7 +1287,7 @@ class UnifiedRecoveryService:
         segments immediately.
         """
         try:
-            with SessionLocal() as db:
+            with self._sessions() as db:
                 # Get the stream_id for the orphaned recording
                 orphaned_recording = (
                     db.query(Recording)
@@ -1206,7 +1322,7 @@ class UnifiedRecoveryService:
                 # Query the process-scoped manager's local cache. The durable
                 # lease remains the cross-instance ownership authority.
                 try:
-                    recording_manager = get_recording_manager()
+                    recording_manager = self._recording_owner()
                     active_recordings = recording_manager.get_active_recordings()
 
                     for rec_id, rec_data in active_recordings.items():
@@ -1233,7 +1349,7 @@ class UnifiedRecoveryService:
     ) -> bool:
         """Resume a live recording that was interrupted"""
         try:
-            recording_manager = get_recording_manager()
+            recording_manager = self._recording_owner()
 
             # Resume the recording (this will create a new segment in the same directory)
             logger.info(
@@ -1241,7 +1357,7 @@ class UnifiedRecoveryService:
             )
 
             # Get stream_id and streamer_id from recording
-            with SessionLocal() as db:
+            with self._sessions() as db:
                 recording = (
                     db.query(Recording).filter(Recording.id == recording_id).first()
                 )
@@ -1288,7 +1404,7 @@ class UnifiedRecoveryService:
 
             if resumed_recording_id:
                 try:
-                    with SessionLocal() as db:
+                    with self._sessions() as db:
                         recording = db.get(Recording, recording_id)
                         if recording and recording.status == "recording":
                             now_utc = datetime.now(timezone.utc)
@@ -1327,7 +1443,7 @@ class UnifiedRecoveryService:
         from app.services.recording.media_ownership import CaptureState, capture_state
 
         try:
-            manager = get_recording_manager()
+            manager = self._recording_owner()
             cached_paths = {
                 str(data["file_path"])
                 for data in manager.get_active_recordings().values()
@@ -1337,7 +1453,7 @@ class UnifiedRecoveryService:
 
             def protected_paths() -> set[str]:
                 paths = set(cached_paths)
-                with SessionLocal() as db:
+                with self._sessions() as db:
                     for recording in (
                         db.query(Recording).filter(Recording.path.isnot(None)).all()
                     ):
@@ -1355,7 +1471,7 @@ class UnifiedRecoveryService:
                             paths.add(recording.path)
                 return paths
 
-            return await asyncio.to_thread(protected_paths)
+            return await run_in_thread_pool(protected_paths)
         except Exception as error:
             raise RuntimeError(
                 "Cannot safely inspect capture ownership for recovery"
