@@ -145,7 +145,8 @@ async def test_lifespan_fails_startup_when_database_migrations_fail(monkeypatch)
 @pytest.mark.asyncio
 @pytest.mark.parametrize("owned_images", [False, True])
 async def test_lifespan_uses_factory_service_overrides_for_startup_and_shutdown(
-    monkeypatch, owned_images,
+    monkeypatch,
+    owned_images,
 ):
     from app import dependencies
     from app import lifespan as lifespan_module
