@@ -270,6 +270,15 @@ async def test_lifespan_uses_factory_service_overrides_for_startup_and_shutdown(
 
         app.state.image_sync_service = ImageSyncService()
         app.state.image_sync_service_lock = Lock()
+        app.state.image_service_lock = Lock()
+        monkeypatch.setattr(
+            lifespan_module,
+            "_get_application_image_refresh_service",
+            lambda _: SimpleNamespace(
+                check_and_refresh_missing_images=lambda: record("owned-image-refresh")
+            ),
+            raising=False,
+        )
         native_stop = app.state.image_sync_service.stop_sync_worker
 
         async def owned_stop():
@@ -282,6 +291,8 @@ async def test_lifespan_uses_factory_service_overrides_for_startup_and_shutdown(
         if owned_images:
             assert app.state.image_sync_service.is_running()
             assert "image-sync-start" not in calls
+            assert "owned-image-refresh" in calls
+            assert "image-refresh" not in calls
         assert app.state.recording_manager.__class__ is RecordingManager
         assert app.state.startup_phases == [
             "migrations",

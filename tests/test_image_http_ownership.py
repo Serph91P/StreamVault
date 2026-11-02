@@ -152,6 +152,9 @@ async def test_image_sync_http_status_uses_its_own_queue(image_applications):
         ("/data/images/sync/profiles", "profiles"),
         ("/data/images/sync/categories", "categories"),
         ("/api/images/sync", "profiles"),
+        ("/api/migration/images/refresh/streamer/1", "profiles"),
+        ("/api/migration/images/refresh/category/downloaded", "categories"),
+        ("/api/migration/images/refresh", "profiles"),
     ],
 )
 async def test_image_http_background_action_publishes_only_owned_files(
@@ -173,6 +176,8 @@ async def test_image_http_background_action_publishes_only_owned_files(
     for index, client in enumerate(clients):
         response = await client.post(path)
         assert response.status_code == 200, response.text
+        if "/migration/" in path:
+            assert response.json()["success"] is True
         root = applications[index].state.image_service.images_base_dir / kind
         published = [file for file in root.glob("*.jpg") if file.name != "probe.jpg"]
 
@@ -194,3 +199,28 @@ async def test_image_http_missing_catalogue_row_is_404(image_applications, path)
     _, _, clients, _ = image_applications
     for client in clients:
         assert (await client.get(path)).status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_refresh_http_exposes_failed_downloads_without_success(
+    image_applications, image_origin
+):
+    _, databases, clients, _ = image_applications
+    base, _ = image_origin
+    with databases[0].sync_session_factory() as session:
+        session.get(Streamer, 1).profile_image_url = base + "/denied"
+        session.add(
+            Category(
+                name="downloaded", twitch_id="downloaded", box_art_url=base + "/denied"
+            )
+        )
+        session.commit()
+    response = await clients[0].post("/api/migration/images/refresh")
+    assert response.status_code == 200
+    assert response.json()["success"] is False
+    assert response.json()["stats"] == {
+        "profile_images_refreshed": 0,
+        "category_images_refreshed": 0,
+        "stream_artwork_refreshed": 0,
+        "errors": 2,
+    }

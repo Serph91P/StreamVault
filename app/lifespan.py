@@ -17,6 +17,7 @@ from app.dependencies import (
     get_recording_manager,
     _get_application_twitch_api,
     _get_application_image_sync_service,
+    _get_application_image_refresh_service,
 )
 
 from app.services.core.session_maintenance import cleanup_expired_sessions
@@ -199,8 +200,13 @@ async def lifespan(app: FastAPI):
 
         from app.services.images.image_refresh_service import image_refresh_service
 
+        refresh_service = image_refresh_service
+        if hasattr(app.state, "image_service_lock"):
+            refresh_service = await run_in_thread_pool(
+                _get_application_image_refresh_service, app
+            )
         supervisor.create_task(
-            "image-refresh", image_refresh_service.check_and_refresh_missing_images()
+            "image-refresh", refresh_service.check_and_refresh_missing_images()
         )
         phase("optional-preparation")
 

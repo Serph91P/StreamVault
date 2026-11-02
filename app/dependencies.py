@@ -364,6 +364,19 @@ def get_image_sync_service(connection: HTTPConnection):
     return _get_application_image_sync_service(connection.app)
 
 
+def _get_application_image_refresh_service(app: FastAPI):
+    from app.services.images.image_refresh_service import ImageRefreshService
+
+    return ImageRefreshService(
+        image_service=_get_application_image_service(app),
+        session_factory=app.state.database_lifecycle.sync_session_factory,
+    )
+
+
+def get_image_refresh_service(connection: HTTPConnection):
+    return _get_application_image_refresh_service(connection.app)
+
+
 def get_background_queue_service(connection: HTTPConnection) -> BackgroundQueueService:
     queue: BackgroundQueueService = getattr(
         connection.app.state, "background_queue_service", background_queue_service

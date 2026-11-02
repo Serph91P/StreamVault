@@ -4,13 +4,13 @@ Migration API Routes
 Provides endpoints for data migration tasks and image refresh.
 """
 
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
 from pydantic import BaseModel
 from typing import Dict
 import logging
 
 from app.services.migration.image_migration_service import image_migration_service
-from app.services.images.image_refresh_service import image_refresh_service
+from app.dependencies import get_image_refresh_service
 
 logger = logging.getLogger(__name__)
 
@@ -70,7 +70,10 @@ async def get_migration_status():
 
 
 @router.post("/images/refresh", response_model=MigrationResponse)
-async def refresh_missing_images(background_tasks: BackgroundTasks):
+async def refresh_missing_images(
+    background_tasks: BackgroundTasks,
+    refresh_service=Depends(get_image_refresh_service),
+):
     """
     Check for missing images and re-download them.
 
@@ -82,10 +85,15 @@ async def refresh_missing_images(background_tasks: BackgroundTasks):
     """
     try:
         # Run refresh in background
-        stats = await image_refresh_service.check_and_refresh_missing_images()
+        stats = await refresh_service.check_and_refresh_missing_images()
 
+        success = stats.get("errors", 0) == 0
         return MigrationResponse(
-            success=True, message="Image refresh completed successfully", stats=stats
+            success=success,
+            message="Image refresh completed successfully"
+            if success
+            else "Image refresh completed with errors",
+            stats=stats,
         )
     except Exception as e:
         logger.error(f"Error during image refresh: {e}")
@@ -93,12 +101,14 @@ async def refresh_missing_images(background_tasks: BackgroundTasks):
 
 
 @router.post("/images/refresh/streamer/{streamer_id}")
-async def refresh_streamer_images(streamer_id: int):
+async def refresh_streamer_images(
+    streamer_id: int, refresh_service=Depends(get_image_refresh_service)
+):
     """
     Refresh images for a specific streamer
     """
     try:
-        success = await image_refresh_service.refresh_specific_streamer(streamer_id)
+        success = await refresh_service.refresh_specific_streamer(streamer_id)
 
         if success:
             return {
@@ -117,12 +127,14 @@ async def refresh_streamer_images(streamer_id: int):
 
 
 @router.post("/images/refresh/category/{category_name}")
-async def refresh_category_image(category_name: str):
+async def refresh_category_image(
+    category_name: str, refresh_service=Depends(get_image_refresh_service)
+):
     """
     Refresh image for a specific category
     """
     try:
-        success = await image_refresh_service.refresh_specific_category(category_name)
+        success = await refresh_service.refresh_specific_category(category_name)
 
         if success:
             return {
