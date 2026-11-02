@@ -18,6 +18,7 @@ from app.dependencies import (
     _get_application_twitch_api,
     _get_application_image_sync_service,
     _get_application_image_refresh_service,
+    _get_application_auto_image_sync_service,
 )
 
 from app.services.core.session_maintenance import cleanup_expired_sessions
@@ -86,6 +87,10 @@ async def _shutdown_step(name: str, operation) -> None:
 
 
 async def _close_application_images(app: FastAPI) -> None:
+    auto_worker = getattr(app.state, "auto_image_sync_service", None)
+    if auto_worker is not None:
+        await auto_worker.stop_sync_worker()
+        app.state.auto_image_sync_service = None
     worker = getattr(app.state, "image_sync_service", None)
     if worker is not None:
         await worker.stop_sync_worker()
@@ -124,6 +129,7 @@ async def lifespan(app: FastAPI):
     background_services_started = False
     image_sync_started = False
     image_sync_actor = image_sync_service
+    auto_image_sync_actor = None
     websocket_started = False
     broadcast_task = getattr(
         app.state, "websocket_broadcast_task", websocket_broadcast_task
@@ -249,6 +255,13 @@ async def lifespan(app: FastAPI):
             recording_manager=recording_manager,
             twitch_api=runtime_twitch,
         )
+        if hasattr(app.state, "auto_image_sync_service_lock"):
+            auto_image_sync_actor = await run_in_thread_pool(
+                _get_application_auto_image_sync_service, app
+            )
+            background_initializer = partial(
+                background_initializer, image_sync_service=auto_image_sync_actor
+            )
         if queue_manager is not None:
             background_initializer = partial(
                 background_initializer,
@@ -301,6 +314,10 @@ async def lifespan(app: FastAPI):
             background_shutdown = partial(
                 shutdown_background_services, supervisor=supervisor
             )
+            if auto_image_sync_actor is not None:
+                background_shutdown = partial(
+                    background_shutdown, image_sync_service=auto_image_sync_actor
+                )
             if queue_manager is not None:
                 background_shutdown = partial(
                     background_shutdown, queue_manager=queue_manager

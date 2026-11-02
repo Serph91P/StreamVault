@@ -25,6 +25,7 @@ _background_supervisor: TaskSupervisor | None = None
 if TYPE_CHECKING:
     from app.services.recording.recording_manager import RecordingManager
     from app.services.api.twitch_api import TwitchAPIService
+    from app.services.images.auto_image_sync_service import AutoImageSyncService
 
 
 def get_recording_manager():
@@ -264,6 +265,7 @@ async def initialize_background_services(
     capture_checker: Callable[[int], Awaitable[bool | None]] | None = None,
     recording_manager: "RecordingManager | None" = None,
     twitch_api: "TwitchAPIService | None" = None,
+    image_sync_service: "AutoImageSyncService | None" = None,
 ):
     """Initialize all background services at startup with production fixes"""
     global _background_supervisor
@@ -312,7 +314,10 @@ async def initialize_background_services(
                 await unified_recovery_scan(queue_service=queue_manager.queue_service)
 
         # Initialize image sync service for automatic image downloads
-        await initialize_image_sync_service()
+        if image_sync_service is None:
+            await initialize_image_sync_service()
+        else:
+            await initialize_image_sync_service(sync_service=image_sync_service)
 
         # Start session cleanup service for production auth reliability
         await start_session_cleanup_service(supervisor, session_factory, settings)
@@ -512,13 +517,19 @@ async def recover_active_recordings(
         # Don't raise - this is not critical for startup
 
 
-async def initialize_image_sync_service():
+async def initialize_image_sync_service(
+    *, sync_service: "AutoImageSyncService | None" = None
+):
     """Initialize automatic image sync service"""
     try:
         logger.info("Initializing automatic image sync service...")
 
         from app.services.images.auto_image_sync_service import auto_image_sync_service
         from app.services.unified_image_service import unified_image_service
+
+        if sync_service is not None:
+            auto_image_sync_service = sync_service
+            unified_image_service = sync_service._images
 
         # Start the background sync worker
         await auto_image_sync_service.start_sync_worker()
@@ -545,6 +556,7 @@ async def shutdown_background_services(
     supervisor: TaskSupervisor | None = None,
     *,
     queue_manager: BackgroundQueueManager | None = None,
+    image_sync_service: "AutoImageSyncService | None" = None,
 ):
     """Shutdown all background services"""
     try:
@@ -560,7 +572,7 @@ async def shutdown_background_services(
         # Shutdown image sync service
         from app.services.images.auto_image_sync_service import auto_image_sync_service
 
-        await auto_image_sync_service.stop_sync_worker()
+        await (image_sync_service or auto_image_sync_service).stop_sync_worker()
 
         # Shutdown background queue
         if queue_manager is None:

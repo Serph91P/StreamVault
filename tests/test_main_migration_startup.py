@@ -206,11 +206,29 @@ async def test_lifespan_uses_factory_service_overrides_for_startup_and_shutdown(
         return True
 
     async def background_init(
-        supervisor, session_factory, settings, recording_manager, twitch_api
+        supervisor,
+        session_factory,
+        settings,
+        recording_manager,
+        twitch_api,
+        image_sync_service=None,
     ):
         assert isinstance(recording_manager, RecordingManager)
         assert twitch_api is None  # This wiring fixture has no factory HTTP slot.
+        if owned_images:
+            assert image_sync_service is app.state.auto_image_sync_service
+            await image_sync_service.start_sync_worker()
+        else:
+            assert image_sync_service is None
         await record("background-init")
+
+    async def background_stop(supervisor, image_sync_service=None):
+        if owned_images:
+            assert image_sync_service is app.state.auto_image_sync_service
+            await image_sync_service.stop_sync_worker()
+        else:
+            assert image_sync_service is None
+        await record("background-stop")
 
     module_overrides = {
         "app.services.system.persistent_key_service": SimpleNamespace(
@@ -239,7 +257,7 @@ async def test_lifespan_uses_factory_service_overrides_for_startup_and_shutdown(
         ),
         "app.services.init.startup_init": SimpleNamespace(
             initialize_background_services=background_init,
-            shutdown_background_services=lambda supervisor: record("background-stop"),
+            shutdown_background_services=background_stop,
         ),
         "app.services.proxy.proxy_health_service": SimpleNamespace(
             proxy_health_service=SimpleNamespace(
@@ -267,8 +285,16 @@ async def test_lifespan_uses_factory_service_overrides_for_startup_and_shutdown(
     if owned_images:
         from threading import Lock
         from app.services.images.image_sync_service import ImageSyncService
+        from app.services.images.auto_image_sync_service import AutoImageSyncService
 
         app.state.image_sync_service = ImageSyncService()
+        app.state.auto_image_sync_service = AutoImageSyncService()
+        app.state.auto_image_sync_service_lock = Lock()
+        monkeypatch.setattr(
+            lifespan_module,
+            "_get_application_auto_image_sync_service",
+            lambda _: app.state.auto_image_sync_service,
+        )
         app.state.image_sync_service_lock = Lock()
         app.state.image_service_lock = Lock()
         monkeypatch.setattr(
@@ -290,6 +316,7 @@ async def test_lifespan_uses_factory_service_overrides_for_startup_and_shutdown(
     async with lifespan_module.lifespan(app):
         if owned_images:
             assert app.state.image_sync_service.is_running()
+            assert app.state.auto_image_sync_service.is_running()
             assert "image-sync-start" not in calls
             assert "owned-image-refresh" in calls
             assert "image-refresh" not in calls

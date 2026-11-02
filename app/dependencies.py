@@ -364,6 +364,18 @@ def get_image_sync_service(connection: HTTPConnection):
     return _get_application_image_sync_service(connection.app)
 
 
+def _get_application_auto_image_sync_service(app: FastAPI):
+    with app.state.auto_image_sync_service_lock:
+        if app.state.auto_image_sync_service is None:
+            from app.services.images.auto_image_sync_service import AutoImageSyncService
+
+            app.state.auto_image_sync_service = AutoImageSyncService(
+                image_service=_get_application_image_service(app),
+                session_factory=app.state.database_lifecycle.sync_session_factory,
+            )
+        return app.state.auto_image_sync_service
+
+
 def _get_application_image_refresh_service(app: FastAPI):
     from app.services.images.image_refresh_service import ImageRefreshService
 
