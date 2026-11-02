@@ -1,6 +1,7 @@
 import logging
 from dataclasses import dataclass
 from functools import partial
+from inspect import isawaitable
 from collections.abc import AsyncIterator, Callable
 from typing import Generator
 
@@ -36,6 +37,8 @@ def get_lifespan_service(app: FastAPI, provider: Callable):
         app.state, "legacy_default", True
     ):
         return partial(_get_application_recording_manager, app)
+    if provider is get_event_registry and hasattr(app.state, "event_registry_lock"):
+        return partial(_initialize_application_event_registry, app)
     return provider
 
 
@@ -242,8 +245,39 @@ def get_application_recovery_service(connection: HTTPConnection):
     return _get_application_recovery_service(connection.app)
 
 
+def _get_application_event_registry(app: FastAPI):
+    with app.state.event_registry_lock:
+        if app.state.event_registry is None:
+            from app.events.handler_registry import EventHandlerRegistry
+
+            app.state.event_registry = EventHandlerRegistry(
+                connection_manager=app.state.websocket_manager,
+                settings=resolve_app_settings(app),
+                session_factory=app.state.database_lifecycle.sync_session_factory,
+                recording_manager=get_lifespan_service(app, get_recording_manager)(),
+                notification_service=_get_application_notification_service(app),
+                twitch_api=_get_application_twitch_api(app),
+                image_service=_get_application_image_service(app),
+            )
+        return app.state.event_registry
+
+
+async def _initialize_application_event_registry(app: FastAPI):
+    from app.utils.async_db_utils import run_in_thread_pool
+
+    registry = await run_in_thread_pool(_get_application_event_registry, app)
+    await registry.initialize_eventsub()
+    return registry
+
+
+async def get_application_event_registry(connection: HTTPConnection):
+    result = get_lifespan_service(connection.app, get_event_registry)()
+    return await result if isawaitable(result) else result
+
+
 def get_streamer_service(
-    db: Session = Depends(get_db), event_registry=Depends(get_event_registry)
+    db: Session = Depends(get_db),
+    event_registry=Depends(get_application_event_registry),
 ):
     from app.services.streamer_service import StreamerService
 

@@ -10,7 +10,11 @@ from app.services.communication.websocket_manager import (
     emit_event,
 )
 from app.events.handler_registry import EventHandlerRegistry
-from app.dependencies import get_streamer_service, get_event_registry, get_image_service
+from app.dependencies import (
+    get_streamer_service,
+    get_application_event_registry as get_event_registry,
+    get_image_service,
+)
 from app.database import get_db
 from app.models import (
     Stream,

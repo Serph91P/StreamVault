@@ -108,6 +108,8 @@ def _configure_app(
     application.state.unified_recovery_lock = Lock()
     application.state.notification_service = None
     application.state.notification_service_lock = Lock()
+    application.state.event_registry = None
+    application.state.event_registry_lock = Lock()
     application.state.image_service = None
     application.state.image_service_lock = Lock()
     application.state.image_sync_service = None

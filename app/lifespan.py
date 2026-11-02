@@ -101,6 +101,7 @@ async def _close_application_twitch(app: FastAPI) -> None:
         await client.close()
         app.state.twitch_api = None
         app.state.unified_recovery_service = None
+    app.state.event_registry = None
 
 
 @asynccontextmanager
