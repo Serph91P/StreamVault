@@ -334,6 +334,19 @@ async def test_lifespan_uses_factory_service_overrides_for_startup_and_shutdown(
         )
         app.state.image_sync_service_lock = Lock()
         app.state.image_service_lock = Lock()
+
+        def migration_owner(_):
+            calls.append("owned-image-migration")
+            return module_overrides[
+                "app.services.migration.image_migration_service"
+            ].image_migration_service
+
+        monkeypatch.setattr(
+            lifespan_module,
+            "_get_application_image_migration_service",
+            migration_owner,
+            raising=False,
+        )
         monkeypatch.setattr(
             lifespan_module,
             "_get_application_image_refresh_service",
@@ -356,6 +369,7 @@ async def test_lifespan_uses_factory_service_overrides_for_startup_and_shutdown(
             assert app.state.auto_image_sync_service.is_running()
             assert "image-sync-start" not in calls
             assert "owned-image-refresh" in calls
+            assert "owned-image-migration" in calls
             assert "image-refresh" not in calls
         assert app.state.recording_manager.__class__ is RecordingManager
         if legacy_image_failure:

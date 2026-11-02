@@ -9,8 +9,7 @@ from pydantic import BaseModel
 from typing import Dict
 import logging
 
-from app.services.migration.image_migration_service import image_migration_service
-from app.dependencies import get_image_refresh_service
+from app.dependencies import get_image_refresh_service, get_image_migration_service
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +25,10 @@ class MigrationResponse(BaseModel):
 
 
 @router.post("/images", response_model=MigrationResponse)
-async def migrate_images(background_tasks: BackgroundTasks):
+async def migrate_images(
+    background_tasks: BackgroundTasks,
+    migration_service=Depends(get_image_migration_service),
+):
     """
     Migrate images from old directory structure to new simplified structure.
 
@@ -36,8 +38,7 @@ async def migrate_images(background_tasks: BackgroundTasks):
     - Clean up empty old directories
     """
     try:
-        # Run migration in background
-        stats = await image_migration_service.migrate_all_images()
+        stats = await migration_service.migrate_all_images()
 
         return MigrationResponse(
             success=stats["errors"] == 0,
@@ -54,21 +55,21 @@ async def migrate_images(background_tasks: BackgroundTasks):
 
 
 @router.get("/images/status")
-async def get_migration_status():
+def get_migration_status(migration_service=Depends(get_image_migration_service)):
     """
     Check if migration is needed by looking for old directory structures
     """
     try:
         old_dirs_exist = (
-            image_migration_service.old_images_dir.exists()
-            or image_migration_service.old_artwork_dir.exists()
+            migration_service.old_images_dir.exists()
+            or migration_service.old_artwork_dir.exists()
         )
 
         return {
             "migration_needed": old_dirs_exist,
-            "old_images_dir_exists": image_migration_service.old_images_dir.exists(),
-            "old_artwork_dir_exists": image_migration_service.old_artwork_dir.exists(),
-            "recordings_dir": str(image_migration_service.recordings_dir),
+            "old_images_dir_exists": migration_service.old_images_dir.exists(),
+            "old_artwork_dir_exists": migration_service.old_artwork_dir.exists(),
+            "recordings_dir": str(migration_service.recordings_dir),
         }
     except Exception as e:
         logger.error(f"Error checking migration status: {e}")

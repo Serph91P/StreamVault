@@ -201,9 +201,11 @@ def test_http_migration_reports_failure_and_successful_retry(legacy_tree, monkey
         raise PermissionError("synthetic copy denied")
 
     monkeypatch.setattr(service, "_streamers", streamers)
-    monkeypatch.setattr(routes, "image_migration_service", service)
     application = FastAPI()
     application.include_router(routes.router)
+    application.dependency_overrides[routes.get_image_migration_service] = lambda: (
+        service
+    )
     with TestClient(application) as client:
         with monkeypatch.context() as faults:
             faults.setattr(migration.shutil, "copyfile", denied)

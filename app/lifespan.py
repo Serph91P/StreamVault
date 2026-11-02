@@ -18,6 +18,7 @@ from app.dependencies import (
     _get_application_twitch_api,
     _get_application_image_sync_service,
     _get_application_image_refresh_service,
+    _get_application_image_migration_service,
     _get_application_auto_image_sync_service,
 )
 
@@ -185,11 +186,18 @@ async def lifespan(app: FastAPI):
         )
 
         try:
-            if (
-                image_migration_service.old_images_dir.exists()
-                or image_migration_service.old_artwork_dir.exists()
+            migration_service = image_migration_service
+            if hasattr(app.state, "image_service_lock"):
+                migration_service = await run_in_thread_pool(
+                    _get_application_image_migration_service, app
+                )
+            if await run_in_thread_pool(
+                lambda: (
+                    migration_service.old_images_dir.exists()
+                    or migration_service.old_artwork_dir.exists()
+                )
             ):
-                await image_migration_service.migrate_all_images()
+                await migration_service.migrate_all_images()
         except Exception as error:
             logger.warning("Image migration skipped (%s)", type(error).__name__)
 
