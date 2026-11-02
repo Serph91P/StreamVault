@@ -15,6 +15,7 @@ import type {
   ProxyToggleResponse
 } from '@/types/proxy'
 import type { ApiKey, ApiKeyCreated } from '@/types/api-keys'
+import type { VideoDeleteOutcome } from '@/types/video'
 
 // Shared boundaries prevent concurrent safe requests from refreshing or logging out twice.
 let refreshPromise: Promise<boolean> | null = null
@@ -484,8 +485,12 @@ export const videoApi = {
   delete: (streamId: number) =>
     apiClient.delete(`/api/streams/${streamId}`),
 
-  deleteMultiple: (streamIds: number[]) =>
-    Promise.all(streamIds.map(streamId => apiClient.delete(`/api/streams/${streamId}`))),
+  deleteMultiple: async (streamIds: number[]): Promise<VideoDeleteOutcome[]> => {
+    const outcomes = await Promise.allSettled(
+      streamIds.map(streamId => apiClient.delete(`/api/streams/${streamId}`))
+    )
+    return outcomes.map((outcome, index) => ({ id: streamIds[index], ...outcome }))
+  },
 
 
   // Create share token for video

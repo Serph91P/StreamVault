@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { videoApi } from '@/services/api'
+import { mockVideos } from '@/mocks/mockData'
 
 describe('mock video API facade', () => {
   afterEach(() => vi.unstubAllGlobals())
@@ -22,6 +23,23 @@ describe('mock video API facade', () => {
       expires_in: '24 hours'
     })
     await expect(videoApi.delete(42)).resolves.toEqual({ success: true })
+    const fixture = structuredClone(mockVideos)
+    const catalog: typeof mockVideos = await videoApi.getAll()
+    catalog.pop()
+    expect(await videoApi.getAll()).toEqual(fixture)
+    expect(mockVideos).toEqual(fixture)
+
+    const ids = [catalog[0].id, catalog[1].id]
+    await expect(videoApi.deleteMultiple(ids)).resolves.toEqual(ids.map(id => ({
+      id, status: 'fulfilled', value: { success: true }
+    })))
+    const remaining = fixture.filter(video => !ids.includes(video.id))
+    expect(await videoApi.getAll()).toEqual(remaining)
+    expect(mockVideos).toEqual(fixture)
+    expect(catalog.map(video => video.id)).toEqual(fixture.slice(0, -1).map(video => video.id))
+    await expect(videoApi.deleteMultiple([])).resolves.toEqual([])
+    expect(await videoApi.getAll()).toEqual(remaining)
+    expect(mockVideos).toEqual(fixture)
 
     expect(fetchMock).not.toHaveBeenCalled()
   })

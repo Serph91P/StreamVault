@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs'
-import { mkdtemp, readFile, readdir } from 'node:fs/promises'
+import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises'
 import { spawnSync } from 'node:child_process'
 import { tmpdir } from 'node:os'
 import { extname, join, resolve } from 'node:path'
@@ -162,6 +162,29 @@ describe('public API surface cleanup', () => {
     const output = (await Promise.all(outputFiles.map(path => readFile(path, 'utf8')))).join('\n')
     for (const diagnostic of forceRecordingDiagnostics) {
       expect(output).not.toContain(diagnostic.message)
+    }
+  }, 15_000)
+
+  it('does not ship mock video fixtures in the real production bundle', async () => {
+    const outDir = await mkdtemp(join(tmpdir(), 'streamvault-real-video-production-'))
+    try {
+      const result = spawnSync('npm', ['run', 'build-only', '--', '--outDir', outDir], {
+        cwd: frontendRoot,
+        encoding: 'utf8',
+        env: { ...process.env, NODE_ENV: 'production', VITE_USE_MOCK_DATA: 'false' },
+      })
+      expect(result.status, result.stderr).toBe(0)
+
+      const outputFiles = (await collectFiles(outDir)).filter(path => extname(path) === '.js')
+      expect(outputFiles.length).toBeGreaterThan(0)
+      const output = (await Promise.all(outputFiles.map(path => readFile(path, 'utf8')))).join('\n')
+      for (const title of [
+        'Morning Talk Show - Community Discussion',
+        'Ranked Climbing Session - Road to Masters',
+        'Retro RPG Marathon - Classic Gaming Session',
+      ]) expect(output).not.toContain(title)
+    } finally {
+      await rm(outDir, { recursive: true, force: true })
     }
   }, 15_000)
 
