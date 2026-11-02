@@ -87,8 +87,9 @@ class _NoCookies(CookieJar):
 
 
 class ManagedHTTPClient:
-    def __init__(self, policy: HTTPPolicy) -> None:
+    def __init__(self, policy: HTTPPolicy, *, proxy: str | None = None) -> None:
         self.policy = policy
+        self._proxy = proxy
         self._client: httpx.AsyncClient | None = None
         self._lock = asyncio.Lock()
         self._closed = False
@@ -98,13 +99,19 @@ class ManagedHTTPClient:
         async with self._lock:
             if self._closed:
                 raise HTTPClientError("closed")
-            for name in ("httpx", "httpcore.connection", "httpcore.http11"):
+            for name in (
+                "httpx",
+                "httpcore.connection",
+                "httpcore.http11",
+                "httpcore.proxy",
+            ):
                 logging.getLogger(name).addFilter(_transport_log_privacy)
             if self._client is None:
                 # Loading system CA files is blocking I/O, never factory/import work.
                 context = await run_in_thread_pool(ssl.create_default_context)
                 self._client = httpx.AsyncClient(
                     verify=context,
+                    proxy=self._proxy,
                     trust_env=False,
                     cookies=_NoCookies(),
                     headers={"User-Agent": "StreamVault"},
