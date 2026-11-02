@@ -54,7 +54,7 @@ StreamVault requires a Twitch application to access the Twitch API:
 2. Click "Create Application"
 3. Fill in the details:
    - **Name**: StreamVault (or your preferred name)
-   - **OAuth Redirect URLs**: `https://your-domain.com/auth/callback`
+   - **OAuth Redirect URLs**: `https://your-domain.com/api/twitch/callback`
    - **Category**: Application Integration
 4. Copy the **Client ID** and generate a **Client Secret**
 5. Add these to your `.env` file:

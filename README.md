@@ -117,7 +117,7 @@ Open your `BASE_URL` in the browser. The container exposes port `7000` internall
 
 Create an application in the [Twitch developer console](https://dev.twitch.tv/console/apps):
 
-- OAuth redirect URL: `https://your-domain.example/auth/callback`
+- OAuth redirect URL: `https://your-domain.example/api/twitch/callback`
 - Category: Application Integration
 
 ### Browser token for higher quality recordings
