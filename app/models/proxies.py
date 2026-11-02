@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Optional
 from sqlalchemy import Boolean, DateTime, Float, Index, Integer, String
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, object_session
 from sqlalchemy.sql import func
 from app.database import Base
 
@@ -55,7 +55,13 @@ class ProxySettings(Base):
         from app.utils.proxy_encryption import get_proxy_encryption
 
         try:
-            return get_proxy_encryption().decrypt(self._proxy_url_encrypted)
+            session = object_session(self)
+            encryption = (
+                get_proxy_encryption(session)
+                if session is not None
+                else get_proxy_encryption()
+            )
+            return encryption.decrypt(self._proxy_url_encrypted)
         except Exception as e:
             import logging
 
@@ -68,7 +74,13 @@ class ProxySettings(Base):
         from app.utils.proxy_encryption import get_proxy_encryption
 
         if plaintext_url:
-            self._proxy_url_encrypted = get_proxy_encryption().encrypt(plaintext_url)
+            session = object_session(self)
+            encryption = (
+                get_proxy_encryption(session)
+                if session is not None
+                else get_proxy_encryption()
+            )
+            self._proxy_url_encrypted = encryption.encrypt(plaintext_url)
         else:
             self._proxy_url_encrypted = ""
 

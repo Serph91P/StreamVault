@@ -17,6 +17,7 @@ Migration 032: Encryption key now stored in GlobalSettings.proxy_encryption_key
 import os
 import logging
 from cryptography.fernet import Fernet
+from sqlalchemy.orm import Session
 
 logger = logging.getLogger("streamvault")
 
@@ -30,9 +31,12 @@ class ProxyEncryption:
     Migration 032: Key management changed from environment variable to database.
     """
 
-    def __init__(self):
-        self._cipher = None
-        self._initialize_cipher()
+    def __init__(self, encryption_key: str | None = None):
+        self._cipher: Fernet
+        if encryption_key is None:
+            self._initialize_cipher()
+        else:
+            self._cipher = Fernet(encryption_key.encode())
 
     def _initialize_cipher(self):
         """
@@ -171,8 +175,22 @@ class ProxyEncryption:
 _proxy_encryption = None
 
 
-def get_proxy_encryption() -> ProxyEncryption:
-    """Get singleton instance of ProxyEncryption"""
+def get_proxy_encryption(session: Session | None = None) -> ProxyEncryption:
+    """Use the attached catalogue identity, retaining the standalone adapter."""
+    if session is not None:
+        cached = session.info.get("streamvault.proxy_encryption")
+        if isinstance(cached, ProxyEncryption):
+            return cached
+        from app.models import GlobalSettings
+
+        # New attached proxies do not have their non-null encrypted field yet.
+        with session.no_autoflush:
+            stored = session.query(GlobalSettings.proxy_encryption_key).first()
+        if stored is None or not stored.proxy_encryption_key:
+            raise RuntimeError("Persistent proxy identity has not been initialized")
+        encryption = ProxyEncryption(stored.proxy_encryption_key)
+        session.info["streamvault.proxy_encryption"] = encryption
+        return encryption
     global _proxy_encryption
     if _proxy_encryption is None:
         _proxy_encryption = ProxyEncryption()
