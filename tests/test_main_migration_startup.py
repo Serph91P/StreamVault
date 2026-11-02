@@ -1,3 +1,5 @@
+import os
+import shutil
 import sys
 import threading
 from types import SimpleNamespace
@@ -144,9 +146,13 @@ async def test_lifespan_fails_startup_when_database_migrations_fail(monkeypatch)
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("owned_images", [False, True])
+@pytest.mark.parametrize("legacy_image_failure", [False, True])
 async def test_lifespan_uses_factory_service_overrides_for_startup_and_shutdown(
     monkeypatch,
     owned_images,
+    tmp_path,
+    caplog,
+    legacy_image_failure,
 ):
     from app import dependencies
     from app import lifespan as lifespan_module
@@ -271,6 +277,36 @@ async def test_lifespan_uses_factory_service_overrides_for_startup_and_shutdown(
             background_queue_service=SimpleNamespace(stop=lambda: record("queue-stop"))
         ),
     }
+    if legacy_image_failure:
+        from app.models import Streamer
+        from app.services.migration.image_migration_service import ImageMigrationService
+        from app.utils import async_db_utils
+
+        image_service = ImageMigrationService()
+        image_service.recordings_dir = tmp_path
+        image_service.old_images_dir = tmp_path / ".images"
+        image_service.old_artwork_dir = tmp_path / ".artwork"
+        (tmp_path / "synthetic").mkdir()
+        source = tmp_path / ".artwork/synthetic/poster.jpg"
+        target = tmp_path / ".media/artwork/synthetic/poster.jpg"
+        source.parent.mkdir(parents=True)
+        target.parent.mkdir(parents=True)
+        source.write_bytes(b"synthetic-source")
+        target.write_bytes(b"synthetic-target")
+        os.utime(target, (100, 100))
+        os.utime(source, (200, 200))
+
+        async def streamers():
+            return [Streamer(id=123, username="synthetic")]
+
+        def denied(*args, **kwargs):
+            raise PermissionError("synthetic copy denied")
+
+        monkeypatch.setattr(async_db_utils, "get_all_streamers", streamers)
+        monkeypatch.setattr(shutil, "copyfile", denied)
+        module_overrides["app.services.migration.image_migration_service"] = (
+            SimpleNamespace(image_migration_service=image_service)
+        )
     for module_name, module in module_overrides.items():
         monkeypatch.setitem(sys.modules, module_name, module)
 
@@ -321,6 +357,11 @@ async def test_lifespan_uses_factory_service_overrides_for_startup_and_shutdown(
             assert "owned-image-refresh" in calls
             assert "image-refresh" not in calls
         assert app.state.recording_manager.__class__ is RecordingManager
+        if legacy_image_failure:
+            assert source.read_bytes() == b"synthetic-source"
+            assert target.read_bytes() == b"synthetic-target"
+            assert "Migration completed with errors" in caplog.text
+            assert list(target.parent.iterdir()) == [target]
         assert app.state.startup_phases == [
             "migrations",
             "persistent-identities",
