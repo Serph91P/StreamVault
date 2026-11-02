@@ -15,7 +15,7 @@ image_origin = test_category_catalog_boundary.image_origin
 
 @pytest.mark.asyncio
 async def test_all_category_image_info_projects_names_before_await(
-    category_owners, monkeypatch
+    category_owners,
 ):
     services, databases, queries, _, checkouts, base = category_owners
     service, database = services[0], databases[0]
@@ -23,10 +23,10 @@ async def test_all_category_image_info_projects_names_before_await(
     facade.category_service = service
     facade._category_cache = service._category_cache
     module = importlib.import_module("app.routes.api_images")
-    monkeypatch.setattr(module, "unified_image_service", facade)
+
     queries.clear()
     with database.sync_session_factory() as session:
-        result = await module.get_all_categories_image_info(session)
+        result = await module.get_all_categories_image_info(session, facade)
         assert database.sync_engine.pool.checkedout() == 0
     await asyncio.gather(*tuple(service._background_tasks))
     assert result[0]["category_name"] == "Just Chatting"
