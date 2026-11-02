@@ -1,8 +1,8 @@
 import asyncio
-import importlib.util
+import importlib
 import logging
 import sys
-from pathlib import Path
+
 from types import ModuleType
 from types import SimpleNamespace
 
@@ -66,7 +66,17 @@ class FakeQuery:
         self.proxies = proxies
 
     def filter(self, *args):
+        rows = self.proxies
+        for expression in args:
+            if getattr(getattr(expression, "left", None), "key", None) == "id":
+                rows = [proxy for proxy in rows if proxy.id == expression.right.value]
+        return FakeQuery(rows)
+
+    def with_for_update(self):
         return self
+
+    def first(self):
+        return self.proxies[0] if self.proxies else None
 
     def all(self):
         return self.proxies
@@ -101,46 +111,25 @@ def make_proxy(proxy_id, url):
         consecutive_failures=0,
         health_status="unknown",
         average_response_time_ms=None,
+        _proxy_url_encrypted=url,
+        priority=0,
+        last_health_check=None,
+        total_recordings=0,
+        failed_recordings=0,
+        created_at=None,
     )
 
 
 @pytest.fixture
 def proxy_health_module(monkeypatch):
-    constants_module = ModuleType("app.config.constants")
-    constants_module.ASYNC_DELAYS = SimpleNamespace(PROXY_HEALTH_CHECK_ERROR_WAIT=1)
-    settings_module = ModuleType("app.config.settings")
-    settings_module.settings = SimpleNamespace(
-        TWITCH_APP_ID="test-app-id",
-        TWITCH_APP_SECRET="test-app-secret",
+    module = importlib.import_module("app.services.proxy.proxy_health_service")
+    monkeypatch.setattr(
+        module,
+        "settings",
+        SimpleNamespace(
+            TWITCH_APP_ID="test-app-id", TWITCH_APP_SECRET="test-app-secret"
+        ),
     )
-    database_module = ModuleType("app.database")
-    database_module.SessionLocal = lambda: None
-    models_module = ModuleType("app.models")
-
-    class EnabledField:
-        def is_(self, value):
-            return value
-
-    models_module.ProxySettings = type("ProxySettings", (), {"enabled": EnabledField()})
-    models_module.RecordingSettings = type("RecordingSettings", (), {})
-
-    monkeypatch.setitem(sys.modules, "app.config.constants", constants_module)
-    monkeypatch.setitem(sys.modules, "app.config.settings", settings_module)
-    monkeypatch.setitem(sys.modules, "app.database", database_module)
-    monkeypatch.setitem(sys.modules, "app.models", models_module)
-
-    module_path = (
-        Path(__file__).parents[1]
-        / "app"
-        / "services"
-        / "proxy"
-        / "proxy_health_service.py"
-    )
-    spec = importlib.util.spec_from_file_location(
-        "proxy_health_service_under_test", module_path
-    )
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
     return module
 
 
@@ -329,6 +318,27 @@ async def test_token_request_cancellation_propagates_without_reachability(
     assert recorder["token_requests"] == 1
     assert recorder["reachability_requests"] == 0
     assert cancellation_secret not in caplog.text
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("value", [True, 123, [], {}])
+async def test_invalid_token_value_is_rejected_without_reachability(
+    monkeypatch, proxy_health_module, value
+):
+    responses = {
+        "token": FakeResponse(200, {"access_token": value}),
+        "proxies": [FakeResponse(200)],
+    }
+    recorder = install_fakes(
+        monkeypatch,
+        proxy_health_module,
+        [make_proxy(1, "http://proxy.example:8080")],
+        responses,
+    )
+    service = await prepare_service(monkeypatch, proxy_health_module)
+    await service.run_health_checks()
+    assert recorder["token_requests"] == 1
+    assert recorder["reachability_requests"] == 0
 
 
 @pytest.mark.asyncio
