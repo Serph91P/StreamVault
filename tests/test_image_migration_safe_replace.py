@@ -1,6 +1,7 @@
 """Legacy image replacement must never publish a partial copy or lose a retry."""
 
 import errno
+from dataclasses import replace
 import io
 import os
 from pathlib import Path
@@ -10,7 +11,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from PIL import Image
 
-from app.models import Streamer
+
 from app.services.migration import image_migration_service as migration
 
 
@@ -30,7 +31,7 @@ def legacy_tree(tmp_path):
     service.recordings_dir = tmp_path / "recordings"
     service.old_images_dir = service.recordings_dir / ".images"
     service.old_artwork_dir = service.recordings_dir / ".artwork"
-    streamer = Streamer(id=123, username="synthetic")
+    streamer = migration.MigrationStreamer(id=123, username="synthetic")
     (service.recordings_dir / "synthetic").mkdir(parents=True)
     source = service.old_artwork_dir / "synthetic" / "poster.jpg"
     target = service.recordings_dir / ".media/artwork/synthetic/poster.jpg"
@@ -145,7 +146,7 @@ async def test_identical_or_newer_target_is_kept(legacy_tree, content):
 @pytest.mark.asyncio
 async def test_profile_and_sanitized_name_stay_in_recordings_tree(legacy_tree):
     service, streamer, source, target = legacy_tree
-    streamer.username = "../../synthetic/channel"
+    streamer = replace(streamer, username="../../synthetic/channel")
     (service.recordings_dir / "_.._synthetic_channel").mkdir()
     source.unlink()
     profile = service.old_images_dir / "profiles/streamer_123.jpg"
@@ -166,17 +167,16 @@ async def test_profile_and_sanitized_name_stay_in_recordings_tree(legacy_tree):
 async def test_batch_reports_failed_items_without_counting_streamer_as_success(
     legacy_tree, monkeypatch, caplog
 ):
-    from app.utils import async_db_utils
 
     service, streamer, source, target = legacy_tree
 
-    async def streamers():
+    def streamers():
         return [streamer]
 
     def denied(*args, **kwargs):
         raise PermissionError("synthetic copy denied")
 
-    monkeypatch.setattr(async_db_utils, "get_all_streamers", streamers)
+    monkeypatch.setattr(service, "_streamers", streamers)
     monkeypatch.setattr(migration.shutil, "copyfile", denied)
     monkeypatch.setattr(os, "rename", denied)
     stats = await service.migrate_all_images()
@@ -191,17 +191,16 @@ async def test_batch_reports_failed_items_without_counting_streamer_as_success(
 
 def test_http_migration_reports_failure_and_successful_retry(legacy_tree, monkeypatch):
     from app.routes import migration as routes
-    from app.utils import async_db_utils
 
     service, streamer, source, target = legacy_tree
 
-    async def streamers():
+    def streamers():
         return [streamer]
 
     def denied(*args, **kwargs):
         raise PermissionError("synthetic copy denied")
 
-    monkeypatch.setattr(async_db_utils, "get_all_streamers", streamers)
+    monkeypatch.setattr(service, "_streamers", streamers)
     monkeypatch.setattr(routes, "image_migration_service", service)
     application = FastAPI()
     application.include_router(routes.router)

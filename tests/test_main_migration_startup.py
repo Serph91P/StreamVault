@@ -278,9 +278,10 @@ async def test_lifespan_uses_factory_service_overrides_for_startup_and_shutdown(
         ),
     }
     if legacy_image_failure:
-        from app.models import Streamer
-        from app.services.migration.image_migration_service import ImageMigrationService
-        from app.utils import async_db_utils
+        from app.services.migration.image_migration_service import (
+            ImageMigrationService,
+            MigrationStreamer,
+        )
 
         image_service = ImageMigrationService()
         image_service.recordings_dir = tmp_path
@@ -296,13 +297,13 @@ async def test_lifespan_uses_factory_service_overrides_for_startup_and_shutdown(
         os.utime(target, (100, 100))
         os.utime(source, (200, 200))
 
-        async def streamers():
-            return [Streamer(id=123, username="synthetic")]
+        def streamers():
+            return [MigrationStreamer(id=123, username="synthetic")]
 
         def denied(*args, **kwargs):
             raise PermissionError("synthetic copy denied")
 
-        monkeypatch.setattr(async_db_utils, "get_all_streamers", streamers)
+        monkeypatch.setattr(image_service, "_streamers", streamers)
         monkeypatch.setattr(shutil, "copyfile", denied)
         module_overrides["app.services.migration.image_migration_service"] = (
             SimpleNamespace(image_migration_service=image_service)
