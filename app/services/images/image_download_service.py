@@ -106,7 +106,12 @@ class ImageDownloadService:
         return hashlib.md5(url.encode(), usedforsecurity=False).hexdigest()
 
     async def download_image(
-        self, url: str, file_path: Path, expected_content_types: list = None
+        self,
+        url: str,
+        file_path: Path,
+        expected_content_types: list = None,
+        *,
+        retry_failed: bool = False,
     ) -> bool:
         """
         Download an image from URL to file path
@@ -115,6 +120,7 @@ class ImageDownloadService:
             url: Image URL to download
             file_path: Path where to save the image
             expected_content_types: List of expected content types (default: ['image'])
+            retry_failed: Allow a caller-controlled retry without permanently blocking the URL
 
         Returns:
             True if download was successful, False otherwise
@@ -127,7 +133,7 @@ class ImageDownloadService:
             return False
 
         # Skip if previously failed
-        if url in self._failed_downloads:
+        if not retry_failed and url in self._failed_downloads:
             return False
 
         if expected_content_types is None:
@@ -163,7 +169,8 @@ class ImageDownloadService:
                     )
         except Exception as e:
             logger.error(f"Error downloading image from {url}: {e}")
-            self._failed_downloads.add(url)
+            if not retry_failed:
+                self._failed_downloads.add(url)
 
         return False
 
