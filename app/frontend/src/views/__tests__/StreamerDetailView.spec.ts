@@ -100,6 +100,16 @@ const streams = [
 
 const wrappers: VueWrapper[] = []
 
+describe('detail resource failure', () => {
+  it('does not claim a missing channel on a server failure and offers retry', async () => {
+    mocks.getStreamer.mockRejectedValueOnce(new Error('server unavailable'))
+    const { wrapper } = await mountView()
+    const feedback = wrapper.getComponent({ name: 'EmptyState' })
+    expect(feedback.props('state')).toBe('error')
+    expect(feedback.props('retryLabel')).toBe('Erneut versuchen')
+  })
+})
+
 async function mountView(query: LocationQueryRaw = {}) {
   const router = createRouter({
     history: createMemoryHistory(),

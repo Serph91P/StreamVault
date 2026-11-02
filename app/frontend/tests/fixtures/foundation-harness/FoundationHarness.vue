@@ -8,6 +8,9 @@ import BaseModal from '../../../src/components/base/BaseModal.vue'
 import BasePanel from '../../../src/components/base/BasePanel.vue'
 import BaseSheet from '../../../src/components/base/BaseSheet.vue'
 import StatusBadge from '../../../src/components/base/StatusBadge.vue'
+import EmptyState from '../../../src/components/EmptyState.vue'
+import IconSprite from '../../../src/components/icons/IconSprite.vue'
+import { presentationStates, type PresentationState } from '../../../src/types/presentation'
 
 const query = new URLSearchParams(location.search)
 const broken = query.get('broken')
@@ -16,6 +19,7 @@ const name = ref('Night archive')
 const quality = ref<string | number>('source')
 const modalOpen = ref(false)
 const sheetOpen = ref(false)
+const feedbackState = ref<PresentationState>('unknown')
 const state = ref<'loaded' | 'empty' | 'loading' | 'error' | 'disabled'>('loaded')
 const themeLabel = computed(() => theme.value === 'dark' ? 'Use light theme' : 'Use dark theme')
 function toggleTheme() {
@@ -25,6 +29,7 @@ function toggleTheme() {
 </script>
 
 <template>
+  <IconSprite />
   <main class="foundation-harness" :class="broken && `broken-${broken}`" :data-state="state">
     <header class="harness-header">
       <div>
@@ -66,12 +71,18 @@ function toggleTheme() {
       </div>
     </BasePanel>
 
+    <section class="feedback-preview" aria-label="Gemeinsame Ressourcen- und Aktionsergebnisse">
+      <BaseDropdown v-model="feedbackState" label="Ressourcen- oder Aktionszustand" :options="Object.entries(presentationStates).map(([value, entry]) => ({ value, label: entry.title }))" />
+      <EmptyState :state="feedbackState" variant="inline" description="Ein langer Kanalname oder eine verständliche Fehlermeldung bleibt vollständig lesbar. Unbestätigte Aufträge sind kein Erfolg." :updated-at="feedbackState === 'stale' ? '2026-01-02T10:00:00Z' : undefined" />
+    </section>
+
     <button v-if="broken === 'touch'" class="broken-target" aria-label="Broken target">!</button>
     <div v-if="broken === 'overflow'" class="broken-overflow">overflow fixture</div>
     <p v-if="broken === 'contrast'" class="broken-contrast">contrast fixture</p>
 
     <BaseModal v-model="modalOpen" title="Confirm recording">
       <p>Save these recording defaults?</p>
+      <BaseButton variant="secondary" @click="sheetOpen = true">Verschachtelte Filter öffnen</BaseButton>
       <template #footer><BaseButton @click="modalOpen = false">Confirm</BaseButton></template>
     </BaseModal>
     <BaseSheet v-model="sheetOpen" title="Recording filters">
@@ -89,6 +100,7 @@ function toggleTheme() {
 .eyebrow { color: var(--sv-sem-text-secondary); }
 .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr)); gap: var(--sv-fdn-space-4); margin-block: var(--sv-fdn-space-5); }
 .message { margin-block: var(--sv-fdn-space-4); color: var(--sv-sem-text-secondary); }
+.feedback-preview { margin-top: var(--sv-fdn-space-6); }
 .error-message { color: var(--sv-sem-status-danger); }
 .broken-target { width: 20px; height: 20px; min-width: 0; min-height: 0; }
 .broken-overflow { width: 500px; }

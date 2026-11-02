@@ -390,10 +390,13 @@
     <!-- Error State -->
     <EmptyState
       v-else
-      title="Streamer Not Found"
-      description="The streamer you're looking for doesn't exist."
+      state="error"
+      title="Kanal konnte nicht geladen werden"
+      description="Prüfe die Verbindung und deine Zugriffsrechte. Versuche es erneut oder kehre zu deinen Kanälen zurück."
       icon="alert-circle"
-      action-label="Back to Streamers"
+      action-label="Zurück zu den Kanälen"
+      retry-label="Erneut versuchen"
+      @retry="fetchStreamer"
       @action="$router.push('/streamers')"
     />
 

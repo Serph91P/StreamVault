@@ -196,6 +196,8 @@ import BasePanel from '@/components/base/BasePanel.vue'
 import PageHeader from '@/components/base/PageHeader.vue'
 import type { NotificationSettings } from '@/types/settings'
 import type { RecordingSettings } from '@/types/recording'
+import type { PresentationState } from '@/types/presentation'
+import { fetchRecordingSettings as readRecordingSettings } from '@/services/recording'
 
 interface Section {
   id: string
@@ -433,11 +435,25 @@ async function handleUpdateNotificationSettings(newSettings: Partial<Notificatio
 
 
 // Recording handlers
+const recordingSaveState = ref<PresentationState>()
+const recordingSaveMessage = ref('')
 async function handleUpdateRecordingSettings(newSettings: RecordingSettings) {
+  if (recordingSaveState.value === 'pending') return
+  recordingSaveState.value = 'pending'
+  recordingSaveMessage.value = 'Änderungen werden gespeichert und vom Server zurückgelesen.'
   try {
     await updateRecordingSettings(newSettings)
+    const persisted = await readRecordingSettings()
+    const fields = ['enabled', 'filename_template', 'default_quality', 'supported_codecs', 'use_chapters', 'use_category_as_chapter_title'] as const
+    if (fields.some(key => persisted[key] !== newSettings[key])) {
+      throw new Error('Server readback does not confirm the submitted settings')
+    }
+    recordingSaveState.value = 'confirmed-success'
+    recordingSaveMessage.value = 'Aufnahmeeinstellungen gespeichert und vom Server bestätigt.'
     toast.success('Aufnahmeeinstellungen gespeichert')
   } catch (error) {
+    recordingSaveState.value = 'failure'
+    recordingSaveMessage.value = 'Speichern konnte nicht bestätigt werden. Dein Entwurf bleibt erhalten. Prüfe die Verbindung und versuche es erneut.'
     console.error('Failed to update recording settings:', error)
     toast.error('Aufnahmeeinstellungen konnten nicht gespeichert werden')
   }
@@ -456,6 +472,8 @@ const activePanelProps = computed(() => {
     return {
       section: activeSection.value,
       settings: recordingSettings.value,
+      saveState: recordingSaveState.value,
+      saveMessage: recordingSaveMessage.value,
       context: 'global',
       streamerSettings: [],
       activeRecordings: []

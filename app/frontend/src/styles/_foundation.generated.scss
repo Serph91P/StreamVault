@@ -15,6 +15,11 @@
   --sv-cmp-button-foreground: var(--sv-sem-text-inverse);
   --sv-cmp-button-height: var(--sv-fdn-size-target);
   --sv-cmp-button-height-primary: var(--sv-fdn-size-target-primary);
+  --sv-cmp-feedback-background: var(--sv-sem-surface-panel);
+  --sv-cmp-feedback-border: var(--sv-sem-border-default);
+  --sv-cmp-feedback-foreground: var(--sv-sem-text-primary);
+  --sv-cmp-feedback-gap: var(--sv-fdn-space-3);
+  --sv-cmp-feedback-padding: var(--sv-fdn-space-4);
   --sv-cmp-field-background: var(--sv-sem-surface-panel);
   --sv-cmp-field-border: var(--sv-sem-border-default);
   --sv-cmp-field-border-focus: var(--sv-sem-action-focus);

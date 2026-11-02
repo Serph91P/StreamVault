@@ -6,9 +6,12 @@
           v-for="toast in toasts"
           :key="toast.id"
           :class="['toast', `toast-${toast.type}`]"
+          :role="toast.type === 'error' ? 'alert' : 'status'"
+          :aria-live="toast.type === 'error' ? 'assertive' : 'polite'"
+          aria-atomic="true"
           @click="removeToast(toast.id)"
         >
-          <div class="toast-icon">
+          <div class="toast-icon" aria-hidden="true">
             <span v-if="toast.type === 'success'">✓</span>
             <span v-else-if="toast.type === 'error'">✕</span>
             <span v-else-if="toast.type === 'warning'">⚠</span>
@@ -17,7 +20,7 @@
           <div class="toast-content">
             <p class="toast-message">{{ toast.message }}</p>
           </div>
-          <button class="toast-close" @click.stop="removeToast(toast.id)" aria-label="Close">
+          <button type="button" class="toast-close" @click.stop="removeToast(toast.id)" aria-label="Meldung schließen">
             ×
           </button>
         </div>
@@ -62,13 +65,13 @@ function removeToast(id: string) {
 .toast {
   display: flex;
   align-items: center;
-  gap: v.$spacing-3;
-  padding: v.$spacing-3 v.$spacing-4;
+  gap: var(--sv-cmp-feedback-gap);
+  padding: var(--sv-cmp-feedback-gap) var(--sv-cmp-feedback-padding);
   min-width: 300px;
   max-width: 500px;
-  background: var(--background-card);
+  background: var(--sv-cmp-feedback-background);
   border-radius: v.$border-radius;
-  border-left: 4px solid;
+  border: 1px solid var(--sv-cmp-feedback-border);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   pointer-events: auto;
   cursor: pointer;
@@ -78,10 +81,7 @@ function removeToast(id: string) {
     max-width: unset;
   }
   
-  &:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
-  }
+
 }
 
 .toast-success {
@@ -134,7 +134,7 @@ function removeToast(id: string) {
 
 .toast-message {
   margin: 0;
-  color: var(--text-primary);
+  color: var(--sv-cmp-feedback-foreground);
   font-size: var(--text-base);
   word-break: break-word;
 }
@@ -143,8 +143,8 @@ function removeToast(id: string) {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  width: var(--sv-fdn-size-target);
+  height: var(--sv-fdn-size-target);
   padding: 0;
   background: none;
   border: none;
@@ -157,6 +157,7 @@ function removeToast(id: string) {
   &:hover {
     color: var(--text-primary);
   }
+  &:focus-visible { outline: 2px solid var(--sv-sem-action-focus); outline-offset: 2px; }
 }
 
 /* Toast animations */
@@ -177,5 +178,9 @@ function removeToast(id: string) {
 
 .toast-move {
   transition: var(--transition-transform);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toast-enter-active, .toast-leave-active, .toast-move { transition: none; }
 }
 </style>

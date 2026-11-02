@@ -3,6 +3,17 @@ import { describe, expect, it } from 'vitest'
 import BaseDropdown from '../BaseDropdown.vue'
 import BaseInput from '../BaseInput.vue'
 
+describe.each([BaseInput, BaseDropdown])('field guidance during validation', Component => {
+  it('retains format guidance alongside an announced error', () => {
+    const wrapper = mount(Component, { props: { id: 'guided', modelValue: '', label: 'Vorgabe', hint: 'Format beibehalten', error: 'Wert prüfen' } })
+    const control = wrapper.get('input, select')
+    expect(control.attributes('aria-describedby')?.split(' ')).toEqual(['guided-hint', 'guided-error'])
+    expect(wrapper.get('#guided-hint').text()).toBe('Format beibehalten')
+    expect(wrapper.get('#guided-error').attributes('role')).toBe('alert')
+    wrapper.unmount()
+  })
+})
+
 describe('BaseInput', () => {
   it('uses a native labelled input and links its error description', () => {
     const wrapper = mount(BaseInput, {
