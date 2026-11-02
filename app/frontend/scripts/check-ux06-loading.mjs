@@ -24,7 +24,13 @@ export async function measureUx06Loading(distDirectory = resolve(process.cwd(), 
   const initialHls = initialAssets.filter(url => hlsChunkPattern.test(url) || hlsWorkerPattern.test(url))
   if (initialHls.length > 0) throw new Error(`HLS fallback leaked into initial document assets: ${initialHls.join(', ')}`)
 
-  const fileBytes = async (url) => (await stat(resolve(distDirectory, url))).size
+  const fileBytes = async (url) => {
+    // Vite rewrites these public URLs without relocating their build files.
+    const file = url === 'pwa/push-sw.js' || url === 'pwa/index.html' || url.startsWith('pwa/images/')
+      ? url.slice('pwa/'.length)
+      : url
+    return (await stat(resolve(distDirectory, file))).size
+  }
   const initialEntries = ['index.html', ...new Set(initialAssets)]
   const initialBytes = (await Promise.all(initialEntries.map(fileBytes))).reduce((sum, bytes) => sum + bytes, 0)
   const playbackEntries = [hlsChunks[0], workers[0]]
