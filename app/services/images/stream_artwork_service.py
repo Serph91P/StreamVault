@@ -6,9 +6,11 @@ Handles downloading, caching, and serving of stream artwork and thumbnails.
 """
 
 import logging
+from collections.abc import Callable
+from app.utils.async_db_utils import run_in_thread_pool
 from pathlib import Path
 from typing import Dict, Optional, List
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import Session
 from app.database import SessionLocal
 from app.models import Stream, StreamMetadata
 from .image_download_service import ImageDownloadService
@@ -19,23 +21,43 @@ logger = logging.getLogger("streamvault")
 class StreamArtworkService:
     """Handles stream artwork and thumbnail management"""
 
-    def __init__(self, download_service: Optional[ImageDownloadService] = None):
+    def __init__(
+        self,
+        download_service: Optional[ImageDownloadService] = None,
+        *,
+        session_factory: Callable[[], Session] | None = None,
+    ):
+        self._session_factory = session_factory
         self.download_service = download_service or ImageDownloadService()
-        self.artwork_dir = None
+        self.artwork_dir: Path | None = None
 
-    def _ensure_artwork_dir(self):
+    def _ensure_artwork_dir(self) -> Path:
         """Ensure artwork directory exists"""
         if self.artwork_dir is None:
-            images_base_dir = self.download_service.get_images_base_dir()
-            self.artwork_dir = images_base_dir / "artwork"
-            self.artwork_dir.mkdir(parents=True, exist_ok=True)
+            directory = self.download_service._resolve_destination_path(
+                self.download_service.get_images_base_dir() / "artwork"
+            )
+            directory.mkdir(parents=True, exist_ok=True)
+            self.artwork_dir = directory
+        return self.artwork_dir
 
     def _get_streamer_artwork_dir(self, streamer_id: int) -> Path:
         """Get artwork directory for a specific streamer"""
-        self._ensure_artwork_dir()
-        streamer_dir = self.artwork_dir / f"streamer_{streamer_id}"
+        root = self._ensure_artwork_dir()
+        streamer_dir = self.download_service._resolve_destination_path(
+            root / f"streamer_{streamer_id}"
+        )
         streamer_dir.mkdir(parents=True, exist_ok=True)
         return streamer_dir
+
+    def _prepare_artwork_path(
+        self, stream_id: int, streamer_id: int
+    ) -> tuple[Path, bool]:
+        directory = self._get_streamer_artwork_dir(streamer_id)
+        path = self.download_service._resolve_destination_path(
+            directory / f"stream_{stream_id}.jpg"
+        )
+        return path, path.exists()
 
     async def download_stream_artwork(
         self, stream_id: int, streamer_id: int, thumbnail_url: str
@@ -59,12 +81,11 @@ class StreamArtworkService:
             return None
 
         try:
-            streamer_dir = self._get_streamer_artwork_dir(streamer_id)
-            filename = f"stream_{stream_id}.jpg"
-            file_path = streamer_dir / filename
-
-            # Check if already exists
-            if file_path.exists():
+            file_path, exists = await run_in_thread_pool(
+                self._prepare_artwork_path, stream_id, streamer_id
+            )
+            filename = file_path.name
+            if exists:
                 return f"/data/images/artwork/streamer_{streamer_id}/{filename}"
 
             success = await self.download_service.download_image(
@@ -96,85 +117,87 @@ class StreamArtworkService:
         self, stream_id: int, streamer_id: int
     ) -> Optional[str]:
         """Get cached stream artwork path"""
-        streamer_dir = self._get_streamer_artwork_dir(streamer_id)
-        filename = f"stream_{stream_id}.jpg"
-        file_path = streamer_dir / filename
-
-        if file_path.exists():
-            return f"/data/images/artwork/streamer_{streamer_id}/{filename}"
+        file_path, exists = self._prepare_artwork_path(stream_id, streamer_id)
+        if exists:
+            return f"/data/images/artwork/streamer_{streamer_id}/{file_path.name}"
         return None
 
-    async def update_stream_artwork(self, stream_id: int, thumbnail_url: str) -> bool:
-        """Update a stream's artwork in database and cache"""
-        try:
-            # Get stream info
-            with SessionLocal() as db:
+    def _stream_owner(self, stream_id: int) -> int | None:
+        with (self._session_factory or SessionLocal)() as db:
+            owner = db.query(Stream.streamer_id).filter(Stream.id == stream_id).scalar()
+            return owner if isinstance(owner, int) else None
+
+    def _persist_artwork(self, updates: list[tuple[int, str]]) -> set[int]:
+        with (self._session_factory or SessionLocal)() as db:
+            changed: set[int] = set()
+            for stream_id, path in updates:
                 stream = db.query(Stream).filter(Stream.id == stream_id).first()
                 if not stream:
-                    return False
+                    continue
+                if not stream.stream_metadata:
+                    metadata = StreamMetadata(stream_id=stream_id)
+                    db.add(metadata)
+                    stream.stream_metadata = metadata
+                stream.stream_metadata.thumbnail_url = path
+                changed.add(stream_id)
+            db.commit()
+            return changed
 
-                # Download the image
-                cached_path = await self.download_stream_artwork(
-                    stream_id, stream.streamer_id, thumbnail_url
-                )
-
-                if cached_path:
-                    # Ensure stream has metadata
-                    if not stream.stream_metadata:
-                        metadata = StreamMetadata(stream_id=stream_id)
-                        db.add(metadata)
-                        stream.stream_metadata = metadata
-
-                    # Update metadata with cached path
-                    stream.stream_metadata.thumbnail_url = cached_path
-                    db.commit()
-                    logger.info(f"Updated stream artwork for stream {stream_id}")
-                    return True
-
-            return False
-        except Exception as e:
-            logger.error(f"Error updating stream artwork for stream {stream_id}: {e}")
-            return False
-
-    async def sync_stream_artwork(self, stream_ids: List[int] = None) -> Dict[str, int]:
-        """Sync stream artwork for specified streams or all streams"""
-        stats = {"downloaded": 0, "skipped": 0, "failed": 0}
-
+    async def update_stream_artwork(self, stream_id: int, thumbnail_url: str) -> bool:
+        """Close the owner snapshot before HTTP and persist in a separate worker."""
         try:
-            with SessionLocal() as db:
-                # Load streams with their metadata
-                query = db.query(Stream).options(selectinload(Stream.stream_metadata))
-                if stream_ids:
-                    query = query.filter(Stream.id.in_(stream_ids))
+            owner = await run_in_thread_pool(self._stream_owner, stream_id)
+            if owner is None:
+                return False
+            cached = await self.download_stream_artwork(stream_id, owner, thumbnail_url)
+            if cached:
+                changed = await run_in_thread_pool(
+                    self._persist_artwork, [(stream_id, cached)]
+                )
+                return stream_id in changed
+        except Exception as error:
+            logger.error("Stream artwork update failed: %s", type(error).__name__)
+        return False
 
-                streams = query.all()
+    def _artwork_sources(
+        self, stream_ids: list[int] | None
+    ) -> list[tuple[int, int | None, str | None]]:
+        with (self._session_factory or SessionLocal)() as db:
+            query = db.query(
+                Stream.id, Stream.streamer_id, StreamMetadata.thumbnail_url
+            ).outerjoin(StreamMetadata, StreamMetadata.stream_id == Stream.id)
+            if stream_ids:
+                query = query.filter(Stream.id.in_(stream_ids))
+            return [(row.id, row.streamer_id, row.thumbnail_url) for row in query.all()]
 
-                for stream in streams:
-                    # Check if stream has metadata with thumbnail_url
-                    thumbnail_url = None
-                    if stream.stream_metadata and stream.stream_metadata.thumbnail_url:
-                        thumbnail_url = stream.stream_metadata.thumbnail_url
-
-                    if thumbnail_url and thumbnail_url.startswith("http"):
-                        # This is a Twitch URL, download and cache it
-                        cached_path = await self.download_stream_artwork(
-                            stream.id, stream.streamer_id, thumbnail_url
-                        )
-                        if cached_path:
-                            # Update to use cached path
-                            stream.stream_metadata.thumbnail_url = cached_path
-                            stats["downloaded"] += 1
-                        else:
-                            stats["failed"] += 1
+    async def sync_stream_artwork(
+        self, stream_ids: List[int] | None = None
+    ) -> Dict[str, int]:
+        """Keep only scalar snapshots while awaiting upstream downloads."""
+        stats = {"downloaded": 0, "skipped": 0, "failed": 0}
+        updates: list[tuple[int, str]] = []
+        try:
+            sources = await run_in_thread_pool(self._artwork_sources, stream_ids)
+            for stream_id, owner, source in sources:
+                if source and source.startswith("http"):
+                    cached = (
+                        await self.download_stream_artwork(stream_id, owner, source)
+                        if owner is not None
+                        else None
+                    )
+                    if cached:
+                        updates.append((stream_id, cached))
                     else:
-                        stats["skipped"] += 1
-
-                db.commit()
-
-        except Exception as e:
-            logger.error(f"Error syncing stream artwork: {e}")
-
-        logger.info(f"Stream artwork sync completed: {stats}")
+                        stats["failed"] += 1
+                else:
+                    stats["skipped"] += 1
+            changed = await run_in_thread_pool(self._persist_artwork, updates)
+            stats["downloaded"] = len(changed)
+            stats["failed"] += len(updates) - len(changed)
+        except Exception as error:
+            stats["failed"] += len(updates)
+            logger.error("Stream artwork sync failed: %s", type(error).__name__)
+        logger.info("Stream artwork sync completed: %s", stats)
         return stats
 
     async def bulk_download_artwork(self, artwork_data: List[Dict]) -> Dict[str, int]:
@@ -186,7 +209,7 @@ class StreamArtworkService:
             streamer_id = artwork_info.get("streamer_id")
             thumbnail_url = artwork_info.get("thumbnail_url")
 
-            if not all([stream_id, streamer_id, thumbnail_url]):
+            if not stream_id or not streamer_id or not thumbnail_url:
                 continue
 
             cached_path = await self.download_stream_artwork(
@@ -203,12 +226,13 @@ class StreamArtworkService:
     def get_artwork_cache_stats(self) -> Dict[str, int]:
         """Get statistics about artwork cache"""
         try:
-            self._ensure_artwork_dir()
+            root = self._ensure_artwork_dir()
 
             total_files = 0
             streamer_count = 0
 
-            for streamer_dir in self.artwork_dir.glob("streamer_*"):
+            for streamer_dir in root.glob("streamer_*"):
+                self.download_service._resolve_destination_path(streamer_dir)
                 if streamer_dir.is_dir():
                     streamer_count += 1
                     total_files += len(list(streamer_dir.glob("*.jpg")))
@@ -233,6 +257,9 @@ class StreamArtworkService:
             }
 
     async def cleanup_old_artwork(self, days_old: int = 30) -> int:
+        return await run_in_thread_pool(self._cleanup_old_artwork, days_old)
+
+    def _cleanup_old_artwork(self, days_old: int) -> int:
         """Remove artwork files older than specified days"""
         from datetime import datetime, timedelta
 
@@ -240,9 +267,10 @@ class StreamArtworkService:
         cutoff_date = datetime.now() - timedelta(days=days_old)
 
         try:
-            self._ensure_artwork_dir()
+            root = self._ensure_artwork_dir()
 
-            for streamer_dir in self.artwork_dir.glob("streamer_*"):
+            for streamer_dir in root.glob("streamer_*"):
+                self.download_service._resolve_destination_path(streamer_dir)
                 if streamer_dir.is_dir():
                     for artwork_file in streamer_dir.glob("*.jpg"):
                         try:
@@ -278,17 +306,21 @@ class StreamArtworkService:
         return cleaned_count
 
     async def cleanup_unused_artwork(self) -> int:
+        return await run_in_thread_pool(self._cleanup_unused_artwork)
+
+    def _cleanup_unused_artwork(self) -> int:
         """Remove artwork that is no longer associated with any stream"""
         cleaned_count = 0
 
         try:
-            self._ensure_artwork_dir()
+            root = self._ensure_artwork_dir()
 
             # Get all stream IDs from database
-            with SessionLocal() as db:
+            with (self._session_factory or SessionLocal)() as db:
                 active_stream_ids = set(str(s.id) for s in db.query(Stream.id).all())
 
-            for streamer_dir in self.artwork_dir.glob("streamer_*"):
+            for streamer_dir in root.glob("streamer_*"):
+                self.download_service._resolve_destination_path(streamer_dir)
                 if streamer_dir.is_dir():
                     for artwork_file in streamer_dir.glob("stream_*.jpg"):
                         try:
