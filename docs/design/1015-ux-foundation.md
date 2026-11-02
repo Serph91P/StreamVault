@@ -33,7 +33,7 @@ Real local Vite 8.3.3 production-library probe, Vue external on **both** sides, 
 
 | Imported facade/primitive family | JS bytes | Node gzip bytes |
 | --- | ---: | ---: |
-| Actual existing BaseModal, including useModal/focus dependencies | 5,134 | 2,168 |
+| Actual existing BaseModal, including adapted useModal/focus dependencies | 5,841 | 2,418 |
 | Only Reka DialogRoot/Trigger/Portal/Overlay/Content/Title/Description/Close | 42,747 | 11,563 |
 
 The current TypeScript 6 compiler accepted the actual Reka imports with bundler resolution (`tsc --ignoreConfig --noEmit --moduleResolution bundler --module esnext --target es2022 --skipLibCheck .../reka.ts`). The first invocation correctly required TS6's `--ignoreConfig`; no compiler downgrade was used. The figures are library-output comparisons, not a fabricated full-application bundle delta or a declaration that Reka cannot ever fit. The probe exports the exact named family, excludes Vue and does not include unrelated Reka components. The existing facade additionally emits 920 CSS bytes (400 Vite gzip bytes); Reka is unstyled.
@@ -50,5 +50,9 @@ Decision: **retain the proven native/Base primitives in this increment**. There 
 ## Verification status
 
 Evidence is recorded in the same-card handoff and final verification section once all final-head checks complete. Interim runs: 502 unit passes / 4 existing skips; types and lint (0 errors / 132 warnings) pass; built REAL stateful settings fixtures 8/8 pass at 320/390/1024/1440 in both themes, including held pending, GET-confirmed save/reload, accepted-but-unpersisted 202 and failed saves. New modal isolation regression failed before adaptation, then passed alongside existing focus restoration. These interim numbers are not a final-head CI or whole-product acceptance claim.
+
+Subsequent source verification: 504 unit passes / 4 existing skips, 49 foundation-gate passes, types/lint/tokens/generated-foundation pass. The expanded built REAL fixture suite passes 14/14, adding empty/filter-empty/loading/stale-with-retained-channels/403/offline/error/retry at 320/390/1440 in both themes. Visual inspection found a timestamp falling into the icon column; the rendered geometry regression failed (x37 vs heading x148) before explicit content-column placement, then passed. The existing harness passes all six browser cases, including 200% text, touch sizes, Axe, reduced motion, forced colors and nested isolation/focus restore. An initial nested-keyboard test issued Shift+Tab before autofocus; it now first asserts actual initial focus, with no timeout or assertion relaxation.
+
+The existing `tests/browser_acceptance/run.py` also passed both desktop-light and mobile-dark against the REAL build with disposable production factory/routers/services, SQLite and media, zero API fulfills, codec Save/Reload/DB readback, separate channel overrides/cleanup/management, real Uvicorn restart/replay/dedupe, job completion and decoded playback/seek/delete. Owned test container was removed. Repeat against the final source artifact before handoff.
 
 No physical devices, installed PWA, live provider or manual screenreader acceptance is claimed. Browser names and final backend/DB effects are reported separately from synthetic HTTP fixtures. No merge, release, deployment or issue closure is performed by this worker.

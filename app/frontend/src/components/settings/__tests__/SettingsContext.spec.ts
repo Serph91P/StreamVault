@@ -20,8 +20,11 @@ const global = { plugins: [createPinia()], stubs: { CleanupPolicyEditor: true, B
 
 describe('settings context boundaries', () => {
   it('uses associated native Base fields and keeps owner pending/results inline', async () => {
-    const wrapper = mount(RecordingSettingsPanel, { global, props: { settings: null, streamerSettings: [], activeRecordings: [], saveState: 'pending' } })
+    const wrapper = mount(RecordingSettingsPanel, { global, props: { settings: null, streamerSettings: [], activeRecordings: [] } })
     const quality = wrapper.get('select')
+    await quality.setValue('720p')
+    await wrapper.setProps({ saveState: 'pending', settings: { enabled: true, default_quality: 'best', filename_template: 'server-value', use_chapters: true } })
+    expect((quality.element as HTMLSelectElement).value).toBe('720p')
     expect(wrapper.find(`label[for="${quality.attributes('id')}"]`).text()).toContain('Standardqualität')
     expect((wrapper.get('.form-actions button').element as HTMLButtonElement).disabled).toBe(true)
     expect(wrapper.get('[data-state="pending"]').attributes('role')).toBe('status')

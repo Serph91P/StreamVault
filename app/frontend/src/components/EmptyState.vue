@@ -343,8 +343,11 @@ const handleRetry = () => {
     text-align: left;
   }
 
+  .empty-state-content > :not(.empty-icon) { grid-column: 2; min-width: 0; }
+
   .empty-icon {
-    grid-row: span 2;
+    grid-row: 1 / span 4;
+    align-self: start;
     width: 36px;
     height: 36px;
     margin: 0;

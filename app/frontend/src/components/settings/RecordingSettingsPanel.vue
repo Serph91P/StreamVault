@@ -9,7 +9,7 @@
     </div>
       <!-- Recording and Storage are separate settings sections now; this
            component renders one half, selected via the `section` prop -->
-      <div v-if="context === 'global'" class="tab-content">
+      <fieldset v-if="context === 'global'" class="tab-content" :disabled="saveState === 'pending'" aria-label="Globale Aufnahmevorgaben">
         <div v-if="section === 'recording'" class="tab-panel">
           <!-- Basic Recording Settings Section -->
           <div class="panel-block">
@@ -133,7 +133,7 @@
             />
           </div>
         </div>
-      </div>
+      </fieldset>
 
       <!-- Save Button (recording settings only; cleanup policies save themselves) -->
       <div v-if="context === 'global' && section === 'recording'" class="form-actions">
@@ -395,7 +395,7 @@ const data = ref<RecordingSettings>({
 
 // Update local data when props change
 watch(() => props.settings, (newSettings: RecordingSettings | null) => {
-  if (newSettings) {
+  if (newSettings && props.saveState !== 'pending') {
     data.value = {
       ...newSettings,
       filename_preset: newSettings.filename_preset || detectPresetFromTemplate(newSettings.filename_template ?? '')
@@ -544,6 +544,10 @@ const handleStreamerPolicySaved = (_policy: any) => {
 <style scoped lang="scss">
 @use '@/styles/variables' as v;
 @use '@/styles/mixins' as m;
+
+fieldset.tab-content { border: 0; padding: 0; margin: 0; min-width: 0; }
+.form-actions { align-items: start; }
+.form-actions > .empty-state { flex: 1 0 100%; }
 
 
 // Match the shared .settings-group look so recording blocks read as the

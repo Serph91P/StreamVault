@@ -9,6 +9,7 @@ import BasePanel from '../../../src/components/base/BasePanel.vue'
 import BaseSheet from '../../../src/components/base/BaseSheet.vue'
 import StatusBadge from '../../../src/components/base/StatusBadge.vue'
 import EmptyState from '../../../src/components/EmptyState.vue'
+import IconSprite from '../../../src/components/icons/IconSprite.vue'
 import { presentationStates, type PresentationState } from '../../../src/types/presentation'
 
 const query = new URLSearchParams(location.search)
@@ -28,6 +29,7 @@ function toggleTheme() {
 </script>
 
 <template>
+  <IconSprite />
   <main class="foundation-harness" :class="broken && `broken-${broken}`" :data-state="state">
     <header class="harness-header">
       <div>

@@ -117,6 +117,7 @@ test('shared feedback covers owner states, guidance and nested overlay isolation
   const nested = page.getByRole('dialog', { name: 'Recording filters' })
   await expect(nested).toBeVisible()
   await expect(page.getByRole('dialog', { name: 'Confirm recording' })).toHaveCount(0)
+  await expect(nested.locator('button').first()).toBeFocused()
   await page.keyboard.press('Shift+Tab')
   await expect(nested.locator('button').last()).toBeFocused()
   await page.keyboard.press('Escape')

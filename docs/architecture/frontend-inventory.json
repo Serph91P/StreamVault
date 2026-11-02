@@ -316,6 +316,7 @@
     "app/frontend/tests/fixtures/settings-loader.spec.ts",
     "app/frontend/tests/fixtures/settings-parity.config.ts",
     "app/frontend/tests/fixtures/settings-parity.spec.ts",
+    "app/frontend/tests/fixtures/ux-foundation.spec.ts",
     "app/frontend/tests/unit/baselineObservation.spec.ts",
     "app/frontend/tests/unit/gateEvidence.spec.ts",
     "app/frontend/tests/unit/interactionAudit.spec.ts",
@@ -1701,7 +1702,8 @@
     "app/frontend/src/views/StreamerDetailView.vue",
     "app/frontend/src/views/StreamersView.vue",
     "app/frontend/tests/fixtures/issue904-notifications.spec.ts",
-    "app/frontend/tests/fixtures/settings-parity.spec.ts"
+    "app/frontend/tests/fixtures/settings-parity.spec.ts",
+    "app/frontend/tests/fixtures/ux-foundation.spec.ts"
   ],
   "storage": [
     "streamvault-theme",
@@ -2061,6 +2063,7 @@
     "app/frontend/tests/fixtures/settings-loader.config.ts",
     "app/frontend/tests/fixtures/settings-loader.spec.ts",
     "app/frontend/tests/fixtures/settings-parity.spec.ts",
+    "app/frontend/tests/fixtures/ux-foundation.spec.ts",
     "app/frontend/tests/unit/baselineObservation.spec.ts",
     "app/frontend/tests/unit/gateEvidence.spec.ts",
     "app/frontend/tests/unit/issue828Browser.spec.ts",
@@ -3729,7 +3732,7 @@
     },
     {
       "file": "app/frontend/tests/fixtures/foundation-harness/FoundationHarness.vue",
-      "line": 26,
+      "line": 27,
       "match": "document.documentElement"
     },
     {
@@ -3784,12 +3787,17 @@
     },
     {
       "file": "app/frontend/tests/fixtures/settings-parity.spec.ts",
-      "line": 157,
+      "line": 163,
       "match": "document.documentElement"
     },
     {
       "file": "app/frontend/tests/fixtures/settings-parity.spec.ts",
-      "line": 157,
+      "line": 163,
+      "match": "document.documentElement"
+    },
+    {
+      "file": "app/frontend/tests/fixtures/ux-foundation.spec.ts",
+      "line": 55,
       "match": "document.documentElement"
     },
     {
@@ -4436,7 +4444,7 @@
     },
     {
       "file": "app/frontend/tests/fixtures/foundation-harness/FoundationHarness.vue",
-      "line": 14,
+      "line": 15,
       "match": "const query = new "
     },
     {
@@ -7014,37 +7022,37 @@
     },
     {
       "file": "app/frontend/tests/fixtures/foundation-harness/FoundationHarness.vue",
-      "line": 37,
+      "line": 39,
       "match": "@click="
     },
     {
       "file": "app/frontend/tests/fixtures/foundation-harness/FoundationHarness.vue",
-      "line": 44,
+      "line": 46,
       "match": "@click="
     },
     {
       "file": "app/frontend/tests/fixtures/foundation-harness/FoundationHarness.vue",
-      "line": 67,
+      "line": 69,
       "match": "@click="
     },
     {
       "file": "app/frontend/tests/fixtures/foundation-harness/FoundationHarness.vue",
-      "line": 68,
+      "line": 70,
       "match": "@click="
     },
     {
       "file": "app/frontend/tests/fixtures/foundation-harness/FoundationHarness.vue",
-      "line": 83,
+      "line": 85,
       "match": "@click="
     },
     {
       "file": "app/frontend/tests/fixtures/foundation-harness/FoundationHarness.vue",
-      "line": 84,
+      "line": 86,
       "match": "@click="
     },
     {
       "file": "app/frontend/tests/fixtures/foundation-harness/FoundationHarness.vue",
-      "line": 87,
+      "line": 89,
       "match": "@click="
     }
   ],
@@ -7444,7 +7452,7 @@
     },
     {
       "file": "app/frontend/src/components/settings/RecordingSettingsPanel.vue",
-      "line": 681,
+      "line": 685,
       "match": "transition: all"
     },
     {
@@ -7938,22 +7946,22 @@
     },
     {
       "file": "app/frontend/src/components/EmptyState.vue",
-      "line": 348,
+      "line": 351,
       "match": "width: 36px"
     },
     {
       "file": "app/frontend/src/components/EmptyState.vue",
-      "line": 349,
+      "line": 352,
       "match": "height: 36px"
     },
     {
       "file": "app/frontend/src/components/EmptyState.vue",
-      "line": 353,
+      "line": 356,
       "match": "width: 20px"
     },
     {
       "file": "app/frontend/src/components/EmptyState.vue",
-      "line": 354,
+      "line": 357,
       "match": "height: 20px"
     },
     {
@@ -8818,12 +8826,12 @@
     },
     {
       "file": "app/frontend/src/components/settings/RecordingSettingsPanel.vue",
-      "line": 572,
+      "line": 576,
       "match": "width: 24px"
     },
     {
       "file": "app/frontend/src/components/settings/RecordingSettingsPanel.vue",
-      "line": 573,
+      "line": 577,
       "match": "height: 24px"
     },
     {
@@ -10253,12 +10261,12 @@
     },
     {
       "file": "app/frontend/tests/fixtures/foundation-harness/FoundationHarness.vue",
-      "line": 103,
+      "line": 105,
       "match": "width: 20px"
     },
     {
       "file": "app/frontend/tests/fixtures/foundation-harness/FoundationHarness.vue",
-      "line": 103,
+      "line": 105,
       "match": "height: 20px"
     }
   ],
@@ -11293,21 +11301,21 @@
     "schemaVersion": 1,
     "generatedBy": "app/frontend/scripts/inventory-frontend.mjs",
     "sourceRoot": "app/frontend",
-    "frontendFiles": 330,
+    "frontendFiles": 331,
     "routes": 21,
     "navigationDestinations": 17,
     "apiCalls": 146,
-    "websocketConsumers": 14,
+    "websocketConsumers": 15,
     "storage": 2,
     "overlays": 77,
     "forms": 7,
     "tables": 6,
     "destructiveActions": 66,
-    "states": 195,
+    "states": 196,
     "players": 14,
     "pwa": 108,
     "breakpoints": 94,
-    "directDomMutations": 258,
+    "directDomMutations": 259,
     "moduleScopeMutableState": 97,
     "listenersAndTimers": 128,
     "anyTypes": 89,
