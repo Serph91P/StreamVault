@@ -31,8 +31,8 @@
             </div>
 
             <div class="form-group">
-              <label>Standardqualität:</label>
-              <select v-model="data.default_quality" class="form-control">
+              <label :for="`${controlId}-quality`">Standardqualität:</label>
+              <select :id="`${controlId}-quality`" v-model="data.default_quality" class="form-control">
                 <option v-for="option in QUALITY_OPTIONS" :key="option.value" :value="option.value">
                   {{ option.label }}
                 </option>
@@ -43,8 +43,8 @@
             </div>
 
             <div class="form-group">
-              <label>Dateinamenvorlage:</label>
-              <select v-model="data.filename_preset" class="form-control" @change="updateFilenameFromPreset" :disabled="presetsLoading">
+              <label :for="`${controlId}-preset`">Dateinamenvorlage:</label>
+              <select :id="`${controlId}-preset`" v-model="data.filename_preset" class="form-control" @change="updateFilenameFromPreset" :disabled="presetsLoading">
                 <option value="" v-if="presetsLoading">Vorlagen werden geladen...</option>
                 <option v-for="preset in FILENAME_PRESETS" :key="preset.value" :value="preset.value">
                   {{ preset.label }}
@@ -53,7 +53,8 @@
               <div v-if="presetsError" class="error-text">
                 Vorlagen konnten nicht geladen werden: {{ presetsError }}
               </div>
-              <input ref="filenameTemplateInput" v-model="data.filename_template" class="form-control" style="margin-top: 10px;" />
+              <label :for="`${controlId}-filename`">Eigene Dateinamenvorlage:</label>
+              <input :id="`${controlId}-filename`" ref="filenameTemplateInput" v-model="data.filename_template" class="form-control" />
               <div class="help-text">
                 Eine Vorlage wählen oder die Dateinamenvorlage anpassen.
                 <br><strong>Verfügbare Variablen (zum Einfügen anklicken):</strong>
@@ -106,8 +107,8 @@
               <h3 class="section-title">Video-Codecs</h3>
             </div>
             <div class="form-group">
-              <label>Erlaubte Codecs:</label>
-              <select v-model="data.supported_codecs" class="form-control">
+              <label :for="`${controlId}-codecs`">Erlaubte Codecs:</label>
+              <select :id="`${controlId}-codecs`" v-model="data.supported_codecs" class="form-control">
                 <option value="h264">Nur H.264 - bis 1080p60, höchste Kompatibilität</option>
                 <option value="h265">Nur H.265/HEVC - 1440p60, moderne Hardware erforderlich</option>
                 <option value="av1">Nur AV1 - experimentell, aktuelle Hardware erforderlich</option>
@@ -269,12 +270,14 @@
                   <span class="streamer-name">{{ streamer.username || 'Unbekannter Kanal' }}</span>
                 </td>
                 <td v-if="showOverrides" data-label="Aufnehmen">
-                  <input type="checkbox" v-model="streamer.enabled"
+                  <label :for="`${controlId}-${streamer.streamer_id}-enabled`">Aufnahme für {{ streamer.username || 'Kanal' }}</label>
+                  <input :id="`${controlId}-${streamer.streamer_id}-enabled`" type="checkbox" v-model="streamer.enabled"
                     :aria-label="`Aufnahme für ${streamer.username || 'Kanal'}`"
                     @change="updateStreamerSetting(streamer.streamer_id, { enabled: streamer.enabled })" />
                 </td>
                 <td v-if="showOverrides" data-label="Qualität">
-                  <select v-model="streamer.quality"
+                  <label :for="`${controlId}-${streamer.streamer_id}-quality`">Qualität für {{ streamer.username || 'Kanal' }}</label>
+                  <select :id="`${controlId}-${streamer.streamer_id}-quality`" v-model="streamer.quality"
                     @change="updateStreamerSetting(streamer.streamer_id, { quality: streamer.quality })"
                     class="form-control form-control-sm">
                     <option value="">Globale Vorgabe verwenden</option>
@@ -291,7 +294,8 @@
                 </td>
                 -->
                 <td v-if="showOverrides" data-label="Eigener Dateiname">
-                  <input type="text" v-model="streamer.custom_filename"
+                  <label :for="`${controlId}-${streamer.streamer_id}-filename`">Eigener Dateiname für {{ streamer.username || 'Kanal' }}</label>
+                  <input :id="`${controlId}-${streamer.streamer_id}-filename`" type="text" v-model="streamer.custom_filename"
                     @change="updateStreamerSetting(streamer.streamer_id, { custom_filename: streamer.custom_filename })"
                     placeholder="Globale Vorlage verwenden" class="form-control form-control-sm" />
                 </td>
@@ -337,7 +341,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick } from 'vue';
+import { ref, watch, nextTick, useId } from 'vue';
 import { useRecordingSettings } from '@/composables/useRecordingSettings';
 import { useFilenamePresets } from '@/composables/useFilenamePresets';
 import { useToast } from '@/composables/useToast';
@@ -371,6 +375,7 @@ const emits = defineEmits<{
 
 const { isLoading, error } = useRecordingSettings();
 const toast = useToast();
+const controlId = useId();
 
 // Filename presets from API
 const { presets: FILENAME_PRESETS, isLoading: presetsLoading, error: presetsError } = useFilenamePresets();
