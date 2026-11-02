@@ -162,7 +162,7 @@
 </template>
 
 <script>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 
 export default {
   name: 'BackgroundQueueAdmin',
@@ -170,47 +170,59 @@ export default {
     const status = ref(null)
     const lastResult = ref(null)
     const loading = ref(false)
+    const requests = new AbortController()
+    let refreshInterval
+    let cleanupRefreshTimeout
 
     const refreshStatus = async () => {
+      if (requests.signal.aborted || loading.value) return
       loading.value = true
       try {
         const response = await fetch('/api/admin/background-queue/status', {
-          credentials: 'include' // CRITICAL: Required to send session cookie
+          credentials: 'include', // CRITICAL: Required to send session cookie
+          signal: requests.signal
         })
         if (response.ok) {
-          status.value = await response.json()
+          const result = await response.json()
+          if (requests.signal.aborted) return
+          status.value = result
           if (import.meta.env.DEV) console.debug('Background queue status refreshed:', status.value)
         } else {
           throw new Error('Failed to fetch status')
         }
       } catch (error) {
+        if (requests.signal.aborted) return
         console.error('Error fetching background queue status:', error)
         lastResult.value = {
           success: false,
           message: 'Error loading status: ' + error.message
         }
       } finally {
-        loading.value = false
+        if (!requests.signal.aborted) loading.value = false
       }
     }
 
     const performCleanup = async (endpoint, actionName) => {
+      if (requests.signal.aborted || loading.value) return
       loading.value = true
       lastResult.value = null
       
       try {
         const response = await fetch(`/api/admin/background-queue/cleanup/${endpoint}`, {
           method: 'POST',
-          credentials: 'include' // CRITICAL: Required to send session cookie
+          credentials: 'include', // CRITICAL: Required to send session cookie
+          signal: requests.signal
         })
         
         if (response.ok) {
           const result = await response.json()
+          if (requests.signal.aborted) return
           lastResult.value = result
           if (import.meta.env.DEV) console.debug(`${actionName} completed:`, result)
           
           // Refresh status after successful cleanup
-          setTimeout(() => {
+          clearTimeout(cleanupRefreshTimeout)
+          cleanupRefreshTimeout = setTimeout(() => {
             refreshStatus()
           }, 1000)
         } else {
@@ -218,6 +230,7 @@ export default {
           throw new Error(`HTTP ${response.status}: ${errorText}`)
         }
       } catch (error) {
+        if (requests.signal.aborted) return
         console.error(`Error in ${actionName}:`, error)
         lastResult.value = {
           success: false,
@@ -225,7 +238,7 @@ export default {
           errors: [error.message]
         }
       } finally {
-        loading.value = false
+        if (!requests.signal.aborted) loading.value = false
       }
     }
 
@@ -239,7 +252,13 @@ export default {
       refreshStatus()
       
       // Auto-refresh every 30 seconds
-      setInterval(refreshStatus, 30000)
+      refreshInterval = setInterval(refreshStatus, 30000)
+    })
+
+    onUnmounted(() => {
+      clearInterval(refreshInterval)
+      clearTimeout(cleanupRefreshTimeout)
+      requests.abort()
     })
 
     return {
