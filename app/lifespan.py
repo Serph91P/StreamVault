@@ -15,6 +15,8 @@ from app.dependencies import (
     get_event_registry,
     get_lifespan_service,
     get_recording_manager,
+    get_proxy_health_service,
+    _get_application_proxy_health_service,
     _get_application_twitch_api,
     _get_application_image_sync_service,
     _get_application_image_refresh_service,
@@ -87,6 +89,13 @@ async def _shutdown_step(name: str, operation) -> None:
         logger.error("Shutdown step %s failed (%s)", name, type(error).__name__)
 
 
+async def _close_application_proxy(app: FastAPI) -> None:
+    actor = getattr(app.state, "proxy_health_service", None)
+    if actor is not None:
+        await actor.stop()
+        app.state.proxy_health_service = None
+
+
 async def _close_application_images(app: FastAPI) -> None:
     auto_worker = getattr(app.state, "auto_image_sync_service", None)
     if auto_worker is not None:
@@ -135,7 +144,7 @@ async def lifespan(app: FastAPI):
     broadcast_task = getattr(
         app.state, "websocket_broadcast_task", websocket_broadcast_task
     )
-    proxy_started = False
+    proxy_actor = None
 
     def phase(name: str) -> None:
         app.state.startup_phases.append(name)
@@ -296,8 +305,14 @@ async def lifespan(app: FastAPI):
 
         from app.services.proxy.proxy_health_service import proxy_health_service
 
-        await proxy_health_service.start()
-        proxy_started = True
+        proxy_actor = proxy_health_service
+        if hasattr(app.state, "proxy_health_service_lock"):
+            provider = app.dependency_overrides.get(
+                get_proxy_health_service,
+                partial(_get_application_proxy_health_service, app),
+            )
+            proxy_actor = await run_in_thread_pool(provider)
+        await proxy_actor.start()
         phase("background-services")
         phase("ready")
         logger.info("Application startup complete")
@@ -306,10 +321,11 @@ async def lifespan(app: FastAPI):
     finally:
         logger.info("Starting application shutdown")
 
-        if proxy_started:
-            from app.services.proxy.proxy_health_service import proxy_health_service
-
-            await _shutdown_step("proxy-health", proxy_health_service.stop)
+        if proxy_actor is not None:
+            await _shutdown_step("proxy-health", proxy_actor.stop)
+        await _shutdown_step(
+            "proxy-health-owner", lambda: _close_application_proxy(app)
+        )
         if websocket_started:
             await _shutdown_step("websocket-broadcast", broadcast_task.stop)
         if image_sync_started:

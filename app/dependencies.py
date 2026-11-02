@@ -402,6 +402,23 @@ def get_image_migration_service(connection: HTTPConnection):
     return _get_application_image_migration_service(connection.app)
 
 
+def _get_application_proxy_health_service(app: FastAPI):
+    with app.state.proxy_health_service_lock:
+        if app.state.proxy_health_service is None:
+            from app.services.proxy.proxy_health_service import ProxyHealthService
+
+            app.state.proxy_health_service = ProxyHealthService(
+                settings=resolve_app_settings(app),
+                session_factory=app.state.database_lifecycle.sync_session_factory,
+                websocket_manager=app.state.websocket_manager,
+            )
+        return app.state.proxy_health_service
+
+
+def get_proxy_health_service(connection: HTTPConnection):
+    return _get_application_proxy_health_service(connection.app)
+
+
 def get_background_queue_service(connection: HTTPConnection) -> BackgroundQueueService:
     queue: BackgroundQueueService = getattr(
         connection.app.state, "background_queue_service", background_queue_service

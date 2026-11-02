@@ -325,6 +325,14 @@ async def test_lifespan_uses_factory_service_overrides_for_startup_and_shutdown(
         from app.services.images.auto_image_sync_service import AutoImageSyncService
 
         app.state.image_sync_service = ImageSyncService()
+        app.state.proxy_health_service_lock = Lock()
+        owned_proxy = SimpleNamespace(
+            start=lambda: record("owned-proxy-start"),
+            stop=lambda: record("proxy-stop"),
+        )
+        app.dependency_overrides[dependencies.get_proxy_health_service] = lambda: (
+            owned_proxy
+        )
         app.state.auto_image_sync_service = AutoImageSyncService()
         app.state.auto_image_sync_service_lock = Lock()
         monkeypatch.setattr(
@@ -370,6 +378,8 @@ async def test_lifespan_uses_factory_service_overrides_for_startup_and_shutdown(
             assert "image-sync-start" not in calls
             assert "owned-image-refresh" in calls
             assert "owned-image-migration" in calls
+            assert "owned-proxy-start" in calls
+            assert "proxy-start" not in calls
             assert "image-refresh" not in calls
         assert app.state.recording_manager.__class__ is RecordingManager
         if legacy_image_failure:
