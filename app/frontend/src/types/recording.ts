@@ -1,5 +1,6 @@
 export interface RecordingSettings {
   enabled: boolean;
+  output_directory?: string;
   filename_template: string;
   filename_preset?: string;
   default_quality: string;

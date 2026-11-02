@@ -1,15 +1,15 @@
 <template>
 
     <div v-if="isLoading" class="loading-message">
-      Loading recording settings...
+      Aufnahmeeinstellungen werden geladen...
     </div>
 
     <div v-else-if="error" class="error-message">
-      Error loading settings: {{ error }}
+      Einstellungen konnten nicht geladen werden: {{ error }}
     </div>
       <!-- Recording and Storage are separate settings sections now; this
            component renders one half, selected via the `section` prop -->
-      <div class="tab-content">
+      <div v-if="context === 'global'" class="tab-content">
         <div v-if="section === 'recording'" class="tab-panel">
           <!-- Basic Recording Settings Section -->
           <div class="panel-block">
@@ -17,46 +17,46 @@
               <svg class="section-icon">
                 <use href="#icon-video" />
               </svg>
-              <h3 class="section-title">Basic Recording Settings</h3>
+              <h3 class="section-title">Globale Aufnahmevorgaben</h3>
             </div>
 
             <div class="form-group">
               <label class="checkbox-target">
                 <input type="checkbox" v-model="data.enabled" />
-                Enable Recording
+                Automatische Aufnahme aktivieren
               </label>
               <div class="help-text">
-                Master toggle for all recording functionality. When disabled, no streams will be recorded regardless of individual streamer settings.
+                Hauptschalter für Aufnahmen. Ausgeschaltet werden keine Streams aufgenommen, unabhängig von den Einstellungen einzelner Kanäle.
               </div>
             </div>
 
             <div class="form-group">
-              <label>Default Quality:</label>
+              <label>Standardqualität:</label>
               <select v-model="data.default_quality" class="form-control">
                 <option v-for="option in QUALITY_OPTIONS" :key="option.value" :value="option.value">
                   {{ option.label }}
                 </option>
               </select>
               <div class="help-text">
-                Default quality setting for new streamers. Individual streamers can override this setting.
+                Standardqualität für neue Kanäle. Einzelne Kanäle können diese Vorgabe überschreiben.
               </div>
             </div>
 
             <div class="form-group">
-              <label>Filename Template:</label>
+              <label>Dateinamenvorlage:</label>
               <select v-model="data.filename_preset" class="form-control" @change="updateFilenameFromPreset" :disabled="presetsLoading">
-                <option value="" v-if="presetsLoading">Loading presets...</option>
+                <option value="" v-if="presetsLoading">Vorlagen werden geladen...</option>
                 <option v-for="preset in FILENAME_PRESETS" :key="preset.value" :value="preset.value">
                   {{ preset.label }}
                 </option>
               </select>
               <div v-if="presetsError" class="error-text">
-                Failed to load presets: {{ presetsError }}
+                Vorlagen konnten nicht geladen werden: {{ presetsError }}
               </div>
               <input ref="filenameTemplateInput" v-model="data.filename_template" class="form-control" style="margin-top: 10px;" />
               <div class="help-text">
-                Choose a preset or customize the filename template.
-                <br><strong>Available variables (click to insert):</strong>
+                Eine Vorlage wählen oder die Dateinamenvorlage anpassen.
+                <br><strong>Verfügbare Variablen (zum Einfügen anklicken):</strong>
                 <div class="variables-container">
                   <button
                     v-for="variable in FILENAME_VARIABLES"
@@ -69,32 +69,32 @@
                     {{ variable.key }}
                   </button>
                 </div>
-                <br><br><strong>Example output: </strong>
+                <br><br><strong>Beispiel: </strong>
                 <code class="example-output">Streamername - S202506E01 - Just Chatting Stream.mp4</code>
-                <br><small>Episode numbers (E01, E02, E03) are based on stream order within the month, not date.</small>
-                <br><br><strong>💡 Advanced formatting:</strong>
-                <br><small>Use <code>{episode:02d}</code> to format numbers with leading zeros (01, 02, 03...)
-                <br>Use <code>{episode}</code> for simple numbers without padding (1, 2, 3...)</small>
+                <br><small>Episodennummern (E01, E02, E03) folgen der Streamreihenfolge im Monat, nicht dem Datum.</small>
+                <br><br><strong>Erweiterte Formatierung:</strong>
+                <br><small><code>{episode:02d}</code> erzeugt führende Nullen (01, 02, 03...).
+                <br><code>{episode}</code> erzeugt einfache Nummern (1, 2, 3...).</small>
               </div>
             </div>
 
             <div class="form-group">
               <label class="checkbox-target">
                 <input type="checkbox" v-model="data.use_chapters" />
-                Create Chapters From Stream Events
+                Kapitel aus Streamereignissen erzeugen
               </label>
               <div class="help-text">
-                Create chapters in the recording based on stream title and game changes.
+                Bei Titel- und Spielwechseln Kapitelmarken in der Aufnahme setzen.
               </div>
             </div>
 
             <div class="form-group">
               <label class="checkbox-target">
                 <input type="checkbox" v-model="data.use_category_as_chapter_title" />
-                Use Category as Chapter Title
+                Kategorie als Kapiteltitel verwenden
               </label>
               <div class="help-text">
-                When enabled, chapter titles will use the game/category name instead of the stream title.
+                Den Spiel- oder Kategorienamen anstelle des Streamtitels als Kapiteltitel verwenden.
               </div>
             </div>
 
@@ -103,25 +103,25 @@
               <svg class="section-icon">
                 <use href="#icon-settings" />
               </svg>
-              <h3 class="section-title">Advanced Codec Settings</h3>
+              <h3 class="section-title">Video-Codecs</h3>
             </div>
             <div class="form-group">
-              <label>Supported Codecs:</label>
+              <label>Erlaubte Codecs:</label>
               <select v-model="data.supported_codecs" class="form-control">
-                <option value="h264">📺 H.264 Only - 1080p60 max, highest compatibility</option>
-                <option value="h265">🎬 H.265/HEVC Only - 1440p60, modern hardware required</option>
-                <option value="av1">🚀 AV1 Only - Experimental, newest hardware required</option>
-                <option value="h264,h265">⭐ H.264 + H.265 (RECOMMENDED) - Best balance, auto-fallback</option>
-                <option value="h264,h265,av1">🔮 All Codecs (Future-proof) - Maximum quality</option>
+                <option value="h264">Nur H.264 - bis 1080p60, höchste Kompatibilität</option>
+                <option value="h265">Nur H.265/HEVC - 1440p60, moderne Hardware erforderlich</option>
+                <option value="av1">Nur AV1 - experimentell, aktuelle Hardware erforderlich</option>
+                <option value="h264,h265">H.264 + H.265 (empfohlen) - automatischer Rückfall</option>
+                <option value="h264,h265,av1">Alle Codecs - maximale Qualität</option>
               </select>
               <div class="help-text">
-                Configure video codec support for higher quality recordings (up to 1440p60).
-                <br><br><strong>ℹ️ Important Notes:</strong>
+                Codec-Unterstützung für hochauflösende Aufnahmen bis 1440p60 einstellen.
+                <br><br><strong>Hinweise:</strong>
                 <ul style="margin-top: 0.5rem; margin-bottom: 0;">
-                  <li>Higher quality streams depend on <strong>broadcaster settings</strong> (not all streamers support H.265/AV1)</li>
-                  <li>Most channels still stream in H.264 only</li>
-                  <li>H.265/AV1 decode requires modern hardware (2020+) and compatible players</li>
-                  <li>If broadcaster doesn't support selected codec, Streamlink will auto-fallback to available codec</li>
+                  <li>Die verfügbaren Codecs hängen von den <strong>Einstellungen des Senders</strong> ab.</li>
+                  <li>Die meisten Kanäle senden nur in H.264.</li>
+                  <li>H.265 und AV1 benötigen moderne Hardware und kompatible Player.</li>
+                  <li>Ist der gewählte Codec nicht verfügbar, verwendet Streamlink automatisch einen verfügbaren Codec.</li>
                 </ul>
               </div>
             </div>
@@ -135,15 +135,15 @@
               <svg class="section-icon">
                 <use href="#icon-server" />
               </svg>
-              <h3 class="section-title">Storage & Cleanup Management</h3>
+              <h3 class="section-title">Speicher und Aufbewahrung</h3>
             </div>
             <p class="section-description">
-              Configure automatic cleanup policies to manage storage space and organize your recordings efficiently.
+              Automatische Bereinigung und Schutzregeln für alle Kanäle festlegen. Einzelne Kanäle können diese Vorgabe erben oder eigene Regeln verwenden.
             </p>
 
             <CleanupPolicyEditor
               :is-global="true"
-              title="Global Cleanup Policy"
+              title="Globale Aufbewahrung"
               @saved="handleCleanupPolicySaved"
             />
           </div>
@@ -151,79 +151,79 @@
       </div>
 
       <!-- Save Button (recording settings only; cleanup policies save themselves) -->
-      <div v-if="section === 'recording'" class="form-actions">
+      <div v-if="context === 'global' && section === 'recording'" class="form-actions">
         <button @click="saveSettings" class="btn btn-primary" :disabled="isSaving">
-          {{ isSaving ? 'Saving...' : 'Save Settings' }}        </button>
+          {{ isSaving ? 'Wird gespeichert...' : 'Einstellungen speichern' }}        </button>
       </div>
 
     <!-- Active Recordings -->
-    <div v-if="section === 'recording' && activeRecordings.length > 0" class="active-recordings panel-block">
-      <h3>Active Recordings</h3>
+    <div v-if="context !== 'global' && activeRecordings.length > 0" class="active-recordings panel-block">
+      <h3>Laufende Aufnahmen</h3>
       <div class="recordings-grid">
         <div v-for="recording in activeRecordings" :key="recording.streamer_id" class="recording-card">
           <div class="recording-header">
             <span class="streamer-name">{{ recording.streamer_name }}</span>
-            <span class="recording-indicator">RECORDING</span>
+            <span class="recording-indicator">AUFNAHME LÄUFT</span>
           </div>
           <div class="recording-details">
-            <div><strong>Started:</strong> {{ formatDate(recording.started_at) }}</div>
-            <div><strong>Duration:</strong> {{ formatDuration(recording.duration) }}</div>
+            <div><strong>Gestartet:</strong> {{ formatDate(recording.started_at) }}</div>
+            <div><strong>Dauer:</strong> {{ formatDuration(recording.duration) }}</div>
             <div><strong>Status:</strong> {{ recording.status }}</div>
-            <div><strong>Twitch mode:</strong> {{ recording.effective_auth_mode || 'unknown' }}</div>
+            <div><strong>Twitch-Zugang:</strong> {{ recording.effective_auth_mode || 'unknown' }}</div>
             <div v-if="recordingStatus(recording).handoff" class="warning-message">
               {{ recordingStatus(recording).handoff }}
             </div>
             <div v-if="recordingStatus(recording).partialWarning" class="warning-message">
               {{ recordingStatus(recording).partialWarning }}
             </div>
-            <div class="output-path"><strong>Output:</strong> {{ recording.file_path || recording.output_path }}</div>
+            <div class="output-path"><strong>Datei:</strong> {{ recording.file_path || recording.output_path }}</div>
           </div>
           <button @click="stopRecording(recording.streamer_id)" class="btn btn-danger" :disabled="isLoading">
-            Stop Recording
+            Aufnahme stoppen
           </button>
         </div>
       </div>
     </div>
     <!-- Streamer Settings -->
-    <div v-if="section === 'recording'" class="streamer-settings panel-block">
-      <h3>Streamer Recording Settings</h3>
+    <div v-if="context !== 'global'" class="streamer-settings panel-block">
+      <h3>{{ context === 'manage' ? 'Aufnahmen für alle Kanäle' : 'Aufnahme für diesen Kanal' }}</h3>
 
       <div v-if="!streamerSettings || streamerSettings.length === 0" class="no-streamers-message">
-        <p>No streamers found. Add streamers in the Streamers section to configure recording settings.</p>
+        <p>Keine Kanäle vorhanden. Füge zuerst einen Kanal hinzu.</p>
       </div>
         <template v-else>
-        <div class="table-controls">
-          <button @click="toggleAllStreamers(true)" class="btn btn-secondary">Enable All</button>
-          <button @click="toggleAllStreamers(false)" class="btn btn-secondary">Disable All</button>
+        <div v-if="context === 'manage'" class="table-controls">
+          <button @click="toggleAllStreamers(true)" class="btn btn-secondary">Aufnahme für alle aktivieren</button>
+          <button @click="toggleAllStreamers(false)" class="btn btn-secondary">Aufnahme für alle deaktivieren</button>
         </div>
 
-        <div class="table-wrapper">
+        <div v-if="context === 'channel'" class="table-wrapper">
           <table class="data-table">
             <thead>
               <tr>
-                <th>Streamer</th>
-                <th>
+                <th>Kanal</th>
+                <th v-if="showOverrides">
                   <span class="th-content">
-                    Record
+                    Aufnehmen
                     <span class="th-tooltip-wrapper">
                       <svg class="info-icon">
                         <use href="#icon-info" />
                       </svg>
                       <span class="tooltip-wrapper">
-                        <span class="tooltip">Enable/disable recording for this streamer</span>
+                        <span class="tooltip">Aufnahme für diesen Kanal aktivieren oder deaktivieren</span>
                       </span>
                     </span>
                   </span>
                 </th>
-                <th>
+                <th v-if="showOverrides">
                   <span class="th-content">
-                    Quality
+                    Qualität
                     <span class="th-tooltip-wrapper">
                       <svg class="info-icon">
                         <use href="#icon-info" />
                       </svg>
                       <span class="tooltip-wrapper">
-                        <span class="tooltip">Select recording quality (defaults to global setting if empty)</span>
+                        <span class="tooltip">Aufnahmequalität wählen oder die globale Vorgabe verwenden</span>
                       </span>
                     </span>
                   </span>
@@ -232,28 +232,28 @@
                      product decision; intentionally not rendered:
                 <th>Auth priority</th>
                 -->
-                <th>
+                <th v-if="showOverrides">
                   <span class="th-content">
-                    Custom Filename
+                    Eigener Dateiname
                     <span class="th-tooltip-wrapper">
                       <svg class="info-icon">
                         <use href="#icon-info" />
                       </svg>
                       <span class="tooltip-wrapper">
-                        <span class="tooltip">Optional custom filename template for this streamer</span>
+                        <span class="tooltip">Optionale eigene Dateinamenvorlage für diesen Kanal</span>
                       </span>
                     </span>
                   </span>
                 </th>
                 <th>
                   <span class="th-content">
-                    Actions
+                    Aktionen
                     <span class="th-tooltip-wrapper">
                       <svg class="info-icon">
                         <use href="#icon-info" />
                       </svg>
                       <span class="tooltip-wrapper">
-                        <span class="tooltip">Test, stop, or clean up recordings</span>
+                        <span class="tooltip">Aufnahme stoppen und Aufbewahrung bearbeiten</span>
                       </span>
                     </span>
                   </span>
@@ -266,18 +266,18 @@
                   <div class="streamer-avatar" v-if="streamer.profile_image_url">
                     <img :src="streamer.profile_image_url" :alt="streamer.username || ''" />
                   </div>
-                  <span class="streamer-name">{{ streamer.username || 'Unknown Streamer' }}</span>
+                  <span class="streamer-name">{{ streamer.username || 'Unbekannter Kanal' }}</span>
                 </td>
-                <td data-label="Record">
+                <td v-if="showOverrides" data-label="Aufnehmen">
                   <input type="checkbox" v-model="streamer.enabled"
-                    :aria-label="`Record ${streamer.username || 'streamer'}`"
+                    :aria-label="`Aufnahme für ${streamer.username || 'Kanal'}`"
                     @change="updateStreamerSetting(streamer.streamer_id, { enabled: streamer.enabled })" />
                 </td>
-                <td data-label="Quality">
+                <td v-if="showOverrides" data-label="Qualität">
                   <select v-model="streamer.quality"
                     @change="updateStreamerSetting(streamer.streamer_id, { quality: streamer.quality })"
                     class="form-control form-control-sm">
-                    <option value="">Use global default</option>
+                    <option value="">Globale Vorgabe verwenden</option>
                     <option v-for="option in QUALITY_OPTIONS" :key="option.value" :value="option.value">
                       {{ option.label }}
                     </option>
@@ -290,26 +290,26 @@
                     @change="updateTwitchAuthPriority(streamer, $event)" />
                 </td>
                 -->
-                <td data-label="Custom Filename">
+                <td v-if="showOverrides" data-label="Eigener Dateiname">
                   <input type="text" v-model="streamer.custom_filename"
                     @change="updateStreamerSetting(streamer.streamer_id, { custom_filename: streamer.custom_filename })"
-                    placeholder="Use global template" class="form-control form-control-sm" />
+                    placeholder="Globale Vorlage verwenden" class="form-control form-control-sm" />
                 </td>
-                <td data-label="Actions" class="actions-cell">
+                <td data-label="Aktionen" class="actions-cell">
                   <div class="actions-group">
                     <button
                       v-if="isActiveRecording(streamer.streamer_id)"
                       @click="stopRecording(streamer.streamer_id)"
                       class="btn btn-danger btn-sm"
                       :disabled="isLoading">
-                      Stop
+                      Stoppen
                     </button>
                     <button
                       @click="openCleanupPolicyEditor(streamer)"
-                      class="btn btn-info btn-sm"
+                      class="btn btn-secondary btn-sm"
                       :disabled="isLoading"
-                      title="Configure cleanup policy for this streamer">
-                      Policy
+                      title="Aufbewahrung für diesen Kanal konfigurieren">
+                      Aufbewahrung
                     </button>
                   </div>
                 </td>
@@ -355,8 +355,12 @@ const props = withDefaults(defineProps<{
    *  or the storage/cleanup half. Each is its own sidebar section now -
    *  the old in-panel tab bar is gone. */
   section?: 'recording' | 'storage';
+  context?: 'global' | 'channel' | 'manage';
+  showOverrides?: boolean;
 }>(), {
-  section: 'recording'
+  section: 'recording',
+  context: 'global',
+  showOverrides: true
 });
 
 const emits = defineEmits<{

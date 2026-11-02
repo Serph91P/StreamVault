@@ -1,37 +1,34 @@
 <template>
   <div class="page-view streamers-view">
     <PageHeader
-      title="Streamers"
+      title="Meine Kanäle"
       icon="users"
-      :subtitle="isLoading ? 'Manage your tracked streamers' : `Manage your tracked streamers \u2022 ${liveStreamers.length} live now`"
+      :subtitle="isLoading ? 'Kanäle werden geladen …' : `${liveStreamers.length} live · ${recordingStreamers.length} Aufnahmen laufen`"
     >
       <template #actions>
         <div class="header-actions">
-          <BaseButton
-            :variant="autoRefresh ? 'primary' : 'secondary'"
-            size="sm"
-            @click="toggleAutoRefresh"
-          >
-            <svg class="icon" aria-hidden="true">
-              <use href="#icon-refresh-cw" />
-            </svg>
-            Auto refresh {{ autoRefresh ? 'On' : 'Off' }}
-          </BaseButton>
           <router-link to="/add-streamer" class="btn btn-primary btn-sm add-streamer-link" v-ripple>
             <svg class="icon" aria-hidden="true">
               <use href="#icon-plus" />
             </svg>
-            Add Streamer
+            Kanal hinzufügen
           </router-link>
+          <router-link to="/streamers/manage" class="btn btn-secondary btn-sm">Kanäle verwalten</router-link>
+          <router-link to="/add-streamer/import" class="btn btn-secondary btn-sm">Follows importieren</router-link>
         </div>
       </template>
     </PageHeader>
+
+    <p v-if="unreadProblems" class="channel-problems" role="status">
+      {{ unreadProblems }} ungelesene Warnungen oder Fehler.
+      <router-link to="/activity?tab=history">Meldungen ansehen</router-link>
+    </p>
 
     <!-- Status counts live in the filter tabs below, where they are clickable;
          a separate stat-tile row duplicated the same numbers. -->
 
     <!-- Controls Bar -->
-    <div class="controls-bar" aria-label="Search, filter, and sort streamers">
+    <div class="controls-bar" aria-label="Kanäle suchen, filtern und sortieren">
       <!-- Search -->
       <div class="search-box">
         <svg class="icon">
@@ -40,16 +37,16 @@
         <input
           v-model="searchQuery"
           type="text"
-          placeholder="Search channel name or display name"
+          placeholder="Kanal suchen"
           class="search-input"
-          aria-label="Search streamers"
+          aria-label="Kanäle suchen"
         />
         <button
           v-if="searchQuery"
           @click="searchQuery = ''"
           class="clear-btn"
-          aria-label="Clear streamer search"
-          title="Clear streamer search"
+          aria-label="Kanalsuche leeren"
+          title="Kanalsuche leeren"
         >
           <svg class="icon">
             <use href="#icon-x" />
@@ -58,17 +55,18 @@
       </div>
 
       <!-- Filter Tabs -->
-      <div class="filter-tabs" aria-label="Filter streamers by status">
+      <div class="filter-tabs" aria-label="Kanäle nach Status filtern">
         <button
           v-for="tab in filterTabs"
           :key="tab.value"
           @click="activeFilter = tab.value"
           :class="{ active: activeFilter === tab.value }"
           :aria-pressed="activeFilter === tab.value"
+          :aria-label="`${tab.label} ${tab.count}`"
           class="filter-tab"
           v-ripple
         >
-          {{ tab.label }}
+          {{ tab.value === 'recording' ? 'Aufnahme' : tab.label }}
           <span v-if="tab.count !== undefined" class="tab-badge">
             {{ tab.count }}
           </span>
@@ -76,13 +74,14 @@
       </div>
 
       <!-- View Toggle -->
-      <div class="view-toggle" aria-label="Choose streamer layout">
+      <div class="view-toggle" aria-label="Kanalansicht wählen">
         <button
           @click="viewMode = 'grid'"
           :class="{ active: viewMode === 'grid' }"
+          :aria-pressed="viewMode === 'grid'"
           class="toggle-btn"
-          aria-label="Show streamers as grid"
-          title="Show streamers as grid"
+          aria-label="Kacheln anzeigen"
+          title="Kacheln anzeigen"
           v-ripple
         >
           <svg class="icon">
@@ -92,9 +91,10 @@
         <button
           @click="viewMode = 'list'"
           :class="{ active: viewMode === 'list' }"
+          :aria-pressed="viewMode === 'list'"
           class="toggle-btn"
-          aria-label="Show streamers as list"
-          title="Show streamers as list"
+          aria-label="Liste anzeigen"
+          title="Liste anzeigen"
           v-ripple
         >
           <svg class="icon">
@@ -108,12 +108,12 @@
         <svg class="sort-icon" aria-hidden="true">
           <use href="#icon-list-ordered" />
         </svg>
-        <span class="sort-label">Sort</span>
+        <span class="sort-label">Sortierung</span>
         <span class="sort-value">{{ currentSortLabel }}</span>
         <select
           v-model="sortBy"
           class="sort-control"
-          aria-label="Sort streamers"
+          aria-label="Kanäle sortieren"
         >
           <option v-for="option in sortOptions" :key="option.value" :value="option.value">
             {{ option.label }}
@@ -123,12 +123,15 @@
 
       <div class="results-info">
         <span>
-          Showing {{ filteredAndSortedStreamers.length }} of {{ streamers.length }} streamers
-          <template v-if="activeFilter !== 'all'">in {{ activeFilterLabel }}</template>
-          <template v-if="searchQuery"> matching "{{ searchQuery }}"</template>
+          {{ filteredAndSortedStreamers.length }} von {{ streamers.length }} Kanälen
+          <template v-if="activeFilter !== 'all'"> · {{ activeFilterLabel }}</template>
+          <template v-if="searchQuery"> · „{{ searchQuery }}“</template>
         </span>
-        <span v-if="lastUpdateTime">Updated {{ formatLastUpdate(lastUpdateTime) }}</span>
-        <button @click="handleRefresh" class="refresh-btn" aria-label="Refresh streamers" title="Refresh streamers" v-ripple>
+        <span v-if="lastUpdateTime">Stand {{ formatLastUpdate(lastUpdateTime) }}</span>
+        <BaseButton variant="ghost" size="sm" :aria-pressed="autoRefresh" @click="toggleAutoRefresh">
+          Hintergrundabgleich: {{ autoRefresh ? 'an' : 'aus' }}
+        </BaseButton>
+        <button @click="handleRefresh" class="refresh-btn" aria-label="Kanalstatus erneut abrufen" title="Kanalstatus erneut abrufen" v-ripple>
           <svg class="icon" :class="{ spinning: isRefreshing }">
             <use href="#icon-refresh-cw" />
           </svg>
@@ -148,43 +151,42 @@
     <!-- Empty State -->
     <EmptyState
       v-else-if="fetchError"
-      title="Streamers could not load"
+      title="Kanäle konnten nicht geladen werden"
       :description="fetchError"
       icon="alert-circle"
       tone="danger"
-      tone-label="Recoverable streamers loading error"
-      retry-label="Try Again"
+      tone-label="Verbindung zum Server prüfen"
+      retry-label="Erneut versuchen"
       retry-icon="refresh-cw"
       @retry="handleRefresh"
     />
 
     <EmptyState
-      v-else-if="filteredAndSortedStreamers.length === 0 && !searchQuery"
-      title="No Streamers Yet"
-      description="Add your first streamer to start tracking and recording their content."
+      v-else-if="streamers.length === 0"
+      title="Noch keine Kanäle"
+      description="Füge einen Kanal hinzu oder importiere deine Twitch-Follows, um Streams automatisch aufzunehmen."
       icon="users"
-      action-label="Add Streamer"
+      action-label="Kanal hinzufügen"
       action-icon="plus"
       @action="$router.push('/add-streamer')"
     />
 
     <!-- No Search Results -->
     <EmptyState
-      v-else-if="filteredAndSortedStreamers.length === 0 && searchQuery"
-      title="No Results Found"
-      :description="`No streamers match '${searchQuery}'`"
+      v-else-if="filteredAndSortedStreamers.length === 0"
+      title="Keine passenden Kanäle"
+      description="Zu dieser Suche oder diesem Status gibt es gerade keine Kanäle. Die übrigen Kanäle sind weiterhin vorhanden."
       icon="search"
-      action-label="Clear Search"
-      @action="searchQuery = ''"
+      action-label="Alle Kanäle anzeigen"
+      @action="searchQuery = ''; activeFilter = 'all'"
     />
 
     <!-- Streamers Grid/List -->
     <div v-else class="streamers-container" :class="[`view-${viewMode}`, viewMode === 'grid' ? 'grid-streamers' : '']">
       <div
-        v-for="(streamer, index) in filteredAndSortedStreamers"
+        v-for="streamer in filteredAndSortedStreamers"
         :key="streamer.id"
         class="streamer-wrapper"
-        :style="{ animationDelay: `${index * 50}ms` }"
       >
         <StreamerCard
           :streamer="streamer"
@@ -204,6 +206,7 @@ import { appStorage } from '@/services/storage'
 import { useRoute } from 'vue-router'
 import { streamersApi } from '@/services/api'
 import { useRealtimeStore } from '@/stores/realtime'
+import { useNotificationStore } from '@/stores/notifications'
 import { hasRealtimeEventType } from '@/types/events'
 import { useForceRecording } from '@/composables/useForceRecording'  // NEW: Import composable
 import LoadingSkeleton from '@/components/LoadingSkeleton.vue'
@@ -214,6 +217,10 @@ import StreamerCard from '@/components/cards/StreamerCard.vue'
 
 // Real-time store for live updates
 const realtime = useRealtimeStore()
+const notifications = useNotificationStore()
+const unreadProblems = computed(() => notifications.notifications.filter(
+  event => !event.read && ['warning', 'error', 'critical'].includes(event.severity)
+).length)
 const route = useRoute()
 
 // Force recording composable
@@ -225,7 +232,7 @@ const isRefreshing = ref(false)
 const streamers = ref<any[]>([])
 const searchQuery = ref('')
 // Grid/list choice survives reloads
-const viewMode = ref<'grid' | 'list'>(appStorage.getViewMode('streamers') ?? 'grid')
+const viewMode = ref<'grid' | 'list'>(appStorage.getViewMode('streamers') ?? 'list')
 watch(viewMode, (mode) => appStorage.setViewMode('streamers', mode))
 const sortBy = ref('live-first')
 const activeFilter = ref('all')
@@ -247,21 +254,21 @@ let refreshInterval: number | null = null
 const REFRESH_INTERVAL = 30000 // 30 seconds
 
 const sortOptions = [
-  { label: 'Live first', value: 'live-first' },
+  { label: 'Live zuerst', value: 'live-first' },
   { label: 'Name A-Z', value: 'name' },
   { label: 'Name Z-A', value: 'name-desc' },
-  { label: 'Recently added', value: 'recently-added' },
-  { label: 'Most videos', value: 'most-videos' },
+  { label: 'Zuletzt hinzugefügt', value: 'recently-added' },
+  { label: 'Meiste Aufzeichnungen', value: 'most-videos' },
 ]
 
 const currentSortLabel = computed(() =>
-  sortOptions.find((option) => option.value === sortBy.value)?.label ?? 'Live first'
+  sortOptions.find((option) => option.value === sortBy.value)?.label ?? 'Live zuerst'
 )
 
 // Filter tabs with counts
 const filterTabs = computed(() => [
   {
-    label: 'All',
+    label: 'Alle',
     value: 'all',
     count: streamers.value.length
   },
@@ -271,7 +278,7 @@ const filterTabs = computed(() => [
     count: liveStreamers.value.length
   },
   {
-    label: 'Recording',
+    label: 'Wird aufgenommen',
     value: 'recording',
     count: recordingStreamers.value.length
   },
@@ -365,7 +372,7 @@ async function fetchStreamers() {
   } catch (error) {
     console.error('Failed to fetch streamers:', error)
     streamers.value = []
-    fetchError.value = 'Check your backend connection, then retry the streamers list.'
+    fetchError.value = 'Prüfe die Verbindung zum Server und lade die Kanäle erneut.'
   }
 }
 
@@ -416,13 +423,13 @@ function formatLastUpdate(date: Date): string {
   const diffMs = now.getTime() - date.getTime()
   const diffSec = Math.floor(diffMs / 1000)
 
-  if (diffSec < 60) return `${diffSec}s ago`
+  if (diffSec < 60) return 'gerade eben'
 
   const diffMin = Math.floor(diffSec / 60)
-  if (diffMin < 60) return `${diffMin}m ago`
+  if (diffMin < 60) return `vor ${diffMin} Min.`
 
   const diffHour = Math.floor(diffMin / 60)
-  return `${diffHour}h ago`
+  return `vor ${diffHour} Std.`
 }
 
 // Handle force record action
@@ -592,25 +599,15 @@ onUnmounted(() => {
   // Page-specific overrides only
 }
 
-.auto-refresh-indicator {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--spacing-2);
-  padding: var(--spacing-1) var(--spacing-2);
-  background: rgba(var(--success-500-rgb), 0.1);
-  color: var(--success-text-color);
+.channel-problems {
+  margin-bottom: var(--spacing-5);
+  padding: var(--spacing-3) var(--spacing-4);
+  border: 1px solid var(--warning-color);
   border-radius: var(--radius-md);
-  font-size: var(--text-xs);
-  font-weight: v.$font-medium;
-}
+  color: var(--text-primary);
+  background: var(--background-card);
 
-.pulse-dot {
-  display: inline-block;
-  width: 6px;
-  height: 6px;
-  background: var(--success-text-color);
-  border-radius: 50%;
-  animation: pulse 2s ease-in-out infinite;
+  a { margin-left: var(--spacing-2); }
 }
 
 .header-actions {
@@ -638,61 +635,6 @@ onUnmounted(() => {
   text-decoration: none;
 }
 
-@keyframes pulse {
-  0%, 100% {
-    opacity: 1;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0.5;
-    transform: scale(1.2);
-  }
-}
-
-.btn-action {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--spacing-2);
-  padding: var(--spacing-3) var(--spacing-4);
-  min-height: 44px;
-  border-radius: var(--radius-lg);
-  font-size: var(--text-sm);
-  font-weight: v.$font-semibold;
-  border: none;
-  cursor: pointer;
-  text-decoration: none;
-  transition: all v.$duration-200 v.$ease-out;
-
-  .icon {
-    width: 18px;
-    height: 18px;
-    stroke: currentColor;
-    fill: none;
-  }
-
-  &.btn-primary {
-    background: v.$primary-700;
-    color: white;
-
-    &:hover {
-      background: v.$primary-800;  /* Darker green when ON */
-      box-shadow: var(--shadow-md);
-    }
-  }
-
-  &.btn-secondary {
-    background: var(--background-card);
-    color: var(--text-primary);
-    border: 1px solid var(--border-color);
-
-    &:hover {
-      background: var(--primary-color);  /* Green background when hovering OFF state */
-      border-color: var(--primary-color);
-      color: white;  /* White text when hovering */
-    }
-  }
-}
-
 // Controls Bar
 .controls-bar {
   display: grid;
@@ -700,6 +642,8 @@ onUnmounted(() => {
   gap: var(--spacing-3);
   align-items: center;
   margin-bottom: var(--spacing-4);
+  padding-bottom: var(--spacing-3);
+  border-bottom: 1px solid var(--sv-sem-border-default);
 }
 
 $ctrl-h: 44px;
@@ -723,18 +667,18 @@ $ctrl-h: 44px;
   .search-input {
     width: 100%;
     // Match the 48px filter/sort groups (40px controls in 3px padding + border)
-    min-height: calc(#{$ctrl-h} + 8px);
+    min-height: 48px;
     padding: 0 var(--spacing-10);
     background: var(--background-card);
     border: 1px solid var(--border-color);
-    border-radius: var(--radius-lg);
+    border-radius: var(--radius-md);
     color: var(--text-primary);
     font-size: var(--text-sm);
     transition: all v.$duration-200 v.$ease-out;
 
     &:focus {
       outline: none;
-      border-color: var(--primary-color);
+      border-color: var(--sv-sem-action-foreground);
       box-shadow: 0 0 0 3px rgba(var(--primary-500-rgb), 0.1);
     }
 
@@ -782,8 +726,8 @@ $ctrl-h: 44px;
   display: flex;
   gap: var(--spacing-1);
   background: var(--background-card);
-  border-radius: var(--radius-lg);
-  padding: 3px;
+  border-radius: var(--radius-md);
+  padding: 1px;
   border: 1px solid var(--border-color);
 }
 
@@ -805,20 +749,18 @@ $ctrl-h: 44px;
   transition: all v.$duration-200 v.$ease-out;
 
   &.active {
-    background: v.$primary-800;
-    color: white;
+    background: var(--sv-sem-surface-selected);
+    color: var(--sv-sem-text-primary);
 
     .tab-badge {
-      // Keep the compact count pill opaque: alpha compositing against the
-      // active teal surface made its white small text fail contrast in light UI.
-      background: v.$primary-900;
-      color: white;
+      background: var(--sv-sem-surface-panel);
+      color: var(--sv-sem-text-primary);
     }
   }
 
   &:hover:not(.active) {
     background: rgba(var(--primary-500-rgb), 0.1);
-    color: var(--primary-color);
+    color: var(--sv-sem-action-foreground);
   }
 
   .tab-badge {
@@ -840,14 +782,14 @@ $ctrl-h: 44px;
   display: flex;
   gap: var(--spacing-1);
   background: var(--background-card);
-  border-radius: var(--radius-lg);
-  padding: 3px;
+  border-radius: var(--radius-md);
+  padding: 1px;
   border: 1px solid var(--border-color);
 }
 
 .toggle-btn {
-  width: $ctrl-h;
-  min-height: $ctrl-h;
+  width: 48px;
+  min-height: 48px;
   padding: 0;
   background: transparent;
   border: none;
@@ -863,10 +805,10 @@ $ctrl-h: 44px;
   }
 
   &.active {
-    background: v.$primary-700;
+    background: var(--sv-sem-surface-selected);
 
     .icon {
-      stroke: white;
+      stroke: var(--sv-sem-text-primary);
     }
   }
 
@@ -884,11 +826,11 @@ $ctrl-h: 44px;
   margin: 0;
   // Match the visual height of .filter-tabs / .view-toggle, whose 40px
   // buttons sit inside 3px padding + 1px border.
-  min-height: calc(#{$ctrl-h} + 8px);
+  min-height: 48px;
   min-width: 180px;
   padding: 0 var(--spacing-8) 0 var(--spacing-3);
   border: 1px solid var(--border-color);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-md);
   background: var(--background-card);
   cursor: pointer;
   overflow: hidden;
@@ -955,7 +897,7 @@ $ctrl-h: 44px;
 }
 
 .sort-control-wrap:focus-within {
-  border-color: var(--primary-color);
+  border-color: var(--sv-sem-action-foreground);
   box-shadow: 0 0 0 3px rgba(var(--primary-500-rgb), 0.1);
 }
 
@@ -963,7 +905,8 @@ $ctrl-h: 44px;
 .results-info {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: flex-start;
+  flex-wrap: wrap;
   gap: var(--spacing-2);
   grid-column: 1 / -1;
   min-height: $ctrl-h;
@@ -1040,21 +983,6 @@ $ctrl-h: 44px;
   }
 }
 
-.streamer-wrapper {
-  // Keep the staggered entrance movement without fading readable content
-  // through low-contrast intermediate colors.
-  animation: fade-in-up v.$duration-500 v.$ease-out backwards;
-}
-
-@keyframes fade-in-up {
-  from {
-    transform: translateY(20px);
-  }
-  to {
-    transform: translateY(0);
-  }
-}
-
 @include m.respond-below('lg') {  // < 1024px
   .controls-bar {
     grid-template-columns: minmax(0, 1fr) auto minmax(204px, auto);
@@ -1065,41 +993,73 @@ $ctrl-h: 44px;
   }
 }
 
-@include m.respond-below('md') {  // < 768px: stack controls at equal width
+@include m.respond-below('md') {
   .controls-bar {
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: 102px minmax(0, 1fr);
+    gap: var(--spacing-2);
   }
 
   .filter-tabs {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 0.9fr) minmax(0, 1.25fr) minmax(0, 1fr);
     width: 100%;
-    overflow-x: auto;
+    min-width: 0;
+  }
 
-    .filter-tab {
-      flex: 1;
-      justify-content: center;
-      white-space: nowrap;
+  .filter-tab {
+    justify-content: center;
+    min-width: 0;
+    padding-inline: 2px;
+    flex-wrap: wrap;
+    white-space: nowrap;
+    gap: var(--spacing-1);
+    font-size: var(--text-xs);
+
+    .tab-badge {
+      min-width: 18px;
+      height: 18px;
+      font-size: 11px;
     }
   }
 
   .view-toggle {
-    width: 100%;
+    width: auto;
+    gap: 0;
 
     .toggle-btn {
-      flex: 1;
-      width: auto;
+      flex: 0 0 48px;
+      width: 48px;
+      min-width: 48px;
+      min-height: 48px;
     }
   }
 
   .sort-control-wrap {
     width: 100%;
+    min-width: 0;
+    min-height: 48px;
+  }
+
+  .sort-label,
+  .sort-icon {
+    display: none;
+  }
+
+  .sort-value {
+    min-width: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    line-height: 1.3;
   }
 
   .results-info {
     justify-content: flex-start;
+    padding-inline: 0;
   }
 }
 
-@include m.respond-below('sm') {  // < 640px
+@include m.respond-below('sm') {
   .streamers-view {
     padding: var(--spacing-4) var(--spacing-3);
 
@@ -1109,101 +1069,37 @@ $ctrl-h: 44px;
       width: 100%;
     }
 
-    :deep(.page-header-content) {
-      flex-direction: column;
-      gap: var(--spacing-3);
-    }
-
     .header-actions {
       display: grid;
       grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
 
-      :deep(.btn),
-      .add-streamer-link {
+      :deep(.btn) {
         justify-content: center;
         min-width: 0;
+        padding-inline: var(--spacing-2);
+      }
+
+      .add-streamer-link {
+        grid-column: 1 / -1;
       }
     }
   }
 
-  .btn-action {
-    flex: 1;
-    justify-content: center;
-    min-height: 44px;  // Touch-friendly
-  }
-
-  .controls-bar {
-    gap: var(--spacing-2);
-    grid-template-columns: minmax(0, 1fr) auto;
-  }
-
-  .search-box {
-    .search-input {
-      min-height: 44px;  // Touch-friendly
-      font-size: 16px;  // Prevent iOS zoom
-      padding: 0 var(--spacing-10);
-    }
-
-    .clear-btn {
-      width: 44px;
-      height: 44px;
-
-      .icon {
-        width: 18px;
-        height: 18px;
-      }
-    }
-  }
-
-  .filter-tabs {
-    grid-column: 1 / -1;
-    width: 100%;
-    justify-content: stretch;
-
-    .filter-tab {
-      flex: 1;
-      justify-content: center;
-      min-height: 44px;  // WCAG 2.5.5 / Apple HIG touch-target
-      padding: var(--spacing-2) var(--spacing-2);
-      font-size: var(--text-xs);
-
-      .tab-badge {
-        font-size: 10px;
-        min-width: 18px;
-        height: 18px;
-      }
-    }
-  }
-
-  .view-toggle {
-    flex: none;  // Fixed width
-
-    .toggle-btn {
-      min-width: 44px;  // Touch-friendly
-      min-height: 44px;
-      padding: var(--spacing-2);
-
-      .icon {
-        width: 22px;
-        height: 22px;
-      }
-    }
-  }
-
-  .sort-control-wrap {
-    grid-column: 1 / -1;
-    min-height: 44px;
+  .search-box .search-input {
+    min-height: 48px;
+    font-size: 16px;
   }
 
   .sort-control {
     min-width: 0;
-    min-height: 44px;
     font-size: 16px;
   }
+}
 
-  .results-info {
-    width: 100%;
-    justify-content: flex-start;
+// At the narrowest supported width, give all status names and counts room.
+@include m.respond-below('xs') {
+  .filter-tabs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 </style>

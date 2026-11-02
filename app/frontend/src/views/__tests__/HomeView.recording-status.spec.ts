@@ -44,8 +44,9 @@ vi.mock('@/composables/useForceRecording', () => ({
 
 import HomeView from '../HomeView.vue'
 
-function mountView() {
+function mountView(props: { embedded?: boolean } = {}) {
   return mount(HomeView, {
+    props,
     global: {
       stubs: {
         BasePanel: { template: '<section><slot name="title" /><slot name="description" /><slot /><slot name="actions" /></section>' },
@@ -86,6 +87,24 @@ afterEach(() => {
 })
 
 describe('HomeView recording status consumer', () => {
+  it('uses a page title standalone and a compact status heading when embedded', async () => {
+    mocks.getActiveRecordings.mockResolvedValue([])
+    mocks.onEvent.mockReturnValue(() => {})
+    mocks.onEvents.mockReturnValue(() => {})
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.findAll('h1')).toHaveLength(1)
+    expect(wrapper.get('h1').text()).toBe('Übersicht')
+    const headline = wrapper.get('.page-header-subtitle').text()
+
+    await wrapper.setProps({ embedded: true })
+
+    expect(wrapper.find('h1').exists()).toBe(false)
+    expect(wrapper.get('h2.brief-headline').text()).toBe(headline)
+    wrapper.unmount()
+  })
+
   it('keeps a failed active-recordings fetch explicitly unknown and retries through the facade', async () => {
     const wrapper = mountView()
     await flushPromises()

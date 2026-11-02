@@ -1,10 +1,13 @@
 import { expect, test } from '@playwright/test'
 
 const routes = [
-  { path: '/', heading: 'Live Streamers' },
-  { path: '/streamers', heading: 'Streamers' },
+  { path: '/', heading: 'Meine Kanäle' },
+  { path: '/overview', heading: 'Live Streamers' },
+  { path: '/activity', heading: 'Aktivität' },
+  { path: '/streamers/manage', heading: 'Kanalverwaltung' },
+  { path: '/streamers', heading: 'Meine Kanäle' },
   { path: '/streamers/1', heading: 'Streamer Alpha' },
-  { path: '/videos', heading: 'Videos' },
+  { path: '/videos', heading: 'Aufzeichnungen' },
 ]
 
 for (const route of routes) {

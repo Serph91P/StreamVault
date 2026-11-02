@@ -127,10 +127,6 @@ const addStreamer = async () => {
 
   isLoading.value = true
 
-  // Emit immediately so the parent (modal/view) can close. Backend WebSocket
-  // event "streamer.added" + toast handle user feedback.
-  emit('streamer-added')
-
   try {
     const cleanUsername = username.value.trim().toLowerCase()
 
@@ -145,6 +141,8 @@ const addStreamer = async () => {
 
     if (!response.ok) {
       toast.error(data?.message || 'Failed to add streamer')
+    } else {
+      emit('streamer-added')
     }
   } catch (error) {
     toast.error('Error connecting to server')

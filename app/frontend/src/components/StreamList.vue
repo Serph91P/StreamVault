@@ -1138,28 +1138,28 @@ watch(streamerId, async (newVal: string | undefined, oldVal: string | undefined)
 }
 
 .status-badge.live {
-  background: var(--danger-color);
-  color: var(--text-primary);
+  background: var(--sv-fdn-color-red-700);
+  color: var(--sv-sem-text-inverse);
 }
 
 .status-badge.ended {
-  background: var(--text-secondary);
-  color: var(--text-primary);
+  background: var(--sv-sem-surface-raised);
+  color: var(--sv-sem-text-secondary);
 }
 
 .status-badge.recording {
-  background: var(--success-color);
-  color: var(--text-primary);
+  background: var(--sv-fdn-color-green-700);
+  color: var(--sv-sem-text-inverse);
 }
 
 .status-badge.not-recording {
-  background: var(--text-secondary);
-  color: var(--text-primary);
+  background: var(--sv-sem-surface-raised);
+  color: var(--sv-sem-text-secondary);
 }
 
 .status-badge.has-recording {
-  background: var(--info-color);
-  color: var(--text-primary);
+  background: var(--sv-fdn-color-blue-700);
+  color: var(--sv-sem-text-inverse);
 }
 
 .recording-pulse {
@@ -1624,8 +1624,8 @@ watch(streamerId, async (newVal: string | undefined, oldVal: string | undefined)
 }
 
 .btn-danger {
-  background: var(--danger-color);
-  color: white;
+  background: var(--sv-fdn-color-red-700);
+  color: var(--sv-sem-text-inverse);
 }
 
 .btn-danger:hover:not(:disabled) {

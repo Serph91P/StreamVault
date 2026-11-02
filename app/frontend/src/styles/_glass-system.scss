@@ -13,85 +13,28 @@
 // Canonical names for glass-only implementation work. Do not add aliases here.
 // ============================================================================
 
-// Glass backgrounds with consistent opacity levels
-$glass-bg-dark: rgba(15, 23, 42, 0.6);           // slate-900 @ 60%
-$glass-bg-dark-strong: rgba(15, 23, 42, 0.8);    // slate-900 @ 80%
-$glass-bg-dark-subtle: rgba(15, 23, 42, 0.4);    // slate-900 @ 40%
-$glass-bg-light: rgba(255, 255, 255, 0.6);       // white @ 60%
-$glass-bg-light-strong: rgba(255, 255, 255, 0.8);// white @ 80%
-$glass-bg-light-subtle: rgba(255, 255, 255, 0.4);// white @ 40%
-
-// Glass border colors
-$glass-border-dark: rgba(255, 255, 255, 0.08);
-$glass-border-dark-hover: rgba(255, 255, 255, 0.15);
-$glass-border-light: rgba(0, 0, 0, 0.08);
-$glass-border-light-hover: rgba(0, 0, 0, 0.15);
-
-// Glass shadows
-$glass-shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.15);
-$glass-shadow-md: 0 4px 16px rgba(0, 0, 0, 0.2);
-$glass-shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.25);
-$glass-shadow-xl: 0 12px 48px rgba(0, 0, 0, 0.3);
-
-// ============================================================================
-// CSS CUSTOM PROPERTIES FOR GLASS (theme-aware)
-// ============================================================================
-
-:root {
-  // Glass surfaces
-  --glass-bg: #{$glass-bg-dark};
-  --glass-bg-strong: #{$glass-bg-dark-strong};
-  --glass-bg-subtle: #{$glass-bg-dark-subtle};
-  --glass-bg-solid: #{v.$slate-800};
-  
-  // Glass borders
-  --glass-border: #{$glass-border-dark};
-  --glass-border-hover: #{$glass-border-dark-hover};
-  --glass-border-primary: rgba(20, 184, 166, 0.2);
-  --glass-border-primary-hover: rgba(20, 184, 166, 0.4);
-  
-  // Glass shadows
-  --glass-shadow-sm: #{$glass-shadow-sm};
-  --glass-shadow-md: #{$glass-shadow-md};
-  --glass-shadow-lg: #{$glass-shadow-lg};
-  --glass-shadow-xl: #{$glass-shadow-xl};
-  
-  // Glass highlight (top edge shimmer)
-  --glass-highlight: rgba(255, 255, 255, 0.05);
-  --glass-highlight-strong: rgba(255, 255, 255, 0.1);
-  
-  // Glass blur amounts. Kept in the 8-16px range: backdrop-filter cost grows
-  // steeply with radius and values beyond ~16px rarely look better, but they
-  // do drop frames on mobile (the old lg/xl were 24/40px).
+// Historical names remain for existing consumers; normal surfaces are opaque.
+:root,
+[data-theme="light"] {
+  --glass-bg: var(--sv-sem-surface-panel);
+  --glass-bg-strong: var(--sv-sem-surface-raised);
+  --glass-bg-subtle: var(--sv-sem-surface-panel);
+  --glass-bg-solid: var(--sv-sem-surface-panel);
+  --glass-border: var(--sv-sem-border-default);
+  --glass-border-hover: var(--sv-sem-border-strong);
+  --glass-border-primary: var(--sv-sem-border-default);
+  --glass-border-primary-hover: var(--sv-sem-border-strong);
+  --glass-shadow-sm: none;
+  --glass-shadow-md: none;
+  --glass-shadow-lg: var(--sv-cmp-overlay-shadow);
+  --glass-shadow-xl: var(--sv-cmp-overlay-shadow);
+  --glass-highlight: transparent;
+  --glass-highlight-strong: transparent;
+  --glass-glow: none;
   --glass-blur-sm: 8px;
   --glass-blur-md: 12px;
   --glass-blur-lg: 16px;
   --glass-blur-xl: 16px;
-  
-  // Glass inner glow
-  --glass-glow: inset 0 1px 0 0 rgba(255, 255, 255, 0.05);
-}
-
-[data-theme="light"] {
-  --glass-bg: #{$glass-bg-light};
-  --glass-bg-strong: #{$glass-bg-light-strong};
-  --glass-bg-subtle: #{$glass-bg-light-subtle};
-  --glass-bg-solid: #ffffff;
-  
-  --glass-border: #{$glass-border-light};
-  --glass-border-hover: #{$glass-border-light-hover};
-  --glass-border-primary: rgba(13, 148, 136, 0.2);
-  --glass-border-primary-hover: rgba(13, 148, 136, 0.4);
-  
-  --glass-shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.06);
-  --glass-shadow-md: 0 4px 16px rgba(0, 0, 0, 0.08);
-  --glass-shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.1);
-  --glass-shadow-xl: 0 12px 48px rgba(0, 0, 0, 0.12);
-  
-  --glass-highlight: rgba(255, 255, 255, 0.5);
-  --glass-highlight-strong: rgba(255, 255, 255, 0.8);
-  
-  --glass-glow: inset 0 1px 0 0 rgba(255, 255, 255, 0.8);
 }
 
 // ============================================================================
@@ -118,7 +61,7 @@ $glass-shadow-xl: 0 12px 48px rgba(0, 0, 0, 0.3);
 
   background: $bg;
   border: 1px solid var(--glass-border);
-  box-shadow: var(--glass-shadow-sm), var(--glass-glow);
+  box-shadow: none;
 
   @if $blur-backdrop {
     backdrop-filter: blur(#{$blur});
@@ -136,8 +79,8 @@ $glass-shadow-xl: 0 12px 48px rgba(0, 0, 0, 0.3);
     
     &:hover {
       border-color: var(--glass-border-hover);
-      box-shadow: var(--glass-shadow-md), var(--glass-glow);
-      transform: translateY(-2px);
+      background: var(--sv-sem-surface-raised);
+
     }
     
     &:active {
@@ -226,7 +169,7 @@ $glass-shadow-xl: 0 12px 48px rgba(0, 0, 0, 0.3);
   backdrop-filter: blur(var(--glass-blur-xl));
   -webkit-backdrop-filter: blur(var(--glass-blur-xl));
   border: 1px solid var(--glass-border);
-  box-shadow: var(--glass-shadow-xl), var(--glass-glow);
+  box-shadow: var(--glass-shadow-xl);
   
   @supports not (backdrop-filter: blur(1px)) {
     background: var(--glass-bg-solid);
@@ -236,8 +179,6 @@ $glass-shadow-xl: 0 12px 48px rgba(0, 0, 0, 0.3);
 /// Glass Input - form inputs and selects
 .glass-input {
   background: var(--glass-bg-subtle);
-  backdrop-filter: blur(var(--glass-blur-sm));
-  -webkit-backdrop-filter: blur(var(--glass-blur-sm));
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-lg);
   padding: var(--spacing-3) var(--spacing-4);
@@ -306,12 +247,12 @@ $glass-shadow-xl: 0 12px 48px rgba(0, 0, 0, 0.3);
 /// Primary glass button
 .glass-btn {
   @include glass-btn-base;
-  background: var(--primary-color);
-  color: var(--text-on-primary);
+  background: var(--sv-sem-action-primary);
+  color: var(--sv-sem-text-inverse);
   
   &:hover:not(:disabled) {
-    background: var(--primary-hover);
-    transform: translateY(-1px);
+    background: var(--sv-sem-action-primary-hover);
+
     box-shadow: var(--glass-shadow-md);
   }
   
@@ -324,15 +265,13 @@ $glass-shadow-xl: 0 12px 48px rgba(0, 0, 0, 0.3);
 .glass-btn-ghost {
   @include glass-btn-base;
   background: var(--glass-bg-subtle);
-  backdrop-filter: blur(var(--glass-blur-sm));
-  -webkit-backdrop-filter: blur(var(--glass-blur-sm));
   color: var(--text-primary);
   border: 1px solid var(--glass-border);
   
   &:hover:not(:disabled) {
     background: var(--glass-bg);
     border-color: var(--glass-border-hover);
-    transform: translateY(-1px);
+
   }
   
   &:active:not(:disabled) {
@@ -343,12 +282,12 @@ $glass-shadow-xl: 0 12px 48px rgba(0, 0, 0, 0.3);
 /// Danger glass button
 .glass-btn-danger {
   @include glass-btn-base;
-  background: var(--danger-color);
+  background: var(--sv-fdn-color-red-700);
   color: white;
   
   &:hover:not(:disabled) {
     background: var(--danger-600);
-    transform: translateY(-1px);
+
     box-shadow: var(--glass-shadow-md);
   }
   
@@ -363,8 +302,8 @@ $glass-shadow-xl: 0 12px 48px rgba(0, 0, 0, 0.3);
   background: transparent;
   color: var(--text-secondary);
   padding: var(--spacing-2);
-  min-height: 40px;
-  min-width: 40px;
+  min-height: var(--sv-fdn-size-target-primary);
+  min-width: var(--sv-fdn-size-target-primary);
   border-radius: var(--radius-lg);
   
   &:hover:not(:disabled) {
@@ -387,7 +326,7 @@ $glass-shadow-xl: 0 12px 48px rgba(0, 0, 0, 0.3);
       min-width: 18px;
       height: 18px;
       padding: 0 4px;
-      background: var(--danger-color);
+      background: var(--sv-fdn-color-red-700);
       color: white;
       font-size: 10px;
       font-weight: v.$font-bold;
@@ -516,7 +455,7 @@ $glass-shadow-xl: 0 12px 48px rgba(0, 0, 0, 0.3);
     
     &::after {
       transform: translateX(22px);
-      background: var(--primary-color);
+      background: var(--sv-sem-action-primary);
     }
   }
 }
@@ -686,7 +625,7 @@ $glass-shadow-xl: 0 12px 48px rgba(0, 0, 0, 0.3);
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--danger-color);
+  background: var(--sv-fdn-color-red-700);
   box-shadow: 0 0 0 2px var(--background-dark);
   
   &--animated {

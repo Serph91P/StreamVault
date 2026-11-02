@@ -89,7 +89,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AddStreamerForm from '@/components/AddStreamerForm.vue'
 import TwitchImportForm from '@/components/TwitchImportForm.vue'
@@ -100,6 +100,12 @@ const route = useRoute()
 
 const manualOpen = computed(() => route.name === 'add-streamer-manual')
 const importOpen = computed(() => route.name === 'add-streamer-import')
+
+onMounted(() => {
+  if (route.name === 'add-streamer' && (route.query.auth_success || route.query.token || route.query.error)) {
+    router.replace({ name: 'add-streamer-import', query: route.query })
+  }
+})
 
 const goBack = () => router.back()
 const openManual = () => router.push({ name: 'add-streamer-manual' })

@@ -64,7 +64,7 @@ test('issue 828 keeps the Admin header and live titles readable across the requi
     await expectNoHorizontalOverflow(page)
     await page.screenshot({ path: testInfo.outputPath(`issue-828-admin-${viewport.width}.png`), fullPage: true, animations: 'disabled' })
 
-    await page.goto('/', { waitUntil: 'domcontentloaded' })
+    await page.goto('/overview', { waitUntil: 'domcontentloaded' })
     const liveTitle = page.locator('.streamer-card.is-live .stream-title').first()
     await expect(liveTitle).toBeVisible()
     await liveTitle.evaluate(element => {
@@ -126,20 +126,20 @@ test('issue 828 preserves the actual Overview card and Play origin', async ({ pa
   await page.setViewportSize({ width: 390, height: 844 })
   await page.route('**/api/videos/*/stream', localSeekMedia)
 
-  await page.goto('/', { waitUntil: 'domcontentloaded' })
+  await page.goto('/overview', { waitUntil: 'domcontentloaded' })
   const overviewCard = page.locator('.dashboard-video-grid .video-card-link').first()
   await expect(overviewCard).toBeVisible()
   await overviewCard.click()
   await expect(page).toHaveURL(/\/streamer\/1\/stream\/1\/watch(?:\?|$)/)
   await page.getByRole('button', { name: 'Back to previous page' }).click()
-  await expect(page).toHaveURL(/\/$/)
+  await expect(page).toHaveURL(/\/overview$/)
 
   const playCard = page.locator('.dashboard-video-grid .video-card').first()
   await playCard.hover()
   await playCard.getByRole('button', { name: /^Play / }).click()
   await expect(page).toHaveURL(/\/videos\/1(?:\?|$)/)
   await page.getByRole('button', { name: 'Back to previous page' }).click()
-  await expect(page).toHaveURL(/\/$/)
+  await expect(page).toHaveURL(/\/overview$/)
 
   await expectNoHorizontalOverflow(page)
   await page.screenshot({ path: testInfo.outputPath('issue-828-origin-return.png'), fullPage: true, animations: 'disabled' })
@@ -149,7 +149,7 @@ test('issue 828 keeps hoverless Overview Watch and visible Play touch actions se
   test.skip(testInfo.project.name !== 'mobile')
   await page.setViewportSize({ width: 390, height: 844 })
   await page.route('**/api/videos/*/stream', localSeekMedia)
-  await page.goto('/', { waitUntil: 'domcontentloaded' })
+  await page.goto('/overview', { waitUntil: 'domcontentloaded' })
 
   const card = page.locator('.dashboard-video-grid .video-card').first()
   const play = card.getByRole('button', { name: /^Play / })
@@ -165,7 +165,7 @@ test('issue 828 keeps hoverless Overview Watch and visible Play touch actions se
   await page.touchscreen.tap(watchPoint.x, watchPoint.y)
   await expect(page).toHaveURL(/\/streamer\/1\/stream\/1\/watch(?:\?|$)/)
   await page.getByRole('button', { name: 'Back to previous page' }).click()
-  await expect(page).toHaveURL(/\/$/)
+  await expect(page).toHaveURL(/\/overview$/)
 
   await card.scrollIntoViewIfNeeded()
   await expect(play.locator('..')).toHaveCSS('opacity', '1')

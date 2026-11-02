@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends
 from app.database import SessionLocal, get_db
 from app.models import (
+    GlobalSettings,
     RecordingSettings,
     StreamerRecordingSettings,
     Streamer,
@@ -44,6 +45,12 @@ async def get_recording_settings():
     try:
         with SessionLocal() as db:
             settings = db.query(RecordingSettings).first()
+            global_settings = db.query(GlobalSettings).first()
+            if not global_settings:
+                global_settings = GlobalSettings()
+                db.add(global_settings)
+                db.commit()
+                db.refresh(global_settings)
             if not settings:
                 # Initialize with default values
                 settings = RecordingSettings(
@@ -77,6 +84,7 @@ async def get_recording_settings():
                 filename_template=settings.filename_template,
                 filename_preset=getattr(settings, "filename_preset", "default"),
                 default_quality=settings.default_quality,
+                supported_codecs=global_settings.supported_codecs,
                 use_chapters=settings.use_chapters,
                 use_category_as_chapter_title=getattr(
                     settings, "use_category_as_chapter_title", False
@@ -104,8 +112,19 @@ async def update_recording_settings(settings_data: RecordingSettingsSchema):
                 # Create new settings if doesn't exist
                 existing_settings = RecordingSettings()
                 db.add(existing_settings)
-                db.commit()
-                db.refresh(existing_settings)
+
+            global_settings = db.query(GlobalSettings).first()
+            if not global_settings:
+                global_settings = GlobalSettings()
+                db.add(global_settings)
+
+            # Omitted fields from older clients must not reset global preferences.
+            codec_changed = (
+                "supported_codecs" in settings_data.model_fields_set
+                and settings_data.supported_codecs != global_settings.supported_codecs
+            )
+            if codec_changed:
+                global_settings.supported_codecs = settings_data.supported_codecs
 
             # Update fields
             existing_settings.enabled = settings_data.enabled
@@ -147,6 +166,23 @@ async def update_recording_settings(settings_data: RecordingSettingsSchema):
             db.commit()
             # This refreshes the instance after commit so it's bound to the session
             db.refresh(existing_settings)
+            db.refresh(global_settings)
+
+            # Like /api/settings, regenerate only after the global row is committed.
+            if codec_changed:
+                try:
+                    from app.services.system.streamlink_config_service import (
+                        streamlink_config_service,
+                    )
+
+                    if not await streamlink_config_service.regenerate_config():
+                        logger.warning(
+                            "Failed to update Streamlink config after codec change"
+                        )
+                except Exception as config_error:
+                    logger.error(
+                        f"Error regenerating Streamlink config: {config_error}"
+                    )
 
             # Parse cleanup policy back to object for response
             cleanup_policy = None
@@ -170,6 +206,7 @@ async def update_recording_settings(settings_data: RecordingSettingsSchema):
                     existing_settings, "filename_preset", "default"
                 ),
                 default_quality=existing_settings.default_quality,
+                supported_codecs=global_settings.supported_codecs,
                 use_chapters=existing_settings.use_chapters,
                 use_category_as_chapter_title=getattr(
                     existing_settings, "use_category_as_chapter_title", False
@@ -235,6 +272,8 @@ async def get_all_streamer_recording_settings():
                         max_streams=settings.max_streams,
                         twitch_auth_priority=settings.twitch_auth_priority,
                         cleanup_policy=cleanup_policy,
+                        use_global_cleanup_policy=settings.use_global_cleanup_policy
+                        is not False,
                     )
                 )
 

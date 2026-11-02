@@ -317,7 +317,7 @@ const handlePlay = () => {
     }
 
     .video-title {
-      color: var(--primary-color);
+      color: var(--sv-sem-action-foreground);
     }
   }
 }
@@ -341,9 +341,8 @@ const handlePlay = () => {
   cursor: pointer;
 
   &:focus-visible {
-    outline: 2px solid var(--primary-color);
-    outline-offset: 3px;
-    box-shadow: var(--shadow-primary);
+    outline: 2px solid var(--sv-sem-action-focus);
+    outline-offset: -3px;
   }
 }
 
@@ -400,15 +399,14 @@ const handlePlay = () => {
 
   .placeholder-label {
     font-size: var(--text-xs);
-    color: var(--text-tertiary);
+    color: var(--sv-sem-text-secondary);
     font-weight: v.$font-medium;
     white-space: nowrap;
   }
 
   .placeholder-cue {
     font-size: 11px;
-    color: var(--text-tertiary);
-    opacity: 0.7;
+    color: var(--sv-sem-text-secondary);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -477,7 +475,7 @@ const handlePlay = () => {
   height: 64px;
   padding: 0;
 
-  background: var(--primary-color);
+  background: var(--sv-sem-action-primary);
   border: 3px solid white;
   border-radius: 50%;
 
@@ -487,7 +485,6 @@ const handlePlay = () => {
 
   cursor: pointer;
   pointer-events: auto;
-  transform: scale(0.9);
   transition: all v.$duration-200 v.$ease-out;
 
   .icon-play {
@@ -499,13 +496,9 @@ const handlePlay = () => {
   }
 
   &:hover {
-    transform: scale(1);
-    box-shadow: 0 8px 24px rgba(var(--primary-500-rgb), 0.5);
+    background: var(--sv-sem-action-primary-hover);
   }
 
-  &:active {
-    transform: scale(0.95);
-  }
 
   &:disabled {
     width: auto;
@@ -806,12 +799,12 @@ const handlePlay = () => {
     }
 
     .video-title {
-      font-size: var(--text-xs);
+      font-size: var(--text-sm);
     }
 
     .video-meta,
     .video-stats {
-      font-size: 11px;
+      font-size: var(--text-xs);
     }
   }
 }

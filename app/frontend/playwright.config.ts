@@ -22,6 +22,7 @@ export default defineConfig({
   outputDir: 'test-results',
   metadata: { useMockData: true },
   use: {
+    launchOptions: { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH },
     baseURL: 'http://127.0.0.1:4180',
     trace: 'retain-on-failure',
   },

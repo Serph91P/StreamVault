@@ -14,7 +14,7 @@ async function openHarness(page: Page, query = '') {
 
 async function setThemeAndWait(page: Page, theme: 'dark' | 'light') {
   await page.evaluate(selected => { document.documentElement.dataset.theme = selected }, theme)
-  const expected = theme === 'dark' ? 'rgb(248, 250, 252)' : 'rgb(15, 27, 45)'
+  const expected = theme === 'dark' ? 'rgb(243, 244, 246)' : 'rgb(25, 28, 34)'
   await page.waitForFunction(color => getComputedStyle(document.querySelector('.status-badge-success')!).color === color, expected)
 }
 

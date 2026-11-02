@@ -174,7 +174,7 @@ const router = useRouter()
 // State
 const channels = ref<Channel[]>([])
 const selectedStreamers = ref<Channel[]>([])
-const accessToken = ref<string | null>(null)
+const isAuthenticated = ref(false)
 const error = ref<string | null>(null)
 const loading = ref<boolean>(false)
 const loadingMessage = ref<string>('Loading...')
@@ -184,7 +184,7 @@ const importResults = ref<ImportResults | null>(null)
 const callbackUrl = ref<string | null>(null)
 
 // Computed
-const isAuthenticated = computed(() => !!accessToken.value)
+
 
 const filteredChannels = computed(() => {
   if (!searchQuery.value) return channels.value
@@ -199,8 +199,7 @@ const filteredChannels = computed(() => {
 // Methods
 async function fetchCallbackUrl() {
   try {
-    const response = await authApi.getCallbackUrl()
-    const data = response.data
+    const data = await authApi.getCallbackUrl()
     if (data && data.url) {
       callbackUrl.value = data.url
     }
@@ -237,7 +236,7 @@ async function startTwitchAuth(): Promise<void> {
     loading.value = true
     loadingMessage.value = 'Connecting to Twitch...'
     
-    const data = await authApi.getAuthUrl()
+    const data = await authApi.getAuthUrl('/add-streamer')
     
     window.location.href = data.auth_url
   } catch (err: any) {
@@ -269,9 +268,17 @@ async function importSelected(): Promise<void> {
     loading.value = true
     loadingMessage.value = 'Importing selected streamers...'
     
-    const streamerIds = selectedStreamers.value.map(s => Number(s.id))
-    const response = await authApi.importStreamers(streamerIds)
-    const results = response.data
+    const response = await authApi.importStreamers(selectedStreamers.value)
+    const results: ImportResults = {
+      total: selectedStreamers.value.length,
+      added: response.imported.length,
+      skipped: response.already_exists.length,
+      failed: response.failed.length,
+      failures: response.failed.map((failure: { streamer: Channel; reason: string }) => ({
+        username: failure.streamer.login || failure.streamer.display_name,
+        reason: failure.reason,
+      })),
+    }
     
     importResults.value = results
     
@@ -317,9 +324,7 @@ onMounted(async () => {
   }
   
   if (tokenParam || authSuccess === 'true') {
-    if (tokenParam) {
-      accessToken.value = tokenParam
-    }
+    isAuthenticated.value = true
     // SECURITY: Clear token from URL immediately to prevent leakage via browser history/Referer
     router.replace({ query: {} })
     // Load followed channels (token retrieved from DB server-side)

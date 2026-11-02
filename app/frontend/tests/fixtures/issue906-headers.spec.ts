@@ -20,7 +20,7 @@ const viewports: Array<{ width: number; height: number; textScale?: number }> = 
 ]
 
 const routes: RouteCase[] = [
-  { name: 'Settings', path: '/settings', title: /Settings|Twitch Connection/ },
+  { name: 'Settings', path: '/settings', title: /Einstellungen|Twitch-Verbindung/ },
   { name: 'Subscriptions', path: '/subscriptions', title: /Subscription Management/ },
   { name: 'Admin', path: '/admin', title: /Admin/ },
 ]
@@ -92,7 +92,7 @@ async function assertUnifiedHeader(page: Page, route: RouteCase, captureHeader: 
   // merely because a future PageHeader class is absent.
   const header = page.locator('.page-header, .view-header').filter({ has: page.getByRole('heading', { level: 1, name: route.title }) }).first()
   const title = header.getByRole('heading', { level: 1, name: route.title })
-  const back = header.getByRole('link', { name: 'Back to System', exact: true })
+  const back = header.getByRole('link', { name: route.name === 'Settings' ? 'Zurück zum System' : 'Back to System', exact: true })
 
   await expect(header).toBeVisible()
   await expect(title).toBeVisible()

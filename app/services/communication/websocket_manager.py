@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 import asyncio
 import copy
 from collections import deque
+from uuid import uuid4
 from app.utils.client_ip import get_client_info
 
 logger = logging.getLogger("streamvault")
@@ -30,6 +31,7 @@ class ConnectionManager:
         self._event_log_size = event_log_size
         self._event_log = deque(maxlen=event_log_size)
         self._next_event_id = 0
+        self._generation = str(uuid4())
 
     async def connect(self, websocket: WebSocket) -> bool:
         await websocket.accept()
@@ -93,6 +95,7 @@ class ConnectionManager:
                 "type": "connection.status",
                 "data": {
                     "status": "connected",
+                    "generation": self._generation,
                     "timestamp": datetime.utcnow().isoformat(),
                     "message": f"StreamVault WebSocket connected - {connection_count} total connections",
                     "connection_id": connection_id,
@@ -304,6 +307,7 @@ class ConnectionManager:
             retained_events = len(self._event_log)
 
         return {
+            "generation": self._generation,
             "latest_event_id": latest_event_id,
             "oldest_event_id": oldest_event_id,
             "retained_events": retained_events,
@@ -311,14 +315,21 @@ class ConnectionManager:
         }
 
     async def get_replay_window(
-        self, since: int = 0, limit: Optional[int] = None
+        self,
+        since: int = 0,
+        limit: Optional[int] = None,
+        generation: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Return retained events and explicitly signal a cursor retention gap."""
-        events = await self.get_events_since(since=since, limit=limit)
         state = await self.get_replay_state()
+        reset = since > state["latest_event_id"] or (
+            generation is not None and generation != self._generation
+        )
+        cursor = 0 if reset else since
+        events = await self.get_events_since(since=cursor, limit=limit)
         oldest = state["oldest_event_id"]
-        gap = oldest is not None and since < oldest - 1
-        return {"events": events, "gap": gap, **state}
+        gap = oldest is not None and cursor < oldest - 1
+        return {"events": events, "gap": gap, "reset": reset, **state}
 
     async def send_active_recordings_update(
         self, active_recordings: List[Dict[str, Any]]

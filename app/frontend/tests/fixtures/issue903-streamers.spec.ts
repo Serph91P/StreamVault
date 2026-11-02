@@ -62,7 +62,7 @@ for (const viewport of [{ width: 320, height: 640 }, { width: 390, height: 844 }
   test(`native carousel pan and vertical scrolling work over cards at ${viewport.width}px`, async ({ page }, testInfo) => {
     await page.setViewportSize(viewport)
     const api = await installApi(page)
-    await page.goto('/')
+    await page.goto('/overview')
     const carousel = page.locator('.dashboard-card-grid')
     const cards = carousel.locator(':scope > .streamer-card')
     await expect(cards).toHaveCount(streamers.length)

@@ -2,11 +2,11 @@
   <aside
     v-if="isDesktop"
     class="sidebar-nav"
-    aria-label="Application navigation"
+    aria-label="Anwendungsnavigation"
     :class="{ expanded: sidebarExpanded, collapsed: !sidebarExpanded }"
   >
     <!-- Navigation Items -->
-    <nav class="sidebar-nav-list" aria-label="Primary navigation">
+    <nav class="sidebar-nav-list" aria-label="Hauptnavigation">
       <router-link
         v-for="tab in navigationTabs"
         :key="tab.route"
@@ -15,16 +15,16 @@
         :class="{ active: isActiveRoute(tab.route) }"
         active-class="active"
         :aria-label="tab.label"
+        :title="!sidebarExpanded ? tab.label : undefined"
+        :aria-current="isActiveRoute(tab.route) ? 'page' : undefined"
       >
         <!-- Icon -->
-        <svg class="nav-icon">
+        <svg class="nav-icon" aria-hidden="true">
           <use :href="`#icon-${tab.icon}`" />
         </svg>
 
-        <!-- Text content (matches SettingsView sidebar) -->
         <div v-if="sidebarExpanded" class="nav-content">
           <span class="nav-label">{{ tab.label }}</span>
-          <span v-if="tab.description" class="nav-description">{{ tab.description }}</span>
         </div>
 
         <!-- Meta (badges + indicator) -->
@@ -32,13 +32,7 @@
           <span v-if="tab.badge" class="nav-badge">
             {{ tab.badge }}
           </span>
-          <svg v-if="isActiveRoute(tab.route)" class="nav-indicator">
-            <use href="#icon-chevron-right" />
-          </svg>
         </div>
-
-        <!-- Tooltip (only visible when collapsed) -->
-        <span v-if="!sidebarExpanded" class="nav-tooltip">{{ tab.label }}</span>
       </router-link>
     </nav>
 
@@ -47,12 +41,12 @@
       <button
         @click="toggleSidebar"
         class="sidebar-toggle"
-        :aria-label="sidebarExpanded ? 'Collapse sidebar' : 'Expand sidebar'"
+        :aria-label="sidebarExpanded ? 'Navigation einklappen' : 'Navigation ausklappen'"
       >
         <svg class="toggle-icon">
           <use :href="sidebarExpanded ? '#icon-chevron-left' : '#icon-chevron-right'" />
         </svg>
-        <span v-if="sidebarExpanded" class="toggle-label">Collapse</span>
+        <span v-if="sidebarExpanded" class="toggle-label">Einklappen</span>
       </button>
     </div>
   </aside>
@@ -81,10 +75,10 @@ onMounted(() => {
 
 .sidebar-nav {
   position: fixed;
-  top: var(--app-header-height, 64px);
+  top: calc(var(--app-header-height, 56px) + env(safe-area-inset-top, 0px));
   left: 0;
   bottom: 0;
-  width: 232px;
+  width: var(--sv-fdn-size-sidebar, 224px);
   z-index: 1000;
   overflow: hidden;
 
@@ -92,14 +86,14 @@ onMounted(() => {
   flex-direction: column;
 
   // Opaque tokenized shell surface: navigation does not use glass or blur.
-  background: var(--background-card);
-  border-right: 1px solid var(--border-color);
+  background: var(--sv-sem-surface-panel);
+  border-right: 1px solid var(--sv-sem-border-default);
   box-shadow: none;
 
   transition: width v.$duration-300 v.$ease-in-out;
 
   &.collapsed {
-    width: 72px;
+    width: var(--sv-fdn-size-sidebar-collapsed, 72px);
 
     .sidebar-nav-list {
       padding: v.$spacing-4 v.$spacing-1;
@@ -119,8 +113,8 @@ onMounted(() => {
 
 .sidebar-footer {
   padding: v.$spacing-2;
-  border-top: 1px solid var(--glass-border);
-  background: var(--glass-bg-subtle);
+  border-top: 1px solid var(--sv-sem-border-default);
+  background: transparent;
   flex-shrink: 0;
 }
 
@@ -132,7 +126,7 @@ onMounted(() => {
   background: transparent;
   border: 1px solid transparent;
   border-radius: var(--radius-md);
-  color: var(--text-secondary);
+  color: var(--sv-sem-text-secondary);
 
   display: flex;
   align-items: center;
@@ -159,13 +153,12 @@ onMounted(() => {
   }
 
   &:hover {
-    background: var(--glass-bg-medium);
-    color: var(--text-primary);
-    border-color: var(--glass-border);
+    background: var(--sv-sem-surface-raised);
+    color: var(--sv-sem-text-primary);
   }
 
   &:focus-visible {
-    outline: 2px solid var(--primary-color);
+    outline: 2px solid var(--sv-sem-action-focus);
     outline-offset: 2px;
   }
 }
@@ -174,7 +167,7 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: v.$spacing-1;
-  padding: v.$spacing-4 v.$spacing-2;
+  padding: v.$spacing-5 v.$spacing-3;
   flex: 1 1 auto;
   overflow-x: hidden;
   overflow-y: auto;
@@ -184,43 +177,35 @@ onMounted(() => {
   position: relative;
   display: flex;
   align-items: center;
-  gap: v.$spacing-2;
+  gap: v.$spacing-3;
   width: 100%;
   min-height: 44px;
   padding: v.$spacing-2 v.$spacing-3;
-  border-radius: var(--radius-lg);
-  color: var(--text-secondary);
+  border: 1px solid transparent;
+  border-radius: var(--sv-fdn-radius-md);
+  color: var(--sv-sem-text-secondary);
   text-decoration: none;
   background: transparent;
   cursor: pointer;
   // Do not tween foreground/background when route activity changes: the
   // intermediate pair can be unreadable even though both endpoints pass.
-  transition:
-    box-shadow v.$duration-200 v.$ease-out,
-    transform v.$duration-200 v.$ease-out;
   overflow: hidden;
 
   &:hover:not(.active) {
-    background: var(--glass-bg-subtle);
-    color: var(--text-primary);
+    background: var(--sv-sem-surface-raised);
+    color: var(--sv-sem-text-primary);
   }
 
   &.active {
-    background: v.$primary-700;
-    color: white;
-    box-shadow: var(--glass-shadow-md);
+    background: var(--sv-sem-surface-raised);
+    color: var(--sv-sem-text-primary);
+    border-color: var(--sv-sem-border-default);
 
-    [data-theme="light"] & {
-      background: v.$primary-700;
-    }
-
-    .nav-description {
-      color: rgba(255, 255, 255, 0.92);
-    }
+    .nav-icon { color: var(--sv-sem-action-focus); }
   }
 
   &:focus-visible {
-    outline: 2px solid var(--primary-color);
+    outline: 2px solid var(--sv-sem-action-focus);
     outline-offset: 2px;
   }
 }
@@ -244,17 +229,8 @@ onMounted(() => {
 
 .nav-label {
   font-size: var(--text-sm);
-  font-weight: v.$font-semibold;
+  font-weight: v.$font-medium;
   line-height: 1.4;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.nav-description {
-  font-size: 11px;
-  color: var(--text-secondary);
-  line-height: 1.3;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -268,8 +244,8 @@ onMounted(() => {
 }
 
 .nav-badge {
-  background: var(--danger-500);
-  color: white;
+  background: var(--sv-sem-surface-selected);
+  color: var(--sv-sem-text-primary);
   min-width: 20px;
   height: 20px;
   padding: 0 v.$spacing-1;
@@ -280,49 +256,11 @@ onMounted(() => {
   text-align: center;
 }
 
-.nav-indicator {
-  width: 16px;
-  height: 16px;
-  stroke: currentColor;
-  fill: none;
-  flex-shrink: 0;
-}
-
-.nav-tooltip {
-  position: absolute;
-  left: 100%;
-  top: 50%;
-  transform: translateY(-50%);
-  margin-left: v.$spacing-2;
-
-  background: var(--glass-bg-solid);
-  color: var(--text-primary);
-  padding: v.$spacing-2 v.$spacing-3;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--glass-border);
-
-  font-size: v.$text-sm;
-  font-weight: v.$font-medium;
-  white-space: nowrap;
-
-  box-shadow: var(--glass-shadow-lg);
-
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity v.$duration-200 v.$ease-in-out;
-
-  &::before {
-    content: '';
-    position: absolute;
-    right: 100%;
-    top: 50%;
-    transform: translateY(-50%);
-    border: 6px solid transparent;
-    border-right-color: var(--glass-bg-solid);
-  }
-
-  .sidebar-nav-item:hover & {
-    opacity: 1;
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-nav,
+  .sidebar-toggle,
+  .nav-icon {
+    transition: none;
   }
 }
 </style>

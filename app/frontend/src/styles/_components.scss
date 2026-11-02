@@ -59,7 +59,7 @@
       transform: translateX(-50%);
       width: 0;
       height: 2px;
-      background: linear-gradient(90deg, var(--primary-color), var(--accent-color));
+      background: var(--sv-sem-action-foreground);
       transition: width v.$duration-200 v.$ease-out;
       border-radius: v.$border-radius-full;
     }
@@ -98,399 +98,141 @@
 // BUTTON SYSTEM - Modern Design
 // ============================================================================
 
+button:where(:not(.unstyled)),
 .btn {
-  @include m.flex(row, center, center);
-  @include m.ripple-effect;
-  
-  // Spacing (new design tokens)
-  padding: v.$spacing-3 v.$spacing-6;  // 12px 24px
-  gap: v.$spacing-2;  // 8px gap for icon + text
-  
-  // Typography (new design tokens)
-  font-size: v.$text-base;  // 16px
-  font-weight: v.$font-semibold;  // 600
-  line-height: v.$leading-normal;  // 1.5
-  
-  // Border & Radius (new design tokens)
-  border: none;
-  border-radius: v.$border-radius-md;  // 10px (modern rounded)
-  
-  // Interaction
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: v.$spacing-2;
+  min-height: var(--control-target-min);
+  padding: v.$spacing-2 v.$spacing-4;
+  font-family: inherit;
+  font-size: v.$text-sm;
+  font-weight: v.$font-medium;
+  line-height: v.$leading-normal;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
   cursor: pointer;
-  transition: v.$transition-all;
-  width: auto;
-  position: relative;
-  overflow: hidden;
-  
-  // Touch target (mobile-first)
-  @include m.respond-below('sm') {
-    min-height: 44px;  // iOS recommended minimum
-    padding: v.$spacing-3 v.$spacing-5;  // Slightly smaller on mobile
-    font-size: v.$text-sm;  // 14px on mobile
-  }
-  
-  // Hover state (subtle lift)
-  &:hover:not(:disabled) {
-    transform: translateY(-1px);
-    box-shadow: v.$shadow-md;
-  }
-  
-  // Active state (press down)
-  &:active:not(:disabled) {
-    transform: translateY(0);
-    box-shadow: v.$shadow-sm;
-  }
-  
-  // Focus state (accessibility)
+  transition: color v.$transition-fast, background-color v.$transition-fast, border-color v.$transition-fast;
+
   &:focus-visible {
-    outline: none;
-    box-shadow: v.$shadow-primary;
+    outline: var(--focus-ring);
+    outline-offset: 2px;
   }
-  
-  // Disabled state
+
   &:disabled {
-    opacity: 0.5;
+    color: var(--sv-cmp-button-disabled-foreground);
+    background: var(--sv-cmp-button-disabled-background);
     cursor: not-allowed;
-    transform: none;
   }
-  
-  // Size Variants
-  &-sm {
-    padding: v.$spacing-2 v.$spacing-4;  // 8px 16px
-    font-size: v.$text-sm;  // 14px
-    border-radius: v.$border-radius-sm;  // 4px
-    min-height: 32px;
-  }
-  
-  &-lg {
-    padding: v.$spacing-4 v.$spacing-8;  // 16px 32px
-    font-size: v.$text-lg;  // 18px
-    border-radius: v.$border-radius-lg;  // 12px
-    min-height: 52px;
-  }
-  
-  // ========================================
-  // Color Variants (Modern Palette)
-  // ========================================
-  
-  &-primary {
-    background: var(--primary-color);  // Teal
-    color: white;
-    box-shadow: v.$shadow-sm;
-    
-    &:hover:not(:disabled) {
-      background: v.$primary-400;  // Lighter on hover
-      box-shadow: v.$shadow-md;
-    }
-    
-    &:active:not(:disabled) {
-      background: v.$primary-600;  // Darker on press
-    }
-    
-    &:focus-visible {
-      box-shadow: v.$shadow-primary;
-    }
-  }
-  
-  &-secondary {
-    background: var(--accent-color);  // Purple
-    color: white;
-    box-shadow: v.$shadow-sm;
-    
-    &:hover:not(:disabled) {
-      background: v.$accent-400;  // Lighter on hover
-      box-shadow: v.$shadow-md;
-    }
-    
-    &:active:not(:disabled) {
-      background: v.$accent-600;  // Darker on press
-    }
-    
-    &:focus-visible {
-      box-shadow: v.$shadow-accent;
-    }
-  }
-  
-  &-success {
-    background: var(--success-color);
-    color: white;
-    box-shadow: v.$shadow-sm;
-    
-    &:hover:not(:disabled) {
-      background: v.$success-400;
-      box-shadow: v.$shadow-md;
-    }
-    
-    &:active:not(:disabled) {
-      background: v.$success-600;
-    }
-    
-    &:focus-visible {
-      box-shadow: v.$shadow-success;
-    }
-  }
-  
-  &-danger,
-  &-delete {
-    background: var(--danger-color);
-    color: white;
-    box-shadow: v.$shadow-sm;
-    
-    &:hover:not(:disabled) {
-      background: v.$danger-400;
-      box-shadow: v.$shadow-md;
-    }
-    
-    &:active:not(:disabled) {
-      background: v.$danger-600;
-    }
-    
-    &:focus-visible {
-      box-shadow: v.$shadow-danger;
-    }
-  }
-  
-  &-warning {
-    background: var(--warning-color);
-    color: white;
-    box-shadow: v.$shadow-sm;
-    
-    &:hover:not(:disabled) {
-      background: v.$warning-400;
-      box-shadow: v.$shadow-md;
-    }
-    
-    &:active:not(:disabled) {
-      background: v.$warning-600;
-    }
-  }
-  
-  &-info {
-    background: var(--info-color);
-    color: white;
-    box-shadow: v.$shadow-sm;
-    
-    &:hover:not(:disabled) {
-      background: v.$info-400;
-      box-shadow: v.$shadow-md;
-    }
-    
-    &:active:not(:disabled) {
-      background: v.$info-600;
-    }
-  }
-  
-  // Outline Variants (transparent with border)
-  &-outline {
-    background: transparent;
-    color: var(--text-primary);
-    border: 2px solid var(--border-color);
-    box-shadow: none;
-    
-    &:hover:not(:disabled) {
-      background: rgba(var(--primary-color-rgb), 0.1);
-      border-color: var(--primary-color);
-      color: var(--primary-color);
-    }
-  }
-  
-  &-outline-primary {
-    background: transparent;
-    color: var(--primary-color);
-    border: 2px solid var(--primary-color);
-    box-shadow: none;
-    
-    &:hover:not(:disabled) {
-      background: var(--primary-color);
-      color: white;
-    }
-  }
-  
-  &-outline-danger {
-    background: transparent;
-    color: var(--danger-color);
-    border: 2px solid var(--danger-color);
-    box-shadow: none;
-    
-    &:hover:not(:disabled) {
-      background: var(--danger-color);
-      color: white;
-    }
-  }
-  
-  // Ghost Variant (transparent, no border)
-  &-ghost {
-    background: transparent;
-    color: var(--text-secondary);
-    box-shadow: none;
-    
-    &:hover:not(:disabled) {
-      background: rgba(var(--primary-color-rgb), 0.1);
-      color: var(--primary-color);
-    }
-  }
-  
-  // Link Style (looks like text link)
-  &-link {
-    background: transparent;
-    color: var(--primary-color);
-    box-shadow: none;
-    padding: v.$spacing-1 v.$spacing-2;
-    text-decoration: underline;
-    
-    &:hover:not(:disabled) {
-      color: v.$primary-400;
-      transform: none;
-      text-decoration: none;
-    }
+
+  svg, .icon {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    &.icon-fill { fill: currentColor; stroke: none; }
   }
 }
 
-// ============================================================================
-// ICON BUTTON - Circular icon-only buttons (header actions, close buttons)
-// ============================================================================
+.btn {
+  position: relative;
+  width: auto;
+  text-decoration: none;
 
-.icon-btn {
-  // Reset
-  appearance: none;
-  background: transparent;
-  border: none;
-  padding: 0;
-  margin: 0;
-  
-  // Layout - Perfect square, centered content
-  display: flex;
+  &-primary {
+    min-height: var(--sv-cmp-button-height-primary);
+    background: var(--sv-cmp-button-background);
+    color: var(--sv-cmp-button-foreground);
+    &:hover:not(:disabled) { background: var(--sv-cmp-button-background-hover); color: var(--sv-cmp-button-foreground); }
+    &:active:not(:disabled) { background: var(--sv-cmp-button-background-active); }
+  }
+
+  &-secondary, &-outline {
+    background: var(--sv-sem-surface-panel);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    &:hover:not(:disabled) { background: var(--sv-sem-surface-raised); border-color: var(--sv-sem-border-strong); color: var(--text-primary); }
+  }
+
+  &-ghost, &-text, &-link {
+    background: transparent;
+    color: var(--text-primary);
+    &:hover:not(:disabled) { background: var(--sv-sem-surface-raised); color: var(--text-primary); }
+  }
+  &-text, &-link { color: var(--sv-sem-action-foreground); }
+  &-link { text-decoration: underline; text-underline-offset: 3px; }
+
+  &-outline-primary, &-outline-danger {
+    background: transparent;
+    border: 1px solid currentColor;
+    &:hover:not(:disabled) { background: var(--sv-sem-surface-raised); }
+  }
+  &-outline-primary { color: var(--sv-sem-action-foreground); }
+  &-outline-danger { color: var(--sv-sem-status-danger); }
+
+  // Filled semantic actions use dark fills with white text in both themes.
+  // Their foreground status aliases are reserved for readable text and icons.
+  &-danger, &-delete {
+    background: var(--sv-fdn-color-red-700);
+    color: var(--sv-sem-text-inverse);
+    &:hover:not(:disabled) { background: var(--sv-fdn-color-red-600); color: var(--sv-sem-text-inverse); }
+  }
+  &-success {
+    background: var(--sv-fdn-color-green-700);
+    color: var(--sv-sem-text-inverse);
+    &:hover:not(:disabled) { background: var(--sv-fdn-color-teal-800); color: var(--sv-sem-text-inverse); }
+  }
+  &-warning {
+    background: var(--sv-fdn-color-amber-400);
+    color: var(--sv-fdn-color-ink-950);
+    &:hover:not(:disabled) { background: var(--sv-fdn-color-amber-700); color: var(--sv-sem-text-inverse); }
+  }
+  &-info {
+    background: var(--sv-fdn-color-blue-700);
+    color: var(--sv-sem-text-inverse);
+    &:hover:not(:disabled) { background: var(--sv-sem-action-primary-active); color: var(--sv-sem-text-inverse); }
+  }
+  &-accent {
+    background: var(--accent-600);
+    color: var(--sv-sem-text-inverse);
+    &:hover:not(:disabled) { background: var(--accent-color-hover); color: var(--sv-sem-text-inverse); }
+  }
+
+  &-sm { padding: v.$spacing-2 v.$spacing-3; font-size: v.$text-sm; }
+  &-lg { min-height: var(--sv-cmp-button-height-primary); padding: v.$spacing-3 v.$spacing-5; font-size: v.$text-base; }
+  &-block { display: flex; width: 100%; }
+  &-with-icon { display: inline-flex; }
+}
+
+.icon-btn,
+.close-btn,
+.btn-icon {
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 44px;
-  height: 44px;
-  min-width: 44px;
-  min-height: 44px;
-  
-  // Style
-  border-radius: 50%;
-  color: var(--text-primary);
-  cursor: pointer;
-  
-  // Transition
-  transition: all var(--duration-200, 200ms) var(--vue-ease-out, ease-out);
-  
-  // Icon inside
-  svg,
-  .icon {
-    width: 20px;
-    height: 20px;
-    flex-shrink: 0;
-    transition: transform var(--duration-200, 200ms) var(--vue-ease-out, ease-out);
-    
-    // Stroke-based icons (Lucide/Feather style)
-    &:not(.icon-fill) {
-      fill: none;
-      stroke: currentColor;
-      stroke-width: 2;
-      stroke-linecap: round;
-      stroke-linejoin: round;
-    }
-    
-    // Fill-based icons
-    &.icon-fill {
-      fill: currentColor;
-      stroke: none;
-    }
-  }
-  
-  // Hover state
-  &:hover {
-    background-color: rgba(var(--primary-color-rgb), 0.1);
-    color: var(--primary-color);
-    
-    svg,
-    .icon {
-      transform: scale(1.1);
-    }
-  }
-  
-  // Active state
-  &:active {
-    transform: scale(0.95);
-    
-    svg,
-    .icon {
-      transform: scale(0.95);
-    }
-  }
-  
-  // Focus state
-  &:focus-visible {
-    outline: 2px solid var(--primary-color);
-    outline-offset: 2px;
-  }
-  
-  // Disabled state
-  &:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-    
-    &:hover {
-      background: transparent;
-      color: var(--text-primary);
-      
-      svg,
-      .icon {
-        transform: none;
-      }
-    }
-  }
-  
-  // Size variants
-  &-sm {
-    width: 32px;
-    height: 32px;
-    min-width: 32px;
-    min-height: 32px;
-    
-    svg,
-    .icon {
-      width: 16px;
-      height: 16px;
-    }
-  }
-  
-  &-lg {
-    width: 56px;
-    height: 56px;
-    min-width: 56px;
-    min-height: 56px;
-    
-    svg,
-    .icon {
-      width: 24px;
-      height: 24px;
-    }
-  }
-  
-  // Color variants
-  &-primary {
-    color: var(--primary-color);
-    
-    &:hover {
-      background-color: rgba(var(--primary-color-rgb), 0.15);
-    }
-  }
-  
-  &-danger {
-    color: var(--danger-color);
-    
-    &:hover {
-      background-color: rgba(var(--danger-color-rgb), 0.15);
-      color: var(--danger-color);
-    }
-  }
-  
-  // With notification badge
+  width: var(--sv-fdn-size-target-primary);
+  height: var(--sv-fdn-size-target-primary);
+  min-width: var(--sv-fdn-size-target-primary);
+  min-height: var(--sv-fdn-size-target-primary);
+  padding: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text-secondary);
+  &:hover:not(:disabled) { background: var(--sv-sem-surface-raised); color: var(--text-primary); }
+  &:focus-visible { outline: var(--focus-ring); outline-offset: 2px; }
+}
+
+.icon-btn {
+  &-primary { color: var(--sv-sem-action-foreground); }
+  &-danger { color: var(--sv-sem-status-danger); }
+  &-lg { width: 56px; height: 56px; }
   &.has-badge {
     position: relative;
-    
     .badge {
       position: absolute;
       top: 4px;
@@ -499,69 +241,15 @@
       height: 18px;
       padding: 0 5px;
       font-size: 11px;
-      font-weight: 600;
       line-height: 18px;
-      text-align: center;
-      color: white;
-      background: var(--danger-color);
-      border-radius: 9px;
+      color: var(--sv-sem-text-inverse);
+      background: var(--sv-fdn-color-red-700);
+      border-radius: var(--radius-full);
       border: 2px solid var(--background-dark);
     }
   }
 }
-
-// ============================================================================
-// CLOSE BUTTON - Text-based close button for modals/panels (uses × character)
-// ============================================================================
-
-.close-btn {
-  // Reset
-  appearance: none;
-  background: transparent;
-  border: none;
-  padding: 0;
-  margin: 0;
-  
-  // Layout
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 44px;
-  height: 44px;
-  min-width: 44px;
-  min-height: 44px;
-  
-  // Style
-  border-radius: 50%;
-  color: var(--text-secondary);
-  cursor: pointer;
-  
-  // Typography (for × character)
-  font-size: 24px;
-  font-weight: 300;
-  line-height: 1;
-  
-  // Transition
-  transition: all var(--duration-200, 200ms) var(--vue-ease-out, ease-out);
-  
-  // Hover state
-  &:hover {
-    background-color: rgba(var(--danger-color-rgb), 0.15);
-    color: var(--danger-color);
-    transform: scale(1.1);
-  }
-  
-  // Active state
-  &:active {
-    transform: scale(0.95);
-  }
-  
-  // Focus state
-  &:focus-visible {
-    outline: 2px solid var(--danger-color);
-    outline-offset: 2px;
-  }
-}
+.close-btn { font-size: 24px; font-weight: 300; line-height: 1; }
 
 // ============================================================================
 // FORM SYSTEM - Modern Design
@@ -573,70 +261,36 @@
 }
 
 .input-field,
-input[type="text"],
-input[type="email"],
-input[type="password"],
-input[type="number"],
-input[type="url"],
+input:where(:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="reset"])),
 textarea,
 select {
   width: 100%;
-  background: var(--background-card);
-  border: 2px solid var(--border-color);
+  min-height: var(--control-target-min);
+  background: var(--sv-cmp-field-background);
+  border: 1px solid var(--sv-cmp-field-border);
   color: var(--text-primary);
-  padding: v.$spacing-3 v.$spacing-4;  // 12px 16px
-  border-radius: v.$border-radius-md;  // 10px
-  font-size: v.$text-base;  // 16px
-  font-family: v.$font-sans;
+  padding: v.$spacing-2 v.$spacing-3;
+  border-radius: var(--radius);
+  font-size: v.$text-base;
+  font-family: inherit;
   line-height: v.$leading-normal;
-  transition: v.$transition-all;
-  position: relative;
-  
-  // Mobile optimization (prevent zoom on iOS)
-  @include m.respond-below('sm') {
-    font-size: 16px;  // Prevents iOS zoom
-    min-height: 44px;  // Touch target
-  }
-  
-  // Focus state
+  transition: border-color v.$transition-fast;
+
+  @include m.respond-below('md') { font-size: 16px !important; }
+  &:hover:not(:disabled) { border-color: var(--sv-cmp-field-border-hover); }
   &:focus {
-    outline: none;
-    border-color: var(--primary-color);
-    box-shadow: v.$shadow-primary;
-    background: var(--background-darker);
+    outline: var(--focus-ring);
+    outline-offset: 2px;
+    border-color: var(--sv-cmp-field-border-focus);
   }
-  
-  // Placeholder
-  &::placeholder {
-    color: var(--text-secondary);
-    opacity: 0.6;
-  }
-  
-  // Disabled state
-  &:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-    background: var(--background-dark);
-  }
-  
-  // Error state
-  &.error,
-  &:invalid:not(:placeholder-shown) {
-    border-color: var(--danger-color);
-    
-    &:focus {
-      box-shadow: v.$shadow-danger;
-    }
-  }
-  
-  // Success state
-  &.success {
-    border-color: var(--success-color);
-    
-    &:focus {
-      box-shadow: v.$shadow-success;
-    }
-  }
+  &::placeholder { color: var(--text-secondary); opacity: 1; }
+  &:disabled { cursor: not-allowed; background: var(--sv-sem-surface-disabled); color: var(--sv-sem-text-disabled); }
+  &.error, &:invalid:not(:placeholder-shown) { border-color: var(--sv-cmp-field-error); }
+  &.success { border-color: var(--sv-sem-status-success); }
+}
+
+@include m.respond-below('md') {
+  input[type="checkbox"], input[type="radio"] { font-size: 16px; }
 }
 
 // Textarea specific
@@ -692,52 +346,13 @@ label {
   .input-field {
     width: 100%;
     // Left padding: 16px (icon left) + 20px (icon width) + 20px (gap) = 56px
-    // Use !important to override global input styles in main.scss
+    // Reserve space for the leading icon.
     padding: v.$spacing-3 v.$spacing-4 v.$spacing-3 56px !important;
-    background: var(--background-card);
-    border: 2px solid var(--border-color);
-    border-radius: v.$border-radius-md;
-    font-size: v.$text-base;
-    color: var(--text-primary);
-    transition: v.$transition-all;
-    box-sizing: border-box;
-    
-    // Mobile optimization
-    @include m.respond-below('sm') {
-      font-size: 16px;  // Prevents iOS zoom
-      min-height: 44px;  // Touch target
-    }
-    
-    &::placeholder {
-      color: var(--text-secondary);
-      opacity: 0.6;
-    }
-    
-    &:focus {
-      outline: none;
-      border-color: var(--primary-color);
-      box-shadow: v.$shadow-primary;
-      background: var(--background-darker);
-    }
-    
     &:focus + .input-icon {
       fill: var(--primary-color);
       stroke: var(--primary-color);
     }
     
-    &:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-      background: var(--background-dark);
-    }
-    
-    &.error {
-      border-color: var(--danger-color);
-      
-      &:focus {
-        box-shadow: v.$shadow-danger;
-      }
-    }
   }
   
   // The icon inside the input
@@ -793,7 +408,7 @@ input[type="radio"] {
   width: auto;
   margin-right: v.$spacing-2;
   cursor: pointer;
-  accent-color: var(--primary-color);  // Modern browser support
+  accent-color: var(--sv-sem-action-primary);  // Modern browser support
   
   &:focus-visible {
     outline: 2px solid var(--primary-color);
@@ -922,7 +537,7 @@ input[type="radio"] {
     appearance: none;
     width: 18px;
     height: 18px;
-    border: 2px solid var(--border-color);  // Use CSS variable for theme support
+    border: 1px solid var(--border-color);  // Use CSS variable for theme support
     border-radius: 4px;
     background: var(--background-card);  // Use CSS variable for theme support
     cursor: pointer;
@@ -1002,21 +617,11 @@ input[type="radio"] {
 // ============================================================================
 
 .settings-section--surface {
-  border-radius: v.$border-radius-xl;
+  border-radius: var(--radius-lg);
   padding: v.$spacing-6;
-  // NO background - parent GlassCard handles this
-  backdrop-filter: blur(16px);
-  border: 1px solid rgba(var(--primary-color-rgb), 0.15);
-  box-shadow: v.$shadow-lg;
-
-  [data-theme="light"] & {
-    border: 1px solid rgba(0, 0, 0, 0.1);
-    box-shadow: v.$shadow-md;
-  }
-
-  @include m.respond-below('md') {
-    padding: v.$spacing-4;
-  }
+  background: var(--sv-sem-surface-panel);
+  border: 1px solid var(--sv-sem-border-default);
+  @include m.respond-below('md') { padding: v.$spacing-4; }
 }
 
 .settings-section__header {
@@ -1217,10 +822,7 @@ input[type="radio"] {
   &.card-interactive {
     cursor: pointer;
     
-    &:active {
-      transform: translateY(0);
-      box-shadow: v.$shadow-sm;
-    }
+    &:hover { border-color: var(--sv-sem-border-strong); }
   }
 }
 

@@ -171,7 +171,7 @@ test('built live player requests its same-origin worker and plays synthetic HLS'
     : testInfo.outputPath('ux06-live-player.png')
   await page.screenshot({ path: screenshotPath, fullPage: true })
 
-  await page.getByRole('link', { name: 'Library' }).click()
+  await page.getByRole('link', { name: 'Aufzeichnungen', exact: true }).click()
   await expect(page).toHaveURL(/\/videos$/)
   await expect(video).toHaveCount(0)
 })
@@ -217,7 +217,7 @@ test.describe('delayed fallback lifecycle', () => {
   await page.goto('/live/product-player?t=1')
   await expect(page.locator('video.video-element')).toBeVisible()
   await expect.poll(() => hlsChunkRequests, { timeout: 10_000 }).toBe(1)
-  await page.getByRole('link', { name: 'Library' }).click()
+  await page.getByRole('link', { name: 'Aufzeichnungen', exact: true }).click()
   await expect(page).toHaveURL(/\/videos$/)
   await expect(page.locator('video.video-element')).toHaveCount(0)
   releaseHlsChunk()

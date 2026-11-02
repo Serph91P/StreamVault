@@ -29,15 +29,26 @@ function retryableSettingsPanelHost(): Plugin {
       }
       const panelHostChunk = panelHostOutput.fileName
       const relativePanelHostChunk = panelHostChunk.replace(/^assets\//, './')
-      const panelHostCss = [...(
-        panelHostOutput as typeof panelHostOutput & {
+      const panelHostCss = new Set<string>()
+      const visited = new Set<string>()
+      const collectStaticCss = (fileName: string) => {
+        if (visited.has(fileName)) return
+        visited.add(fileName)
+        const chunk = bundle[fileName]
+        if (!chunk || chunk.type !== 'chunk') return
+        chunk.imports.forEach(collectStaticCss)
+        const metadata = (chunk as typeof chunk & {
           viteMetadata?: { importedCss?: Set<string> }
-        }
-      ).viteMetadata?.importedCss ?? []]
-      if (panelHostCss.length === 0) {
+        }).viteMetadata
+        metadata?.importedCss?.forEach(css => panelHostCss.add(css))
+      }
+      // The native retry import bypasses Vite's preload wrapper, including
+      // CSS extracted into shared static dependencies. Preserve their order.
+      collectStaticCss(panelHostChunk)
+      if (panelHostCss.size === 0) {
         this.error('SettingsPanelHost CSS output was not generated')
       }
-      const relativePanelHostCss = panelHostCss.map(fileName => fileName.replace(/^assets\//, './'))
+      const relativePanelHostCss = [...panelHostCss].map(fileName => fileName.replace(/^assets\//, './'))
 
       // SettingsView versions the helper URL by its compiled module URL because
       // this helper embeds build-specific chunk references. Every call imports
@@ -140,6 +151,18 @@ export default defineConfig({
           // Split vendor libraries for better caching
           if (id.includes('node_modules/vue/') || id.includes('node_modules/vue-router/')) {
             return 'vue-vendor'
+          }
+          // These runtime modules and shared primitives are already loaded
+          // together. Avoid tiny independently compressed chunks per consumer.
+          if (/\/src\/(router\/index|services\/(api|api-real|session|storage|realtime|recording-status)|composables\/(useWebSocket|useTheme|useToast|useForceRecording)|stores\/(notifications|realtime|backgroundQueue))\.ts$/.test(id)
+            || /\/src\/components\/(base\/|LoadingSkeleton\.vue)/.test(id)) {
+            return 'app-shared'
+          }
+          // Recording and notification controls share the same channel data;
+          // the global SettingsPanelHost and every route remain lazy entries.
+          if (/\/src\/components\/(settings\/(RecordingSettingsPanel|NotificationSettingsPanel|ChannelSettingsPanel)|streamers\/StreamerSettingsFields|CleanupPolicyEditor)\.vue/.test(id)
+            || /\/src\/composables\/(useRecordingSettings|useNotificationSettings|useFilenamePresets)\.ts$/.test(id)) {
+            return 'channel-settings'
           }
         }
       }

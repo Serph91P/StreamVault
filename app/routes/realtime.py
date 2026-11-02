@@ -29,6 +29,7 @@ async def websocket_endpoint(websocket: WebSocket):
 async def replay_realtime_events(
     since: int = Query(0, ge=0),
     limit: int = Query(500, ge=1, le=500),
+    generation: str | None = Query(None, max_length=36),
     current_user=Depends(get_current_user),
 ):
     """Return recent authenticated realtime events after a client cursor.
@@ -37,7 +38,9 @@ async def replay_realtime_events(
     pass the highest event_id they have already processed as since to avoid
     duplicate replay of live events received before reconnect.
     """
-    replay_window = await websocket_manager.get_replay_window(since=since, limit=limit)
+    replay_window = await websocket_manager.get_replay_window(
+        since=since, limit=limit, generation=generation
+    )
 
     return {
         "since": since,

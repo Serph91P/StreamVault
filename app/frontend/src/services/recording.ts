@@ -47,9 +47,11 @@ export async function saveRecordingSettings(settings: RecordingSettings): Promis
     },
     body: JSON.stringify({
       enabled: settings.enabled,
+      output_directory: settings.output_directory,
       filename_template: settings.filename_template,
       filename_preset: settings.filename_preset,
       default_quality: settings.default_quality,
+      supported_codecs: settings.supported_codecs,
       use_chapters: settings.use_chapters,
       use_category_as_chapter_title: settings.use_category_as_chapter_title,
       cleanup_policy: settings.cleanup_policy

@@ -321,13 +321,13 @@ export default {
 }
 
 .issues-badge.error {
-  background: var(--danger-color);
-  color: var(--text-on-primary);
+  background: var(--sv-fdn-color-red-700);
+  color: var(--sv-sem-text-inverse);
 }
 
 .issues-badge.success {
-  background: var(--success-color);
-  color: var(--text-on-primary);
+  background: var(--sv-fdn-color-green-700);
+  color: var(--sv-sem-text-inverse);
 }
 
 .problem-details {

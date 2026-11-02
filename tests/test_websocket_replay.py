@@ -12,6 +12,49 @@ from starlette.websockets import WebSocketState
 from app.services.communication.websocket_manager import ConnectionManager
 
 
+def test_socket_dependencies_and_producers_share_one_manager():
+    from app.dependencies import (
+        get_websocket_manager,
+        websocket_manager as socket_manager,
+    )
+    from app.services.communication.websocket_manager import (
+        websocket_manager as producer_manager,
+    )
+    from app.routes.realtime import websocket_manager as router_manager
+
+    assert socket_manager is producer_manager
+    assert get_websocket_manager() is producer_manager
+    assert router_manager is producer_manager
+
+
+def test_replay_resets_a_cursor_ahead_of_a_restarted_server():
+    async def run_test():
+        manager = ConnectionManager()
+        await manager.send_notification({"type": "test", "data": {"test_id": "new"}})
+        replay = await manager.get_replay_window(since=40)
+        assert replay["reset"] is True
+        assert [event["event_id"] for event in replay["events"]] == [1]
+
+    asyncio.run(run_test())
+
+
+def test_generation_change_resets_even_if_new_server_has_passed_old_cursor():
+    async def run_test():
+        previous = ConnectionManager()
+        manager = ConnectionManager()
+        old_generation = (await previous.get_replay_state())["generation"]
+        for index in range(3):
+            await manager.send_notification(
+                {"type": "test", "data": {"test_id": index}}
+            )
+        replay = await manager.get_replay_window(since=2, generation=old_generation)
+        assert replay["reset"] is True
+        assert replay["generation"] != old_generation
+        assert [event["event_id"] for event in replay["events"]] == [1, 2, 3]
+
+    asyncio.run(run_test())
+
+
 class _FakeWebSocket:
     def __init__(self):
         self.client_state = WebSocketState.CONNECTED
@@ -38,6 +81,7 @@ def test_replayable_events_receive_monotonic_ids_and_can_be_queried_since():
         assert first_batch[0]["type"] == "streamer.added"
         assert first_batch[1]["data"] == {"id": 2}
         assert replay_state == {
+            "generation": manager._generation,
             "latest_event_id": 2,
             "oldest_event_id": 1,
             "retained_events": 2,
@@ -92,6 +136,7 @@ def test_connection_status_is_not_replayed():
 
         assert await manager.get_events_since(0) == []
         assert await manager.get_replay_state() == {
+            "generation": manager._generation,
             "latest_event_id": 0,
             "oldest_event_id": None,
             "retained_events": 0,

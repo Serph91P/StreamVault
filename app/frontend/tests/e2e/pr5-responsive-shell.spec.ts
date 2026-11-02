@@ -273,7 +273,7 @@ test('System subpages provide a keyboard-accessible Back to System link on deskt
 
     for (const path of ['/settings', '/admin', '/subscriptions']) {
       await page.goto(path)
-      const back = page.getByRole('link', { name: 'Back to System', exact: true })
+      const back = page.getByRole('link', { name: path === '/settings' ? 'Zurück zum System' : 'Back to System', exact: true })
       await expect(back).toBeVisible()
       await back.focus()
       await expect(back).toBeFocused()
@@ -415,10 +415,10 @@ for (const snapshot of snapshots) {
     await preparePage(page, snapshot.theme)
     await page.goto(snapshot.route)
     if (snapshot.route === '/') {
-      await expect(page.getByRole('heading', { name: '2 streamers live now' })).toBeVisible()
+      await expect(page.getByRole('heading', { name: 'Meine Kanäle', exact: true })).toBeVisible()
     }
     if (snapshot.route === '/settings') {
-      await expect(page.getByRole('heading', { name: 'Twitch Connection', exact: true }).first()).toBeVisible()
+      await expect(page.getByRole('heading', { name: 'Twitch-Verbindung', exact: true }).first()).toBeVisible()
       await expect(page.getByLabel('Twitch OAuth token')).toBeVisible()
     }
     if (snapshot.route.startsWith('/onboarding')) {
