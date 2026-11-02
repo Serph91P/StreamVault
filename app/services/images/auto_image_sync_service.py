@@ -1,16 +1,21 @@
-"""
-Automatic Image Sync Service - handles background image downloading
-"""
+"""Automatic image sync with owner-local workers and closed catalogue pages."""
 
 import asyncio
 import logging
+from collections.abc import Callable
 from pathlib import Path
-from typing import Optional
 
-from app.database import SessionLocal
-from app.models import Streamer, Category
-from app.services.unified_image_service import unified_image_service
+from sqlalchemy.orm import Session
+
 from app.config.constants import ASYNC_DELAYS
+from app.database import SessionLocal
+from app.models import Category, Streamer
+from app.services.images.image_sync_service import SyncRequest
+from app.services.unified_image_service import (
+    UnifiedImageService,
+    unified_image_service,
+)
+from app.utils.async_db_utils import run_in_thread_pool
 
 logger = logging.getLogger("streamvault")
 
@@ -18,29 +23,42 @@ logger = logging.getLogger("streamvault")
 class AutoImageSyncService:
     """Service for automatically syncing images when entities are created/updated"""
 
-    # Configuration - base path set dynamically from settings
     TWITCH_PROFILE_URL_TEMPLATE = "https://static-cdn.jtvnw.net/jtv_user_pictures/{twitch_id}-profile_image-300x300.png"
 
-    @property
-    def PROFILES_BASE_PATH(self):
-        from app.config.settings import settings
-
-        return f"{settings.RECORDING_DIRECTORY}/.media/profiles/"
-
-    def __init__(self):
-        self._sync_queue = asyncio.Queue()
-        self._sync_task = None
+    def __init__(
+        self,
+        *,
+        image_service: UnifiedImageService | None = None,
+        session_factory: Callable[[], Session] | None = None,
+    ):
+        self._image_service = image_service
+        self._session_factory = session_factory
+        self._sync_queue: asyncio.Queue[SyncRequest] = asyncio.Queue()
+        self._sync_task: asyncio.Task[None] | None = None
         self._running = False
 
+    @property
+    def _images(self) -> UnifiedImageService:
+        return self._image_service or unified_image_service
+
+    @property
+    def PROFILES_BASE_PATH(self) -> str:
+        return (
+            str(self._images.download_service.recordings_dir / ".media" / "profiles")
+            + "/"
+        )
+
+    def _sessions(self) -> Session:
+        return (self._session_factory or SessionLocal)()
+
     async def start_sync_worker(self):
-        """Start the background sync worker"""
         if self._sync_task is None or self._sync_task.done():
             self._running = True
-            self._sync_task = asyncio.create_task(self._sync_worker())
-            logger.info("Auto image sync worker started")
+            self._sync_task = asyncio.create_task(
+                self._sync_worker(), name="streamvault:auto-image-sync"
+            )
 
     async def stop_sync_worker(self):
-        """Stop the background sync worker"""
         self._running = False
         if self._sync_task and not self._sync_task.done():
             self._sync_task.cancel()
@@ -48,152 +66,85 @@ class AutoImageSyncService:
                 await self._sync_task
             except asyncio.CancelledError:
                 pass
-        logger.info("Auto image sync worker stopped")
 
     async def _sync_worker(self):
-        """Background worker that processes sync requests"""
-        logger.info("Auto image sync background worker started")
         while self._running:
             try:
-                # Wait for sync request with timeout to check _running periodically
-                sync_request = await asyncio.wait_for(
-                    self._sync_queue.get(), timeout=5.0
-                )
-                await self._process_sync_request(sync_request)
+                request = await asyncio.wait_for(self._sync_queue.get(), timeout=5.0)
+                try:
+                    await self._process_sync_request(request)
+                finally:
+                    self._sync_queue.task_done()
             except asyncio.TimeoutError:
-                continue  # Check if still running
+                continue
             except asyncio.CancelledError:
                 break
-            except Exception as e:
-                logger.error(f"Error in auto image sync worker: {e}")
+            except Exception as error:
+                logger.error("Auto image worker failed (%s)", type(error).__name__)
                 await asyncio.sleep(ASYNC_DELAYS.IMAGE_SYNC_WORKER_ERROR_WAIT)
-        logger.info("Auto image sync background worker stopped")
 
-    async def _process_sync_request(self, sync_request: dict):
-        """Process a single sync request"""
+    async def _process_sync_request(self, request: SyncRequest):
         try:
-            sync_type = sync_request.get("type")
-            if sync_type == "streamer_profile":
-                await self._sync_streamer_profile(sync_request)
-            elif sync_type == "category_image":
-                await self._sync_category_image(sync_request)
-            elif sync_type == "stream_artwork":
-                await self._sync_stream_artwork(sync_request)
+            request_type = request.get("type")
+            if request_type == "streamer_profile":
+                await self._sync_streamer_profile(request)
+            elif request_type == "category_image":
+                await self._sync_category_image(request)
+            elif request_type == "stream_artwork":
+                await self._sync_stream_artwork(request)
             else:
-                logger.warning(f"Unknown sync request type: {sync_type}")
-        except Exception as e:
-            logger.error(f"Error processing sync request {sync_request}: {e}")
+                logger.warning("Unknown auto image request type")
+        except Exception as error:
+            logger.error("Auto image request failed (%s)", type(error).__name__)
 
-    async def _sync_streamer_profile(self, sync_request: dict):
-        """Sync a streamer's profile image"""
-        streamer_id = sync_request.get("streamer_id")
-        profile_image_url = sync_request.get("profile_image_url")
+    def _publish_profile(self, streamer_id: int, cached_path: str) -> None:
+        with self._sessions() as session:
+            streamer = session.get(Streamer, streamer_id)
+            if streamer is not None:
+                streamer.profile_image_url = cached_path
+                session.commit()
 
-        if streamer_id and profile_image_url:
-            try:
-                cached_path = await unified_image_service.download_profile_image(
-                    streamer_id, profile_image_url
-                )
-                if cached_path:
-                    logger.info(
-                        f"Successfully synced profile image for streamer {streamer_id}"
-                    )
+    async def _sync_streamer_profile(self, request: SyncRequest):
+        identity, source = request.get("streamer_id"), request.get("profile_image_url")
+        if identity and source:
+            path = await self._images.download_profile_image(identity, source)
+            if path:
+                await run_in_thread_pool(self._publish_profile, identity, path)
 
-                    # Update database with cached path
-                    with SessionLocal() as db:
-                        streamer = (
-                            db.query(Streamer)
-                            .filter(Streamer.id == streamer_id)
-                            .first()
-                        )
-                        if streamer:
-                            streamer.profile_image_url = cached_path
-                            db.commit()
-                else:
-                    logger.warning(
-                        f"Failed to sync profile image for streamer {streamer_id}"
-                    )
-            except Exception as e:
-                logger.error(
-                    f"Error syncing profile image for streamer {streamer_id}: {e}"
-                )
+    def _category_source(self, name: str) -> str | None:
+        with self._sessions() as session:
+            category = session.query(Category).filter(Category.name == name).first()
+            return category.box_art_url if category else None
 
-    async def _sync_category_image(self, sync_request: dict):
-        """Sync a category image"""
-        category_name = sync_request.get("category_name")
-        image_url = sync_request.get("image_url")
+    def _publish_category(self, name: str, cached_path: str) -> None:
+        with self._sessions() as session:
+            category = session.query(Category).filter(Category.name == name).first()
+            if category is not None:
+                category.box_art_url = cached_path
+                session.commit()
 
-        if category_name:
-            try:
-                # Get image URL from database if not provided
-                if not image_url:
-                    with SessionLocal() as db:
-                        category = (
-                            db.query(Category)
-                            .filter(Category.name == category_name)
-                            .first()
-                        )
-                        if category and category.box_art_url:
-                            image_url = category.box_art_url
+    async def _sync_category_image(self, request: SyncRequest):
+        name, source = request.get("category_name"), request.get("image_url")
+        if name:
+            if not source:
+                source = await run_in_thread_pool(self._category_source, name)
+            if source and source.startswith("http"):
+                path = await self._images.download_category_image(name, source)
+                if path:
+                    await run_in_thread_pool(self._publish_category, name, path)
 
-                if image_url and image_url.startswith("http"):
-                    cached_path = await unified_image_service.download_category_image(
-                        category_name, image_url
-                    )
-                    if cached_path:
-                        logger.info(
-                            f"Successfully synced category image for {category_name}"
-                        )
-
-                        # Update database with cached path
-                        with SessionLocal() as db:
-                            category = (
-                                db.query(Category)
-                                .filter(Category.name == category_name)
-                                .first()
-                            )
-                            if category:
-                                category.box_art_url = cached_path
-                                db.commit()
-                    else:
-                        logger.warning(
-                            f"Failed to sync category image for {category_name}"
-                        )
-                else:
-                    logger.debug(f"No valid image URL for category {category_name}")
-            except Exception as e:
-                logger.error(f"Error syncing category image for {category_name}: {e}")
-
-    async def _sync_stream_artwork(self, sync_request: dict):
-        """Sync stream artwork"""
-        stream_id = sync_request.get("stream_id")
-        streamer_id = sync_request.get("streamer_id")
-        artwork_url = sync_request.get("artwork_url")
-
-        if stream_id and streamer_id and artwork_url:
-            try:
-                cached_path = await unified_image_service.download_stream_artwork(
-                    stream_id, streamer_id, artwork_url
-                )
-                if cached_path:
-                    logger.info(
-                        f"Successfully synced stream artwork for stream {stream_id}"
-                    )
-                else:
-                    logger.warning(
-                        f"Failed to sync stream artwork for stream {stream_id}"
-                    )
-            except Exception as e:
-                logger.error(
-                    f"Error syncing stream artwork for stream {stream_id}: {e}"
-                )
-
-    # Public methods for requesting syncs
+    async def _sync_stream_artwork(self, request: SyncRequest):
+        identity, owner, source = (
+            request.get("stream_id"),
+            request.get("streamer_id"),
+            request.get("artwork_url"),
+        )
+        if identity and owner and source:
+            await self._images.download_stream_artwork(identity, owner, source)
 
     async def request_streamer_profile_sync(
         self, streamer_id: int, profile_image_url: str
     ):
-        """Request sync of a streamer's profile image"""
         await self._sync_queue.put(
             {
                 "type": "streamer_profile",
@@ -203,9 +154,8 @@ class AutoImageSyncService:
         )
 
     async def request_category_image_sync(
-        self, category_name: str, image_url: Optional[str] = None
+        self, category_name: str, image_url: str | None = None
     ):
-        """Request sync of a category image"""
         await self._sync_queue.put(
             {
                 "type": "category_image",
@@ -217,7 +167,6 @@ class AutoImageSyncService:
     async def request_stream_artwork_sync(
         self, stream_id: int, streamer_id: int, artwork_url: str
     ):
-        """Request sync of stream artwork"""
         await self._sync_queue.put(
             {
                 "type": "stream_artwork",
@@ -227,165 +176,98 @@ class AutoImageSyncService:
             }
         )
 
-    # Bulk sync operations
-
-    async def sync_all_existing_streamers(self, limit: int = 100, offset: int = 0):
-        """Sync existing streamers' profile images (with pagination)
-
-        Args:
-            limit: Maximum number of streamers to process in this batch
-            offset: Number of streamers to skip (for pagination)
-
-        Note: For syncing all streamers, use sync_all_streamers_paginated() instead
-        to avoid memory issues with large datasets.
-        """
-        try:
-            with SessionLocal() as db:
-                # Query all streamers to check if they need profile image syncing
-                streamers = db.query(Streamer).limit(limit).offset(offset).all()
-
-                count = 0
-                for streamer in streamers:
-                    needs_sync = False
-
-                    # Check if streamer has HTTP URL (needs downloading)
-                    if (
-                        streamer.profile_image_url
-                        and streamer.profile_image_url.startswith("http")
-                    ):
-                        needs_sync = True
-                    # Check if streamer has local path but file doesn't exist (needs re-downloading)
-                    elif (
-                        streamer.profile_image_url
-                        and streamer.profile_image_url.startswith("/data/images/")
-                    ):
-                        # Check if the local file actually exists
-                        filename = Path(streamer.profile_image_url).name
-                        local_file_path = Path(self.PROFILES_BASE_PATH) / filename
-                        if not local_file_path.exists():
-                            # File is missing, force to use the default Twitch avatar URL template
-                            logger.warning(
-                                f"Profile image file missing for streamer {streamer.username}: {streamer.profile_image_url}"
-                            )
-                            logger.info(f"Expected file at: {local_file_path}")
-                            # Use Twitch's default profile image URL pattern
-                            twitch_profile_url = (
+    def _profile_page(
+        self, limit: int, offset: int
+    ) -> tuple[int, list[tuple[int, str]]]:
+        with self._sessions() as session:
+            streamers = session.query(Streamer).limit(limit).offset(offset).all()
+            sources = []
+            for streamer in streamers:
+                source = streamer.profile_image_url
+                if source and source.startswith("http"):
+                    sources.append((streamer.id, source))
+                elif source and source.startswith("/data/images/"):
+                    if not (Path(self.PROFILES_BASE_PATH) / Path(source).name).exists():
+                        sources.append(
+                            (
+                                streamer.id,
                                 self.TWITCH_PROFILE_URL_TEMPLATE.format(
                                     twitch_id=streamer.twitch_id
-                                )
+                                ),
                             )
-                            needs_sync = True
-                            # Temporarily update the URL for download
-                            streamer.profile_image_url = twitch_profile_url
-                        else:
-                            logger.info(
-                                f"Profile image exists for {streamer.username}: {local_file_path}"
-                            )
-
-                    if needs_sync:
-                        await self.request_streamer_profile_sync(
-                            streamer.id, streamer.profile_image_url
                         )
-                        count += 1
+            return len(streamers), sources
 
-                logger.info(
-                    f"Queued {count} streamers for profile image sync (batch: offset={offset}, limit={limit})"
-                )
-                return count  # Return count for pagination logic
-        except Exception as e:
-            logger.error(f"Error syncing existing streamers: {e}")
+    async def _queue_profile_page(self, limit: int, offset: int) -> tuple[int, int]:
+        scanned, sources = await run_in_thread_pool(self._profile_page, limit, offset)
+        for identity, source in sources:
+            await self.request_streamer_profile_sync(identity, source)
+        return scanned, len(sources)
+
+    async def sync_all_existing_streamers(self, limit: int = 100, offset: int = 0):
+        try:
+            _, queued = await self._queue_profile_page(limit, offset)
+            return queued
+        except Exception as error:
+            logger.error("Auto profile scan failed (%s)", type(error).__name__)
             return 0
 
+    def _category_page(self, limit: int, offset: int) -> list[tuple[str, str]]:
+        with self._sessions() as session:
+            return [
+                (row.name, row.box_art_url)
+                for row in session.query(Category.name, Category.box_art_url)
+                .filter(Category.box_art_url.ilike("http%"))
+                .limit(limit)
+                .offset(offset)
+                .all()
+            ]
+
     async def sync_all_existing_categories(self, limit: int = 100, offset: int = 0):
-        """Sync existing categories' images (with pagination)
-
-        Args:
-            limit: Maximum number of categories to process in this batch
-            offset: Number of categories to skip (for pagination)
-
-        Note: For syncing all categories, use sync_all_categories_paginated() instead
-        to avoid memory issues with large datasets.
-        """
         try:
-            with SessionLocal() as db:
-                # Only query categories that have HTTP URLs and need syncing
-                categories = (
-                    db.query(Category)
-                    .filter(Category.box_art_url.ilike("http%"))
-                    .limit(limit)
-                    .offset(offset)
-                    .all()
-                )
-
-                count = 0
-                for category in categories:
-                    await self.request_category_image_sync(
-                        category.name, category.box_art_url
-                    )
-                    count += 1
-
-                logger.info(
-                    f"Queued {count} categories for image sync (batch: offset={offset}, limit={limit})"
-                )
-                return count  # Return count for pagination logic
-        except Exception as e:
-            logger.error(f"Error syncing existing categories: {e}")
+            sources = await run_in_thread_pool(self._category_page, limit, offset)
+            for name, source in sources:
+                await self.request_category_image_sync(name, source)
+            return len(sources)
+        except Exception as error:
+            logger.error("Auto category scan failed (%s)", type(error).__name__)
             return 0
 
     async def sync_all_streamers_paginated(self, batch_size: int = 100):
-        """Sync all streamers using pagination to avoid memory issues"""
-        total_synced = 0
-        offset = 0
-
+        total_synced, offset = 0, 0
         while True:
-            batch_count = await self.sync_all_existing_streamers(
-                limit=batch_size, offset=offset
-            )
-            total_synced += batch_count
-
-            if batch_count < batch_size:
-                # No more streamers to process
+            try:
+                scanned, queued = await self._queue_profile_page(batch_size, offset)
+            except Exception as error:
+                logger.error("Auto profile page failed (%s)", type(error).__name__)
+                return total_synced
+            total_synced += queued
+            if scanned < batch_size:
                 break
-
             offset += batch_size
-            # Small delay to prevent overwhelming the database
             await asyncio.sleep(ASYNC_DELAYS.IMAGE_SYNC_BATCH_DELAY)
-
-        logger.info(f"Completed sync for {total_synced} streamers total")
         return total_synced
 
     async def sync_all_categories_paginated(self, batch_size: int = 100):
-        """Sync all categories using pagination to avoid memory issues"""
-        total_synced = 0
-        offset = 0
-
+        total_synced, offset = 0, 0
         while True:
-            batch_count = await self.sync_all_existing_categories(
+            count = await self.sync_all_existing_categories(
                 limit=batch_size, offset=offset
             )
-            total_synced += batch_count
-
-            if batch_count < batch_size:
-                # No more categories to process
+            total_synced += count
+            if count < batch_size:
                 break
-
             offset += batch_size
-            # Small delay to prevent overwhelming the database
             await asyncio.sleep(ASYNC_DELAYS.IMAGE_SYNC_BATCH_DELAY)
-
-        logger.info(f"Completed sync for {total_synced} categories total")
         return total_synced
 
     def get_queue_size(self) -> int:
-        """Get the current size of the sync queue"""
         return self._sync_queue.qsize()
 
     def is_running(self) -> bool:
-        """Check if the sync worker is running"""
         return (
             self._running and self._sync_task is not None and not self._sync_task.done()
         )
 
 
-# Global instance
 auto_image_sync_service = AutoImageSyncService()
