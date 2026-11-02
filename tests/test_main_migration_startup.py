@@ -143,8 +143,9 @@ async def test_lifespan_fails_startup_when_database_migrations_fail(monkeypatch)
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("owned_images", [False, True])
 async def test_lifespan_uses_factory_service_overrides_for_startup_and_shutdown(
-    monkeypatch,
+    monkeypatch, owned_images,
 ):
     from app import dependencies
     from app import lifespan as lifespan_module
@@ -262,7 +263,24 @@ async def test_lifespan_uses_factory_service_overrides_for_startup_and_shutdown(
         },
     )
 
+    if owned_images:
+        from threading import Lock
+        from app.services.images.image_sync_service import ImageSyncService
+
+        app.state.image_sync_service = ImageSyncService()
+        app.state.image_sync_service_lock = Lock()
+        native_stop = app.state.image_sync_service.stop_sync_worker
+
+        async def owned_stop():
+            await native_stop()
+            await record("image-sync-stop")
+
+        app.state.image_sync_service.stop_sync_worker = owned_stop
+
     async with lifespan_module.lifespan(app):
+        if owned_images:
+            assert app.state.image_sync_service.is_running()
+            assert "image-sync-start" not in calls
         assert app.state.recording_manager.__class__ is RecordingManager
         assert app.state.startup_phases == [
             "migrations",

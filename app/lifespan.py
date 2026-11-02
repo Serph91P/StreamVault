@@ -16,6 +16,7 @@ from app.dependencies import (
     get_lifespan_service,
     get_recording_manager,
     _get_application_twitch_api,
+    _get_application_image_sync_service,
 )
 
 from app.services.core.session_maintenance import cleanup_expired_sessions
@@ -120,6 +121,7 @@ async def lifespan(app: FastAPI):
     recording_manager = None
     background_services_started = False
     image_sync_started = False
+    image_sync_actor = image_sync_service
     websocket_started = False
     broadcast_task = getattr(
         app.state, "websocket_broadcast_task", websocket_broadcast_task
@@ -255,7 +257,11 @@ async def lifespan(app: FastAPI):
         )
         background_services_started = True
 
-        await image_sync_service.start_sync_worker()
+        if hasattr(app.state, "image_sync_service_lock"):
+            image_sync_actor = await run_in_thread_pool(
+                _get_application_image_sync_service, app
+            )
+        await image_sync_actor.start_sync_worker()
         image_sync_started = True
         await broadcast_task.start()
         websocket_started = True
@@ -279,7 +285,9 @@ async def lifespan(app: FastAPI):
         if websocket_started:
             await _shutdown_step("websocket-broadcast", broadcast_task.stop)
         if image_sync_started:
-            await _shutdown_step("image-sync", image_sync_service.stop_sync_worker)
+            await _shutdown_step("image-sync", image_sync_actor.stop_sync_worker)
+            if getattr(app.state, "image_sync_service", None) is image_sync_actor:
+                app.state.image_sync_service = None
         if background_services_started:
             from app.services.init.startup_init import shutdown_background_services
 
