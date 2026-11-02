@@ -20,9 +20,9 @@
         <div :class="{ 'disabled-section': !isGlobal && useGlobalPolicy }">
           <!-- Policy Type Selection -->
           <div class="form-group">
-            <label>Cleanup Policy:</label>
+            <label :for="`${controlId}-type`">Cleanup Policy:</label>
             <div class="form-row">
-              <select v-model="policy.type" class="form-control" :disabled="!isGlobal && useGlobalPolicy">
+              <select :id="`${controlId}-type`" v-model="policy.type" class="form-control" :disabled="!isGlobal && useGlobalPolicy">
                 <option v-for="type in policyTypes" :key="type.value" :value="type.value">
                   {{ type.label }}
                 </option>
@@ -34,8 +34,9 @@
           <!-- Threshold Setting -->
           <div v-if="policy.type !== 'custom'" class="form-group">
             <div class="form-row">
-              <label>{{ thresholdLabel }}:</label>
+              <label :for="`${controlId}-threshold`">{{ thresholdLabel }}:</label>
               <input 
+                :id="`${controlId}-threshold`"
                 type="number" 
                 v-model.number="policy.threshold"
                 min="1" 
@@ -60,8 +61,8 @@
 
           <!-- Preserve Specific Categories -->
           <div v-if="showPreserveCategories" class="form-group">
-            <label>Preserve Categories:</label>
-            <select v-model="policy.preserve_categories" class="form-control" multiple :disabled="!isGlobal && useGlobalPolicy">
+            <label :for="`${controlId}-categories`">Preserve Categories:</label>
+            <select :id="`${controlId}-categories`" v-model="policy.preserve_categories" class="form-control" multiple :disabled="!isGlobal && useGlobalPolicy">
               <option v-for="category in availableCategories" :key="category.id" :value="category.name">
                 {{ category.name }}
               </option>
@@ -151,7 +152,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, useId } from 'vue';
 import BaseModal from '@/components/base/BaseModal.vue';
 import BaseButton from '@/components/base/BaseButton.vue';
 import { useRecordingSettings } from '@/composables/useRecordingSettings';
@@ -188,6 +189,7 @@ const emit = defineEmits<{
 }>();
 
 const recordingSettings = useRecordingSettings();
+const controlId = useId();
 
 // State
 const isSaving = ref(false);
