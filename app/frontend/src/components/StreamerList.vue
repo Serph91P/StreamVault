@@ -94,7 +94,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, watch, ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useSystemAndRecordingStatus } from '@/composables/useSystemAndRecordingStatus'
 import { useStreamers } from '@/composables/useStreamers'
 import { useRouter } from 'vue-router'
@@ -128,7 +128,6 @@ const {
   // isLoading - unused
   // error - unused  
   fetchStreamersStatus,
-  isOnline: connectionStatus,
 } = useSystemAndRecordingStatus()
 
 // Keep useStreamers for delete operations
@@ -227,18 +226,6 @@ const navigateToStreamerDetail = (streamerId: string, username: string) => {
   })
 }
 
-// Connection status handling
-watch(() => connectionStatus.value, (status) => {
-  if (status) {
-    // Refresh when connection is established
-    fetchStreamersStatus(false)
-  }
-}, { immediate: true })
-
-onMounted(() => {
-  // Initial fetch
-  fetchStreamersStatus()
-})
 </script>
 
 <style scoped lang="scss">
