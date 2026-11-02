@@ -1,5 +1,6 @@
 import asyncio
 import importlib
+import json
 import logging
 import sys
 
@@ -39,26 +40,37 @@ class RaisingRequest:
         return False
 
 
-class RecordingSession:
-    def __init__(self, recorder, responses, **kwargs):
+class RecordingHTTPClient:
+    def __init__(self, recorder, responses, policy, proxy=None):
         self.recorder = recorder
         self.responses = responses
+        self.policy = policy
+        self.proxy = proxy
+        self._closed = False
 
-    async def __aenter__(self):
-        return self
+    async def request(self, method, url, **kwargs):
+        from app.services.http_client import HTTPReply, HTTPClientError
 
-    async def __aexit__(self, exc_type, exc, traceback):
-        return False
+        if self._closed:
+            raise HTTPClientError("closed")
+        if method == "POST":
+            self.recorder["token_requests"] += 1
+            response = self.responses["token"]
+        else:
+            self.recorder["reachability_requests"] += 1
+            self.recorder["authorization_values"].append(
+                kwargs["headers"]["Authorization"]
+            )
+            self.recorder["redirect_values"].append(kwargs["follow_redirects"])
+            response = self.responses["proxies"].pop(0)
+        async with response as reply:
+            if not 200 <= reply.status < 300:
+                raise HTTPClientError("status", status_code=reply.status)
+            body = json.dumps(reply.payload).encode() if method == "POST" else b"ok"
+            return HTTPReply(reply.status, {}, body)
 
-    def post(self, url, **kwargs):
-        self.recorder["token_requests"] += 1
-        return self.responses["token"]
-
-    def get(self, url, **kwargs):
-        self.recorder["reachability_requests"] += 1
-        self.recorder["authorization_values"].append(kwargs["headers"]["Authorization"])
-        self.recorder["redirect_values"].append(kwargs["allow_redirects"])
-        return self.responses["proxies"].pop(0)
+    async def close(self):
+        self._closed = True
 
 
 class FakeQuery:
@@ -146,11 +158,13 @@ def install_fakes(monkeypatch, proxy_health_module, proxies, responses):
         lambda: FakeDatabase(proxies),
     )
     monkeypatch.setattr(
-        proxy_health_module.aiohttp,
-        "ClientSession",
-        lambda **kwargs: RecordingSession(recorder, responses, **kwargs),
+        proxy_health_module,
+        "ManagedHTTPClient",
+        lambda policy, **kwargs: RecordingHTTPClient(
+            recorder, responses, policy, **kwargs
+        ),
     )
-    monkeypatch.setattr(proxy_health_module.aiohttp, "TCPConnector", lambda: object())
+
     return recorder
 
 

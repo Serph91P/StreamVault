@@ -23,12 +23,14 @@ Proxy Selection Algorithm:
 from __future__ import annotations
 
 import asyncio
+import json
+from collections import OrderedDict
 from collections.abc import Callable
 import logging
-from typing import Optional, Dict, Any, TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING
 from datetime import datetime, timezone
 
-import aiohttp
+from uuid import uuid4
 
 from app.config.constants import ASYNC_DELAYS
 from app.config.settings import settings
@@ -37,6 +39,8 @@ from app.models import ProxySettings
 from app.services.proxy import proxy_catalog
 from app.services.proxy.proxy_catalog import ProxySnapshot, ProxyPolicy, HealthResult
 from app.utils.async_db_utils import run_in_thread_pool
+from app.services.http_client import ManagedHTTPClient, HTTPPolicy, HTTPClientError
+from app.services.system.supervisor import TaskSupervisor
 from app.utils.security import sanitize_proxy_url_for_logging
 
 logger = logging.getLogger("streamvault")
@@ -67,10 +71,25 @@ class ProxyHealthService:
         self._background_task: Optional[asyncio.Task] = None
         self._running = False
         self._lock = asyncio.Lock()
+        self._supervisor = TaskSupervisor("proxy-health")
+        self._stop_task: asyncio.Task[None] | None = None
+        self._token_http = ManagedHTTPClient(
+            HTTPPolicy(
+                connect_timeout=30,
+                read_timeout=300,
+                write_timeout=300,
+                total_timeout=300,
+                max_connections=1,
+                max_keepalive_connections=1,
+            )
+        )
+        self._proxy_clients: OrderedDict[str, ManagedHTTPClient] = OrderedDict()
+        self._proxy_capacity = HTTPPolicy().max_connections
 
         # Test endpoint - Twitch API streams endpoint (requires auth, most realistic test)
         # This tests the actual endpoint used for recording, ensuring proxy works for Streamlink
         self.test_endpoint = "https://api.twitch.tv/helix/streams"
+        self.token_endpoint = "https://id.twitch.tv/oauth2/token"
 
         logger.info("🔧 ProxyHealthService initialized")
 
@@ -80,24 +99,47 @@ class ProxyHealthService:
             logger.warning("⚠️ ProxyHealthService already running")
             return
 
+        if self._stop_task is not None and not self._stop_task.done():
+            raise RuntimeError("Proxy health service is stopping")
+        if self._supervisor.closed:
+            if self._stop_task is not None:
+                self._stop_task.result()
+            self._supervisor = TaskSupervisor("proxy-health")
+            self._token_http = ManagedHTTPClient(self._token_http.policy)
+            self._stop_task = None
         self._running = True
-        self._background_task = asyncio.create_task(self._run_health_checks_loop())
+        self._background_task = self._supervisor.create_task(
+            "periodic-health", self._run_health_checks_loop()
+        )
         logger.info("✅ ProxyHealthService background task started")
 
     async def stop(self):
         """Stop the background health check task gracefully"""
-        if not self._running:
-            return
-
-        self._running = False
-
-        if self._background_task:
-            self._background_task.cancel()
+        if self._stop_task is None:
+            self._stop_task = asyncio.create_task(
+                self._stop_resources(), name="streamvault:proxy-health:shutdown"
+            )
+        task = self._stop_task
+        cancelled = False
+        while not task.done():
             try:
-                await self._background_task
+                await asyncio.shield(task)
             except asyncio.CancelledError:
-                pass
+                cancelled = True
+        task.result()
+        if cancelled:
+            raise asyncio.CancelledError
 
+    async def _stop_resources(self) -> None:
+        self._running = False
+        try:
+            await self._supervisor.shutdown()
+        finally:
+            clients = [self._token_http, *self._proxy_clients.values()]
+            self._proxy_clients.clear()
+            async with asyncio.TaskGroup() as group:
+                for client in clients:
+                    group.create_task(client.close())
         logger.info("✅ ProxyHealthService stopped")
 
     async def _run_health_checks_loop(self):
@@ -148,7 +190,15 @@ class ProxyHealthService:
     async def _are_checks_enabled(self) -> bool:
         return (await self._get_policy()).enabled
 
-    async def run_health_checks(self):
+    async def run_health_checks(self) -> None:
+        name = f"health-cycle:{uuid4().hex}"
+        task = self._supervisor.create_task(name, self._run_health_checks())
+        try:
+            await task
+        finally:
+            await self._supervisor.cancel_task(name)
+
+    async def _run_health_checks(self):
         """
         Run health checks on all enabled proxies and update database.
 
@@ -202,32 +252,36 @@ class ProxyHealthService:
         return (await self._get_policy()).max_failures
 
     async def _get_twitch_access_token(self) -> Optional[str]:
-        """Fetch one ephemeral Twitch app token for a health-check operation."""
+        """Fetch one fresh token per operation through the owning direct pool."""
         try:
-            async with aiohttp.ClientSession() as token_session:
-                async with token_session.post(
-                    "https://id.twitch.tv/oauth2/token",
-                    params={
-                        "client_id": settings.TWITCH_APP_ID,
-                        "client_secret": settings.TWITCH_APP_SECRET,
-                        "grant_type": "client_credentials",
-                    },
-                ) as token_response:
-                    if token_response.status != 200:
-                        logger.error(
-                            "Failed to get Twitch access token for proxy health check "
-                            f"(HTTP {token_response.status})"
-                        )
-                        return None
-
-                    token_data = await token_response.json()
-                    access_token = token_data.get("access_token")
-                    if not isinstance(access_token, str) or not access_token:
-                        logger.error(
-                            "Twitch token response for proxy health check was invalid"
-                        )
-                        return None
-                    return access_token
+            runtime_settings = self._settings or settings
+            client_id = runtime_settings.TWITCH_APP_ID
+            client_secret = runtime_settings.TWITCH_APP_SECRET
+            if not client_id or not client_secret:
+                return None
+            response = await self._token_http.request(
+                "POST",
+                self.token_endpoint,
+                data={
+                    "client_id": client_id,
+                    "client_secret": client_secret,
+                    "grant_type": "client_credentials",
+                },
+            )
+            if response.status_code != 200:
+                logger.error(
+                    "Failed to get Twitch access token for proxy health check (HTTP %s)",
+                    response.status_code,
+                )
+                return None
+            payload = json.loads(response.body)
+            access_token = (
+                payload.get("access_token") if isinstance(payload, dict) else None
+            )
+            if not isinstance(access_token, str) or not access_token:
+                logger.error("Twitch token response for proxy health check was invalid")
+                return None
+            return access_token
         except asyncio.CancelledError:
             logger.error("Twitch token request for proxy health check was cancelled")
             raise
@@ -235,127 +289,100 @@ class ProxyHealthService:
             logger.error("Error getting access token for proxy health check")
             return None
 
+    async def _proxy_transport(self, proxy_url: str) -> ManagedHTTPClient:
+        if self._supervisor.closed:
+            raise HTTPClientError("closed")
+        if proxy_url in self._proxy_clients:
+            self._proxy_clients.move_to_end(proxy_url)
+            return self._proxy_clients[proxy_url]
+        if len(self._proxy_clients) >= self._proxy_capacity:
+            _, expired = self._proxy_clients.popitem(last=False)
+            await expired.close()
+        client = ManagedHTTPClient(
+            HTTPPolicy(
+                total_timeout=10,
+                connect_timeout=5,
+                read_timeout=10,
+                write_timeout=10,
+                max_connections=1,
+                max_keepalive_connections=1,
+            ),
+            proxy=proxy_url,
+        )
+        self._proxy_clients[proxy_url] = client
+        return client
+
     async def _check_proxy_health(
         self, proxy_url: str, access_token: str
     ) -> HealthResult:
-        """
-        Check health of a single proxy by testing connectivity with Twitch API.
-
-        Uses authenticated Twitch API request to test the actual endpoint used for
-        recordings.
-        This ensures the proxy works for Streamlink, not just general web traffic.
-
-        Args:
-            proxy_url: Full proxy URL (http://user:pass@host:port)
-
-        Returns:
-            Dictionary with health check results:
-            {
-                'status': 'healthy' | 'degraded' | 'failed',
-                'response_time_ms': int or None,
-                'error': str or None
-            }
-        """
-        timeout = aiohttp.ClientTimeout(total=10.0, connect=5.0)
-
-        try:
-            start_time = asyncio.get_event_loop().time()
-
-            # Create proxy connector for aiohttp
-            connector = aiohttp.TCPConnector()
-
-            async with aiohttp.ClientSession(
-                connector=connector, timeout=timeout
-            ) as client:
-                # Test with Twitch API streams endpoint (authenticated)
-                async with client.get(
-                    self.test_endpoint,
-                    headers={
-                        "Client-ID": settings.TWITCH_APP_ID,
-                        "Authorization": f"Bearer {access_token}",
-                    },
-                    proxy=proxy_url,  # Use proxy for this request
-                    allow_redirects=False,
-                ) as response:
-                    end_time = asyncio.get_event_loop().time()
-                    response_time_ms = int((end_time - start_time) * 1000)
-
-                    # Categorize status based on HTTP status code and response time
-                    if response.status == 200:
-                        # Healthy if fast response
-                        if response_time_ms < 2000:  # < 2s
-                            return {
-                                "status": "healthy",
-                                "response_time_ms": response_time_ms,
-                                "error": None,
-                            }
-                        else:
-                            # Slow but working
-                            return {
-                                "status": "degraded",
-                                "response_time_ms": response_time_ms,
-                                "error": f"Slow response ({response_time_ms}ms)",
-                            }
-                    elif response.status in (301, 302, 303, 307, 308):
-                        # Redirects are OK (proxy works)
-                        return {
-                            "status": "healthy",
-                            "response_time_ms": response_time_ms,
-                            "error": None,
-                        }
-                    elif 400 <= response.status < 500:
-                        # 4xx = proxy works but might have auth issues
-                        # Check if it's specifically auth (401/403) which might be token issue
-                        if response.status in (401, 403):
-                            logger.warning(
-                                f"Proxy health check got HTTP {response.status}"
-                            )
-                            return {
-                                "status": "degraded",
-                                "response_time_ms": response_time_ms,
-                                "error": f"Auth issue (HTTP {response.status})",
-                            }
-                        else:
-                            return {
-                                "status": "degraded",
-                                "response_time_ms": response_time_ms,
-                                "error": f"HTTP {response.status}",
-                            }
-                    else:
-                        # 5xx = proxy or upstream error (failed)
-                        return {
-                            "status": "failed",
-                            "response_time_ms": response_time_ms,
-                            "error": f"HTTP {response.status}",
-                        }
-
-        except asyncio.TimeoutError:
-            return {
-                "status": "failed",
-                "response_time_ms": None,
-                "error": "Timeout after 10 seconds",
-            }
-
-        except asyncio.CancelledError:
-            logger.warning("Proxy health request was cancelled")
-            raise
-
-        except aiohttp.ClientProxyConnectionError:
-            logger.error("Proxy connection error during health check")
+        """One non-following request; retain the existing health classification."""
+        if not proxy_url:
             return {
                 "status": "failed",
                 "response_time_ms": None,
                 "error": "Proxy connection failed",
             }
-
-        except aiohttp.ClientError:
-            logger.error("Client error during proxy health check")
+        start = asyncio.get_running_loop().time()
+        try:
+            runtime_settings = self._settings or settings
+            client = await self._proxy_transport(proxy_url)
+            try:
+                response = await client.request(
+                    "GET",
+                    self.test_endpoint,
+                    headers={
+                        "Client-ID": runtime_settings.TWITCH_APP_ID,
+                        "Authorization": f"Bearer {access_token}",
+                    },
+                    follow_redirects=False,
+                )
+                status = response.status_code
+            except HTTPClientError as error:
+                if error.code != "status" or error.status_code is None:
+                    raise
+                status = error.status_code
+            elapsed = int((asyncio.get_running_loop().time() - start) * 1000)
+            if status == 200:
+                if elapsed < 2000:
+                    return {
+                        "status": "healthy",
+                        "response_time_ms": elapsed,
+                        "error": None,
+                    }
+                return {
+                    "status": "degraded",
+                    "response_time_ms": elapsed,
+                    "error": f"Slow response ({elapsed}ms)",
+                }
+            if status in (301, 302, 303, 307, 308):
+                return {"status": "healthy", "response_time_ms": elapsed, "error": None}
+            if 400 <= status < 500:
+                message = (
+                    f"Auth issue (HTTP {status})"
+                    if status in (401, 403)
+                    else f"HTTP {status}"
+                )
+                return {
+                    "status": "degraded",
+                    "response_time_ms": elapsed,
+                    "error": message,
+                }
             return {
                 "status": "failed",
-                "response_time_ms": None,
-                "error": "Connection error",
+                "response_time_ms": elapsed,
+                "error": f"HTTP {status}",
             }
-
+        except asyncio.CancelledError:
+            logger.warning("Proxy health request was cancelled")
+            raise
+        except HTTPClientError as error:
+            message = (
+                "Timeout after 10 seconds"
+                if error.code == "timeout"
+                else "Connection error"
+            )
+            logger.error("Proxy health transport failed: %s", error.code)
+            return {"status": "failed", "response_time_ms": None, "error": message}
         except Exception:
             logger.error("Unexpected error checking proxy health")
             return {
@@ -364,7 +391,17 @@ class ProxyHealthService:
                 "error": "Unexpected error during proxy health check",
             }
 
-    async def check_proxy_health_manual(self, proxy_id: int) -> Dict[str, Any]:
+    async def check_proxy_health_manual(self, proxy_id: int) -> dict[str, object]:
+        name = f"manual-health:{uuid4().hex}"
+        task = self._supervisor.create_task(
+            name, self._check_proxy_health_manual(proxy_id)
+        )
+        try:
+            return await task
+        finally:
+            await self._supervisor.cancel_task(name)
+
+    async def _check_proxy_health_manual(self, proxy_id: int) -> dict[str, object]:
         """
         Manually trigger health check for a specific proxy.
 
@@ -428,9 +465,17 @@ class ProxyHealthService:
         Returns:
             Proxy URL string or None if no healthy proxies available
         """
-        targets = await run_in_thread_pool(
-            proxy_catalog.read_targets, self._session_factory or SessionLocal
+        name = f"proxy-selection:{uuid4().hex}"
+        task = self._supervisor.create_task(
+            name,
+            run_in_thread_pool(
+                proxy_catalog.read_targets, self._session_factory or SessionLocal
+            ),
         )
+        try:
+            targets = await task
+        finally:
+            await self._supervisor.cancel_task(name)
         if not targets:
             return None
         order = {"healthy": 1, "degraded": 2, "failed": 3, "unknown": 4}
@@ -496,12 +541,20 @@ class ProxyHealthService:
             proxy_url: Full proxy URL used for recording
             success: Whether recording succeeded (True) or failed (False)
         """
-        await run_in_thread_pool(
-            proxy_catalog.increment_stats,
-            self._session_factory or SessionLocal,
-            proxy_url,
-            success,
+        name = f"proxy-statistics:{uuid4().hex}"
+        task = self._supervisor.create_task(
+            name,
+            run_in_thread_pool(
+                proxy_catalog.increment_stats,
+                self._session_factory or SessionLocal,
+                proxy_url,
+                success,
+            ),
         )
+        try:
+            await task
+        finally:
+            await self._supervisor.cancel_task(name)
 
 
 # Singleton instance

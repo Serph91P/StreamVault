@@ -6,6 +6,7 @@ import asyncio
 import logging
 from collections.abc import Awaitable, Callable, Coroutine
 from dataclasses import dataclass
+from functools import partial
 from typing import Any
 
 logger = logging.getLogger("streamvault")
@@ -48,9 +49,9 @@ class TaskSupervisor:
         """Whether shutdown has begun and this ownership generation is terminal."""
         return self._shutting_down
 
-    def create_task(
-        self, name: str, coroutine: Coroutine[Any, Any, Any]
-    ) -> asyncio.Task[Any]:
+    def create_task[T](
+        self, name: str, coroutine: Coroutine[Any, Any, T]
+    ) -> asyncio.Task[T]:
         """Create a uniquely named task and retain it through shutdown."""
         if self._shutting_down:
             coroutine.close()
@@ -65,11 +66,7 @@ class TaskSupervisor:
             task.set_name(f"streamvault:{self._namespace}:{name}")
         self._tasks[name] = task
         if hasattr(task, "add_done_callback"):
-            task.add_done_callback(
-                lambda completed, task_name=name: self._observe_task(
-                    task_name, completed
-                )
-            )
+            task.add_done_callback(partial(self._observe_task, name))
         return task
 
     def _observe_task(self, name: str, task: asyncio.Task[Any]) -> None:
