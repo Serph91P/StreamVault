@@ -233,15 +233,15 @@ async def _cleanup_zombie_recordings_now(
     return len(stopped)
 
 
-async def initialize_vapid_keys():
+async def initialize_vapid_keys(settings: Settings | None = None):
     """Initialize VAPID keys for push notifications at startup"""
     try:
         logger.info("Initializing VAPID keys for push notifications...")
 
-        from app.config.settings import settings
+        from app.config.settings import get_settings
 
-        # Force VAPID key loading/generation by accessing them
-        vapid_keys = settings.get_vapid_keys()
+        runtime_settings = settings if settings is not None else get_settings()
+        vapid_keys = runtime_settings.get_vapid_keys()
 
         if vapid_keys and vapid_keys["public_key"] and vapid_keys["private_key"]:
             logger.info("VAPID keys initialized successfully")
@@ -276,7 +276,7 @@ async def initialize_background_services(
         logger.info("Initializing background services with production fixes...")
 
         # Initialize VAPID keys for push notifications
-        await initialize_vapid_keys()
+        await initialize_vapid_keys(settings)
 
         # Initialize background queue with production fixes
         if queue_manager is None:
