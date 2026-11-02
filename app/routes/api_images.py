@@ -5,16 +5,23 @@ API routes for image management
 from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
 from fastapi.responses import JSONResponse
 import logging
+from sqlalchemy import Engine, select
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import Streamer, Category
 from app.services.unified_image_service import unified_image_service
 from app.services.images.image_sync_service import image_sync_service
+from app.utils.async_db_utils import run_in_thread_pool
 
 logger = logging.getLogger("streamvault")
 
 router = APIRouter(prefix="/api/images", tags=["images-api"])
+
+
+def _category_image_info_names(engine: Engine) -> list[str]:
+    with Session(bind=engine) as session:
+        return list(session.scalars(select(Category.name)).all())
 
 
 @router.get("/streamer/{streamer_id}")
@@ -79,7 +86,7 @@ async def get_category_image_info(category_name: str):
     """Get image information for a category"""
     try:
         # Get cached image URL or fallback
-        image_url = unified_image_service.get_category_image_url(category_name)
+        image_url = await unified_image_service.get_category_image_url(category_name)
 
         return {
             "category_name": category_name,
@@ -174,17 +181,21 @@ async def get_all_streamers_image_info(db: Session = Depends(get_db)):
 async def get_all_categories_image_info(db: Session = Depends(get_db)):
     """Get image information for all categories"""
     try:
-        categories = db.query(Category).all()
+        category_names = await run_in_thread_pool(
+            _category_image_info_names, db.get_bind().engine
+        )
 
         result = []
-        for category in categories:
-            image_url = unified_image_service.get_category_image_url(category.name)
+        for category_name in category_names:
+            image_url = await unified_image_service.get_category_image_url(
+                category_name
+            )
 
             result.append(
                 {
-                    "category_name": category.name,
+                    "category_name": category_name,
                     "image_url": image_url,
-                    "cached": category.name in unified_image_service._category_cache,
+                    "cached": category_name in unified_image_service._category_cache,
                 }
             )
 

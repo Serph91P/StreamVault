@@ -69,8 +69,8 @@ class UnifiedImageService:
         return await self.download_service.get_session()
 
     async def close(self):
-        """Close all services"""
-        await self.download_service.close()
+        """Drain category producers before closing the shared downloader."""
+        await self.category_service.close()
 
     def _load_existing_cache(self):
         """Legacy method - already loaded"""
@@ -131,26 +131,6 @@ class UnifiedImageService:
         self, category_name: str, box_art_url: Optional[str] = None
     ) -> Optional[str]:
         """Download and cache a category's box art image"""
-        # If no box_art_url provided, try to get it from database
-        if not box_art_url:
-            from app.database import SessionLocal
-            from app.models import Category
-
-            with SessionLocal() as db:
-                category = (
-                    db.query(Category).filter(Category.name == category_name).first()
-                )
-                if category and category.box_art_url:
-                    box_art_url = category.box_art_url
-                else:
-                    logger.warning(
-                        f"No box_art_url found for category: {category_name}"
-                    )
-                    return None
-
-        # Type guard to satisfy type checker and ensure valid URL
-        if not box_art_url or not isinstance(box_art_url, str):
-            return None
         return await self.category_service.download_category_image(
             category_name, box_art_url
         )
@@ -159,9 +139,9 @@ class UnifiedImageService:
         """Get cached category image path"""
         return self.category_service.get_cached_category_image(category_name)
 
-    def get_category_image_url(self, category_name: str) -> Optional[str]:
+    async def get_category_image_url(self, category_name: str) -> Optional[str]:
         """Get category image URL (legacy compatibility method)"""
-        return self.category_service.get_cached_category_image_with_download(
+        return await self.category_service.get_cached_category_image_with_download(
             category_name
         )
 

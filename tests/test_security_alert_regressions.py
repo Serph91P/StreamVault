@@ -29,8 +29,7 @@ def _image_download_service(media_dir: Path) -> ImageDownloadService:
 
 def _category_image_service(categories_dir: Path) -> CategoryImageService:
     download_service = _image_download_service(categories_dir.parent)
-    service = CategoryImageService.__new__(CategoryImageService)
-    service.download_service = download_service
+    service = CategoryImageService(download_service)
     service.categories_dir = categories_dir
     service._category_cache = {}
     service._cache_loaded = True

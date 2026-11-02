@@ -311,14 +311,16 @@ class ImageSyncService:
             missing_categories = 0
             for category in categories:
                 if category.name:
-                    cached_url = unified_image_service.get_category_image_url(
+                    cached_url = await unified_image_service.get_category_image_url(
                         category.name
                     )
                     # If no cached image exists, sync it
                     if (
                         not cached_url
                         or cached_url
-                        == unified_image_service.get_category_image_url(category.name)
+                        == await unified_image_service.get_category_image_url(
+                            category.name
+                        )
                     ):
                         await self.request_category_image_sync(category.name)
                         missing_categories += 1

@@ -144,7 +144,7 @@ async def get_category_image_url(category_name: str):
     """Get the URL for a category image"""
     try:
         # Get the cached URL or fallback
-        image_url = unified_image_service.get_category_image_url(category_name)
+        image_url = await unified_image_service.get_category_image_url(category_name)
         return {"image_url": image_url}
     except Exception as e:
         logger.error(f"Error getting category image URL for {category_name}: {e}")
