@@ -16,6 +16,9 @@ for (const width of [320, 390, 1024, 1440]) {
       const notifications = [1, 2].map(id => ({ streamer_id: id, username: `synthetic-${id}`, notify_online: true, notify_offline: true, notify_update: true, notify_favorite_category: true }))
       let active = [{ id: 1, stream_id: 10, streamer_id: 1, streamer_name: 'synthetic-1', started_at: '2026-10-01T10:00:00Z', duration: 60, status: 'recording', file_path: '/synthetic/example.ts' }]
       let failSave = false
+      let acceptOnly = false
+      let releaseSave!: () => void
+      const saveGate = new Promise<void>(resolve => { releaseSave = resolve })
       await page.routeWebSocket(/.*/, socket => socket.onMessage(message => {
         if (String(message).includes('ping')) socket.send(JSON.stringify({ type: 'pong' }))
       }))
@@ -31,7 +34,9 @@ for (const width of [320, 390, 1024, 1440]) {
         if (path === '/auth/setup') return route.fulfill({ json: { setup_required: false, welcome_completed: true } })
         if (path === '/auth/check') return route.fulfill({ json: { authenticated: true, user: { username: 'synthetic-admin' } } })
         if (path === '/api/recording/settings') {
+          if (mutation) await saveGate
           if (mutation && failSave) return route.fulfill({ status: 500, json: { detail: 'Synthetic save failure' } })
+          if (mutation && acceptOnly) return route.fulfill({ status: 202, json: { ...globalRecording, ...body } })
           if (mutation) globalRecording = { ...globalRecording, ...body }
           return route.fulfill({ json: globalRecording })
         }
@@ -77,14 +82,26 @@ for (const width of [320, 390, 1024, 1440]) {
       const codecs = page.locator('.tab-panel select').last()
       await codecs.selectOption('av1')
       await page.getByRole('button', { name: 'Einstellungen speichern', exact: true }).click()
+      await expect(page.locator('.form-actions [data-state="pending"]')).toBeVisible()
+      await expect(page.getByRole('button', { name: 'Wird gespeichert...', exact: true })).toBeDisabled()
+      releaseSave()
       await expect.poll(() => globalRecording.supported_codecs).toBe('av1')
+      await expect(page.locator('.form-actions [data-state="confirmed-success"]')).toBeVisible()
       expect(writes.find(write => write.path === '/api/recording/settings')?.body.output_directory).toBe('/synthetic/custom-recordings')
       await page.reload()
       await expect(codecs).toHaveValue('av1')
+      acceptOnly = true
+      await codecs.selectOption('h265')
+      await page.getByRole('button', { name: 'Einstellungen speichern', exact: true }).click()
+      await expect(page.locator('.form-actions [data-state="failure"]')).toBeVisible()
+      await expect(page.locator('.form-actions [data-state="confirmed-success"]')).toHaveCount(0)
+      expect(globalRecording.supported_codecs).toBe('av1')
+      acceptOnly = false
       failSave = true
       await codecs.selectOption('h265')
       await page.getByRole('button', { name: 'Einstellungen speichern', exact: true }).click()
       await expect(page.getByText('Aufnahmeeinstellungen konnten nicht gespeichert werden', { exact: true })).toBeVisible()
+      await expect(page.locator('.form-actions [data-state="failure"]')).toContainText('Entwurf bleibt erhalten')
       expect(globalRecording.supported_codecs).toBe('av1')
       failSave = false
       await page.goto('/settings?section=notifications')

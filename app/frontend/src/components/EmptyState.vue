@@ -1,5 +1,5 @@
 <template>
-  <div class="empty-state" :class="stateClasses" :role="computedRole" :aria-live="ariaLive">
+  <div class="empty-state" :class="stateClasses" :role="computedRole" :aria-live="ariaLive" :aria-busy="busy" :data-state="state">
     <div class="empty-state-content">
       <div class="empty-icon" aria-hidden="true">
         <svg v-if="displayIcon" class="icon">
@@ -8,10 +8,11 @@
         <div v-else class="icon-placeholder">?</div>
       </div>
 
-      <h2 class="empty-title">{{ title }}</h2>
+      <h2 class="empty-title">{{ title || presentation?.title }}</h2>
       <span v-if="toneLabel" class="sr-only">{{ toneLabel }}</span>
 
       <p v-if="description" class="empty-description">{{ description }}</p>
+      <p v-if="updatedAt" class="empty-description">Letzter bestätigter Stand: <time :datetime="updatedAt">{{ new Date(updatedAt).toLocaleString('de-DE') }}</time></p>
 
       <div v-if="actionLabel || retryLabel" class="empty-actions">
         <BaseButton
@@ -52,6 +53,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import BaseButton from '@/components/base/BaseButton.vue'
+import { presentationStates, type PresentationState } from '@/types/presentation'
 
 export type EmptyStateVariant = 'default' | 'compact' | 'inline' | 'large'
 export type EmptyStateTone = 'neutral' | 'info' | 'success' | 'warning' | 'danger'
@@ -59,7 +61,10 @@ export type ActionVariant = 'primary' | 'secondary' | 'success' | 'danger' | 'wa
 
 interface Props {
   /** Title text */
-  title: string
+  title?: string
+  /** Presentation only; supplied by the existing resource/action owner. */
+  state?: PresentationState
+  updatedAt?: string
   /** Description text (optional) */
   description?: string
   /** Icon name from the StreamVault icon sprite */
@@ -91,7 +96,6 @@ interface Props {
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  tone: 'neutral',
   actionVariant: 'primary',
   retryIcon: 'refresh-cw',
   retryVariant: 'outline',
@@ -113,13 +117,16 @@ const toneIcons: Record<EmptyStateTone, string> = {
   danger: 'alert-circle'
 }
 
-const displayIcon = computed(() => props.icon || toneIcons[props.tone])
-const computedRole = computed(() => props.role || (props.tone === 'danger' ? 'alert' : 'status'))
+const presentation = computed(() => props.state ? presentationStates[props.state] : undefined)
+const effectiveTone = computed(() => props.tone || presentation.value?.tone || 'neutral')
+const busy = computed(() => props.loading || props.state === 'loading' || props.state === 'pending')
+const displayIcon = computed(() => props.icon || toneIcons[effectiveTone.value])
+const computedRole = computed(() => props.role || (effectiveTone.value === 'danger' ? 'alert' : 'status'))
 const ariaLive = computed(() => (computedRole.value === 'alert' ? 'assertive' : 'polite'))
 const stateClasses = computed(() => [
   `empty-state-${props.variant}`,
-  `empty-state-tone-${props.tone}`,
-  props.loading && 'empty-state-is-loading'
+  `empty-state-tone-${effectiveTone.value}`,
+  busy.value && 'empty-state-is-loading'
 ])
 
 const handleAction = () => {
@@ -322,9 +329,9 @@ const handleRetry = () => {
 
 .empty-state-inline {
   justify-content: flex-start;
-  border: 1px solid rgba(var(--danger-color-rgb), 0.24);
+  border: 1px solid var(--sv-cmp-feedback-border);
   border-radius: var(--radius-lg);
-  background: rgba(var(--danger-color-rgb), 0.08);
+  background: var(--sv-cmp-feedback-background);
 
   .empty-state-content {
     display: grid;
@@ -410,5 +417,20 @@ const handleRetry = () => {
   .empty-description {
     font-size: var(--text-sm);
   }
+}
+.empty-state-inline {
+  min-height: 0;
+  padding: var(--sv-cmp-feedback-padding);
+  color: var(--sv-cmp-feedback-foreground);
+  .empty-state-content, .empty-icon { animation: none; }
+  .empty-title, .empty-description { overflow-wrap: anywhere; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .empty-state *, .empty-state-is-loading .empty-icon .icon { animation: none; }
+}
+
+@media (forced-colors: active) {
+  .empty-state-inline { border-color: CanvasText; }
 }
 </style>

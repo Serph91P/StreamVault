@@ -30,30 +30,16 @@
               </div>
             </div>
 
-            <div class="form-group">
-              <label>Standardqualität:</label>
-              <select v-model="data.default_quality" class="form-control">
-                <option v-for="option in QUALITY_OPTIONS" :key="option.value" :value="option.value">
-                  {{ option.label }}
-                </option>
-              </select>
-              <div class="help-text">
-                Standardqualität für neue Kanäle. Einzelne Kanäle können diese Vorgabe überschreiben.
-              </div>
-            </div>
+            <BaseDropdown v-model="data.default_quality" label="Standardqualität" :options="QUALITY_OPTIONS" hint="Standardqualität für neue Kanäle. Einzelne Kanäle können diese Vorgabe überschreiben." />
 
             <div class="form-group">
-              <label>Dateinamenvorlage:</label>
-              <select v-model="data.filename_preset" class="form-control" @change="updateFilenameFromPreset" :disabled="presetsLoading">
+              <BaseDropdown v-model="data.filename_preset" label="Dateinamenvorlage" @change="updateFilenameFromPreset" :disabled="presetsLoading" :error="presetsError ? `Vorlagen konnten nicht geladen werden: ${presetsError}` : undefined">
                 <option value="" v-if="presetsLoading">Vorlagen werden geladen...</option>
                 <option v-for="preset in FILENAME_PRESETS" :key="preset.value" :value="preset.value">
                   {{ preset.label }}
                 </option>
-              </select>
-              <div v-if="presetsError" class="error-text">
-                Vorlagen konnten nicht geladen werden: {{ presetsError }}
-              </div>
-              <input ref="filenameTemplateInput" v-model="data.filename_template" class="form-control" style="margin-top: 10px;" />
+              </BaseDropdown>
+              <BaseInput ref="filenameTemplateField" v-model="data.filename_template" label="Eigene Dateinamenvorlage" hint="Eine Vorlage wählen oder die Dateinamenvorlage anpassen." />
               <div class="help-text">
                 Eine Vorlage wählen oder die Dateinamenvorlage anpassen.
                 <br><strong>Verfügbare Variablen (zum Einfügen anklicken):</strong>
@@ -106,14 +92,13 @@
               <h3 class="section-title">Video-Codecs</h3>
             </div>
             <div class="form-group">
-              <label>Erlaubte Codecs:</label>
-              <select v-model="data.supported_codecs" class="form-control">
+              <BaseDropdown v-model="data.supported_codecs" label="Erlaubte Codecs">
                 <option value="h264">Nur H.264 - bis 1080p60, höchste Kompatibilität</option>
                 <option value="h265">Nur H.265/HEVC - 1440p60, moderne Hardware erforderlich</option>
                 <option value="av1">Nur AV1 - experimentell, aktuelle Hardware erforderlich</option>
                 <option value="h264,h265">H.264 + H.265 (empfohlen) - automatischer Rückfall</option>
                 <option value="h264,h265,av1">Alle Codecs - maximale Qualität</option>
-              </select>
+              </BaseDropdown>
               <div class="help-text">
                 Codec-Unterstützung für hochauflösende Aufnahmen bis 1440p60 einstellen.
                 <br><br><strong>Hinweise:</strong>
@@ -152,8 +137,10 @@
 
       <!-- Save Button (recording settings only; cleanup policies save themselves) -->
       <div v-if="context === 'global' && section === 'recording'" class="form-actions">
-        <button @click="saveSettings" class="btn btn-primary" :disabled="isSaving">
-          {{ isSaving ? 'Wird gespeichert...' : 'Einstellungen speichern' }}        </button>
+        <EmptyState v-if="saveState" :state="saveState" :description="saveMessage" variant="inline" />
+        <BaseButton @click="saveSettings" variant="primary" :loading="saveState === 'pending'" loading-label="Wird gespeichert...">
+          Einstellungen speichern
+        </BaseButton>
       </div>
 
     <!-- Active Recordings -->
@@ -346,6 +333,11 @@ import { QUALITY_OPTIONS, FILENAME_VARIABLES } from '@/types/recording';
 import type { ActiveRecording, RecordingSettings, StreamerRecordingSettings } from '@/types/recording';
 import CleanupPolicyEditor from '@/components/CleanupPolicyEditor.vue';
 import BaseModal from '@/components/base/BaseModal.vue';
+import BaseDropdown from '@/components/base/BaseDropdown.vue';
+import BaseInput from '@/components/base/BaseInput.vue';
+import BaseButton from '@/components/base/BaseButton.vue';
+import EmptyState from '@/components/EmptyState.vue';
+import type { PresentationState } from '@/types/presentation';
 
 const props = withDefaults(defineProps<{
   settings: RecordingSettings | null;
@@ -357,6 +349,8 @@ const props = withDefaults(defineProps<{
   section?: 'recording' | 'storage';
   context?: 'global' | 'channel' | 'manage';
   showOverrides?: boolean;
+  saveState?: PresentationState;
+  saveMessage?: string;
 }>(), {
   section: 'recording',
   context: 'global',
@@ -386,7 +380,7 @@ const detectPresetFromTemplate = (template: string): string => {
 };
 
 // Create a copy of the settings for editing
-const filenameTemplateInput = ref<HTMLInputElement | null>(null);
+const filenameTemplateField = ref<InstanceType<typeof BaseInput> | null>(null);
 const data = ref<RecordingSettings>({
   enabled: props.settings?.enabled ?? false,
   filename_template: props.settings?.filename_template ?? '{streamer}/{streamer}_{year}{month}-{day}_{hour}-{minute}_{title}_{game}',
@@ -409,7 +403,7 @@ watch(() => props.settings, (newSettings: RecordingSettings | null) => {
   }
 }, { deep: true });
 
-const isSaving = ref(false);
+
 
 // Update filename template when preset changes
 const updateFilenameFromPreset = () => {
@@ -422,7 +416,7 @@ const updateFilenameFromPreset = () => {
 // Function to insert variable at cursor position
 const insertVariable = (variableKey: string) => {
   const currentTemplate = data.value.filename_template || '';
-  const inputElement = filenameTemplateInput.value;
+  const inputElement = filenameTemplateField.value?.$el.querySelector('input') as HTMLInputElement | null;
 
   // Get the actual cursor position from the input element
   let cursorPosition = currentTemplate.length; // Default to end
@@ -450,7 +444,6 @@ const insertVariable = (variableKey: string) => {
 
 const saveSettings = async () => {
   try {
-    isSaving.value = true;
 
     // Save recording settings
     emits('update', {
@@ -468,8 +461,6 @@ const saveSettings = async () => {
   } catch (error) {
     console.error('Failed to save settings:', error);
     toast.error('Failed to save settings. Please try again.');
-  } finally {
-    isSaving.value = false;
   }
 };
 

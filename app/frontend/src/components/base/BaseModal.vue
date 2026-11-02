@@ -96,7 +96,7 @@ watch(
               v-if="!hideClose"
               type="button"
               class="close-btn"
-              aria-label="Close"
+              aria-label="Dialog schließen"
               @click="close"
             >
               ×

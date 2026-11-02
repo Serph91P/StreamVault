@@ -32,6 +32,37 @@ beforeEach(() => {
 })
 
 describe('channel-first landing', () => {
+  it.each([[{ status: 403 }, 'forbidden'], [new TypeError('Failed to fetch'), 'offline']] as const)('distinguishes access and network failure from empty results (%s)', async (error, state) => {
+    api.getAll.mockRejectedValueOnce(error)
+    const wrapper = open()
+    await flushPromises()
+    expect(wrapper.get('section').attributes('state')).toBe(state)
+    wrapper.unmount()
+  })
+  it('keeps confirmed channels visible when refreshing fails, with a dated stale notice', async () => {
+    const wrapper = open()
+    await flushPromises()
+    api.getAll.mockRejectedValueOnce(new Error('unavailable'))
+    await wrapper.get('button[aria-label="Kanalstatus erneut abrufen"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain('demo_channel')
+    expect(wrapper.find('[state="stale"]').exists()).toBe(true)
+    expect(wrapper.find('[updated-at]').exists()).toBe(true)
+    wrapper.unmount()
+  })
+  it('marks confirmed empty versus failed loading using the shared presentation contract', async () => {
+    api.getAll.mockResolvedValueOnce({ streamers: [] })
+    const empty = open()
+    await flushPromises()
+    expect(empty.get('section').attributes('state')).toBe('confirmed-empty')
+    empty.unmount()
+    api.getAll.mockRejectedValueOnce(new Error('unavailable'))
+    const failed = open()
+    await flushPromises()
+    expect(failed.get('section').attributes('state')).toBe('error')
+    expect(failed.text()).not.toContain('Noch keine Kanäle')
+    failed.unmount()
+  })
   it('preserves channel management, import and add entry points', async () => {
     const wrapper = open()
     await flushPromises()
