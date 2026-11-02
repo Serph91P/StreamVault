@@ -3557,12 +3557,12 @@
     },
     {
       "file": "app/frontend/tests/e2e/pr5-dialogs-a11y.spec.ts",
-      "line": 143,
+      "line": 146,
       "match": "document.body"
     },
     {
       "file": "app/frontend/tests/e2e/pr5-dialogs-a11y.spec.ts",
-      "line": 148,
+      "line": 151,
       "match": "document.body"
     },
     {
