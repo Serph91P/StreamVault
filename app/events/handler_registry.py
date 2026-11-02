@@ -4,7 +4,7 @@ import logging
 
 import asyncio
 from typing import Dict, Callable, Awaitable, Any, Optional, TYPE_CHECKING
-from datetime import datetime, timezone
+from datetime import datetime
 from cachetools import TTLCache
 
 from app.database import SessionLocal
@@ -12,6 +12,11 @@ from app.events.event_catalog import (
     prepare_offline,
     offline_recording_id,
     prepare_online,
+    update_broadcaster_exists,
+    prepare_update,
+    update_category_exists,
+    prepare_update_category,
+    publish_update_category_image,
 )
 from app.utils.async_db_utils import run_in_thread_pool
 from sqlalchemy.exc import SQLAlchemyError
@@ -24,13 +29,7 @@ from app.services.api.twitch_api import (
     twitch_api as default_twitch_api,
 )
 from app.models import (
-    Streamer,
     Stream,
-    StreamEvent,
-    Category,
-    User,
-    FavoriteCategory,
-    NotificationSettings,
     Recording,
 )
 from app.config.settings import Settings, settings as app_settings
@@ -40,6 +39,7 @@ logger = logging.getLogger("streamvault")
 
 if TYPE_CHECKING:
     from app.services.recording.recording_manager import RecordingManager
+    from app.services.unified_image_service import UnifiedImageService
 
 
 def get_recording_manager():
@@ -58,9 +58,11 @@ class EventHandlerRegistry:
         recording_manager: RecordingManager | None = None,
         notification_service: NotificationService | None = None,
         twitch_api: TwitchAPIService | None = None,
+        image_service: UnifiedImageService | None = None,
     ):
         self.recording_service = recording_manager or get_recording_manager()
         self._session_factory = session_factory
+        self._image_service = image_service
         self.config_manager = ConfigManager(
             session_factory=session_factory, settings=settings
         )
@@ -318,202 +320,107 @@ class EventHandlerRegistry:
         )
 
     async def handle_stream_update(self, data: dict):
+        sessions = self._session_factory or SessionLocal
         try:
-            logger.debug(f"Processing stream update event: {data}")
-            with SessionLocal() as db:
-                streamer = (
-                    db.query(Streamer)
-                    .filter(Streamer.twitch_id == data["broadcaster_user_id"])
-                    .first()
-                )
-
-                if not streamer:
-                    logger.warning(
-                        f"channel.update for unknown broadcaster {data.get('broadcaster_user_id')}; ignoring"
+            if not await run_in_thread_pool(
+                update_broadcaster_exists, sessions, data["broadcaster_user_id"]
+            ):
+                logger.warning("channel.update for unknown broadcaster; ignoring")
+                return
+            category_name, category_id = (
+                data.get("category_name"),
+                data.get("category_id"),
+            )
+            game_data = None
+            if not category_name and category_id:
+                try:
+                    games = await self.twitch_api.get_games_by_id([category_id])
+                    game_data = games[0] if games else None
+                    name = game_data.get("name") if game_data else None
+                    if isinstance(name, str):
+                        category_name = name
+                except Exception as error:
+                    logger.debug(
+                        "Category name lookup failed (%s)", type(error).__name__
                     )
-                    return
-
-                logger.debug(f"Found streamer: {streamer.username} (ID: {streamer.id})")
-                # Resolve category name: prefer payload, else use category_id lookup
-                incoming_category_name = data.get("category_name")
-                category_id = data.get("category_id")
-                effective_category_name = incoming_category_name
-                if not effective_category_name and category_id:
+            snapshot = await run_in_thread_pool(
+                prepare_update,
+                sessions,
+                data,
+                category_name,
+                self._resolve_event_target_stream,
+            )
+            if snapshot is None:
+                return
+            details = {
+                "url": f"https://twitch.tv/{data['broadcaster_user_login']}",
+                "title": data.get("title"),
+                "category_name": category_name,
+                "language": data.get("language"),
+                "profile_image_url": snapshot.profile_image_url,
+                "twitch_login": data["broadcaster_user_login"],
+            }
+            await self.notification_service.send_stream_notification(
+                streamer_name=snapshot.username,
+                event_type="update",
+                details={
+                    **details,
+                    "streamer_id": snapshot.streamer_id,
+                    "is_live": snapshot.is_live,
+                },
+            )
+            if category_name and category_id:
+                exists = await run_in_thread_pool(
+                    update_category_exists, sessions, category_id
+                )
+                if not exists and game_data is None:
+                    games = await self.twitch_api.get_games_by_id([category_id])
+                    game_data = games[0] if games else None
+                source = game_data.get("box_art_url") if game_data else None
+                source = source if isinstance(source, str) else None
+                identity, favorite_count = await run_in_thread_pool(
+                    prepare_update_category,
+                    sessions,
+                    category_id,
+                    category_name,
+                    source,
+                    snapshot.streamer_id,
+                )
+                if not exists and source:
                     try:
-                        from app.services.streamer_service import StreamerService
-
-                        streamer_service = StreamerService(
-                            db=db,
-                            websocket_manager=self.manager,
-                            event_registry=self,
-                        )
-                        game_data = await streamer_service.get_game_data(category_id)
-                        if game_data and game_data.get("name"):
-                            effective_category_name = game_data.get("name")
-                            logger.debug(
-                                f"Resolved category name via category_id {category_id}: {effective_category_name}"
-                            )
-                    except Exception as e:
-                        logger.debug(
-                            f"Failed to resolve category name for id {category_id}: {e}"
-                        )
-
-                streamer.title = data.get("title")
-                streamer.category_name = effective_category_name
-                streamer.language = data.get("language")
-                streamer.last_updated = datetime.now(timezone.utc)
-
-                db.commit()
-                logger.debug(f"Updated streamer info in database: {streamer.title}")
-
-                stream = self._resolve_event_target_stream(db, streamer.id)
-
-                if stream:
-                    # Also update the active stream with the latest title/category/language
-                    try:
-                        if data.get("title"):
-                            stream.title = data.get("title")
-                        if effective_category_name:
-                            stream.category_name = effective_category_name
-                        if data.get("language"):
-                            stream.language = data.get("language")
-                    except Exception as e:
-                        logger.debug(
-                            f"Could not update active stream fields from channel.update: {e}"
-                        )
-
-                    stream_event = StreamEvent(
-                        stream_id=stream.id,
-                        event_type="channel.update",
-                        title=data.get("title"),
-                        category_name=effective_category_name,
-                        language=data.get("language"),
-                        timestamp=datetime.now(timezone.utc),
-                    )
-                    db.add(stream_event)
-                    db.commit()
-                else:
-                    logger.info(
-                        f"Streamer {streamer.username} is offline, storing update for future use"
-                    )
-
-                # Send notification via notification_service - settings check handled internally
-                logger.debug(
-                    f"Attempting to send notification for {streamer.username}, event_type=update"
-                )
-                notification_result = await self.notification_service.send_stream_notification(
-                    streamer_name=streamer.username,
-                    event_type="update",
-                    details={
-                        "streamer_id": streamer.id,
-                        "url": f"https://twitch.tv/{data['broadcaster_user_login']}",
-                        "title": data.get("title"),
-                        "category_name": effective_category_name,
-                        "language": data.get("language"),
-                        # Use current profile image (cached if available)
-                        "profile_image_url": streamer.profile_image_url,
-                        "twitch_login": data["broadcaster_user_login"],
-                        "is_live": streamer.is_live,
-                    },
-                )
-                logger.debug(f"Notification result: {notification_result}")
-
-                logger.debug("Notifications sent successfully")
-                category_name = effective_category_name
-                category_id = data.get("category_id")
-
-                if category_name and category_id:
-                    from app.services.streamer_service import StreamerService
-
-                    category = (
-                        db.query(Category)
-                        .filter(Category.twitch_id == category_id)
-                        .first()
-                    )
-
-                    if not category:
-                        # Get game data and download image immediately
-                        streamer_service = StreamerService(
-                            db=db, websocket_manager=self.manager, event_registry=self
-                        )
-                        game_data = await streamer_service.get_game_data(category_id)
-
-                        # Create category with HTTP URL initially
-                        category = Category(
-                            twitch_id=category_id,
-                            name=category_name
-                            or (game_data.get("name") if game_data else None),
-                            box_art_url=game_data.get("box_art_url")
-                            if game_data
-                            else None,
-                        )
-                        db.add(category)
-                        db.commit()  # Commit first so category has an ID
-
-                        # Now immediately download and set correct local URL
-                        if game_data and game_data.get("box_art_url"):
-                            try:
-                                # Import the image service
-                                from app.services.unified_image_service import (
-                                    unified_image_service,
-                                )
-
-                                # Download the image and get local URL
-                                local_url = (
-                                    await unified_image_service.download_category_image(
-                                        category_name, game_data.get("box_art_url")
-                                    )
-                                )
-
-                                if local_url:
-                                    category.box_art_url = local_url
-                                    logger.info(
-                                        f"Set category {category_name} image URL to: {local_url}"
-                                    )
-
-                            except Exception as img_error:
-                                logger.error(
-                                    f"Failed to download category image for {category_name}: {img_error}"
-                                )
-
-                    else:
-                        category.name = category_name
-                        category.last_seen = datetime.now(timezone.utc)
-
-                    db.commit()
-
-                    users_with_favorite = (
-                        db.query(User)
-                        .join(FavoriteCategory)
-                        .filter(FavoriteCategory.category_id == category.id)
-                        .all()
-                    )
-
-                    if users_with_favorite:
-                        for user in users_with_favorite:
-                            settings = (
-                                db.query(NotificationSettings)
-                                .filter(NotificationSettings.streamer_id == streamer.id)
-                                .first()
+                        image_service = self._image_service
+                        if image_service is None:
+                            from app.services.unified_image_service import (
+                                unified_image_service,
                             )
 
-                            if settings and settings.notify_favorite_category:
-                                await self.notification_service.send_stream_notification(
-                                    streamer_name=streamer.username,
-                                    event_type="favorite_category",
-                                    details={
-                                        "url": f"https://twitch.tv/{data['broadcaster_user_login']}",
-                                        "title": data.get("title"),
-                                        "category_name": category_name,
-                                        "language": data.get("language"),
-                                        "profile_image_url": streamer.profile_image_url,
-                                        "twitch_login": data["broadcaster_user_login"],
-                                    },
-                                )
-        except SQLAlchemyError as e:
-            logger.error(f"Database error handling stream update event: {e}")
-        except Exception as e:
-            logger.error(f"Error handling stream update event: {e}", exc_info=True)
+                            image_service = unified_image_service
+                        local_url = await image_service.download_category_image(
+                            category_name, source
+                        )
+                        if local_url:
+                            await run_in_thread_pool(
+                                publish_update_category_image,
+                                sessions,
+                                identity,
+                                local_url,
+                            )
+                    except Exception as error:
+                        logger.error(
+                            "Category image download failed (%s)", type(error).__name__
+                        )
+                for _ in range(favorite_count):
+                    await self.notification_service.send_stream_notification(
+                        streamer_name=snapshot.username,
+                        event_type="favorite_category",
+                        details=dict(details),
+                    )
+        except SQLAlchemyError as error:
+            logger.error(
+                "Database error handling stream update (%s)", type(error).__name__
+            )
+        except Exception as error:
+            logger.error("Error handling stream update (%s)", type(error).__name__)
 
     async def list_subscriptions(self) -> dict[str, object]:
         return await self.twitch_api.list_eventsub_subscriptions()

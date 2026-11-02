@@ -6,7 +6,137 @@ from datetime import datetime, timezone, timedelta
 
 from sqlalchemy.orm import Session
 
-from app.models import Recording, Stream, Streamer, StreamEvent
+from app.models import (
+    Category,
+    FavoriteCategory,
+    NotificationSettings,
+    Recording,
+    Stream,
+    Streamer,
+    StreamEvent,
+    User,
+)
+
+
+@dataclass(frozen=True)
+class UpdateEvent:
+    streamer_id: int
+    username: str
+    profile_image_url: str | None
+    is_live: bool | None
+
+
+def update_broadcaster_exists(
+    session_factory: Callable[[], Session], broadcaster_id: str
+) -> bool:
+    with session_factory() as session:
+        return (
+            session.query(Streamer.id)
+            .filter(Streamer.twitch_id == broadcaster_id)
+            .first()
+            is not None
+        )
+
+
+def prepare_update(
+    session_factory: Callable[[], Session],
+    data: Mapping[str, str],
+    category_name: str | None,
+    resolve_target: Callable[[Session, int], Stream | None],
+) -> UpdateEvent | None:
+    with session_factory() as session:
+        streamer = (
+            session.query(Streamer)
+            .filter(Streamer.twitch_id == data["broadcaster_user_id"])
+            .first()
+        )
+        if streamer is None:
+            return None
+        streamer.title = data.get("title")
+        streamer.category_name = category_name
+        streamer.language = data.get("language")
+        streamer.last_updated = datetime.now(timezone.utc)
+        session.commit()
+        stream = resolve_target(session, streamer.id)
+        if stream is not None:
+            if data.get("title"):
+                stream.title = data["title"]
+            if category_name:
+                stream.category_name = category_name
+            if data.get("language"):
+                stream.language = data["language"]
+            session.add(
+                StreamEvent(
+                    stream_id=stream.id,
+                    event_type="channel.update",
+                    title=data.get("title"),
+                    category_name=category_name,
+                    language=data.get("language"),
+                    timestamp=datetime.now(timezone.utc),
+                )
+            )
+            session.commit()
+        return UpdateEvent(
+            streamer.id, streamer.username, streamer.profile_image_url, streamer.is_live
+        )
+
+
+def update_category_exists(
+    session_factory: Callable[[], Session], category_id: str
+) -> bool:
+    with session_factory() as session:
+        return (
+            session.query(Category.id).filter(Category.twitch_id == category_id).first()
+            is not None
+        )
+
+
+def prepare_update_category(
+    session_factory: Callable[[], Session],
+    category_id: str,
+    category_name: str,
+    box_art_url: str | None,
+    streamer_id: int,
+) -> tuple[int, int]:
+    with session_factory() as session:
+        category = (
+            session.query(Category).filter(Category.twitch_id == category_id).first()
+        )
+        if category is None:
+            category = Category(
+                twitch_id=category_id, name=category_name, box_art_url=box_art_url
+            )
+            session.add(category)
+        else:
+            category.name = category_name
+            category.last_seen = datetime.now(timezone.utc)
+        session.commit()
+        subscribers = (
+            session.query(User.id)
+            .join(FavoriteCategory)
+            .filter(FavoriteCategory.category_id == category.id)
+            .all()
+        )
+        settings = (
+            session.query(NotificationSettings)
+            .filter(NotificationSettings.streamer_id == streamer_id)
+            .first()
+            if subscribers
+            else None
+        )
+        return category.id, len(
+            subscribers
+        ) if settings and settings.notify_favorite_category else 0
+
+
+def publish_update_category_image(
+    session_factory: Callable[[], Session], category_id: int, local_url: str
+) -> None:
+    with session_factory() as session:
+        category = session.get(Category, category_id)
+        if category is not None:
+            category.box_art_url = local_url
+            session.commit()
 
 
 @dataclass(frozen=True)
