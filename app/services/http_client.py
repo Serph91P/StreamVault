@@ -111,7 +111,14 @@ class ManagedHTTPClient:
                 context = await run_in_thread_pool(ssl.create_default_context)
                 self._client = httpx.AsyncClient(
                     verify=context,
-                    proxy=self._proxy,
+                    proxy=httpx.Proxy(
+                        self._proxy,
+                        ssl_context=context
+                        if httpx.URL(self._proxy).scheme == "https"
+                        else None,
+                    )
+                    if self._proxy is not None
+                    else None,
                     trust_env=False,
                     cookies=_NoCookies(),
                     headers={"User-Agent": "StreamVault"},
