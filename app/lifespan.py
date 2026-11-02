@@ -83,6 +83,17 @@ async def _shutdown_step(name: str, operation) -> None:
         logger.error("Shutdown step %s failed (%s)", name, type(error).__name__)
 
 
+async def _close_application_images(app: FastAPI) -> None:
+    worker = getattr(app.state, "image_sync_service", None)
+    if worker is not None:
+        await worker.stop_sync_worker()
+        app.state.image_sync_service = None
+    images = getattr(app.state, "image_service", None)
+    if images is not None:
+        await images.close()
+        app.state.image_service = None
+
+
 async def _close_application_twitch(app: FastAPI) -> None:
     client = getattr(app.state, "twitch_api", None)
     if client is not None:
@@ -304,6 +315,7 @@ async def lifespan(app: FastAPI):
         connection_manager = getattr(app.state, "websocket_manager", None)
         if connection_manager is not None:
             await _shutdown_step("websocket-connections", connection_manager.close_all)
+        await _shutdown_step("image-http", lambda: _close_application_images(app))
         await _shutdown_step("twitch-http", lambda: _close_application_twitch(app))
         await _shutdown_step("database", runtime_database.adispose)
         logger.info("Application shutdown complete")

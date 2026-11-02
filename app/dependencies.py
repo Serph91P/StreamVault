@@ -297,16 +297,37 @@ def get_websocket_manager(connection: HTTPConnection) -> ConnectionManager:
     return manager
 
 
-def get_image_service():
-    """Overrideable adapter for the unified image service.
+def _get_application_image_service(app: FastAPI):
+    with app.state.image_service_lock:
+        if app.state.image_service is None:
+            from app.services.unified_image_service import UnifiedImageService
 
-    This is the compatibility facade (``app.services.unified_image_service``).
-    Tests may override this dependency to provide a fake adapter so no real
-    HTTP/download or filesystem work happens.
-    """
-    from app.services.unified_image_service import unified_image_service
+            app.state.image_service = UnifiedImageService(
+                settings=resolve_app_settings(app),
+                session_factory=app.state.database_lifecycle.sync_session_factory,
+            )
+        return app.state.image_service
 
-    return unified_image_service
+
+def get_image_service(connection: HTTPConnection):
+    """Overrideable image facade sharing the application's catalogue owner."""
+    return _get_application_image_service(connection.app)
+
+
+def _get_application_image_sync_service(app: FastAPI):
+    with app.state.image_sync_service_lock:
+        if app.state.image_sync_service is None:
+            from app.services.images.image_sync_service import ImageSyncService
+
+            app.state.image_sync_service = ImageSyncService(
+                image_service=_get_application_image_service(app),
+                session_factory=app.state.database_lifecycle.sync_session_factory,
+            )
+        return app.state.image_sync_service
+
+
+def get_image_sync_service(connection: HTTPConnection):
+    return _get_application_image_sync_service(connection.app)
 
 
 def get_background_queue_service(connection: HTTPConnection) -> BackgroundQueueService:
