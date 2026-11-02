@@ -10,7 +10,7 @@
     >
       <template #actions>
         <div class="header-actions">
-          <button @click="loadSubscriptions" :disabled="loading" class="btn-action btn-secondary" v-ripple>
+          <button @click="loadSubscriptions" :disabled="loading || loadingResubscribe || pendingDeletes.size > 0" class="btn-action btn-secondary" v-ripple>
             <svg class="icon">
               <use href="#icon-refresh-cw" />
             </svg>
@@ -18,7 +18,7 @@
           </button>
           <button
             @click="resubscribeAll"
-            :disabled="loadingResubscribe"
+            :disabled="loading || loadingResubscribe || pendingDeletes.size > 0"
             class="btn-action btn-secondary"
             v-ripple
           >
@@ -30,7 +30,7 @@
           </button>
           <button
             @click="deleteAllSubscriptions"
-            :disabled="loading || !subscriptions.length"
+            :disabled="loading || loadingResubscribe || pendingDeletes.size > 0 || !subscriptions.length"
             class="btn-action btn-danger"
             v-ripple
           >
@@ -43,6 +43,11 @@
       </template>
     </PageHeader>
 
+    <div v-if="loadError" class="subscription-error" role="alert">
+      <p>{{ loadError }} {{ subscriptions.length ? 'Previously loaded subscriptions are shown and may be out of date.' : '' }}</p>
+      <button class="btn-action btn-secondary" :disabled="loading || loadingResubscribe || pendingDeletes.size > 0" @click="loadSubscriptions">Retry</button>
+    </div>
+
     <!-- Loading State -->
     <div v-if="loading" class="loading-container">
       <LoadingSkeleton v-for="i in 5" :key="i" type="list-item" />
@@ -50,7 +55,7 @@
 
     <!-- Empty State -->
     <EmptyState
-      v-else-if="!subscriptions.length"
+      v-else-if="!subscriptions.length && !loadError"
       icon="rss"
       title="No Subscriptions Found"
       description="There are no active EventSub subscriptions. Click refresh to check again."
@@ -60,7 +65,7 @@
     />
 
     <!-- Subscriptions Table -->
-    <SurfaceCard v-else class="table-card">
+    <SurfaceCard v-else-if="subscriptions.length" class="table-card">
       <div class="table-wrapper">
         <table class="subscriptions-table">
           <thead>
@@ -98,7 +103,9 @@
               <td data-label="Actions">
                 <button
                   @click="deleteSubscription(sub.id)"
-                  :disabled="loading"
+                  :disabled="loading || loadingResubscribe || pendingDeletes.has(sub.id)"
+                  :aria-busy="pendingDeletes.has(sub.id)"
+                  aria-label="Delete subscription"
                   class="btn-delete"
                   v-ripple
                   title="Delete subscription"
@@ -107,6 +114,7 @@
                     <use href="#icon-trash" />
                   </svg>
                 </button>
+                <p v-if="deleteErrors[sub.id]" class="subscription-error" role="alert">{{ deleteErrors[sub.id] }}</p>
               </td>
             </tr>
           </tbody>
@@ -155,6 +163,9 @@ const streamers = ref<Streamer[]>([])
 const streamerMap = ref<Record<string, Streamer>>({})
 const loadingResubscribe = ref(false)
 const loading = ref(false)
+const loadError = ref('')
+const deleteErrors = ref<Record<string, string>>({})
+const pendingDeletes = ref(new Set<string>())
 
 const twitchIdToStreamerMap = computed(() => {
   const map: Record<string, Streamer> = {}
@@ -223,20 +234,25 @@ async function loadStreamers() {
 }
 
 async function loadSubscriptions() {
+  if (pendingDeletes.value.size > 0) return
   loading.value = true
   try {
     const data = await subscriptionsApi.getAll()
+    if (!Array.isArray(data?.subscriptions)) throw new Error('Invalid subscription list response')
     subscriptions.value = data.subscriptions
+    loadError.value = ''
 
     await loadStreamers()
   } catch (error) {
     console.error('Failed to load subscriptions:', error)
+    loadError.value = 'Unable to load subscriptions. Check your connection and retry.'
   } finally {
     loading.value = false
   }
 }
 
 async function resubscribeAll() {
+  if (loading.value || loadingResubscribe.value || pendingDeletes.value.size > 0) return
   loadingResubscribe.value = true
   try {
     const data = await subscriptionsApi.resubscribeAll()
@@ -253,21 +269,28 @@ async function resubscribeAll() {
 }
 
 async function deleteSubscription(id: string) {
+  if (loading.value || loadingResubscribe.value || pendingDeletes.value.has(id)) return
   // Confirmation dialog
   if (!confirm('Are you sure you want to delete this subscription? This action cannot be undone.')) {
     return
   }
   
+  pendingDeletes.value.add(id)
+  delete deleteErrors.value[id]
   try {
     await subscriptionsApi.delete(id)
 
     subscriptions.value = subscriptions.value.filter(sub => sub.id !== id)
   } catch (error) {
     console.error('Failed to delete subscription:', error)
+    deleteErrors.value[id] = 'Unable to delete subscription. The row has been kept. Check your connection, then use Delete subscription to retry.'
+  } finally {
+    pendingDeletes.value.delete(id)
   }
 }
 
 async function deleteAllSubscriptions() {
+  if (loading.value || loadingResubscribe.value || pendingDeletes.value.size > 0) return
   if (!confirm('Are you sure you want to delete all subscriptions? This action cannot be undone.')) return
 
   loading.value = true
@@ -304,6 +327,15 @@ onMounted(loadSubscriptions)
   to {
     opacity: 1;
   }
+}
+
+.subscription-error {
+  color: var(--text-primary);
+  background: var(--background-secondary);
+  border: 1px solid var(--color-error);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-3);
+  margin-bottom: var(--spacing-4);
 }
 
 .header-actions {
@@ -527,6 +559,7 @@ onMounted(loadSubscriptions)
   justify-content: center;
   width: 44px;
   height: 44px;
+  flex-shrink: 0;
   background: var(--background-secondary);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
