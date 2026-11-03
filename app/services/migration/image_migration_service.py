@@ -9,6 +9,7 @@ import shutil
 import logging
 import asyncio
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import Dict, Optional, Awaitable, Any
 
 from app.models import Streamer
@@ -79,13 +80,15 @@ class ImageMigrationService:
                             )
                             streamer_name = streamer.username if streamer else "Unknown"
 
-                            stats["streamers_migrated"] += 1
+                            stats["errors"] += result["errors"]
                             stats["images_moved"] += result["images_moved"]
                             stats["duplicates_found"] += result["duplicates_found"]
 
-                            logger.debug(
-                                f"Successfully migrated images for streamer {streamer_name}"
-                            )
+                            if not result["errors"]:
+                                stats["streamers_migrated"] += 1
+                                logger.debug(
+                                    f"Successfully migrated images for streamer {streamer_name}"
+                                )
                         except Exception as e:
                             # O(1) lookup for streamer associated with failed task
                             # Note: asyncio.as_completed() returns the original task objects,
@@ -103,7 +106,10 @@ class ImageMigrationService:
             cleanup_result = await self.cleanup_old_directories()
             stats["directories_cleaned"] = cleanup_result["directories_removed"]
 
-            logger.info(f"Migration completed: {stats}")
+            if stats["errors"]:
+                logger.warning(f"Migration completed with errors: {stats}")
+            else:
+                logger.info(f"Migration completed: {stats}")
             return stats
 
         except Exception as e:
@@ -115,7 +121,7 @@ class ImageMigrationService:
         """
         Migrate images for a specific streamer
         """
-        result = {"images_moved": 0, "duplicates_found": 0}
+        result = {"images_moved": 0, "duplicates_found": 0, "errors": 0}
 
         # Get streamer directory
         streamer_dir = self.recordings_dir / sanitize_filename(streamer.username)
@@ -188,7 +194,6 @@ class ImageMigrationService:
                                 > target_path.stat().st_mtime
                             ):
                                 logger.info(f"Replacing older file: {target_path}")
-                                target_path.unlink()
                             else:
                                 logger.info(
                                     f"Keeping newer target file, removing source: {source_path}"
@@ -197,12 +202,21 @@ class ImageMigrationService:
                                 result["duplicates_found"] += 1
                                 continue
 
-                    # Move file
+                    # Stage on the target filesystem; never expose a partial copy.
                     try:
-                        shutil.move(str(source_path), str(target_path))
+                        with TemporaryDirectory(
+                            dir=target_path.parent, prefix=".image-migration-"
+                        ) as temporary_dir:
+                            staged_path = Path(temporary_dir) / target_path.name
+                            shutil.copy2(source_path, staged_path)
+                            if not self._files_are_identical(source_path, staged_path):
+                                raise OSError("Staged image does not match source")
+                            staged_path.replace(target_path)
+                        source_path.unlink()
                         logger.info(f"Moved image: {source_path} -> {target_path}")
                         result["images_moved"] += 1
                     except Exception as e:
+                        result["errors"] += 1
                         logger.error(
                             f"Error moving file {source_path} to {target_path}: {e}"
                         )
