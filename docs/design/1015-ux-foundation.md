@@ -42,12 +42,12 @@ Decision: **retain the proven native/Base primitives in this increment**. There 
 
 ## Preservation / integration boundaries
 
-- #1004/PR1008 recording labels, #1005/PR1007 notification help and #1012 storage contrast remain existing separately owned fixes. This foundation does not rewrite their consumers or claim full application A11y acceptance before their integration.
+- #1004/PR1008 recording labels and #1005/PR1007 notification help are now integrated from develop. Recording controls retain their German accessible names and unique native label targets behind the Base facades. #1012 storage contrast remains separately owned and is still required before full #1015 issue acceptance; this PR does not duplicate that fix or claim whole-application AA compliance.
 - Existing API/store, auth/session, realtime, player, cleanup and storage semantics remain owned by their current modules. Pending is no longer a temporary component-local flag around a synchronous emit.
 - The generated frontend inventory is regenerated from actual current source. Its known b7 drift removes two already absent breakpoint declarations (96→94); the rest records new files and current source locations. No obsolete b7 inventory is treated as the current source of truth.
-- Initial own product base is #969 `b7c489944bb05575831990bb386d57447e7c028f`. The owner subsequently published #969 `204bf25e5d697702e326e471dc672b581cf4792e` containing the separately reviewed #975 dependency prerequisite; integrate that normally, with no copied patch or history rewrite.
+- Initial own product base was #969 `b7c489944bb05575831990bb386d57447e7c028f`. #969 and the separately reviewed #975 dependency prerequisite are now develop ancestors, integrated by normal forward merges without copied patches or history rewrites.
 
-## Verification status
+## Worker verification before owner integration (historical)
 
 Evidence is recorded in the same-card handoff and final verification section once all final-head checks complete. Interim runs: 502 unit passes / 4 existing skips; types and lint (0 errors / 132 warnings) pass; built REAL stateful settings fixtures 8/8 pass at 320/390/1024/1440 in both themes, including held pending, GET-confirmed save/reload, accepted-but-unpersisted 202 and failed saves. New modal isolation regression failed before adaptation, then passed alongside existing focus restoration. These interim numbers are not a final-head CI or whole-product acceptance claim.
 
@@ -62,3 +62,18 @@ REAL output: 1,191,938 application JS bytes / 379,983 gzip bytes, 82 precache en
 The source inventory was regenerated after removing owned test/build outputs. The generator excludes `test-results` but not `foundation-test-results`; its generated `.last-run.json` must not enter the source inventory. With those owned outputs removed it reproducibly reports 331 frontend files / 205 backend routes, retaining the documented 94-breakpoint source count. No generator policy or gate was changed. Source and dependency worktree remain available for review; temporary artifacts are retained separately as evidence.
 
 No physical devices, installed PWA, live provider or manual screenreader acceptance is claimed. Browser names and final backend/DB effects are reported separately from synthetic HTTP fixtures. No merge, release, deployment or issue closure is performed by this worker.
+
+## Owner integration verification
+
+The owner integrated the existing develop fixes without replacing their regression tests. Types, the complete unit suite (635 passed / 4 existing skips), lint (0 errors / 136 warnings), token lint and foundation generation checks passed. The recording/notification settings browser suites passed 34 REAL and 34 MOCK cases; the combined state/parity suite passed 15 cases. The unchanged six-case foundation harness passed in all three actual Playwright engines (18 cases), separately from emulated device sizes.
+
+The first combined MOCK artifact exceeded the existing raw-JS and gzip budgets. The fix groups the already co-loaded app entry/runtime and shared feedback, without eagerly loading channel settings. A new cold-channel browser regression verifies that boundary. Repeated static demo metadata is expanded once; an assert-based full-value comparison against the pre-change export confirmed all 12 public recording objects unchanged, including legacy paths. The pure annotation preserves removal of demo-only data from REAL artifacts. No dependency, minifier replacement, budget, timeout, visual reference or assertion relaxation was used.
+
+| Final application artifact | JS bytes | Node gzip bytes | Precache entries |
+| --- | ---: | ---: | ---: |
+| REAL | 1,193,233 | 379,976 | 81 |
+| MOCK | 1,196,483 | 380,954 | 80 |
+
+Both artifacts pass the unchanged output and precache checks with Node 22.23.3 / Vite 8.3.3. MOCK headroom remains small; subsequent features must continue to satisfy the same limits. The source-only inventory contains 352 frontend paths / 205 backend routes, excluding generated harness output.
+
+The real factory/routers/services, disposable SQLite/media and desktop-light/mobile-dark journeys were repeated successfully with zero API fulfills, page errors or failed business responses. Their durable effects include codec save/readback/reload, separate channel overrides, cleanup and management, actual process restart/replay/deduplication, queued job completion and decoded playback/seek/delete. Final exact-head CI, security report readback and independent same-card review remain separate mandatory handoff gates. #1012 and whole-issue acceptance remain with the owner; no physical-device, provider, installed-PWA or manual screenreader result is inferred from these tests.

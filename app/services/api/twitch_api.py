@@ -5,6 +5,7 @@ Centralized service for making Twitch API calls. Provides methods for getting
 user information, game data, category information, and other Twitch API interactions.
 """
 
+import asyncio
 import logging
 import aiohttp
 from typing import Dict, Any, Optional, List
@@ -12,6 +13,9 @@ from app.config.settings import settings
 from app.utils.retry_decorator import twitch_api_retry, NonRetryableError
 
 logger = logging.getLogger("streamvault")
+
+FOLLOW_MAX_PAGES = 100
+FOLLOW_FETCH_TIMEOUT = 60.0
 
 
 class TwitchAPIService:
@@ -282,25 +286,51 @@ class TwitchAPIService:
     async def get_user_followed_streamers(
         self, user_id: str, access_token: str
     ) -> List[Dict[str, Any]]:
-        """Get followed streamers for a user (requires user access token)"""
-        async with aiohttp.ClientSession() as session:
-            async with session.get(
-                f"{self.base_url}/channels/followed",
-                params={"user_id": user_id},
-                headers={
-                    "Client-ID": self.client_id,
-                    "Authorization": f"Bearer {access_token}",
-                },
-            ) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    return data.get("data", [])
-                else:
-                    error_text = await response.text()
-                    logger.error(
-                        f"Failed to get followed streamers. Status: {response.status} - {error_text}"
-                    )
-                    return []
+        """Return all follows, or fail explicitly without exposing a partial list."""
+        follows = {}
+        cursors = set()
+        params = {"user_id": user_id, "first": "100"}
+        async with asyncio.timeout(FOLLOW_FETCH_TIMEOUT):
+            async with aiohttp.ClientSession() as session:
+                for _ in range(FOLLOW_MAX_PAGES):
+                    async with session.get(
+                        f"{self.base_url}/channels/followed",
+                        params=params,
+                        headers={
+                            "Client-ID": self.client_id,
+                            "Authorization": f"Bearer {access_token}",
+                        },
+                    ) as response:
+                        if response.status != 200:
+                            # Provider bodies may contain credentials; never log them.
+                            raise ConnectionError(
+                                f"Follow enumeration failed: HTTP {response.status}"
+                            )
+                        data = await response.json()
+                    if not isinstance(data, dict) or not isinstance(
+                        data.get("data"), list
+                    ):
+                        raise ValueError("Invalid follow page")
+                    for follow in data["data"]:
+                        if not isinstance(follow, dict) or any(
+                            not isinstance(follow.get(key), str) or not follow[key]
+                            for key in ("broadcaster_id", "broadcaster_login")
+                        ):
+                            raise ValueError("Invalid followed channel")
+                        follows.setdefault(follow["broadcaster_id"], follow)
+                    pagination = data.get("pagination", {})
+                    if not isinstance(pagination, dict):
+                        raise ValueError("Invalid follow pagination")
+                    cursor = pagination.get("cursor")
+                    if cursor is not None and not isinstance(cursor, str):
+                        raise ValueError("Invalid follow cursor")
+                    if not cursor:
+                        return list(follows.values())
+                    if cursor in cursors:
+                        raise ValueError("Repeated follow cursor")
+                    cursors.add(cursor)
+                    params["after"] = cursor
+        raise ValueError("Follow pagination exceeded page limit")
 
     @twitch_api_retry
     async def validate_token(self, access_token: str) -> Optional[Dict[str, Any]]:

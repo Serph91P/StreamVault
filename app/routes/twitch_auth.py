@@ -1,3 +1,4 @@
+import aiohttp
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
@@ -209,7 +210,16 @@ async def get_followed_channels(
                 detail="No Twitch access token available. Please connect your Twitch account first.",
             )
 
-    followed_channels = await oauth_service.get_user_followed_channels(access_token)
+    try:
+        followed_channels = await oauth_service.get_user_followed_channels(access_token)
+    except TimeoutError:
+        raise HTTPException(
+            status_code=504, detail="Twitch follow request timed out"
+        ) from None
+    except (ConnectionError, ValueError, aiohttp.ClientError):
+        raise HTTPException(
+            status_code=502, detail="Could not load complete Twitch follows"
+        ) from None
 
     if followed_channels is None:
         logger.error("Invalid access token or failed to fetch channels")
