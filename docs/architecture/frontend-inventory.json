@@ -129,6 +129,7 @@
     "app/frontend/src/components/settings/__tests__/ProxySettingsPanel.spec.ts",
     "app/frontend/src/components/settings/__tests__/RecordingSettingsPanel.a11y.spec.ts",
     "app/frontend/src/components/settings/__tests__/RecordingSettingsPanel.auth-priority.spec.ts",
+    "app/frontend/src/components/settings/__tests__/RecordingSettingsPanel.retention.spec.ts",
     "app/frontend/src/components/settings/__tests__/SettingsContext.spec.ts",
     "app/frontend/src/components/settings/__tests__/SettingsPanelHost.spec.ts",
     "app/frontend/src/components/streamers/StreamerSettingsFields.vue",
@@ -1996,6 +1997,7 @@
     "app/frontend/src/components/settings/__tests__/ProxySettingsPanel.spec.ts",
     "app/frontend/src/components/settings/__tests__/RecordingSettingsPanel.a11y.spec.ts",
     "app/frontend/src/components/settings/__tests__/RecordingSettingsPanel.auth-priority.spec.ts",
+    "app/frontend/src/components/settings/__tests__/RecordingSettingsPanel.retention.spec.ts",
     "app/frontend/src/components/settings/__tests__/SettingsContext.spec.ts",
     "app/frontend/src/composables/__tests__/useCategoryImages.spec.ts",
     "app/frontend/src/composables/__tests__/useForceRecording.spec.ts",
@@ -2176,6 +2178,7 @@
     "app/frontend/src/components/settings/NotificationSettingsPanel.vue",
     "app/frontend/src/components/settings/PWAPanel.vue",
     "app/frontend/src/components/settings/TwitchConnectionPanel.vue",
+    "app/frontend/src/components/settings/__tests__/RecordingSettingsPanel.retention.spec.ts",
     "app/frontend/src/components/settings/__tests__/SettingsPanelHost.spec.ts",
     "app/frontend/src/composables/__tests__/usePWA.spec.ts",
     "app/frontend/src/composables/__tests__/useSystemAndRecordingStatus.spec.ts",
@@ -2970,13 +2973,8 @@
     },
     {
       "file": "app/frontend/src/components/__tests__/FoundationFeedback.spec.ts",
-      "line": 49,
+      "line": 51,
       "match": "document.body"
-    },
-    {
-      "file": "app/frontend/src/components/__tests__/FoundationFeedback.spec.ts",
-      "line": 53,
-      "match": "document.querySelector"
     },
     {
       "file": "app/frontend/src/components/__tests__/FoundationFeedback.spec.ts",
@@ -2985,7 +2983,22 @@
     },
     {
       "file": "app/frontend/src/components/__tests__/FoundationFeedback.spec.ts",
-      "line": 55,
+      "line": 65,
+      "match": "document.body"
+    },
+    {
+      "file": "app/frontend/src/components/__tests__/FoundationFeedback.spec.ts",
+      "line": 69,
+      "match": "document.querySelector"
+    },
+    {
+      "file": "app/frontend/src/components/__tests__/FoundationFeedback.spec.ts",
+      "line": 70,
+      "match": "document.querySelector"
+    },
+    {
+      "file": "app/frontend/src/components/__tests__/FoundationFeedback.spec.ts",
+      "line": 71,
       "match": "document.querySelector"
     },
     {
@@ -3265,17 +3278,42 @@
     },
     {
       "file": "app/frontend/src/composables/__tests__/useModal.spec.ts",
+      "line": 79,
+      "match": "document.body"
+    },
+    {
+      "file": "app/frontend/src/composables/__tests__/useModal.spec.ts",
+      "line": 81,
+      "match": "document.body"
+    },
+    {
+      "file": "app/frontend/src/composables/__tests__/useModal.spec.ts",
+      "line": 82,
+      "match": "document.body"
+    },
+    {
+      "file": "app/frontend/src/composables/__tests__/useModal.spec.ts",
+      "line": 83,
+      "match": "document.body"
+    },
+    {
+      "file": "app/frontend/src/composables/__tests__/useModal.spec.ts",
+      "line": 84,
+      "match": "document.body"
+    },
+    {
+      "file": "app/frontend/src/composables/__tests__/useModal.spec.ts",
       "line": 85,
       "match": "document.body"
     },
     {
       "file": "app/frontend/src/composables/__tests__/useModal.spec.ts",
-      "line": 98,
-      "match": "document.createElement"
+      "line": 90,
+      "match": "document.body"
     },
     {
       "file": "app/frontend/src/composables/__tests__/useModal.spec.ts",
-      "line": 99,
+      "line": 91,
       "match": "document.body"
     },
     {
@@ -3285,7 +3323,17 @@
     },
     {
       "file": "app/frontend/src/composables/__tests__/useModal.spec.ts",
-      "line": 102,
+      "line": 114,
+      "match": "document.createElement"
+    },
+    {
+      "file": "app/frontend/src/composables/__tests__/useModal.spec.ts",
+      "line": 115,
+      "match": "document.body"
+    },
+    {
+      "file": "app/frontend/src/composables/__tests__/useModal.spec.ts",
+      "line": 117,
       "match": "document.body"
     },
     {
@@ -3295,87 +3343,92 @@
     },
     {
       "file": "app/frontend/src/composables/__tests__/useModal.spec.ts",
-      "line": 139,
+      "line": 134,
       "match": "document.body"
     },
     {
       "file": "app/frontend/src/composables/__tests__/useModal.spec.ts",
-      "line": 164,
+      "line": 155,
+      "match": "document.body"
+    },
+    {
+      "file": "app/frontend/src/composables/__tests__/useModal.spec.ts",
+      "line": 180,
       "match": "document.createElement"
     },
     {
       "file": "app/frontend/src/composables/__tests__/useModal.spec.ts",
-      "line": 166,
+      "line": 182,
       "match": "document.body"
     },
     {
       "file": "app/frontend/src/composables/__tests__/useModal.spec.ts",
-      "line": 167,
+      "line": 183,
       "match": "document.body"
     },
     {
       "file": "app/frontend/src/composables/__tests__/useModal.spec.ts",
-      "line": 168,
+      "line": 184,
       "match": "document.body"
     },
     {
       "file": "app/frontend/src/composables/__tests__/useModal.spec.ts",
-      "line": 174,
+      "line": 190,
       "match": "document.querySelector"
     },
     {
       "file": "app/frontend/src/composables/__tests__/useModal.spec.ts",
-      "line": 175,
+      "line": 191,
       "match": "document.querySelector"
     },
     {
       "file": "app/frontend/src/composables/__tests__/useModal.spec.ts",
-      "line": 181,
+      "line": 197,
       "match": "document.querySelector"
     },
     {
       "file": "app/frontend/src/composables/__tests__/useModal.spec.ts",
-      "line": 200,
+      "line": 216,
       "match": "document.createElement"
     },
     {
       "file": "app/frontend/src/composables/__tests__/useModal.spec.ts",
-      "line": 201,
+      "line": 217,
       "match": "document.body"
     },
     {
       "file": "app/frontend/src/composables/__tests__/useModal.spec.ts",
-      "line": 203,
+      "line": 219,
       "match": "document.body"
     },
     {
       "file": "app/frontend/src/composables/__tests__/useModal.spec.ts",
-      "line": 209,
+      "line": 225,
       "match": "document.body"
     },
     {
       "file": "app/frontend/src/composables/__tests__/useModal.spec.ts",
-      "line": 214,
+      "line": 230,
       "match": "document.body"
     },
     {
       "file": "app/frontend/src/composables/__tests__/useModal.spec.ts",
-      "line": 218,
+      "line": 234,
       "match": "document.body"
     },
     {
       "file": "app/frontend/src/composables/__tests__/useModal.spec.ts",
-      "line": 222,
+      "line": 238,
       "match": "document.createElement"
     },
     {
       "file": "app/frontend/src/composables/__tests__/useModal.spec.ts",
-      "line": 223,
+      "line": 239,
       "match": "document.body"
     },
     {
       "file": "app/frontend/src/composables/__tests__/useModal.spec.ts",
-      "line": 224,
+      "line": 240,
       "match": "document.body"
     },
     {
@@ -3390,7 +3443,17 @@
     },
     {
       "file": "app/frontend/src/composables/useModal.ts",
-      "line": 53,
+      "line": 52,
+      "match": "document.body"
+    },
+    {
+      "file": "app/frontend/src/composables/useModal.ts",
+      "line": 72,
+      "match": "document.body"
+    },
+    {
+      "file": "app/frontend/src/composables/useModal.ts",
+      "line": 73,
       "match": "document.body"
     },
     {
@@ -3405,12 +3468,12 @@
     },
     {
       "file": "app/frontend/src/composables/useModal.ts",
-      "line": 76,
+      "line": 77,
       "match": "document.body"
     },
     {
       "file": "app/frontend/src/composables/useModal.ts",
-      "line": 77,
+      "line": 78,
       "match": "document.body"
     },
     {
@@ -3425,32 +3488,7 @@
     },
     {
       "file": "app/frontend/src/composables/useModal.ts",
-      "line": 81,
-      "match": "document.body"
-    },
-    {
-      "file": "app/frontend/src/composables/useModal.ts",
-      "line": 82,
-      "match": "document.body"
-    },
-    {
-      "file": "app/frontend/src/composables/useModal.ts",
-      "line": 89,
-      "match": "document.body"
-    },
-    {
-      "file": "app/frontend/src/composables/useModal.ts",
-      "line": 90,
-      "match": "document.body"
-    },
-    {
-      "file": "app/frontend/src/composables/useModal.ts",
-      "line": 91,
-      "match": "document.body"
-    },
-    {
-      "file": "app/frontend/src/composables/useModal.ts",
-      "line": 92,
+      "line": 86,
       "match": "document.body"
     },
     {
@@ -3975,12 +4013,12 @@
     },
     {
       "file": "app/frontend/tests/fixtures/settings-parity.spec.ts",
-      "line": 167,
+      "line": 168,
       "match": "document.documentElement"
     },
     {
       "file": "app/frontend/tests/fixtures/settings-parity.spec.ts",
-      "line": 167,
+      "line": 168,
       "match": "document.documentElement"
     },
     {
@@ -4246,6 +4284,11 @@
       "match": "const policyTypes = ["
     },
     {
+      "file": "app/frontend/src/components/ToastContainer.vue",
+      "line": 33,
+      "match": "const toastIcons = {"
+    },
+    {
       "file": "app/frontend/src/components/ToastNotification.vue",
       "line": 47,
       "match": "const MAX_TOASTS = 5"
@@ -4321,6 +4364,11 @@
       "match": "const settings = {"
     },
     {
+      "file": "app/frontend/src/components/settings/__tests__/RecordingSettingsPanel.retention.spec.ts",
+      "line": 17,
+      "match": "const unchanged = {"
+    },
+    {
       "file": "app/frontend/src/components/settings/__tests__/SettingsContext.spec.ts",
       "line": 15,
       "match": "const channel = {"
@@ -4388,16 +4436,11 @@
     {
       "file": "app/frontend/src/composables/useModal.ts",
       "line": 30,
-      "match": "let lockCount = 0"
-    },
-    {
-      "file": "app/frontend/src/composables/useModal.ts",
-      "line": 31,
       "match": "let savedScrollY = 0"
     },
     {
       "file": "app/frontend/src/composables/useModal.ts",
-      "line": 43,
+      "line": 42,
       "match": "const isolated = new "
     },
     {
@@ -4939,12 +4982,12 @@
     },
     {
       "file": "app/frontend/src/composables/useModal.ts",
-      "line": 130,
+      "line": 123,
       "match": "addEventListener("
     },
     {
       "file": "app/frontend/src/composables/useModal.ts",
-      "line": 149,
+      "line": 142,
       "match": "removeEventListener("
     },
     {
@@ -5566,12 +5609,12 @@
     },
     {
       "file": "app/frontend/src/components/settings/RecordingSettingsPanel.vue",
-      "line": 412,
+      "line": 413,
       "match": ": any"
     },
     {
       "file": "app/frontend/src/components/settings/RecordingSettingsPanel.vue",
-      "line": 531,
+      "line": 533,
       "match": ": any"
     },
     {
@@ -6225,7 +6268,7 @@
     },
     {
       "file": "app/frontend/src/components/ToastContainer.vue",
-      "line": 23,
+      "line": 20,
       "match": "@click.stop="
     },
     {
@@ -7785,7 +7828,7 @@
     },
     {
       "file": "app/frontend/src/components/settings/RecordingSettingsPanel.vue",
-      "line": 678,
+      "line": 680,
       "match": "transition: all"
     },
     {
@@ -8474,12 +8517,12 @@
     },
     {
       "file": "app/frontend/src/components/ToastContainer.vue",
-      "line": 123,
+      "line": 117,
       "match": "width: 24px"
     },
     {
       "file": "app/frontend/src/components/ToastContainer.vue",
-      "line": 124,
+      "line": 118,
       "match": "height: 24px"
     },
     {
@@ -9159,12 +9202,12 @@
     },
     {
       "file": "app/frontend/src/components/settings/RecordingSettingsPanel.vue",
-      "line": 569,
+      "line": 571,
       "match": "width: 24px"
     },
     {
       "file": "app/frontend/src/components/settings/RecordingSettingsPanel.vue",
-      "line": 570,
+      "line": 572,
       "match": "height: 24px"
     },
     {
@@ -11634,7 +11677,7 @@
     "schemaVersion": 1,
     "generatedBy": "app/frontend/scripts/inventory-frontend.mjs",
     "sourceRoot": "app/frontend",
-    "frontendFiles": 356,
+    "frontendFiles": 357,
     "routes": 21,
     "navigationDestinations": 18,
     "apiCalls": 146,
@@ -11644,12 +11687,12 @@
     "forms": 7,
     "tables": 6,
     "destructiveActions": 69,
-    "states": 212,
+    "states": 213,
     "players": 14,
-    "pwa": 129,
+    "pwa": 130,
     "breakpoints": 94,
-    "directDomMutations": 285,
-    "moduleScopeMutableState": 108,
+    "directDomMutations": 292,
+    "moduleScopeMutableState": 109,
     "listenersAndTimers": 137,
     "anyTypes": 91,
     "nonsemanticActions": 18,

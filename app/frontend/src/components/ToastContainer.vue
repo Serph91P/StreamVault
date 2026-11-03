@@ -12,10 +12,7 @@
           @click="removeToast(toast.id)"
         >
           <div class="toast-icon" aria-hidden="true">
-            <span v-if="toast.type === 'success'">✓</span>
-            <span v-else-if="toast.type === 'error'">✕</span>
-            <span v-else-if="toast.type === 'warning'">⚠</span>
-            <span v-else-if="toast.type === 'info'">ℹ</span>
+            <span>{{ toastIcons[toast.type] }}</span>
           </div>
           <div class="toast-content">
             <p class="toast-message">{{ toast.message }}</p>
@@ -32,11 +29,8 @@
 <script setup lang="ts">
 import { useToast } from '@/composables/useToast'
 
-const { toasts, remove } = useToast()
-
-function removeToast(id: string) {
-  remove(id)
-}
+const { toasts, remove: removeToast } = useToast()
+const toastIcons = { success: '✓', error: '✕', warning: '⚠', info: 'ℹ' }
 </script>
 
 <style scoped lang="scss">

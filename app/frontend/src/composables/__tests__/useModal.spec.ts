@@ -70,6 +70,22 @@ describe('useModal', () => {
     second.unmount()
   })
 
+  it('restores the original lock styles without overwriting unrelated live styles', async () => {
+    document.body.style.cssText = 'overflow:auto;position:relative;top:3px;width:90%;color:blue'
+    const wrapper = mount(ModalHarness, { props: { name: 'styled' }, attachTo: document.body })
+    const vm = wrapper.vm as unknown as ModalHarnessVm
+    vm.open()
+    await flushFocus()
+    document.body.style.color = 'red'
+    vm.close()
+    expect(document.body.style.overflow).toBe('auto')
+    expect(document.body.style.position).toBe('relative')
+    expect(document.body.style.top).toBe('3px')
+    expect(document.body.style.width).toBe('90%')
+    expect(document.body.style.color).toBe('red')
+    wrapper.unmount()
+  })
+
   it('owns one document listener for the full overlay stack lifecycle', () => {
     const first = mount(ModalHarness, { props: { name: 'first' }, attachTo: document.body })
     const second = mount(ModalHarness, { props: { name: 'second' }, attachTo: document.body })

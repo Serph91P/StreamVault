@@ -63,7 +63,15 @@ The source inventory was regenerated after removing owned test/build outputs. Th
 
 No physical devices, installed PWA, live provider or manual screenreader acceptance is claimed. Browser names and final backend/DB effects are reported separately from synthetic HTTP fixtures. No merge, release, deployment or issue closure is performed by this worker.
 
-## Review correction B1: active separate backdrops
+## Final correction composition with develop 04f75376
+
+During B1 verification develop gained #1044/#946 (`04f753760e9ffe3cd216cf001933668801f9c3af`). GitHub's PR merge composition exposed four new retention unit cases still locating the old native `-codecs` ID. The branch normally forward-merged that published fix (`4c9d73ce`), reproduced the four local failures, and changed only that test's field addressing to the real `Erlaubte Codecs:` label/for relationship. All retention payload/store assertions remain unchanged; no second retention implementation.
+
+The composed MOCK build initially failed at **1,196,812 raw / 381,080 gzip**. Further cleanup is confined to the existing foundation: the original modal stack itself supplies the body-lock count, saved lock styles are restored with native `Object.assign` (without overwriting unrelated live styles), isolation metadata uses a named tuple, and the existing toast's four icon branches become an equivalent lookup with direct dismissal alias. Resource tags receive the same inert/aria-hidden save/restore as other background siblings; this does not disable CSS or script execution. No new helper, dependency, mock-data change or state/overlay platform remains. A tested local field-helper extraction made gzip worse and was discarded, not published.
+
+Final REAL is **1,193,304 / 380,024**, MOCK **1,196,421 / 380,980**, precache REAL81/MOCK80, with unchanged limits and **20 gzip bytes MOCK reserve**. Two clean MOCK builds are byte-identical. Final-source verification: **677 units / 4 existing skips**, **49 foundation**, types/lint (0 errors / 135 warnings)/tokens/generator, **34 REAL + 34 MOCK settings**, **19 REAL HTTP-fixture state/parity/pointer**, **22 channel/dialog**, **18 foundation + 12 B1 pointer/nested cases in actual Chromium/Firefox/WebKit**. Additional tests cover original body-style restoration, preservation of unrelated live style changes, all four unchanged toast icons/announcements/pointer dismissal, and existing autofocus/unmount/stack lifecycle behavior. Both original actual app/SQLite/media/restart/replay journeys pass again with zero API fulfills, page errors or failed business API responses. Fresh final-head CI/security and correction-review evidence are separate mandatory gates in the handoff. Earlier numbers below are historical, not this composition's acceptance.
+
+## Review correction B1: active separate backdrops (initial composition)
 
 The existing `useModal` owner now accepts an optional explicit sibling backdrop reference. AppShell notifications and BackgroundQueueMonitor register their actual backdrop; only the topmost entry's backdrop is exempt from inert background isolation. Lower panels/backdrops and the app remain isolated. Focus trapping still uses the dialog itself, and keyboard/body-lock/restore ownership stays unchanged. No CSS-class exemption or replacement stack was added.
 

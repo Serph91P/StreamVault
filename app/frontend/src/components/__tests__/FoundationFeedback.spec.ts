@@ -44,6 +44,22 @@ describe('foundation presentation contract', () => {
 describe('existing toast queue accessibility', () => {
   afterEach(() => { useToast().clear(); vi.useRealTimers(); document.body.innerHTML = '' })
 
+  it.each([
+    ['success', '✓', 'status'], ['error', '✕', 'alert'], ['warning', '⚠', 'status'], ['info', 'ℹ', 'status'],
+  ] as const)('preserves %s icon, announcement and pointer dismissal', async (type, icon, role) => {
+    vi.useFakeTimers()
+    const wrapper = mount(ToastContainer, { attachTo: document.body })
+    useToast().show('Bestehende Rückmeldung', type)
+    await nextTick()
+    const toast = document.querySelector<HTMLElement>('.toast')!
+    expect(toast.getAttribute('role')).toBe(role)
+    expect(toast.querySelector('.toast-icon')?.textContent).toBe(icon)
+    toast.click()
+    await nextTick()
+    expect(useToast().toasts.value).toHaveLength(0)
+    wrapper.unmount()
+  })
+
   it('announces status and urgent errors, and dismisses only the chosen toast with a named button', async () => {
     vi.useFakeTimers()
     const wrapper = mount(ToastContainer, { attachTo: document.body })
