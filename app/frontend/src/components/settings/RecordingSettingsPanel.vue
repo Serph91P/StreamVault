@@ -396,6 +396,7 @@ const data = ref<RecordingSettings>({
   filename_template: props.settings?.filename_template ?? '{streamer}/{streamer}_{year}{month}-{day}_{hour}-{minute}_{title}_{game}',
   filename_preset: props.settings?.filename_preset || detectPresetFromTemplate(props.settings?.filename_template ?? ''),
   default_quality: props.settings?.default_quality ?? 'best',
+  max_streams_per_streamer: props.settings?.max_streams_per_streamer,
   use_chapters: props.settings?.use_chapters ?? true,
   use_category_as_chapter_title: props.settings?.use_category_as_chapter_title ?? false,
   // Codec preferences (Migration 024) - H.265/AV1 Support
@@ -462,6 +463,7 @@ const saveSettings = async () => {
       filename_template: data.value.filename_template,
       filename_preset: data.value.filename_preset,
       default_quality: data.value.default_quality,
+      max_streams_per_streamer: data.value.max_streams_per_streamer,
       use_chapters: data.value.use_chapters,
       use_category_as_chapter_title: data.value.use_category_as_chapter_title,
       // Codec preferences (Migration 024)
