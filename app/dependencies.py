@@ -204,6 +204,9 @@ def _get_application_recording_manager(app: FastAPI):
                 connection_manager=app.state.websocket_manager,
                 queue_service=app.state.background_queue_service,
             )
+            orchestrator.process_manager.proxy_health_service = (
+                _get_application_proxy_health_service(app)
+            )
             app.state.recording_manager = RecordingManager(
                 service=RecordingService(orchestrator=orchestrator),
                 upstream_coordinator=orchestrator.process_manager.upstream_coordinator,

@@ -52,6 +52,7 @@ from app.services.twitch_upstream_coordinator import (
     twitch_upstream_coordinator,
 )
 from app.services.recording.config_manager import ConfigManager
+from app.services.recording.configuration_values import SegmentConfiguration
 from app.services.system.supervisor import TaskSupervisor
 
 logger = logging.getLogger("streamvault")
@@ -146,6 +147,14 @@ class ProcessManager:
         self.config_manager = config_manager
         self.post_processing_callback = post_processing_callback  # Injected dependency
         self.upstream_coordinator = upstream_coordinator or twitch_upstream_coordinator
+        self.proxy_health_service = None
+        if config_manager is not None and config_manager._session_factory is not None:
+            from app.services.proxy.proxy_health_service import ProxyHealthService
+
+            self.proxy_health_service = ProxyHealthService(
+                session_factory=config_manager._session_factory,
+                settings=config_manager._settings,
+            )
 
         # Configuration for long stream handling (avoid streamlink 24h cutoff)
         self.segment_duration_hours = (
@@ -592,6 +601,48 @@ class ProcessManager:
         )
         return segment_info
 
+    def _load_segment_configuration(
+        self, streamer_id: int, streamer_name: str | None
+    ) -> SegmentConfiguration:
+        from app.database import SessionLocal
+        from app.models import (
+            GlobalSettings,
+            RecordingSettings,
+            StreamerRecordingSettings,
+            Streamer,
+        )
+
+        factory = (
+            getattr(self.config_manager, "_session_factory", None)
+            if getattr(self, "config_manager", None) is not None
+            else None
+        )
+        with (factory or SessionLocal)() as db:
+            if not streamer_name:
+                row = db.query(Streamer).filter(Streamer.id == streamer_id).first()
+                streamer_name = row.username if row else None
+            policy = db.query(RecordingSettings).first()
+            global_settings = db.query(GlobalSettings).first()
+            channel = (
+                db.query(StreamerRecordingSettings)
+                .filter(StreamerRecordingSettings.streamer_id == streamer_id)
+                .first()
+            )
+            return SegmentConfiguration(
+                streamer_name,
+                bool(policy and policy.enable_proxy),
+                bool(policy and policy.fallback_to_direct_connection),
+                (
+                    (global_settings.http_proxy or "").strip()
+                    or (global_settings.https_proxy or "").strip()
+                )
+                if global_settings
+                else None,
+                channel.supported_codecs
+                if channel and channel.supported_codecs
+                else getattr(global_settings, "supported_codecs", None),
+            )
+
     async def _start_segment(
         self,
         stream: Stream,
@@ -606,25 +657,15 @@ class ProcessManager:
     ) -> Optional[asyncio.subprocess.Process]:
         """Start recording a single segment"""
         try:
-            # Get streamer info via relationship or database
-            streamer_name = None
-            if hasattr(stream, "streamer") and stream.streamer:
-                # Use preloaded relationship if available (better performance)
-                streamer_name = stream.streamer.username
-            else:
-                # Fallback to DB query if not preloaded
-                from app.database import SessionLocal
-                from app.models import Streamer
+            from app.utils.async_db_utils import run_in_thread_pool
 
-                with SessionLocal() as db:
-                    streamer = (
-                        db.query(Streamer)
-                        .filter(Streamer.id == stream.streamer_id)
-                        .first()
-                    )
-                    if not streamer:
-                        raise Exception(f"Streamer {stream.streamer_id} not found")
-                    streamer_name = streamer.username
+            preloaded = getattr(stream, "streamer", None)
+            config = await run_in_thread_pool(
+                self._load_segment_configuration,
+                stream.streamer_id,
+                preloaded.username if preloaded else None,
+            )
+            streamer_name = config.streamer_name
 
             if not streamer_name:
                 raise Exception(
@@ -636,131 +677,54 @@ class ProcessManager:
                 f"🔍 PROCESS_DEBUG: stream_id={stream.id}, stream.streamer_id={stream.streamer_id}, streamer_name={streamer_name}"
             )
 
-            # ===== MULTI-PROXY SYSTEM: Get best available proxy =====
-            # CRITICAL: This prevents recording failures when proxies go down
-            # Uses health checks and automatic failover to select best proxy
             proxy_settings = None
-            use_stored_proxy = False
-
-            from app.database import SessionLocal
-            from app.models import RecordingSettings
-
-            with SessionLocal() as db:
-                recording_settings = db.query(RecordingSettings).first()
-
-                # Check if proxy system is enabled
-                if (
-                    not _monitor_handoff
-                    and recording_settings
-                    and hasattr(recording_settings, "enable_proxy")
-                    and recording_settings.enable_proxy
-                ):
+            use_stored_proxy = not _monitor_handoff
+            if not _monitor_handoff and config.proxy_enabled:
+                service = getattr(self, "proxy_health_service", None)
+                if service is None:
                     from app.services.proxy.proxy_health_service import (
                         proxy_health_service,
                     )
 
-                    # Get best available proxy from health service
-                    best_proxy_url = await proxy_health_service.get_best_proxy()
+                    service = proxy_health_service
+                best_proxy_url = await service.get_best_proxy()
+                if best_proxy_url:
+                    proxy_settings = {"http": best_proxy_url, "https": best_proxy_url}
+                    from app.utils.security import sanitize_proxy_url_for_logging
 
-                    if best_proxy_url:
-                        # Use selected proxy
-                        proxy_settings = {
-                            "http": best_proxy_url,
-                            "https": best_proxy_url,
-                        }
-                        # SECURITY: Sanitize proxy URL to hide credentials - CWE-532
-                        from app.utils.security import sanitize_proxy_url_for_logging
-
-                        logger.info(
-                            f"✅ Using proxy for recording: {sanitize_proxy_url_for_logging(best_proxy_url)}"
-                        )
-                    else:
-                        # No healthy proxies available
-                        fallback_enabled = (
-                            hasattr(recording_settings, "fallback_to_direct_connection")
-                            and recording_settings.fallback_to_direct_connection
-                        )
-
-                        if fallback_enabled:
-                            logger.warning(
-                                "⚠️ No healthy proxies available - using direct connection (fallback enabled)"
-                            )
-                            proxy_settings = None  # Direct connection
-                        else:
-                            error_msg = f"Cannot start recording for {streamer_name}: No healthy proxies available and fallback disabled"
-                            logger.error(f"🔴 {error_msg}")
-                            raise ProcessError(
-                                "No healthy proxies available. Please check proxy settings or enable fallback to direct connection."
-                            )
-                else:
                     logger.info(
-                        "ℹ️ Proxy system disabled - checking stored proxy settings"
+                        "Using proxy for recording: %s",
+                        sanitize_proxy_url_for_logging(best_proxy_url),
                     )
-                    use_stored_proxy = not _monitor_handoff
-
-            # Get codec preferences (H.265/AV1 support - Streamlink 8.0.0+)
-            # Priority: Streamer-specific > Global default
-            supported_codecs = None
+                elif not config.fallback_to_direct:
+                    raise ProcessError(
+                        "No healthy proxies available. Please check proxy settings or enable fallback to direct connection."
+                    )
+                use_stored_proxy = False
+            if use_stored_proxy and config.stored_proxy:
+                proxy_settings = {"http": config.stored_proxy}
+            supported_codecs = config.supported_codecs
             oauth_token = None
-
-            from app.models import GlobalSettings, StreamerRecordingSettings
+            from app.database import SessionLocal
             from app.services.system.twitch_token_service import TwitchTokenService
 
-            with SessionLocal() as db:
-                if not segment_info.get("auth_fallback_to_anonymous"):
-                    try:
-                        if token_resolution is _UNRESOLVED_RECORDING_TOKEN:
-                            token_service = TwitchTokenService(db)
-                            token_resolution = (
-                                await token_service.resolve_recording_token()
-                            )
-                        oauth_token = getattr(token_resolution, "token", None)
-                        if oauth_token:
-                            logger.info(
-                                "Using live-validated Twitch authentication for %s",
-                                streamer_name,
-                            )
-                        else:
-                            logger.info(
-                                "Using anonymous H.264 recording for %s",
-                                streamer_name,
-                            )
-                    except Exception as e:
-                        logger.warning(
-                            "Failed to resolve Twitch authentication (%s)",
-                            type(e).__name__,
-                        )
-                        oauth_token = None
-
-                global_settings = db.query(GlobalSettings).first()
-                if use_stored_proxy and global_settings:
-                    stored_proxy = (global_settings.http_proxy or "").strip() or (
-                        global_settings.https_proxy or ""
-                    ).strip()
-                    if stored_proxy:
-                        proxy_settings = {"http": stored_proxy}
-
-                # === STEP 2: Get codec preferences ===
-                # Try to get per-streamer codec preference first
-                streamer_settings = (
-                    db.query(StreamerRecordingSettings)
-                    .filter(StreamerRecordingSettings.streamer_id == stream.streamer_id)
-                    .first()
-                )
-
-                if streamer_settings and streamer_settings.supported_codecs:
-                    # Per-streamer override
-                    supported_codecs = streamer_settings.supported_codecs
+            if not segment_info.get("auth_fallback_to_anonymous"):
+                try:
+                    if token_resolution is _UNRESOLVED_RECORDING_TOKEN:
+                        with SessionLocal() as db:
+                            token_resolution = await TwitchTokenService(
+                                db
+                            ).resolve_recording_token()
+                    oauth_token = getattr(token_resolution, "token", None)
                     logger.info(
-                        f"🎨 Using per-streamer codec preference for {streamer_name}: {supported_codecs}"
+                        "Using %s Twitch authentication for %s",
+                        "live-validated" if oauth_token else "anonymous H.264",
+                        streamer_name,
                     )
-                else:
-                    # Fallback to global default
-                    if global_settings and hasattr(global_settings, "supported_codecs"):
-                        supported_codecs = global_settings.supported_codecs
-                        logger.debug(
-                            f"🎨 Using global codec preference: {supported_codecs}"
-                        )
+                except Exception as e:
+                    logger.warning(
+                        "Failed to resolve Twitch authentication (%s)", type(e).__name__
+                    )
 
             if _proxy_settings is not _UNRESOLVED_RECORDING_TOKEN:
                 proxy_settings = _proxy_settings

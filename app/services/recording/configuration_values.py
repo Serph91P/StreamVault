@@ -5,6 +5,15 @@ from app.models import RecordingSettings, StreamerRecordingSettings
 
 
 @dataclass(frozen=True)
+class SegmentConfiguration:
+    streamer_name: str | None
+    proxy_enabled: bool
+    fallback_to_direct: bool
+    stored_proxy: str | None
+    supported_codecs: str | None
+
+
+@dataclass(frozen=True)
 class RecordingConfiguration:
     id: int
     enabled: bool | None

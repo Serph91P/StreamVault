@@ -153,12 +153,12 @@ def install_immediate_exit_start(
 
     original_create_task = asyncio.create_task
 
-    def create_task(coroutine):
+    def create_task(coroutine, **kwargs):
         if coroutine.cr_code.co_name == "_monitor_long_stream":
             monitor_coroutines.append(coroutine)
             coroutine.close()
             return SimpleNamespace()
-        return original_create_task(coroutine)
+        return original_create_task(coroutine, **kwargs)
 
     monkeypatch.setattr("app.database.SessionLocal", FakeSession)
     monkeypatch.setattr(
