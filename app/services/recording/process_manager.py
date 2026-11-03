@@ -153,6 +153,7 @@ class ProcessManager:
         self.proxy_health_service = None
         self.twitch_token_service: TwitchTokenService | None = None
         self._owns_twitch_token_service = False
+        self.streamlink_config_directory: Path | None = None
         if config_manager is not None and config_manager._session_factory is not None:
             from app.services.proxy.proxy_health_service import ProxyHealthService
 
@@ -776,6 +777,7 @@ class ProcessManager:
                 supported_codecs=supported_codecs,  # Per-streamer codec preference (overrides global)
                 oauth_token=oauth_token,  # Auto-refreshed OAuth token (overrides config)
                 anonymous=anonymous,
+                config_directory=getattr(self, "streamlink_config_directory", None),
             )
 
             logger.info(
@@ -1030,6 +1032,9 @@ class ProcessManager:
                         supported_codecs=supported_codecs,
                         oauth_token=None,
                         anonymous=True,
+                        config_directory=getattr(
+                            self, "streamlink_config_directory", None
+                        ),
                     )
                     continue
 

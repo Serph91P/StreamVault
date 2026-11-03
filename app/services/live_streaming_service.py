@@ -155,6 +155,7 @@ class LiveStreamingService:
         settings: Settings | None = None,
         token_service: TwitchTokenService | None = None,
         proxy_service: ProxyHealthService | None = None,
+        config_path: str = "/app/config/streamlink/config.twitch",
     ):
         self.sessions: Dict[str, LiveStreamSession] = {}
         self.user_sessions: Dict[str, Set[str]] = {}  # user_id -> set of session_ids
@@ -173,6 +174,7 @@ class LiveStreamingService:
         self._token_service = token_service
         self._owns_token_service = False
         self._proxy_service = proxy_service
+        self._config_path = config_path
 
     async def start(self):
         """Start the background cleanup task"""
@@ -997,7 +999,7 @@ class LiveStreamingService:
         cmd = [
             "streamlink",
             "--config",
-            "/app/config/streamlink/config.twitch",
+            self._config_path,
             f"twitch.tv/{streamer_name}",
             quality,
             "--stdout",  # Output to stdout instead of file

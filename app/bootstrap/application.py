@@ -106,6 +106,10 @@ def _configure_app(
     application.state.twitch_api_lock = Lock()
     application.state.twitch_token_service = None
     application.state.twitch_token_service_lock = Lock()
+    application.state.live_streaming_service = None
+    application.state.live_streaming_service_lock = Lock()
+    application.state.streamlink_config_service = None
+    application.state.streamlink_config_service_lock = Lock()
     application.state.unified_recovery_service = None
     application.state.unified_recovery_lock = Lock()
     application.state.notification_service = None

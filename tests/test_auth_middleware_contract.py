@@ -20,6 +20,7 @@ from app.models import ApiKey, RefreshToken, Session, User
 from app.services.core.auth_service import AuthService
 from app.services.core.api_key_service import ApiKeyService
 from app.dependencies import (
+    get_application_session_factory,
     get_auth_service,
     get_current_user,
     get_db,
@@ -97,6 +98,8 @@ def auth_stack(monkeypatch):
     )
 
     app = FastAPI(openapi_url="/api/openapi.json")
+    app.state.settings = settings
+    app.dependency_overrides[get_application_session_factory] = lambda: SessionFactory
     app.include_router(auth_routes.router, prefix="/auth")
     app.include_router(api_key_routes.router)
     app.include_router(video_routes.router)

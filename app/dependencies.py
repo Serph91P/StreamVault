@@ -51,6 +51,14 @@ class AuthIdentity:
     interactive: bool
 
 
+@dataclass(frozen=True)
+class AuthenticatedUser:
+    id: int
+    username: str
+    is_admin: bool
+    is_active: bool
+
+
 def get_db(request: Request) -> Generator[Session, None, None]:
     lifecycle = getattr(request.app.state, "database_lifecycle", database_lifecycle)
     db = (
@@ -73,7 +81,12 @@ async def get_async_db(request: Request) -> AsyncIterator[AsyncSession]:
 def get_application_session_factory(
     connection: HTTPConnection,
 ) -> Callable[[], Session]:
-    return connection.app.state.database_lifecycle.sync_session_factory
+    lifecycle = getattr(connection.app.state, "database_lifecycle", database_lifecycle)
+    return (
+        SessionLocal
+        if lifecycle is database_lifecycle
+        else lifecycle.sync_session_factory
+    )
 
 
 def get_auth_service(request: Request, db: Session = Depends(get_db)) -> AuthService:
@@ -86,35 +99,38 @@ def _bearer(request: Request) -> str | None:
 
 
 def get_current_identity(
-    request: Request, service: AuthService = Depends(get_auth_service)
+    request: Request,
+    session_factory: Callable[[], Session] = Depends(get_application_session_factory),
 ) -> AuthIdentity:
     cached = getattr(request.state, "auth_identity", None)
     if cached:
         return cached
-    token = request.cookies.get("access_token") or _bearer(request)
-    if token:
-        try:
-            _user, claims = service.resolve_access_token(token)
-            return AuthIdentity(
-                subject=claims["sub"],
-                roles=frozenset(claims.get("roles", [])),
-                scopes=frozenset(claims.get("scp", [])),
-                auth_method="jwt",
-                interactive=True,
-            )
-        except AuthTokenError:
-            pass
-    legacy = request.cookies.get("session") or _bearer(request)
-    if legacy:
-        user = service.resolve_legacy_session(legacy)
-        if user:
-            return AuthIdentity(
-                str(user.id),
-                frozenset({"admin"}) if user.is_admin else frozenset(),
-                service._user_scopes(user),
-                "legacy-session",
-                True,
-            )
+    with session_factory() as db:
+        service = AuthService(db=db, settings=resolve_app_settings(request.app))
+        token = request.cookies.get("access_token") or _bearer(request)
+        if token:
+            try:
+                _user, claims = service.resolve_access_token(token)
+                return AuthIdentity(
+                    subject=claims["sub"],
+                    roles=frozenset(claims.get("roles", [])),
+                    scopes=frozenset(claims.get("scp", [])),
+                    auth_method="jwt",
+                    interactive=True,
+                )
+            except AuthTokenError:
+                pass
+        legacy = request.cookies.get("session") or _bearer(request)
+        if legacy:
+            user = service.resolve_legacy_session(legacy)
+            if user:
+                return AuthIdentity(
+                    str(user.id),
+                    frozenset({"admin"}) if user.is_admin else frozenset(),
+                    service._user_scopes(user),
+                    "legacy-session",
+                    True,
+                )
     raise HTTPException(status_code=401, detail="Authentication required")
 
 
@@ -141,14 +157,17 @@ def require_interactive_identity(
 
 def get_current_user(
     identity: AuthIdentity = Depends(get_current_identity),
-    db: Session = Depends(get_db),
-):
+    session_factory: Callable[[], Session] = Depends(get_application_session_factory),
+) -> AuthenticatedUser:
     from app.models import User
 
-    user = db.query(User).filter_by(id=int(identity.subject), is_active=True).first()
-    if not user:
-        raise HTTPException(status_code=403, detail="Access denied")
-    return user
+    with session_factory() as db:
+        user = (
+            db.query(User).filter_by(id=int(identity.subject), is_active=True).first()
+        )
+        if not user:
+            raise HTTPException(status_code=403, detail="Access denied")
+        return AuthenticatedUser(user.id, user.username, user.is_admin, user.is_active)
 
 
 def require_admin_user(
@@ -210,6 +229,9 @@ def _get_application_recording_manager(app: FastAPI):
             orchestrator.process_manager.twitch_token_service = (
                 _get_application_twitch_token_service(app)
             )
+            orchestrator.process_manager.streamlink_config_directory = (
+                _get_application_streamlink_config_service(app).config_dir
+            )
             app.state.recording_manager = RecordingManager(
                 service=RecordingService(orchestrator=orchestrator),
                 upstream_coordinator=orchestrator.process_manager.upstream_coordinator,
@@ -255,6 +277,54 @@ def _get_application_twitch_token_service(app: FastAPI):
 
 def get_application_twitch_token_service(connection: HTTPConnection):
     return _get_application_twitch_token_service(connection.app)
+
+
+def _get_application_live_streaming_service(app: FastAPI):
+    from app.services.live_streaming_service import LiveStreamingService
+
+    with app.state.live_streaming_service_lock:
+        if app.state.live_streaming_service is None:
+            manager = (
+                get_recording_manager()
+                if getattr(app.state, "legacy_default", False)
+                else _get_application_recording_manager(app)
+            )
+            app.state.live_streaming_service = LiveStreamingService(
+                coordinator=manager._upstream_coordinator,
+                session_factory=app.state.database_lifecycle.sync_session_factory,
+                settings=resolve_app_settings(app),
+                token_service=_get_application_twitch_token_service(app),
+                proxy_service=_get_application_proxy_health_service(app),
+                config_path=str(
+                    _get_application_streamlink_config_service(app).twitch_config_path
+                ),
+            )
+        return app.state.live_streaming_service
+
+
+def _get_application_streamlink_config_service(app: FastAPI):
+    from pathlib import Path
+    from app.services.system.streamlink_config_service import StreamlinkConfigService
+
+    with app.state.streamlink_config_service_lock:
+        if app.state.streamlink_config_service is None:
+            app.state.streamlink_config_service = StreamlinkConfigService(
+                config_dir=Path(resolve_app_settings(app).BASE_DIR)
+                / "config"
+                / "streamlink",
+                session_factory=app.state.database_lifecycle.sync_session_factory,
+            )
+        return app.state.streamlink_config_service
+
+
+def get_streamlink_config_service(connection: HTTPConnection):
+    if not hasattr(connection.app.state, "streamlink_config_service_lock"):
+        from app.services.system.streamlink_config_service import (
+            streamlink_config_service,
+        )
+
+        return streamlink_config_service
+    return _get_application_streamlink_config_service(connection.app)
 
 
 def _get_application_recovery_service(app: FastAPI):

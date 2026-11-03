@@ -17,6 +17,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app import database
+from app.dependencies import get_application_session_factory
 from app.models import (
     GlobalSettings,
     RecordingSettings,
@@ -51,6 +52,7 @@ def codec_api(monkeypatch, tmp_path):
         TwitchTokenService, "get_valid_access_token", AsyncMock(return_value=None)
     )
     app = FastAPI()
+    app.dependency_overrides[get_application_session_factory] = lambda: sessions
     app.include_router(recording.router)
     with TestClient(app) as client:
         yield SimpleNamespace(

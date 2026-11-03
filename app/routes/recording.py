@@ -15,7 +15,14 @@ from app.schemas.recording import (
     ActiveRecordingSchema,
 )
 from app.schemas.recording import CleanupPolicySchema, StorageUsageSchema
-from app.dependencies import get_recording_manager
+from app.dependencies import (
+    get_recording_manager,
+    get_application_session_factory,
+    get_streamlink_config_service,
+)
+from app.services.system.streamlink_config_service import StreamlinkConfigService
+from app.utils.async_db_utils import run_in_thread_pool
+from collections.abc import Callable
 from app.services.recording.config_manager import (
     FILENAME_PRESETS,
 )  # Import FILENAME_PRESETS from config_manager
@@ -41,9 +48,11 @@ def get_recording_service():
 
 
 @router.get("/settings", response_model=RecordingSettingsSchema)
-async def get_recording_settings():
-    try:
-        with SessionLocal() as db:
+async def get_recording_settings(
+    session_factory: Callable[[], Session] = Depends(get_application_session_factory),
+):
+    def read() -> RecordingSettingsSchema:
+        with session_factory() as db:
             settings = db.query(RecordingSettings).first()
             global_settings = db.query(GlobalSettings).first()
             if not global_settings:
@@ -96,15 +105,22 @@ async def get_recording_settings():
             )
 
             return response
+
+    try:
+        return await run_in_thread_pool(read)
     except Exception as e:
         logger.error(f"Error fetching recording settings: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/settings", response_model=RecordingSettingsSchema)
-async def update_recording_settings(settings_data: RecordingSettingsSchema):
-    try:
-        with SessionLocal() as db:
+async def update_recording_settings(
+    settings_data: RecordingSettingsSchema,
+    session_factory: Callable[[], Session] = Depends(get_application_session_factory),
+    config_service: StreamlinkConfigService = Depends(get_streamlink_config_service),
+):
+    def store() -> tuple[RecordingSettingsSchema, bool]:
+        with session_factory() as db:
             # Get existing settings
             existing_settings = db.query(RecordingSettings).first()
 
@@ -168,22 +184,6 @@ async def update_recording_settings(settings_data: RecordingSettingsSchema):
             db.refresh(existing_settings)
             db.refresh(global_settings)
 
-            # Like /api/settings, regenerate only after the global row is committed.
-            if codec_changed:
-                try:
-                    from app.services.system.streamlink_config_service import (
-                        streamlink_config_service,
-                    )
-
-                    if not await streamlink_config_service.regenerate_config():
-                        logger.warning(
-                            "Failed to update Streamlink config after codec change"
-                        )
-                except Exception as config_error:
-                    logger.error(
-                        f"Error regenerating Streamlink config: {config_error}"
-                    )
-
             # Parse cleanup policy back to object for response
             cleanup_policy = None
             if existing_settings.cleanup_policy:
@@ -198,7 +198,7 @@ async def update_recording_settings(settings_data: RecordingSettingsSchema):
                     logger.warning(f"Error parsing cleanup policy for response: {e}")
 
             # Create response with properly parsed cleanup policy
-            return RecordingSettingsSchema(
+            response = RecordingSettingsSchema(
                 enabled=existing_settings.enabled,
                 output_directory=existing_settings.output_directory,
                 filename_template=existing_settings.filename_template,
@@ -216,6 +216,22 @@ async def update_recording_settings(settings_data: RecordingSettingsSchema):
                 ),
                 cleanup_policy=cleanup_policy,
             )
+            return response, codec_changed
+
+    try:
+        response, codec_changed = await run_in_thread_pool(store)
+        if codec_changed:
+            try:
+                if not await config_service.regenerate_config():
+                    logger.warning(
+                        "Failed to update Streamlink config after codec change"
+                    )
+            except Exception as config_error:
+                logger.error(
+                    "Error regenerating Streamlink config (%s)",
+                    type(config_error).__name__,
+                )
+        return response
     except Exception as e:
         logger.error(f"Error updating recording settings: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal server error")

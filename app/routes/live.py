@@ -12,6 +12,7 @@ Endpoints:
 """
 
 import logging
+from collections.abc import Callable
 from typing import Optional
 from urllib.parse import quote
 
@@ -24,17 +25,32 @@ from fastapi import (
 from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
+from starlette.requests import HTTPConnection
 
-from app.database import get_db
-from app.dependencies import get_current_user
-from app.models import Streamer, User
-from app.services.live_streaming_service import live_streaming_service
+from app.dependencies import (
+    get_current_user,
+    _get_application_live_streaming_service,
+    get_application_session_factory,
+    AuthenticatedUser,
+)
+from app.models import Streamer
+from app.services.live_streaming_service import (
+    LiveStreamingService,
+    live_streaming_service,
+)
 from app.services.live_streaming_service import TwitchUpstreamStopForbidden
 from app.services.twitch_upstream_coordinator import TwitchUpstreamConflict
+from app.utils.async_db_utils import run_in_thread_pool
 
 logger = logging.getLogger("streamvault")
 
 router = APIRouter(prefix="/api/live", tags=["live"])
+
+
+def get_live_streaming_service(connection: HTTPConnection):
+    if not hasattr(connection.app.state, "live_streaming_service_lock"):
+        return live_streaming_service
+    return _get_application_live_streaming_service(connection.app)
 
 
 def _append_playback_token_to_playlist(playlist: str, token: str) -> str:
@@ -66,8 +82,9 @@ async def start_live_stream(
     streamer_name: str,
     request: Request,
     quality: str = "best",
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    session_factory: Callable[[], Session] = Depends(get_application_session_factory),
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    service: LiveStreamingService = Depends(get_live_streaming_service),
 ):
     """
     Start a live streaming session for a streamer.
@@ -93,27 +110,34 @@ async def start_live_stream(
         supported_codecs = body.supported_codecs or "h264"
 
         normalized_name = streamer_name.strip().casefold()
-        streamer = next(
-            (
-                candidate
-                for candidate in db.query(Streamer).all()
-                if candidate.username.strip().casefold() == normalized_name
-            ),
-            None,
-        )
+
+        def load_streamer() -> tuple[str, str | None] | None:
+            with session_factory() as db:
+                streamer = next(
+                    (
+                        candidate
+                        for candidate in db.query(Streamer).all()
+                        if candidate.username.strip().casefold() == normalized_name
+                    ),
+                    None,
+                )
+                return (streamer.username, streamer.twitch_id) if streamer else None
+
+        streamer = await run_in_thread_pool(load_streamer)
         if not streamer:
             raise HTTPException(
                 status_code=404, detail=f"Streamer '{streamer_name}' not found"
             )
+        username, channel_key = streamer
 
         # Start the streaming service if not already running
-        await live_streaming_service.start()
+        await service.start()
 
         # Start stream
         user_id = str(current_user.id) if current_user else None
-        start_result = await live_streaming_service.start_stream(
-            streamer_name=streamer.username,
-            channel_key=streamer.twitch_id,
+        start_result = await service.start_stream(
+            streamer_name=username,
+            channel_key=channel_key,
             quality=requested_quality,
             supported_codecs=supported_codecs,
             user_id=user_id,
@@ -121,7 +145,7 @@ async def start_live_stream(
         )
         session_id = start_result.session_id
 
-        session = live_streaming_service.get_session(session_id)
+        session = service.get_session(session_id)
         if not session:
             raise HTTPException(
                 status_code=500, detail="Stream session not found after start"
@@ -133,17 +157,15 @@ async def start_live_stream(
         )
 
         logger.info(
-            f"[LIVE] Stream started by user {user_id}: {session_id} ({streamer.username})"
+            f"[LIVE] Stream started by user {user_id}: {session_id} ({username})"
         )
 
         return {
             "success": True,
             "session_id": session_id,
-            "streamer_name": streamer.username,
+            "streamer_name": username,
             "quality": requested_quality,
-            "supported_codecs": live_streaming_service._normalize_supported_codecs(
-                supported_codecs
-            ),
+            "supported_codecs": service._normalize_supported_codecs(supported_codecs),
             "playlist_url": playlist_url,
             "idempotent": start_result.idempotent,
         }
@@ -163,7 +185,8 @@ async def start_live_stream(
 @router.delete("/stop/{session_id}")
 async def stop_live_stream(
     session_id: str,
-    current_user: User = Depends(get_current_user),
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    service: LiveStreamingService = Depends(get_live_streaming_service),
 ):
     """
     Stop a live streaming session.
@@ -176,16 +199,14 @@ async def stop_live_stream(
     """
     try:
         # Verify ownership (optional - can skip for simplicity)
-        session = live_streaming_service.get_session(session_id)
+        session = service.get_session(session_id)
         if not session:
             raise HTTPException(
                 status_code=404, detail="Session not found or already stopped"
             )
 
         user_id = str(current_user.id) if current_user else None
-        success = await live_streaming_service.stop_stream(
-            session_id, requesting_user_id=user_id
-        )
+        success = await service.stop_stream(session_id, requesting_user_id=user_id)
 
         if success:
             return {
@@ -211,28 +232,35 @@ async def stop_live_stream(
 
 
 @router.get("/status/{session_id}")
-async def get_stream_status(session_id: str):
+async def get_stream_status(
+    session_id: str,
+    service: LiveStreamingService = Depends(get_live_streaming_service),
+):
     """
     Get the status of a live streaming session.
 
     Returns:
         {"session_id": str, "streamer_name": str, "is_active": bool, ...}
     """
-    status = live_streaming_service.get_session_status(session_id)
+    status = service.get_session_status(session_id)
     if not status:
         raise HTTPException(status_code=404, detail="Session not found")
     return status
 
 
 @router.get("/stream/{session_id}/playlist.m3u8")
-async def get_hls_playlist(session_id: str, token: Optional[str] = None):
+async def get_hls_playlist(
+    session_id: str,
+    token: Optional[str] = None,
+    service: LiveStreamingService = Depends(get_live_streaming_service),
+):
     """
     Serve the HLS playlist (.m3u8) for a live stream.
 
     This is the entry point for the video player.
     """
     try:
-        session = live_streaming_service.get_session(session_id)
+        session = service.get_session(session_id)
         if not session:
             raise HTTPException(status_code=404, detail="Stream session not found")
         if not session.validate_playback_token(token):
@@ -241,12 +269,12 @@ async def get_hls_playlist(session_id: str, token: Optional[str] = None):
         playlist_path = session.playlist_path
 
         # Wait a moment for playlist to be created
-        if not playlist_path.exists():
+        if not await run_in_thread_pool(playlist_path.exists):
             import asyncio
 
             await asyncio.sleep(0.5)
 
-        if not playlist_path.exists():
+        if not await run_in_thread_pool(playlist_path.exists):
             raise HTTPException(
                 status_code=503, detail="Stream not ready yet, retry shortly"
             )
@@ -254,7 +282,7 @@ async def get_hls_playlist(session_id: str, token: Optional[str] = None):
         # Update access time
         session.touch()
 
-        playlist = playlist_path.read_text(encoding="utf-8")
+        playlist = await run_in_thread_pool(playlist_path.read_text, encoding="utf-8")
         playlist = _append_playback_token_to_playlist(playlist, session.playback_token)
 
         # Serve with appropriate HLS headers
@@ -276,7 +304,10 @@ async def get_hls_playlist(session_id: str, token: Optional[str] = None):
 
 @router.get("/stream/{session_id}/{segment_name}")
 async def get_hls_segment(
-    session_id: str, segment_name: str, token: Optional[str] = None
+    session_id: str,
+    segment_name: str,
+    token: Optional[str] = None,
+    service: LiveStreamingService = Depends(get_live_streaming_service),
 ):
     """
     Serve an HLS segment (.ts file) for a live stream.
@@ -286,7 +317,7 @@ async def get_hls_segment(
         segment_name: Segment filename (e.g., segment_000.ts)
     """
     try:
-        session = live_streaming_service.get_session(session_id)
+        session = service.get_session(session_id)
         if not session:
             raise HTTPException(status_code=404, detail="Stream session not found")
         if not session.validate_playback_token(token):
@@ -294,7 +325,7 @@ async def get_hls_segment(
 
         segment_path = session.output_dir / segment_name
 
-        if not segment_path.exists():
+        if not await run_in_thread_pool(segment_path.exists):
             raise HTTPException(status_code=404, detail="Segment not found")
 
         # Update access time
@@ -317,7 +348,10 @@ async def get_hls_segment(
 
 
 @router.get("/active")
-async def get_active_streams(current_user: User = Depends(get_current_user)):
+async def get_active_streams(
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    service: LiveStreamingService = Depends(get_live_streaming_service),
+):
     """
     Get all active live streams for the current user.
 
@@ -328,7 +362,7 @@ async def get_active_streams(current_user: User = Depends(get_current_user)):
         user_id = str(current_user.id) if current_user else None
         streams = []
 
-        for session_id, session in live_streaming_service.sessions.items():
+        for session_id, session in service.sessions.items():
             if session.user_id == user_id or user_id is None:
                 streams.append(
                     {

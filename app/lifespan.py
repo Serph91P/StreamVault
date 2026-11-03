@@ -364,9 +364,13 @@ async def lifespan(app: FastAPI):
                 "eventsub", lambda: _stop_event_registry(event_registry)
             )
 
-        from app.services.live_streaming_service import live_streaming_service
+        live_actor = getattr(app.state, "live_streaming_service", None)
+        if live_actor is None and legacy_context:
+            from app.services.live_streaming_service import live_streaming_service
 
-        await _shutdown_step("live-streaming", live_streaming_service.stop)
+            live_actor = live_streaming_service
+        if live_actor is not None:
+            await _shutdown_step("live-streaming", live_actor.stop)
         if recording_manager is not None:
             await _shutdown_step(
                 "recording-manager",
