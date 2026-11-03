@@ -10,6 +10,7 @@ import logging
 from app.models import PushSubscription, GlobalSettings, NotificationSettings
 from app.database import SessionLocal
 from app.services.communication.enhanced_push_service import enhanced_push_service
+from app.services.communication.webpush_service import WebPushException
 
 logger = logging.getLogger("streamvault")
 
@@ -99,8 +100,6 @@ class PushNotificationService:
                 logger.info(
                     f"🔔 PUSH_SUBSCRIPTIONS_FOUND: count={len(active_subscriptions)}"
                 )
-                for sub in active_subscriptions:
-                    logger.debug(f"🔔 SUBSCRIPTION_ENDPOINT: {sub.endpoint[:50]}...")
 
                 if not active_subscriptions:
                     logger.warning(
@@ -139,9 +138,6 @@ class PushNotificationService:
                 for subscription in active_subscriptions:
                     try:
                         subscription_data = json.loads(subscription.subscription_data)
-                        logger.debug(
-                            f"🔔 SENDING_PUSH_TO_SUBSCRIPTION: endpoint={subscription_data.get('endpoint', 'unknown')[:50]}..."
-                        )
 
                         success = False
                         if event_type == "online":
@@ -199,30 +195,31 @@ class PushNotificationService:
                         if success:
                             successful_sends += 1
                             logger.debug(
-                                f"🔔 PUSH_SUCCESS: endpoint={subscription_data.get('endpoint', 'unknown')[:50]}..."
+                                "🔔 PUSH_SUCCESS: subscription_id=%s", subscription.id
                             )
                         else:
                             failed_sends += 1
                             logger.warning(
-                                f"🔔 PUSH_FAILED: endpoint={subscription_data.get('endpoint', 'unknown')[:50]}..."
+                                "🔔 PUSH_FAILED: subscription_id=%s", subscription.id
                             )
 
-                    except Exception as sub_error:
+                    except WebPushException as sub_error:
                         failed_sends += 1
-                        logger.error(
-                            f"🔔 PUSH_EXCEPTION: {subscription.endpoint[:50]}: {sub_error}"
-                        )
-
-                        # If subscription is invalid, deactivate it
                         if (
-                            "410" in str(sub_error)
-                            or "expired" in str(sub_error).lower()
+                            sub_error.response is not None
+                            and sub_error.response.status == 410
                         ):
                             subscription.is_active = False
                             db.commit()
                             logger.info(
-                                f"Deactivated expired push subscription: {subscription.endpoint[:50]}"
+                                "Deactivated expired push subscription: id=%s",
+                                subscription.id,
                             )
+                    except Exception:
+                        failed_sends += 1
+                        logger.warning(
+                            "🔔 PUSH_EXCEPTION: subscription_id=%s", subscription.id
+                        )
 
                 logger.info(
                     f"🔔 PUSH_NOTIFICATION_SUMMARY: event={event_type}, successful={successful_sends}, failed={failed_sends}, total={len(active_subscriptions)}"

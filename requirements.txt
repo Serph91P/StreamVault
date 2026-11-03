@@ -56,6 +56,7 @@ click==8.5.0
     #   uvicorn
 cryptography==50.0.1
     # via
+    #   http-ece
     #   py-vapid
     #   streamvault
 fastapi==0.141.1
@@ -73,6 +74,8 @@ h11==0.16.0
     #   httpcore
     #   uvicorn
     #   wsproto
+http-ece==1.2.1
+    # via streamvault
 httpcore==1.0.9
     # via httpx
 httptools==0.8.0
