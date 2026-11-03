@@ -31,10 +31,16 @@ from datetime import datetime
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Dict, Optional, Set
+from collections.abc import Callable
+from sqlalchemy.orm import Session
+from app.config.settings import Settings
 
 from app.database import SessionLocal
 from app.models import GlobalSettings
-from app.services.proxy.proxy_health_service import proxy_health_service
+from app.services.proxy.proxy_health_service import (
+    ProxyHealthService,
+    proxy_health_service,
+)
 from app.services.system.twitch_token_service import TwitchTokenService
 from app.services.system.supervisor import TaskSupervisor
 from app.services.twitch_upstream_coordinator import (
@@ -139,7 +145,17 @@ class LiveStreamingService:
     # Playlist window size (number of segments)
     HLS_LIST_SIZE = 10
 
-    def __init__(self, coordinator=None, output_root=None, supervisor=None):
+    def __init__(
+        self,
+        coordinator=None,
+        output_root=None,
+        supervisor=None,
+        *,
+        session_factory: Callable[[], Session] | None = None,
+        settings: Settings | None = None,
+        token_service: TwitchTokenService | None = None,
+        proxy_service: ProxyHealthService | None = None,
+    ):
         self.sessions: Dict[str, LiveStreamSession] = {}
         self.user_sessions: Dict[str, Set[str]] = {}  # user_id -> set of session_ids
         self._cleanup_task: Optional[asyncio.Task] = None
@@ -148,8 +164,15 @@ class LiveStreamingService:
         self._output_root: Path | None = Path(output_root) if output_root else None
         self._temporary_output: TemporaryDirectory[str] | None = None
         self._pending_starts: Dict[tuple, asyncio.Future] = {}
-        self._streamlink_output_secrets = {}
+        self._streamlink_output_secrets: dict[
+            asyncio.subprocess.Process, tuple[str, ...]
+        ] = {}
         self._supervisor = supervisor or TaskSupervisor("live-streaming")
+        self._session_factory = session_factory
+        self._settings = settings
+        self._token_service = token_service
+        self._owns_token_service = False
+        self._proxy_service = proxy_service
 
     async def start(self):
         """Start the background cleanup task"""
@@ -177,6 +200,9 @@ class LiveStreamingService:
                 )
 
         await self._supervisor.shutdown()
+        if self._owns_token_service and self._token_service is not None:
+            await self._token_service.close()
+            self._token_service = None
         async with self._lock:
             await run_in_thread_pool(self._cleanup_output_root)
 
@@ -980,35 +1006,50 @@ class LiveStreamingService:
             f"--twitch-supported-codecs={normalized_codecs}",
         ]
 
-        with SessionLocal() as db:
-            if enhanced_quality:
-                token_service = TwitchTokenService(db)
-                oauth_token = await token_service.get_valid_access_token()
-                if oauth_token:
-                    token_header = f"Authorization=OAuth {oauth_token.strip()}"
-                    cmd.append(f"--twitch-api-header={token_header}")
-                    logger.debug("[LIVE] Using OAuth token for enhanced stream")
-
-            # Prefer a healthy pool proxy, then use stored settings for this child.
-            proxy_url = None
-            try:
-                proxy_url = await proxy_health_service.get_best_proxy()
-            except Exception:
-                logger.warning("[LIVE] Could not get proxy")
-
-            if not proxy_url:
-                global_settings = db.query(GlobalSettings).first()
-                if global_settings:
-                    proxy_url = (global_settings.http_proxy or "").strip() or (
-                        global_settings.https_proxy or ""
-                    ).strip()
-
-            if proxy_url:
-                cmd = _add_proxy_settings(cmd, {"http": proxy_url}, force_mode=False)
-                logger.debug(
-                    "[LIVE] Using proxy: %s",
-                    sanitize_proxy_url_for_logging(proxy_url),
+        if enhanced_quality:
+            if self._token_service is None:
+                async with self._lock:
+                    if self._token_service is None:
+                        self._token_service = await run_in_thread_pool(
+                            TwitchTokenService,
+                            session_factory=self._session_factory,
+                            settings=self._settings,
+                        )
+                        self._owns_token_service = True
+            oauth_token = await self._token_service.get_valid_access_token()
+            if oauth_token:
+                cmd.append(
+                    f"--twitch-api-header=Authorization=OAuth {oauth_token.strip()}"
                 )
+                logger.debug("[LIVE] Using OAuth token for enhanced stream")
+
+        # Never keep a database transaction across proxy-provider HTTP.
+        proxy_url = None
+        try:
+            proxy_url = await (
+                self._proxy_service or proxy_health_service
+            ).get_best_proxy()
+        except Exception:
+            logger.warning("[LIVE] Could not get proxy")
+        if not proxy_url:
+
+            def load_proxy() -> str | None:
+                with (self._session_factory or SessionLocal)() as db:
+                    row = db.query(GlobalSettings).first()
+                    if row is None:
+                        return None
+                    return (
+                        (row.http_proxy or "").strip()
+                        or (row.https_proxy or "").strip()
+                        or None
+                    )
+
+            proxy_url = await run_in_thread_pool(load_proxy)
+        if proxy_url:
+            cmd = _add_proxy_settings(cmd, {"http": proxy_url}, force_mode=False)
+            logger.debug(
+                "[LIVE] Using proxy: %s", sanitize_proxy_url_for_logging(proxy_url)
+            )
 
         return cmd
 
