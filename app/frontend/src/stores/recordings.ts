@@ -296,10 +296,11 @@ export const useRecordingStore = defineStore('recordings', () => {
       isLoading.value = true
       error.value = null
       await saveStreamerCleanupPolicy(streamerId, policy, useGlobal)
-      await fetchStreamerSettings()
+      streamerSettings.value = await fetchStreamerRecordingSettings()
       return true
     } catch (err) {
       console.error('Error updating streamer cleanup policy:', err)
+      setError(err)
       return false
     } finally {
       isLoading.value = false
