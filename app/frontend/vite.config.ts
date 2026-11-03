@@ -158,10 +158,10 @@ export default defineConfig({
           if (id.includes('node_modules/vue/') || id.includes('node_modules/vue-router/')) {
             return 'vue-vendor'
           }
-          // These runtime modules and shared primitives are already loaded
-          // together. Avoid tiny independently compressed chunks per consumer.
-          if (/\/src\/(router\/index|services\/(api|api-real|session|storage|realtime|recording-status)|composables\/(useWebSocket|useTheme|useToast|useForceRecording)|stores\/(notifications|realtime|backgroundQueue))\.ts$/.test(id)
-            || /\/src\/components\/(base\/|LoadingSkeleton\.vue)/.test(id)) {
+          // The app shell, runtime and shared primitives already load together.
+          // Keep common feedback here without eagerly pulling in settings.
+          if (/\/src\/(main|router\/index|services\/(api|api-real|session|storage|realtime|recording-status)|composables\/(useWebSocket|useTheme|useToast|useForceRecording)|stores\/(notifications|realtime|backgroundQueue))\.ts$/.test(id)
+            || /\/src\/components\/(base\/|(?:LoadingSkeleton|EmptyState)\.vue)/.test(id)) {
             return 'app-shared'
           }
           // Recording and notification controls share the same channel data;
@@ -173,7 +173,7 @@ export default defineConfig({
         }
       }
     },
-    // Default minification is esbuild, which is faster for development
+    // Use Vite's default production minifier.
     minify: true,
     // Force empty output directory to prevent build errors
     emptyOutDir: true,

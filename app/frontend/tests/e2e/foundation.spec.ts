@@ -100,6 +100,36 @@ test('reduced motion disables pulsing status animation', async ({ page }) => {
   expect(animation).toBe('none')
 })
 
+test('shared feedback covers owner states, guidance and nested overlay isolation', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 844 })
+  await openHarness(page)
+  for (const state of ['unknown', 'loading', 'confirmed-empty', 'filter-empty', 'fresh', 'stale', 'offline', 'forbidden', 'error', 'pending', 'confirmed-success', 'partial', 'failure']) {
+    await page.getByLabel('Ressourcen- oder Aktionszustand').selectOption(state)
+    await expect(page.locator('.feedback-preview [data-state]')).toHaveAttribute('data-state', state)
+    await expect(page.locator('.feedback-preview h2')).not.toBeEmpty()
+  }
+  await page.getByRole('button', { name: 'error', exact: true }).click()
+  const field = page.getByLabel('Archive name', { exact: true })
+  await field.fill('Kanal mit einem sehr langen Namen '.repeat(8))
+  await expect(field).toHaveAccessibleDescription(/Visible in your library.*Choose another archive name/)
+  await page.getByRole('button', { name: 'Open dialog' }).click()
+  await page.getByRole('button', { name: 'Verschachtelte Filter öffnen' }).click()
+  const nested = page.getByRole('dialog', { name: 'Recording filters' })
+  await expect(nested).toBeVisible()
+  await expect(page.getByRole('dialog', { name: 'Confirm recording' })).toHaveCount(0)
+  await expect(nested.locator('button').first()).toBeFocused()
+  await page.keyboard.press('Shift+Tab')
+  await expect(nested.locator('button').last()).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect(nested).toBeHidden()
+  await expect(page.getByRole('button', { name: 'Verschachtelte Filter öffnen' })).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('button', { name: 'Open dialog' })).toBeFocused()
+  await page.emulateMedia({ forcedColors: 'active', reducedMotion: 'reduce' })
+  await assertNoOverflow(page)
+  await assertTouchTargets(page)
+})
+
 test('negative browser fixtures fail the intended blocking gates', async ({ page }) => {
   await openHarness(page, '?broken=touch')
   await expectGateFailure(() => assertTouchTargets(page), /undersized targets/)

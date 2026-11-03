@@ -9,7 +9,6 @@
             <BackgroundQueueMonitor />
 
             <button
-              ref="notificationBellRef"
               type="button"
               class="header-utility-btn"
               :class="{ 'has-badge': unreadCount > 0 }"
@@ -43,7 +42,7 @@
 
     <Teleport to="body">
       <Transition name="fade">
-        <div v-if="showNotifications" class="glass-popup-backdrop" aria-hidden="true" @click="closeNotificationPanel()"></div>
+        <div v-if="showNotifications" ref="backdrop" class="glass-popup-backdrop" aria-hidden="true" @click="closeNotificationPanel()"></div>
       </Transition>
       <Transition name="slide-up">
         <div
@@ -222,13 +221,13 @@ const canReconnectNow = computed(() => {
     connectivityStatus.value === 'disconnected'
   )
 })
-const notificationBellRef = ref<HTMLElement | null>(null)
 const notificationPanelRef = ref<HTMLElement | null>(null)
+const backdrop = ref<HTMLElement | null>(null)
 const {
   isOpen: showNotifications,
   open: openNotificationPanel,
   close: closeNotificationPanel,
-} = useModal(notificationPanelRef)
+} = useModal(notificationPanelRef, { backdrop })
 
 async function logout() {
   if (confirm('Are you sure you want to logout?')) {

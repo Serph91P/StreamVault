@@ -42,7 +42,8 @@ describe('codec-only saves preserve authoritative retention', () => {
       })
       try {
         if (delayed) await wrapper.setProps({ settings: loaded })
-        await wrapper.get('select[id$="-codecs"]').setValue('h265')
+        const codecLabel = wrapper.findAll('label').find(label => label.text() === 'Erlaubte Codecs:')!
+        await wrapper.get(`select[id="${codecLabel.attributes('for')}"]`).setValue('h265')
         await wrapper.get('.form-actions button').trigger('click')
         await flushPromises()
         expect(wrapper.emitted('update')?.[0]?.[0]).toMatchObject({ max_streams_per_streamer: limit })

@@ -2,7 +2,7 @@ import { defineConfig } from '@playwright/test'
 import { fileURLToPath } from 'node:url'
 
 export default defineConfig({
-  testDir: '.', testMatch: 'settings-parity.spec.ts', workers: 1,
+  testDir: '.', testMatch: ['settings-parity.spec.ts', 'ux-foundation.spec.ts'], workers: 1,
   timeout: 60_000, expect: { timeout: 10_000 }, reporter: 'list',
   outputDir: '../../test-results/settings-parity',
   metadata: { evidence: 'Real production frontend, synthetic stateful HTTP fixtures; not live backend or Twitch evidence' },
