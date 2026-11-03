@@ -52,6 +52,7 @@
     "status": { "success": "{foundation.color.green-700}", "warning": "{foundation.color.amber-700}", "danger": "{foundation.color.red-700}", "info": "{foundation.color.blue-700}" }
   },
   "component": {
+    "feedback": { "background": "{semanticDark.surface.panel}", "foreground": "{semanticDark.text.primary}", "border": "{semanticDark.border.default}", "gap": "{foundation.space.3}", "padding": "{foundation.space.4}" },
     "button": { "height": "{foundation.size.target}", "height-primary": "{foundation.size.target-primary}", "background": "{semanticDark.action.primary}", "background-hover": "{semanticDark.action.primary-hover}", "background-active": "{semanticDark.action.primary-active}", "foreground": "{semanticDark.text.inverse}", "focus": "{semanticDark.action.focus}", "disabled-background": "{semanticDark.surface.disabled}", "disabled-foreground": "{semanticDark.text.disabled}" },
     "field": { "background": "{semanticDark.surface.panel}", "border": "{semanticDark.border.default}", "border-hover": "{semanticDark.border.strong}", "border-focus": "{semanticDark.action.focus}", "error": "{semanticDark.status.danger}" },
     "panel": { "background": "{semanticDark.surface.panel}", "border": "{semanticDark.border.default}", "selected": "{semanticDark.surface.selected}" },

@@ -66,176 +66,157 @@ export const mockStreamers = [
   }
 ]
 
-export const mockVideos = [
+export const mockVideos = /* @__PURE__ */ [
   {
     id: 1,
     streamer_id: 1,
-    streamer_name: 'streamer_alpha',
     title: 'Morning Talk Show - Community Discussion',
     category_name: 'Just Chatting',
     duration: 2340, // 39 minutes in seconds
     file_size: 1024 * 1024 * 450, // 450 MB
     recorded_at: '2025-11-20T10:14:00Z',
-    thumbnail_url: null,
-    file_path: '/recordings/streamer_alpha/Season 2025-11/streamer_alpha - S202511E02 - Morning_Talk_Show.ts',
+    file_path: 'streamer_alpha - S202511E02 - Morning_Talk_Show.ts',
     viewer_count: 1200,
     has_chapters: true
   },
   {
     id: 2,
     streamer_id: 2,
-    streamer_name: 'speedrunner_pro',
     title: 'Ranked Climbing Session - Road to Masters',
     category_name: 'Competitive Gaming',
     duration: 7200, // 2 hours
     file_size: 1024 * 1024 * 1200, // 1.2 GB
     recorded_at: '2025-11-19T18:30:00Z',
-    thumbnail_url: null,
-    file_path: '/recordings/speedrunner_pro/Season 2025-11/speedrunner_pro - S202511E15 - Ranked_Climbing.ts',
+    file_path: 'speedrunner_pro - S202511E15 - Ranked_Climbing.ts',
     viewer_count: 5500,
     has_chapters: true
   },
   {
     id: 3,
     streamer_id: 3,
-    streamer_name: 'retro_gamer',
     title: 'Retro RPG Marathon - Classic Gaming Session',
     category_name: 'Retro',
     duration: 10800, // 3 hours
     file_size: 1024 * 1024 * 1800, // 1.8 GB
     recorded_at: '2025-11-18T20:00:00Z',
-    thumbnail_url: null,
-    file_path: '/recordings/herrmaximal/Season 2025-11/herrmaximal - S202511E08 - Retro_RPG_Marathon.ts',
+    file_path: 'herrmaximal - S202511E08 - Retro_RPG_Marathon.ts',
     viewer_count: 890,
     has_chapters: false
   },
   {
     id: 4,
     streamer_id: 1,
-    streamer_name: 'streamer_alpha',
     title: 'Morning Chill Stream - Coffee and Chat',
     category_name: 'Just Chatting',
     duration: 4200, // 70 minutes
     file_size: 1024 * 1024 * 680, // 680 MB
     recorded_at: '2025-11-17T08:00:00Z',
-    thumbnail_url: null,
-    file_path: '/recordings/streamer_alpha/Season 2025-11/streamer_alpha - S202511E01 - Morning_Chill_Stream.ts',
+    file_path: 'streamer_alpha - S202511E01 - Morning_Chill_Stream.ts',
     viewer_count: 450,
     has_chapters: true
   },
   {
     id: 5,
     streamer_id: 2,
-    streamer_name: 'speedrunner_pro',
     title: 'Speedrun Practice - Sub 30 Minute Attempts',
     category_name: 'Speedrunning',
     duration: 5400, // 90 minutes
     file_size: 1024 * 1024 * 900, // 900 MB
     recorded_at: '2025-11-16T14:30:00Z',
-    thumbnail_url: null,
-    file_path: '/recordings/speedrunner_pro/Season 2025-11/speedrunner_pro - S202511E12 - Speedrun_Practice.ts',
+    file_path: 'speedrunner_pro - S202511E12 - Speedrun_Practice.ts',
     viewer_count: 2300,
     has_chapters: false
   },
   {
     id: 6,
     streamer_id: 4,
-    streamer_name: 'casual_streamer',
     title: 'Late Night Variety Stream - Viewer Games',
     category_name: 'Variety',
     duration: 6300, // 105 minutes
     file_size: 1024 * 1024 * 1050, // 1.05 GB
     recorded_at: '2025-11-15T22:00:00Z',
-    thumbnail_url: null,
-    file_path: '/recordings/casual_streamer/Season 2025-11/casual_streamer - S202511E03 - Late_Night_Variety.ts',
+    file_path: 'casual_streamer - S202511E03 - Late_Night_Variety.ts',
     viewer_count: 780,
     has_chapters: true
   },
   {
     id: 7,
     streamer_id: 3,
-    streamer_name: 'retro_gamer',
     title: 'Indie Game Showcase - Hidden Gems',
     category_name: 'Indie Games',
     duration: 8100, // 135 minutes
     file_size: 1024 * 1024 * 1350, // 1.35 GB
     recorded_at: '2025-11-14T19:00:00Z',
-    thumbnail_url: null,
-    file_path: '/recordings/retro_gamer/Season 2025-11/retro_gamer - S202511E06 - Indie_Game_Showcase.ts',
+    file_path: 'retro_gamer - S202511E06 - Indie_Game_Showcase.ts',
     viewer_count: 1100,
     has_chapters: false
   },
   {
     id: 8,
     streamer_id: 1,
-    streamer_name: 'streamer_alpha',
     title: 'Weekend Collab Stream - Special Guest',
     category_name: 'Just Chatting',
     duration: 9000, // 150 minutes
     file_size: 1024 * 1024 * 1500, // 1.5 GB
     recorded_at: '2025-11-13T16:00:00Z',
-    thumbnail_url: null,
-    file_path: '/recordings/streamer_alpha/Season 2025-11/streamer_alpha - S202511E00 - Weekend_Collab.ts',
+    file_path: 'streamer_alpha - S202511E00 - Weekend_Collab.ts',
     viewer_count: 3400,
     has_chapters: true
   },
   {
     id: 9,
     streamer_id: 2,
-    streamer_name: 'speedrunner_pro',
     title: 'Ranked Grind - Competitive Gaming',
     category_name: 'Competitive',
     duration: 7800, // 130 minutes
     file_size: 1024 * 1024 * 1300, // 1.3 GB
     recorded_at: '2025-11-12T20:30:00Z',
-    thumbnail_url: null,
-    file_path: '/recordings/speedrunner_pro/Season 2025-11/speedrunner_pro - S202511E10 - Ranked_Grind.ts',
+    file_path: 'speedrunner_pro - S202511E10 - Ranked_Grind.ts',
     viewer_count: 4200,
     has_chapters: true
   },
   {
     id: 10,
     streamer_id: 4,
-    streamer_name: 'casual_streamer',
     title: 'Community Game Night - Jackbox Party',
     category_name: 'Party Games',
     duration: 5700, // 95 minutes
     file_size: 1024 * 1024 * 950, // 950 MB
     recorded_at: '2025-11-11T21:00:00Z',
-    thumbnail_url: null,
-    file_path: '/recordings/casual_streamer/Season 2025-11/casual_streamer - S202511E02 - Community_Game_Night.ts',
+    file_path: 'casual_streamer - S202511E02 - Community_Game_Night.ts',
     viewer_count: 620,
     has_chapters: false
   },
   {
     id: 11,
     streamer_id: 3,
-    streamer_name: 'retro_gamer',
     title: 'Story Mode Playthrough - Epic Adventure',
     category_name: 'Story Games',
     duration: 10200, // 170 minutes
     file_size: 1024 * 1024 * 1700, // 1.7 GB
     recorded_at: '2025-11-10T17:30:00Z',
-    thumbnail_url: null,
-    file_path: '/recordings/retro_gamer/Season 2025-11/retro_gamer - S202511E05 - Story_Mode_Playthrough.ts',
+    file_path: 'retro_gamer - S202511E05 - Story_Mode_Playthrough.ts',
     viewer_count: 1500,
     has_chapters: true
   },
   {
     id: 12,
     streamer_id: 1,
-    streamer_name: 'streamer_alpha',
     title: 'Q&A Stream - Answering Your Questions',
     category_name: 'Just Chatting',
     duration: 3600, // 60 minutes
     file_size: 1024 * 1024 * 600, // 600 MB
     recorded_at: '2025-11-09T15:00:00Z',
-    thumbnail_url: null,
-    file_path: '/recordings/streamer_alpha/Season 2025-11/streamer_alpha - S202511E99 - QA_Stream.ts',
+    file_path: 'streamer_alpha - S202511E99 - QA_Stream.ts',
     viewer_count: 890,
     has_chapters: false
   }
-]
+].map(video => ({
+  ...video,
+  streamer_name: mockStreamers.find(streamer => streamer.id === video.streamer_id)!.username,
+  thumbnail_url: null,
+  file_path: `/recordings/${video.file_path.split(' - ')[0]}/Season 2025-11/${video.file_path}`,
+}))
 
 export const mockActiveRecordings = [
   {

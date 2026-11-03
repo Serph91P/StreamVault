@@ -55,9 +55,9 @@ const describedBy = computed(() => {
   const ids: string[] = []
   const externalDescribedBy = attrs['aria-describedby']
   if (typeof externalDescribedBy === 'string') ids.push(externalDescribedBy)
+  if (props.hint) ids.push(hintId.value)
   if (props.error) ids.push(errorId.value)
   else if (props.success) ids.push(successId.value)
-  else if (props.hint) ids.push(hintId.value)
   return ids.length ? ids.join(' ') : undefined
 })
 
@@ -96,9 +96,9 @@ function onChange(ev: Event) {
       </template>
       <slot v-else />
     </select>
-    <small v-if="error" :id="errorId" class="form-error">{{ error }}</small>
+    <small v-if="hint" :id="hintId" class="form-hint">{{ hint }}</small>
+    <small v-if="error" :id="errorId" class="form-error" role="alert">{{ error }}</small>
     <small v-else-if="success" :id="successId" class="form-success">{{ success }}</small>
-    <small v-else-if="hint" :id="hintId" class="form-hint">{{ hint }}</small>
   </div>
 </template>
 

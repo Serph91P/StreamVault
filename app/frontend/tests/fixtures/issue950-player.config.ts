@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url'
 
 export default defineConfig({
   testDir: '.',
-  testMatch: 'issue950-player.spec.ts',
+  testMatch: ['issue950-player.spec.ts', 'player-controls-rendering.spec.ts'],
   timeout: 30_000,
   expect: { timeout: 5_000 },
   workers: 1,

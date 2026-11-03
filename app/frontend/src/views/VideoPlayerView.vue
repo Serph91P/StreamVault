@@ -31,7 +31,7 @@
           <div class="player-header">
             <button @click="goBack" class="back-button" aria-label="Back to previous page" v-ripple>
               <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M19 12H5M12 19l-7-7 7-7" />
+                <use href="../assets/player-controls.svg?no-inline#back" />
               </svg>
               Back
             </button>
@@ -142,11 +142,7 @@
               </button>
               <button class="action-btn" @click="shareVideo" :disabled="!actionsReady || isSharing" v-ripple>
                 <svg class="action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <circle cx="18" cy="5" r="3"/>
-                  <circle cx="6" cy="12" r="3"/>
-                  <circle cx="18" cy="19" r="3"/>
-                  <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
-                  <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+                  <use href="../assets/player-controls.svg?no-inline#share" />
                 </svg>
                 {{ isSharing ? 'Generating...' : 'Share' }}
               </button>
@@ -163,8 +159,7 @@
                 <input type="text" :value="shareUrl" readonly class="share-url-input" ref="shareUrlInput" />
                 <button class="copy-btn" @click="copyShareUrl" v-ripple>
                   <svg class="copy-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
-                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                    <use href="../assets/player-controls.svg?no-inline#copy" />
                   </svg>
                   {{ copied ? 'Copied!' : 'Copy' }}
                 </button>

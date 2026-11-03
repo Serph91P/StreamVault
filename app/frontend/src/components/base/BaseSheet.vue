@@ -76,7 +76,7 @@ watch(
             </slot>
             <div class="base-sheet-actions">
               <slot name="actions" />
-              <button type="button" class="base-sheet-close" aria-label="Close" @click="close">
+              <button type="button" class="base-sheet-close" aria-label="Dialog schließen" @click="close">
                 ×
               </button>
             </div>

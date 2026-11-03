@@ -3,6 +3,7 @@
 
 import router from '@/router'
 import { appStorage } from '@/services/storage'
+import { loginLocationFor } from '@/services/session'
 import type {
   BestProxyResponse,
   ProxyAddRequest,
@@ -153,7 +154,11 @@ export class ApiClient {
     appStorage.clearSessionToken()
     appStorage.clearSessionStorage()
     authLossError = new ApiRequestError('Session expired - redirecting to login', 'auth_lost', 401)
-    router.push('/auth/login').finally(() => {
+    const { pathname, search, hash } = window.location
+    const returnTo = pathname === '/auth/login'
+      ? new URLSearchParams(search).get('returnTo')
+      : pathname + search + hash
+    router.push(loginLocationFor(returnTo)).finally(() => {
       authLossError = null
     })
     return authLossError
