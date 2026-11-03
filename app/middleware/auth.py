@@ -8,6 +8,11 @@ from sqlalchemy.orm import Session
 import logging
 from urllib.parse import urlsplit
 from collections.abc import Callable
+from typing import Literal, TYPE_CHECKING
+from app.utils.async_db_utils import run_in_thread_pool
+
+if TYPE_CHECKING:
+    from app.dependencies import AuthIdentity
 
 logger = logging.getLogger("streamvault")
 
@@ -160,6 +165,73 @@ class AuthMiddleware:
             return AuthService(db=db)
         return AuthService(db=db, settings=self._settings_provider())
 
+    def _authorize_websocket(
+        self, access_token: str | None, session_token: str | None
+    ) -> bool:
+        db = self._open_session()
+        try:
+            service = self._auth_service(db)
+            return _is_valid_access_token(service, access_token) or bool(
+                session_token
+                and service.resolve_legacy_session(session_token) is not None
+            )
+        finally:
+            db.close()
+
+    def _authorize_http(
+        self,
+        path: str,
+        access_token: str | None,
+        session_token: str | None,
+        api_key: str | None,
+    ) -> tuple[Literal["allow", "setup", "login", "admin"], "AuthIdentity | None"]:
+        db = self._open_session()
+        try:
+            service = self._auth_service(db)
+            if not service.admin_exists_sync():
+                return "setup", None
+            if not access_token and not session_token and api_key:
+                if path.startswith("/api/api-keys"):
+                    logger.warning(
+                        "Blocked API-key auth attempt on management endpoint %s", path
+                    )
+                else:
+                    resolved = ApiKeyService(db=db).resolve_active_owner(api_key)
+                    if resolved:
+                        from app.dependencies import AuthIdentity
+
+                        owner = resolved.owner
+                        identity = AuthIdentity(
+                            subject=str(owner.id),
+                            roles=frozenset({"admin"})
+                            if owner.is_admin
+                            else frozenset({"user"}),
+                            scopes=service._user_scopes(owner),
+                            auth_method="api-key",
+                            interactive=False,
+                        )
+                        if _is_admin_path(path) and not (
+                            "admin" in identity.roles and "admin" in identity.scopes
+                        ):
+                            return "admin", identity
+                        logger.debug(
+                            "Authenticated API key id=%s for %s",
+                            resolved.record.id,
+                            path,
+                        )
+                        return "allow", identity
+                    logger.warning("Rejected invalid API key for %s", path)
+            if not access_token and not session_token:
+                return "login", None
+            if not _is_valid_access_token(service, access_token) and not (
+                session_token
+                and service.resolve_legacy_session(session_token) is not None
+            ):
+                return "login", None
+            return "allow", None
+        finally:
+            db.close()
+
     async def __call__(self, scope, receive, send):
         if scope["type"] not in ("http", "websocket"):
             return await self.app(scope, receive, send)
@@ -184,25 +256,22 @@ class AuthMiddleware:
                 await ws.accept()
                 await ws.close(code=4001, reason="Authentication required")
                 return
-            db = self._open_session()
             try:
-                auth_service = self._auth_service(db)
-                if not _is_valid_access_token(auth_service, access_token) and not (
-                    session_token and await auth_service.validate_session(session_token)
-                ):
+                valid = await run_in_thread_pool(
+                    self._authorize_websocket, access_token, session_token
+                )
+                if not valid:
                     logger.warning(
                         "WebSocket connection rejected: invalid authentication"
                     )
                     await ws.accept()
                     await ws.close(code=4001, reason="Invalid session")
                     return
-            except Exception as e:
-                logger.error(f"WebSocket auth error: {e}")
+            except Exception as error:
+                logger.error("WebSocket auth error (%s)", type(error).__name__)
                 await ws.accept()
                 await ws.close(code=4003, reason="Authentication service unavailable")
                 return
-            finally:
-                db.close()
             return await self.app(scope, receive, send)
 
         # Process HTTP requests
@@ -226,119 +295,49 @@ class AuthMiddleware:
         if _is_public_path(request.url.path):
             return await self.app(scope, receive, send)
 
-        # Create per-request services
-        db = self._open_session()
+        bearer_token = _extract_bearer_token(scope.get("headers", []))
+        access_token = request.cookies.get("access_token") or bearer_token
+        session_token = request.cookies.get("session") or bearer_token
         try:
-            auth_service = self._auth_service(db)
-
-            admin_exists = await auth_service.admin_exists()
-
-            if not admin_exists:
-                if not request.url.path.startswith("/auth/setup"):
-                    if is_json_request:
-                        return await JSONResponse(
-                            {"error": "Setup required", "redirect": "/auth/setup"},
-                            status_code=307,
-                        )(scope, receive, send)
-                    return await RedirectResponse(url="/auth/setup", status_code=307)(
-                        scope, receive, send
-                    )
-
-            bearer_token = _extract_bearer_token(scope.get("headers", []))
-            access_token = request.cookies.get("access_token") or bearer_token
-            # Keep the same JWT-first, legacy-session fallback as dependencies.
-            session_token = request.cookies.get("session") or bearer_token
-
-            # API-key fallback (X-API-Key or "Authorization: ApiKey ***").
-            # Sessions/cookies always take precedence. The /api/api-keys
-            # management endpoints intentionally REJECT API-key auth because those
-            # routes re-validate that an interactive session exists, so a
-            # stolen key cannot be used to mint or revoke more keys.
-            if not access_token and not session_token:
-                api_key = _extract_api_key(request)
-                if api_key:
-                    # SECURITY: Never allow API-key auth on the management
-                    # endpoints. Minting/revoking keys must require an
-                    # interactive session.
-                    if request.url.path.startswith("/api/api-keys"):
-                        logger.warning(
-                            f"Blocked API-key auth attempt on management endpoint {request.url.path}"
-                        )
-                    else:
-                        api_key_service = ApiKeyService(db=db)
-                        resolved = api_key_service.resolve_active_owner(api_key)
-                        if resolved:
-                            from app.dependencies import AuthIdentity
-
-                            owner = resolved.owner
-                            identity = AuthIdentity(
-                                subject=str(owner.id),
-                                roles=frozenset({"admin"})
-                                if owner.is_admin
-                                else frozenset({"user"}),
-                                scopes=auth_service._user_scopes(owner),
-                                auth_method="api-key",
-                                interactive=False,
-                            )
-                            scope.setdefault("state", {})["auth_identity"] = identity
-                            if _is_admin_path(request.url.path) and not (
-                                "admin" in identity.roles and "admin" in identity.scopes
-                            ):
-                                return await JSONResponse(
-                                    {"error": "Admin access required"}, status_code=403
-                                )(scope, receive, send)
-                            logger.debug(
-                                f"Authenticated API key id={resolved.record.id} for {request.url.path}"
-                            )
-                            return await self.app(scope, receive, send)
-                        else:
-                            logger.warning(
-                                f"Rejected invalid API key for {request.url.path}"
-                            )
-
-            if not access_token and not session_token:
-                logger.debug(
-                    f"No session cookie or Bearer token for {request.url.path}"
+            decision, identity = await run_in_thread_pool(
+                self._authorize_http,
+                request.url.path,
+                access_token,
+                session_token,
+                _extract_api_key(request),
+            )
+            if identity is not None:
+                scope.setdefault("state", {})["auth_identity"] = identity
+            if decision == "setup":
+                if is_json_request:
+                    return await JSONResponse(
+                        {"error": "Setup required", "redirect": "/auth/setup"},
+                        status_code=307,
+                    )(scope, receive, send)
+                return await RedirectResponse(url="/auth/setup", status_code=307)(
+                    scope, receive, send
                 )
-                if not request.url.path.startswith("/auth/login"):
-                    if is_json_request:
-                        return await JSONResponse(
-                            {
-                                "error": "Authentication required",
-                                "redirect": "/auth/login",
-                            },
-                            status_code=401,
-                        )(scope, receive, send)
-                    return await RedirectResponse(url="/auth/login", status_code=307)(
-                        scope, receive, send
-                    )
-            elif not _is_valid_access_token(auth_service, access_token) and not (
-                session_token and await auth_service.validate_session(session_token)
-            ):
-                logger.debug(f"Invalid authentication for {request.url.path}")
-                if not request.url.path.startswith("/auth/login"):
-                    if is_json_request:
-                        return await JSONResponse(
-                            {
-                                "error": "Authentication required",
-                                "redirect": "/auth/login",
-                            },
-                            status_code=401,
-                        )(scope, receive, send)
-                    return await RedirectResponse(url="/auth/login", status_code=307)(
-                        scope, receive, send
-                    )
-
-            return await self.app(scope, receive, send)
-        except Exception as e:
-            logger.error(f"Auth middleware error for {request.url.path}: {e}")
-            # SECURITY: Fail closed when auth cannot be verified (CWE-280)
-            if is_json_request:
+            if decision == "admin":
                 return await JSONResponse(
-                    {"error": "Authentication service unavailable"}, status_code=503
+                    {"error": "Admin access required"}, status_code=403
                 )(scope, receive, send)
+            if decision == "login":
+                if is_json_request:
+                    return await JSONResponse(
+                        {"error": "Authentication required", "redirect": "/auth/login"},
+                        status_code=401,
+                    )(scope, receive, send)
+                return await RedirectResponse(url="/auth/login", status_code=307)(
+                    scope, receive, send
+                )
+            return await self.app(scope, receive, send)
+        except Exception as error:
+            logger.error(
+                "Auth middleware error for %s (%s)",
+                request.url.path,
+                type(error).__name__,
+            )
+            # SECURITY: Fail closed when auth cannot be verified (CWE-280)
             return await JSONResponse(
                 {"error": "Authentication service unavailable"}, status_code=503
             )(scope, receive, send)
-        finally:
-            db.close()

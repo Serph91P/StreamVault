@@ -89,6 +89,9 @@ class AuthService:
         return self._password_hasher.hash(password)
 
     async def admin_exists(self) -> bool:
+        return self.admin_exists_sync()
+
+    def admin_exists_sync(self) -> bool:
         return bool(self.db.query(User).filter_by(is_admin=True).first())
 
     async def create_admin(self, user_data: UserCreate) -> UserResponse:
