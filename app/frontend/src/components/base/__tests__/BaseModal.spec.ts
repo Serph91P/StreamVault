@@ -1,8 +1,16 @@
 import { mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import BaseModal from '../BaseModal.vue'
+import BaseSheet from '../BaseSheet.vue'
 
 describe('BaseModal', () => {
+  it.each([BaseModal, BaseSheet])('names the shared dismiss control in the product language', async Component => {
+    const wrapper = mount(Component, { props: { modelValue: true, title: 'Vorgaben prüfen' }, attachTo: document.body })
+    try {
+      const button = document.querySelector('[role="dialog"] button')!
+      expect(button.getAttribute('aria-label')).toBe('Dialog schließen')
+    } finally { wrapper.unmount() }
+  })
   beforeEach(() => {
     vi.spyOn(HTMLElement.prototype, 'offsetParent', 'get').mockReturnValue(document.body)
     vi.spyOn(window, 'scrollTo').mockImplementation(() => undefined)

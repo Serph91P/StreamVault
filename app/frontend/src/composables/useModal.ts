@@ -30,10 +30,33 @@ let savedScrollY = 0
 let savedBodyStyles: { overflow: string; position: string; top: string; width: string } | null = null
 interface ModalStackEntry {
   restoreTarget: HTMLElement | null
+  container: Ref<HTMLElement | null>
   onKeydown?: (event: KeyboardEvent) => void
 }
 
 const modalStack: ModalStackEntry[] = []
+
+// The existing stack owns both keyboard focus and background isolation.
+const isolated = new Map<HTMLElement, { inert: boolean; hidden: string | null }>()
+function syncIsolation() {
+  for (const [element, previous] of isolated) {
+    element.inert = previous.inert
+    if (previous.hidden === null) element.removeAttribute('aria-hidden')
+    else element.setAttribute('aria-hidden', previous.hidden)
+  }
+  isolated.clear()
+  let current = modalStack.at(-1)?.container.value
+  while (current && current !== document.body) {
+    const parent = current.parentElement
+    for (const sibling of Array.from(parent?.children ?? [])) {
+      if (!(sibling instanceof HTMLElement) || sibling === current || sibling.matches('script,style,link')) continue
+      isolated.set(sibling, { inert: sibling.inert, hidden: sibling.getAttribute('aria-hidden') })
+      sibling.inert = true
+      sibling.setAttribute('aria-hidden', 'true')
+    }
+    current = parent
+  }
+}
 
 function handleOverlayKeydown(event: KeyboardEvent) {
   modalStack[modalStack.length - 1]?.onKeydown?.(event)
@@ -75,7 +98,7 @@ export function useModal(
 ) {
   const { onClose, closeOnEscape = true, autoFocus = true } = options
   const isOpen = ref(false)
-  const stackEntry: ModalStackEntry = { restoreTarget: null }
+  const stackEntry: ModalStackEntry = { restoreTarget: null, container: containerRef }
 
   const isTopmost = () => modalStack[modalStack.length - 1] === stackEntry
 
@@ -117,6 +140,7 @@ export function useModal(
       nextModal.restoreTarget = stackEntry.restoreTarget
     }
     if (stackIndex !== -1) modalStack.splice(stackIndex, 1)
+    syncIsolation()
     unlockBody()
     if (modalStack.length === 0) document.removeEventListener('keydown', handleOverlayKeydown)
     const restoreTarget = stackEntry.restoreTarget
@@ -130,6 +154,10 @@ export function useModal(
     }
   }
 
+  watch(() => [isOpen.value, containerRef.value] as const, ([open, el]) => {
+    if (open && el && isTopmost()) syncIsolation()
+  }, { flush: 'post' })
+
   if (autoFocus) {
     watch(
       () => [isOpen.value, containerRef.value] as const,
@@ -137,6 +165,7 @@ export function useModal(
         if (!open || !el) return
         // wait a tick so the v-if rendered children are in the DOM
         requestAnimationFrame(() => {
+          if (!isOpen.value || !isTopmost()) return
           const target = getFocusable(el)[0] ?? el
           target.focus()
         })

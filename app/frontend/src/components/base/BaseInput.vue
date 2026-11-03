@@ -20,7 +20,7 @@ interface Props {
   error?: string
   /** Success message displayed below the input when no error is present. */
   success?: string
-  /** Helper text below the input (when no error or success message is present). */
+  /** Persistent format guidance, including during validation. */
   hint?: string
   required?: boolean
   disabled?: boolean
@@ -61,9 +61,9 @@ const describedBy = computed(() => {
   const ids: string[] = []
   const externalDescribedBy = attrs['aria-describedby']
   if (typeof externalDescribedBy === 'string') ids.push(externalDescribedBy)
+  if (props.hint) ids.push(hintId.value)
   if (props.error) ids.push(errorId.value)
   else if (props.success) ids.push(successId.value)
-  else if (props.hint) ids.push(hintId.value)
   return ids.length ? ids.join(' ') : undefined
 })
 
@@ -90,9 +90,9 @@ function onInput(ev: Event) {
       :aria-describedby="describedBy"
       @input="onInput"
     >
-    <small v-if="error" :id="errorId" class="form-error">{{ error }}</small>
+    <small v-if="hint" :id="hintId" class="form-hint">{{ hint }}</small>
+    <small v-if="error" :id="errorId" class="form-error" role="alert">{{ error }}</small>
     <small v-else-if="success" :id="successId" class="form-success">{{ success }}</small>
-    <small v-else-if="hint" :id="hintId" class="form-hint">{{ hint }}</small>
   </div>
 </template>
 
