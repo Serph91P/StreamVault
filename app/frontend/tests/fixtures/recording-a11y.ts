@@ -11,6 +11,7 @@ async function recordingApi(page: Page) {
     enabled: true, default_quality: 'best', filename_preset: 'default',
     filename_template: '{streamer}/{title}', use_chapters: true,
     use_category_as_chapter_title: false, supported_codecs: 'h264,h265', prefer_higher_quality: true,
+    max_streams_per_streamer: 7,
   }
   const streamers = [1, 2, 7, 8].map(streamer_id => ({
     streamer_id, username: `channel-${streamer_id}`, enabled: true, quality: '', custom_filename: '',
@@ -223,6 +224,7 @@ test('recording labelled values retain exact save transport and reload hydration
     path: '/api/recording/settings', body: {
       enabled: true, filename_template: 'saved/{title}', filename_preset: mock ? 'default' : 'plex',
       default_quality: '720p', use_chapters: true, use_category_as_chapter_title: false,
+      max_streams_per_streamer: 7,
       supported_codecs: 'av1',
     },
   }])

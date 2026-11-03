@@ -3,7 +3,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { saveRecordingSettings } from '@/services/recording'
 import { useRecordingStore } from '@/stores/recordings'
 
-const settings = { enabled: true, default_quality: '720p', filename_template: '{streamer}', use_chapters: true, supported_codecs: 'av1' }
+const settings = { enabled: true, default_quality: '720p', filename_template: '{streamer}', use_chapters: true, supported_codecs: 'av1', max_streams_per_streamer: 0 }
 afterEach(() => vi.unstubAllGlobals())
 describe('recording settings persistence', () => {
   it('sends the selected global codecs to the recording API', async () => {

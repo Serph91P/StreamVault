@@ -12,7 +12,7 @@ vi.mock('@/composables/useFilenamePresets', () => ({
 
 const original = { type: CleanupPolicyType.COUNT, threshold: 10, preserve_favorites: true, preserve_categories: [] }
 const draft: CleanupPolicy = { type: CleanupPolicyType.AGE, threshold: 37, preserve_favorites: false, preserve_categories: ['Synthetic'] }
-const settings = { enabled: false, filename_template: '{streamer}', default_quality: 'best', use_chapters: true, cleanup_policy: original }
+const settings = { enabled: false, filename_template: '{streamer}', default_quality: 'best', use_chapters: true, max_streams_per_streamer: 0, cleanup_policy: original }
 const channel = { streamer_id: 7, username: 'synthetic', enabled: false, twitch_auth_priority: 0, use_global_cleanup_policy: false, cleanup_policy: original }
 let persisted = structuredClone(settings)
 let persistedChannel = structuredClone(channel)

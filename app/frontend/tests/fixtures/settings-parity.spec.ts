@@ -11,7 +11,7 @@ for (const width of [320, 390, 1024, 1440]) {
       page.on('pageerror', error => errors.push(error.message))
       const writes: Array<{ path: string; body: Record<string, unknown> }> = []
       const policy = { type: 'count', threshold: 10, preserve_favorites: true, preserve_categories: [] }
-      let globalRecording = { enabled: true, output_directory: '/synthetic/custom-recordings', default_quality: 'best', filename_template: '{streamer}', filename_preset: 'default', use_chapters: true, use_category_as_chapter_title: false, supported_codecs: 'h264', cleanup_policy: policy }
+      let globalRecording = { enabled: true, output_directory: '/synthetic/custom-recordings', default_quality: 'best', filename_template: '{streamer}', filename_preset: 'default', use_chapters: true, use_category_as_chapter_title: false, supported_codecs: 'h264', max_streams_per_streamer: 7, cleanup_policy: policy }
       const recording = [1, 2].map(id => ({ streamer_id: id, username: `synthetic-${id}`, enabled: true, quality: '', custom_filename: '', supported_codecs: '', use_global_cleanup_policy: true, cleanup_policy: null }))
       const notifications = [1, 2].map(id => ({ streamer_id: id, username: `synthetic-${id}`, notify_online: true, notify_offline: true, notify_update: true, notify_favorite_category: true }))
       let active = [{ id: 1, stream_id: 10, streamer_id: 1, streamer_name: 'synthetic-1', started_at: '2026-10-01T10:00:00Z', duration: 60, status: 'recording', file_path: '/synthetic/example.ts' }]
@@ -98,6 +98,7 @@ for (const width of [320, 390, 1024, 1440]) {
       await toastClose.focus()
       await page.keyboard.press('Space')
       expect(writes.find(write => write.path === '/api/recording/settings')?.body.output_directory).toBe('/synthetic/custom-recordings')
+      expect(writes.find(write => write.path === '/api/recording/settings')?.body.max_streams_per_streamer).toBe(7)
       await page.reload()
       await expect(codecs).toHaveValue('av1')
       acceptOnly = true
