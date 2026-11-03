@@ -8,6 +8,7 @@ import logging
 import json
 import time
 from typing import Dict, Any
+from app.services.communication.webpush_service import WebPushException
 
 logger = logging.getLogger("streamvault")
 
@@ -55,7 +56,7 @@ async def send_push_notification(
                 from importlib import import_module
 
                 enhanced_push_service = import_module(
-                    "app.services.enhanced_push_service"
+                    "app.services.communication.enhanced_push_service"
                 ).enhanced_push_service
                 _enhanced_push_service = enhanced_push_service
                 logger.debug("Successfully loaded enhanced_push_service")
@@ -65,10 +66,7 @@ async def send_push_notification(
 
                 class FallbackPushService:
                     async def send_notification(self, *args, **kwargs):
-                        logger.info(
-                            f"[FALLBACK] Would send notification with args: {args}, kwargs: {kwargs}"
-                        )
-                        return True
+                        return False
 
                 _enhanced_push_service = FallbackPushService()
 
@@ -134,9 +132,14 @@ async def send_push_notification(
                 else:
                     failed_count += 1
 
-            except Exception as e:
+            except WebPushException as e:
                 failed_count += 1
-                logger.error(f"Failed to send push notification: {e}")
+                if e.response is not None and e.response.status == 410:
+                    subscription.is_active = False
+                    db.commit()
+            except Exception:
+                failed_count += 1
+                logger.warning("Failed to send push notification")
 
         # Close db if we created it
         if close_db:

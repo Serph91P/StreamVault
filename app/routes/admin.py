@@ -6,6 +6,7 @@ import logging
 from datetime import timezone
 from fastapi import APIRouter, HTTPException, Depends
 from app.database import get_db
+from app.dependencies import require_admin_user
 from sqlalchemy.orm import Session, joinedload
 from typing import Dict, Any, List, Optional
 from pydantic import BaseModel
@@ -34,7 +35,9 @@ def get_background_queue_service():
     return _background_queue_service
 
 
-router = APIRouter(prefix="/api/admin", tags=["admin"])
+router = APIRouter(
+    prefix="/api/admin", tags=["admin"], dependencies=[Depends(require_admin_user)]
+)
 
 # Include post-processing management routes
 router.include_router(post_processing_router)
@@ -895,14 +898,26 @@ async def fix_recording_availability(
         results = {"checked": 0, "fixed": 0, "errors": 0, "details": []}
 
         with SessionLocal() as db:
-            # Get streams to check with eager loading of streamer to avoid N+1 queries
-            query = db.query(Stream).options(joinedload(Stream.streamer))
-            if streamer_id:
-                query = query.filter(Stream.streamer_id == streamer_id)
+            # Include all owners even when repairing only one streamer.
+            streams = db.query(Stream).options(joinedload(Stream.recordings)).all()
+            owners = {}
+            for stream in streams:
+                paths = [stream.recording_path] + [r.path for r in stream.recordings]
+                for path in paths:
+                    if path:
+                        owners.setdefault(Path(path).resolve(), set()).add(stream.id)
 
-            streams = query.all()
+            def is_recording_file(path):
+                import stat
+
+                try:
+                    return stat.S_ISREG(Path(path).stat().st_mode)
+                except FileNotFoundError, NotADirectoryError:
+                    return False
 
             for stream in streams:
+                if streamer_id and stream.streamer_id != streamer_id:
+                    continue
                 results["checked"] += 1
                 stream_result = {
                     "stream_id": stream.id,
@@ -913,80 +928,37 @@ async def fix_recording_availability(
                 }
 
                 try:
-                    # Check if recording_path exists and is correct
-                    has_file = False
-                    correct_path = None
-
-                    # Look for .ts recording file in expected location
-                    recordings_base = Path("/recordings")
-                    if recordings_base.exists():
-                        # Get streamer via relationship (already loaded)
-                        streamer = stream.streamer
-                        if streamer:
-                            streamer_dir = recordings_base / streamer.username
-                            if streamer_dir.exists():
-                                # Look for recording files
-                                for recording_file in streamer_dir.rglob("*.ts"):
-                                    # Check if filename contains stream info
-                                    if (
-                                        (
-                                            stream.title
-                                            and any(
-                                                word in recording_file.name.lower()
-                                                for word in stream.title.lower().split()[
-                                                    :3
-                                                ]
-                                                if len(word) > 3
-                                            )
-                                        )
-                                        or f"stream_{stream.id}"
-                                        in recording_file.name.lower()
-                                    ):
-                                        has_file = True
-                                        correct_path = str(recording_file)
-                                        break
-
-                                # If no specific match, look for files around the stream time
-                                if not has_file and stream.started_at:
-                                    import datetime
-
-                                    stream_date = stream.started_at.date()
-                                    for recording_file in streamer_dir.rglob("*.ts"):
-                                        file_date = datetime.datetime.fromtimestamp(
-                                            recording_file.stat().st_mtime
-                                        ).date()
-                                        if file_date == stream_date:
-                                            has_file = True
-                                            correct_path = str(recording_file)
-                                            break
-
-                    # Determine action needed
-                    if has_file and not stream.recording_path:
-                        # File exists but recording_path is empty
-                        stream_result["action"] = "set_path"
-                        stream_result["new_path"] = correct_path
-                        if not dry_run:
-                            stream.recording_path = correct_path
-                            results["fixed"] += 1
-                    elif (
-                        has_file
-                        and stream.recording_path
-                        and not Path(stream.recording_path).exists()
+                    # A catalog path is authoritative regardless of media extension.
+                    if stream.recording_path and is_recording_file(
+                        stream.recording_path
                     ):
-                        # recording_path set but file doesn't exist at that path
-                        stream_result["action"] = "update_path"
-                        stream_result["old_path"] = stream.recording_path
-                        stream_result["new_path"] = correct_path
-                        if not dry_run:
-                            stream.recording_path = correct_path
+                        results["details"].append(stream_result)
+                        continue
+
+                    # Only explicit DB ownership is evidence, never title/date similarity.
+                    candidates = {}
+                    for recording in stream.recordings:
+                        if (
+                            recording.status in {"completed", "post_processing"}
+                            and recording.path
+                            and is_recording_file(recording.path)
+                        ):
+                            path = Path(recording.path).resolve()
+                            candidates[path] = recording.path
+
+                    if len(candidates) == 1:
+                        path, correct_path = next(iter(candidates.items()))
+                        if owners[path] == {stream.id}:
+                            stream_result["action"] = (
+                                "update_path" if stream.recording_path else "set_path"
+                            )
+                            if stream.recording_path:
+                                stream_result["old_path"] = stream.recording_path
+                            stream_result["new_path"] = correct_path
+                            if not dry_run:
+                                stream.recording_path = correct_path
                             results["fixed"] += 1
-                    elif not has_file and stream.recording_path:
-                        # recording_path set but no file exists
-                        stream_result["action"] = "clear_path"
-                        stream_result["old_path"] = stream.recording_path
-                        if not dry_run:
-                            stream.recording_path = None
-                            results["fixed"] += 1
+                    # Unresolved paths are retained as recovery evidence, not cleared.
 
                     results["details"].append(stream_result)
 
