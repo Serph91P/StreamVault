@@ -63,7 +63,15 @@ The source inventory was regenerated after removing owned test/build outputs. Th
 
 No physical devices, installed PWA, live provider or manual screenreader acceptance is claimed. Browser names and final backend/DB effects are reported separately from synthetic HTTP fixtures. No merge, release, deployment or issue closure is performed by this worker.
 
-## Owner integration verification
+## Forward integration verification (Run 566)
+
+The existing branch was normally merged forward to develop `1a364a25433623ebad481deeeb769197c72e3e0d` (merge `f27dbf17`), preserving the published dependency/security/backend fixes. No history rewrite or replacement implementation was used. The combined MOCK artifact initially measured 381,011 application gzip bytes against the unchanged 381,000 limit. Removing the two redundant EmptyState event-forwarding functions (direct template emits with identical public events) reduced it to **1,196,506 raw / 380,975 gzip**. REAL measures **1,193,371 / 380,016**. Both provenance/precache/UX06 gates pass; MOCK consecutive clean builds are identical. Budgets are unchanged and MOCK headroom is only 25 gzip bytes.
+
+Fresh complete units pass **662 / 4 existing skips**, foundation gates **49**, types, token/generator checks and lint (**0 errors / 135 warnings**). Settings regressions pass **34 REAL + 34 MOCK**; owner-state/parity cases **15**; foundation cases **18** in actual Chromium/Firefox/WebKit. One first parity measurement caught fractional translated coordinates (43.999969px during toast entry); the test now waits for the actual animation to finish before the same unchanged >=44px assertions. No snapshot, timeout, threshold or assertion was relaxed.
+
+The original `tests/browser_acceptance/run.py` passed both desktop-light and touch-mobile-dark journeys again against the final REAL source/build: actual production factory/routers/services, disposable SQLite/media, codec save/readback/reload, independent channel overrides, cleanup/management, Uvicorn restart/replay/dedupe, task completion and decoded playback/seek/delete; zero API fulfills, page errors or failed business API responses. The owned container was removed. Synthetic HTTP fixture results above remain separate from these durable effects. Final exact-head CI/security readback and independent same-card review are recorded in the handoff, not inferred from earlier heads.
+
+## Owner integration verification (historical)
 
 The owner integrated the existing develop fixes without replacing their regression tests. Types, the complete unit suite (635 passed / 4 existing skips), lint (0 errors / 136 warnings), token lint and foundation generation checks passed. The recording/notification settings browser suites passed 34 REAL and 34 MOCK cases; the combined state/parity suite passed 15 cases. The unchanged six-case foundation harness passed in all three actual Playwright engines (18 cases), separately from emulated device sizes.
 

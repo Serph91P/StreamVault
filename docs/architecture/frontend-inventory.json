@@ -55,6 +55,7 @@
     "app/frontend/src/components/__tests__/BackgroundQueueMonitor.recovery.spec.ts",
     "app/frontend/src/components/__tests__/BackgroundQueueMonitor.spec.ts",
     "app/frontend/src/components/__tests__/CleanupPolicyEditor.a11y.spec.ts",
+    "app/frontend/src/components/__tests__/CleanupPolicyEditor.persistence.spec.ts",
     "app/frontend/src/components/__tests__/FoundationFeedback.spec.ts",
     "app/frontend/src/components/__tests__/NotificationFeed.spec.ts",
     "app/frontend/src/components/__tests__/NotificationReadActions.spec.ts",
@@ -177,6 +178,7 @@
     "app/frontend/src/services/__tests__/api-real.auth-refresh.spec.ts",
     "app/frontend/src/services/__tests__/api-real.batch-delete.spec.ts",
     "app/frontend/src/services/__tests__/api-real.proxy.spec.ts",
+    "app/frontend/src/services/__tests__/api-real.return-navigation.spec.ts",
     "app/frontend/src/services/__tests__/api-real.streamers.spec.ts",
     "app/frontend/src/services/__tests__/api-real.subscriptions.spec.ts",
     "app/frontend/src/services/__tests__/api-real.twitch.spec.ts",
@@ -297,6 +299,8 @@
     "app/frontend/tests/e2e/ux06-player.spec.ts",
     "app/frontend/tests/e2e/websocket-setup-transition.playwright.config.ts",
     "app/frontend/tests/e2e/websocket-setup-transition.spec.ts",
+    "app/frontend/tests/fixtures/auth-return-navigation.config.ts",
+    "app/frontend/tests/fixtures/auth-return-navigation.spec.ts",
     "app/frontend/tests/fixtures/background-queue-lifecycle.config.ts",
     "app/frontend/tests/fixtures/foundation-harness/FoundationHarness.vue",
     "app/frontend/tests/fixtures/foundation-harness/index.html",
@@ -489,10 +493,11 @@
     "/",
     "/auth/login",
     "/videos",
+    "/streamers?probe=synthetic#recording",
+    "/videos/42?from=library#details",
     "/welcome?step=done",
     "/welcome",
     "/welcome?step=recording",
-    "/videos/42?from=library#details",
     "/videos/42",
     "/add-streamer",
     "/streamers/manage",
@@ -1750,6 +1755,7 @@
     "app/frontend/src/components/VideoPlayer.vue",
     "app/frontend/src/components/__tests__/AddStreamerForm.persistence.spec.ts",
     "app/frontend/src/components/__tests__/BackgroundQueueMonitor.spec.ts",
+    "app/frontend/src/components/__tests__/CleanupPolicyEditor.persistence.spec.ts",
     "app/frontend/src/components/__tests__/FoundationFeedback.spec.ts",
     "app/frontend/src/components/__tests__/VideoPlayer.chapters.spec.ts",
     "app/frontend/src/components/admin/AdminPanel.vue",
@@ -1942,6 +1948,7 @@
     "app/frontend/src/components/__tests__/BackgroundQueueAdmin.spec.ts",
     "app/frontend/src/components/__tests__/BackgroundQueueMonitor.recovery.spec.ts",
     "app/frontend/src/components/__tests__/BackgroundQueueMonitor.spec.ts",
+    "app/frontend/src/components/__tests__/CleanupPolicyEditor.persistence.spec.ts",
     "app/frontend/src/components/__tests__/FoundationFeedback.spec.ts",
     "app/frontend/src/components/__tests__/NotificationFeed.spec.ts",
     "app/frontend/src/components/__tests__/NotificationReadActions.spec.ts",
@@ -2020,6 +2027,7 @@
     "app/frontend/src/schemas/streamerSettings.schema.ts",
     "app/frontend/src/services/__tests__/api-real.auth-refresh.spec.ts",
     "app/frontend/src/services/__tests__/api-real.batch-delete.spec.ts",
+    "app/frontend/src/services/__tests__/api-real.return-navigation.spec.ts",
     "app/frontend/src/services/__tests__/api.mock.proxy.spec.ts",
     "app/frontend/src/services/__tests__/recording-settings-save.spec.ts",
     "app/frontend/src/services/__tests__/recording-status.spec.ts",
@@ -2152,6 +2160,7 @@
     "app/frontend/src/components/__tests__/AppShell.connectivity.spec.ts",
     "app/frontend/src/components/__tests__/BackgroundQueueAdmin.spec.ts",
     "app/frontend/src/components/__tests__/BackgroundQueueMonitor.recovery.spec.ts",
+    "app/frontend/src/components/__tests__/CleanupPolicyEditor.persistence.spec.ts",
     "app/frontend/src/components/__tests__/NotificationFeed.spec.ts",
     "app/frontend/src/components/__tests__/NotificationReadActions.spec.ts",
     "app/frontend/src/components/admin/AdminPanel.vue",
@@ -2183,6 +2192,7 @@
     "app/frontend/src/services/__tests__/api-real.auth-refresh.spec.ts",
     "app/frontend/src/services/__tests__/api-real.batch-delete.spec.ts",
     "app/frontend/src/services/__tests__/api-real.proxy.spec.ts",
+    "app/frontend/src/services/__tests__/api-real.return-navigation.spec.ts",
     "app/frontend/src/services/__tests__/api-real.streamers.spec.ts",
     "app/frontend/src/services/__tests__/api-real.subscriptions.spec.ts",
     "app/frontend/src/services/__tests__/api-real.twitch.spec.ts",
@@ -2228,6 +2238,8 @@
     "app/frontend/tests/e2e/ui-standards.spec.ts",
     "app/frontend/tests/e2e/ux06-player.spec.ts",
     "app/frontend/tests/e2e/websocket-setup-transition.spec.ts",
+    "app/frontend/tests/fixtures/auth-return-navigation.config.ts",
+    "app/frontend/tests/fixtures/auth-return-navigation.spec.ts",
     "app/frontend/tests/fixtures/background-queue-lifecycle.config.ts",
     "app/frontend/tests/fixtures/foundation.playwright.config.ts",
     "app/frontend/tests/fixtures/issue1006-subscriptions.config.ts",
@@ -2939,6 +2951,16 @@
       "file": "app/frontend/src/components/__tests__/CleanupPolicyEditor.a11y.spec.ts",
       "line": 27,
       "match": "document.querySelector"
+    },
+    {
+      "file": "app/frontend/src/components/__tests__/CleanupPolicyEditor.persistence.spec.ts",
+      "line": 52,
+      "match": "document.body"
+    },
+    {
+      "file": "app/frontend/src/components/__tests__/CleanupPolicyEditor.persistence.spec.ts",
+      "line": 62,
+      "match": "document.body"
     },
     {
       "file": "app/frontend/src/components/__tests__/FoundationFeedback.spec.ts",
@@ -3887,12 +3909,12 @@
     },
     {
       "file": "app/frontend/tests/fixtures/settings-parity.spec.ts",
-      "line": 163,
+      "line": 167,
       "match": "document.documentElement"
     },
     {
       "file": "app/frontend/tests/fixtures/settings-parity.spec.ts",
-      "line": 163,
+      "line": 167,
       "match": "document.documentElement"
     },
     {
@@ -4158,6 +4180,21 @@
       "match": "const cleanupResult = {"
     },
     {
+      "file": "app/frontend/src/components/__tests__/CleanupPolicyEditor.persistence.spec.ts",
+      "line": 13,
+      "match": "const original = {"
+    },
+    {
+      "file": "app/frontend/src/components/__tests__/CleanupPolicyEditor.persistence.spec.ts",
+      "line": 15,
+      "match": "const settings = {"
+    },
+    {
+      "file": "app/frontend/src/components/__tests__/CleanupPolicyEditor.persistence.spec.ts",
+      "line": 16,
+      "match": "const channel = {"
+    },
+    {
       "file": "app/frontend/src/components/cards/__tests__/R3SurfaceConsumers.spec.ts",
       "line": 11,
       "match": "const activeSurfaceConsumers = {"
@@ -4309,7 +4346,7 @@
     },
     {
       "file": "app/frontend/src/services/api-real.ts",
-      "line": 48,
+      "line": 49,
       "match": "const RETRYABLE_METHODS = new "
     },
     {
@@ -4596,12 +4633,12 @@
   "listenersAndTimers": [
     {
       "file": "app/frontend/src/components/CleanupPolicyEditor.vue",
-      "line": 498,
+      "line": 504,
       "match": "setTimeout("
     },
     {
       "file": "app/frontend/src/components/CleanupPolicyEditor.vue",
-      "line": 507,
+      "line": 513,
       "match": "setTimeout("
     },
     {
@@ -5045,6 +5082,11 @@
       "match": "setTimeout("
     },
     {
+      "file": "app/frontend/src/services/__tests__/api-real.return-navigation.spec.ts",
+      "line": 48,
+      "match": "setTimeout("
+    },
+    {
       "file": "app/frontend/src/services/api.ts",
       "line": 36,
       "match": "setTimeout("
@@ -5433,22 +5475,17 @@
     },
     {
       "file": "app/frontend/src/components/settings/RecordingSettingsPanel.vue",
-      "line": 381,
+      "line": 380,
       "match": ": any"
     },
     {
       "file": "app/frontend/src/components/settings/RecordingSettingsPanel.vue",
-      "line": 413,
+      "line": 412,
       "match": ": any"
     },
     {
       "file": "app/frontend/src/components/settings/RecordingSettingsPanel.vue",
-      "line": 520,
-      "match": ": any"
-    },
-    {
-      "file": "app/frontend/src/components/settings/RecordingSettingsPanel.vue",
-      "line": 541,
+      "line": 531,
       "match": ": any"
     },
     {
@@ -5488,42 +5525,42 @@
     },
     {
       "file": "app/frontend/src/services/api-real.ts",
-      "line": 26,
+      "line": 27,
       "match": ": any"
     },
     {
       "file": "app/frontend/src/services/api-real.ts",
-      "line": 77,
+      "line": 78,
       "match": "as any"
     },
     {
       "file": "app/frontend/src/services/api-real.ts",
-      "line": 171,
+      "line": 176,
       "match": ": any"
     },
     {
       "file": "app/frontend/src/services/api-real.ts",
-      "line": 178,
+      "line": 183,
       "match": ": any"
     },
     {
       "file": "app/frontend/src/services/api-real.ts",
-      "line": 191,
+      "line": 196,
       "match": ": any"
     },
     {
       "file": "app/frontend/src/services/api-real.ts",
-      "line": 334,
+      "line": 339,
       "match": ": any"
     },
     {
       "file": "app/frontend/src/services/api-real.ts",
-      "line": 342,
+      "line": 347,
       "match": ": any"
     },
     {
       "file": "app/frontend/src/services/api-real.ts",
-      "line": 497,
+      "line": 502,
       "match": ": any"
     },
     {
@@ -6817,12 +6854,17 @@
     },
     {
       "file": "app/frontend/src/components/settings/RecordingSettingsPanel.vue",
-      "line": 140,
+      "line": 139,
       "match": "@click="
     },
     {
       "file": "app/frontend/src/components/settings/RecordingSettingsPanel.vue",
-      "line": 167,
+      "line": 166,
+      "match": "@click="
+    },
+    {
+      "file": "app/frontend/src/components/settings/RecordingSettingsPanel.vue",
+      "line": 181,
       "match": "@click="
     },
     {
@@ -6832,17 +6874,12 @@
     },
     {
       "file": "app/frontend/src/components/settings/RecordingSettingsPanel.vue",
-      "line": 183,
+      "line": 290,
       "match": "@click="
     },
     {
       "file": "app/frontend/src/components/settings/RecordingSettingsPanel.vue",
-      "line": 291,
-      "match": "@click="
-    },
-    {
-      "file": "app/frontend/src/components/settings/RecordingSettingsPanel.vue",
-      "line": 297,
+      "line": 296,
       "match": "@click="
     },
     {
@@ -7473,6 +7510,11 @@
       "match": "confirm("
     },
     {
+      "file": "app/frontend/src/services/__tests__/api-real.return-navigation.spec.ts",
+      "line": 55,
+      "match": "alert("
+    },
+    {
       "file": "app/frontend/src/services/__tests__/session.spec.ts",
       "line": 29,
       "match": "alert("
@@ -7657,7 +7699,7 @@
     },
     {
       "file": "app/frontend/src/components/settings/RecordingSettingsPanel.vue",
-      "line": 688,
+      "line": 678,
       "match": "transition: all"
     },
     {
@@ -8131,42 +8173,42 @@
     },
     {
       "file": "app/frontend/src/components/EmptyState.vue",
-      "line": 259,
+      "line": 252,
       "match": "width: 20px"
     },
     {
       "file": "app/frontend/src/components/EmptyState.vue",
-      "line": 260,
+      "line": 253,
       "match": "height: 20px"
     },
     {
       "file": "app/frontend/src/components/EmptyState.vue",
-      "line": 316,
+      "line": 309,
       "match": "width: 40px"
     },
     {
       "file": "app/frontend/src/components/EmptyState.vue",
-      "line": 317,
+      "line": 310,
       "match": "height: 40px"
     },
     {
       "file": "app/frontend/src/components/EmptyState.vue",
-      "line": 351,
+      "line": 344,
       "match": "width: 36px"
     },
     {
       "file": "app/frontend/src/components/EmptyState.vue",
-      "line": 352,
+      "line": 345,
       "match": "height: 36px"
     },
     {
       "file": "app/frontend/src/components/EmptyState.vue",
-      "line": 356,
+      "line": 349,
       "match": "width: 20px"
     },
     {
       "file": "app/frontend/src/components/EmptyState.vue",
-      "line": 357,
+      "line": 350,
       "match": "height: 20px"
     },
     {
@@ -9031,12 +9073,12 @@
     },
     {
       "file": "app/frontend/src/components/settings/RecordingSettingsPanel.vue",
-      "line": 579,
+      "line": 569,
       "match": "width: 24px"
     },
     {
       "file": "app/frontend/src/components/settings/RecordingSettingsPanel.vue",
-      "line": 580,
+      "line": 570,
       "match": "height: 24px"
     },
     {
@@ -11506,27 +11548,27 @@
     "schemaVersion": 1,
     "generatedBy": "app/frontend/scripts/inventory-frontend.mjs",
     "sourceRoot": "app/frontend",
-    "frontendFiles": 352,
+    "frontendFiles": 356,
     "routes": 21,
-    "navigationDestinations": 17,
+    "navigationDestinations": 18,
     "apiCalls": 146,
     "websocketConsumers": 19,
     "storage": 3,
-    "overlays": 82,
+    "overlays": 83,
     "forms": 7,
     "tables": 6,
     "destructiveActions": 69,
-    "states": 210,
+    "states": 212,
     "players": 14,
-    "pwa": 125,
+    "pwa": 129,
     "breakpoints": 94,
-    "directDomMutations": 266,
-    "moduleScopeMutableState": 105,
-    "listenersAndTimers": 136,
-    "anyTypes": 92,
+    "directDomMutations": 268,
+    "moduleScopeMutableState": 108,
+    "listenersAndTimers": 137,
+    "anyTypes": 91,
     "nonsemanticActions": 18,
     "clickSemantics": 286,
-    "nativeDialogs": 54,
+    "nativeDialogs": 55,
     "vHtml": 0,
     "transitionAll": 76,
     "raw100vh": 15,

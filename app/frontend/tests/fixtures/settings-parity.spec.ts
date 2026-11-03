@@ -88,6 +88,10 @@ for (const width of [320, 390, 1024, 1440]) {
       await expect.poll(() => globalRecording.supported_codecs).toBe('av1')
       await expect(page.locator('.form-actions [data-state="confirmed-success"]')).toBeVisible()
       const toastClose = page.getByRole('button', { name: 'Meldung schließen' }).first()
+      // Measure the resting target, not fractional coordinates during slide-in.
+      await toastClose.evaluate(async element => {
+        await Promise.all(element.closest('.toast')!.getAnimations().map(animation => animation.finished))
+      })
       const closeBox = await toastClose.boundingBox()
       expect(closeBox!.width).toBeGreaterThanOrEqual(44)
       expect(closeBox!.height).toBeGreaterThanOrEqual(44)

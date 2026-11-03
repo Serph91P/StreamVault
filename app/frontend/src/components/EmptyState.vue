@@ -19,7 +19,7 @@
           v-if="actionLabel"
           class="empty-action"
           :variant="actionVariant"
-          @click="handleAction"
+          @click="emit('action')"
         >
           <svg v-if="actionIcon" class="action-icon" aria-hidden="true">
             <use :href="`#icon-${actionIcon}`" />
@@ -30,7 +30,7 @@
           v-if="retryLabel"
           class="empty-action"
           :variant="retryVariant"
-          @click="handleRetry"
+          @click="emit('retry')"
         >
           <svg v-if="retryIcon" class="action-icon" aria-hidden="true">
             <use :href="`#icon-${retryIcon}`" />
@@ -129,13 +129,6 @@ const stateClasses = computed(() => [
   busy.value && 'empty-state-is-loading'
 ])
 
-const handleAction = () => {
-  emit('action')
-}
-
-const handleRetry = () => {
-  emit('retry')
-}
 </script>
 
 <style scoped lang="scss">
