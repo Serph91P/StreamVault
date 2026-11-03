@@ -6,6 +6,7 @@ import logging
 from datetime import timezone
 from fastapi import APIRouter, HTTPException, Depends
 from app.database import get_db
+from app.dependencies import require_admin_user
 from sqlalchemy.orm import Session, joinedload
 from typing import Dict, Any, List, Optional
 from pydantic import BaseModel
@@ -34,7 +35,9 @@ def get_background_queue_service():
     return _background_queue_service
 
 
-router = APIRouter(prefix="/api/admin", tags=["admin"])
+router = APIRouter(
+    prefix="/api/admin", tags=["admin"], dependencies=[Depends(require_admin_user)]
+)
 
 # Include post-processing management routes
 router.include_router(post_processing_router)
