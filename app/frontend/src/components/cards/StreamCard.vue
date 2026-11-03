@@ -318,7 +318,7 @@ function handleDelete() {
   min-height: 72px;
   padding: var(--spacing-4);
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto 44px;
+  grid-template-columns: minmax(0, 1fr) auto 48px;
   align-items: center;
   gap: var(--spacing-3);
   touch-action: pan-y;
@@ -394,8 +394,8 @@ function handleDelete() {
 }
 
 .expand-btn {
-  width: 44px;
-  height: 44px;
+  width: 48px;
+  height: 48px;
   padding: 0;
   background: transparent;
   border: 1px solid var(--border-color);
@@ -423,7 +423,7 @@ function handleDelete() {
     border-color: var(--primary-color);
 
     .icon {
-      stroke: var(--primary-color);
+      stroke: var(--sv-sem-action-foreground);
     }
   }
 }
@@ -435,6 +435,7 @@ function handleDelete() {
   flex-direction: column;
   gap: var(--spacing-4);
   padding-top: var(--spacing-4);
+  border-top: 1px solid var(--sv-sem-border-default);
 }
 
 .expand-enter-active,
@@ -460,9 +461,7 @@ function handleDelete() {
 /* Info Panel */
 .info-panel,
 .categories-panel {
-  background: rgba(var(--background-darker-rgb), 0.5);
-  border-radius: var(--radius-md);
-  padding: var(--spacing-3);
+  padding: 0;
 }
 
 .panel-title {
@@ -489,7 +488,7 @@ function handleDelete() {
 .info-icon {
   width: 18px;
   height: 18px;
-  stroke: var(--primary-color);
+  stroke: var(--sv-sem-action-foreground);
   fill: none;
   flex-shrink: 0;
   margin-top: 2px;
@@ -529,9 +528,7 @@ function handleDelete() {
   align-items: center;
   gap: var(--spacing-2);
   padding: var(--spacing-2);
-  background: rgba(var(--primary-500-rgb), 0.05);
-  border-radius: var(--radius-sm);
-  border-left: 3px solid var(--primary-color);
+  border-left: 2px solid var(--sv-sem-border-default);
 }
 
 .category-icon {
@@ -540,14 +537,14 @@ function handleDelete() {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(var(--primary-500-rgb), 0.1);
+  background: var(--sv-sem-surface-raised);
   border-radius: var(--radius-sm);
   flex-shrink: 0;
 
   .icon {
     width: 18px;
     height: 18px;
-    stroke: var(--primary-color);
+    stroke: var(--sv-sem-action-foreground);
     fill: none;
   }
 }
@@ -580,7 +577,7 @@ function handleDelete() {
   gap: var(--spacing-2);
   min-height: 44px;
   padding: var(--spacing-3) var(--spacing-4);
-  background: var(--primary-color);
+  background: var(--sv-sem-action-primary);
   border: none;
   border-radius: var(--radius-md);
   font-size: var(--text-base);
@@ -597,14 +594,9 @@ function handleDelete() {
   }
 
   &:hover {
-    background: var(--primary-600);
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-md);
+    background: var(--sv-sem-action-primary-hover);
   }
 
-  &:active {
-    transform: translateY(0);
-  }
 }
 
 .expanded-actions {
@@ -662,12 +654,17 @@ function handleDelete() {
 @include m.respond-below('sm') {
   .stream-compact {
     min-height: 80px;
-    grid-template-columns: minmax(0, 1fr) 44px;
+    grid-template-columns: minmax(0, 1fr) 48px;
     padding: var(--spacing-3);
   }
 
+  .expand-btn {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
   .stream-status {
-    grid-column: 1 / 2;
+    grid-column: 1 / -1;
     flex-direction: row;
     align-items: center;
     justify-content: space-between;

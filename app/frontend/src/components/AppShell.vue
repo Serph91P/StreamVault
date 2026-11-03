@@ -1,16 +1,17 @@
 <template>
   <template v-if="showShell">
-    <header class="app-header glass-header">
+    <header class="app-header">
       <div class="header-content">
-        <span class="app-logo" aria-label="StreamVault">StreamVault</span>
+        <router-link to="/" class="app-logo" aria-label="StreamVault - Meine Kanäle">StreamVault</router-link>
 
-        <div class="header-actions" aria-label="Global utilities">
+        <div class="shell-utilities" aria-label="Global utilities">
           <div class="activity-utilities" aria-label="Activity utilities">
             <BackgroundQueueMonitor />
 
             <button
               ref="notificationBellRef"
-              class="glass-btn-icon header-utility-btn"
+              type="button"
+              class="header-utility-btn"
               :class="{ 'has-badge': unreadCount > 0 }"
               :aria-label="notificationButtonLabel"
               aria-haspopup="dialog"
@@ -19,7 +20,7 @@
               :title="notificationButtonLabel"
               @click.stop="toggleNotifications"
             >
-              <svg>
+              <svg aria-hidden="true">
                 <use href="#icon-bell" />
               </svg>
               <span class="utility-label">Notifications</span>
@@ -30,8 +31,8 @@
           <div class="session-utilities" aria-label="Display and session utilities">
             <ThemeToggle />
 
-            <button class="glass-btn-danger header-logout-btn" aria-label="Logout" @click="logout">
-              <svg><use href="#icon-log-out" /></svg>
+            <button type="button" class="header-utility-btn header-logout-btn" aria-label="Logout" @click="logout">
+              <svg aria-hidden="true"><use href="#icon-log-out" /></svg>
               <span class="logout-text">Logout</span>
             </button>
           </div>
@@ -59,6 +60,7 @@
             <div class="notification-title-stack">
               <h3 id="notification-panel-title">Notifications</h3>
               <p class="notification-panel-count">{{ notificationPanelSubtitle }}</p>
+              <p class="notification-panel-count">History and read/unread are local to this browser. Mark all read and Clear all are global.</p>
             </div>
             <div class="notification-header-actions">
               <button
@@ -66,7 +68,8 @@
                 class="glass-btn-text mark-read-btn"
                 aria-label="Mark all notifications read"
                 title="Mark all notifications read"
-                @click="markAsRead"
+                :disabled="notificationFeedRef?.isMutating"
+                @click="notificationFeedRef?.markAllRead($event)"
               >
                 Mark all read
               </button>
@@ -75,7 +78,8 @@
                 class="glass-btn-text clear-all-btn"
                 aria-label="Clear all notifications"
                 title="Clear all notifications"
-                @click="clearAllNotifications"
+                :disabled="notificationFeedRef?.isMutating"
+                @click="notificationFeedRef?.clearAllNotifications($event)"
               >
                 Clear all
               </button>
@@ -85,9 +89,8 @@
             </div>
           </div>
           <NotificationFeed
-            @notifications-read="markAsRead"
+            ref="notificationFeedRef"
             @close-panel="closeNotificationPanel"
-            @clear-all="clearAllNotifications"
             @close="closeNotificationPanel"
           />
         </div>
@@ -154,6 +157,7 @@ const {
   reconnectNow
 } = useWebSocket()
 const notificationStore = useNotificationStore()
+const notificationFeedRef = ref<InstanceType<typeof NotificationFeed> | null>(null)
 const unreadCount = computed(() => notificationStore.unreadCount)
 const notificationCount = computed(() => notificationStore.totalCount)
 const notificationPanelSubtitle = computed(() => {
@@ -237,15 +241,6 @@ function toggleNotifications() {
   else openNotificationPanel()
 }
 
-async function clearAllNotifications() {
-  await notificationStore.clearAll()
-  closeNotificationPanel()
-}
-
-function markAsRead() {
-  notificationStore.markAllRead()
-}
-
 watch(() => props.showShell, (showShell) => {
   if (!showShell) {
     closeNotificationPanel()
@@ -275,6 +270,7 @@ watch(() => props.showShell, (showShell) => {
 
 .app-header .header-content {
   display: flex;
+  flex-wrap: nowrap;
   align-items: center;
   justify-content: space-between;
   height: var(--app-header-height, 56px);
@@ -287,9 +283,15 @@ watch(() => props.showShell, (showShell) => {
 }
 
 .app-logo {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  min-width: 0;
   font-size: var(--text-base);
-  font-weight: v.$font-bold;
-  color: var(--text-primary);
+  text-decoration: none;
+  font-weight: v.$font-semibold;
+  letter-spacing: -0.025em;
+  color: var(--sv-sem-text-primary);
   line-height: 1;
   user-select: none;
   white-space: nowrap;
@@ -299,26 +301,41 @@ watch(() => props.showShell, (showShell) => {
   }
 }
 
-.header-actions {
+.shell-utilities {
   display: flex;
   align-items: center;
   gap: var(--spacing-1);
   min-width: 0;
-  padding: 4px;
-  border-radius: calc(var(--radius-full) + 4px);
-  background: rgba(255, 255, 255, 0.04);
+  flex-shrink: 0;
 
   @include m.respond-to('md') {
     gap: var(--spacing-2);
   }
 
   :deep(.theme-toggle),
-  :deep(.icon-btn),
-  :deep(.glass-btn-icon),
-  .header-utility-btn,
-  .header-logout-btn {
-    min-width: 44px !important;
-    min-height: 44px !important;
+  :deep(.queue-status-indicator) {
+    min-width: var(--sv-fdn-size-target-primary);
+    min-height: var(--sv-fdn-size-target-primary);
+    border: 1px solid transparent;
+    border-radius: var(--sv-fdn-radius-md);
+    background: transparent;
+    color: var(--sv-sem-text-secondary);
+    box-shadow: none;
+
+    &:hover {
+      background: var(--sv-sem-surface-raised);
+      color: var(--sv-sem-text-primary);
+      transform: none;
+      box-shadow: none;
+    }
+  }
+
+  :deep(.queue-status-indicator) {
+    padding-inline: var(--spacing-3);
+  }
+
+  :deep(.queue-count) {
+    color: var(--sv-sem-text-primary);
   }
 }
 
@@ -327,31 +344,58 @@ watch(() => props.showShell, (showShell) => {
   display: flex;
   align-items: center;
   min-width: 0;
-  padding: 2px;
   gap: 2px;
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-full);
-  background: var(--glass-bg-subtle);
-}
-
-.activity-utilities {
-  box-shadow: inset 0 0 0 1px var(--glass-highlight);
 }
 
 .session-utilities {
-  border-color: transparent;
-  background: transparent;
+  padding-left: var(--spacing-2);
+  border-left: 1px solid var(--sv-sem-border-default);
 }
 
 .header-utility-btn {
+  position: relative;
+  min-width: var(--sv-fdn-size-target-primary);
+  min-height: var(--sv-fdn-size-target-primary);
   gap: var(--spacing-2);
-  padding: var(--spacing-2) !important;
+  padding: var(--spacing-2);
+  border: 1px solid transparent;
+  border-radius: var(--sv-fdn-radius-md);
+  background: transparent;
+  color: var(--sv-sem-text-secondary);
+  box-shadow: none;
+
+  &:hover {
+    background: var(--sv-sem-surface-raised);
+    color: var(--sv-sem-text-primary);
+    transform: none;
+    box-shadow: none;
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--sv-sem-action-focus);
+    outline-offset: 2px;
+  }
+
+  svg {
+    width: 20px;
+    height: 20px;
+    fill: none;
+    stroke: currentColor;
+  }
 
   .badge {
+    position: absolute;
     display: inline-grid;
     place-items: center;
-    top: 1px;
-    right: 1px;
+    top: 3px;
+    right: 2px;
+    min-width: 18px;
+    height: 18px;
+    padding-inline: var(--spacing-1);
+    background: var(--sv-sem-action-primary);
+    color: var(--sv-sem-text-inverse);
+    border-radius: var(--sv-fdn-radius-round);
+    font-size: var(--text-xs);
     line-height: 1;
   }
 
@@ -363,25 +407,23 @@ watch(() => props.showShell, (showShell) => {
   }
 
   @include m.respond-to('lg') {
-    padding: var(--spacing-2) var(--spacing-3) !important;
+    padding: var(--spacing-2) var(--spacing-3);
 
     .utility-label {
       display: inline;
+    }
+
+    .badge {
+      position: static;
     }
   }
 }
 
 .header-logout-btn {
-  padding: var(--spacing-2) !important;
   font-size: v.$text-sm;
-  background: transparent;
-  color: var(--text-secondary);
-  border-color: transparent;
 
   &:hover {
-    background: rgba(239, 68, 68, 0.14);
-    color: var(--danger-400);
-    border-color: rgba(239, 68, 68, 0.28);
+    color: var(--sv-sem-status-danger);
   }
 
   .logout-text {
@@ -391,24 +433,6 @@ watch(() => props.showShell, (showShell) => {
       display: inline;
     }
   }
-}
-
-.glass-btn-icon.has-badge svg {
-  animation: bell-shake 1s cubic-bezier(.36,.07,.19,.97) both;
-  transform-origin: top center;
-  color: var(--primary-color);
-}
-
-@keyframes bell-shake {
-  0% { transform: rotate(0); }
-  15% { transform: rotate(5deg); }
-  30% { transform: rotate(-5deg); }
-  45% { transform: rotate(4deg); }
-  60% { transform: rotate(-4deg); }
-  75% { transform: rotate(2deg); }
-  85% { transform: rotate(-2deg); }
-  92% { transform: rotate(1deg); }
-  100% { transform: rotate(0); }
 }
 
 .notification-panel {
@@ -511,11 +535,10 @@ watch(() => props.showShell, (showShell) => {
   justify-content: space-between;
   gap: var(--spacing-3);
   padding: var(--spacing-3) var(--spacing-4);
-  border: 1px solid var(--glass-border-hover);
-  border-radius: var(--radius-xl);
-  background: var(--sv-cmp-overlay-background);
-  color: var(--text-primary);
-  box-shadow: var(--glass-shadow-md);
+  border: 1px solid var(--sv-sem-border-default);
+  border-radius: var(--sv-fdn-radius-md);
+  background: var(--sv-sem-surface-panel);
+  color: var(--sv-sem-text-primary);
 
 }
 
@@ -597,7 +620,6 @@ watch(() => props.showShell, (showShell) => {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .glass-btn-icon.has-badge svg,
   .fade-enter-active,
   .fade-leave-active,
   .slide-up-enter-active,
@@ -622,12 +644,14 @@ watch(() => props.showShell, (showShell) => {
 
   .app-header .header-content {
     padding: 0 var(--spacing-2);
-    gap: var(--spacing-2);
+    gap: 0;
   }
 
-  .header-actions {
-    gap: 2px;
-    padding: 0;
+  .shell-utilities {
+    gap: 0;
+
+    :deep(.queue-info) { display: none; }
+    :deep(.queue-status-indicator) { padding-inline: var(--spacing-2); }
   }
 
   .app-logo {
@@ -635,9 +659,14 @@ watch(() => props.showShell, (showShell) => {
     text-overflow: ellipsis;
   }
 
+  .session-utilities {
+    padding-left: 0;
+    border-left: 0;
+  }
+
   .activity-utilities,
   .session-utilities {
-    padding: 1px;
+    gap: 0;
   }
 }
 </style>

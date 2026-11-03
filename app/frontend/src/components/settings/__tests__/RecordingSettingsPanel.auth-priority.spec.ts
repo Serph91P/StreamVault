@@ -16,6 +16,7 @@ function mountPanel(activeRecordings: ActiveRecording[] = []) {
   return mount(RecordingSettingsPanel, {
     global: { plugins: [createPinia()] },
     props: {
+      context: 'channel',
       settings: null,
       activeRecordings,
       streamerSettings: [{
@@ -33,7 +34,7 @@ describe('RecordingSettingsPanel dormant Twitch auth priority compatibility', ()
   it('does not render or emit the compatibility-only priority field', async () => {
     const wrapper = mountPanel()
 
-    const checkbox = wrapper.get('[aria-label="Record priority-channel"]')
+    const checkbox = wrapper.get('[aria-label="Aufnahme für priority-channel"]')
     await checkbox.setValue(false)
     await checkbox.trigger('change')
 
@@ -77,7 +78,7 @@ describe('RecordingSettingsPanel dormant Twitch auth priority compatibility', ()
       partial_recording_warning: true
     }])
 
-    expect(wrapper.text()).toContain('Twitch mode: anonymous')
+    expect(wrapper.text()).toContain('Twitch-Zugang: anonymous')
     expect(wrapper.text()).not.toContain('Auth priority')
     expect(wrapper.text()).not.toContain('higher_priority')
     expect(wrapper.text()).toContain('Waiting for authenticated recording capacity.')

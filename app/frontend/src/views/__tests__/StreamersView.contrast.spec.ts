@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import source from '../StreamersView.vue?raw'
+import tokens from '@/styles/design.tokens.json'
+
 
 function relativeLuminance(hex: string) {
   const channels = hex.match(/[a-f0-9]{2}/gi)!.map(channel => Number.parseInt(channel, 16) / 255)
@@ -15,15 +17,23 @@ function contrast(foreground: string, background: string) {
 }
 
 describe('StreamersView active filter badge contrast', () => {
-  it('uses an opaque high-contrast semantic token behind the small white badge text', () => {
+  it('keeps active filters and count badges legible on opaque neutral surfaces in both themes', () => {
     const activeRule = source.match(/&\.active\s*\{([\s\S]*?)\n  \}/)?.[1]
     const badgeRule = activeRule?.match(/\.tab-badge\s*\{([\s\S]*?)\n    \}/)?.[1]
 
-    expect(activeRule).toContain('background: v.$primary-800;')
-    expect(badgeRule).toContain('background: v.$primary-900;')
-    expect(badgeRule).toContain('color: white;')
+    expect(activeRule).toContain('background: var(--sv-sem-surface-selected);')
+    expect(activeRule).toContain('color: var(--sv-sem-text-primary);')
+    expect(badgeRule).toContain('background: var(--sv-sem-surface-panel);')
+    expect(badgeRule).toContain('color: var(--sv-sem-text-primary);')
     expect(badgeRule).not.toMatch(/rgba\s*\(/)
     expect(badgeRule).not.toMatch(/opacity\s*:/)
-    expect(contrast('ffffff', '134e4a')).toBeGreaterThanOrEqual(4.5)
+    const color = (reference: string) => tokens.foundation.color[
+      reference.replace('{foundation.color.', '').replace('}', '') as keyof typeof tokens.foundation.color
+    ]
+    for (const theme of [tokens.semanticDark, tokens.semanticLight]) {
+      for (const surface of [theme.surface.selected, theme.surface.panel]) {
+        expect(contrast(color(theme.text.primary), color(surface))).toBeGreaterThanOrEqual(4.5)
+      }
+    }
   })
 })

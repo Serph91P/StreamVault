@@ -996,6 +996,7 @@ async def update_streamer_settings(
                 streamer_id=streamer_id, enabled=True, quality="best"
             )
             db.add(recording_settings)
+            db.flush()
 
         # Update settings from request body
         # Supports BOTH:
@@ -1017,7 +1018,7 @@ async def update_streamer_settings(
         if recording_block is not None:
             if "enabled" in recording_block:
                 recording_settings.enabled = bool(recording_block["enabled"])
-            if "quality" in recording_block and recording_block["quality"]:
+            if "quality" in recording_block:
                 recording_settings.quality = recording_block["quality"]
             if "custom_filename" in recording_block:
                 recording_settings.custom_filename = (
@@ -1033,10 +1034,8 @@ async def update_streamer_settings(
                 )
 
         # Schema also sends top-level "quality" (stream quality picker)
-        if (
-            "quality" in settings
-            and isinstance(settings.get("quality"), str)
-            and settings["quality"]
+        if "quality" in settings and (
+            settings["quality"] is None or isinstance(settings["quality"], str)
         ):
             recording_settings.quality = settings["quality"]
 

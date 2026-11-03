@@ -19,7 +19,7 @@ describe('system back navigation', () => {
     ['Admin tools', AdminViewSource],
     ['Subscriptions', SubscriptionsViewSource],
   ])('provides a stable Back to System link on %s', (_name, source) => {
-    expect(source).toContain('Back to System')
+    expect(source).toContain(_name === 'Settings' ? 'Zurück zum System' : 'Back to System')
     expect(source).toContain('/system')
   })
 

@@ -76,6 +76,21 @@ def test_public_openapi_routes_and_middleware_preserve_verified_base():
             "title": "Generation",
         },
     }
+    # #933 adds only this codec field and these four SPA entrypoints.
+    assert schema["components"]["schemas"]["RecordingSettingsSchema"]["properties"].pop(
+        "supported_codecs"
+    ) == {
+        "type": "string",
+        "pattern": "^(?:h264|h265|av1)(?:,(?:h264|h265|av1))*$",
+        "title": "Supported Codecs",
+        "description": "Global recording codec preferences (ordered h264, h265, av1 list)",
+        "default": "h264,h265",
+    }
+    spa_paths = ("/onboarding", "/system", "/overview", "/activity")
+    for path in spa_paths:
+        operation = copy.deepcopy(expected["openapi"]["paths"]["/streamers"])
+        operation["get"]["operationId"] = f"serve_spa_routes_{path[1:]}_get"
+        assert schema["paths"].pop(path) == operation
     assert schema == expected["openapi"]
 
     # Handler modules may move; registration order, route kind and methods may not.
@@ -84,9 +99,12 @@ def test_public_openapi_routes_and_middleware_preserve_verified_base():
             (route["path"], route["methods"], route["route_class"]) for route in routes
         ]
 
-    assert signatures(current["routes_in_registration_order"]) == signatures(
-        expected["routes_in_registration_order"]
-    )
+    expected_routes = signatures(expected["routes_in_registration_order"])
+    insertion = expected_routes.index(("/streamers", ["GET"], "APIRoute")) + 1
+    expected_routes[insertion:insertion] = [
+        (path, ["GET"], "APIRoute") for path in spa_paths
+    ]
+    assert signatures(current["routes_in_registration_order"]) == expected_routes
     assert (
         current["middleware_in_registration_order"]
         == expected["middleware_in_registration_order"]

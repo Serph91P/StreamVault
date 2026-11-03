@@ -104,6 +104,16 @@ afterEach(() => {
 })
 
 describe('VideoPlayerView backend playback contract', () => {
+  it('returns to the registered library route only after successful deletion', async () => {
+    const wrapper = await mountView()
+    await wrapper.get('.action-btn.danger').trigger('click')
+    const confirm = wrapper.findAll('button').find(button => button.text().trim() === 'Delete Forever')!
+    await confirm.trigger('click')
+    await flushPromises()
+    expect(mocks.delete).toHaveBeenCalledWith(42)
+    expect(mocks.routerPush).toHaveBeenCalledWith({ name: 'videos' })
+    wrapper.unmount()
+  })
   it.each([
     ['primary route', { id: '42' }],
     ['legacy route', { streamerId: '7', streamId: '42' }]
@@ -226,7 +236,7 @@ describe('VideoPlayerView backend playback contract', () => {
     await wrapper.findAll('.base-button')[1].trigger('click')
     await flushPromises()
     expect(mocks.delete).toHaveBeenCalledWith(42)
-    expect(mocks.routerPush).toHaveBeenCalledWith({ name: 'Videos' })
+    expect(mocks.routerPush).toHaveBeenCalledWith({ name: 'videos' })
     expect(videoPlayerViewSource).not.toMatch(/fetch\s*\(/)
   })
 

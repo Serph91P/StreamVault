@@ -1,21 +1,56 @@
-// UX-03 migration bridge. New foundation components use --sv-* directly;
-// established consumers keep their public aliases while resolving through the
-// same semantic theme roles. Remove aliases only in the dedicated cleanup phase.
-:root {
-  --primary-color: var(--sv-sem-action-primary);
-  --primary-hover: var(--sv-sem-action-primary-hover);
+// Compatibility aliases have one owner. Semantic values come from design.tokens.json.
+// Foreground aliases serve text/icons; filled actions use --sv-sem-action-primary.
+:root,
+[data-theme="light"] {
+  --primary-color: var(--sv-sem-action-foreground);
+  --color-primary: var(--sv-sem-action-foreground);
+  --primary-color-light: var(--sv-sem-action-foreground);
+  --primary-hover: var(--sv-sem-action-foreground);
+  --primary-hover-color: var(--sv-sem-action-foreground);
+  --primary-color-hover: var(--sv-sem-action-foreground);
+  --highlight-color: var(--sv-sem-action-foreground);
   --primary-color-dark: var(--sv-sem-action-primary-active);
   --background-dark: var(--sv-sem-surface-canvas);
-  --background-darker: var(--sv-sem-surface-raised);
+  --background-darker: var(--sv-sem-surface-canvas);
+  --background-primary: var(--sv-sem-surface-canvas);
+  --bg-primary: var(--sv-sem-surface-canvas);
+  --color-background: var(--sv-sem-surface-canvas);
   --background-card: var(--sv-sem-surface-panel);
+  --background-secondary: var(--sv-sem-surface-panel);
+  --bg-secondary: var(--sv-sem-surface-panel);
+  --input-bg: var(--sv-sem-surface-panel);
+  --color-background-soft: var(--sv-sem-surface-panel);
+  --background-tertiary: var(--sv-sem-surface-raised);
+  --background-hover: var(--sv-sem-surface-raised);
+  --color-background-mute: var(--sv-sem-surface-raised);
   --text-primary: var(--sv-sem-text-primary);
+  --text-color: var(--sv-sem-text-primary);
+  --color-text: var(--sv-sem-text-primary);
+  --color-heading: var(--sv-sem-text-primary);
   --text-secondary: var(--sv-sem-text-secondary);
+  --text-tertiary: var(--sv-sem-text-secondary);
+  --text-muted: var(--sv-sem-text-secondary);
+  --text-muted-color: var(--sv-sem-text-secondary);
+  --color-text-light: var(--sv-sem-text-secondary);
+  --text-on-primary: var(--sv-sem-text-on-accent);
   --border-color: var(--sv-sem-border-default);
+  --border-color-subtle: var(--sv-sem-border-default);
   --success-color: var(--sv-sem-status-success);
-  --warning-color: var(--sv-sem-status-warning);
+  --success-text-color: var(--sv-sem-status-success);
+  --success-border-color: var(--sv-sem-status-success);
+  --color-success: var(--sv-sem-status-success);
   --danger-color: var(--sv-sem-status-danger);
+  --danger-text-color: var(--sv-sem-status-danger);
+  --danger-border-color: var(--sv-sem-status-danger);
+  --warning-color: var(--sv-sem-status-warning);
+  --color-warning: var(--sv-sem-status-warning);
   --info-color: var(--sv-sem-status-info);
+  --info-text-color: var(--sv-sem-status-info);
+  --info-border-color: var(--sv-sem-status-info);
+  --error-color: var(--sv-sem-status-danger);
+  --color-error: var(--sv-sem-status-danger);
   --control-target-min: var(--sv-fdn-size-target);
   --control-target-mobile: var(--sv-fdn-size-target-primary);
   --focus-ring: 2px solid var(--sv-sem-action-focus);
+  --gradient-primary: var(--sv-sem-action-primary);
 }

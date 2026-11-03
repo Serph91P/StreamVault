@@ -48,6 +48,13 @@ class NotificationDispatcher:
                 f"🔔 SEND_STREAM_NOTIFICATION: streamer={streamer_name}, event={event_type}, details_keys={list(details.keys())}"
             )
 
+            # Live state must not depend on optional alert preferences or failures.
+            is_domain_event = event_type in ("online", "offline", "update")
+            if is_domain_event:
+                await self._send_websocket_notification(
+                    streamer_name, event_type, details
+                )
+
             # Check if we should send notifications for this event type and streamer
             if "streamer_id" in details:
                 should_send = await self.push_service.should_notify(
@@ -63,7 +70,10 @@ class NotificationDispatcher:
                     return
 
             # Send WebSocket notification first
-            await self._send_websocket_notification(streamer_name, event_type, details)
+            if not is_domain_event:
+                await self._send_websocket_notification(
+                    streamer_name, event_type, details
+                )
 
             # Send push notifications to all active subscribers
             await self.push_service.send_push_notifications(

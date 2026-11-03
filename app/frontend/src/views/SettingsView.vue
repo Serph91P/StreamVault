@@ -1,12 +1,11 @@
 <template>
   <div class="page-view settings-view">
     <PageHeader
-      title="Settings"
+      title="Einstellungen"
       icon="settings"
-      :mobile-title="activeSectionData?.label || 'Settings'"
-      :mobile-icon="activeSectionData?.icon || 'settings'"
+      subtitle="Globale Vorgaben für deine Aufnahmen und die Anwendung."
       back-to="/system"
-      back-label="Back to System"
+      back-label="Zurück zum System"
     />
 
     <!-- Loading State -->
@@ -24,7 +23,7 @@
           <svg class="select-icon">
             <use href="#icon-menu" />
           </svg>
-          <select v-model="activeSection" class="section-select" aria-label="Choose settings section">
+          <select v-model="activeSection" class="section-select" aria-label="Einstellungsbereich wählen">
             <option
               v-for="section in allSectionItems"
               :key="section.id"
@@ -37,8 +36,8 @@
       </div>
 
       <!-- Sidebar Navigation (desktop only) -->
-      <aside class="settings-sidebar" aria-label="Settings sections">
-        <nav class="settings-nav" aria-label="Settings sections">
+      <aside class="settings-sidebar" aria-label="Einstellungsbereiche">
+        <nav class="settings-nav" aria-label="Einstellungsbereiche">
           <template v-for="group in sectionGroups" :key="group.label || 'overview-group'">
             <div v-if="group.label" class="nav-group-header">{{ group.label }}</div>
             <button
@@ -46,20 +45,17 @@
               :key="section.id"
               @click="activeSection = section.id"
               :class="{ active: activeSection === section.id }"
+              :aria-current="activeSection === section.id ? 'true' : undefined"
+              :title="section.description"
+              type="button"
               class="nav-item"
-              v-ripple
             >
-              <svg class="nav-icon">
+              <svg class="nav-icon" aria-hidden="true">
                 <use :href="`#icon-${section.icon}`" />
               </svg>
               <div class="nav-content">
                 <span class="nav-label">{{ section.label }}</span>
-                <span class="nav-description">{{ section.description }}</span>
               </div>
-              <span v-if="section.badge" class="nav-badge" :class="`badge-${section.badge.toLowerCase()}`">{{ section.badge }}</span>
-              <svg v-if="activeSection === section.id" class="nav-indicator">
-                <use href="#icon-chevron-right" />
-              </svg>
             </button>
           </template>
         </nav>
@@ -71,19 +67,23 @@
         class="settings-content"
         tabindex="-1"
         role="region"
-        :aria-label="`${activeSectionData?.label || 'Settings'} settings`"
+        :aria-label="`${activeSectionData?.label || 'Einstellungen'} – Einstellungen`"
       >
+        <p class="settings-context-note">
+          Für einzelne Kanäle:
+          <RouterLink to="/streamers/manage">Kanalverwaltung und Mehrfachaktionen öffnen</RouterLink>
+        </p>
         <div v-show="activeSectionData?.hasPanel" class="settings-section">
-          <BasePanel tone="glass" padding="lg">
+          <BasePanel tone="plain" :padded="false" class="settings-section-panel">
             <template #title>{{ activeSectionData?.label }}</template>
             <template #description>{{ activeSectionData?.panelDescription }}</template>
             <div v-if="!panelHost && !panelHostError" class="panel-load-state" role="status">
               <LoadingSkeleton type="card" />
-              <span>Loading {{ activeSectionData?.label }} settings…</span>
+              <span>{{ activeSectionData?.label }} wird geladen...</span>
             </div>
             <div v-else-if="panelHostError" class="panel-load-error" role="alert">
               <p>{{ panelHostError }}</p>
-              <button type="button" class="btn btn-primary" @click="retryPanelHost">Retry</button>
+              <button type="button" class="btn btn-primary" @click="retryPanelHost">Erneut versuchen</button>
             </div>
             <component
               v-else
@@ -97,9 +97,9 @@
 
         <!-- About Settings -->
         <div v-if="activeSection === 'about'" class="settings-section">
-          <BasePanel tone="glass" padding="lg">
-            <template #title>About</template>
-            <template #description>Application information and version details</template>
+          <BasePanel tone="plain" :padded="false" class="settings-section-panel">
+            <template #title>Über StreamVault</template>
+            <template #description>Anwendung und Versionsinformationen</template>
             <div class="about-content">
               <div class="about-logo">
                 <svg class="logo-icon">
@@ -118,14 +118,14 @@
                   Commit: <code>{{ versionInfo.commit_sha.substring(0, 7) }}</code>
                 </p>
                 <p v-if="versionInfo.build_date" class="build-date">
-                  Built: {{ formatBuildDate(versionInfo.build_date) }}
+                  Erstellt: {{ formatBuildDate(versionInfo.build_date) }}
                 </p>
 
                 <!-- Update Check -->
                 <div v-if="versionInfo.update_available" class="update-notice">
                   <span class="update-icon">🎉</span>
                   <span class="update-text">
-                    Update available:
+                    Update verfügbar:
                     <strong>{{ displayVersion }}</strong>
                     &rarr;
                     <strong>{{ versionInfo.latest_version }}</strong>
@@ -137,13 +137,13 @@
                      :href="versionInfo.latest_version_url"
                      target="_blank"
                      class="btn btn-sm btn-primary">
-                    View Release
+                    Version öffnen
                   </a>
                 </div>
                 <div v-else-if="versionInfo.update_check_error" class="update-notice update-error">
                   <span class="update-icon">⚠️</span>
                   <span class="update-text">
-                    Update check failed: {{ versionInfo.update_check_error }}
+                    Updateprüfung fehlgeschlagen: {{ versionInfo.update_check_error }}
                   </span>
                 </div>
                 <div v-else class="up-to-date">
@@ -152,14 +152,14 @@
                      :href="versionInfo.latest_version_url"
                      target="_blank"
                      class="release-link">
-                    View release
+                    Version öffnen
                   </a>
                 </div>
               </div>
-              <p v-else class="about-version">Loading version...</p>
+              <p v-else class="about-version">Version wird geladen...</p>
 
               <p class="about-description">
-                Automated stream recording and management system for Twitch content creators.
+                Automatische Aufzeichnung und Verwaltung von Twitch-Streams.
               </p>
               <div class="about-links">
                 <a href="https://github.com/Serph91P/StreamVault" target="_blank" class="about-link">
@@ -172,7 +172,7 @@
                   <svg class="icon">
                     <use href="#icon-download" />
                   </svg>
-                  Releases
+                  Versionen
                 </a>
               </div>
             </div>
@@ -185,7 +185,7 @@
 
 <script setup lang="ts">
 import { ref, shallowRef, computed, nextTick, onMounted, onBeforeUnmount, watch, type Component } from 'vue'
-import { useRoute } from 'vue-router'
+import { RouterLink, useRoute } from 'vue-router'
 import { useNotificationSettings } from '@/composables/useNotificationSettings'
 import { useRecordingSettings } from '@/composables/useRecordingSettings'
 
@@ -194,18 +194,14 @@ import { systemApi } from '@/services/api'
 import LoadingSkeleton from '@/components/LoadingSkeleton.vue'
 import BasePanel from '@/components/base/BasePanel.vue'
 import PageHeader from '@/components/base/PageHeader.vue'
-import type { NotificationSettings, StreamerNotificationSettings } from '@/types/settings'
+import type { NotificationSettings } from '@/types/settings'
 import type { RecordingSettings } from '@/types/recording'
-
-// Section metadata for nav badges
-type SectionBadge = 'Basic' | 'Advanced' | 'Account' | 'Safety' | 'Danger'
 
 interface Section {
   id: string
   label: string
   description: string
   icon: string
-  badge?: SectionBadge
   hasPanel?: boolean
   panelDescription?: string
 }
@@ -218,28 +214,28 @@ interface SectionGroup {
 // No 'overview' pseudo-section: it only mirrored this navigation as a card
 // grid, so Settings lands directly in the first real section instead.
 const allSectionItems: Section[] = [
-  { id: 'twitch', label: 'Twitch Connection', description: 'OAuth & quality settings', icon: 'link', badge: 'Basic', hasPanel: true, panelDescription: 'Connect your Twitch account for enhanced recording quality and features' },
-  { id: 'notifications', label: 'Notifications', description: 'Stream alerts & updates', icon: 'bell', badge: 'Basic', hasPanel: true, panelDescription: 'Configure notification preferences for stream events' },
-  { id: 'recording', label: 'Recording', description: 'Quality & behavior', icon: 'video', badge: 'Advanced', hasPanel: true, panelDescription: 'Manage recording quality, codecs, and behavior' },
-  { id: 'storage', label: 'Storage', description: 'Cleanup & retention', icon: 'server', badge: 'Advanced', hasPanel: true, panelDescription: 'Automatic cleanup policies, retention and storage management' },
-  { id: 'favorites', label: 'Favorite Games', description: 'Priority categories', icon: 'star', badge: 'Basic', hasPanel: true, panelDescription: 'Set favorite game categories for priority notifications' },
-  { id: 'pwa', label: 'PWA & Mobile', description: 'Mobile app settings', icon: 'smartphone', badge: 'Advanced', hasPanel: true, panelDescription: 'Progressive Web App and mobile-specific settings' },
-  { id: 'api-keys', label: 'API Keys', description: 'External access tokens', icon: 'key', badge: 'Safety', hasPanel: true, panelDescription: 'Manage long-lived tokens for external clients (monitoring, scripts, dashboards)' },
-  { id: 'proxy', label: 'Proxy Management', description: 'Multi-proxy system', icon: 'server', badge: 'Safety', hasPanel: true, panelDescription: 'Configure multiple proxy servers with automatic health monitoring and failover' },
-  { id: 'about', label: 'About', description: 'App information', icon: 'info', badge: 'Account' }
+  { id: 'twitch', label: 'Twitch-Verbindung', description: 'Konto und Aufnahmezugang', icon: 'link', hasPanel: true, panelDescription: 'Twitch-Konto verbinden und den Zugang für Aufnahmen verwalten. Qualität und Dateinamen stehen unter Aufnahme.' },
+  { id: 'notifications', label: 'Benachrichtigungen', description: 'Zustellung und Ereignisse', icon: 'bell', hasPanel: true, panelDescription: 'Zustellungsdienste und globale Ereignisse einstellen. Kanalbezogene Schalter stehen im Kanaldetail.' },
+  { id: 'recording', label: 'Aufnahme', description: 'Qualität, Codecs und Dateinamen', icon: 'video', hasPanel: true, panelDescription: 'Globale Aufnahmevorgaben festlegen. Twitch-Konto und Zugang verwaltest du unter Twitch-Verbindung.' },
+  { id: 'storage', label: 'Speicher und Aufbewahrung', description: 'Automatische Bereinigung', icon: 'server', hasPanel: true, panelDescription: 'Globale Aufbewahrung festlegen. Kanalstatistik und einzelne Bereinigungen stehen im Kanaldetail.' },
+  { id: 'favorites', label: 'Lieblingsspiele', description: 'Bevorzugte Kategorien', icon: 'star', hasPanel: true, panelDescription: 'Lieblingskategorien für Benachrichtigungen auswählen.' },
+  { id: 'pwa', label: 'App und Mobilgeräte', description: 'Installation und mobile Nutzung', icon: 'smartphone', hasPanel: true, panelDescription: 'Progressive Web App und mobile Funktionen einrichten.' },
+  { id: 'api-keys', label: 'API-Schlüssel', description: 'Zugang für externe Anwendungen', icon: 'key', hasPanel: true, panelDescription: 'Zugriffsschlüssel für Monitoring, Skripte und andere Anwendungen verwalten.' },
+  { id: 'proxy', label: 'Proxy-Verwaltung', description: 'Verbindungen und Ausfallsicherung', icon: 'server', hasPanel: true, panelDescription: 'Proxyserver, Zustandsprüfung und Ausfallsicherung verwalten.' },
+  { id: 'about', label: 'Über StreamVault', description: 'Version und Informationen', icon: 'info' }
 ]
 
 const sectionGroups: SectionGroup[] = [
   {
-    label: 'Basics',
+    label: 'Verbindung und Hinweise',
     sections: allSectionItems.filter(s => s.id === 'twitch' || s.id === 'notifications' || s.id === 'favorites')
   },
   {
-    label: 'Advanced',
+    label: 'Aufnahme und Nutzung',
     sections: allSectionItems.filter(s => s.id === 'recording' || s.id === 'storage' || s.id === 'pwa')
   },
   {
-    label: 'Access & Safety',
+    label: 'Zugang und System',
     sections: allSectionItems.filter(s => s.id === 'api-keys' || s.id === 'proxy' || s.id === 'about')
   }
 ]
@@ -290,7 +286,7 @@ async function loadPanelHost() {
     panelHost.value = module.default
   } catch {
     if (!acceptsPanelHost || request !== panelHostRequest) return
-    panelHostError.value = 'This settings panel could not be loaded.'
+    panelHostError.value = 'Dieser Einstellungsbereich konnte nicht geladen werden.'
   }
 }
 
@@ -337,12 +333,12 @@ const displayVersion = computed(() => {
 
 const upToDateText = computed(() => {
   const v = versionInfo.value
-  if (!v) return "You're running the latest version"
+  if (!v) return 'Die aktuelle Version ist installiert'
   const channel = v.release_channel === 'prerelease' ? 'develop' : 'stable'
   if (v.latest_version) {
-    return `You're on the latest ${channel} release (${v.latest_version})`
+    return `Aktuelle Version im Kanal ${channel}: ${v.latest_version}`
   }
-  return `You're on the latest ${channel} release`
+  return `Die aktuelle Version im Kanal ${channel} ist installiert`
 })
 
 
@@ -353,25 +349,16 @@ const toast = useToast()
 const {
   settings: notificationSettings,
   fetchSettings: fetchNotificationSettings,
-  updateSettings: updateNotificationSettings,
-  getStreamerSettings: getNotificationStreamerSettings,
-  updateStreamerSettings: updateStreamerNotificationSettings
+  updateSettings: updateNotificationSettings
 } = useNotificationSettings()
 
 // Recording settings composable
 const {
   settings: recordingSettings,
-  streamerSettings: recordingStreamerSettings,
-  activeRecordings,
   fetchSettings: fetchRecordingSettings,
-  updateSettings: updateRecordingSettings,
-  fetchStreamerSettings: fetchRecordingStreamerSettings,
-  updateStreamerSettings: updateStreamerRecordingSettings,
-  fetchActiveRecordings,
-  stopRecording
+  updateSettings: updateRecordingSettings
 } = useRecordingSettings()
 
-const notificationStreamerSettings = ref<StreamerNotificationSettings[]>([])
 
 // Default notification settings
 const defaultNotificationSettings = {
@@ -390,13 +377,10 @@ async function loadAllSettings() {
   try {
     // Load notification settings
     await fetchNotificationSettings()
-    notificationStreamerSettings.value = await getNotificationStreamerSettings()
 
     // Load recording settings
     try {
       await fetchRecordingSettings()
-      await fetchRecordingStreamerSettings()
-      await fetchActiveRecordings()
     } catch (error) {
       console.error('Failed to load recording settings:', error)
     }
@@ -423,7 +407,7 @@ async function loadVersionInfo() {
 function formatBuildDate(isoDate: string): string {
   try {
     const date = new Date(isoDate)
-    return date.toLocaleDateString('en-US', {
+    return date.toLocaleDateString('de-DE', {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
@@ -440,73 +424,41 @@ function formatBuildDate(isoDate: string): string {
 async function handleUpdateNotificationSettings(newSettings: Partial<NotificationSettings>) {
   try {
     await updateNotificationSettings(newSettings)
-    toast.success('Notification settings saved successfully')
+    toast.success('Benachrichtigungseinstellungen gespeichert')
   } catch (error) {
     console.error('Failed to update notification settings:', error)
-    toast.error('Failed to save notification settings')
+    toast.error('Benachrichtigungseinstellungen konnten nicht gespeichert werden')
   }
 }
 
-async function handleUpdateStreamerNotificationSettings(
-  streamerId: number,
-  settings: Partial<StreamerNotificationSettings>
-) {
-  try {
-    await updateStreamerNotificationSettings(streamerId, settings)
-    notificationStreamerSettings.value = await getNotificationStreamerSettings()
-    toast.success('Streamer notification settings saved successfully')
-  } catch (error) {
-    console.error('Failed to update streamer notification settings:', error)
-    toast.error('Failed to save streamer notification settings')
-  }
-}
 
 // Recording handlers
 async function handleUpdateRecordingSettings(newSettings: RecordingSettings) {
   try {
     await updateRecordingSettings(newSettings)
-    toast.success('Recording settings saved successfully')
+    toast.success('Aufnahmeeinstellungen gespeichert')
   } catch (error) {
     console.error('Failed to update recording settings:', error)
-    toast.error('Failed to save recording settings')
+    toast.error('Aufnahmeeinstellungen konnten nicht gespeichert werden')
   }
 }
 
-async function handleUpdateStreamerRecordingSettings(streamerId: number, settings: any) {
-  try {
-    await updateStreamerRecordingSettings(streamerId, settings)
-    await fetchRecordingStreamerSettings()
-    toast.success('Streamer recording settings saved successfully')
-  } catch (error) {
-    console.error('Failed to update streamer recording settings:', error)
-    toast.error('Failed to save streamer recording settings')
-  }
-}
-
-async function handleStopRecording(recordingId: number) {
-  try {
-    await stopRecording(recordingId)
-    await fetchActiveRecordings()
-    toast.success('Recording stopped successfully')
-  } catch (error) {
-    console.error('Failed to stop recording:', error)
-    toast.error('Failed to stop recording')
-  }
-}
 
 const activePanelProps = computed(() => {
   if (activeSection.value === 'notifications') {
     return {
       settings: notificationSettings.value || defaultNotificationSettings,
-      streamerSettings: notificationStreamerSettings.value
+      context: 'global',
+      streamerSettings: []
     }
   }
   if (activeSection.value === 'recording' || activeSection.value === 'storage') {
     return {
       section: activeSection.value,
       settings: recordingSettings.value,
-      streamerSettings: recordingStreamerSettings.value,
-      activeRecordings: activeRecordings.value
+      context: 'global',
+      streamerSettings: [],
+      activeRecordings: []
     }
   }
   return {}
@@ -515,15 +467,12 @@ const activePanelProps = computed(() => {
 const activePanelListeners = computed(() => {
   if (activeSection.value === 'notifications') {
     return {
-      'update-settings': handleUpdateNotificationSettings,
-      'update-streamer-settings': handleUpdateStreamerNotificationSettings
+      'update-settings': handleUpdateNotificationSettings
     }
   }
   if (activeSection.value === 'recording' || activeSection.value === 'storage') {
     return {
-      update: handleUpdateRecordingSettings,
-      'update-streamer': handleUpdateStreamerRecordingSettings,
-      'stop-recording': handleStopRecording
+      update: handleUpdateRecordingSettings
     }
   }
   return {}
@@ -544,34 +493,47 @@ onBeforeUnmount(() => {
 <style scoped lang="scss">
 @use '@/styles/variables' as v;
 @use '@/styles/mixins' as m;
-.settings-view {
-  // .page-view provides padding/sizing via global styles
-  // Page-specific overrides only
+.settings-context-note {
+  padding: 0 0 var(--spacing-4);
+  margin: 0 0 var(--spacing-4);
+  border-bottom: 1px solid var(--sv-sem-border-default);
+  color: var(--sv-sem-text-secondary);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+
+  a {
+    color: var(--sv-sem-action-foreground);
+  }
+}
+
+.settings-section-panel {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
 }
 
 // Loading
 .loading-container {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
   gap: var(--spacing-5);
 }
 
 // Settings Layout
 .settings-layout {
   display: grid;
-  grid-template-columns: 280px 1fr;
-  gap: var(--spacing-6);
+  grid-template-columns: 208px minmax(0, 1fr);
+  gap: var(--spacing-8);
   align-items: start;
 }
 
 // Sidebar
 .settings-sidebar {
   position: sticky;
-  top: var(--spacing-6);
-  background: var(--background-card);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-xl);
-  padding: var(--spacing-2);
+  top: calc(var(--app-header-height) + env(safe-area-inset-top, 0px) + var(--spacing-6));
+  max-height: calc(100dvh - var(--app-header-height) - env(safe-area-inset-top, 0px) - 2 * var(--spacing-6));
+  overflow-y: auto;
+  padding: var(--spacing-1);
 }
 
 .settings-nav {
@@ -584,48 +546,40 @@ onBeforeUnmount(() => {
   position: relative;
   display: flex;
   align-items: center;
-  gap: var(--spacing-3);
+  gap: var(--spacing-2);
   padding: var(--spacing-2) var(--spacing-3);
-  min-height: 58px;
+  min-height: var(--sv-fdn-size-target);
   background: transparent;
-  border: none;
-  border-radius: var(--radius-lg);
-  color: var(--text-secondary);
+  border: 1px solid transparent;
+  border-radius: var(--sv-fdn-radius-md);
+  color: var(--sv-sem-text-secondary);
   text-align: left;
   cursor: pointer;
-  transition: all v.$duration-200 v.$ease-out;
 
   &:hover {
-    background: rgba(var(--primary-500-rgb), 0.05);
-    color: var(--text-primary);
+    background: var(--sv-sem-surface-raised);
+    color: var(--sv-sem-text-primary);
   }
 
   &.active {
-    background: v.$primary-700;
-    color: white;
+    background: var(--sv-sem-surface-raised);
+    color: var(--sv-sem-text-primary);
+    border-color: var(--sv-sem-border-default);
 
     .nav-icon {
-      stroke: white;
-    }
-
-    .nav-description {
-      color: rgba(255, 255, 255, 0.92);
-    }
-
-    .nav-indicator {
-      stroke: white;
+      color: var(--sv-sem-action-focus);
     }
   }
 
   &:focus-visible {
-    outline: 2px solid var(--primary-color);
+    outline: 2px solid var(--sv-sem-action-focus);
     outline-offset: 2px;
   }
 }
 
 .nav-icon {
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   stroke: currentColor;
   fill: none;
   flex-shrink: 0;
@@ -639,27 +593,8 @@ onBeforeUnmount(() => {
 .nav-label {
   display: block;
   font-size: var(--text-sm);
-  font-weight: v.$font-semibold;
+  font-weight: v.$font-medium;
   line-height: 1.4;
-}
-
-.nav-description {
-  display: block;
-  font-size: var(--text-xs);
-  color: var(--text-secondary);
-  line-height: 1.3;
-}
-
-.nav-indicator {
-  position: absolute;
-  right: var(--spacing-2);
-  top: 50%;
-  transform: translateY(-50%);
-  width: 16px;
-  height: 16px;
-  stroke: currentColor;
-  fill: none;
-  flex-shrink: 0;
 }
 
 // Settings Content
@@ -669,7 +604,7 @@ onBeforeUnmount(() => {
   // The async panel region is focused programmatically but remains outside the
   // Tab order. Keep the location change visible to keyboard and low-vision users.
   &:focus {
-    outline: 2px solid var(--primary-color);
+    outline: 2px solid var(--sv-sem-action-focus);
     outline-offset: 3px;
   }
 
@@ -734,10 +669,6 @@ onBeforeUnmount(() => {
   }
 }
 
-.settings-section {
-  animation: fade-in v.$duration-300 v.$ease-out;
-}
-
 // About Section
 .about-content {
   text-align: center;
@@ -781,8 +712,8 @@ onBeforeUnmount(() => {
   border-radius: var(--radius-sm);
   font-size: var(--text-xs);
   font-weight: v.$font-medium;
-  background: var(--primary-color);
-  color: white;
+  background: var(--sv-sem-surface-selected);
+  color: var(--sv-sem-text-primary);
 }
 
 .build-date {
@@ -873,12 +804,11 @@ onBeforeUnmount(() => {
   background: var(--background-darker);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
-  box-shadow: var(--glass-shadow-sm);
   color: var(--text-primary);
   text-decoration: none;
   font-size: var(--text-sm);
   font-weight: v.$font-medium;
-  transition: all v.$duration-200 v.$ease-out;
+  transition: background-color v.$duration-150 v.$ease-out;
 
   .icon {
     width: 20px;
@@ -888,15 +818,9 @@ onBeforeUnmount(() => {
   }
 
   &:hover {
-    border-color: var(--primary-color);
-    background: rgba(var(--primary-color-rgb), 0.1);
-    color: var(--primary-color);
-    transform: translateY(-2px);
-    box-shadow: var(--glass-shadow-md);
-  }
-
-  &:active {
-    transform: translateY(0);
+    border-color: var(--sv-sem-border-strong);
+    background: var(--sv-sem-surface-raised);
+    color: var(--sv-sem-text-primary);
   }
 }
 
@@ -905,21 +829,10 @@ onBeforeUnmount(() => {
   display: none;
 }
 
-// Animations
-@keyframes fade-in {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
 @include m.respond-below('lg') {  // < 1024px
   .settings-layout {
     grid-template-columns: 1fr;
+    gap: var(--spacing-5);
   }
 
   // Hide desktop sidebar, show mobile selector
@@ -929,13 +842,6 @@ onBeforeUnmount(() => {
 
   .mobile-section-selector {
     display: block;
-    margin-bottom: var(--spacing-4);
-  }
-
-  // The page header and the section selector already name the section;
-  // repeating it as the panel title cost ~100px of scarce mobile space.
-  .settings-content :deep(.base-panel-header) {
-    display: none;
   }
 
   .section-select {
@@ -948,7 +854,7 @@ onBeforeUnmount(() => {
     color: var(--text-primary);
     font-size: var(--text-base);
     font-weight: v.$font-medium;
-    appearance: none;
+    appearance: auto;
     cursor: pointer;
     min-height: 48px;
 
@@ -975,31 +881,9 @@ onBeforeUnmount(() => {
     }
   }
 
-  // Override PageHeader title visibility at settings breakpoint
-  :deep(.page-header .desktop-title) {
-    display: none;
-  }
-
-  :deep(.page-header .mobile-title) {
-    display: flex;
-  }
-
-  // Hide section header on mobile (already shown in mobile page title)
-  .section-header {
-    display: none;
-  }
-
-  .nav-indicator {
-    display: none;
-  }
-
 }
 
 @include m.respond-below('sm') {  // < 640px
-  .settings-view {
-    padding: var(--spacing-4) var(--spacing-3);
-  }
-
   .btn-action {
     width: 100%;
     min-height: 44px;  // Touch-friendly
@@ -1042,59 +926,12 @@ onBeforeUnmount(() => {
   font-size: var(--text-xs);
   font-weight: v.$font-semibold;
   color: var(--text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  padding: var(--spacing-3) var(--spacing-3) var(--spacing-1);
+  padding: var(--spacing-4) var(--spacing-3) var(--spacing-2);
   margin-top: var(--spacing-2);
-  border-bottom: 1px solid var(--border-color);
 }
 
 .nav-group-header:first-of-type {
   margin-top: 0;
-}
-
-// Nav badges
-.nav-badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 1px 6px;
-  border-radius: var(--radius-pill);
-  font-size: 0.625rem;
-  font-weight: v.$font-semibold;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  flex-shrink: 0;
-  margin-right: var(--spacing-2);
-
-  &.badge-basic {
-    background: rgba(var(--primary-500-rgb), 0.15);
-    color: var(--text-primary);
-  }
-
-  &.badge-advanced {
-    background: rgba(var(--accent-500-rgb), 0.15);
-    color: var(--text-primary);
-  }
-
-  &.badge-safety {
-    background: rgba(var(--warning-500-rgb), 0.15);
-    color: var(--text-primary);
-  }
-
-  &.badge-account {
-    background: rgba(var(--info-500-rgb), 0.15);
-    color: var(--text-primary);
-  }
-
-  &.badge-danger {
-    background: rgba(var(--danger-500-rgb), 0.15);
-    color: var(--text-primary);
-  }
-}
-
-.nav-item.active .nav-badge {
-  background: var(--background-card);
-  color: var(--text-primary) !important;
 }
 
 </style>

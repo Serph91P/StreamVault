@@ -1,8 +1,10 @@
 export interface RecordingSettings {
   enabled: boolean;
+  output_directory?: string;
   filename_template: string;
   filename_preset?: string;
   default_quality: string;
+  max_streams_per_streamer?: number; // Legacy retention limit; preserve the server value on save
   use_chapters: boolean;
   use_category_as_chapter_title?: boolean; // Neue Eigenschaft hinzufügen
   cleanup_policy?: CleanupPolicy; // New property for cleanup policy

@@ -6,11 +6,12 @@ This service is specifically for user authentication flows, NOT general API call
 Use twitch_api.py for general Twitch API interactions.
 """
 
+import asyncio
 import logging
 import aiohttp
 from app.config.settings import settings
 from app.services.streamer_service import StreamerService
-from app.services.api.twitch_api import twitch_api
+from app.services.api.twitch_api import FOLLOW_FETCH_TIMEOUT, twitch_api
 from typing import Dict, List, Any, Optional
 from urllib.parse import urlencode
 
@@ -73,34 +74,24 @@ class TwitchOAuthService:
 
     async def get_user_followed_channels(
         self, access_token: str
-    ) -> List[Dict[str, Any]]:
-        """Get channels followed by the user using the new API endpoint"""
-        try:
+    ) -> Optional[List[Dict[str, Any]]]:
+        """Project the complete follow list; provider failures must reach the route."""
+        async with asyncio.timeout(FOLLOW_FETCH_TIMEOUT):
             user_id = await self._get_authenticated_user_id(access_token)
             if not user_id:
-                logger.error("Failed to get authenticated user ID")
-                return []
-
-            logger.debug(f"Got authenticated user ID: {user_id}")
-
-            followed_channels = []
-            pagination_cursor = None
-
-            while True:
-                channels_batch, pagination_cursor = await self._get_follows_page(
-                    user_id, access_token, pagination_cursor
-                )
-
-                if channels_batch:
-                    followed_channels.extend(channels_batch)
-
-                if not pagination_cursor:
-                    break
-
-            return followed_channels
-        except Exception as e:
-            logger.error(f"Error getting followed channels: {e}")
-            return []
+                return None
+            follows = await twitch_api.get_user_followed_streamers(
+                user_id, access_token
+            )
+            return [
+                {
+                    "id": follow["broadcaster_id"],
+                    "login": follow["broadcaster_login"],
+                    "display_name": follow.get("broadcaster_name"),
+                    "followed_at": follow.get("followed_at"),
+                }
+                for follow in follows
+            ]
 
     async def _get_authenticated_user_id(self, access_token: str) -> Optional[str]:
         """Get the user ID of the authenticated user"""
@@ -112,38 +103,6 @@ class TwitchOAuthService:
         except Exception as e:
             logger.error(f"Error getting user ID: {e}")
             return None
-
-    async def _get_follows_page(
-        self, user_id: str, access_token: str, cursor: Optional[str] = None
-    ) -> tuple[List[Dict[str, Any]], Optional[str]]:
-        """Get a page of followed channels using the new API endpoint"""
-        try:
-            follows = await twitch_api.get_user_followed_streamers(
-                user_id, access_token
-            )
-
-            # Debug logging
-            logger.debug(f"Successfully fetched {len(follows)} followed channels")
-
-            # Extract broadcaster info
-            channels = []
-            for follow in follows:
-                broadcaster_info = follow.get("broadcaster_login")
-                if broadcaster_info:
-                    channels.append(
-                        {
-                            "id": follow.get("broadcaster_id"),
-                            "login": follow.get("broadcaster_login"),
-                            "display_name": follow.get("broadcaster_name"),
-                            "followed_at": follow.get("followed_at"),
-                        }
-                    )
-
-            return channels, None  # No pagination in current implementation
-
-        except Exception as e:
-            logger.error(f"Error getting follows page: {e}")
-            return [], None
 
     async def import_followed_streamers(
         self, streamers: List[Dict[str, Any]]

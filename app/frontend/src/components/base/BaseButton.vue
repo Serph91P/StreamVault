@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, useId } from 'vue'
 
 type Variant =
   | 'primary'
@@ -44,6 +44,7 @@ const props = withDefaults(defineProps<Props>(), {
   block: false,
 })
 
+const contentId = useId()
 const isDisabled = computed(() => props.disabled || props.loading)
 const accessibleLabel = computed(() => (props.loading ? props.loadingLabel || props.ariaLabel : props.ariaLabel))
 const classes = computed(() => [
@@ -65,8 +66,9 @@ const classes = computed(() => [
     :disabled="isDisabled"
     :aria-busy="loading || undefined"
     :aria-label="accessibleLabel"
+    :aria-labelledby="loading && !accessibleLabel ? contentId : undefined"
   >
-    <span class="btn-content" :class="{ 'is-hidden': loading }">
+    <span :id="contentId" class="btn-content" :class="{ 'is-hidden': loading }">
       <slot />
     </span>
     <span v-if="loading" class="btn-loader-overlay" aria-hidden="true">
@@ -84,9 +86,7 @@ const classes = computed(() => [
   transition:
     color var(--transition-fast),
     background-color var(--transition-fast),
-    border-color var(--transition-fast),
-    box-shadow var(--transition-fast),
-    transform var(--transition-fast);
+    border-color var(--transition-fast);
 
   &:focus-visible {
     outline: 2px solid var(--sv-cmp-button-focus);
@@ -108,11 +108,6 @@ const classes = computed(() => [
 .base-button-target:disabled {
   color: var(--sv-cmp-button-disabled-foreground);
   background: var(--sv-cmp-button-disabled-background);
-}
-
-// Keep the outline affordance after the global button reset has been applied.
-.btn-outline {
-  border: 2px solid currentColor;
 }
 
 .btn-block {

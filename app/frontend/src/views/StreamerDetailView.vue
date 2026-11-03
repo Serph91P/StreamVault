@@ -118,9 +118,6 @@
           </div>
         </div>
 
-        <p class="safe-action-note">
-          Destructive stream cleanup stays in the separated Danger Zone below and requires confirmation.
-        </p>
       </section>
 
       <!-- Tab Navigation with horizontal scroll -->
@@ -156,45 +153,6 @@
         role="tabpanel"
         aria-labelledby="streamer-detail-tab-overview"
       >
-        <!-- Status Summary -->
-        <div class="stats-section">
-          <StatusCard
-            :value="streamer.is_live ? 'Live' : 'Offline'"
-            label="Status"
-            :icon="streamer.is_live ? 'radio' : 'user'"
-            :type="streamer.is_live ? 'danger' : 'primary'"
-            :subtitle="streamer.is_live ? (streamer.title || 'Currently streaming') : 'No active stream'"
-          />
-          <StatusCard
-            :value="streamer.is_recording ? 'Recording' : 'Idle'"
-            label="Recording"
-            :icon="streamer.is_recording ? 'video' : 'clock'"
-            :type="streamer.is_recording ? 'danger' : 'info'"
-            :subtitle="streamer.is_recording ? 'Capture in progress' : 'Ready to record'"
-          />
-          <StatusCard
-            :value="streamCount"
-            label="Total Streams"
-            icon="film"
-            type="primary"
-            :format-as-number="true"
-          />
-          <StatusCard
-            :value="recordedStreamsCount"
-            label="Recorded"
-            icon="check-circle"
-            type="success"
-            :format-as-number="true"
-          />
-          <StatusCard
-            :value="averageDuration"
-            label="Avg Duration"
-            icon="clock"
-            type="info"
-            :format-as-number="false"
-          />
-        </div>
-
         <!-- Latest Recording / Last Stream Info -->
         <div v-if="latestStream" class="overview-section">
           <div class="section-header">
@@ -351,13 +309,21 @@
             Configure recording behavior and notifications for this streamer. Changes take effect on the next stream.
           </p>
         </div>
-        <StreamerSettingsFields v-model="streamerSettings" :disabled="savingSettings" />
+        <StreamerSettingsFields v-model="streamerSettings" :disabled="savingSettings" :exclude-fields="['recording.use_global_cleanup_policy']" />
         <div class="settings-actions">
           <BaseButton variant="secondary" @click="loadSettings">Cancel</BaseButton>
           <BaseButton variant="primary" :loading="savingSettings" @click="saveSettings">
             {{ savingSettings ? 'Saving...' : 'Save Settings' }}
           </BaseButton>
         </div>
+        <p class="settings-description">Aufbewahrung, Speicher und Sofortänderungen. Die folgenden Kanaländerungen werden direkt gespeichert.</p>
+        <ChannelSettingsPanel
+          ref="channelSettingsPanel"
+          :key="streamerId"
+          :streamer-id="Number(streamerId)"
+          @recording-updated="reconcileRecordingSettings"
+          @notifications-updated="reconcileNotificationSettings"
+        />
       </div>
 
       <!-- Events Tab -->
@@ -432,8 +398,8 @@
     />
 
     <!-- Delete Confirmation Modal -->
-    <BaseModal v-model="showConfirm" title="Delete All Streams" size="md">
-      <p>Are you sure you want to delete all streams for this streamer?</p>
+    <BaseModal v-model="showConfirm" :title="streamToDelete ? 'Delete Stream' : 'Delete All Streams'" size="md">
+      <p>{{ streamToDelete ? 'Are you sure you want to delete this stream and its recording?' : 'Are you sure you want to delete all streams for this streamer?' }}</p>
       <p class="warning">
         <svg class="icon-warning">
           <use href="#icon-alert-triangle" />
@@ -442,8 +408,8 @@
       </p>
       <template #footer>
         <BaseButton variant="secondary" @click="showConfirm = false">Cancel</BaseButton>
-        <BaseButton variant="danger" :loading="deletingAll" @click="deleteAll">
-          {{ deletingAll ? 'Deleting...' : 'Delete All' }}
+        <BaseButton variant="danger" :loading="deletingAll" @click="streamToDelete ? deleteSingleStream() : deleteAll()">
+          {{ deletingAll ? 'Deleting...' : streamToDelete ? 'Delete Stream' : 'Delete All' }}
         </BaseButton>
       </template>
     </BaseModal>
@@ -456,19 +422,19 @@ import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { formatRecordingDuration as formatDuration } from '@/utils/recordingDuration'
 import { prepareVideoReturn, restoreVideoReturnScroll, takeVideoReturnExpansion } from '@/composables/useNavigation'
-import { streamersApi } from '@/services/api'
+import { streamersApi, streamsApi } from '@/services/api'
 import { useForceRecording } from '@/composables/useForceRecording'
 import { useToast } from '@/composables/useToast'
 import { useRealtimeStore } from '@/stores/realtime'
 import { hasRealtimeEventType } from '@/types/events'
 import LoadingSkeleton from '@/components/LoadingSkeleton.vue'
 import EmptyState from '@/components/EmptyState.vue'
-import StatusCard from '@/components/cards/StatusCard.vue'
 import StreamCard from '@/components/cards/StreamCard.vue'
 import StatusBadge from '@/components/base/StatusBadge.vue'
 import BaseModal from '@/components/base/BaseModal.vue'
 import BaseButton from '@/components/base/BaseButton.vue'
 import StreamerSettingsFields from '@/components/streamers/StreamerSettingsFields.vue'
+import ChannelSettingsPanel from '@/components/settings/ChannelSettingsPanel.vue'
 import { buildDefaultState } from '@/schemas/streamerSettings.schema'
 
 // Router & URL params
@@ -503,6 +469,7 @@ const sortBy = computed({
 // Delete flow
 const showConfirm = ref(false)
 const deletingAll = ref(false)
+const streamToDelete = ref<{ id: number } | null>(null)
 
 // Force recording
 const { forceRecordingStreamerId, forceStartRecording } = useForceRecording()
@@ -569,6 +536,24 @@ watch(() => route.query.tab, () => {
 // Settings inline - schema-driven
 const savingSettings = ref(false)
 const streamerSettings = ref<Record<string, unknown>>(buildDefaultState())
+const channelSettingsPanel = ref<InstanceType<typeof ChannelSettingsPanel> | null>(null)
+
+// Keep the existing schema-driven editor coherent with immediate mutations;
+// merge only changed keys so unrelated unsaved codec/quality edits survive.
+function reconcileRecordingSettings(settings: Record<string, unknown>) {
+  if (streamer.value) streamer.value.recording = { ...streamer.value.recording, ...settings }
+  streamerSettings.value = {
+    ...streamerSettings.value,
+    recording: { ...(streamerSettings.value.recording as Record<string, unknown>), ...settings }
+  }
+}
+function reconcileNotificationSettings(settings: Record<string, unknown>) {
+  if (streamer.value) streamer.value.notifications = { ...streamer.value.notifications, ...settings }
+  streamerSettings.value = {
+    ...streamerSettings.value,
+    notifications: { ...(streamerSettings.value.notifications as Record<string, unknown>), ...settings }
+  }
+}
 
 const loadSettings = () => {
   const defaults = buildDefaultState()
@@ -592,11 +577,14 @@ const saveSettings = async () => {
   savingSettings.value = true
 
   try {
+    // The dedicated cleanup editor owns inheritance and saves independently.
+    const recording = { ...(streamerSettings.value.recording as Record<string, unknown>) }
+    delete recording.use_global_cleanup_policy
     const response = await fetch(`/api/streamers/streamer/${streamerId.value}/settings`, {
       method: 'PUT',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(streamerSettings.value),
+      body: JSON.stringify({ ...streamerSettings.value, recording }),
     })
 
     if (!response.ok) {
@@ -606,6 +594,7 @@ const saveSettings = async () => {
 
     toast.success('Settings saved successfully!')
     await fetchStreamer()
+    await channelSettingsPanel.value?.reload?.()
   } catch (error) {
     console.error('Failed to save settings:', error)
     toast.error('Failed to save settings. Please try again.')
@@ -811,6 +800,7 @@ async function fetchStreamer() {
   try {
     const response = await streamersApi.get(Number(streamerId.value))
     streamer.value = response
+    if (activeCockpitTab.value === 'settings') loadSettings()
     avatarLoadFailed.value = false
   } catch {
     streamer.value = null
@@ -835,6 +825,7 @@ async function fetchStreams() {
 
 // Actions
 function confirmDeleteAll() {
+  streamToDelete.value = null
   showConfirm.value = true
 }
 
@@ -880,8 +871,25 @@ async function handleWatchRecording(stream: any) {
   }
 }
 
-function handleDeleteStream(_stream: any) {
-  // Deletion handled by StreamCard's own actions
+function handleDeleteStream(stream: { id: number }) {
+  streamToDelete.value = stream
+  showConfirm.value = true
+}
+
+async function deleteSingleStream() {
+  if (!streamToDelete.value || deletingAll.value) return
+  deletingAll.value = true
+  try {
+    const id = streamToDelete.value.id
+    await streamsApi.delete(id)
+    streams.value = streams.value.filter(stream => stream.id !== id)
+    showConfirm.value = false
+    streamToDelete.value = null
+  } catch {
+    toast.error('Failed to delete stream')
+  } finally {
+    deletingAll.value = false
+  }
 }
 
 // Real-time store
@@ -997,14 +1005,7 @@ onUnmounted(() => {
   border: 1px solid var(--border-color);
   border-radius: var(--radius-xl);
 
-  &.is-live {
-    border-color: rgba(var(--danger-500-rgb), 0.45);
-    box-shadow: 0 16px 44px rgba(var(--danger-500-rgb), 0.12);
-  }
 
-  &.is-recording {
-    border-color: rgba(var(--danger-500-rgb), 0.5);
-  }
 }
 
 .streamer-control-topline,
@@ -1012,6 +1013,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: var(--spacing-4);
 }
 
@@ -1024,7 +1026,7 @@ onUnmounted(() => {
   display: inline-flex;
   align-items: center;
   gap: var(--spacing-2);
-  min-height: 40px;
+  min-height: 44px;
   padding: var(--spacing-2) var(--spacing-3);
   color: var(--text-secondary);
   background: transparent;
@@ -1044,7 +1046,7 @@ onUnmounted(() => {
   &:hover,
   &:focus-visible {
     color: var(--text-primary);
-    border-color: var(--primary-color);
+    border-color: var(--sv-sem-action-foreground);
     outline: none;
   }
 }
@@ -1060,7 +1062,8 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: var(--spacing-4);
-  min-width: min(360px, 100%);
+  min-width: 0;
+  flex: 1 1 280px;
 }
 
 .compact-avatar {
@@ -1124,7 +1127,7 @@ onUnmounted(() => {
 
 .compact-info {
   flex: 1;
-  min-width: 180px;
+  min-width: 0;
 }
 
 .compact-name {
@@ -1148,7 +1151,7 @@ onUnmounted(() => {
   font-weight: v.$font-medium;
 
   &.muted {
-    color: var(--text-tertiary);
+    color: var(--text-secondary);
     font-weight: v.$font-normal;
   }
 }
@@ -1163,13 +1166,11 @@ onUnmounted(() => {
 .compact-stat {
   display: flex;
   flex-direction: column-reverse;
-  align-items: center;
+  align-items: flex-start;
   gap: 2px;
-  min-width: 84px;
+  min-width: 0;
   padding: var(--spacing-2) var(--spacing-3);
-  background: var(--background-darker);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-lg);
+  border-left: 1px solid var(--sv-sem-border-default);
 }
 
 .compact-stat-value {
@@ -1205,12 +1206,6 @@ onUnmounted(() => {
   }
 }
 
-.safe-action-note {
-  margin: calc(var(--spacing-1) * -1) 0 0;
-  color: var(--text-secondary);
-  font-size: var(--text-xs);
-  line-height: 1.4;
-}
 
 // Action buttons (used in header and danger zone)
 .btn-action {
@@ -1275,10 +1270,8 @@ onUnmounted(() => {
   display: flex;
   gap: var(--spacing-1);
   margin-bottom: var(--spacing-6);
-  background: var(--background-card);
-  border-radius: var(--radius-lg);
-  padding: var(--spacing-1);
-  border: 1px solid var(--border-color);
+  padding-bottom: var(--spacing-2);
+  border-bottom: 1px solid var(--sv-sem-border-default);
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: thin;
@@ -1329,33 +1322,24 @@ onUnmounted(() => {
   }
 
   &.active {
-    background: v.$primary-800;
-    color: white;
-    box-shadow: 0 8px 22px rgba(var(--primary-500-rgb), 0.25);
+    background: var(--sv-sem-surface-selected);
+    color: var(--sv-sem-text-primary);
   }
 
   &:hover:not(.active) {
     background: rgba(var(--primary-500-rgb), 0.1);
-    color: var(--primary-color);
+    color: var(--sv-sem-action-foreground);
   }
 
   &:focus-visible {
-    outline: 2px solid var(--primary-color);
+    outline: 2px solid var(--sv-sem-action-focus);
     outline-offset: 2px;
   }
 }
 
 // Cockpit Panel
 .cockpit-panel {
-  animation: fade-in v.$duration-500 v.$ease-out backwards;
-}
-
-// Stats Section
-.stats-section {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: var(--spacing-4);
-  margin-bottom: var(--spacing-6);
+  min-width: 0;
 }
 
 // Section header
@@ -1371,7 +1355,7 @@ onUnmounted(() => {
 }
 
 .danger-title {
-  color: var(--danger-color);
+  color: var(--danger-text-color);
 }
 
 // Overview section
@@ -1533,7 +1517,7 @@ onUnmounted(() => {
   min-height: 44px;
 
   &:hover {
-    border-color: var(--primary-color);
+    border-color: var(--sv-sem-action-foreground);
 
     ~ .select-icon {
       stroke: var(--primary-color);
@@ -1541,7 +1525,7 @@ onUnmounted(() => {
   }
 
   &:focus {
-    outline: 2px solid var(--primary-color);
+    outline: 2px solid var(--sv-sem-action-focus);
     outline-offset: 2px;
   }
 }
@@ -1644,7 +1628,7 @@ onUnmounted(() => {
   transition: all v.$duration-200 v.$ease-out;
 
   &:hover {
-    border-color: var(--primary-color);
+    border-color: var(--sv-sem-action-foreground);
   }
 }
 
@@ -1732,18 +1716,6 @@ onUnmounted(() => {
   }
 }
 
-// Animations
-// Motion stays geometric so text and controls never render through a translucent
-// panel during initial paint or reduced-motion screenshot capture.
-@keyframes fade-in {
-  from {
-    transform: translateY(20px);
-  }
-  to {
-    transform: translateY(0);
-  }
-}
-
 @keyframes pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.5; }
@@ -1760,9 +1732,6 @@ onUnmounted(() => {
     font-size: var(--text-lg);
   }
 
-  .stats-section {
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  }
 }
 
 @include m.respond-below('md') {
@@ -1777,6 +1746,7 @@ onUnmounted(() => {
   }
 
   .streamer-identity-area {
+    flex-basis: auto;
     min-width: 0;
   }
 
@@ -1839,10 +1809,6 @@ onUnmounted(() => {
     grid-row: 2;
   }
 
-  .stats-section {
-    grid-template-columns: 1fr;
-    gap: var(--spacing-3);
-  }
 }
 
 @include m.respond-below('sm') {

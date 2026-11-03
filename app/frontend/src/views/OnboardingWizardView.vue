@@ -652,13 +652,13 @@ onMounted(() => {
 }
 
 .step-pill.is-active .step-pill-dot {
-  background: var(--color-primary);
-  color: white;
+  background: var(--sv-sem-action-primary);
+  color: var(--sv-sem-text-inverse);
 }
 
 .step-pill.is-done .step-pill-dot {
-  background: var(--color-success);
-  color: white;
+  background: var(--sv-fdn-color-green-700);
+  color: var(--sv-sem-text-inverse);
 }
 
 .wizard-card {
@@ -717,8 +717,8 @@ onMounted(() => {
   width: 100%;
   padding: 0.65rem 0.85rem;
   border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--sv-cmp-field-border);
+  background: var(--sv-cmp-field-background);
   color: var(--text-primary);
   font-size: 0.95rem;
 }

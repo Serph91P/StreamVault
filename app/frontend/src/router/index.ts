@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import { loginLocationFor } from '@/services/session'
 
 const HomeView = () => import('../views/HomeView.vue')
+const ActivityView = () => import('../views/ActivityView.vue')
 const SubscriptionsView = () => import('../views/SubscriptionsView.vue')
 const AddStreamerView = () => import('../views/AddStreamerView.vue')
 const OnboardingWizardView = () => import('../views/OnboardingWizardView.vue')
@@ -35,9 +36,12 @@ const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   scrollBehavior: () => ({ top: 0, left: 0 }),
   routes: [
-    { path: '/', name: 'home', component: HomeView },
+    { path: '/', name: 'home', component: StreamersView },
+    { path: '/overview', name: 'overview', component: HomeView },
+    { path: '/activity', name: 'activity', component: ActivityView },
     { path: '/welcome', name: 'welcome', component: OnboardingWizardView },
     { path: '/streamers', name: 'streamers', component: StreamersView },
+    { path: '/streamers/manage', name: 'channel-management', component: () => import('../views/ChannelManagementView.vue') },
     { path: '/videos', name: 'videos', component: VideosView },
     { path: '/videos/:id', name: 'video-player', component: VideoPlayerView, props: true },
     { path: '/subscriptions', name: 'subscriptions', component: SubscriptionsView },
@@ -82,7 +86,7 @@ router.beforeEach(async (to) => {
   }
 
   // The server owns the welcome-completion flag. Preserve the established
-  // root gate so a failed or incomplete onboarding flow cannot open Overview.
+  // root gate so a failed or incomplete onboarding flow cannot open the app.
   if (to.path === '/' && setup?.welcome_completed === false) {
     return '/welcome'
   }

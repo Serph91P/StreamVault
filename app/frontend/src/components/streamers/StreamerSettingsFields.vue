@@ -12,9 +12,10 @@ interface Props {
   modelValue: Record<string, unknown>
   /** Disable all inputs while submitting */
   disabled?: boolean
+  excludeFields?: string[]
 }
 
-const props = withDefaults(defineProps<Props>(), { disabled: false })
+const props = withDefaults(defineProps<Props>(), { disabled: false, excludeFields: () => [] })
 
 const emit = defineEmits<{
   (e: 'update:modelValue', v: Record<string, unknown>): void
@@ -63,7 +64,7 @@ function isVisible(field: FieldSchema): boolean {
 
       <div :class="['fields-grid', `grid-${group.id}`]">
         <template v-for="field in group.fields" :key="field.key">
-          <div v-if="isVisible(field)" class="field-row" :class="`field-${field.type}`">
+          <div v-if="isVisible(field) && !excludeFields.includes(`${group.payloadKey}.${field.key}`)" class="field-row" :class="`field-${field.type}`">
             <!-- checkbox -->
             <label v-if="field.type === 'checkbox'" class="checkbox-container">
               <input

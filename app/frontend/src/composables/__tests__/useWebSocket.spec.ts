@@ -197,6 +197,38 @@ describe('realtime WebSocket lifecycle authority', () => {
     manager.unsubscribe(subscriber)
   })
 
+  it.each([1, 12])('accepts new-generation events after reconnect with latest cursor %s', async (latest) => {
+    let resolveReplay!: (response: Response) => void
+    vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>((resolve) => { resolveReplay = resolve })))
+    const { WebSocketManager } = await import('../useWebSocket')
+    const manager = WebSocketManager.getInstance()
+    const subscriber = () => undefined
+    const received: string[] = []
+    manager.onMessage((event) => {
+      if (event.type === 'test') received.push(String(event.data.test_id))
+    })
+    manager.subscribe(subscriber)
+    FakeWebSocket.instances[0].open()
+    FakeWebSocket.instances[0].message({ type: 'connection.status', data: { generation: 'old' } })
+    FakeWebSocket.instances[0].message({ type: 'test', event_id: 1, data: { test_id: 'old-one' } })
+    FakeWebSocket.instances[0].message({ type: 'test', event_id: 7, data: { test_id: 'old-seven' } })
+    FakeWebSocket.instances[0].serverClose()
+    await vi.advanceTimersByTimeAsync(1000)
+    FakeWebSocket.instances[1].open()
+    FakeWebSocket.instances[1].message({ type: 'connection.status', data: { generation: 'new' } })
+    FakeWebSocket.instances[1].message({ type: 'test', event_id: 1, data: { test_id: 'new-one' } })
+    expect(fetch).toHaveBeenCalledWith('/api/realtime/events?since=7&generation=old', { credentials: 'include' })
+    resolveReplay(jsonResponse({
+      since: 7, reset: true, generation: 'new', latest_event_id: latest, gap: false,
+      events: [{ type: 'test', event_id: 1, data: { test_id: 'new-one' } }]
+    }))
+    await flushPromises()
+    FakeWebSocket.instances[1].message({ type: 'test', event_id: 2, data: { test_id: 'new-two' } })
+    expect(received).toEqual(['old-one', 'old-seven', 'new-one', 'new-two'])
+    expect(manager.connectionStatus.value).toBe('connected')
+    manager.unsubscribe(subscriber)
+  })
+
   it('drops stale out-of-order cursor events after accepting a newer event', async () => {
     const { WebSocketManager } = await import('../useWebSocket')
     const manager = WebSocketManager.getInstance()

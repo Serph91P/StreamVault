@@ -39,6 +39,12 @@ export async function fetchRecordingSettings(): Promise<RecordingSettings> {
 }
 
 export async function saveRecordingSettings(settings: RecordingSettings): Promise<RecordingSettings> {
+  // Older callers may not carry the hidden limit; never let POST default it to zero.
+  const maxStreams = settings.max_streams_per_streamer
+    ?? (await fetchRecordingSettings()).max_streams_per_streamer
+  if (maxStreams == null) {
+    throw new Error('Failed to load the recording retention limit')
+  }
   const response = await fetch('/api/recording/settings', {
     method: 'POST',
     credentials: 'include',
@@ -47,9 +53,12 @@ export async function saveRecordingSettings(settings: RecordingSettings): Promis
     },
     body: JSON.stringify({
       enabled: settings.enabled,
+      output_directory: settings.output_directory,
       filename_template: settings.filename_template,
       filename_preset: settings.filename_preset,
       default_quality: settings.default_quality,
+      max_streams_per_streamer: maxStreams,
+      supported_codecs: settings.supported_codecs,
       use_chapters: settings.use_chapters,
       use_category_as_chapter_title: settings.use_category_as_chapter_title,
       cleanup_policy: settings.cleanup_policy

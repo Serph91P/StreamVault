@@ -1476,8 +1476,9 @@ onUnmounted(() => {
   }
 
   &.danger:hover:not(:disabled) {
-    background: var(--danger-color);
-    border-color: var(--danger-color);
+    background: var(--sv-fdn-color-red-700);
+    border-color: var(--sv-fdn-color-red-700);
+    color: var(--sv-sem-text-inverse);
   }
 
   &:disabled {

@@ -123,7 +123,11 @@ async def test_two_factories_deliver_only_their_current_notification_policy(
             len(first_events) == 1
             and first_events[0]["data"]["title"] == "factory title"
         )
-        assert await applications[1].state.websocket_manager.get_events_since() == []
+        second_events = await applications[1].state.websocket_manager.get_events_since()
+        assert len(second_events) == 1
+        assert second_events[0]["type"] == "stream.online"
+        assert second_events[0]["data"]["title"] == "factory title"
+        assert second_events[0]["event_id"] == 1
         assert queries and loop_thread not in queries
         origin = receiver["subscription"]["endpoint"].split("/push/")[0]
         token = (
@@ -148,9 +152,16 @@ async def test_two_factories_deliver_only_their_current_notification_policy(
         )
         assert len(receiver["requests"]) == len(external) == 2
         assert external[-1][0] == 1
-        assert (
-            len(await applications[1].state.websocket_manager.get_events_since()) == 1
-        )
+        second_events = await applications[1].state.websocket_manager.get_events_since()
+        assert [event["type"] for event in second_events] == [
+            "stream.online",
+            "stream.online",
+        ]
+        assert [event["event_id"] for event in second_events] == [1, 2]
+        first_owner_events = await applications[
+            0
+        ].state.websocket_manager.get_events_since()
+        assert [event["event_id"] for event in first_owner_events] == [1, 2]
         token = (
             receiver["requests"][-1][1]["Authorization"].split("t=", 1)[1].split(",")[0]
         )

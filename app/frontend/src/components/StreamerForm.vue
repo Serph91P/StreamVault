@@ -368,8 +368,8 @@ const confirmDelete = () => {
 }
 
 .btn-danger {
-  background-color: var(--danger-color);
-  color: white;
+  background-color: var(--sv-fdn-color-red-700);
+  color: var(--sv-sem-text-inverse);
 }
 
 .btn-danger:hover:not(:disabled) {

@@ -483,8 +483,8 @@ const formatDuration = (seconds: number): string => {
   font-size: 0.75rem;
   font-weight: 500;
   text-transform: uppercase;
-  background-color: var(--danger-color);
-  color: white;
+  background-color: var(--sv-fdn-color-red-700);
+  color: var(--sv-sem-text-inverse);
 }
 
 .no-recordings {

@@ -34,6 +34,7 @@ export class WebSocketManager {
   private isRedirecting = false
   private hasConnected = false
   private lastEventId = 0
+  private generation?: string
   private terminalAuthFailure = false
   private authRouteBlocked = false
   private recentEventKeys = new Map<string, number>()
@@ -349,10 +350,17 @@ export class WebSocketManager {
     finishReplay: () => void
   ) {
     try {
-      const replay = await fetchRealtimeEvents(since)
+      const replay = await fetchRealtimeEvents(since, this.generation)
       if (this.ws !== socket || socket.readyState !== WebSocket.OPEN) {
         return
       }
+
+      if (replay.reset || replay.latest_event_id < since
+        || (this.generation && replay.generation && this.generation !== replay.generation)) {
+        this.lastEventId = 0
+        this.recentEventKeys.clear()
+      }
+      if (replay.generation) this.generation = replay.generation
 
       if (replay.gap) {
         console.warn(`Realtime replay retention gap after event ${since}; applying retained events`)
@@ -398,6 +406,16 @@ export class WebSocketManager {
   }
 
   private dispatchMessage(message: RealtimeEvent<string>) {
+    if (hasRealtimeEventType(message, 'connection.status')) {
+      const generation = asRecord(message.data).generation
+      if (typeof generation === 'string') {
+        if (this.generation && this.generation !== generation) {
+          this.lastEventId = 0
+          this.recentEventKeys.clear()
+        }
+        this.generation = generation
+      }
+    }
     if (
       typeof message.event_id === 'number'
       && Number.isFinite(message.event_id)

@@ -27,6 +27,7 @@ import type {
 } from '@/types/proxy'
 import type { NotificationSettings, StreamerNotificationSettings } from '@/types/settings'
 import type { ApiKey, ApiKeyCreated } from '@/types/api-keys'
+import type { VideoDeleteOutcome } from '@/types/video'
 
 // Check if mock mode is enabled
 const USE_MOCK_DATA = import.meta.env.VITE_USE_MOCK_DATA === 'true'
@@ -73,10 +74,15 @@ const mockStreamersApi = {
   checkLiveStatus: (streamerId: number) => mockResponse({ streamer_id: streamerId, is_live: false }),
 }
 
+let mockVideoCatalog = mockVideos
 const mockVideoApi = {
-  getAll: (_params: Record<string, any> = {}) => mockResponse(mockVideos),
+  getAll: (_params: Record<string, any> = {}) => mockResponse([...mockVideoCatalog]),
   delete: (_id: number) => mockResponse({ success: true }),
-  deleteMultiple: (ids: number[]) => mockResponse({ success: true, count: ids.length }),
+  deleteMultiple: async (ids: number[]): Promise<VideoDeleteOutcome[]> => {
+    await mockDelay(200)
+    mockVideoCatalog = mockVideoCatalog.filter(video => !ids.includes(video.id))
+    return ids.map(id => ({ id, status: 'fulfilled', value: { success: true } }))
+  },
   getVideoStreamUrl: (id: number): string => `/api/videos/${id}/stream`,
   getChapters: (_id: number) => mockResponse([
     { id: 1, title: 'Stream Start', start: 0, end: 600 }
@@ -91,7 +97,7 @@ const mockVideoApi = {
 const mockRecordingApi = {
   getActiveRecordings: () => mockResponse(mockActiveRecordings),
   stopRecording: (_streamerId: number) => mockResponse(undefined),
-  forceStartRecording: (streamerId: number) => mockResponse({ success: true, streamerId }),
+  forceStartRecording: (streamerId: number) => mockResponse({ status: 'success', streamerId }),
 }
 
 const mockBackgroundQueueApi = {
@@ -267,13 +273,13 @@ const mockStreamsApi = {
 }
 
 const mockAuthApi = {
-  getAuthUrl: () => mockResponse({ url: 'https://twitch.tv/oauth/mock' }),
-  getFollowedChannels: () => mockResponse([
-    { user_id: '123', user_login: 'mock1', user_name: 'Mock Channel 1' },
-    { user_id: '456', user_login: 'mock2', user_name: 'Mock Channel 2' }
-  ]),
-  importStreamers: (_streamerIds: number[]) => mockResponse({ imported: 0, total: 0 }),
-  getCallbackUrl: () => mockResponse({ callback_url: 'http://localhost:8000/auth/callback' }),
+  getAuthUrl: (_state?: string) => mockResponse({ auth_url: 'https://twitch.tv/oauth/mock' }),
+  getFollowedChannels: () => mockResponse({ channels: [
+    { id: '123', login: 'mock1', display_name: 'Mock Channel 1' },
+    { id: '456', login: 'mock2', display_name: 'Mock Channel 2' }
+  ] }),
+  importStreamers: (_streamers: { id: string; login: string; display_name: string }[]) => mockResponse({ imported: [], already_exists: [], failed: [] }),
+  getCallbackUrl: () => mockResponse({ url: 'http://localhost:8000/api/twitch/callback' }),
 }
 
 

@@ -8,13 +8,13 @@ async function openStreamers(page: Page, theme: Theme) {
     localStorage.setItem('streamvault-theme', selectedTheme)
   }, theme)
   await page.goto('/streamers')
-  await expect(page.getByRole('heading', { name: 'Streamers', exact: true })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Meine Kanäle', exact: true })).toBeVisible()
 }
 
 for (const theme of ['dark', 'light'] as const) {
   test(`Streamers page header remains a solid accessible title in ${theme} theme`, async ({ page }) => {
     await openStreamers(page, theme)
-    const heading = page.getByRole('heading', { name: 'Streamers', exact: true })
+    const heading = page.getByRole('heading', { name: 'Meine Kanäle', exact: true })
 
     await expect(heading).toHaveCSS('background-image', 'none')
     await expect(heading).not.toHaveCSS('color', 'rgba(0, 0, 0, 0)')

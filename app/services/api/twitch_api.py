@@ -26,6 +26,9 @@ from app.utils.retry_decorator import twitch_api_retry, NonRetryableError
 
 logger = logging.getLogger("streamvault")
 
+FOLLOW_MAX_PAGES = 100
+FOLLOW_FETCH_TIMEOUT = 60.0
+
 
 def _app_operation(func):
     @wraps(func)
@@ -407,22 +410,58 @@ class TwitchAPIService:
     async def get_user_followed_streamers(
         self, user_id: str, access_token: str
     ) -> List[dict[str, object]]:
-        """Get followed streamers for a user (requires user access token)"""
-        response = await self._request(
-            "GET",
-            f"{self.base_url}/channels/followed",
-            params={"user_id": user_id},
-            headers={
-                "Client-ID": self.client_id,
-                "Authorization": f"Bearer {access_token}",
-            },
-        )
-        if response.status_code == 200:
-            return self._data(response)
-        logger.error(
-            f"Failed to get followed streamers. Status: {response.status_code}"
-        )
-        return []
+        """Return all follows, or fail explicitly without exposing a partial list."""
+        follows: dict[str, dict[str, object]] = {}
+        cursors: set[str] = set()
+        params = {"user_id": user_id, "first": "100"}
+        async with asyncio.timeout(FOLLOW_FETCH_TIMEOUT):
+            for _ in range(FOLLOW_MAX_PAGES):
+                response = await self._request(
+                    "GET",
+                    f"{self.base_url}/channels/followed",
+                    params=params,
+                    headers={
+                        "Client-ID": self.client_id,
+                        "Authorization": f"Bearer {access_token}",
+                    },
+                )
+                if response.status_code != 200:
+                    raise ConnectionError(
+                        f"Follow enumeration failed: HTTP {response.status_code}"
+                    )
+                try:
+                    data = self._json(response)
+                except NonRetryableError:
+                    raise ValueError("Invalid follow page") from None
+                rows = data.get("data")
+                if not isinstance(rows, list):
+                    raise ValueError("Invalid follow page")
+                for follow in rows:
+                    if not isinstance(follow, dict):
+                        raise ValueError("Invalid followed channel")
+                    identifier = follow.get("broadcaster_id")
+                    login = follow.get("broadcaster_login")
+                    if (
+                        not isinstance(identifier, str)
+                        or not identifier
+                        or not isinstance(login, str)
+                        or not login
+                    ):
+                        raise ValueError("Invalid followed channel")
+                    follows.setdefault(identifier, follow)
+                pagination = data.get("pagination", {})
+                if not isinstance(pagination, dict):
+                    raise ValueError("Invalid follow pagination")
+                cursor = pagination.get("cursor")
+                if cursor is not None and not isinstance(cursor, str):
+                    raise ValueError("Invalid follow cursor")
+                if not cursor:
+                    return list(follows.values())
+                if cursor in cursors:
+                    raise ValueError("Repeated follow cursor")
+                cursors.add(cursor)
+                params["after"] = cursor
+        raise ValueError("Follow pagination exceeded page limit")
 
     @twitch_api_retry
     async def validate_token(self, access_token: str) -> Optional[dict[str, object]]:

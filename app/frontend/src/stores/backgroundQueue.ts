@@ -91,6 +91,7 @@ export const useBackgroundQueueStore = defineStore('backgroundQueue', () => {
 
     if (taskData.status === 'completed' || taskData.status === 'failed') {
       activeTasks.value = activeTasks.value.filter((task) => task.id !== taskData.id)
+      recentTasks.value = recentTasks.value.filter((task) => task.id !== taskData.id)
       recentTasks.value.unshift(taskData)
       if (recentTasks.value.length > 50) {
         recentTasks.value = recentTasks.value.slice(0, 50)
@@ -185,10 +186,9 @@ export const useBackgroundQueueStore = defineStore('backgroundQueue', () => {
   }
 
   async function hydrateWhenDisconnected(): Promise<void> {
-    const realtime = useRealtimeStore()
-    if (import.meta.env.DEV) console.debug('useBackgroundQueue', 'Background Queue: Waiting for WebSocket data')
-    if (realtime.connectionStatus !== 'connected') {
-      if (import.meta.env.DEV) console.debug('useBackgroundQueue', 'WebSocket not connected yet, using API fallback for initial load')
+    // The global socket may have sent its snapshot before this monitor mounted.
+    // Fetch once when no snapshot exists, irrespective of connection status.
+    if (!dataAvailable.value && !isLoading.value) {
       await forceRefreshFromAPI()
     }
   }

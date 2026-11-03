@@ -35,7 +35,7 @@ async function openStreamers(page: Page, theme: Theme) {
     localStorage.setItem('streamvault-theme', selectedTheme)
   }, theme)
   await page.goto('/streamers')
-  await expect(page.getByRole('heading', { name: 'Streamers', exact: true })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Meine Kanäle', exact: true })).toBeVisible()
 }
 
 for (const theme of ['dark', 'light'] as const) {
@@ -51,6 +51,16 @@ for (const theme of ['dark', 'light'] as const) {
       const style = getComputedStyle(node)
       return {
         axe: axeResult,
+        // Axe may choose an accessible-label selector instead of class names.
+        // Verify its explicit passing target is this exact inspected badge.
+        passedNodeIsBadge: axeResult.passes
+          .find(rule => rule.id === 'color-contrast')?.nodes.some(resultNode => {
+            const [selector] = resultNode.target
+            return resultNode.target.length === 1
+              && typeof selector === 'string'
+              && node.matches(selector)
+              && document.querySelector(selector) === node
+          }) ?? false,
         foreground: style.color,
         background: style.backgroundColor,
         parentBackground: getComputedStyle(node.parentElement!).backgroundColor,
@@ -88,7 +98,7 @@ for (const theme of ['dark', 'light'] as const) {
     })
 
     expect(colorContrastPass).toBeDefined()
-    expect(passTargets).toContain('.active.filter-tab > .tab-badge')
+    expect(result.passedNodeIsBadge).toBe(true)
     expect(result.background).toMatch(/^rgb\(/)
     expect(violationTargets).toEqual([])
     expect(incompleteTargets).toEqual([])
@@ -97,7 +107,7 @@ for (const theme of ['dark', 'light'] as const) {
 
   test(`Streamers heading retains its exact color-contrast pass in ${theme} theme`, async ({ page }) => {
     await openStreamers(page, theme)
-    const heading = page.getByRole('heading', { name: 'Streamers', exact: true })
+    const heading = page.getByRole('heading', { name: 'Meine Kanäle', exact: true })
     await page.addScriptTag({ content: axe.source })
     const result = await heading.evaluate(async (node) => (
       (window as typeof window & { axe: typeof axe }).axe.run(node, {

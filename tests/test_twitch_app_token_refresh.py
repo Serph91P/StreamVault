@@ -440,6 +440,8 @@ async def test_cancelled_waiter_does_not_cancel_shared_refresh(provider):
 @pytest.mark.asyncio
 async def test_user_token_rejection_never_refreshes_app_token(provider):
     client, state = provider
-    assert await client.get_user_followed_streamers("42", "synthetic-stale") == []
+    with pytest.raises(ConnectionError, match="^Follow enumeration failed: HTTP 401$"):
+        await client.get_user_followed_streamers("42", "synthetic-stale")
+    assert len(state.headers) == 1
     assert state.posts == 0
     assert client._access_token is None

@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   getStreamer: vi.fn(),
   getStreams: vi.fn(),
   deleteAllStreams: vi.fn(),
+  deleteStream: vi.fn(),
   forceStartRecording: vi.fn(),
   onEvent: vi.fn(() => vi.fn()),
   onEvents: vi.fn(() => vi.fn()),
@@ -21,6 +22,7 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@/services/api', () => ({
+  streamsApi: { delete: mocks.deleteStream },
   streamersApi: {
     get: mocks.getStreamer,
     getStreams: mocks.getStreams,
@@ -119,9 +121,10 @@ async function mountView(query: LocationQueryRaw = {}) {
         EmptyState: true,
         StatusCard: true,
         StatusBadge: true,
-        BaseModal: true,
-        BaseButton: true,
+        BaseModal: { props: ['modelValue'], template: '<div v-if="modelValue" class="confirm-modal"><slot /><slot name="footer" /></div>' },
+        BaseButton: { template: '<button><slot /></button>' },
         StreamerSettingsFields: true,
+        ChannelSettingsPanel: true,
       },
     },
   })
@@ -130,6 +133,23 @@ async function mountView(query: LocationQueryRaw = {}) {
   await nextTick()
   return { router, wrapper }
 }
+
+describe('single stream deletion', () => {
+  it.each([true, false])('requires confirmation and removes only a successfully deleted stream (ok=%s)', async ok => {
+    const { wrapper } = await mountView({ tab: 'videos' })
+    mocks.deleteStream.mockImplementation(async () => { if (!ok) throw new Error('rejected') })
+    wrapper.findAllComponents(StreamCardStub).find(card => card.props('stream').id === 1)!.vm.$emit('delete', streams[0])
+    await nextTick()
+    expect(wrapper.find('.confirm-modal').exists()).toBe(true)
+    expect(mocks.deleteStream).not.toHaveBeenCalled()
+    const confirm = wrapper.get('.confirm-modal').findAll('button').find(button => button.text().trim() === 'Delete Stream')!
+    await confirm.trigger('click')
+    await flushPromises()
+    expect(mocks.deleteStream).toHaveBeenCalledWith(1)
+    expect(wrapper.find('[data-stream-id="1"]').exists()).toBe(!ok)
+    if (!ok) expect(mocks.toastError).toHaveBeenCalled()
+  })
+})
 
 function selectedTab(wrapper: VueWrapper) {
   return wrapper.get('[role="tab"][aria-selected="true"]')
@@ -165,6 +185,43 @@ afterEach(() => {
 })
 
 describe('StreamerDetailView tab query synchronization', () => {
+  it('hydrates the settings draft from the server on a direct settings deep link', async () => {
+    mocks.getStreamer.mockResolvedValueOnce({ id: 42, username: 'saved-channel', recording: { enabled: false, supported_codecs: 'av1' }, notifications: { notify_online: false }, quality: '720p' })
+    const { wrapper } = await mountView({ tab: 'settings' })
+    expect(wrapper.getComponent({ name: 'StreamerSettingsFields' }).props('modelValue')).toMatchObject({ quality: '720p', recording: { enabled: false, supported_codecs: 'av1' }, notifications: { notify_online: false } })
+  })
+  it('leaves cleanup inheritance to its dedicated editor and never overwrites it with a stale draft', async () => {
+    const { wrapper } = await mountView({ tab: 'settings' })
+    expect(wrapper.getComponent({ name: 'StreamerSettingsFields' }).props('excludeFields')).toEqual(['recording.use_global_cleanup_policy'])
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true })
+    vi.stubGlobal('fetch', fetchMock)
+    try {
+      await (wrapper.vm as unknown as { saveSettings: () => Promise<void> }).saveSettings()
+      expect(JSON.parse(fetchMock.mock.calls[0][1].body).recording).not.toHaveProperty('use_global_cleanup_policy')
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+  it('reconciles immediate channel changes into the existing draft without discarding unrelated edits', async () => {
+    const { wrapper } = await mountView({ tab: 'settings' })
+    const fields = wrapper.getComponent({ name: 'StreamerSettingsFields' })
+    fields.vm.$emit('update:modelValue', { quality: '1080p', recording: { supported_codecs: 'av1', enabled: true }, notifications: { notify_offline: true } })
+    await nextTick()
+    const panel = wrapper.getComponent({ name: 'ChannelSettingsPanel' })
+    panel.vm.$emit('recordingUpdated', { quality: '720p', enabled: false })
+    panel.vm.$emit('notificationsUpdated', { notify_online: false })
+    await nextTick()
+    expect(fields.props('modelValue')).toEqual({ quality: '1080p', recording: { supported_codecs: 'av1', quality: '720p', enabled: false }, notifications: { notify_offline: true, notify_online: false } })
+    ;(wrapper.vm as unknown as { loadSettings: () => void }).loadSettings()
+    await nextTick()
+    expect(fields.props('modelValue')).toMatchObject({ recording: { quality: '720p', enabled: false }, notifications: { notify_online: false } })
+  })
+  it('mounts the moved settings with the actual channel ID, only in settings', async () => {
+    const { wrapper, router } = await mountView({ tab: 'overview' })
+    expect(wrapper.findComponent({ name: 'ChannelSettingsPanel' }).exists()).toBe(false)
+    await replaceQuery(router, { tab: 'settings' })
+    expect(wrapper.getComponent({ name: 'ChannelSettingsPanel' }).props('streamerId')).toBe(42)
+  })
   it.each([
     [{ tab: 'overview' }, 'Overview'],
     [{ tab: 'videos' }, 'Videos'],
@@ -234,6 +291,7 @@ describe('StreamerDetailView recording return with real router history', () => {
         plugins: [router], stubs: {
           LoadingSkeleton: true, EmptyState: true, StatusCard: true, StatusBadge: true,
           BaseModal: true, BaseButton: true, StreamerSettingsFields: true,
+          ChannelSettingsPanel: true,
         },
       } })
       wrappers.push(wrapper)
@@ -315,6 +373,7 @@ describe('StreamerDetailView recording return with real router history', () => {
           StreamCard: StreamCardStub, LoadingSkeleton: true, EmptyState: true,
           StatusCard: true, StatusBadge: true, BaseModal: true, BaseButton: true,
           StreamerSettingsFields: true,
+          ChannelSettingsPanel: true,
         },
       } })
       wrappers.push(wrapper)

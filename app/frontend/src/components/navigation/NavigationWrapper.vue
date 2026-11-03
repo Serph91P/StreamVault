@@ -61,14 +61,14 @@ const { isMobile, isDesktop, sidebarExpanded } = useNavigation()
 
   // Desktop with expanded sidebar
   &.with-sidebar {
-    margin-left: 244px; // 232px sidebar + 12px breathing room
-    width: calc(100% - 244px);
+    margin-left: var(--sv-fdn-size-sidebar, 224px);
+    width: calc(100% - var(--sv-fdn-size-sidebar, 224px));
   }
 
   // Desktop with collapsed sidebar
   &.with-sidebar-collapsed {
-    margin-left: 72px;
-    width: calc(100% - 72px);
+    margin-left: var(--sv-fdn-size-sidebar-collapsed, 72px);
+    width: calc(100% - var(--sv-fdn-size-sidebar-collapsed, 72px));
   }
 
   // Mobile with bottom navigation
@@ -83,6 +83,10 @@ const { isMobile, isDesktop, sidebarExpanded } = useNavigation()
     min-height: calc(100vh - var(--app-header-height, 56px) - env(safe-area-inset-top, 0px) - 128px - env(safe-area-inset-bottom, 0px));
     min-height: calc(100dvh - var(--app-header-height, 56px) - env(safe-area-inset-top, 0px) - 128px - env(safe-area-inset-bottom, 0px));
   }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .main-content { transition: none; }
 }
 
 // A visible Retry control makes the pill 62px tall (44px action plus pill

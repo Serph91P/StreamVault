@@ -3,6 +3,7 @@
 
 import router from '@/router'
 import { appStorage } from '@/services/storage'
+import { loginLocationFor } from '@/services/session'
 import type {
   BestProxyResponse,
   ProxyAddRequest,
@@ -15,6 +16,7 @@ import type {
   ProxyToggleResponse
 } from '@/types/proxy'
 import type { ApiKey, ApiKeyCreated } from '@/types/api-keys'
+import type { VideoDeleteOutcome } from '@/types/video'
 
 // Shared boundaries prevent concurrent safe requests from refreshing or logging out twice.
 let refreshPromise: Promise<boolean> | null = null
@@ -152,7 +154,11 @@ export class ApiClient {
     appStorage.clearSessionToken()
     appStorage.clearSessionStorage()
     authLossError = new ApiRequestError('Session expired - redirecting to login', 'auth_lost', 401)
-    router.push('/auth/login').finally(() => {
+    const { pathname, search, hash } = window.location
+    const returnTo = pathname === '/auth/login'
+      ? new URLSearchParams(search).get('returnTo')
+      : pathname + search + hash
+    router.push(loginLocationFor(returnTo)).finally(() => {
       authLossError = null
     })
     return authLossError
@@ -372,8 +378,8 @@ export const backgroundQueueApi = {
 // Authentication API endpoints
 export const authApi = {
   // Get Twitch auth URL
-  getAuthUrl: () => 
-    apiClient.get('/api/twitch/auth-url'),
+  getAuthUrl: (state?: string) =>
+    apiClient.get('/api/twitch/auth-url', state ? { state } : {}),
 
 
   // Get followed channels
@@ -381,8 +387,8 @@ export const authApi = {
     apiClient.get('/api/twitch/followed-channels'),
 
   // Import streamers from followed channels
-  importStreamers: (streamerIds: number[]) => 
-    apiClient.post('/api/twitch/import-streamers', { streamer_ids: streamerIds }),
+  importStreamers: (streamers: { id: string; login: string; display_name: string }[]) =>
+    apiClient.post('/api/twitch/import-streamers', streamers),
 
   // Get callback URL
   getCallbackUrl: () => 
@@ -484,8 +490,12 @@ export const videoApi = {
   delete: (streamId: number) =>
     apiClient.delete(`/api/streams/${streamId}`),
 
-  deleteMultiple: (streamIds: number[]) =>
-    Promise.all(streamIds.map(streamId => apiClient.delete(`/api/streams/${streamId}`))),
+  deleteMultiple: async (streamIds: number[]): Promise<VideoDeleteOutcome[]> => {
+    const outcomes = await Promise.allSettled(
+      streamIds.map(streamId => apiClient.delete(`/api/streams/${streamId}`))
+    )
+    return outcomes.map((outcome, index) => ({ id: streamIds[index], ...outcome }))
+  },
 
 
   // Create share token for video

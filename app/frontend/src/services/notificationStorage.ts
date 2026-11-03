@@ -30,6 +30,8 @@ export interface StoredNotification {
   data: Record<string, unknown>
   read: boolean
   read_at?: string
+  // Last observed global watermark (epoch ms); null = local action before the first sync.
+  read_watermark?: number | null
 }
 
 function asString(value: unknown, fallback = ''): string {
@@ -98,6 +100,10 @@ function migrateLegacy(notifications: unknown[]): StoredNotification[] {
     entry.source = asSource(entry.source)
     entry.actions = Array.isArray(entry.actions) ? entry.actions : []
     entry.data = asRecord(entry.data)
+    if (entry.read_watermark !== null &&
+      (typeof entry.read_watermark !== 'number' || !Number.isFinite(entry.read_watermark))) {
+      delete entry.read_watermark
+    }
     if (entry.read === undefined) {
       const entryTimestamp = new Date(String(entry.timestamp)).getTime()
       entry.read = Number.isFinite(entryTimestamp) && entryTimestamp <= legacyReadTimestamp

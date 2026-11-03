@@ -29,7 +29,6 @@ for (const viewport of [{ width: 320, height: 640 }, { width: 390, height: 844 }
           const unexpected: string[] = []
           const writes: string[] = []
           const errors: string[] = []
-          let allowMarkRead = false
           let peer: WebSocketRoute | undefined
           page.on('pageerror', error => errors.push(error.message))
           await page.routeWebSocket(/.*/, socket => {
@@ -52,7 +51,7 @@ for (const viewport of [{ width: 320, height: 640 }, { width: 390, height: 844 }
             if (!/^\/(api|auth)\//.test(url.pathname) || request.isNavigationRequest()) return route.continue()
             if (request.method() !== 'GET') {
               writes.push(`${request.method()} ${url.pathname}`)
-              if (allowMarkRead && request.method() === 'POST' && url.pathname === '/api/notifications/mark-read') {
+              if (request.method() === 'POST' && url.pathname === '/api/notifications/mark-read') {
                 expect(request.postDataJSON()).toHaveProperty('timestamp')
                 return route.fulfill({ json: { success: true } })
               }
@@ -147,10 +146,11 @@ for (const viewport of [{ width: 320, height: 640 }, { width: 390, height: 844 }
           if (await toggle.getAttribute('aria-expanded') !== 'true') await toggle.click()
           await panel.getByRole('button', { name: /^Warnings/ }).click()
           await expect(list.locator('.notification-item')).toHaveCount(events.filter(event => event.data.severity === 'warning').length)
-          allowMarkRead = true
           const first = list.locator('.notification-item').first()
           await first.getByRole('button', { name: / read$/ }).click()
           await expect(first.getByRole('button', { name: / unread$/ })).toBeVisible()
+          expect(writes, 'single-item read is local, not a global mutation').toEqual([])
+          await panel.getByRole('button', { name: 'Mark all notifications read', exact: true }).click()
           await expect.poll(() => writes.length).toBe(1)
           expect(writes).toEqual(['POST /api/notifications/mark-read'])
           expect(unexpected).toEqual([])

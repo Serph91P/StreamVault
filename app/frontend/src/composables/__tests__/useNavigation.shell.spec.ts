@@ -2,11 +2,12 @@ import { describe, expect, it } from 'vitest'
 import { navigationTabs } from '@/composables/useNavigation'
 
 describe('shell navigation contract', () => {
-  it('exposes the four task-oriented destinations with System as the technical-page hub', () => {
+  it('prioritizes channels and separates activity, global settings and system tools', () => {
     expect(navigationTabs.map((tab) => [tab.route, tab.label])).toEqual([
-      ['/', 'Overview'],
-      ['/streamers', 'Streamers'],
-      ['/videos', 'Library'],
+      ['/streamers', 'Kanäle'],
+      ['/videos', 'Aufzeichnungen'],
+      ['/activity', 'Aktivität'],
+      ['/settings', 'Einstellungen'],
       ['/system', 'System'],
     ])
   })

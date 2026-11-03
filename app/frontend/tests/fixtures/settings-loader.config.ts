@@ -14,7 +14,7 @@ export default defineConfig({
   workers: 1,
   reporter: 'list',
   metadata: { useMockData: mode === 'mock', evidence: `synthetic HTTP / ${mode} frontend, not live backend` },
-  use: { baseURL: 'http://127.0.0.1:4183', serviceWorkers: 'block', trace: 'retain-on-failure' },
+  use: { baseURL: 'http://127.0.0.1:4183', serviceWorkers: 'block', trace: 'retain-on-failure', launchOptions: { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH } },
   projects: [
     { name: `${mode}-desktop`, use: { viewport: { width: 1440, height: 900 } } },
     { name: `${mode}-mobile`, use: { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true } },

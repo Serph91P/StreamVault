@@ -103,7 +103,7 @@ function activate(event: MouseEvent | KeyboardEvent) {
   padding: 0;
   background: var(--sv-cmp-panel-background);
   border: 1px solid var(--sv-cmp-panel-border);
-  border-radius: var(--radius-xl);
+  border-radius: var(--radius-lg);
   box-shadow: none;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
@@ -141,7 +141,7 @@ function activate(event: MouseEvent | KeyboardEvent) {
 .surface-card-footer { margin-top: var(--spacing-4); padding-top: var(--spacing-4); border-top: 1px solid var(--sv-cmp-panel-border); }
 .surface-card-heading,
 .surface-card-body { min-width: 0; }
-.surface-card-title { margin: 0; color: var(--text-primary); font-size: v.$text-xl; font-weight: v.$font-semibold; line-height: v.$leading-tight; }
+.surface-card-title { margin: 0; color: var(--text-primary); font-size: v.$text-lg; font-weight: v.$font-semibold; line-height: v.$leading-tight; }
 .surface-card-description { margin: var(--spacing-1) 0 0; color: var(--text-secondary); font-size: v.$text-sm; line-height: v.$leading-relaxed; }
 .surface-card-actions { display: inline-flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--spacing-2); }
 

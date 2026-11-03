@@ -124,11 +124,11 @@ describe('StreamCard expansion', () => {
     expect(wrapper.find('.stream-expanded').exists()).toBe(false)
   })
 
-  it('renders the GlassCard as an article with a persistent 44px expand control', () => {
+  it('renders the GlassCard as an article with a persistent 48px expand control', () => {
     const wrapper = mount(StreamCard, { props: { stream } })
 
     expect(wrapper.get('.stream-card').element.tagName).toBe('ARTICLE')
-    expect(streamCardSource).toMatch(/\.expand-btn\s*\{[\s\S]*?width:\s*44px;[\s\S]*?height:\s*44px;/)
+    expect(streamCardSource).toMatch(/\.expand-btn\s*\{[\s\S]*?width:\s*48px;[\s\S]*?height:\s*48px;/)
     expect(streamCardSource).not.toMatch(/Tap to expand|\.expand-btn\s*\{\s*display:\s*none;/)
   })
 

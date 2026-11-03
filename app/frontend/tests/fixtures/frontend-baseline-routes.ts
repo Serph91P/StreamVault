@@ -1,7 +1,10 @@
 // Source-derived from src/router/index.ts. Dynamic route parameters use mock-safe values
 // solely to collect route-state evidence; failures are retained in the baseline JSON.
 export const frontendBaselineScenarios = [
-  { routeName: 'home', path: '/', readinessSelector: '.home-view' },
+  { routeName: 'home', path: '/', readinessSelector: '.streamers-view' },
+  { routeName: 'overview', path: '/overview', readinessSelector: '.home-view' },
+  { routeName: 'activity', path: '/activity', readinessSelector: '.activity-view' },
+  { routeName: 'channel-management', path: '/streamers/manage', readinessSelector: '.channel-management-view' },
   { routeName: 'welcome', path: '/welcome', readinessSelector: '.onboarding-view' },
   { routeName: 'streamers', path: '/streamers', readinessSelector: '.streamers-view' },
   { routeName: 'videos', path: '/videos', readinessSelector: '.videos-view' },

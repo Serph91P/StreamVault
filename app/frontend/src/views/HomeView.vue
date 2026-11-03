@@ -1,14 +1,11 @@
 <template>
   <div class="page-view home-view">
 
-    <section class="dashboard-brief" aria-labelledby="dashboard-brief-title">
-      <div class="brief-header">
-        <div>
-          <p class="section-eyebrow">At a glance</p>
-          <h2 id="dashboard-brief-title">{{ dashboardStateHeadline }}</h2>
-          <p>{{ dashboardStateDescription }}</p>
-        </div>
-      </div>
+    <PageHeader v-if="!embedded" title="Übersicht" icon="home" :subtitle="dashboardStateHeadline" />
+
+    <section class="dashboard-brief" aria-label="Dashboard summary">
+      <h2 v-if="embedded" class="brief-headline">{{ dashboardStateHeadline }}</h2>
+      <p class="brief-description">{{ dashboardStateDescription }}</p>
       <div class="brief-grid" aria-label="Dashboard status snapshot">
         <!-- Tiles with a matching destination (live/recording filters) are
              links; pure status tiles (queue, errors, activity) are not -
@@ -38,7 +35,7 @@
 
     <div class="dashboard-layout">
       <div class="dashboard-main" aria-label="Dashboard primary content">
-        <BasePanel labelled-by="live-section-title" tone="strong" class="dashboard-panel live-panel">
+        <BasePanel labelled-by="live-section-title" tone="plain" :padded="false" class="dashboard-panel live-panel">
           <template #title>
             <span id="live-section-title" class="panel-title-inline">
               <span class="live-dot" aria-hidden="true" />
@@ -107,6 +104,8 @@
 
         <BasePanel
           v-if="recError || activeRecordings.length"
+          tone="plain"
+          :padded="false"
           class="dashboard-panel"
         >
           <template #title>
@@ -115,7 +114,7 @@
 
           <div v-if="recError">
             <p>Unknown.</p>
-            <button @click="fetchActiveRecordings">Retry</button>
+            <button class="panel-text-button" @click="fetchActiveRecordings">Retry</button>
           </div>
 
           <div v-else class="recording-status-list">
@@ -149,7 +148,7 @@
           </div>
         </BasePanel>
 
-        <BasePanel labelled-by="recent-section-title" class="dashboard-panel">
+        <BasePanel labelled-by="recent-section-title" tone="plain" :padded="false" class="dashboard-panel">
           <template #title>
             <span id="recent-section-title">Latest Videos</span>
           </template>
@@ -227,7 +226,10 @@ import EmptyState from '@/components/EmptyState.vue'
 import StreamerCard from '@/components/cards/StreamerCard.vue'
 import VideoCard from '@/components/cards/VideoCard.vue'
 import BasePanel from '@/components/base/BasePanel.vue'
+import PageHeader from '@/components/base/PageHeader.vue'
 import StatusBadge from '@/components/base/StatusBadge.vue'
+
+withDefaults(defineProps<{ embedded?: boolean }>(), { embedded: false })
 
 interface StreamerSummary {
   id: number
@@ -719,52 +721,32 @@ onMounted(async () => {
 }
 
 .dashboard-brief {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-5);
-  padding: var(--spacing-5);
-  border: 1px solid var(--glass-border, var(--border-color));
-  border-radius: var(--radius-xl);
-  background:
-    linear-gradient(135deg, rgba(var(--primary-color-rgb), 0.14), transparent 46%),
-    rgba(var(--background-darker-rgb, 10, 10, 10), 0.34);
-  box-shadow: var(--glass-shadow-sm, 0 8px 24px rgba(0, 0, 0, 0.18));
+  padding-bottom: var(--spacing-5);
+  border-bottom: 1px solid var(--sv-sem-border-default);
 }
 
-.brief-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--spacing-4);
-
-  h2 {
-    margin: var(--spacing-1) 0 var(--spacing-2);
-    color: var(--text-primary);
-    font-size: clamp(1.35rem, 3vw, 2rem);
-    line-height: 1.1;
-    font-weight: v.$font-bold;
-  }
-
-  p {
-    margin: 0;
-    color: var(--text-secondary);
-    line-height: v.$leading-relaxed;
-  }
-}
-
-.section-eyebrow,
-.brief-item-label {
-  color: var(--text-secondary);
-  font-size: var(--text-xs);
+.brief-headline {
+  margin: 0 0 var(--spacing-2);
+  font-size: var(--text-lg);
   font-weight: v.$font-semibold;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  color: var(--sv-sem-text-primary);
+}
+
+.brief-description {
+  margin: 0 0 var(--spacing-4);
+  color: var(--sv-sem-text-secondary);
+}
+
+.brief-item-label {
+  color: var(--sv-sem-text-secondary);
+  font-size: var(--text-xs);
+  font-weight: v.$font-medium;
 }
 
 .brief-grid {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: var(--spacing-3);
+  gap: var(--spacing-4);
 }
 
 .brief-item {
@@ -772,13 +754,12 @@ onMounted(async () => {
   grid-template-columns: auto minmax(0, 1fr) auto;
   gap: var(--spacing-3);
   min-width: 0;
-  padding: var(--spacing-4);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-lg);
-  background: rgba(var(--background-card-rgb, 20, 22, 29), 0.58);
+  min-height: 44px;
+  padding: var(--spacing-2) 0;
+  border-radius: var(--radius-md);
   color: inherit;
   text-decoration: none;
-  transition: border-color v.$duration-200 v.$ease-out, transform v.$duration-200 v.$ease-out, box-shadow v.$duration-200 v.$ease-out;
+  transition: background-color v.$duration-200 v.$ease-out;
 
   strong,
   .brief-item-detail {
@@ -798,13 +779,11 @@ onMounted(async () => {
   }
 
   &:hover {
-    border-color: var(--primary-color);
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(var(--primary-color-rgb), 0.15);
+    background: var(--sv-sem-surface-raised);
   }
 
   &:focus-visible {
-    outline: 2px solid var(--primary-color);
+    outline: 2px solid var(--sv-sem-action-focus);
     outline-offset: 2px;
   }
 
@@ -813,9 +792,7 @@ onMounted(async () => {
     cursor: default;
 
     &:hover {
-      border-color: var(--border-color);
-      transform: none;
-      box-shadow: none;
+      background: transparent;
     }
   }
 }
@@ -824,7 +801,6 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   color: var(--text-secondary);
-  opacity: 0;
 
   svg {
     width: 16px;
@@ -835,7 +811,7 @@ onMounted(async () => {
 
   .brief-item:hover & {
     opacity: 1;
-    color: var(--primary-color);
+    color: var(--sv-sem-action-foreground);
   }
 }
 
@@ -843,11 +819,10 @@ onMounted(async () => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 38px;
-  height: 38px;
+  width: 24px;
+  height: 24px;
   border-radius: var(--radius-md);
-  background: rgba(var(--primary-color-rgb), 0.16);
-  color: var(--primary-color);
+  color: var(--sv-sem-text-secondary);
 
   svg {
     width: 20px;
@@ -864,29 +839,51 @@ onMounted(async () => {
 
 .brief-item-live .brief-item-icon,
 .brief-item-danger .brief-item-icon {
-  background: rgba(var(--danger-color-rgb), 0.18);
   color: var(--danger-color);
 }
 
 .brief-item-recording .brief-item-icon {
-  background: rgba(var(--warning-color-rgb), 0.18);
   color: var(--warning-color);
 }
 
 .brief-item-queue .brief-item-icon,
 .brief-item-info .brief-item-icon {
-  background: rgba(var(--primary-color-rgb), 0.16);
-  color: var(--primary-color);
+  color: var(--sv-sem-text-secondary);
 }
 
 .brief-item-success .brief-item-icon {
-  background: rgba(var(--success-color-rgb), 0.18);
   color: var(--success-color);
 }
 
 .dashboard-panel {
   min-width: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+
+  & + & {
+    padding-top: var(--spacing-5);
+    border-top: 1px solid var(--sv-sem-border-default);
+  }
 }
+
+.recording-status-list {
+  display: grid;
+  gap: var(--spacing-3);
+}
+
+.recording-status-item {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--spacing-3);
+
+  h3, p, dl, dd { margin: 0; }
+  h3 { font-size: var(--text-base); }
+  p, dt { color: var(--sv-sem-text-secondary); }
+  dl { display: flex; flex-wrap: wrap; gap: var(--spacing-4); }
+}
+
 
 .dashboard-layout {
   display: flex;
@@ -912,7 +909,6 @@ onMounted(async () => {
   height: 0.75rem;
   border-radius: 999px;
   background: var(--danger-color);
-  box-shadow: 0 0 0 6px rgba(var(--danger-color-rgb), 0.14);
 }
 
 .dashboard-card-grid,
@@ -920,22 +916,12 @@ onMounted(async () => {
   padding: 0;
 }
 
-.live-card {
-  animation: fade-in v.$duration-300 v.$ease-out;
-
-  @for $i from 1 through 10 {
-    &:nth-child(#{$i}) {
-      animation-delay: #{$i * 50}ms;
-    }
-  }
-}
-
 .view-all-link,
 .panel-text-button {
   display: inline-flex;
   align-items: center;
   gap: var(--spacing-2);
-  min-height: 36px;
+  min-height: 44px;
   border: 0;
   background: transparent;
   color: var(--text-primary);
@@ -961,25 +947,10 @@ onMounted(async () => {
 }
 
 @include m.respond-below('md') {
-  .dashboard-brief {
-    padding: var(--spacing-4);
-  }
-
-  .brief-header {
-    flex-direction: column;
-  }
-
   .brief-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .brief-item {
-    padding: var(--spacing-3);
-  }
-
-  .brief-item:last-child {
-    grid-column: 1 / -1;
-  }
 }
 
 @include m.respond-below('sm') {
@@ -994,14 +965,4 @@ onMounted(async () => {
   }
 }
 
-@keyframes fade-in {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
 </style>

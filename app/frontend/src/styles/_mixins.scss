@@ -36,85 +36,31 @@
 // CARD SYSTEM - Modern Design
 // ============================================================================
 
-@mixin card-base($padding: v.$spacing-6, $bg: var(--background-card)) {
+@mixin card-base($padding: v.$spacing-6, $bg: var(--sv-sem-surface-panel)) {
   background: $bg;
-  border-radius: v.$border-radius-md;  // 10px on mobile (less aggressive)
-  padding: v.$spacing-4;  // 16px on mobile (reduced from 24px)
-  box-shadow: none;  // Remove shadow on mobile
-  border: 1px solid var(--border-color);
-  transition: v.$transition-all;
-  
-  @include respond-to('md') {
-    padding: $padding;  // Use provided padding on desktop
-    border-radius: v.$border-radius-lg;  // 12px (modern rounded)
-    box-shadow: v.$shadow-sm;  // Subtle elevation on desktop
-    
-    // Hover state (subtle lift) - desktop only
-    &:hover {
-      box-shadow: v.$shadow-md;
-      transform: translateY(-2px);
-      border-color: rgba(var(--primary-color-rgb), 0.3);
-    }
-  }
-  
-  @include respond-to('lg') {
-    padding: v.$spacing-8;  // 32px on larger screens
-    border-radius: v.$border-radius-xl;  // 16px on desktop
-  }
-  
-  // Interactive card (clickable)
+  border-radius: var(--radius-lg);
+  padding: v.$spacing-4;
+  border: 1px solid var(--sv-sem-border-default);
+
+  @include respond-to('md') { padding: $padding; }
   &.interactive {
     cursor: pointer;
-    
-    &:active {
-      transform: translateY(0);
-      box-shadow: v.$shadow-sm;
-    }
+    &:hover { border-color: var(--sv-sem-border-strong); }
   }
 }
 
-// Card variants
 @mixin card-elevated {
   @include card-base;
-  
-  & {
-    box-shadow: v.$shadow-lg;  // Higher elevation
-  }
-  
-  &:hover {
-    box-shadow: v.$shadow-xl;
-  }
+  & { border-color: var(--sv-sem-border-strong); }
 }
 
 @mixin card-flat {
   @include card-base;
-  
-  & {
-    box-shadow: none;
-    border: 1px solid var(--border-color);
-  }
 }
 
-// Glassmorphism card variant - NO background color, pure blur only
+// Retain the compatibility API while rendering the same opaque panel.
 @mixin card-glass($blur: 20px, $opacity: 0.6) {
-  // NO background - pure blur effect only
-  backdrop-filter: blur($blur);
-  -webkit-backdrop-filter: blur($blur);  // Safari support
-  border: 1px solid rgba(var(--primary-color-rgb), 0.2);
-  border-radius: v.$border-radius-xl;  // 16px
-  padding: v.$spacing-6;  // 24px
-  box-shadow: v.$shadow-lg;
-  transition: v.$transition-all;
-
-  @include respond-to('md') {
-    padding: v.$spacing-8;  // 32px on desktop
-  }
-
-  &:hover {
-    // NO background change on hover
-    box-shadow: v.$shadow-xl;
-    transform: translateY(-2px);
-  }
+  @include card-base;
 }
 
 // Card with gradient header
@@ -199,20 +145,10 @@
   }
 }
 
-// Hover lift effect (reusable)
+// Historical helper name retained for consumers; feedback stays stationary.
 @mixin hover-lift($lift: 2px, $shadow: v.$shadow-lg) {
-  transition: transform v.$duration-200 v.$ease-out,
-              box-shadow v.$duration-200 v.$ease-out;
-
-  &:hover {
-    transform: translateY(-$lift);
-    box-shadow: $shadow;
-  }
-
-  &:active {
-    transform: translateY(0);
-    box-shadow: v.$shadow-md;
-  }
+  transition: border-color v.$duration-200 v.$ease-out;
+  &:hover { border-color: var(--sv-sem-border-strong); }
 }
 
 // Truncate text with ellipsis

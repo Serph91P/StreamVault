@@ -5,6 +5,8 @@ export interface RealtimeReplayWindow {
   since: number
   events: RealtimeEvent<string>[]
   gap: boolean
+  reset?: boolean
+  generation?: string
   latest_event_id: number
   oldest_event_id: number | null
   retained_events: number
@@ -13,8 +15,9 @@ export interface RealtimeReplayWindow {
 
 export class RealtimeReplayAuthError extends Error {}
 
-export async function fetchRealtimeEvents(since: number): Promise<RealtimeReplayWindow> {
-  const response = await fetch(`/api/realtime/events?since=${since}`, {
+export async function fetchRealtimeEvents(since: number, generation?: string): Promise<RealtimeReplayWindow> {
+  const generationQuery = generation ? `&generation=${encodeURIComponent(generation)}` : ''
+  const response = await fetch(`/api/realtime/events?since=${since}${generationQuery}`, {
     credentials: 'include'
   })
 

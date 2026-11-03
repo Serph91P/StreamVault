@@ -1909,9 +1909,6 @@ class ProcessManager:
                                             ).total_seconds()
                                         )
 
-                                    hours = duration_seconds // 3600
-                                    minutes = (duration_seconds % 3600) // 60
-
                                     # Get file size
                                     file_size_bytes = 0
                                     if os.path.exists(stream.recording_path):
@@ -1924,8 +1921,7 @@ class ProcessManager:
                                         streamer_name=stream.streamer.username,
                                         event_type="recording_completed",
                                         details={
-                                            "hours": hours,
-                                            "minutes": minutes,
+                                            "duration_minutes": duration_seconds // 60,
                                             "file_size_mb": f"{file_size_mb:.2f}",
                                             "quality": quality,
                                         },
@@ -2075,6 +2071,7 @@ class ProcessManager:
                             )
 
                             # Calculate recording duration
+                            duration_seconds = 0
                             if segment_info.get("segment_start_time"):
                                 duration_seconds = int(
                                     (
@@ -2082,11 +2079,6 @@ class ProcessManager:
                                         - segment_info["segment_start_time"]
                                     ).total_seconds()
                                 )
-                                hours = duration_seconds // 3600
-                                minutes = (duration_seconds % 3600) // 60
-                            else:
-                                hours = 0
-                                minutes = 0
 
                             # Get file size
                             file_size_bytes = (
@@ -2100,8 +2092,7 @@ class ProcessManager:
                                 streamer_name=stream.streamer.username,
                                 event_type="recording_completed",
                                 details={
-                                    "hours": hours,
-                                    "minutes": minutes,
+                                    "duration_minutes": duration_seconds // 60,
                                     "file_size_mb": f"{file_size_mb:.2f}",
                                     "quality": quality,
                                 },

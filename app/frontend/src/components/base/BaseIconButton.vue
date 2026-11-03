@@ -45,9 +45,11 @@ defineEmits<{
   transition:
     color var(--transition-fast),
     background-color var(--transition-fast),
-    border-color var(--transition-fast),
-    box-shadow var(--transition-fast),
-    transform var(--transition-fast);
+    border-color var(--transition-fast);
+
+  &:hover:not(:disabled) {
+    background: var(--sv-sem-surface-raised);
+  }
 
   &:focus-visible {
     outline: 2px solid var(--sv-cmp-button-focus);

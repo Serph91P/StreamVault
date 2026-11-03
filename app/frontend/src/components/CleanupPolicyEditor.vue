@@ -20,9 +20,9 @@
         <div :class="{ 'disabled-section': !isGlobal && useGlobalPolicy }">
           <!-- Policy Type Selection -->
           <div class="form-group">
-            <label>Cleanup Policy:</label>
+            <label :for="`${controlId}-type`">Cleanup Policy:</label>
             <div class="form-row">
-              <select v-model="policy.type" class="form-control" :disabled="!isGlobal && useGlobalPolicy">
+              <select :id="`${controlId}-type`" v-model="policy.type" class="form-control" :disabled="!isGlobal && useGlobalPolicy">
                 <option v-for="type in policyTypes" :key="type.value" :value="type.value">
                   {{ type.label }}
                 </option>
@@ -34,8 +34,9 @@
           <!-- Threshold Setting -->
           <div v-if="policy.type !== 'custom'" class="form-group">
             <div class="form-row">
-              <label>{{ thresholdLabel }}:</label>
+              <label :for="`${controlId}-threshold`">{{ thresholdLabel }}:</label>
               <input 
+                :id="`${controlId}-threshold`"
                 type="number" 
                 v-model.number="policy.threshold"
                 min="1" 
@@ -60,8 +61,8 @@
 
           <!-- Preserve Specific Categories -->
           <div v-if="showPreserveCategories" class="form-group">
-            <label>Preserve Categories:</label>
-            <select v-model="policy.preserve_categories" class="form-control" multiple :disabled="!isGlobal && useGlobalPolicy">
+            <label :for="`${controlId}-categories`">Preserve Categories:</label>
+            <select :id="`${controlId}-categories`" v-model="policy.preserve_categories" class="form-control" multiple :disabled="!isGlobal && useGlobalPolicy">
               <option v-for="category in availableCategories" :key="category.id" :value="category.name">
                 {{ category.name }}
               </option>
@@ -118,7 +119,7 @@
           @click="runCustomCleanupTest" 
           :disabled="isRunningCleanup"
         >
-          Test Current Settings
+          Apply Unsaved Policy (Deletes Recordings)
         </button>
       </div>
     </div>
@@ -151,7 +152,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, useId } from 'vue';
 import BaseModal from '@/components/base/BaseModal.vue';
 import BaseButton from '@/components/base/BaseButton.vue';
 import { useRecordingSettings } from '@/composables/useRecordingSettings';
@@ -188,6 +189,7 @@ const emit = defineEmits<{
 }>();
 
 const recordingSettings = useRecordingSettings();
+const controlId = useId();
 
 // State
 const isSaving = ref(false);
@@ -380,18 +382,24 @@ async function savePolicy() {
     // Ensure all required properties are present
     const completePolicy = ensureCompletePolicy(policy.value);
     
+    let saved = false;
     if (props.isGlobal) {
       // Save global cleanup policy
-      await recordingSettings.updateCleanupPolicy(completePolicy);
+      saved = await recordingSettings.updateCleanupPolicy(completePolicy);
     } else if (props.streamerId) {
       // Save streamer-specific cleanup policy with global flag
-      await recordingSettings.updateStreamerCleanupPolicy(
+      saved = await recordingSettings.updateStreamerCleanupPolicy(
         props.streamerId, 
         completePolicy, 
         useGlobalPolicy.value
       );
     }
     
+    if (saved !== true) {
+      showError('Error saving cleanup policy. Please try again.');
+      return;
+    }
+
     showSuccess('Cleanup policy saved successfully');
     emit('saved', completePolicy);
     
@@ -684,8 +692,8 @@ select.form-control option {
 }
 
 .btn-danger {
-  background-color: var(--danger-color);
-  color: white;
+  background-color: var(--sv-fdn-color-red-700);
+  color: var(--sv-sem-text-inverse);
 }
 
 .btn:hover:not(:disabled) {

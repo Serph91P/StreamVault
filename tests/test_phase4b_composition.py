@@ -113,6 +113,27 @@ def test_frontend_spa_and_api_404_order_is_preserved(monkeypatch, tmp_path):
         assert client.get("/api/missing").status_code == 404
 
 
+@pytest.mark.parametrize(
+    "path", ["/activity", "/overview", "/system", "/onboarding", "/streamers/manage"]
+)
+def test_channel_first_direct_links_serve_the_spa(monkeypatch, tmp_path, path):
+    from app import frontend
+
+    index = tmp_path / "app/frontend/dist/index.html"
+    index.parent.mkdir(parents=True)
+    index.write_text("<html>channel-first</html>", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    application = FastAPI()
+    application.include_router(frontend.spa_router)
+    application.include_router(frontend.pwa_router)
+    application.include_router(frontend.catchall_router)
+    with TestClient(application) as client:
+        response = client.get(path)
+        assert response.status_code == 200
+        assert response.text == "<html>channel-first</html>"
+        assert client.get("/api/missing").status_code == 404
+
+
 def test_service_worker_compatibility_headers_are_preserved():
     from app import frontend
     from app.middleware_all import install_http_middleware

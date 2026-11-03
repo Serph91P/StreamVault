@@ -218,8 +218,14 @@ class VideoCatalogService:
                     started = state.started_at or stream.started_at
                     duration = None
                     if started:
+                        # SQLite reloads timezone-aware columns as naive UTC.
+                        started_utc = (
+                            started.replace(tzinfo=timezone.utc)
+                            if started.tzinfo is None
+                            else started.astimezone(timezone.utc)
+                        )
                         duration = (
-                            datetime.now(timezone.utc) - started
+                            datetime.now(timezone.utc) - started_utc
                         ).total_seconds()
 
                     thumbnail_url = (
