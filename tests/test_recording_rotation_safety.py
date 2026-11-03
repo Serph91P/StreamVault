@@ -160,6 +160,7 @@ def install_immediate_exit_start(
             return SimpleNamespace()
         return original_create_task(coroutine, **kwargs)
 
+    manager.config_manager = SimpleNamespace(_session_factory=FakeSession)
     monkeypatch.setattr("app.database.SessionLocal", FakeSession)
     monkeypatch.setattr(
         "app.services.system.twitch_token_service.TwitchTokenService",
@@ -1529,6 +1530,7 @@ async def test_recording_activation_failure_reaps_exact_child_before_durable_rel
         return await original_release(**values)
 
     coordinator.release = release_after_reap
+    manager.config_manager = SimpleNamespace(_session_factory=FakeSession)
     monkeypatch.setattr("app.database.SessionLocal", FakeSession)
     monkeypatch.setattr(
         "app.services.system.twitch_token_service.TwitchTokenService",

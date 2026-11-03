@@ -136,8 +136,11 @@ async def test_slow_finalization_does_not_block_other_public_recording_start(tmp
         ):
             return await spawn(f"stream_{stream.id}")
 
+        async def synthetic_auth_options(stream):
+            return 0, True
+
         manager._resolve_recording_token = no_provider_token
-        manager._recording_auth_options = lambda stream: (0, True)
+        manager._recording_auth_options = synthetic_auth_options
         manager._start_segment = synthetic_segment
         stream = Stream(
             id=42, streamer=Streamer(id=42, username="synthetic", twitch_id=None)

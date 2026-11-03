@@ -252,29 +252,34 @@ class ProcessManager:
             )
             return None
 
-    @staticmethod
-    def _recording_auth_options(stream: Stream) -> tuple[int, bool]:
+    async def _recording_auth_options(self, stream: Stream) -> tuple[int, bool]:
         """Load auth safety inputs while priority arbitration is dormant."""
         from app.database import SessionLocal
         from app.models import StreamerRecordingSettings
+        from app.utils.async_db_utils import run_in_thread_pool
 
         streamer_id = getattr(stream, "streamer_id", None)
         if streamer_id is None:
             return 0, True
-        with SessionLocal() as db:
-            settings = (
-                db.query(StreamerRecordingSettings)
-                .filter(StreamerRecordingSettings.streamer_id == streamer_id)
-                .first()
-            )
-            if settings is None:
-                return 0, True
-            # Compatibility-only value is deliberately not loaded into active
-            # process arbitration. Former behavior retained for future review:
-            # priority = int(getattr(settings, "twitch_auth_priority", 0) or 0)
-            priority = 0
-            codecs = (getattr(settings, "supported_codecs", None) or "").lower()
-            return priority, not codecs or "h264" in codecs
+        factory = getattr(self.config_manager, "_session_factory", None) or SessionLocal
+
+        def load() -> tuple[int, bool]:
+            with factory() as db:
+                settings = (
+                    db.query(StreamerRecordingSettings)
+                    .filter(StreamerRecordingSettings.streamer_id == streamer_id)
+                    .first()
+                )
+                if settings is None:
+                    return 0, True
+                # Compatibility-only value is deliberately not loaded into active
+                # process arbitration. Former behavior retained for future review:
+                # priority = int(getattr(settings, "twitch_auth_priority", 0) or 0)
+                priority = 0
+                codecs = (getattr(settings, "supported_codecs", None) or "").lower()
+                return priority, not codecs or "h264" in codecs
+
+        return await run_in_thread_pool(load)
 
     @staticmethod
     def _segment_has_recording_data(segment_path: str) -> bool:
@@ -380,7 +385,9 @@ class ProcessManager:
         reservation = None
         try:
             initial_token_resolution = await self._resolve_recording_token()
-            auth_priority, anonymous_available = self._recording_auth_options(stream)
+            auth_priority, anonymous_available = await self._recording_auth_options(
+                stream
+            )
             streamer = getattr(stream, "streamer", None)
             channel_key = getattr(streamer, "twitch_id", None)
             if channel_key:
