@@ -1,12 +1,12 @@
 from fastapi import APIRouter, HTTPException, Depends
-from sqlalchemy.orm import Session
+
 from app.schemas.settings import (
     GlobalSettingsSchema,
     StreamerNotificationSettingsSchema,
     StreamerNotificationSettingsUpdateSchema,
 )
 from app.dependencies import (
-    get_db,
+    get_application_twitch_token_service,
     get_image_service,
     get_notification_service_factory,
     get_settings_service,
@@ -14,6 +14,7 @@ from app.dependencies import (
     require_scopes,
 )
 from app.services.core.settings_service import SettingsService
+from app.services.system.twitch_token_service import TwitchTokenService
 from app.services.notification_service import NotificationService
 from app.utils.async_db_utils import run_in_thread_pool
 import logging
@@ -269,7 +270,9 @@ async def update_settings(
 
 
 @router.get("/quality-options")
-async def get_quality_options(db: Session = Depends(get_db)):
+async def get_quality_options(
+    token_service: TwitchTokenService = Depends(get_application_twitch_token_service),
+):
     """
     Get available quality options based on OAuth token configuration.
 
@@ -281,9 +284,7 @@ async def get_quality_options(db: Session = Depends(get_db)):
         from app.services.system.streamlink_config_service import (
             streamlink_config_service,
         )
-        from app.services.system.twitch_token_service import TwitchTokenService
 
-        token_service = TwitchTokenService(db)
         has_oauth = bool(await token_service.get_valid_access_token())
 
         # Get quality options with availability info
@@ -302,7 +303,9 @@ async def get_quality_options(db: Session = Depends(get_db)):
 
 
 @router.get("/codec-options")
-async def get_codec_options(db: Session = Depends(get_db)):
+async def get_codec_options(
+    token_service: TwitchTokenService = Depends(get_application_twitch_token_service),
+):
     """
     Get available codec options with OAuth authentication requirements.
 
@@ -310,9 +313,6 @@ async def get_codec_options(db: Session = Depends(get_db)):
     H.265/HEVC and AV1 require OAuth authentication on Twitch.
     """
     try:
-        from app.services.system.twitch_token_service import TwitchTokenService
-
-        token_service = TwitchTokenService(db)
         has_oauth = bool(await token_service.get_valid_access_token())
 
         codecs = [

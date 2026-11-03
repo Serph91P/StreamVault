@@ -23,9 +23,12 @@ import re
 import signal
 import shutil
 from datetime import datetime, timedelta
-from typing import Dict, Optional, Callable, Awaitable
+from typing import Dict, Optional, Callable, Awaitable, TYPE_CHECKING
 from pathlib import Path
 from sqlalchemy.orm import joinedload
+
+if TYPE_CHECKING:
+    from app.services.system.twitch_token_service import TwitchTokenService
 
 try:
     import psutil  # noqa: F401
@@ -148,6 +151,8 @@ class ProcessManager:
         self.post_processing_callback = post_processing_callback  # Injected dependency
         self.upstream_coordinator = upstream_coordinator or twitch_upstream_coordinator
         self.proxy_health_service = None
+        self.twitch_token_service: TwitchTokenService | None = None
+        self._owns_twitch_token_service = False
         if config_manager is not None and config_manager._session_factory is not None:
             from app.services.proxy.proxy_health_service import ProxyHealthService
 
@@ -237,13 +242,23 @@ class ProcessManager:
         if names.get(process) == name:
             names.pop(process, None)
 
-    async def _resolve_recording_token(self):
-        from app.database import SessionLocal
+    def _get_twitch_token_service(self) -> "TwitchTokenService":
         from app.services.system.twitch_token_service import TwitchTokenService
 
+        service: TwitchTokenService | None = getattr(self, "twitch_token_service", None)
+        if service is None:
+            config = getattr(self, "config_manager", None)
+            service = TwitchTokenService(
+                session_factory=getattr(config, "_session_factory", None),
+                settings=getattr(config, "_settings", None),
+            )
+            self.twitch_token_service = service
+            self._owns_twitch_token_service = True
+        return service
+
+    async def _resolve_recording_token(self):
         try:
-            with SessionLocal() as db:
-                return await TwitchTokenService(db).resolve_recording_token()
+            return await self._get_twitch_token_service().resolve_recording_token()
         except asyncio.CancelledError:
             raise
         except Exception as e:
@@ -382,6 +397,8 @@ class ProcessManager:
         Returns:
             Process object or None if failed
         """
+        if getattr(self, "_is_shutting_down", False):
+            raise ProcessError("Process manager is shutting down")
         reservation = None
         try:
             initial_token_resolution = await self._resolve_recording_token()
@@ -712,16 +729,11 @@ class ProcessManager:
                 proxy_settings = {"http": config.stored_proxy}
             supported_codecs = config.supported_codecs
             oauth_token = None
-            from app.database import SessionLocal
-            from app.services.system.twitch_token_service import TwitchTokenService
 
             if not segment_info.get("auth_fallback_to_anonymous"):
                 try:
                     if token_resolution is _UNRESOLVED_RECORDING_TOKEN:
-                        with SessionLocal() as db:
-                            token_resolution = await TwitchTokenService(
-                                db
-                            ).resolve_recording_token()
+                        token_resolution = await self._resolve_recording_token()
                     oauth_token = getattr(token_resolution, "token", None)
                     logger.info(
                         "Using %s Twitch authentication for %s",
@@ -983,10 +995,9 @@ class ProcessManager:
                     stored_version = getattr(token_resolution, "stored_version", None)
                     if stored_version is not None:
                         try:
-                            with SessionLocal() as db:
-                                TwitchTokenService(db).invalidate_recording_token(
-                                    stored_version
-                                )
+                            await self._get_twitch_token_service().invalidate_recording_token(
+                                stored_version
+                            )
                         except Exception:
                             logger.warning(
                                 "Could not invalidate runtime-rejected Twitch token"
@@ -1744,15 +1755,9 @@ class ProcessManager:
                     stored_version = startup_handoff["stored_version"]
                     if stored_version is not None:
                         try:
-                            from app.database import SessionLocal
-                            from app.services.system.twitch_token_service import (
-                                TwitchTokenService,
+                            await self._get_twitch_token_service().invalidate_recording_token(
+                                stored_version
                             )
-
-                            with SessionLocal() as db:
-                                TwitchTokenService(db).invalidate_recording_token(
-                                    stored_version
-                                )
                         except Exception:
                             logger.warning(
                                 "Could not invalidate runtime-rejected Twitch token"
@@ -2705,6 +2710,11 @@ class ProcessManager:
             logger.error(
                 f"❌ Error during Process Manager shutdown: {e}", exc_info=True
             )
+        finally:
+            if getattr(self, "_owns_twitch_token_service", False):
+                service = self.twitch_token_service
+                if service is not None:
+                    await service.close()
 
     async def _terminate_process_gracefully(
         self, stream_id: int, process: asyncio.subprocess.Process, timeout: int

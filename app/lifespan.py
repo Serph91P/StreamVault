@@ -112,6 +112,10 @@ async def _close_application_images(app: FastAPI) -> None:
 
 
 async def _close_application_twitch(app: FastAPI) -> None:
+    tokens = getattr(app.state, "twitch_token_service", None)
+    if tokens is not None:
+        await tokens.close()
+        app.state.twitch_token_service = None
     client = getattr(app.state, "twitch_api", None)
     if client is not None:
         await client.close()

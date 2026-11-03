@@ -141,10 +141,14 @@ def test_settings_router_injects_session_notification_and_websocket_seams():
     for endpoint in (
         settings.get_quality_options,
         settings.get_codec_options,
-        videos.get_videos,
     ):
-        db_default = inspect.signature(endpoint).parameters["db"].default
-        assert db_default.dependency is dependencies.get_db
+        token_default = inspect.signature(endpoint).parameters["token_service"].default
+        assert (
+            token_default.dependency
+            is dependencies.get_application_twitch_token_service
+        )
+    db_default = inspect.signature(videos.get_videos).parameters["db"].default
+    assert db_default.dependency is dependencies.get_db
 
 
 def test_settings_update_preserves_invalid_proxy_error_envelope(seeded_client):

@@ -207,6 +207,9 @@ def _get_application_recording_manager(app: FastAPI):
             orchestrator.process_manager.proxy_health_service = (
                 _get_application_proxy_health_service(app)
             )
+            orchestrator.process_manager.twitch_token_service = (
+                _get_application_twitch_token_service(app)
+            )
             app.state.recording_manager = RecordingManager(
                 service=RecordingService(orchestrator=orchestrator),
                 upstream_coordinator=orchestrator.process_manager.upstream_coordinator,
@@ -231,6 +234,27 @@ def _get_application_twitch_api(app: FastAPI):
 def get_application_twitch_api(connection: HTTPConnection):
     """Resolve a lazy app-owned HTTP pool in the synchronous adapter worker."""
     return _get_application_twitch_api(connection.app)
+
+
+def _get_application_twitch_token_service(app: FastAPI):
+    from app.services.system.twitch_token_service import TwitchTokenService
+
+    with app.state.twitch_token_service_lock:
+        service: TwitchTokenService | None = app.state.twitch_token_service
+        if service is None:
+            service = TwitchTokenService(
+                session_factory=app.state.database_lifecycle.sync_session_factory,
+                settings=resolve_app_settings(app),
+                notify_expiry=_get_application_notification_service(
+                    app
+                ).send_notification,
+            )
+            app.state.twitch_token_service = service
+        return service
+
+
+def get_application_twitch_token_service(connection: HTTPConnection):
+    return _get_application_twitch_token_service(connection.app)
 
 
 def _get_application_recovery_service(app: FastAPI):
