@@ -1822,6 +1822,7 @@
     "app/frontend/tests/fixtures/issue991-status.spec.ts",
     "app/frontend/tests/fixtures/recording-a11y.ts",
     "app/frontend/tests/fixtures/settings-parity.spec.ts",
+    "app/frontend/tests/fixtures/ux-foundation.spec.ts",
     "app/frontend/tests/unit/issue828Motion.spec.ts",
     "app/frontend/vite.config.ts"
   ],
@@ -3209,32 +3210,27 @@
     },
     {
       "file": "app/frontend/src/composables/__tests__/useModal.spec.ts",
-      "line": 38,
+      "line": 39,
       "match": "document.body"
     },
     {
       "file": "app/frontend/src/composables/__tests__/useModal.spec.ts",
-      "line": 40,
+      "line": 41,
       "match": "document.body"
     },
     {
       "file": "app/frontend/src/composables/__tests__/useModal.spec.ts",
-      "line": 44,
+      "line": 45,
       "match": "document.body"
-    },
-    {
-      "file": "app/frontend/src/composables/__tests__/useModal.spec.ts",
-      "line": 48,
-      "match": "document.createElement"
     },
     {
       "file": "app/frontend/src/composables/__tests__/useModal.spec.ts",
       "line": 49,
-      "match": "document.body"
+      "match": "document.createElement"
     },
     {
       "file": "app/frontend/src/composables/__tests__/useModal.spec.ts",
-      "line": 51,
+      "line": 50,
       "match": "document.body"
     },
     {
@@ -3244,17 +3240,17 @@
     },
     {
       "file": "app/frontend/src/composables/__tests__/useModal.spec.ts",
-      "line": 62,
+      "line": 53,
       "match": "document.body"
     },
     {
       "file": "app/frontend/src/composables/__tests__/useModal.spec.ts",
-      "line": 66,
+      "line": 63,
       "match": "document.body"
     },
     {
       "file": "app/frontend/src/composables/__tests__/useModal.spec.ts",
-      "line": 73,
+      "line": 67,
       "match": "document.body"
     },
     {
@@ -3264,22 +3260,22 @@
     },
     {
       "file": "app/frontend/src/composables/__tests__/useModal.spec.ts",
-      "line": 84,
+      "line": 75,
       "match": "document.body"
     },
     {
       "file": "app/frontend/src/composables/__tests__/useModal.spec.ts",
-      "line": 97,
-      "match": "document.createElement"
+      "line": 85,
+      "match": "document.body"
     },
     {
       "file": "app/frontend/src/composables/__tests__/useModal.spec.ts",
       "line": 98,
-      "match": "document.body"
+      "match": "document.createElement"
     },
     {
       "file": "app/frontend/src/composables/__tests__/useModal.spec.ts",
-      "line": 100,
+      "line": 99,
       "match": "document.body"
     },
     {
@@ -3289,27 +3285,97 @@
     },
     {
       "file": "app/frontend/src/composables/__tests__/useModal.spec.ts",
-      "line": 117,
+      "line": 102,
       "match": "document.body"
     },
     {
       "file": "app/frontend/src/composables/__tests__/useModal.spec.ts",
-      "line": 138,
+      "line": 118,
       "match": "document.body"
     },
     {
       "file": "app/frontend/src/composables/__tests__/useModal.spec.ts",
-      "line": 151,
+      "line": 139,
+      "match": "document.body"
+    },
+    {
+      "file": "app/frontend/src/composables/__tests__/useModal.spec.ts",
+      "line": 164,
       "match": "document.createElement"
     },
     {
       "file": "app/frontend/src/composables/__tests__/useModal.spec.ts",
-      "line": 152,
+      "line": 166,
       "match": "document.body"
     },
     {
       "file": "app/frontend/src/composables/__tests__/useModal.spec.ts",
-      "line": 153,
+      "line": 167,
+      "match": "document.body"
+    },
+    {
+      "file": "app/frontend/src/composables/__tests__/useModal.spec.ts",
+      "line": 168,
+      "match": "document.body"
+    },
+    {
+      "file": "app/frontend/src/composables/__tests__/useModal.spec.ts",
+      "line": 174,
+      "match": "document.querySelector"
+    },
+    {
+      "file": "app/frontend/src/composables/__tests__/useModal.spec.ts",
+      "line": 175,
+      "match": "document.querySelector"
+    },
+    {
+      "file": "app/frontend/src/composables/__tests__/useModal.spec.ts",
+      "line": 181,
+      "match": "document.querySelector"
+    },
+    {
+      "file": "app/frontend/src/composables/__tests__/useModal.spec.ts",
+      "line": 200,
+      "match": "document.createElement"
+    },
+    {
+      "file": "app/frontend/src/composables/__tests__/useModal.spec.ts",
+      "line": 201,
+      "match": "document.body"
+    },
+    {
+      "file": "app/frontend/src/composables/__tests__/useModal.spec.ts",
+      "line": 203,
+      "match": "document.body"
+    },
+    {
+      "file": "app/frontend/src/composables/__tests__/useModal.spec.ts",
+      "line": 209,
+      "match": "document.body"
+    },
+    {
+      "file": "app/frontend/src/composables/__tests__/useModal.spec.ts",
+      "line": 214,
+      "match": "document.body"
+    },
+    {
+      "file": "app/frontend/src/composables/__tests__/useModal.spec.ts",
+      "line": 218,
+      "match": "document.body"
+    },
+    {
+      "file": "app/frontend/src/composables/__tests__/useModal.spec.ts",
+      "line": 222,
+      "match": "document.createElement"
+    },
+    {
+      "file": "app/frontend/src/composables/__tests__/useModal.spec.ts",
+      "line": 223,
+      "match": "document.body"
+    },
+    {
+      "file": "app/frontend/src/composables/__tests__/useModal.spec.ts",
+      "line": 224,
       "match": "document.body"
     },
     {
@@ -3324,27 +3390,12 @@
     },
     {
       "file": "app/frontend/src/composables/useModal.ts",
-      "line": 49,
+      "line": 53,
       "match": "document.body"
     },
     {
       "file": "app/frontend/src/composables/useModal.ts",
-      "line": 70,
-      "match": "document.body"
-    },
-    {
-      "file": "app/frontend/src/composables/useModal.ts",
-      "line": 71,
-      "match": "document.body"
-    },
-    {
-      "file": "app/frontend/src/composables/useModal.ts",
-      "line": 72,
-      "match": "document.body"
-    },
-    {
-      "file": "app/frontend/src/composables/useModal.ts",
-      "line": 73,
+      "line": 74,
       "match": "document.body"
     },
     {
@@ -3364,27 +3415,42 @@
     },
     {
       "file": "app/frontend/src/composables/useModal.ts",
-      "line": 78,
+      "line": 79,
       "match": "document.body"
     },
     {
       "file": "app/frontend/src/composables/useModal.ts",
-      "line": 85,
+      "line": 80,
       "match": "document.body"
     },
     {
       "file": "app/frontend/src/composables/useModal.ts",
-      "line": 86,
+      "line": 81,
       "match": "document.body"
     },
     {
       "file": "app/frontend/src/composables/useModal.ts",
-      "line": 87,
+      "line": 82,
       "match": "document.body"
     },
     {
       "file": "app/frontend/src/composables/useModal.ts",
-      "line": 88,
+      "line": 89,
+      "match": "document.body"
+    },
+    {
+      "file": "app/frontend/src/composables/useModal.ts",
+      "line": 90,
+      "match": "document.body"
+    },
+    {
+      "file": "app/frontend/src/composables/useModal.ts",
+      "line": 91,
+      "match": "document.body"
+    },
+    {
+      "file": "app/frontend/src/composables/useModal.ts",
+      "line": 92,
       "match": "document.body"
     },
     {
@@ -3919,7 +3985,27 @@
     },
     {
       "file": "app/frontend/tests/fixtures/ux-foundation.spec.ts",
-      "line": 74,
+      "line": 46,
+      "match": "document.body"
+    },
+    {
+      "file": "app/frontend/tests/fixtures/ux-foundation.spec.ts",
+      "line": 55,
+      "match": "document.body"
+    },
+    {
+      "file": "app/frontend/tests/fixtures/ux-foundation.spec.ts",
+      "line": 78,
+      "match": "document.body"
+    },
+    {
+      "file": "app/frontend/tests/fixtures/ux-foundation.spec.ts",
+      "line": 82,
+      "match": "document.body"
+    },
+    {
+      "file": "app/frontend/tests/fixtures/ux-foundation.spec.ts",
+      "line": 139,
       "match": "document.documentElement"
     },
     {
@@ -4301,17 +4387,17 @@
     },
     {
       "file": "app/frontend/src/composables/useModal.ts",
-      "line": 28,
+      "line": 30,
       "match": "let lockCount = 0"
     },
     {
       "file": "app/frontend/src/composables/useModal.ts",
-      "line": 29,
+      "line": 31,
       "match": "let savedScrollY = 0"
     },
     {
       "file": "app/frontend/src/composables/useModal.ts",
-      "line": 40,
+      "line": 43,
       "match": "const isolated = new "
     },
     {
@@ -4853,12 +4939,12 @@
     },
     {
       "file": "app/frontend/src/composables/useModal.ts",
-      "line": 126,
+      "line": 130,
       "match": "addEventListener("
     },
     {
       "file": "app/frontend/src/composables/useModal.ts",
-      "line": 145,
+      "line": 149,
       "match": "removeEventListener("
     },
     {
@@ -5335,27 +5421,27 @@
     },
     {
       "file": "app/frontend/src/components/BackgroundQueueMonitor.vue",
-      "line": 199,
+      "line": 200,
       "match": ": any"
     },
     {
       "file": "app/frontend/src/components/BackgroundQueueMonitor.vue",
-      "line": 240,
+      "line": 241,
       "match": ": any"
     },
     {
       "file": "app/frontend/src/components/BackgroundQueueMonitor.vue",
-      "line": 256,
+      "line": 257,
       "match": "as any"
     },
     {
       "file": "app/frontend/src/components/BackgroundQueueMonitor.vue",
-      "line": 282,
+      "line": 283,
       "match": ": any"
     },
     {
       "file": "app/frontend/src/components/BackgroundQueueMonitor.vue",
-      "line": 317,
+      "line": 318,
       "match": ": any"
     },
     {
@@ -5777,13 +5863,13 @@
   "nonsemanticActions": [
     {
       "file": "app/frontend/src/components/AppShell.vue",
-      "line": 46,
-      "match": "<div v-if=\"showNotifications\" class=\"glass-popup-backdrop\" aria-hidden=\"true\" @click"
+      "line": 45,
+      "match": "<div v-if=\"showNotifications\" ref=\"backdrop\" class=\"glass-popup-backdrop\" aria-hidden=\"true\" @click"
     },
     {
       "file": "app/frontend/src/components/BackgroundQueueMonitor.vue",
       "line": 32,
-      "match": "<div v-if=\"showPanel\" class=\"glass-popup-backdrop\" @click"
+      "match": "<div v-if=\"showPanel\" ref=\"backdrop\" class=\"glass-popup-backdrop\" @click"
     },
     {
       "file": "app/frontend/src/components/BackgroundQueueMonitor.vue",
@@ -5874,37 +5960,37 @@
     },
     {
       "file": "app/frontend/src/components/AppShell.vue",
-      "line": 21,
+      "line": 20,
       "match": "@click.stop="
     },
     {
       "file": "app/frontend/src/components/AppShell.vue",
-      "line": 34,
+      "line": 33,
       "match": "@click="
     },
     {
       "file": "app/frontend/src/components/AppShell.vue",
-      "line": 46,
+      "line": 45,
       "match": "@click="
     },
     {
       "file": "app/frontend/src/components/AppShell.vue",
-      "line": 72,
+      "line": 71,
       "match": "@click="
     },
     {
       "file": "app/frontend/src/components/AppShell.vue",
-      "line": 82,
+      "line": 81,
       "match": "@click="
     },
     {
       "file": "app/frontend/src/components/AppShell.vue",
-      "line": 86,
+      "line": 85,
       "match": "@click="
     },
     {
       "file": "app/frontend/src/components/AppShell.vue",
-      "line": 122,
+      "line": 121,
       "match": "@click="
     },
     {
@@ -7301,7 +7387,7 @@
   "nativeDialogs": [
     {
       "file": "app/frontend/src/components/AppShell.vue",
-      "line": 234,
+      "line": 233,
       "match": "confirm("
     },
     {
@@ -7579,7 +7665,7 @@
   "transitionAll": [
     {
       "file": "app/frontend/src/components/BackgroundQueueMonitor.vue",
-      "line": 371,
+      "line": 372,
       "match": "transition: all"
     },
     {
@@ -8038,102 +8124,102 @@
   "potentialUndersizeTargets": [
     {
       "file": "app/frontend/src/components/AppShell.vue",
-      "line": 380,
+      "line": 379,
       "match": "width: 20px"
     },
     {
       "file": "app/frontend/src/components/AppShell.vue",
-      "line": 381,
+      "line": 380,
       "match": "height: 20px"
     },
     {
       "file": "app/frontend/src/components/AppShell.vue",
-      "line": 392,
+      "line": 391,
       "match": "min-width: 18px"
     },
     {
       "file": "app/frontend/src/components/AppShell.vue",
-      "line": 393,
+      "line": 392,
       "match": "height: 18px"
     },
     {
       "file": "app/frontend/src/components/AppShell.vue",
-      "line": 565,
+      "line": 564,
       "match": "width: 22px"
     },
     {
       "file": "app/frontend/src/components/AppShell.vue",
-      "line": 566,
+      "line": 565,
       "match": "height: 22px"
     },
     {
       "file": "app/frontend/src/components/BackgroundQueueMonitor.vue",
-      "line": 387,
+      "line": 388,
       "match": "width: 16px"
     },
     {
       "file": "app/frontend/src/components/BackgroundQueueMonitor.vue",
-      "line": 388,
+      "line": 389,
       "match": "height: 16px"
-    },
-    {
-      "file": "app/frontend/src/components/BackgroundQueueMonitor.vue",
-      "line": 420,
-      "match": "width: 30px"
     },
     {
       "file": "app/frontend/src/components/BackgroundQueueMonitor.vue",
       "line": 421,
+      "match": "width: 30px"
+    },
+    {
+      "file": "app/frontend/src/components/BackgroundQueueMonitor.vue",
+      "line": 422,
       "match": "height: 4px"
     },
     {
       "file": "app/frontend/src/components/BackgroundQueueMonitor.vue",
-      "line": 477,
+      "line": 478,
       "match": "width: 16px"
     },
     {
       "file": "app/frontend/src/components/BackgroundQueueMonitor.vue",
-      "line": 478,
+      "line": 479,
       "match": "height: 16px"
     },
     {
       "file": "app/frontend/src/components/BackgroundQueueMonitor.vue",
-      "line": 633,
+      "line": 634,
       "match": "height: 6px"
     },
     {
       "file": "app/frontend/src/components/BackgroundQueueMonitor.vue",
-      "line": 666,
+      "line": 667,
       "match": "min-width: 40px"
     },
     {
       "file": "app/frontend/src/components/BackgroundQueueMonitor.vue",
-      "line": 763,
+      "line": 764,
       "match": "width: 8px"
     },
     {
       "file": "app/frontend/src/components/BackgroundQueueMonitor.vue",
-      "line": 764,
+      "line": 765,
       "match": "height: 8px"
     },
     {
       "file": "app/frontend/src/components/BackgroundQueueMonitor.vue",
-      "line": 793,
+      "line": 794,
       "match": "width: 25px"
     },
     {
       "file": "app/frontend/src/components/BackgroundQueueMonitor.vue",
-      "line": 794,
+      "line": 795,
       "match": "height: 3px"
     },
     {
       "file": "app/frontend/src/components/BackgroundQueueMonitor.vue",
-      "line": 798,
+      "line": 799,
       "match": "width: 14px"
     },
     {
       "file": "app/frontend/src/components/BackgroundQueueMonitor.vue",
-      "line": 799,
+      "line": 800,
       "match": "height: 14px"
     },
     {
@@ -11554,7 +11640,7 @@
     "apiCalls": 146,
     "websocketConsumers": 19,
     "storage": 3,
-    "overlays": 83,
+    "overlays": 84,
     "forms": 7,
     "tables": 6,
     "destructiveActions": 69,
@@ -11562,7 +11648,7 @@
     "players": 14,
     "pwa": 129,
     "breakpoints": 94,
-    "directDomMutations": 268,
+    "directDomMutations": 285,
     "moduleScopeMutableState": 108,
     "listenersAndTimers": 137,
     "anyTypes": 91,

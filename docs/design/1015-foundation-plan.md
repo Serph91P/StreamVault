@@ -21,6 +21,14 @@ Operate mode: quiet neutral surfaces, a clear primary action, German product voc
 
 Shared interfaces: EmptyState legacy props must remain compatible with all existing callers; state presentation consumes owner facts only. RecordingSettingsPanel update event remains unchanged; parent owns asynchronous persistence and exposes pending/result props. Modal useModal and useToast singleton stay unchanged.
 
+## Review correction B1
+
+- Scope: restore the existing pointer dismissal for AppShell notifications and BackgroundQueueMonitor only; retain the existing modal stack, focus container, keyboard routing and isolation of lower overlays/background.
+- Reproduction: four REAL production-frontend pointer cases (both panels × both themes) fail after an actual outside click at (5,500), plus the separate-backdrop stack unit test fails because the active backdrop is inert. This matches MDN's native inert contract, not a CSS or transition issue.
+- Fix: optional explicit backdrop ref on the existing modal owner; only the top stack entry's registered backdrop remains interactive. Both actual consumers register their own ref. No CSS-class wildcard exemption, extra stack, dependency or state platform.
+- Budget-preserving cleanup within the affected owner: combine duplicate lifecycle watches, use native stack `.at(-1)`/collection iteration, remove redundant closed-state guards and the unused notification trigger ref. Existing keyboard, autofocus, unmount and restore behavior stays tested. Budgets are unchanged; MOCK initially failed at 1,196,683 raw / 381,043 gzip, final is 1,196,522 / 381,000 (zero gzip reserve).
+- Fresh final-source checks: 664 units / 4 existing skips; 49 foundation; types/lint (0 errors / 135 warnings)/tokens/generator; 34 REAL + 34 MOCK settings, 19 REAL HTTP-fixture state/parity/pointer cases, 22 channel/dialog cases, 18 actual Chromium/Firefox/WebKit foundation cases; repeat MOCK clean-build identity. REAL is 1,193,392 / 380,071; precache REAL81/MOCK80. Exact-head CI/security and final real-backend replay are recorded in the correction handoff; do not reuse earlier heads as final evidence.
+
 ## Evidence / progress
 
 - Intake complete: correct clean branch/head/remotes and live issue/PR metadata. Owner's inventory drift was restored before this run. Initial graph output and binding are external scratch, not repository artifacts.

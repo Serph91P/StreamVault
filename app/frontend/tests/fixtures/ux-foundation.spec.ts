@@ -20,6 +20,71 @@ test('shared resource feedback keeps channel settings lazy', async ({ page }) =>
   expect(scripts.filter(path => /\/channel-settings-[^/]+\.js$/.test(path))).toEqual([])
 })
 
+for (const theme of ['light', 'dark']) for (const panel of [
+  { trigger: /Open notifications/, title: 'Notifications' },
+  { trigger: /Open background queue/, title: 'Background Queue' },
+]) {
+  test(`active backdrop closes ${panel.title} and restores focus ${theme}`, async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.addInitScript(value => localStorage.setItem('streamvault-theme', value), theme)
+    await page.routeWebSocket(/.*/, socket => socket.onMessage(() => {}))
+    await page.route('**/*', async route => {
+      const request = route.request()
+      const url = new URL(request.url())
+      if (url.origin !== 'http://127.0.0.1:4193') return route.abort('blockedbyclient')
+      if (!/^\/(api|auth)\//.test(url.pathname)) return route.continue()
+      const reply = syntheticReply(url.pathname, request.method())
+      return route.fulfill({ status: reply.status, json: reply.body })
+    })
+    await page.goto('/')
+    const trigger = page.getByRole('button', { name: panel.trigger }).first()
+    await trigger.click()
+    const dialog = page.getByRole('dialog', { name: panel.title, exact: true })
+    await expect(dialog).toBeVisible()
+    await expect.poll(() => dialog.evaluate(element => element.contains(document.activeElement))).toBe(true)
+    expect(await page.locator('#app').evaluate(element => element.inert)).toBe(true)
+    expect(await page.evaluate(() => document.body.style.overflow)).toBe('hidden')
+    // Finish entry motion before proving that the pointer is outside the panel.
+    await dialog.evaluate(element => Promise.all(element.getAnimations().map(animation => animation.finished)))
+    const box = await dialog.boundingBox()
+    expect(box).not.toBeNull()
+    expect(box!.x).toBeGreaterThan(5)
+    await page.mouse.click(5, 500)
+    await expect(dialog).toHaveCount(0)
+    await expect(trigger).toBeFocused()
+    expect(await page.evaluate(() => document.body.style.overflow)).toBe('')
+    expect(await page.locator('#app').evaluate(element => element.inert)).toBe(false)
+
+    if (panel.title === 'Notifications') {
+      const queueTrigger = page.getByRole('button', { name: /Open background queue/ }).first()
+      await queueTrigger.click()
+      const queue = page.getByRole('dialog', { name: 'Background Queue', exact: true })
+      const queueClose = queue.getByRole('button', { name: 'Close background queue' })
+      await queueClose.focus()
+      // Programmatically construct a stack; real users cannot reach the isolated shell.
+      await page.getByRole('button', { name: /Open notifications/, includeHidden: true }).evaluate((element: HTMLElement) => element.click())
+      await expect(dialog).toBeVisible()
+      await expect(page.locator('[role="dialog"]')).toHaveCount(2)
+      await expect(page.getByRole('dialog')).toHaveCount(1)
+      expect(await page.locator('.queue-panel').evaluate(element => element.inert)).toBe(true)
+      expect(await page.locator('.glass-popup-backdrop').first().evaluate(element => element.inert)).toBe(true)
+      await dialog.evaluate(element => Promise.all(element.getAnimations().map(animation => animation.finished)))
+      await page.mouse.click(5, 500)
+      await expect(page.locator('[role="dialog"]')).toHaveCount(1)
+      await expect(queue).toBeVisible()
+      await expect(queueClose).toBeFocused()
+      expect(await page.locator('.glass-popup-backdrop').evaluate(element => element.inert)).toBe(false)
+      expect(await page.locator('#app').evaluate(element => element.inert)).toBe(true)
+      expect(await page.evaluate(() => document.body.style.overflow)).toBe('hidden')
+      await page.keyboard.press('Escape')
+      await expect(page.locator('[role="dialog"]')).toHaveCount(0)
+      await expect(queueTrigger).toBeFocused()
+      expect(await page.evaluate(() => document.body.style.overflow)).toBe('')
+      expect(await page.locator('#app').evaluate(element => element.inert)).toBe(false)
+    }
+  })
+}
+
 for (const width of [320, 390, 1440]) for (const theme of ['light', 'dark']) {
   test(`built foundation resource transitions ${width} ${theme}`, async ({ page }, testInfo) => {
     await page.setViewportSize({ width, height: 900 })

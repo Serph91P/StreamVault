@@ -17,6 +17,8 @@ import { ref, unref, watch, onBeforeUnmount, type Ref } from 'vue'
 import { containFocus, getFocusable } from '@/utils/focus'
 
 export interface UseModalOptions {
+  /** Separate sibling backdrop that belongs to this dialog's interaction surface. */
+  backdrop?: Ref<HTMLElement | null>
   /** Called when the modal should close (ESC, programmatic close, etc.) */
   onClose?: () => void
   /** Disable the ESC-to-close handler. */
@@ -29,6 +31,7 @@ let lockCount = 0
 let savedScrollY = 0
 let savedBodyStyles: { overflow: string; position: string; top: string; width: string } | null = null
 interface ModalStackEntry {
+  backdrop?: Ref<HTMLElement | null>
   restoreTarget: HTMLElement | null
   container: Ref<HTMLElement | null>
   onKeydown?: (event: KeyboardEvent) => void
@@ -45,11 +48,12 @@ function syncIsolation() {
     else element.setAttribute('aria-hidden', previous.hidden)
   }
   isolated.clear()
-  let current = modalStack.at(-1)?.container.value
+  const top = modalStack.at(-1)
+  let current = top?.container.value
   while (current && current !== document.body) {
     const parent = current.parentElement
-    for (const sibling of Array.from(parent?.children ?? [])) {
-      if (!(sibling instanceof HTMLElement) || sibling === current || sibling.matches('script,style,link')) continue
+    for (const sibling of parent?.children ?? []) {
+      if (!(sibling instanceof HTMLElement) || sibling === current || sibling === top?.backdrop?.value || sibling.matches('script,style,link')) continue
       isolated.set(sibling, { inert: sibling.inert, hidden: sibling.getAttribute('aria-hidden') })
       sibling.inert = true
       sibling.setAttribute('aria-hidden', 'true')
@@ -59,7 +63,7 @@ function syncIsolation() {
 }
 
 function handleOverlayKeydown(event: KeyboardEvent) {
-  modalStack[modalStack.length - 1]?.onKeydown?.(event)
+  modalStack.at(-1)?.onKeydown?.(event)
 }
 
 function lockBody() {
@@ -98,12 +102,12 @@ export function useModal(
 ) {
   const { onClose, closeOnEscape = true, autoFocus = true } = options
   const isOpen = ref(false)
-  const stackEntry: ModalStackEntry = { restoreTarget: null, container: containerRef }
+  const stackEntry: ModalStackEntry = { restoreTarget: null, container: containerRef, backdrop: options.backdrop }
 
-  const isTopmost = () => modalStack[modalStack.length - 1] === stackEntry
+  const isTopmost = () => modalStack.at(-1) === stackEntry
 
   const handleKeydown = (event: KeyboardEvent) => {
-    if (!isOpen.value || !isTopmost()) return
+    if (!isTopmost()) return
 
     if (event.key === 'Escape' && unref(closeOnEscape)) {
       event.preventDefault()
@@ -155,30 +159,18 @@ export function useModal(
   }
 
   watch(() => [isOpen.value, containerRef.value] as const, ([open, el]) => {
-    if (open && el && isTopmost()) syncIsolation()
+    if (!open || !el) return
+    if (isTopmost()) syncIsolation()
+    if (!autoFocus) return
+    // wait a tick so the v-if rendered children are in the DOM
+    requestAnimationFrame(() => {
+      if (!isOpen.value || !isTopmost()) return
+      const target = getFocusable(el)[0] ?? el
+      target.focus()
+    })
   }, { flush: 'post' })
 
-  if (autoFocus) {
-    watch(
-      () => [isOpen.value, containerRef.value] as const,
-      ([open, el]) => {
-        if (!open || !el) return
-        // wait a tick so the v-if rendered children are in the DOM
-        requestAnimationFrame(() => {
-          if (!isOpen.value || !isTopmost()) return
-          const target = getFocusable(el)[0] ?? el
-          target.focus()
-        })
-      },
-      { flush: 'post' }
-    )
-  }
-
-  onBeforeUnmount(() => {
-    if (isOpen.value) {
-      close(false)
-    }
-  })
+  onBeforeUnmount(() => close(false))
 
   return { isOpen, open, close }
 }
