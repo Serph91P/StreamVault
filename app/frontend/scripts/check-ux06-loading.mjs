@@ -24,7 +24,10 @@ export async function measureUx06Loading(distDirectory = resolve(process.cwd(), 
   const initialHls = initialAssets.filter(url => hlsChunkPattern.test(url) || hlsWorkerPattern.test(url))
   if (initialHls.length > 0) throw new Error(`HLS fallback leaked into initial document assets: ${initialHls.join(', ')}`)
 
-  const fileBytes = async (url) => (await stat(resolve(distDirectory, url))).size
+  // Mirror the backend URL mapping without changing reported resource identities.
+  const fileBytes = async (url) => (await stat(resolve(
+    distDirectory, url.replace(/^pwa\/(?=index\.html$|push-sw\.js$|images\/)/, ''),
+  ))).size
   const initialEntries = ['index.html', ...new Set(initialAssets)]
   const initialBytes = (await Promise.all(initialEntries.map(fileBytes))).reduce((sum, bytes) => sum + bytes, 0)
   const playbackEntries = [hlsChunks[0], workers[0]]
