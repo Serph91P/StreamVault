@@ -15,10 +15,14 @@ import secrets
 import socket
 import threading
 import time
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import httpx
+import pytest
 import uvicorn
 from websockets.asyncio.client import connect
+from websockets.exceptions import ConnectionClosedError
 from fastapi import FastAPI
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -29,10 +33,28 @@ def test_authenticated_socket_producers_queue_replay_and_restart(tmp_path, monke
     import app.database as database
     import app.dependencies as dependencies
     import app.middleware.auth as middleware
+    import app.events.handler_registry as handlers
     from app.config.settings import settings
     from app.database import Base
-    from app.models import User, Session, RefreshToken, SystemState, NotificationState
+    from app.models import (
+        User,
+        Session,
+        RefreshToken,
+        SystemState,
+        NotificationState,
+        GlobalSettings,
+        NotificationSettings,
+        Streamer,
+        Stream,
+        StreamEvent,
+        Recording,
+    )
     from app.routes import auth, notifications, realtime, settings as settings_routes
+
+    from app.services.notifications import (
+        external_notification_service,
+        push_notification_service,
+    )
 
     communication = importlib.import_module(
         "app.services.communication.websocket_manager"
@@ -51,7 +73,19 @@ def test_authenticated_socket_producers_queue_replay_and_restart(tmp_path, monke
     )
     tables = [
         model.__table__
-        for model in (User, Session, RefreshToken, SystemState, NotificationState)
+        for model in (
+            User,
+            Session,
+            RefreshToken,
+            SystemState,
+            NotificationState,
+            GlobalSettings,
+            NotificationSettings,
+            Streamer,
+            Stream,
+            StreamEvent,
+            Recording,
+        )
     ]
     Base.metadata.create_all(engine, tables=tables)
     factory = sessionmaker(bind=engine, expire_on_commit=False)
@@ -62,6 +96,16 @@ def test_authenticated_socket_producers_queue_replay_and_restart(tmp_path, monke
     monkeypatch.setattr(middleware, "SessionLocal", factory)
     monkeypatch.setattr(database, "SessionLocal", factory)
     monkeypatch.setattr(dependencies, "SessionLocal", factory)
+    monkeypatch.setattr(external_notification_service, "SessionLocal", factory)
+    monkeypatch.setattr(push_notification_service, "SessionLocal", factory)
+    monkeypatch.setattr(handlers, "SessionLocal", factory)
+    recorder = AsyncMock()
+    monkeypatch.setattr(handlers, "get_recording_manager", lambda: recorder)
+    monkeypatch.setattr(
+        handlers,
+        "ConfigManager",
+        lambda: SimpleNamespace(is_recording_enabled=lambda streamer_id: False),
+    )
     password = secrets.token_urlsafe(24)
     with factory() as db:
         db.add(
@@ -73,6 +117,17 @@ def test_authenticated_socket_producers_queue_replay_and_restart(tmp_path, monke
             )
         )
         db.add(SystemState(id=1, welcome_completed=True))
+        db.add(GlobalSettings(id=1, notifications_enabled=False))
+        db.add(
+            Streamer(
+                id=1034,
+                twitch_id="synthetic-alert-off",
+                username="synthetic-alert-off",
+                is_live=False,
+                title="Old title",
+                category_name="Old category",
+            )
+        )
         db.commit()
 
     @contextmanager
@@ -136,6 +191,10 @@ def test_authenticated_socket_producers_queue_replay_and_restart(tmp_path, monke
             base_url=origin, headers={"accept": "application/json", "origin": origin}
         ) as client:
             assert (await client.get("/api/realtime/events")).status_code == 401
+            async with connect(origin.replace("http:", "ws:") + "/ws") as anonymous:
+                with pytest.raises(ConnectionClosedError) as rejected:
+                    await asyncio.wait_for(anonymous.recv(), 5)
+                assert rejected.value.rcvd.code == 4001
             login = await client.post(
                 "/auth/login", json={"username": "realtime-admin", "password": password}
             )
@@ -167,6 +226,47 @@ def test_authenticated_socket_producers_queue_replay_and_restart(tmp_path, monke
                 )
                 recording = await receive(ws, "recording.started")
                 assert recording["event_id"] > notification["event_id"]
+
+                # Real registered handler -> dispatcher -> authenticated socket, alerts off.
+                registry = handlers.EventHandlerRegistry(
+                    communication.websocket_manager
+                )
+                registry.get_user_info = AsyncMock(return_value=None)
+                previous_id = recording["event_id"]
+                for wire_type, is_live in (
+                    ("stream.online", True),
+                    ("channel.update", True),
+                    ("stream.offline", False),
+                ):
+                    await on_backend(
+                        registry.handlers[wire_type](
+                            {
+                                "id": "synthetic-stream-1034",
+                                "broadcaster_user_id": "synthetic-alert-off",
+                                "broadcaster_user_name": "synthetic-alert-off",
+                                "broadcaster_user_login": "synthetic-alert-off",
+                                "started_at": "2026-01-01T00:00:00Z",
+                                "title": "New title",
+                                "category_name": "New category",
+                                "language": "de",
+                            },
+                        )
+                    )
+                    event = await receive(ws, wire_type)
+                    assert event["event_id"] == previous_id + 1
+                    previous_id = event["event_id"]
+                    assert event["data"]["streamer_id"] == 1034
+                    assert event["data"]["is_live"] is is_live
+                    if wire_type == "channel.update":
+                        assert event["data"]["title"] == "New title"
+                        assert event["data"]["category_name"] == "New category"
+                    with factory() as db:
+                        streamer = db.get(Streamer, 1034)
+                        assert streamer.is_live is is_live
+                        if wire_type != "stream.online":
+                            assert streamer.title == "New title"
+                            assert streamer.category_name == "New category"
+                recorder.start_recording.assert_not_awaited()
 
                 tracker = TaskProgressTracker(
                     websocket_manager=communication.websocket_manager
