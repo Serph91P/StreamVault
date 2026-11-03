@@ -70,6 +70,12 @@ async def get_async_db(request: Request) -> AsyncIterator[AsyncSession]:
         yield session
 
 
+def get_application_session_factory(
+    connection: HTTPConnection,
+) -> Callable[[], Session]:
+    return connection.app.state.database_lifecycle.sync_session_factory
+
+
 def get_auth_service(request: Request, db: Session = Depends(get_db)) -> AuthService:
     return AuthService(db=db, settings=resolve_app_settings(request.app))
 

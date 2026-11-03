@@ -114,23 +114,20 @@ def test_default_serialization_fails_closed(proxy_factory, proxy_url, expected):
     assert_safe_diagnostic_fields(proxy.to_dict(), expected)
 
 
-def test_authenticated_list_and_best_routes_return_safe_diagnostics(
-    monkeypatch, proxy_factory
-):
+def test_authenticated_list_and_best_routes_return_safe_diagnostics(proxy_factory):
     proxy = proxy_factory()
-    monkeypatch.setattr(proxy_routes, "SessionLocal", lambda: FakeDatabase(proxy))
 
     async def get_best_proxy():
         return PROXY_URL
 
-    monkeypatch.setattr(
-        proxy_routes.proxy_health_service,
-        "get_best_proxy",
-        get_best_proxy,
-    )
-
     app = FastAPI()
     app.include_router(proxy_routes.router)
+    app.dependency_overrides[proxy_routes.get_application_session_factory] = lambda: (
+        lambda: FakeDatabase(proxy)
+    )
+    app.dependency_overrides[proxy_routes.get_proxy_health_service] = lambda: (
+        SimpleNamespace(get_best_proxy=get_best_proxy)
+    )
     app.dependency_overrides[proxy_routes.get_current_user] = lambda: SimpleNamespace(
         id=1, is_admin=True
     )
