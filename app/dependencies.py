@@ -392,13 +392,17 @@ async def get_application_event_registry(connection: HTTPConnection):
 
 
 def get_streamer_service(
-    db: Session = Depends(get_db),
+    connection: HTTPConnection,
     event_registry=Depends(get_application_event_registry),
 ):
     from app.services.streamer_service import StreamerService
 
     return StreamerService(
-        db=db, websocket_manager=websocket_manager, event_registry=event_registry
+        session_factory=get_application_session_factory(connection),
+        websocket_manager=get_websocket_manager(connection),
+        event_registry=event_registry,
+        twitch_api=_get_application_twitch_api(connection.app),
+        image_service=_get_application_image_service(connection.app),
     )
 
 

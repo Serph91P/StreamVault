@@ -204,6 +204,9 @@ async def test_later_page_selection_imports_once_without_resetting_settings(
     from sqlalchemy.orm import Session
     from app.database import Base
     from app.models import GlobalSettings, Streamer, StreamerRecordingSettings
+    from app.services.streamers.streamer_repository import StreamerRepository
+    from app.services.api.twitch_api import TwitchAPIService
+    from app.services.unified_image_service import UnifiedImageService
     from app.routes.twitch_auth import get_twitch_oauth_service, router
     from app.services.api import twitch_oauth_service as oauth_module
     from app.services.api.twitch_oauth_service import TwitchOAuthService
@@ -216,7 +219,11 @@ async def test_later_page_selection_imports_once_without_resetting_settings(
     try:
         with Session(engine) as db:
             streamers = StreamerService(
-                db, ConnectionManager(), Mock(spec=EventHandlerRegistry)
+                session_factory=lambda: Session(engine),
+                websocket_manager=ConnectionManager(),
+                event_registry=Mock(spec=EventHandlerRegistry),
+                twitch_api=Mock(spec=TwitchAPIService),
+                image_service=Mock(spec=UnifiedImageService),
             )
 
             async def user_data(login):
@@ -241,7 +248,9 @@ async def test_later_page_selection_imports_once_without_resetting_settings(
                 "download_profile_image",
                 AsyncMock(return_value=""),
             )
-            existing = streamers.repository.create_streamer(await user_data("channel1"))
+            existing = StreamerRepository(db).create_streamer(
+                await user_data("channel1")
+            )
             channel_settings = (
                 db.query(StreamerRecordingSettings)
                 .filter_by(streamer_id=existing.id)
@@ -257,6 +266,7 @@ async def test_later_page_selection_imports_once_without_resetting_settings(
                 )
             ).all()
 
+            db.close()
             service = TwitchOAuthService(streamers)
             monkeypatch.setattr(
                 service,

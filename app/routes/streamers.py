@@ -32,6 +32,7 @@ from pathlib import Path
 import json
 import re
 from app.utils import async_file
+from app.utils.async_db_utils import run_in_thread_pool
 
 logger = logging.getLogger("streamvault")
 
@@ -275,8 +276,10 @@ async def get_streamers(
                 "last_updated": streamer.last_updated.isoformat()
                 if streamer.last_updated
                 else None,
-                "profile_image_url": image_service.get_profile_image_url(
-                    streamer.id, streamer.profile_image_url
+                "profile_image_url": await run_in_thread_pool(
+                    image_service.get_profile_image_url,
+                    streamer.id,
+                    streamer.profile_image_url,
                 ),
                 "original_profile_image_url": streamer.original_profile_image_url,
                 # Last stream info (shown when offline)

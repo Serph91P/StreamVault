@@ -139,10 +139,10 @@ class StreamerRepository:
     def create_streamer(
         self,
         user_data: Dict[str, Any],
-        display_name: str = None,
-        cached_image_path: str = None,
-        cached_banner_path: str = None,
-        stream_info: Dict[str, Any] = None,
+        display_name: str | None = None,
+        cached_image_path: str | None = None,
+        cached_banner_path: str | None = None,
+        stream_info: Dict[str, Any] | None = None,
     ) -> Streamer:
         """Create a new streamer with all related settings"""
         try:
