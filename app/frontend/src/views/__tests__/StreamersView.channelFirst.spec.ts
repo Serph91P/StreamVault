@@ -6,11 +6,13 @@ import StreamersView from '../StreamersView.vue'
 
 const api = vi.hoisted(() => ({ getAll: vi.fn() }))
 const route = reactive({ query: {} as Record<string, string> })
+const replace = vi.fn(({ query }) => { route.query = query; return Promise.resolve() })
 vi.mock('@/services/api', () => ({ streamersApi: api }))
 vi.mock('@/composables/useForceRecording', () => ({ useForceRecording: () => ({ forceStartRecording: vi.fn() }) }))
 vi.mock('vue-router', async importOriginal => ({
   ...await importOriginal<typeof import('vue-router')>(),
   useRoute: () => route,
+  useRouter: () => ({ replace }),
 }))
 
 const open = () => mount(StreamersView, {
@@ -32,6 +34,18 @@ beforeEach(() => {
 })
 
 describe('channel-first landing', () => {
+  it('hydrates search, sort, view and status from the actual list URL', async () => {
+    route.query = { q: 'absent', sort: 'name-desc', view: 'grid', filter: 'offline' }
+    const wrapper = open()
+    await flushPromises()
+    expect(wrapper.get<HTMLInputElement>('input[aria-label="Kanäle suchen"]').element.value).toBe('absent')
+    expect(wrapper.get<HTMLSelectElement>('select[aria-label="Kanäle sortieren"]').element.value).toBe('name-desc')
+    expect(wrapper.get('[aria-label="Kacheln anzeigen"]').attributes('aria-pressed')).toBe('true')
+    await wrapper.get('input[aria-label="Kanäle suchen"]').setValue('demo')
+    await flushPromises()
+    expect(route.query).toMatchObject({ q: 'demo', sort: 'name-desc', view: 'grid', filter: 'offline' })
+    wrapper.unmount()
+  })
   it.each([[{ status: 403 }, 'forbidden'], [new TypeError('Failed to fetch'), 'offline']] as const)('distinguishes access and network failure from empty results (%s)', async (error, state) => {
     api.getAll.mockRejectedValueOnce(error)
     const wrapper = open()

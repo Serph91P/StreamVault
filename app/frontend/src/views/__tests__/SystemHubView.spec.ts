@@ -21,6 +21,7 @@ describe('SystemHubView', () => {
     await router.isReady()
 
     const wrapper = mount(SystemHubView, { global: { plugins: [router] } })
+    expect(wrapper.findAll('main')).toHaveLength(0)
     const links = wrapper.findAll('.system-hub-card')
 
     expect(links.map(link => link.attributes('href'))).toEqual(['/settings', '/admin', '/subscriptions'])

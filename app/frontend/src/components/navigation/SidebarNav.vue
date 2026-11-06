@@ -23,19 +23,13 @@
           <use :href="`#icon-${tab.icon}`" />
         </svg>
 
-        <div v-if="sidebarExpanded" class="nav-content">
-          <span class="nav-label">{{ tab.label }}</span>
-        </div>
+        <span v-if="sidebarExpanded" class="nav-label">{{ tab.label }}</span>
 
-        <!-- Meta (badges + indicator) -->
-        <div v-if="sidebarExpanded" class="nav-meta">
-          <span v-if="tab.badge" class="nav-badge">
-            {{ tab.badge }}
-          </span>
-        </div>
+
       </router-link>
     </nav>
 
+    <NavigationUtilities />
     <!-- Footer with collapse/expand toggle -->
     <div class="sidebar-footer">
       <button
@@ -53,7 +47,8 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue'
+
+import NavigationUtilities from './NavigationUtilities.vue'
 import { useNavigation } from '@/composables/useNavigation'
 
 const {
@@ -62,12 +57,7 @@ const {
   sidebarExpanded,
   isActiveRoute,
   toggleSidebar,
-  initializeSidebar
 } = useNavigation()
-
-onMounted(() => {
-  initializeSidebar()
-})
 </script>
 
 <style scoped lang="scss">
@@ -80,7 +70,7 @@ onMounted(() => {
   bottom: 0;
   width: var(--sv-fdn-size-sidebar, 224px);
   z-index: 1000;
-  overflow: hidden;
+  overflow-y: auto;
 
   display: flex;
   flex-direction: column;

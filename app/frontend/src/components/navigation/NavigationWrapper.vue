@@ -1,22 +1,24 @@
 <template>
   <div class="navigation-wrapper">
+    <a class="skip-link" href="#main-content" @click.prevent="main?.focus()">Zum Inhalt</a>
     <!-- Desktop Sidebar -->
-    <SidebarNav />
+    <SidebarNav v-if="!plain" />
 
     <!-- Main Content Area -->
     <main
+      id="main-content"
+      ref="main"
+      tabindex="-1"
       class="main-content"
-      :class="{
-        'with-sidebar': isDesktop && sidebarExpanded,
-        'with-sidebar-collapsed': isDesktop && !sidebarExpanded,
-        'with-bottom-nav': isMobile
-      }"
+      :class="plain ? 'without-navigation'
+        : isMobile ? 'with-bottom-nav'
+        : sidebarExpanded ? 'with-sidebar' : 'with-sidebar-collapsed'"
     >
       <slot />
     </main>
 
     <!-- Mobile Bottom Navigation -->
-    <BottomNav />
+    <BottomNav v-if="!plain" />
   </div>
 </template>
 
@@ -24,12 +26,28 @@
 import BottomNav from './BottomNav.vue'
 import SidebarNav from './SidebarNav.vue'
 import { useNavigation } from '@/composables/useNavigation'
+import { ref } from 'vue'
 
-const { isMobile, isDesktop, sidebarExpanded } = useNavigation()
+const main = ref<HTMLElement | null>(null)
+defineProps<{ plain?: boolean }>()
+
+const { isMobile, sidebarExpanded } = useNavigation()
 </script>
 
 <style scoped lang="scss">
 @use '../../styles/variables' as v;
+
+.skip-link {
+  position: fixed;
+  top: 0;
+  left: var(--spacing-3);
+  z-index: 2000;
+  padding: var(--spacing-3);
+  background: var(--sv-sem-surface-panel);
+  color: var(--sv-sem-text-primary);
+  transform: translateY(-120%);
+  &:focus { transform: none; }
+}
 
 .navigation-wrapper {
   position: relative;
@@ -46,6 +64,7 @@ const { isMobile, isDesktop, sidebarExpanded } = useNavigation()
 
 .main-content {
   position: relative;
+  scroll-margin-top: var(--app-header-height, 56px);
   // Header and bottom-nav padding are accounted for via padding below.
   // Previously this had its own min-height: 100vh which stacked on top of
   // .navigation-wrapper's 100vh + the header padding-top, producing a page that
@@ -54,6 +73,8 @@ const { isMobile, isDesktop, sidebarExpanded } = useNavigation()
   transition: margin v.$duration-300 v.$ease-in-out;
   width: 100%;
   box-sizing: border-box;
+
+  &.without-navigation { padding: 0; min-height: 100dvh; }
 
   // Fill remaining viewport height minus header so empty pages don't collapse.
   min-height: calc(100vh - var(--app-header-height, 56px) - env(safe-area-inset-top, 0px));

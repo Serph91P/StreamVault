@@ -44,6 +44,16 @@ describe('video return entry expansion metadata', () => {
     expect(history.state).toEqual({ position: 8 })
   })
 
+  it('can retain validated expansion for repeated Back/Forward visits to the same entry', () => {
+    history.replaceState({ position: 8 }, '', origin)
+    prepareVideoReturn(origin, { 1: true })
+    expect(takeVideoReturnExpansion(origin, true)).toEqual({ 1: true })
+    expect(takeVideoReturnExpansion(origin, true)).toEqual({ 1: true })
+    expect(history.state.position).toBe(8)
+    expect(takeVideoReturnExpansion('/other', true)).toEqual({})
+    expect(history.state.svre).toBeUndefined()
+  })
+
   it('does not accept an external origin or leak rows into other existing return callers', () => {
     history.replaceState({ position: 8 }, '', origin)
     prepareVideoReturn('//example.invalid', { 1: true })

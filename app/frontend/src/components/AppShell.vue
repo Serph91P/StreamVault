@@ -4,14 +4,13 @@
       <div class="header-content">
         <router-link to="/" class="app-logo" aria-label="StreamVault - Meine Kanäle">StreamVault</router-link>
 
-        <div class="shell-utilities" aria-label="Global utilities">
-          <div class="activity-utilities" aria-label="Activity utilities">
+        <div class="shell-utilities activity-utilities" aria-label="Global utilities">
             <BackgroundQueueMonitor />
 
             <button
               type="button"
               class="header-utility-btn"
-              :class="{ 'has-badge': unreadCount > 0 }"
+
               :aria-label="notificationButtonLabel"
               aria-haspopup="dialog"
               :aria-expanded="showNotifications"
@@ -25,16 +24,6 @@
               <span class="utility-label">Notifications</span>
               <span v-if="unreadCount > 0" class="badge">{{ unreadCount > 99 ? '99+' : unreadCount }}</span>
             </button>
-          </div>
-
-          <div class="session-utilities" aria-label="Display and session utilities">
-            <ThemeToggle />
-
-            <button type="button" class="header-utility-btn header-logout-btn" aria-label="Logout" @click="logout">
-              <svg aria-hidden="true"><use href="#icon-log-out" /></svg>
-              <span class="logout-text">Logout</span>
-            </button>
-          </div>
         </div>
       </div>
     </header>
@@ -52,43 +41,11 @@
           class="glass-popup-panel notification-panel"
           role="dialog"
           aria-modal="true"
-          aria-labelledby="notification-panel-title"
+          aria-label="Notifications"
           tabindex="-1"
         >
-          <div class="glass-popup-header notification-panel-header">
-            <div class="notification-title-stack">
-              <h3 id="notification-panel-title">Notifications</h3>
-              <p class="notification-panel-count">{{ notificationPanelSubtitle }}</p>
-              <p class="notification-panel-count">History and read/unread are local to this browser. Mark all read and Clear all are global.</p>
-            </div>
-            <div class="notification-header-actions">
-              <button
-                v-if="unreadCount > 0"
-                class="glass-btn-text mark-read-btn"
-                aria-label="Mark all notifications read"
-                title="Mark all notifications read"
-                :disabled="notificationFeedRef?.isMutating"
-                @click="notificationFeedRef?.markAllRead($event)"
-              >
-                Mark all read
-              </button>
-              <button
-                v-if="notificationCount > 0"
-                class="glass-btn-text clear-all-btn"
-                aria-label="Clear all notifications"
-                title="Clear all notifications"
-                :disabled="notificationFeedRef?.isMutating"
-                @click="notificationFeedRef?.clearAllNotifications($event)"
-              >
-                Clear all
-              </button>
-              <button class="glass-btn-icon" aria-label="Close notifications" @click="closeNotificationPanel()">
-                <svg><use href="#icon-x" /></svg>
-              </button>
-            </div>
-          </div>
           <NotificationFeed
-            ref="notificationFeedRef"
+            compact
             @close-panel="closeNotificationPanel"
             @close="closeNotificationPanel"
           />
@@ -97,9 +54,9 @@
     </Teleport>
   </template>
 
-  <NavigationWrapper v-if="showShell">
+  <NavigationWrapper :plain="!showShell">
     <div
-      v-if="showConnectivityBanner"
+      v-if="showShell && showConnectivityBanner"
       class="connectivity-banner"
       :class="`connectivity-banner--${connectivityTone}`"
       role="status"
@@ -126,18 +83,18 @@
     <slot />
   </NavigationWrapper>
 
-  <slot v-else />
+
 </template>
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { useAuth } from '@/composables/useAuth'
+
 import { usePWA } from '@/composables/usePWA'
 import { useWebSocket } from '@/composables/useWebSocket'
 import { useNotificationStore } from '@/stores/notifications'
 import BackgroundQueueMonitor from '@/components/BackgroundQueueMonitor.vue'
 import NotificationFeed from '@/components/NotificationFeed.vue'
-import ThemeToggle from '@/components/ThemeToggle.vue'
+
 import NavigationWrapper from '@/components/navigation/NavigationWrapper.vue'
 import { useModal } from '@/composables/useModal'
 
@@ -147,7 +104,7 @@ const props = withDefaults(defineProps<{
   showShell: true
 })
 
-const { logout: authLogout } = useAuth()
+
 const { isOnline } = usePWA()
 const {
   connectionStatus,
@@ -156,25 +113,9 @@ const {
   reconnectNow
 } = useWebSocket()
 const notificationStore = useNotificationStore()
-const notificationFeedRef = ref<InstanceType<typeof NotificationFeed> | null>(null)
 const unreadCount = computed(() => notificationStore.unreadCount)
-const notificationCount = computed(() => notificationStore.totalCount)
-const notificationPanelSubtitle = computed(() => {
-  if (unreadCount.value > 0) {
-    return `${unreadCount.value} unread of ${notificationCount.value} notification${notificationCount.value !== 1 ? 's' : ''}`
-  }
-
-  if (notificationCount.value > 0) {
-    return `${notificationCount.value} notification${notificationCount.value !== 1 ? 's' : ''} in history`
-  }
-
-  return 'All caught up'
-})
 const notificationButtonLabel = computed(() => {
-  if (unreadCount.value > 0) {
-    return `Open notifications, ${unreadCount.value} unread`
-  }
-
+  if (unreadCount.value > 0) return `Open notifications, ${unreadCount.value} unread`
   return 'Open notifications'
 })
 // A retry handshake is still reconnecting; keep its in-flow status until connected.
@@ -207,12 +148,12 @@ const connectivityTitle = computed(() => {
   return 'Live updates paused'
 })
 const connectivityDescription = computed(() => {
-  if (!isOnline.value) return 'StreamVault will retry when your device is back online.'
+  if (!isOnline.value) return 'Retrying when back online.'
   if (connectivityStatus.value === 'reconnecting') {
-    return `Attempt ${reconnectAttempt.value} of ${maxReconnectAttempts} to restore live events.`
+    return `Attempt ${reconnectAttempt.value} of ${maxReconnectAttempts}.`
   }
-  if (connectivityStatus.value === 'auth_failed') return 'Sign in again to resume notifications and realtime status.'
-  return 'Tap reconnect to retry now without refreshing the page.'
+  if (connectivityStatus.value === 'auth_failed') return 'Sign in again for live updates.'
+  return 'Reconnect for live updates.'
 })
 const canReconnectNow = computed(() => {
   return isOnline.value && (
@@ -229,11 +170,6 @@ const {
   close: closeNotificationPanel,
 } = useModal(notificationPanelRef, { backdrop })
 
-async function logout() {
-  if (confirm('Are you sure you want to logout?')) {
-    await authLogout()
-  }
-}
 
 function toggleNotifications() {
   if (showNotifications.value) closeNotificationPanel()
@@ -454,9 +390,7 @@ watch(() => props.showShell, (showShell) => {
     line-height: 1.3;
   }
 
-  :deep(.notification-feed .feed-header) {
-    display: none !important;
-  }
+
 
   .notification-header-actions {
     display: flex;

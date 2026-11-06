@@ -26,10 +26,10 @@ function stubLayoutViewport(width: number): LayoutViewport {
   vi.stubGlobal(
     'matchMedia',
     vi.fn((query: string) => {
-      requestedQuery = query
+      if (query.includes('max-width')) requestedQuery = query
       return {
         get matches() {
-          return currentWidth <= 1023.98
+          return query.includes('max-width') && currentWidth <= 1023.98
         },
         media: query,
         addEventListener: (_: 'change', listener: (event: MediaQueryListEvent) => void) =>
@@ -111,6 +111,48 @@ describe('NavigationWrapper responsive accessibility', () => {
     expect(desktop.wrapper.findAll('nav[aria-label="Mobile Hauptnavigation"]')).toHaveLength(1)
     expect(desktop.wrapper.findAll('.sidebar-nav-item, .sidebar-toggle')).toHaveLength(0)
     desktop.wrapper.unmount()
+  })
+
+  it('keeps one main and a skip target without navigation on session pages', async () => {
+    const { wrapper } = await mountNavigation(390)
+    await wrapper.setProps({ plain: true })
+    expect(wrapper.findAll('main')).toHaveLength(1)
+    expect(wrapper.findAll('.bottom-nav, .sidebar-nav')).toHaveLength(0)
+    expect(wrapper.get('.skip-link').attributes('href')).toBe('#main-content')
+    wrapper.unmount()
+  })
+
+  it('has one focusable main and a skip link targeting it', async () => {
+    const { wrapper } = await mountNavigation(390)
+    expect(wrapper.findAll('main')).toHaveLength(1)
+    const target = wrapper.get('main')
+    expect(target.attributes('tabindex')).toBe('-1')
+    expect(wrapper.get('.skip-link').attributes('href')).toBe(`#${target.attributes('id')}`)
+    await wrapper.get('.skip-link').trigger('click')
+    expect(document.activeElement).toBe(target.element)
+    wrapper.unmount()
+  })
+
+  it('marks More active for utility subpages without inventing a primary page', async () => {
+    const { wrapper, router } = await mountNavigation(390, '/subscriptions')
+    expect(wrapper.get('button[aria-label="Mehr"]').classes()).toContain('active')
+    expect(wrapper.findAll('.bottom-nav a[aria-current="page"]')).toHaveLength(0)
+    await router.push('/settings')
+    expect(wrapper.get('button[aria-label="Mehr"]').classes()).toContain('active')
+    wrapper.unmount()
+  })
+
+  it('offers three primary links and a modal More with every utility', async () => {
+    const { wrapper } = await mountNavigation(390)
+    expect(wrapper.findAll('.bottom-nav a')).toHaveLength(3)
+    await wrapper.get('button[aria-label="Mehr"]').trigger('click')
+    await nextTick()
+    const dialog = document.querySelector('[role="dialog"]')!
+    expect(dialog).not.toBeNull()
+    expect(Array.from(dialog.querySelectorAll('a')).map(link => link.getAttribute('href'))).toEqual(['/settings', '/system'])
+    expect(dialog.querySelector('[aria-label="Logout"]')).not.toBeNull()
+    expect(dialog.querySelector('.theme-toggle')).not.toBeNull()
+    wrapper.unmount()
   })
 
   it('preserves the active route while the layout query switches navigation presentation', async () => {

@@ -8,6 +8,34 @@ test.use({
 })
 
 for (const theme of ['light', 'dark']) {
+  for (const width of [320, 390]) {
+    test(`browse result geometry ${theme} ${width}`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 844 })
+      await page.addInitScript(selectedTheme => localStorage.setItem('streamvault-theme', selectedTheme), theme)
+      for (const [path, card, title, action] of [
+        ['/', '.streamer-card', '.streamer-name', '.view-details-link'],
+        ['/videos', '.video-card', '.video-title', '.video-card-link'],
+      ]) {
+        await page.goto(path)
+        const first = page.locator(card).first()
+        await expect(first).toBeVisible()
+        const heading = first.locator(title)
+        const primary = first.locator(action)
+        for (const target of [heading, primary]) {
+          const box = await target.boundingBox()
+          expect(box).not.toBeNull()
+          expect(box!.y).toBeGreaterThanOrEqual(56)
+          expect(box!.y + box!.height).toBeLessThanOrEqual(844 - 68)
+          expect(await target.evaluate(el => el.scrollWidth <= el.clientWidth && el.scrollHeight <= el.clientHeight)).toBe(true)
+        }
+        expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(0)
+        if (path === '/videos') {
+          await page.getByRole('button', { name: /^Filters/ }).click()
+          expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(0)
+        }
+      }
+    })
+  }
   for (const width of [320, 390, 1024, 1440]) {
     test(`channel-first navigation and retained controls ${theme} ${width}`, async ({ page }, testInfo) => {
       await page.setViewportSize({ width, height: 900 })
@@ -18,11 +46,27 @@ for (const theme of ['light', 'dark']) {
       await expect(page.getByRole('heading', { name: 'Meine Kanäle', exact: true })).toBeVisible()
       await expect(page.locator('.streamer-card').first()).toBeVisible()
       await expect(page.getByRole('link', { name: 'Kanal hinzufügen', exact: true })).toBeVisible()
+      await page.getByText('Weitere Kanalaktionen', { exact: true }).click()
       await expect(page.getByRole('link', { name: 'Follows importieren', exact: true })).toBeVisible()
       await expect(page.getByRole('link', { name: 'Kanäle verwalten', exact: true })).toBeVisible()
       const navigation = page.locator(width < 1024 ? '.bottom-nav' : '.sidebar-nav-list')
       await expect(navigation.getByRole('link', { name: 'Kanäle', exact: true })).toHaveAttribute('aria-current', 'page')
-      await expect(navigation.getByRole('link')).toHaveCount(5)
+      await expect(navigation.getByRole('link')).toHaveCount(3)
+      const more = page.getByRole('button', { name: 'Mehr', exact: true })
+      if (width < 1024) await more.click()
+      const utilities = page.getByRole('navigation', { name: 'Werkzeuge und Sitzung' })
+      for (const [label, href] of [['Einstellungen', '/settings'], ['System', '/system']]) {
+        await expect(utilities.getByRole('link', { name: label, exact: true })).toHaveAttribute('href', href)
+      }
+      await expect(utilities.getByRole('button', { name: 'Logout', exact: true })).toBeVisible()
+      await expect(utilities.locator('.theme-toggle')).toBeVisible()
+      if (width < 1024) {
+        await page.keyboard.press('Escape')
+        await expect(page.getByRole('dialog', { name: 'Mehr' })).toHaveCount(0)
+        await expect(more).toBeFocused()
+      }
+      await expect(page.locator('main')).toHaveCount(1)
+      await expect(page.locator('h1')).toHaveCount(1)
       expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1)
       await page.addScriptTag({ content: axe.source })
       const contrast = await page.evaluate(async () => (await (window as unknown as { axe: typeof axe }).axe.run(document, { runOnly: ['color-contrast'] })).violations)
@@ -38,7 +82,7 @@ for (const theme of ['light', 'dark']) {
       await expect(page.getByRole('heading', { name: 'Aktivität', exact: true })).toBeVisible()
       await page.getByRole('link', { name: 'Benachrichtigungsverlauf', exact: true }).click()
       await expect(page.locator('.notification-feed')).toBeVisible()
-      await page.getByRole('link', { name: 'Gesamtübersicht', exact: true }).click()
+      await page.locator('.activity-view').getByRole('link', { name: 'Gesamtübersicht', exact: true }).click()
       await expect(page.locator('.home-view')).toBeVisible()
       await page.getByRole('link', { name: 'StreamVault - Meine Kanäle', exact: true }).click()
       await expect(page.locator('.streamers-view')).toBeVisible()

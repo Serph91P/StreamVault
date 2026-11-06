@@ -1,5 +1,6 @@
 <template>
   <div class="page-view video-player-view fade-in" :class="{ 'theater-mode': effectiveTheaterMode }">
+    <h1 v-if="isLoading || error || !chapterData">Aufnahme</h1>
     <!-- Loading State -->
     <div v-if="isLoading" class="content-state">
       <LoadingSkeleton type="video" />

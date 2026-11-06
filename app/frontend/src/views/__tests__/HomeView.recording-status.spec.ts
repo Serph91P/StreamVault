@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   onEvents: vi.fn<(types: string[], callback: (event: { type: string; data?: unknown }) => void) => () => void>(),
   push: vi.fn(),
   forceStartRecording: vi.fn(),
+  route: { fullPath: '/overview' },
 }))
 
 vi.mock('@/services/api', () => ({
@@ -36,6 +37,7 @@ vi.mock('@/stores/realtime', () => ({
 
 vi.mock('vue-router', () => ({
   useRouter: () => ({ push: mocks.push }),
+  useRoute: () => mocks.route,
 }))
 
 vi.mock('@/composables/useForceRecording', () => ({
@@ -56,7 +58,7 @@ function mountView(props: { embedded?: boolean } = {}) {
         },
         LoadingSkeleton: true,
         StreamerCard: true,
-        VideoCard: true,
+        VideoCard: { props: ['video', 'origin'], template: '<button class="video-test" :data-origin="origin" @click="$emit(\'play\')">{{ video.title }}</button>' },
         StatusBadge: true,
         RouterLink: { template: '<a><slot /></a>' },
       },
@@ -87,6 +89,21 @@ afterEach(() => {
 })
 
 describe('HomeView recording status consumer', () => {
+  it.each(['/activity?tab=overview', '/overview?source=history'])('retains the actual %s origin for links and programmatic play', async origin => {
+    mocks.route.fullPath = origin
+    history.replaceState({ current: origin }, '', origin)
+    mocks.getVideos.mockResolvedValue([{ id: 1, title: 'Saved recording' }])
+    mocks.onEvent.mockReturnValue(() => {})
+    mocks.onEvents.mockReturnValue(() => {})
+    const wrapper = mountView()
+    await flushPromises()
+    expect(wrapper.get('.video-test').attributes('data-origin')).toBe(origin)
+    await wrapper.get('.video-test').trigger('click')
+    expect(history.state.svre.origin).toBe(origin)
+    expect(location.pathname + location.search).toBe(origin)
+    wrapper.unmount()
+    history.replaceState({}, '', '/')
+  })
   it('uses a page title standalone and a compact status heading when embedded', async () => {
     mocks.getActiveRecordings.mockResolvedValue([])
     mocks.onEvent.mockReturnValue(() => {})

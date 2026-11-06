@@ -1,5 +1,5 @@
 <template>
-  <main class="page-view system-hub">
+  <div class="page-view system-hub">
     <PageHeader
       title="System"
       icon="settings"
@@ -35,7 +35,7 @@
         </span>
       </router-link>
     </section>
-  </main>
+  </div>
 </template>
 
 <script setup lang="ts">
