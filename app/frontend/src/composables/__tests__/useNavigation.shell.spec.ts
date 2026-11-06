@@ -1,14 +1,16 @@
 import { describe, expect, it } from 'vitest'
-import { navigationTabs } from '@/composables/useNavigation'
+import { navigationTabs, utilityTabs } from '@/composables/useNavigation'
 
-describe('shell navigation contract', () => {
-  it('prioritizes channels and separates activity, global settings and system tools', () => {
+ describe('shell navigation contract', () => {
+  it('offers exactly three consistent everyday destinations', () => {
     expect(navigationTabs.map((tab) => [tab.route, tab.label])).toEqual([
       ['/streamers', 'Kanäle'],
-      ['/videos', 'Aufzeichnungen'],
+      ['/videos', 'Aufnahmen'],
       ['/activity', 'Aktivität'],
-      ['/settings', 'Einstellungen'],
-      ['/system', 'System'],
     ])
+  })
+
+  it('keeps settings and system in a separate utility group', () => {
+    expect(utilityTabs.map((tab) => tab.route)).toEqual(['/settings', '/system'])
   })
 })

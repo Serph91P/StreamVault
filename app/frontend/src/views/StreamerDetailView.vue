@@ -1,5 +1,6 @@
 <template>
   <div class="page-view streamer-detail-view">
+    <h1 v-if="isLoading || !streamer">Kanal</h1>
     <!-- Loading State -->
     <div v-if="isLoading" class="loading-container">
       <LoadingSkeleton type="streamer" />
@@ -13,12 +14,12 @@
       <!-- Compact Profile Header -->
       <section class="streamer-control-header" :class="{ 'is-live': streamer.is_live, 'is-recording': streamer.is_recording }" aria-labelledby="streamer-detail-title">
         <div class="streamer-control-topline">
-          <button @click="goBackToStreamers" class="back-button" aria-label="Back to streamers list">
+          <a :href="channelOrigin" @click="goBackToStreamers" class="back-button" aria-label="Back to streamers list">
             <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M19 12H5M12 19l-7-7 7-7" />
             </svg>
             Streamers
-          </button>
+          </a>
 
           <div class="streamer-status-strip" :aria-label="statusSummary">
             <StatusBadge :tone="streamerStatusTone" size="sm" dot :pulse="streamer.is_live || streamer.is_recording" :uppercase="false">
@@ -447,8 +448,14 @@ const streamerId = computed(() => route.params.id as string)
 const toast = useToast()
 
 // Navigation
-const goBackToStreamers = () => {
-  router.push('/streamers')
+const previousEntry = history.state?.back
+const channelOrigin = typeof previousEntry === 'string' && /^(\/|\/streamers)(\?|$)/.test(previousEntry)
+  ? previousEntry : '/streamers'
+const goBackToStreamers = (event: MouseEvent) => {
+  if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return
+  event.preventDefault()
+  if (history.state?.back === channelOrigin) router.back()
+  else void router.push(channelOrigin)
 }
 
 // Loading states
@@ -461,7 +468,8 @@ const streams = ref<any[]>([])
 const avatarLoadFailed = ref(false)
 
 // View controls
-const expandedStreams = ref(takeVideoReturnExpansion(route.fullPath))
+const expandedStreams = ref(takeVideoReturnExpansion(route.fullPath, true))
+watch(expandedStreams, expanded => prepareVideoReturn(route.fullPath, expanded), { deep: true })
 watch(streamerId, () => { expandedStreams.value = {} })
 const sortBy = computed({
   get: () => ['newest', 'oldest', 'duration-desc', 'duration-asc'].includes(route.query.sort as string)

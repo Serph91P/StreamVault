@@ -60,7 +60,11 @@ for (const theme of ['light', 'dark']) for (const panel of [
       await queueTrigger.click()
       const queue = page.getByRole('dialog', { name: 'Background Queue', exact: true })
       const queueClose = queue.getByRole('button', { name: 'Close background queue' })
+      // The activity link is now the first control. Wait for initial autofocus
+      // before choosing the nested dialog's restoration target.
+      await expect(queue.getByRole('link', { name: 'Vollständige Aktivität' })).toBeFocused()
       await queueClose.focus()
+      await expect(queueClose).toBeFocused()
       // Programmatically construct a stack; real users cannot reach the isolated shell.
       await page.getByRole('button', { name: /Open notifications/, includeHidden: true }).evaluate((element: HTMLElement) => element.click())
       await expect(dialog).toBeVisible()
@@ -113,6 +117,7 @@ for (const width of [320, 390, 1440]) for (const theme of ['light', 'dark']) {
     release()
     await expect(page.locator('[data-state="confirmed-empty"]')).toContainText('Noch keine Kanäle')
     state = 'fresh'
+    await page.getByText('Weitere Kanalaktionen', { exact: true }).click()
     await page.getByRole('button', { name: 'Kanalstatus erneut abrufen' }).click()
     await expect(page.locator('.streamer-wrapper')).toHaveCount(1)
     await page.getByLabel('Kanäle suchen', { exact: true }).fill('no-matching-channel')

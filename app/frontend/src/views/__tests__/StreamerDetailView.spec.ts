@@ -101,10 +101,21 @@ const streams = [
 const wrappers: VueWrapper[] = []
 
 describe('detail resource failure', () => {
+  it('keeps a page heading while the channel is loading', async () => {
+    mocks.getStreamer.mockReturnValueOnce(new Promise(() => {}))
+    const { wrapper } = await mountView()
+    expect(wrapper.findAll('h1')).toHaveLength(1)
+  })
+  it('exposes the actual filtered channel origin as a native return link', async () => {
+    history.replaceState({ back: '/?q=demo&sort=name-desc&view=grid&filter=offline' }, '', '/streamers/42')
+    const { wrapper } = await mountView()
+    expect(wrapper.get('.back-button').attributes('href')).toBe('/?q=demo&sort=name-desc&view=grid&filter=offline')
+  })
   it('does not claim a missing channel on a server failure and offers retry', async () => {
     mocks.getStreamer.mockRejectedValueOnce(new Error('server unavailable'))
     const { wrapper } = await mountView()
     const feedback = wrapper.getComponent({ name: 'EmptyState' })
+    expect(wrapper.findAll('h1')).toHaveLength(1)
     expect(feedback.props('state')).toBe('error')
     expect(feedback.props('retryLabel')).toBe('Erneut versuchen')
   })
@@ -342,7 +353,7 @@ describe('StreamerDetailView recording return with real router history', () => {
         expect(scrollTo).toHaveBeenCalledExactlyOnceWith(0, 738)
         expect(atScroll).toEqual([[1, 4]])
         expect(router.currentRoute.value.fullPath).toBe(origin)
-        expect(history.state.svre).toBeUndefined()
+        expect(history.state.svre).toMatchObject({ origin, expanded: { 1: true, 4: true } })
         await card(1).get('.expand-btn').trigger('click')
         expect(expandedIds()).toEqual([4])
         // Unrelated entry, even with the same row IDs, starts collapsed.

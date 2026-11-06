@@ -172,6 +172,8 @@ for (const theme of ['light', 'dark'] as const) {
     await page.setViewportSize({ width: 390, height: 844 })
     await seedNotifications(page, theme)
     await page.goto('/')
+    // Stabilize the background image masks before the modal makes it inert.
+    await expect(page.locator('.streamer-card').first()).toBeVisible()
     await page.getByRole('button', { name: /Open notifications/ }).click()
     const dialog = page.getByRole('dialog')
     for (const control of await dialog.locator('button:not([disabled]):visible').all()) {
@@ -186,7 +188,9 @@ for (const theme of ['light', 'dark'] as const) {
     await expect(page).toHaveScreenshot(`notifications-${theme}-390.png`, {
       animations: 'disabled',
       caret: 'hide',
-      mask: [page.locator('img, video, time')],
+      // Only mask media in the panel; hidden background image masks otherwise
+      // paint through the opaque overlay at timing-dependent collection positions.
+      mask: [dialog.locator('img, video, time')],
       maxDiffPixels: 600,
       scale: 'css',
     })

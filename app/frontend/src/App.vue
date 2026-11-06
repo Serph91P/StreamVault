@@ -4,7 +4,7 @@
   <div class="app">
     <AppShell :show-shell="!isAuthPage">
       <router-view v-slot="{ Component }">
-        <transition name="page" mode="out-in" @before-enter="scrollToTop">
+        <transition name="page" mode="out-in">
           <component :is="Component" />
         </transition>
       </router-view>
@@ -43,11 +43,6 @@ const toast = useToast()
 // Check if current route is an auth page
 const route = useRoute()
 
-// Scroll to top on every route change (belt-and-suspenders with router.afterEach)
-watch(() => route.fullPath, () => {
-  document.documentElement.scrollTop = 0
-  document.body.scrollTop = 0
-})
 
 const isAuthPage = computed(() => {
   const authPaths = ['/auth/login', '/auth/setup', '/welcome', '/onboarding']
@@ -64,11 +59,6 @@ const notificationStore = useNotificationStore()
 
 const realtime = useRealtimeStore()
 
-// Scroll to top on page transitions (for out-in mode)
-function scrollToTop() {
-  document.documentElement.scrollTop = 0
-  document.body.scrollTop = 0
-}
 
 // Process toast notifications from WebSocket - uses unified useToast system
 function processToastNotification(message) {

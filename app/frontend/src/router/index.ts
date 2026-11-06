@@ -34,7 +34,18 @@ async function responseJson(response: Response): Promise<Record<string, unknown>
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
-  scrollBehavior: () => ({ top: 0, left: 0 }),
+  scrollBehavior: (to, from, savedPosition) => {
+    // Hand native history positions to the same post-data-render restore owner.
+    if (savedPosition && ['home', 'streamers', 'streamer-detail', 'videos', 'overview', 'activity'].includes(String(to.name)) && to.query.tab !== 'history') {
+      history.replaceState({ ...history.state, svrs: savedPosition.top }, '')
+      return false
+    }
+    // Data-backed views restore their entry after their results have rendered.
+    if (typeof history.state?.svrs === 'number') return false
+    if (savedPosition) return savedPosition
+    if (to.path === from.path) return false
+    return { top: 0, left: 0 }
+  },
   routes: [
     { path: '/', name: 'home', component: StreamersView },
     { path: '/overview', name: 'overview', component: HomeView },
@@ -121,9 +132,5 @@ router.beforeEach(async (to) => {
   }
 })
 
-router.afterEach(() => {
-  document.documentElement.scrollTop = 0
-  document.body.scrollTop = 0
-})
 
 export default router

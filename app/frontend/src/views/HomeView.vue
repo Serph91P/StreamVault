@@ -197,7 +197,7 @@
               v-for="video in recentRecordings"
               :key="video.id"
               :video="video"
-              origin="/"
+              :origin="route.fullPath"
               @play="playVideo(video)"
             />
           </div>
@@ -210,7 +210,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { prepareVideoReturn, restoreVideoReturnScroll } from '@/composables/useNavigation'
 import { streamersApi, videoApi, recordingApi, backgroundQueueApi } from '@/services/api'
 import { useRealtimeStore } from '@/stores/realtime'
@@ -230,6 +230,7 @@ import PageHeader from '@/components/base/PageHeader.vue'
 import StatusBadge from '@/components/base/StatusBadge.vue'
 
 withDefaults(defineProps<{ embedded?: boolean }>(), { embedded: false })
+const route = useRoute()
 
 interface StreamerSummary {
   id: number
@@ -533,7 +534,7 @@ function navigateToAddStreamer() {
 }
 
 function playVideo(video: VideoSummary) {
-  prepareVideoReturn('/')
+  prepareVideoReturn(route.fullPath)
   router.push(`/videos/${video.id}`)
 }
 

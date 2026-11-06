@@ -10,7 +10,7 @@ const showHistory = computed(() => route.query.tab === 'history')
 </script>
 
 <template>
-  <div class="page-view activity-view">
+  <div class="page-view activity-view" :class="{ 'activity-history': showHistory }">
     <PageHeader
       title="Aktivität"
       icon="activity"
@@ -23,6 +23,7 @@ const showHistory = computed(() => route.query.tab === 'history')
     <nav class="activity-tabs" aria-label="Aktivitätsansicht">
       <router-link to="/activity" :aria-current="!showHistory ? 'page' : undefined">Aktuell</router-link>
       <router-link to="/activity?tab=history" :aria-current="showHistory ? 'page' : undefined">Benachrichtigungsverlauf</router-link>
+
     </nav>
     <NotificationFeed v-if="showHistory" />
     <HomeView v-else embedded />
@@ -30,6 +31,18 @@ const showHistory = computed(() => route.query.tab === 'history')
 </template>
 
 <style scoped lang="scss">
+@use '@/styles/mixins' as m;
+
+.activity-history :deep(.notification-feed) {
+  height: calc(100dvh - var(--app-header-height, 56px) - var(--spacing-2) - env(safe-area-inset-top, 0px));
+  overflow: hidden;
+}
+.activity-history :deep(.feed-header) { display: block; padding: var(--spacing-3); }
+.activity-history :deep(.header-actions) { margin-top: var(--spacing-2); flex-direction: row; flex-wrap: wrap; }
+.activity-history :deep(.notification-groups) { max-height: none; overscroll-behavior-y: contain; }
+@include m.respond-below('lg') {
+  .activity-history :deep(.notification-feed) { height: calc(100dvh - var(--app-header-height, 56px) - var(--spacing-2) - 68px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)); }
+}
 .activity-tabs {
   display: flex;
   flex-wrap: wrap;

@@ -80,6 +80,19 @@ html, body {
   overscroll-behavior-x: none;
 }
 
+html {
+  scroll-padding-top: calc(var(--app-header-height, 56px) + env(safe-area-inset-top, 0px) + 8px);
+}
+.collection-tools {
+  margin-top: var(--spacing-4);
+  summary {
+    min-height: 44px;
+    padding: var(--spacing-3);
+    cursor: pointer;
+    color: var(--sv-sem-text-primary);
+  }
+}
+
 // Keep programmatic focus/scroll targets clear of the fixed mobile navigation.
 // When its optional connectivity pill is rendered, its 44px minimum height plus
 // the one-pixel fractional-layout guard extends the existing nav clearance from

@@ -46,7 +46,8 @@
         @click.stop
       >
       <div class="glass-popup-header">
-        <h3 :id="titleId">Background Queue</h3>
+        <h2 :id="titleId">Background Queue</h2>
+        <router-link to="/activity" @click="closePanel()">Vollständige Aktivität</router-link>
         <button @click="closePanel()" class="glass-btn-icon" aria-label="Close background queue">
           <svg><use href="#icon-x" /></svg>
         </button>
@@ -93,9 +94,9 @@
 
         <!-- Active Tasks -->
     <div v-if="hasActiveTasks" class="active-tasks-section">
-          <h4>Active Tasks</h4>
+          <h3>Active Tasks</h3>
           <div class="task-list">
-      <div v-for="task in combinedActiveTasks" :key="task.id" class="task-item status-border status-border-primary">
+      <div v-for="task in combinedActiveTasks.slice(0, 3)" :key="task.id" class="task-item status-border status-border-primary">
               <div class="task-header">
                 <span class="task-type">{{ formatTaskType(task.task_type, task) }}</span>
                 <span class="task-streamer">{{ getStreamerName(task) }}</span>
@@ -127,9 +128,9 @@
 
         <!-- Recent Tasks -->
         <div v-if="recentTasks.length > 0" class="recent-tasks-section">
-          <h4>Recent Tasks</h4>
+          <h3>Recent Tasks</h3>
           <div class="task-list">
-            <div v-for="task in recentTasks.slice(0, 10)" :key="task.id" class="task-item status-border" :class="getStatusBorderClass(task.status)">
+            <div v-for="task in recentTasks.slice(0, 3)" :key="task.id" class="task-item status-border" :class="getStatusBorderClass(task.status)">
               <div class="task-header">
                 <span class="task-type">{{ formatTaskType(task.task_type, task) }}</span>
                 <span class="task-streamer">{{ getStreamerName(task) }}</span>
@@ -559,8 +560,8 @@ defineExpose({ togglePanel, taskCount: combinedActiveTasks })
   }
 }
 
-.active-tasks-section h4,
-.recent-tasks-section h4 {
+.active-tasks-section h3,
+.recent-tasks-section h3 {
   margin: 0 0 16px 0;
   color: var(--text-primary);
   font-size: 16px;
@@ -570,12 +571,12 @@ defineExpose({ togglePanel, taskCount: combinedActiveTasks })
   gap: 8px;
 }
 
-.active-tasks-section h4::before {
+.active-tasks-section h3::before {
   content: "⚡";
   color: var(--info-color);
 }
 
-.recent-tasks-section h4::before {
+.recent-tasks-section h3::before {
   content: "📝";
   color: var(--text-secondary);
 }

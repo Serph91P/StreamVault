@@ -28,7 +28,7 @@ async function assertHeaderContainsUtilities(page: Page) {
   const bounds = await header.boundingBox()
   expect(bounds).not.toBeNull()
   const buttons = header.locator('.shell-utilities button:visible')
-  expect(await buttons.count()).toBeGreaterThanOrEqual(4)
+  await expect(buttons).toHaveCount(2)
   for (const button of await buttons.all()) {
     const rect = await button.boundingBox()
     expect(rect).not.toBeNull()
@@ -39,6 +39,16 @@ async function assertHeaderContainsUtilities(page: Page) {
     expect(rect!.y + rect!.height, `${label} bottom edge`).toBeLessThanOrEqual(bounds!.y + bounds!.height + 1)
     expect(rect!.width, `${label} icon target width`).toBeGreaterThanOrEqual(47.9)
     expect(rect!.height, `${label} icon target height`).toBeGreaterThanOrEqual(47.9)
+  }
+  const more = page.getByRole('button', { name: 'Mehr', exact: true })
+  const mobile = await more.isVisible()
+  if (mobile) await more.click()
+  const session = page.getByRole('navigation', { name: 'Werkzeuge und Sitzung' }).locator('.utility-session button')
+  await expect(session).toHaveCount(2)
+  await assertTargets(session, 48)
+  if (mobile) {
+    await page.keyboard.press('Escape')
+    await expect(more).toBeFocused()
   }
 }
 
