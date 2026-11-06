@@ -6180,7 +6180,7 @@
     },
     {
       "file": "app/frontend/src/components/NotificationFeed.vue",
-      "line": 175,
+      "line": 176,
       "match": "@click="
     },
     {
@@ -8494,7 +8494,7 @@
     },
     {
       "file": "app/frontend/src/components/NotificationFeed.vue",
-      "line": 416,
+      "line": 417,
       "match": "width: 6px"
     },
     {

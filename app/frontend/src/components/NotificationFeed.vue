@@ -169,6 +169,7 @@ onMounted(() => {
           Clear all
         </button>
         <button
+          v-if="compact"
           type="button"
           class="header-action icon-action"
           aria-label="Close notifications"
