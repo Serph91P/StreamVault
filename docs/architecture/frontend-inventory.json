@@ -3950,17 +3950,17 @@
     },
     {
       "file": "app/frontend/tests/e2e/ui-consistency.spec.ts",
-      "line": 74,
+      "line": 84,
       "match": "document.documentElement"
     },
     {
       "file": "app/frontend/tests/e2e/ui-consistency.spec.ts",
-      "line": 74,
+      "line": 84,
       "match": "document.documentElement"
     },
     {
       "file": "app/frontend/tests/e2e/ui-consistency.spec.ts",
-      "line": 86,
+      "line": 96,
       "match": "document.documentElement"
     },
     {
@@ -4020,7 +4020,7 @@
     },
     {
       "file": "app/frontend/tests/fixtures/issue896-player.spec.ts",
-      "line": 349,
+      "line": 354,
       "match": "document.querySelector"
     },
     {
