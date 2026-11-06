@@ -369,7 +369,7 @@
       <div v-if="cleanupResult" class="cleanup-result status-border status-border-success">
         <h4>{{ cleanupResult.dry_run ? 'Cleanup Preview' : 'Cleanup Results' }}</h4>
         <ul>
-          <li v-if="cleanupResult.dry_run">Eligible expired temporary files: {{ cleanupResult.candidates.length }}</li>
+          <li v-if="cleanupResult.dry_run">Eligible: {{ cleanupResult.candidates.length }}</li>
           <li>Files removed: {{ cleanupResult.files_removed }}</li>
           <li>Space freed: {{ cleanupResult.space_freed_mb }}MB</li>
           <li v-if="cleanupResult.errors.length > 0">
@@ -802,17 +802,18 @@ const cleanupTempFiles = async () => {
         body: JSON.stringify(body)
       })
       const result: TemporaryCleanupResult & { detail?: string } = await response.json()
-      if (!response.ok) throw new Error(result.detail || `Cleanup failed: HTTP ${response.status}`)
+      if (!response.ok) throw new Error(result.detail || `HTTP ${response.status}`)
       return result
     }
     const preview = await send({ dry_run: true })
     cleanupResult.value = preview
-    if (!preview.candidates.length || preview.errors.length) return
-    const paths = preview.candidates.map(candidate => candidate.path).join('\n')
-    if (!confirm(`Delete these ${preview.candidates.length} unowned temporary files older than 24 hours? Media and catalog-associated files are excluded.\n\n${paths}`)) return
-    cleanupResult.value = await send({ dry_run: false, confirmed: true, candidates: preview.candidates })
+    const { candidates } = preview
+    if (!candidates.length || preview.errors.length) return
+    const paths = candidates.map(candidate => candidate.path).join('\n')
+    if (!confirm(`Delete ${candidates.length} unowned temps >24h?\n\n${paths}`)) return
+    cleanupResult.value = await send({ dry_run: false, confirmed: true, candidates })
   } catch (error) {
-    cleanupResult.value = { dry_run: true, files_removed: 0, space_freed_mb: 0, candidates: [], errors: [error instanceof Error ? error.message : 'Cleanup failed'] }
+    cleanupResult.value = { dry_run: true, files_removed: 0, space_freed_mb: 0, candidates: [], errors: [error instanceof Error ? error.message : 'Failed'] }
   } finally {
     cleanupLoading.value = false
   }

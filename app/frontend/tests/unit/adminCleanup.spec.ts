@@ -9,7 +9,7 @@ afterEach(() => vi.unstubAllGlobals())
 
 describe('admin temporary cleanup confirmation', () => {
   it.each(['confirmed', 'cancelled', 'empty', 'error'] as const)('%s uses preview before any destructive request', async (mode) => {
-    const confirm = vi.fn(() => mode === 'confirmed')
+    const confirm = vi.fn((_message: string) => mode === 'confirmed')
     vi.stubGlobal('confirm', confirm)
     const requests: RequestInit[] = []
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -37,6 +37,10 @@ describe('admin temporary cleanup confirmation', () => {
       expect(JSON.parse(String(requests[0]?.body ?? '{}'))).toEqual({ dry_run: true })
       expect(requests).toHaveLength(mode === 'confirmed' ? 2 : 1)
       expect(confirm).toHaveBeenCalledTimes(mode === 'confirmed' || mode === 'cancelled' ? 1 : 0)
+      if (mode === 'confirmed' || mode === 'cancelled') {
+        const prompt = String(confirm.mock.calls[0]?.[0])
+        for (const value of ['1', 'unowned', '24', candidate.path]) expect(prompt).toContain(value)
+      }
       if (mode === 'confirmed') {
         expect(JSON.parse(String(requests[1]?.body))).toEqual({ dry_run: false, confirmed: true, candidates: [candidate] })
         expect(wrapper.text()).toContain('Files removed: 1')
