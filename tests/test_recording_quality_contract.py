@@ -15,7 +15,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
-from app.dependencies import get_db
+from app.dependencies import get_db, get_application_session_factory
 from app.config.settings import Settings
 from app.services.core.state_persistence_service import StatePersistenceService
 from app.services.twitch_upstream_coordinator import TwitchUpstreamCoordinator
@@ -61,6 +61,7 @@ async def recording_policy(tmp_path, monkeypatch):
     app.include_router(routes.router)
     app.include_router(importlib.import_module("app.routes.streamers").router)
     app.dependency_overrides[get_db] = get_test_db
+    app.dependency_overrides[get_application_session_factory] = lambda: sessions
     config = ConfigManager(session_factory=sessions, settings=runtime_settings)
     state = RecordingStateManager.for_application(
         config, StatePersistenceService(session_factory=sessions)
