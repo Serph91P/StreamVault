@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 from app.services.api.twitch_oauth_service import TwitchOAuthService
 from app.services.streamer_service import StreamerService
 from app.dependencies import get_streamer_service, get_application_twitch_token_service
+from app.dependencies import get_application_twitch_oauth_service
 from app.services.system.twitch_token_service import TwitchTokenService
 from app.utils.async_db_utils import run_in_thread_pool
 from typing import List, Dict, Any, Optional
@@ -96,9 +97,9 @@ def _build_connection_status(global_settings, env_token: Optional[str]) -> dict:
 
 
 def get_twitch_oauth_service(
-    streamer_service: StreamerService = Depends(get_streamer_service),
+    connection: HTTPConnection,
 ) -> TwitchOAuthService:
-    return TwitchOAuthService(streamer_service)
+    return get_application_twitch_oauth_service(connection)
 
 
 @router.get("/auth-url")
@@ -229,21 +230,24 @@ async def get_followed_channels(
 async def import_streamers(
     streamers: List[Dict[str, Any]],
     oauth_service: TwitchOAuthService = Depends(get_twitch_oauth_service),
+    streamer_service: StreamerService = Depends(get_streamer_service),
 ):
     """Import selected streamers from followed channels"""
     if not streamers:
         raise HTTPException(status_code=400, detail="No streamers provided")
 
-    results = await oauth_service.import_followed_streamers(streamers)
+    results = await oauth_service.import_followed_streamers(
+        streamers, streamer_service=streamer_service
+    )
     return results
 
 
 @router.get("/callback-url")
-async def get_callback_url():
+async def get_callback_url(
+    oauth_service: TwitchOAuthService = Depends(get_twitch_oauth_service),
+):
     """Get the configured callback URL for Twitch OAuth"""
-    from app.config.settings import settings
-
-    callback_url = f"{settings.BASE_URL}/api/twitch/callback"
+    callback_url = oauth_service.redirect_uri
     return {"url": callback_url}
 
 

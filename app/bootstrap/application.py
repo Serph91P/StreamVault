@@ -104,6 +104,8 @@ def _configure_app(
     application.state.recording_manager_lock = Lock()
     application.state.twitch_api = None
     application.state.twitch_api_lock = Lock()
+    application.state.twitch_oauth_service = None
+    application.state.twitch_oauth_service_lock = Lock()
     application.state.twitch_token_service = None
     application.state.twitch_token_service_lock = Lock()
     application.state.live_streaming_service = None

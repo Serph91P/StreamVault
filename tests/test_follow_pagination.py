@@ -266,6 +266,9 @@ async def test_later_page_selection_imports_once_without_resetting_settings(
             app = FastAPI()
             app.include_router(router)
             app.dependency_overrides[get_twitch_oauth_service] = lambda: service
+            from app.dependencies import get_streamer_service
+
+            app.dependency_overrides[get_streamer_service] = lambda: streamers
             pages = [
                 {"data": [follow(1)], "pagination": {"cursor": "next"}},
                 {"data": [follow(1), follow(2)], "pagination": {}},

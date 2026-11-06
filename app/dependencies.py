@@ -279,6 +279,19 @@ def get_application_twitch_token_service(connection: HTTPConnection):
     return _get_application_twitch_token_service(connection.app)
 
 
+def get_application_twitch_oauth_service(connection: HTTPConnection):
+    from app.services.api.twitch_oauth_service import TwitchOAuthService
+
+    app = connection.app
+    with app.state.twitch_oauth_service_lock:
+        if app.state.twitch_oauth_service is None:
+            app.state.twitch_oauth_service = TwitchOAuthService(
+                settings=resolve_app_settings(app),
+                twitch_api=_get_application_twitch_api(app),
+            )
+        return app.state.twitch_oauth_service
+
+
 def _get_application_live_streaming_service(app: FastAPI):
     from app.services.live_streaming_service import LiveStreamingService
 
