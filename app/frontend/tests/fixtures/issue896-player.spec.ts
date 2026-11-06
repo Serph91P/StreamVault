@@ -275,8 +275,13 @@ for (const viewport of [
     )
     await page.route('**/api/videos/*/stream', longClockMedia)
     await page.goto('/videos/1', { waitUntil: 'domcontentloaded' })
-    if (viewport.theme === 'dark')
+    if (viewport.theme === 'dark') {
+      await page.getByRole('button', { name: 'Mehr', exact: true }).tap()
       await page.getByRole('button', { name: 'Switch to dark mode' }).tap()
+      await page.keyboard.press('Escape')
+      await expect(page.getByRole('dialog', { name: 'Mehr', exact: true })).toHaveCount(0)
+      await expect.poll(() => page.evaluate(() => localStorage.getItem('streamvault-theme'))).toBe('dark')
+    }
     const video = page.locator('video.video-element')
     await expect
       .poll(() => video.evaluate((el) => (el as HTMLVideoElement).readyState))

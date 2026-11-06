@@ -124,8 +124,14 @@ test('one shared hydration across routed consumers, reconnect/fallback and login
   await page.clock.runFor(60000)
   await expectBatches(4) // HTTP stays reachable; one owner makes one five-resource fallback.
 
+  if (await page.getByRole('button', { name: 'Mehr', exact: true }).isVisible())
+    await page.getByRole('button', { name: 'Mehr', exact: true }).click()
   page.once('dialog', dialog => dialog.accept())
   await page.getByRole('button', { name: 'Logout', exact: true }).click()
+  await expect(page).toHaveURL(/\/auth\/login$/)
+  // The persistent main keeps the routed out-in transition alive. Advance its
+  // animation frames on the paused clock before checking the new document.
+  await page.clock.runFor(100)
   await expect(page.locator('.login-view')).toBeVisible()
   await page.clock.runFor(300000)
   await expectBatches(4)

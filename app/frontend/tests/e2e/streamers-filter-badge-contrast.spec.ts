@@ -118,7 +118,9 @@ for (const theme of ['dark', 'light'] as const) {
     const targets = pass?.nodes.flatMap(node => node.target) ?? []
 
     expect(pass).toBeDefined()
-    expect(targets).toContain('h1')
+    await expect(heading.locator('.desktop-title')).toBeVisible()
+    expect(await heading.locator('.desktop-title').evaluate(node => node.parentElement?.tagName)).toBe('H1')
+    expect(targets).toContain('.desktop-title')
     expect(result.violations.filter(rule => rule.id === 'color-contrast')).toEqual([])
     expect(result.incomplete.filter(rule => rule.id === 'color-contrast')).toEqual([])
   })

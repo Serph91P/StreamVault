@@ -38,7 +38,9 @@ for (const theme of ['dark', 'light'] as const) {
     console.log(`AXE_H1_TARGET ${JSON.stringify(rawAxeTargetResult)}`)
 
     expect(colorContrastPass).toBeDefined()
-    expect(colorContrastPass?.nodes.some((node) => node.target.includes('h1'))).toBe(true)
+    await expect(heading.locator('.desktop-title')).toBeVisible()
+    expect(await heading.locator('.desktop-title').evaluate(node => node.parentElement?.tagName)).toBe('H1')
+    expect(colorContrastPass?.nodes.some((node) => node.target.includes('.desktop-title'))).toBe(true)
     expect(colorContrastViolations).toEqual([])
     expect(colorContrastIncomplete).toEqual([])
   })
