@@ -139,8 +139,10 @@
       </div>
     </div>
 
+    <EmptyState v-if="fetchError && lastUpdateTime" state="stale" variant="inline" title="Kanalstatus nicht aktuell" :description="fetchError" :updated-at="lastUpdateTime.toISOString()" retry-label="Erneut versuchen" @retry="handleRefresh" />
+
     <!-- Loading State -->
-    <div v-if="isLoading" class="streamers-container" :class="[`view-${viewMode}`, viewMode === 'grid' ? 'grid-streamers' : '']">
+    <div v-if="isLoading" class="streamers-container" role="status" aria-label="Kanäle werden geladen" aria-busy="true" :class="[`view-${viewMode}`, viewMode === 'grid' ? 'grid-streamers' : '']">
       <LoadingSkeleton
         v-for="i in 6"
         :key="i"
@@ -150,7 +152,8 @@
 
     <!-- Empty State -->
     <EmptyState
-      v-else-if="fetchError"
+      v-else-if="fetchError && !lastUpdateTime"
+      :state="fetchFailureState"
       title="Kanäle konnten nicht geladen werden"
       :description="fetchError"
       icon="alert-circle"
@@ -163,6 +166,7 @@
 
     <EmptyState
       v-else-if="streamers.length === 0"
+      state="confirmed-empty"
       title="Noch keine Kanäle"
       description="Füge einen Kanal hinzu oder importiere deine Twitch-Follows, um Streams automatisch aufzunehmen."
       icon="users"
@@ -174,6 +178,7 @@
     <!-- No Search Results -->
     <EmptyState
       v-else-if="filteredAndSortedStreamers.length === 0"
+      state="filter-empty"
       title="Keine passenden Kanäle"
       description="Zu dieser Suche oder diesem Status gibt es gerade keine Kanäle. Die übrigen Kanäle sind weiterhin vorhanden."
       icon="search"
@@ -211,6 +216,7 @@ import { hasRealtimeEventType } from '@/types/events'
 import { useForceRecording } from '@/composables/useForceRecording'  // NEW: Import composable
 import LoadingSkeleton from '@/components/LoadingSkeleton.vue'
 import EmptyState from '@/components/EmptyState.vue'
+import type { PresentationState } from '@/types/presentation'
 import BaseButton from '@/components/base/BaseButton.vue'
 import PageHeader from '@/components/base/PageHeader.vue'
 import StreamerCard from '@/components/cards/StreamerCard.vue'
@@ -239,6 +245,7 @@ const activeFilter = ref('all')
 const autoRefresh = ref(true)
 const lastUpdateTime = ref<Date | null>(null)
 const fetchError = ref('')
+const fetchFailureState = ref<PresentationState>('error')
 
 const validFilters = new Set(['all', 'live', 'recording', 'offline'])
 
@@ -371,8 +378,11 @@ async function fetchStreamers() {
     fetchError.value = ''
   } catch (error) {
     console.error('Failed to fetch streamers:', error)
-    streamers.value = []
-    fetchError.value = 'Prüfe die Verbindung zum Server und lade die Kanäle erneut.'
+    const forbidden = typeof error === 'object' && error !== null && 'status' in error && error.status === 403
+    fetchFailureState.value = forbidden ? 'forbidden' : error instanceof TypeError ? 'offline' : 'error'
+    fetchError.value = forbidden
+      ? 'Du hast keinen Zugriff auf die Kanäle. Prüfe dein angemeldetes Konto und deine Berechtigungen.'
+      : 'Prüfe die Verbindung zum Server und lade die Kanäle erneut.'
   }
 }
 

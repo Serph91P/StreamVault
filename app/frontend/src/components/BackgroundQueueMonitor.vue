@@ -29,7 +29,7 @@
     <Teleport to="body">
     <!-- Backdrop for panel -->
     <Transition name="fade">
-      <div v-if="showPanel" class="glass-popup-backdrop" @click="togglePanel"></div>
+      <div v-if="showPanel" ref="backdrop" class="glass-popup-backdrop" @click="togglePanel"></div>
     </Transition>
 
     <!-- Expandable Panel -->
@@ -189,10 +189,11 @@ const { activeRecordings } = useSystemAndRecordingStatus()
 
 // UI State
 const panelRef = ref<HTMLElement | null>(null)
+const backdrop = ref<HTMLElement | null>(null)
 const instanceId = useId().replace(/:/g, '')
 const panelId = `background-queue-panel-${instanceId}`
 const titleId = `background-queue-title-${instanceId}`
-const { isOpen: showPanel, open: openPanel, close: closePanel } = useModal(panelRef)
+const { isOpen: showPanel, open: openPanel, close: closePanel } = useModal(panelRef, { backdrop })
 
 // Additional computed properties
 // Helper to decide if a task should be treated as "active" in the UI

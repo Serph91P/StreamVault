@@ -132,11 +132,14 @@ test('stacked overlays retain the shared body lock and close topmost first', asy
   await seedNotifications(page)
   await page.goto('/')
   const notificationTrigger = page.getByRole('button', { name: /Open notifications/ })
-  const queueTrigger = page.getByRole('button', { name: /Open background queue/ }).first()
+  // This deliberately programmatic stack probe bypasses the inert background.
+  const queueTrigger = page.getByRole('button', { name: /Open background queue/, includeHidden: true }).first()
   await notificationTrigger.click()
+  expect(await queueTrigger.evaluate(element => Boolean(element.closest('[inert]')))).toBe(true)
   await queueTrigger.evaluate((element: HTMLElement) => element.click())
   const dialogs = page.locator('[role="dialog"]')
   await expect(dialogs).toHaveCount(2)
+  await expect(page.getByRole('dialog')).toHaveCount(1)
 
   await page.keyboard.press('Escape')
   await expect(dialogs).toHaveCount(1)
@@ -150,7 +153,7 @@ test('stacked overlays retain the shared body lock and close topmost first', asy
 
 test('shell and Admin queue entry points have unique dialog relationships', async ({ page }) => {
   await page.goto('/admin')
-  const triggers = page.getByRole('button', { name: /Open background queue/ })
+  const triggers = page.getByRole('button', { name: /Open background queue/, includeHidden: true })
   await expect(triggers).toHaveCount(2)
   await triggers.nth(0).click()
   await triggers.nth(1).evaluate((element: HTMLElement) => element.click())

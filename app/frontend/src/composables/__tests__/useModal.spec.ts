@@ -1,4 +1,4 @@
-import { defineComponent, h, nextTick, ref } from 'vue'
+import { defineComponent, h, nextTick, ref, Teleport } from 'vue'
 import { mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useModal } from '../useModal'
@@ -12,11 +12,12 @@ interface ModalHarnessVm {
 const ModalHarness = defineComponent({
   props: {
     name: { type: String, required: true },
+    autoFocus: { type: Boolean, default: true },
   },
   setup(props, { expose }) {
     const dialog = ref<HTMLElement | null>(null)
     const closed = ref(0)
-    const modal = useModal(dialog, { onClose: () => { closed.value += 1 } })
+    const modal = useModal(dialog, { autoFocus: props.autoFocus, onClose: () => { closed.value += 1 } })
     expose({ ...modal, closed })
 
     return () => modal.isOpen.value
@@ -67,6 +68,22 @@ describe('useModal', () => {
     expect(document.activeElement).toBe(trigger)
     first.unmount()
     second.unmount()
+  })
+
+  it('restores the original lock styles without overwriting unrelated live styles', async () => {
+    document.body.style.cssText = 'overflow:auto;position:relative;top:3px;width:90%;color:blue'
+    const wrapper = mount(ModalHarness, { props: { name: 'styled' }, attachTo: document.body })
+    const vm = wrapper.vm as unknown as ModalHarnessVm
+    vm.open()
+    await flushFocus()
+    document.body.style.color = 'red'
+    vm.close()
+    expect(document.body.style.overflow).toBe('auto')
+    expect(document.body.style.position).toBe('relative')
+    expect(document.body.style.top).toBe('3px')
+    expect(document.body.style.width).toBe('90%')
+    expect(document.body.style.color).toBe('red')
+    wrapper.unmount()
   })
 
   it('owns one document listener for the full overlay stack lifecycle', () => {
@@ -145,6 +162,76 @@ describe('useModal', () => {
       vm.close()
       wrapper.unmount()
     }
+  })
+
+  it('preserves only the topmost separate backdrop and restores prior isolation on close', async () => {
+    const Harness = defineComponent({
+      setup(_, { expose }) {
+        const dialog = ref<HTMLElement | null>(null)
+        const backdrop = ref<HTMLElement | null>(null)
+        const modal = useModal(dialog, { backdrop })
+        expose(modal)
+        return () => modal.isOpen.value ? h(Teleport, { to: 'body' }, [
+          h('div', { ref: backdrop, class: 'backdrop', 'aria-hidden': 'true' }),
+          h('div', { ref: dialog, role: 'dialog', tabindex: -1 }, [h('button', 'Close')]),
+        ]) : null
+      },
+    })
+    const background = document.createElement('main')
+    background.setAttribute('aria-hidden', 'false')
+    document.body.append(background)
+    const first = mount(Harness, { attachTo: document.body })
+    const second = mount(Harness, { attachTo: document.body })
+    const firstVm = first.vm as unknown as ModalHarnessVm
+    const secondVm = second.vm as unknown as ModalHarnessVm
+    try {
+      firstVm.open()
+      await flushFocus()
+      const firstBackdrop = document.querySelector<HTMLElement>('.backdrop')!
+      const firstDialog = document.querySelector<HTMLElement>('[role="dialog"]')!
+      expect(firstBackdrop.inert).not.toBe(true)
+      expect(firstBackdrop.getAttribute('aria-hidden')).toBe('true')
+      expect(background.inert).toBe(true)
+      secondVm.open()
+      await flushFocus()
+      const secondBackdrop = document.querySelectorAll<HTMLElement>('.backdrop')[1]!
+      expect(secondBackdrop.inert).not.toBe(true)
+      expect(firstBackdrop.inert).toBe(true)
+      expect(firstDialog.inert).toBe(true)
+      secondVm.close()
+      await flushFocus()
+      expect(firstBackdrop.inert).not.toBe(true)
+      expect(background.inert).toBe(true)
+      firstVm.close()
+      expect(background.inert).not.toBe(true)
+      expect(background.getAttribute('aria-hidden')).toBe('false')
+      expect(firstBackdrop.getAttribute('aria-hidden')).toBe('true')
+    } finally {
+      second.unmount()
+      first.unmount()
+    }
+  })
+
+  it('isolates without autofocus and releases isolation and body lock on unmount', async () => {
+    const trigger = document.createElement('button')
+    document.body.append(trigger)
+    trigger.focus()
+    const wrapper = mount(ModalHarness, { props: { name: 'manual focus', autoFocus: false }, attachTo: document.body })
+    const vm = wrapper.vm as unknown as ModalHarnessVm
+    vm.open()
+    await flushFocus()
+    expect(wrapper.get('[role="dialog"]').element.contains(document.activeElement)).toBe(false)
+    expect(trigger.inert).toBe(true)
+    expect(document.body.style.overflow).toBe('hidden')
+    wrapper.unmount()
+    await flushFocus()
+    expect(trigger.inert).not.toBe(true)
+    expect(trigger.hasAttribute('aria-hidden')).toBe(false)
+    expect(document.body.style.overflow).toBe('')
+    expect(document.activeElement).toBe(trigger)
+    // Closing an already unmounted/closed owner must remain a no-op.
+    vm.close()
+    expect(document.body.style.overflow).toBe('')
   })
 
   it('wraps forward and backward Tab when focus escapes during modal hydration', async () => {
