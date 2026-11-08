@@ -130,7 +130,7 @@ describe('VideoPlayerView route identity', () => {
     await flushPromises()
     await wrapper.findAll('.action-btn')[2].trigger('click')
     expect(wrapper.find('.modal-stub').exists()).toBe(true)
-    mocks.getAll.mockResolvedValue([secondVideo])
+    mocks.getMetadata.mockResolvedValue(secondVideo)
     mocks.getChapters.mockResolvedValue(secondChapters)
     reactiveRoute.params = params
     await flushPromises()
@@ -163,7 +163,7 @@ describe('VideoPlayerView route identity', () => {
     mocks.getChapters.mockReturnValueOnce(old.promise)
     const wrapper = await mountView(false)
     for (const id of ['43', '42', '43']) {
-      mocks.getAll.mockResolvedValue([secondVideo])
+      mocks.getMetadata.mockResolvedValue(secondVideo)
       mocks.getChapters.mockResolvedValue(secondChapters)
       reactiveRoute.params = { id }
       await flushPromises()
