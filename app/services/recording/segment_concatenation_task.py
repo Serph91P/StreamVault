@@ -7,6 +7,7 @@ that were split into multiple parts.
 
 import asyncio
 import logging
+from app.utils.media_process import media_process
 import shutil
 from pathlib import Path
 from typing import Dict, Any, Optional, Callable
@@ -41,7 +42,6 @@ async def handle_segment_concatenation(
         segment_files = task_data.get("segment_files", [])
         output_path = task_data.get("output_path")
         streamer_name = task_data.get("streamer_name")
-        stream_id = task_data.get("stream_id")
 
         logger.info(
             f"🎬 SEGMENT_CONCATENATION_START: recording_id={recording_id}, segments={len(segment_files)}"
@@ -174,20 +174,10 @@ async def handle_segment_concatenation(
 
             # Execute FFmpeg with timeout
             try:
-                process = await asyncio.wait_for(
-                    asyncio.create_subprocess_exec(
-                        *ffmpeg_cmd,
-                        cwd=str(segment_dir),  # Set working directory
-                        stdout=asyncio.subprocess.PIPE,
-                        stderr=asyncio.subprocess.PIPE,
-                    ),
-                    timeout=30,  # 30 seconds to start
-                )
-
-                stdout, stderr = await asyncio.wait_for(
-                    process.communicate(),
-                    timeout=600,  # 10 minutes for concatenation
-                )
+                async with media_process(
+                    *ffmpeg_cmd, cwd=str(segment_dir), launch_timeout=30
+                ) as (process, output):
+                    stdout, stderr = await asyncio.wait_for(output.wait(), timeout=600)
 
                 if process.returncode == 0:
                     logger.info(f"🎬 FFMPEG_CONCAT_SUCCESS: {output_file}")
@@ -261,12 +251,7 @@ async def handle_segment_concatenation(
 
             except asyncio.TimeoutError:
                 logger.error("🎬 FFMPEG_CONCAT_TIMEOUT: Process timed out")
-                if "process" in locals():
-                    try:
-                        process.kill()
-                        await process.wait()
-                    except (ProcessLookupError, OSError) as e:
-                        logger.debug(f"Could not kill timed-out process: {e}")
+
                 return {
                     "success": False,
                     "error": "FFmpeg process timed out",

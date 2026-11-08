@@ -31,7 +31,7 @@
       <div class="video-thumbnail">
         <img
           v-if="hasThumbnail"
-          :src="video.thumbnail_url"
+          :src="video.thumbnail_url || undefined"
           :alt="thumbnailAlt"
           loading="lazy"
           @error="handleThumbnailError"
@@ -107,30 +107,13 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import type { CatalogVideo as Video } from '@/types/video'
 import { prepareVideoReturn } from '@/composables/useNavigation'
 import StatusBadge, { type StatusBadgeTone } from '@/components/base/StatusBadge.vue'
 import SurfaceCard from './SurfaceCard.vue'
 
 type VideoStatus = 'recording' | 'processing' | 'ready' | 'failed'
 
-interface Video {
-  id: number
-  title?: string | null
-  thumbnail_url?: string
-  duration?: number
-  file_size?: number
-  view_count?: number
-  viewer_count?: number
-  created_at?: string
-  recorded_at?: string
-  stream_date?: string
-  streamer_name?: string
-  streamer_id?: number  // Required for navigation to video player
-  category_name?: string
-  file_path?: string
-  status?: VideoStatus | string
-  is_recording?: boolean
-}
 
 interface Props {
   video: Video

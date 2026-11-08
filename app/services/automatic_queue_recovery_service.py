@@ -151,6 +151,8 @@ class AutomaticQueueRecoveryService:
 
     async def _should_recover_task(self, task, now: datetime) -> bool:
         """Check if a task should be recovered"""
+        if self.background_queue_service is None:
+            return False
         # Check if it's a recording task
         task_id = getattr(task, "id", "")
         is_recording_task = (
@@ -184,33 +186,10 @@ class AutomaticQueueRecoveryService:
         else:
             status_value = str(task_status).lower()
 
-        # Heartbeat / last progress update support (added for safer recovery decisions)
-        last_progress_update = getattr(task, "last_progress_update", None)
-        last_progress_minutes = None
-        if last_progress_update:
-            try:
-                if last_progress_update.tzinfo is None:
-                    last_progress_update = last_progress_update.replace(
-                        tzinfo=timezone.utc
-                    )
-                last_progress_minutes = (
-                    now - last_progress_update
-                ).total_seconds() / 60
-            except Exception:
-                last_progress_minutes = None
-
-        # Heuristic: consider a task "inactive" only if no heartbeat for > stuck_task_threshold_minutes
-        no_recent_heartbeat = (
-            last_progress_minutes is None
-            or last_progress_minutes > self.stuck_task_threshold_minutes
-        )
-
-        # Extra safeguard: if progress is <100 and we still receive heartbeats (last update fresh), don't recover
-        if (
-            last_progress_minutes is not None
-            and last_progress_minutes <= self.stuck_task_threshold_minutes
-            and task.progress < 100
-        ):
+        if status_value not in ("running", "pending"):
+            return False
+        alive = await self.background_queue_service.recording_task_liveness(task_id)
+        if alive is not False:
             return False
 
         # Recovery conditions (revised):
@@ -223,11 +202,10 @@ class AutomaticQueueRecoveryService:
         ):
             return True
 
-        # 2. Task RUNNING/PENDING for > 2 * threshold with no recent heartbeat
+        # 2. A verified absent/stale capture after the existing age threshold.
         if (
             status_value in ["running", "pending"]
             and task_age_minutes > self.stuck_task_threshold_minutes * 2
-            and no_recent_heartbeat
         ):
             return True
 
@@ -276,55 +254,27 @@ class AutomaticQueueRecoveryService:
         return False
 
     async def _recover_stuck_task(self, task_id: str, task) -> bool:
-        """Recover a stuck task"""
+        """Reconcile a verified abandoned capture without inventing success."""
         try:
-            logger.info(f"🔧 AUTO_RECOVERY: Recovering stuck task {task_id}")
-
-            # Mark as completed through proper channels
-            if hasattr(self.background_queue_service, "complete_external_task"):
-                self.background_queue_service.complete_external_task(
-                    task_id, success=True
-                )
-                logger.info(f"✅ AUTO_RECOVERY: Marked {task_id} as completed")
-
-            # Update task status directly
-            if hasattr(task, "status"):
-                try:
-                    from app.services.processing.task_dependency_manager import (
-                        TaskStatus,
-                    )
-
-                    if isinstance(task.status, TaskStatus):
-                        task.status = TaskStatus.COMPLETED
-                    else:
-                        task.status = "completed"
-                except Exception as e:
-                    logger.warning(f"Could not update task status directly: {e}")
-
-            # Set completed timestamp
-            if not hasattr(task, "completed_at") or not task.completed_at:
-                task.completed_at = datetime.now(timezone.utc)
-
-            # Remove from external_tasks directly if needed
-            external_tasks = getattr(
-                self.background_queue_service, "external_tasks", {}
+            if self.background_queue_service is None:
+                return False
+            status = getattr(task.status, "value", str(task.status).lower())
+            if status not in ("running", "pending"):
+                return False
+            if (
+                await self.background_queue_service.recording_task_liveness(task_id)
+                is not False
+            ):
+                return False
+            if self.background_queue_service.external_tasks.get(task_id) is not task:
+                return False
+            task.error_message = (
+                "Capture is no longer owned/running; recovery required."
             )
-            if task_id in external_tasks:
-                del external_tasks[task_id]
-
-            # Remove from progress tracking
-            if hasattr(self.background_queue_service, "progress_tracker"):
-                try:
-                    self.background_queue_service.progress_tracker.remove_external_task(
-                        task_id
-                    )
-                except Exception as e:
-                    logger.warning(f"Could not remove from progress tracker: {e}")
-
+            self.background_queue_service.complete_external_task(task_id, success=False)
             return True
-
         except Exception as e:
-            logger.error(f"Error recovering stuck task {task_id}: {e}")
+            logger.error("Error recovering stuck task %s: %s", task_id, e)
             return False
 
     async def _stop_orphaned_check(self, task_id: str, task) -> bool:

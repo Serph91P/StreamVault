@@ -43,7 +43,7 @@ def get_db() -> Generator[Session, None, None]:
         db.close()
 
 
-def get_auth_service(db: Session = Depends(get_db)) -> AuthService:
+def get_auth_service(db: Session = Depends(get_db, scope="function")) -> AuthService:
     return AuthService(db=db)
 
 

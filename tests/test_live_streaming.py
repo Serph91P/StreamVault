@@ -454,8 +454,10 @@ async def test_live_streamlink_stderr_is_sanitized_and_context_is_released(caplo
                 b"",
             ]
 
-        async def readline(self):
-            return self.lines.pop(0)
+        async def read(self, size):
+            chunk = self.lines.pop(0)
+            assert len(chunk) <= size
+            return chunk
 
     class Process:
         def __init__(self):

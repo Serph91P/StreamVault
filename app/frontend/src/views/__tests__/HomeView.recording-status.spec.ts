@@ -17,7 +17,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/services/api', () => ({
   streamersApi: { getAll: mocks.getStreamers },
-  videoApi: { getAll: mocks.getVideos },
+  videoApi: { getPage: mocks.getVideos },
   recordingApi: { getActiveRecordings: mocks.getActiveRecordings },
   backgroundQueueApi: {
     getStats: mocks.getStats,
@@ -66,7 +66,7 @@ function mountView(props: { embedded?: boolean } = {}) {
 
 beforeEach(() => {
   mocks.getStreamers.mockResolvedValue({ streamers: [] })
-  mocks.getVideos.mockResolvedValue([])
+  mocks.getVideos.mockResolvedValue({ items: [] })
   mocks.getActiveRecordings.mockRejectedValue(new Error('recording endpoint unavailable'))
   mocks.getStats.mockResolvedValue({
     total_tasks: 0,
@@ -94,6 +94,7 @@ describe('HomeView recording status consumer', () => {
     const wrapper = mountView()
     await flushPromises()
 
+    expect(mocks.getVideos).toHaveBeenCalledWith({ page: 1, page_size: 12, sort: 'date', order: 'desc' })
     expect(wrapper.findAll('h1')).toHaveLength(1)
     expect(wrapper.get('h1').text()).toBe('Übersicht')
     const headline = wrapper.get('.page-header-subtitle').text()

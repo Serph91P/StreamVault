@@ -132,10 +132,12 @@ class WorkerManager:
                     logger.error(traceback.format_exc())
 
                     # Handle task failure and potential retry
-                    await self._handle_task_failure(task, error_msg, worker_name)
+                    retrying = await self._handle_task_failure(
+                        task, error_msg, worker_name
+                    )
 
-                    # Notify completion callback about failure
-                    if self.completion_callback:
+                    # Dependencies must only fail after the retry budget is exhausted.
+                    if not retrying and self.completion_callback:
                         await self.completion_callback(task.id, success=False)
 
                 finally:
@@ -173,23 +175,27 @@ class WorkerManager:
         try:
             # Execute the handler
             if asyncio.iscoroutinefunction(handler):
-                # Async handler
                 if progress_callback:
-                    await handler(task.payload, progress_callback)
+                    result = await handler(task.payload, progress_callback)
                 else:
-                    await handler(task.payload)
+                    result = await handler(task.payload)
             else:
-                # Sync handler - run in thread pool
                 if progress_callback:
-                    await asyncio.get_event_loop().run_in_executor(
+                    result = await asyncio.get_event_loop().run_in_executor(
                         None, handler, task.payload, progress_callback
                     )
                 else:
-                    await asyncio.get_event_loop().run_in_executor(
+                    result = await asyncio.get_event_loop().run_in_executor(
                         None, handler, task.payload
                     )
 
-            # If we reach here, the task executed successfully
+            # Legacy handlers may return None; explicit failures share the retry path.
+            if result is False:
+                raise RuntimeError("Task handler reported failure")
+            if isinstance(result, dict) and result.get("success") is False:
+                raise RuntimeError(
+                    result.get("error") or "Task handler reported failure"
+                )
             return True
 
         except Exception as e:
@@ -203,9 +209,14 @@ class WorkerManager:
                 self.progress_tracker.unregister_progress_callback(task.id)
 
     async def _handle_task_failure(
-        self, task: QueueTask, error_msg: str, worker_name: str
-    ):
-        """Handle task failure and retry logic"""
+        self,
+        task: QueueTask,
+        error_msg: str,
+        worker_name: str,
+        *,
+        task_queue: asyncio.PriorityQueue | None = None,
+    ) -> bool:
+        """Return whether a retry was queued; only exhaustion is terminal."""
         if task.retry_count < task.max_retries:
             # Retry the task
             task.retry_count += 1
@@ -223,8 +234,10 @@ class WorkerManager:
 
             # Re-queue the task after delay
             await asyncio.sleep(retry_delay)
-            priority = task.priority.value
-            await self.task_queue.put((priority, task))
+            priority = -task.priority.value
+            target_queue = self.task_queue if task_queue is None else task_queue
+            await target_queue.put((priority, task))
+            return True
 
         else:
             # Max retries exceeded, mark as failed
@@ -237,6 +250,7 @@ class WorkerManager:
                 f"Worker {worker_name} task {task.id} failed permanently after "
                 f"{task.max_retries} retries: {error_msg}"
             )
+            return False
 
     def get_worker_count(self) -> int:
         """Get number of active workers"""

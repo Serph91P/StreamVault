@@ -6,6 +6,7 @@ notification toggles, URL handling, formatting and segment finalization stay rea
 
 import asyncio
 from datetime import datetime, timedelta
+from pathlib import Path
 from types import SimpleNamespace
 
 import apprise
@@ -76,12 +77,40 @@ def completion_state(monkeypatch, tmp_path):
     engine.dispose()
 
 
+@pytest.mark.asyncio
+async def test_orchestrator_callback_uses_real_recording_start_time(completion_state, monkeypatch):
+    from app.models import Recording
+    from app.services.recording.recording_orchestrator import RecordingOrchestrator
+    state=completion_state
+    started=datetime(2026,1,1,12,0)
+    with state.sessions() as db:
+        recording=Recording(stream_id=state.stream_id,status='recording',start_time=started)
+        db.add(recording); db.commit(); identifier=recording.id
+        orchestrator=RecordingOrchestrator(db)
+        enqueued=[]
+        async def enqueue(*args):
+            enqueued.append(args)
+            return True
+        monkeypatch.setattr(orchestrator.post_processing_coordinator,'enqueue_post_processing',enqueue)
+        await orchestrator.process_manager.post_processing_callback(identifier,str(state.root/'complete.ts'))
+        assert len(enqueued)==1
+        assert enqueued[0][0]==identifier
+        assert enqueued[0][2]['started_at']==started.isoformat()
+        assert enqueued[0][2]['stream_id']==state.stream_id
+        assert db.get(Recording,identifier).status=='completed'
+        assert identifier in orchestrator.lifecycle_manager._postprocessing_scheduled
+
+
 class CompletedChild:
     pid = 963
 
     def __init__(self, *, timeout=False):
         self.returncode = 0
         self.timeout = timeout
+        self.stdout = asyncio.StreamReader()
+        self.stderr = asyncio.StreamReader()
+        self.stdout.feed_eof()
+        self.stderr.feed_eof()
 
     async def communicate(self):
         return b"", b""
@@ -149,6 +178,19 @@ async def test_segmented_completion_delivers_duration_once(
     manager.long_stream_processes[f"stream_{state.stream_id}"] = info
 
     async def concatenate(*args, **kwargs):
+        import os
+        import sys
+        from app.utils import media_process as launcher
+
+        if sys.platform == "linux":
+            assert args[:5] == (
+                sys.executable,
+                "-I",
+                "-S",
+                str(Path(launcher.__file__).with_name("_parent_owned_exec.py")),
+                str(os.getpid()),
+            )
+            args = args[5:]
         assert args[0] == "ffmpeg"
         assert "synthetic_part001.ts" in (segment_dir / "concat_list.txt").read_text()
         output.write_bytes(segment.read_bytes())
