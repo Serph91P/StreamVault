@@ -2,7 +2,11 @@ from fastapi import APIRouter, HTTPException, Request, Depends, Query
 from fastapi.responses import StreamingResponse, FileResponse, JSONResponse
 import os
 import urllib.parse
-from typing import List, Optional
+from typing import List, Optional, Literal
+from datetime import datetime
+from app.database import SessionLocal
+from app.utils.async_db_utils import run_in_thread_pool
+from app.utils.media_response import SnapshotFileResponse
 import logging
 from pathlib import Path
 import mimetypes
@@ -297,6 +301,82 @@ def is_video_file(filename: str) -> bool:
     return Path(filename).suffix.lower() in video_extensions
 
 
+def _read_catalog_page(**options):
+    from sqlalchemy.orm.exc import StaleDataError
+
+    with SessionLocal() as db:
+        try:
+            result = VideoCatalogService(db).list_page(**options)
+            if not result["index"]["retry_required"]:
+                return result
+        except StaleDataError:
+            db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail="Catalog changed during revalidation; refresh the page",
+        )
+
+
+@router.get("/videos/catalog")
+async def get_video_catalog(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=100),
+    q: Optional[str] = Query(None, max_length=200),
+    streamer_id: Optional[int] = Query(None, ge=1),
+    streamer: Optional[str] = Query(None, max_length=100),
+    category: Optional[str] = Query(None, max_length=200),
+    recording: Optional[bool] = None,
+    sort: Literal["date", "title", "streamer", "duration", "size"] = "date",
+    order: Optional[Literal["asc", "desc"]] = None,
+    created_from: Optional[datetime] = None,
+    created_before: Optional[datetime] = None,
+    duration: Optional[Literal["short", "medium", "long"]] = None,
+    identity: AuthIdentity = Depends(get_current_identity),
+):
+    if not identity.interactive:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    if any(
+        value is not None and value.tzinfo is None
+        for value in (created_from, created_before)
+    ):
+        raise HTTPException(
+            status_code=422, detail="Catalog date filters require a UTC offset"
+        )
+    return await run_in_thread_pool(
+        _read_catalog_page,
+        page=page,
+        page_size=page_size,
+        q=q,
+        streamer_id=streamer_id,
+        streamer=streamer,
+        category=category,
+        recording=recording,
+        sort=sort,
+        order=order,
+        created_from=created_from,
+        created_before=created_before,
+        duration=duration,
+    )
+
+
+@router.get("/videos/{stream_id}/metadata")
+async def get_video_metadata(
+    stream_id: int,
+    identity: AuthIdentity = Depends(get_current_identity),
+):
+    if not identity.interactive:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    result = await run_in_thread_pool(
+        _read_catalog_page, stream_id=stream_id, page_size=1
+    )
+    if not result["items"]:
+        raise HTTPException(
+            status_code=503 if result["index"]["pending"] else 404,
+            detail="Video metadata unavailable",
+        )
+    return result["items"][0]
+
+
 @router.get("/videos")
 async def get_videos(
     request: Request,
@@ -559,14 +639,27 @@ async def get_video_thumbnail(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
+def _media_read_in_worker(operation, *args):
+    with SessionLocal() as db:
+        return operation(db, *args)
+
+
+@router.head("/videos/public/{stream_id}", operation_id="head_public_video")
 @router.get("/videos/public/{stream_id}")
 async def stream_video_public(
     stream_id: int,
     token: str = Query(...),
     request: Request = None,
-    db: Session = Depends(get_db),
 ):
     """Stream video with token-based authentication for external players like VLC"""
+    from app.utils.async_db_utils import run_in_thread_pool
+
+    return await run_in_thread_pool(
+        _media_read_in_worker, _public_video_response, stream_id, token
+    )
+
+
+def _public_video_response(db, stream_id, token):
     try:
         logger.info(f"Public video stream request for stream_id: {stream_id}")
 
@@ -575,7 +668,7 @@ async def stream_video_public(
         if not token_stream_id or token_stream_id != stream_id:
             # Also try validating as a session token for backward compatibility
             auth_service = AuthService(db)
-            if not await auth_service.validate_session(token):
+            if auth_service.resolve_legacy_session(token) is None:
                 raise HTTPException(status_code=401, detail="Invalid or expired token")
 
         # Get stream from database
@@ -602,7 +695,8 @@ async def stream_video_public(
 
         # Get file info
         try:
-            file_size = file_path.stat().st_size
+            file_stat = file_path.stat()
+            file_size = file_stat.st_size
         except OSError as e:
             logger.error(f"Error accessing file: {e}")
             raise HTTPException(status_code=500, detail="Error accessing file")
@@ -612,72 +706,12 @@ async def stream_video_public(
         if not mime_type:
             mime_type = "video/mp4"
 
-        # Handle range requests (important for seeking in VLC)
-        range_header = request.headers.get("range") if request else None
-        if range_header:
-            try:
-                range_match = re.match(r"bytes=(\d+)-(\d*)", range_header)
-                if not range_match:
-                    raise HTTPException(status_code=400, detail="Invalid range header")
-
-                start = int(range_match.group(1))
-                end = (
-                    int(range_match.group(2)) if range_match.group(2) else file_size - 1
-                )
-
-                if start >= file_size or end >= file_size or start > end:
-                    raise HTTPException(
-                        status_code=416,
-                        detail="Range not satisfiable",
-                        headers={"Content-Range": f"bytes */{file_size}"},
-                    )
-
-                chunk_size = end - start + 1
-
-                def generate_chunk():
-                    with open(str(file_path), "rb") as f:
-                        f.seek(start)
-                        remaining = chunk_size
-                        while remaining > 0:
-                            read_size = min(8192, remaining)
-                            data = f.read(read_size)
-                            if not data:
-                                break
-                            remaining -= len(data)
-                            yield data
-
-                headers = {
-                    "Content-Range": f"bytes {start}-{end}/{file_size}",
-                    "Accept-Ranges": "bytes",
-                    "Content-Length": str(chunk_size),
-                    "Content-Type": mime_type,
-                    "Cache-Control": "no-cache",
-                }
-
-                return StreamingResponse(
-                    generate_chunk(), status_code=206, headers=headers
-                )
-            except ValueError:
-                # Invalid range header, serve full file
-                pass
-
-        # No range request, stream entire file
-        def generate_file():
-            with open(str(file_path), "rb") as f:
-                while True:
-                    data = f.read(8192)
-                    if not data:
-                        break
-                    yield data
-
-        headers = {
-            "Content-Length": str(file_size),
-            "Accept-Ranges": "bytes",
-            "Content-Type": mime_type,
-            "Cache-Control": "no-cache",
-        }
-
-        return StreamingResponse(generate_file(), headers=headers)
+        return SnapshotFileResponse(
+            str(file_path),
+            media_type=mime_type,
+            stat_result=file_stat,
+            headers={"Cache-Control": "no-cache", "Content-Length": str(file_size)},
+        )
 
     except HTTPException:
         raise
@@ -686,14 +720,22 @@ async def stream_video_public(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
+@router.head("/videos/{stream_id}/stream", operation_id="head_stored_video")
 @router.get("/videos/{stream_id}/stream")
 async def stream_video_by_id(
     stream_id: int,
     request: Request,
-    db: Session = Depends(get_db),
     identity: AuthIdentity = Depends(get_current_identity),
 ):
     """Stream a video file by stream ID with range request support"""
+    from app.utils.async_db_utils import run_in_thread_pool
+
+    return await run_in_thread_pool(
+        _media_read_in_worker, _stored_video_response, stream_id, identity
+    )
+
+
+def _stored_video_response(db, stream_id, identity):
     try:
         logger.info(f"Video stream request for stream_id: {stream_id}")
         # SECURITY: Never log headers or cookies - CWE-532
@@ -767,7 +809,8 @@ async def stream_video_by_id(
 
         # Get file info
         try:
-            file_size = file_path.stat().st_size
+            file_stat = file_path.stat()
+            file_size = file_stat.st_size
             logger.info(f"File size: {file_size} bytes")
         except OSError as e:
             logger.error(f"Error accessing file stats: {e}")
@@ -778,72 +821,12 @@ async def stream_video_by_id(
         if not mime_type:
             mime_type = "video/mp4"
 
-        # Handle range requests
-        range_header = request.headers.get("range")
-        if range_header:
-            # Parse range header
-            try:
-                range_match = re.match(r"bytes=(\d+)-(\d*)", range_header)
-                if not range_match:
-                    raise HTTPException(status_code=400, detail="Invalid range header")
-
-                start = int(range_match.group(1))
-                end = (
-                    int(range_match.group(2)) if range_match.group(2) else file_size - 1
-                )
-
-                if start >= file_size or end >= file_size or start > end:
-                    raise HTTPException(
-                        status_code=416,
-                        detail="Range not satisfiable",
-                        headers={"Content-Range": f"bytes */{file_size}"},
-                    )
-
-                chunk_size = end - start + 1
-
-                def generate_chunk():
-                    with open(str(file_path), "rb") as f:
-                        f.seek(start)
-                        remaining = chunk_size
-                        while remaining > 0:
-                            read_size = min(8192, remaining)
-                            data = f.read(read_size)
-                            if not data:
-                                break
-                            remaining -= len(data)
-                            yield data
-
-                headers = {
-                    "Content-Range": f"bytes {start}-{end}/{file_size}",
-                    "Accept-Ranges": "bytes",
-                    "Content-Length": str(chunk_size),
-                    "Content-Type": mime_type,
-                    "Cache-Control": "no-cache",
-                }
-
-                return StreamingResponse(
-                    generate_chunk(), status_code=206, headers=headers
-                )
-            except ValueError:
-                raise HTTPException(status_code=400, detail="Invalid range header")
-        else:
-            # No range request, stream entire file
-            def generate_file():
-                with open(str(file_path), "rb") as f:
-                    while True:
-                        data = f.read(8192)
-                        if not data:
-                            break
-                        yield data
-
-            headers = {
-                "Content-Length": str(file_size),
-                "Accept-Ranges": "bytes",
-                "Content-Type": mime_type,
-                "Cache-Control": "no-cache",
-            }
-
-            return StreamingResponse(generate_file(), headers=headers)
+        return SnapshotFileResponse(
+            str(file_path),
+            media_type=mime_type,
+            stat_result=file_stat,
+            headers={"Cache-Control": "no-cache", "Content-Length": str(file_size)},
+        )
 
     except HTTPException:
         raise

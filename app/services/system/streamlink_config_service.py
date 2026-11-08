@@ -11,6 +11,7 @@ settings change.
 import logging
 from pathlib import Path
 from typing import Optional
+from app.utils.streamlink_utils import get_streamlink_log_level
 
 logger = logging.getLogger("streamvault")
 
@@ -115,7 +116,7 @@ class StreamlinkConfigService:
                     "ffmpeg-fout=mpegts",
                     "",
                     "# Logging configuration",
-                    "loglevel=debug",
+                    f"loglevel={get_streamlink_log_level()}",
                     "logformat=[{asctime}][{name}][{levelname}] {message}",
                     "logdateformat=%Y-%m-%d %H:%M:%S",
                     "",

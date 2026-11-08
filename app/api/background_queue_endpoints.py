@@ -8,6 +8,7 @@ import logging
 from datetime import datetime, timezone
 
 from app.services.init.background_queue_init import get_background_queue_service
+from app.utils.async_db_utils import run_in_thread_pool
 
 router = APIRouter(prefix="/api/background-queue", tags=["background-queue"])
 logger = logging.getLogger("streamvault")
@@ -101,7 +102,7 @@ async def get_task_status(task_id: str) -> Dict[str, Any]:
     """Get status of a specific task"""
     try:
         queue_service = get_background_queue_service()
-        task = queue_service.get_task(task_id)
+        task = await run_in_thread_pool(queue_service.get_task, task_id)
 
         if not task:
             raise HTTPException(status_code=404, detail="Task not found")

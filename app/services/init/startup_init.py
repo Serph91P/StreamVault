@@ -4,12 +4,17 @@ Startup initialization for background services
 
 import asyncio
 import logging
+from typing import TYPE_CHECKING
+from sqlalchemy.orm import Session
+from app.utils.async_db_utils import run_in_thread_pool
 from app.services.init.background_queue_init import shutdown_background_queue
 from app.config.constants import ASYNC_DELAYS
 from app.services.system.supervisor import TaskSupervisor
 
 logger = logging.getLogger("streamvault")
 _background_supervisor: TaskSupervisor | None = None
+if TYPE_CHECKING:
+    from app.services.recording.recording_manager import RecordingManager
 
 
 def get_recording_manager():
@@ -42,6 +47,9 @@ async def initialize_background_queue_with_fixes():
         # Initialize with enhanced queue manager
         from app.services.init.background_queue_init import initialize_background_queue
 
+        background_queue_manager.queue_service.capture_checker = (
+            get_recording_manager().is_capture_running
+        )
         await initialize_background_queue(enable_streamer_isolation=enable_isolation)
 
         logger.info(
@@ -150,179 +158,71 @@ async def start_zombie_recording_cleanup_service(supervisor: TaskSupervisor):
         logger.warning("⚠️ Zombie cleanup disabled, stale recordings may accumulate")
 
 
-async def _cleanup_zombie_recordings_now() -> int:
-    """Clean up zombie recordings that are stuck in 'recording' status.
+async def _cleanup_zombie_recordings_now(
+    *, recording_manager: "RecordingManager | None" = None
+) -> int:
+    """Stop only positively dead captures under the owning admission transaction."""
+    from datetime import datetime, timezone
+    from app.models import Recording
+    from app.services.recording.media_ownership import CaptureState, capture_state
 
-    A recording is considered a zombie if:
-    1. Status is 'recording' in the database
-    2. No active Streamlink process exists for this recording
-    3. The streamer is offline (checked via Twitch API) OR the recording is older than 30 minutes
+    manager = (
+        recording_manager
+        if recording_manager is not None
+        else await run_in_thread_pool(get_recording_manager)
+    )
+    processes = manager.process_manager
+    state = manager.orchestrator.state_manager
+    memory = state.get_active_recordings()
+    cursor = total = 0
+    while True:
+        snapshots = await processes.capture_process_snapshot()
 
-    This runs every 5 minutes and catches:
-    - Recordings left after app restart (if EventSub offline event was missed)
-    - Recordings where the process crashed
-    - Any other stuck recordings
-
-    Returns:
-        Number of cleaned up recordings
-    """
-    try:
-        from app.database import SessionLocal
-        from app.models import Recording, Stream
-        from app.services.recording.recording_state_manager import (
-            recording_state_manager,
-        )
-        from datetime import datetime, timezone
-        from sqlalchemy.orm import joinedload
-
-        cleaned_count = 0
-
-        # Get active recording IDs from the GLOBAL singleton state manager
-        # This is the authoritative source of which recordings are actually running
-        active_recording_ids = set(
-            recording_state_manager.get_active_recordings().keys()
-        )
-
-        with SessionLocal() as db:
-            # Find all recordings with 'recording' status
-            zombie_candidates = (
+        def stop_dead(db: Session) -> tuple[int, list[int]]:
+            stopped = []
+            recordings = (
                 db.query(Recording)
-                .options(joinedload(Recording.stream).joinedload(Stream.streamer))
-                .filter(Recording.status == "recording")
+                .filter(
+                    Recording.status == "recording",
+                    Recording.id > cursor,
+                )
+                .order_by(Recording.id)
+                .limit(100)
+                .with_for_update()
                 .all()
             )
-
-            if not zombie_candidates:
-                return 0
-
-            logger.debug(
-                f"🔍 Checking {len(zombie_candidates)} recordings for zombie status"
-            )
-
-            for recording in zombie_candidates:
-                try:
-                    # Skip if this recording is actually active (has running process)
-                    if recording.id in active_recording_ids:
-                        logger.debug(
-                            f"Recording {recording.id} is active (has running process), skipping"
-                        )
-                        continue
-
-                    # Calculate age
-                    now_utc = datetime.now(timezone.utc)
-                    recording_age_minutes = 0
-                    if recording.start_time:
-                        if recording.start_time.tzinfo is None:
-                            start_time = recording.start_time.replace(
-                                tzinfo=timezone.utc
-                            )
-                        else:
-                            start_time = recording.start_time
-                        recording_age_minutes = (
-                            now_utc - start_time
-                        ).total_seconds() / 60
-
-                    # If recording is older than 30 minutes and no active process, it's definitely a zombie
-                    # This catches recordings after app restarts where the process never resumed
-                    if recording_age_minutes > 30:
-                        streamer_name = "Unknown"
-                        if recording.stream and recording.stream.streamer:
-                            streamer_name = recording.stream.streamer.username
-                        logger.info(
-                            f"🧹 Zombie detected: Recording {recording.id} ({streamer_name}) is {recording_age_minutes:.0f}min old with no active process"
-                        )
-                        recording.status = "stopped"
-                        recording.end_time = now_utc
-                        if recording.start_time:
-                            recording.duration_seconds = int(
-                                (now_utc - start_time).total_seconds()
-                            )
-                        # Also remove from state manager (in case it's stuck there)
-                        recording_state_manager.remove_active_recording(recording.id)
-                        cleaned_count += 1
-                        continue
-
-                    # For younger recordings (< 30 min), check if streamer is actually offline
-                    if recording.stream and recording.stream.streamer:
-                        streamer = recording.stream.streamer
-
-                        # Quick check via Twitch API
-                        try:
-                            from app.api.twitch_api import twitch_api
-
-                            streams = await twitch_api.get_streams(
-                                user_ids=[streamer.twitch_id]
-                            )
-                            is_live = bool(streams)
-
-                            if not is_live:
-                                logger.info(
-                                    f"🧹 Zombie detected: Recording {recording.id} for offline streamer {streamer.username} (age: {recording_age_minutes:.0f}min)"
-                                )
-                                recording.status = "stopped"
-                                recording.end_time = now_utc
-                                if recording.start_time:
-                                    if recording.start_time.tzinfo is None:
-                                        start_time = recording.start_time.replace(
-                                            tzinfo=timezone.utc
-                                        )
-                                    else:
-                                        start_time = recording.start_time
-                                    recording.duration_seconds = int(
-                                        (now_utc - start_time).total_seconds()
-                                    )
-                                # Also remove from state manager (in case it's stuck there)
-                                recording_state_manager.remove_active_recording(
-                                    recording.id
-                                )
-                                cleaned_count += 1
-                            else:
-                                # Streamer is live but we have no process - this is a ZOMBIE!
-                                # Clean it up so new recording can start
-                                logger.warning(
-                                    f"🧹 Zombie detected: Recording {recording.id} for LIVE streamer {streamer.username} has no active process - cleaning up to allow new recording"
-                                )
-                                recording.status = "stopped"
-                                recording.end_time = now_utc
-                                if recording.start_time:
-                                    if recording.start_time.tzinfo is None:
-                                        start_time = recording.start_time.replace(
-                                            tzinfo=timezone.utc
-                                        )
-                                    else:
-                                        start_time = recording.start_time
-                                    recording.duration_seconds = int(
-                                        (now_utc - start_time).total_seconds()
-                                    )
-                                # Remove from state manager so new recording can start
-                                recording_state_manager.remove_active_recording(
-                                    recording.id
-                                )
-                                cleaned_count += 1
-                        except Exception as api_error:
-                            logger.debug(
-                                f"Could not check live status for {streamer.username}: {api_error}"
-                            )
-                            # On API error, don't clean up to be safe
-                            continue
-
-                except Exception as rec_error:
-                    logger.warning(
-                        f"Error processing zombie candidate {recording.id}: {rec_error}"
+            for recording in recordings:
+                if (
+                    capture_state(
+                        db, recording, snapshots.get(f"stream_{recording.stream_id}")
                     )
+                    is not CaptureState.DEAD
+                ):
                     continue
+                now = datetime.now(timezone.utc)
+                recording.status = "stopped"
+                recording.end_time = now
+                if recording.start_time is not None:
+                    started = recording.start_time
+                    if started.tzinfo is None:
+                        started = started.replace(tzinfo=timezone.utc)
+                    recording.duration = int((now - started).total_seconds())
+                stopped.append(recording.id)
+            return (recordings[-1].id if recordings else cursor), stopped
 
-            if cleaned_count > 0:
-                db.commit()
-                logger.info(
-                    f"🧹 Committed cleanup of {cleaned_count} zombie recordings"
-                )
-
-        return cleaned_count
-
-    except Exception as e:
-        logger.error(f"Error in zombie recording cleanup: {e}")
-        return 0
+        (
+            next_cursor,
+            stopped,
+        ) = await processes.upstream_coordinator.run_capture_maintenance(stop_dead)
+        if next_cursor == cursor:
+            break
+        cursor = next_cursor
+        total += len(stopped)
+        for recording_id in stopped:
+            if state.get_active_recording(recording_id) is memory.get(recording_id):
+                state.remove_active_recording(recording_id)
+        await asyncio.sleep(0)
+    return total
 
 
 async def initialize_vapid_keys():
@@ -514,270 +414,17 @@ async def unified_recovery_scan():
 
 
 async def cleanup_zombie_recordings():
-    """Clean up zombie/stale recordings from database on startup with smart recovery
-
-    Recordings are considered zombies if:
-    - They are marked as 'recording' status in the database
-    - But the application was restarted (no actual Streamlink process running)
-
-    Smart Recovery Logic:
-    1. Check if streamer is still live via Twitch API
-    2. If still live → Resume recording (prevent data loss)
-    3. If offline → Mark as stopped and trigger post-processing
-
-    This prevents false recording endings on app restarts while streams are still live.
-    """
+    """Recover only physically dead captures using short, fenced transactions."""
     try:
-        logger.info(
-            "🧹 Cleaning up zombie recordings from database with smart recovery..."
-        )
-
         from app.database import SessionLocal
-        from app.models import Recording, Stream, TwitchUpstreamLease
-        from app.services.streamer_service import StreamerService
-        from app.services.communication.websocket_manager import websocket_manager
-        from app.events.handler_registry import EventHandlerRegistry
-        from app.config.settings import settings
+        from app.services.api.twitch_api import twitch_api
+        from app.services.recording.startup_recovery import recover_startup_recordings
 
-        # Initialize event registry with required dependencies
-        event_handler_registry = EventHandlerRegistry(
-            connection_manager=websocket_manager, settings=settings
+        await recover_startup_recordings(
+            session_factory=SessionLocal,
+            recording_manager=get_recording_manager(),
+            twitch_service=twitch_api,
         )
-        from datetime import datetime, timezone
-        from sqlalchemy.orm import joinedload
-
-        with SessionLocal() as db:
-            # Initialize services with required dependencies
-            streamer_service = StreamerService(
-                db, websocket_manager, event_handler_registry
-            )
-            recording_manager = get_recording_manager()
-            # Find all recordings with 'recording' status (eager load relationships)
-            zombie_recordings = (
-                db.query(Recording)
-                .options(joinedload(Recording.stream).joinedload(Stream.streamer))
-                .filter(Recording.status == "recording")
-                .all()
-            )
-
-            if not zombie_recordings:
-                logger.info("✅ No zombie recordings found")
-                return
-
-            cleaned_count = 0
-            resumed_count = 0
-
-            for recording in zombie_recordings:
-                try:
-                    # Get streamer information through relationships
-                    if not recording.stream or not recording.stream.streamer:
-                        logger.warning(
-                            f"⚠️ Recording {recording.id} has no associated streamer - marking as stopped"
-                        )
-                        recording.status = "stopped"
-                        recording.end_time = datetime.now(timezone.utc)
-                        cleaned_count += 1
-                        continue
-
-                    streamer = recording.stream.streamer
-                    stream = recording.stream
-
-                    # Check if streamer is still live via Twitch API
-                    logger.info(
-                        f"🔍 Checking if {streamer.username} (twitch_id={streamer.twitch_id}) is still live..."
-                    )
-
-                    try:
-                        is_still_live = (
-                            await streamer_service.check_streamer_live_status(
-                                streamer.twitch_id
-                            )
-                        )
-                    except Exception as api_error:
-                        logger.error(
-                            f"❌ Failed to check live status for {streamer.username}: {api_error}"
-                        )
-                        logger.warning(
-                            f"⏳ Deferring zombie recording cleanup for {streamer.username} "
-                            "because live status could not be verified"
-                        )
-                        continue
-
-                    if is_still_live:
-                        # Streamer is STILL LIVE - Resume recording!
-                        logger.info(
-                            f"🔄 RESUMING recording for {streamer.username}: "
-                            f"Stream still live after app restart (recording_id={recording.id}, stream_id={stream.id})"
-                        )
-
-                        # CRITICAL: Find the existing segments directory to resume into
-                        # This ensures all segments end up in the same directory for later concatenation
-                        resume_segments_dir = None
-
-                        # Try to find segments directory from StreamMetadata
-                        try:
-                            from app.models import StreamMetadata
-
-                            metadata = (
-                                db.query(StreamMetadata)
-                                .filter(StreamMetadata.stream_id == stream.id)
-                                .first()
-                            )
-
-                            if metadata and metadata.segments_dir_path:
-                                from pathlib import Path
-
-                                if Path(metadata.segments_dir_path).exists():
-                                    resume_segments_dir = metadata.segments_dir_path
-                                    logger.info(
-                                        f"📂 Found segments directory from metadata: {resume_segments_dir}"
-                                    )
-                        except Exception as e:
-                            logger.debug(
-                                f"Could not get segments dir from metadata: {e}"
-                            )
-
-                        # Fallback: Try to derive from recording path
-                        if not resume_segments_dir and recording.path:
-                            from pathlib import Path
-
-                            potential_dir = Path(recording.path).with_suffix(
-                                ""
-                            ).parent / (Path(recording.path).stem + "_segments")
-                            if potential_dir.exists():
-                                resume_segments_dir = str(potential_dir)
-                                logger.info(
-                                    f"📂 Found segments directory from recording path: {resume_segments_dir}"
-                                )
-
-                        try:
-                            # Resume recording through the process-scoped manager.
-                            # Pass resume_segments_dir to continue in the same segments folder
-                            if recording_manager.is_stream_active(stream.id):
-                                logger.info(
-                                    "Recording for stream %s is already locally active; "
-                                    "preserving its database state",
-                                    stream.id,
-                                )
-                                continue
-                            recovery_generation = (
-                                db.query(TwitchUpstreamLease.generation)
-                                .filter(
-                                    TwitchUpstreamLease.channel_key
-                                    == streamer.twitch_id,
-                                    TwitchUpstreamLease.recording_id == recording.id,
-                                )
-                                .scalar()
-                            )
-                            if recovery_generation is None:
-                                logger.warning(
-                                    "No persisted upstream generation for recording %s; "
-                                    "deferring recovery",
-                                    recording.id,
-                                )
-                                continue
-                            resumed_recording_id = (
-                                await recording_manager.start_recording(
-                                    stream_id=stream.id,
-                                    streamer_id=streamer.id,
-                                    force_mode=True,
-                                    resume_segments_dir=resume_segments_dir,
-                                    recovery_generation=recovery_generation,
-                                )
-                            )
-                            if not resumed_recording_id:
-                                logger.error(
-                                    f"❌ Failed to resume recording for {streamer.username}"
-                                )
-                                continue
-
-                            now_utc = datetime.now(timezone.utc)
-                            recording.status = "stopped"
-                            recording.end_time = now_utc
-                            if recording.start_time:
-                                start_time = recording.start_time
-                                if start_time.tzinfo is None:
-                                    start_time = start_time.replace(tzinfo=timezone.utc)
-                                recording.duration = int(
-                                    (now_utc - start_time).total_seconds()
-                                )
-                            db.commit()
-                            resumed_count += 1
-                            if resume_segments_dir:
-                                logger.info(
-                                    f"✅ Successfully resumed recording for {streamer.username} in existing segments folder"
-                                )
-                            else:
-                                logger.info(
-                                    f"✅ Successfully started new recording for {streamer.username} (no existing segments found)"
-                                )
-                        except Exception as resume_error:
-                            logger.error(
-                                f"❌ Failed to resume recording for {streamer.username}: {resume_error}"
-                            )
-                    else:
-                        # Streamer is OFFLINE - Mark as stopped
-                        logger.info(
-                            f"🛑 Streamer {streamer.username} is offline - marking recording as stopped "
-                            f"(recording_id={recording.id}, stream_id={stream.id})"
-                        )
-
-                        # CRITICAL: Use timezone-aware datetime to match database timestamps
-                        now_utc = datetime.now(timezone.utc)
-
-                        # Calculate duration if available
-                        duration = None
-                        if recording.start_time:
-                            # Ensure end_time is timezone-aware
-                            end_time = recording.end_time or now_utc
-
-                            # Both datetimes must be timezone-aware for subtraction
-                            if recording.start_time.tzinfo is None:
-                                from datetime import timezone as tz
-
-                                start_time_aware = recording.start_time.replace(
-                                    tzinfo=tz.utc
-                                )
-                            else:
-                                start_time_aware = recording.start_time
-
-                            duration = int(
-                                (end_time - start_time_aware).total_seconds()
-                            )
-
-                        # Mark as stopped (not failed, because the recording may have been successful)
-                        recording.status = "stopped"
-                        recording.end_time = recording.end_time or now_utc
-                        if duration:
-                            recording.duration_seconds = duration
-
-                        # Also mark stream as ended
-                        if stream.ended_at is None:
-                            stream.ended_at = now_utc
-                            logger.info(f"📝 Marked stream {stream.id} as ended")
-
-                        cleaned_count += 1
-
-                        logger.info(
-                            f"🧹 Cleaned zombie recording {recording.id}: "
-                            f"streamer={streamer.username}, "
-                            f"started={recording.start_time}, "
-                            f"duration={duration}s"
-                        )
-
-                except Exception as e:
-                    logger.error(
-                        f"❌ Failed to process zombie recording {recording.id}: {e}",
-                        exc_info=True,
-                    )
-                    continue
-
-            db.commit()
-            logger.info(
-                f"✅ Zombie recording cleanup completed: "
-                f"resumed={resumed_count}, stopped={cleaned_count}, total_processed={resumed_count + cleaned_count}"
-            )
-
     except Exception as e:
         logger.error(f"❌ Failed to cleanup zombie recordings: {e}", exc_info=True)
         # Don't raise - this is not critical for startup

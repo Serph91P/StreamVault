@@ -3,9 +3,22 @@ import { defineComponent } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import VideosView from '../VideosView.vue'
 import router from '@/router'
+import type { CatalogVideo, VideoCatalogQuery } from '@/types/video'
+
+let serverRows: CatalogVideo[] = []
+function serverPage(rows: CatalogVideo[], params: VideoCatalogQuery) {
+  serverRows = rows
+  const items = rows.filter(video => (!params.q || `${video.title} ${video.streamer_name}`.toLowerCase().includes(params.q.toLowerCase()))
+    && (!params.streamer || video.streamer_name === params.streamer)
+    && (!params.duration || (params.duration === 'short' ? (video.duration ?? 0) < 3600 : params.duration === 'medium' ? (video.duration ?? 0) >= 3600 && (video.duration ?? 0) <= 10800 : (video.duration ?? 0) > 10800)))
+  return { items, total: items.length, page: params.page ?? 1, page_size: params.page_size ?? 50, has_more: false,
+    index: { pending: 0, error: 0, missing: 0, complete: true, oldest_checked_at: null, page_revalidation_changed: false, retry_required: false },
+    summary: { total: rows.length, duration: rows.reduce((sum, video) => sum + (video.duration ?? 0), 0), file_size: rows.reduce((sum, video) => sum + (video.file_size ?? 0), 0), categories: [], streamers: [...new Set(rows.map(video => video.streamer_name).filter(Boolean))].map(name => ({ id: rows.find(video => video.streamer_name === name)?.streamer_id ?? 0, name, count: 1 })) },
+  }
+}
 
 const mocks = vi.hoisted(() => ({
-  getAll: vi.fn(),
+  getPage: vi.fn(),
   deleteMultiple: vi.fn(),
   routerPush: vi.fn(),
   routerReplace: vi.fn(),
@@ -25,7 +38,12 @@ vi.mock('vue-router', async importOriginal => ({
 
 vi.mock('@/services/api', () => ({
   videoApi: {
-    getAll: mocks.getAll,
+    getPage: async (params: VideoCatalogQuery, signal: AbortSignal) => serverPage(await mocks.getPage(params, signal), params),
+    getMetadata: async (id: number) => {
+      const video = serverRows.find(video => video.id === id)
+      if (!video) throw Object.assign(new Error('Missing'), { status: 404 })
+      return video
+    },
     deleteMultiple: mocks.deleteMultiple,
   },
 }))
@@ -63,7 +81,7 @@ async function mountView() {
 }
 
 beforeEach(() => {
-  mocks.getAll.mockReset()
+  mocks.getPage.mockReset()
   mocks.deleteMultiple.mockReset()
   window.history.replaceState({}, '', '/videos')
   mocks.route.path = '/videos'
@@ -71,7 +89,7 @@ beforeEach(() => {
   mocks.route.query = {}
   // Resolve against the application's registered routes, including case-sensitive names.
   mocks.routerResolve.mockImplementation(location => router.resolve(location))
-  mocks.getAll.mockResolvedValue([
+  mocks.getPage.mockResolvedValue([
     { id: 11, streamer_id: 1, title: 'Morning run', streamer_name: 'alpha', duration: 3600, file_size: 1024, created_at: '2026-09-23T10:00:00Z', status: 'ready' },
     { id: 12, streamer_id: 2, title: 'Night run', streamer_name: 'beta', duration: 7200, file_size: 2048, created_at: '2026-09-22T10:00:00Z', status: 'ready' },
   ])
@@ -111,19 +129,25 @@ describe('VideosView library workflow', () => {
     expect((wrapper.get('[aria-label="Filter videos by duration"]').element as HTMLSelectElement).value).toBe('medium')
     expect((wrapper.get('[aria-label="Sort videos"]').element as HTMLSelectElement).value).toBe('title')
     expect(wrapper.get('.videos-container').classes()).toContain('view-list')
-    expect(wrapper.get('.results-info').text().replace(/\s+/g, ' ')).toContain('Showing 1 video of 2')
+    expect(wrapper.get('.results-info').text().replace(/\s+/g, ' ')).toContain('Showing 1 video')
+    expect(wrapper.get('.brief-stat.total dd').text()).toBe('2')
+    expect(mocks.getPage).toHaveBeenLastCalledWith(expect.objectContaining({ q: 'alpha' }), expect.any(AbortSignal))
   })
 
-  it('searches the loaded catalog and routes playable recordings', async () => {
+  it('queries the server catalog and routes playable recordings', async () => {
     const wrapper = await mountView()
     expect(wrapper.findAll('.video-card')).toHaveLength(2)
 
     await wrapper.get('.search-input').setValue('alpha')
+    await new Promise(resolve => setTimeout(resolve, 350))
+    await flushPromises()
     mocks.routerResolve.mockReturnValueOnce({ fullPath: '/videos?q=alpha&streamer=alpha&sort=title&view=list' })
 
     expect(wrapper.findAll('.video-card')).toHaveLength(1)
     expect(wrapper.text()).toContain('Morning run')
-    expect(wrapper.get('.results-info').text().replace(/\s+/g, ' ')).toContain('Showing 1 video of 2')
+    expect(wrapper.get('.results-info').text().replace(/\s+/g, ' ')).toContain('Showing 1 video')
+    expect(wrapper.get('.brief-stat.total dd').text()).toBe('2')
+    expect(mocks.getPage).toHaveBeenLastCalledWith(expect.objectContaining({ q: 'alpha' }), expect.any(AbortSignal))
 
     await wrapper.get('.video-card').trigger('click')
     expect(mocks.routerPush).toHaveBeenCalledWith(expect.objectContaining({
@@ -157,7 +181,7 @@ describe('VideosView library workflow', () => {
       { id: 11, status: 'fulfilled' },
       { id: 12, status: 'rejected', reason: new Error('Deletion forbidden') },
     ])
-    mocks.getAll.mockResolvedValueOnce([
+    mocks.getPage.mockResolvedValueOnce([
       { id: 12, streamer_id: 2, title: 'Night run', streamer_name: 'beta', status: 'ready' },
     ])
     await wrapper.findAll('.modal button').find(button => button.text().includes('Yes, delete'))!.trigger('click')
@@ -168,7 +192,7 @@ describe('VideosView library workflow', () => {
     expect(wrapper.get('.delete-error').text()).toContain('1 failed')
     expect(wrapper.get('.delete-error').text()).toContain('Deletion forbidden')
     mocks.deleteMultiple.mockResolvedValueOnce([{ id: 12, status: 'fulfilled' }])
-    mocks.getAll.mockResolvedValueOnce([])
+    mocks.getPage.mockResolvedValueOnce([])
     await wrapper.findAll('.modal button').find(button => button.text().includes('Yes, delete'))!.trigger('click')
     await flushPromises()
     expect(mocks.deleteMultiple).toHaveBeenLastCalledWith([12])
@@ -188,7 +212,7 @@ describe('VideosView library workflow', () => {
     for (const checkbox of wrapper.findAll('input[type="checkbox"]')) await checkbox.setValue(true)
     await wrapper.findAll('header button').find(button => button.text().includes('Delete'))!.trigger('click')
     mocks.deleteMultiple.mockResolvedValueOnce(outcomes)
-    mocks.getAll.mockResolvedValueOnce(catalog.map(id => ({ id, title: `Remaining ${id}` })))
+    mocks.getPage.mockResolvedValueOnce(catalog.map(id => ({ id, title: `Remaining ${id}` })))
     await wrapper.findAll('.modal button').find(button => button.text().includes('Yes, delete'))!.trigger('click')
     await flushPromises()
     expect(wrapper.findAll('.video-card')).toHaveLength(catalog.length)
@@ -213,7 +237,7 @@ describe('VideosView library workflow', () => {
     expect(mocks.deleteMultiple).toHaveBeenCalledTimes(1)
     expect(confirm.attributes('disabled')).toBeDefined()
     let failRefresh!: (error: Error) => void
-    mocks.getAll.mockImplementationOnce(() => new Promise((_, reject) => { failRefresh = reject }))
+    mocks.getPage.mockImplementationOnce(() => new Promise((_, reject) => { failRefresh = reject }))
     finish([{ id: 11, status: 'fulfilled' }, { id: 12, status: 'rejected', reason: new Error('Denied') }])
     await flushPromises()
     expect(confirm.attributes('disabled')).toBeDefined()
@@ -229,7 +253,7 @@ describe('VideosView library workflow', () => {
     expect(mocks.deleteMultiple).toHaveBeenCalledTimes(1)
     await wrapper.findAll('.modal button').find(button => button.text().includes('No, keep'))!.trigger('click')
     let refresh!: (catalog: unknown[]) => void
-    mocks.getAll.mockImplementationOnce(() => new Promise(resolve => { refresh = resolve }))
+    mocks.getPage.mockImplementationOnce(() => new Promise(resolve => { refresh = resolve }))
     await wrapper.get('.retry-load').trigger('click')
     await wrapper.findAll('header button').find(button => button.text().includes('Delete'))!.trigger('click')
     const retry = wrapper.findAll('.modal button').find(button => button.text().includes('Yes, delete'))!

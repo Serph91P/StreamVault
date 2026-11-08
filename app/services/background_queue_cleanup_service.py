@@ -26,269 +26,57 @@ class BackgroundQueueCleanupService:
         self.background_queue_service = background_queue_service
 
     async def cleanup_stuck_recording_tasks(self) -> Dict[str, Any]:
-        """Clean up recording tasks that are stuck at 100% or running indefinitely"""
+        """Fail verified abandoned captures; age is never completion evidence."""
         try:
             if not self.background_queue_service:
-                logger.warning("No background queue service available for cleanup")
                 return {"cleaned": 0, "errors": ["No background queue service"]}
-
             cleaned_count = 0
             errors = []
-
-            # Get all external tasks (where recording tasks are stored)
-            external_tasks = getattr(
-                self.background_queue_service, "external_tasks", {}
-            )
-
-            logger.info(
-                f"🧹 CLEANUP_START: Found {len(external_tasks)} external tasks to check"
-            )
-
+            external_tasks = self.background_queue_service.external_tasks
             for task_id, task in list(external_tasks.items()):
                 try:
-                    # Check if it's a recording task (both by task_id pattern and task_type)
-                    is_recording_task = (
+                    if not (
                         task_id.startswith("recording_")
                         or task.task_type == "recording"
-                        or (
-                            hasattr(task, "task_name")
-                            and "recording" in str(task.task_name).lower()
-                        )
+                        or "recording" in str(getattr(task, "task_name", "")).lower()
+                    ):
+                        continue
+                    status = getattr(task.status, "value", str(task.status).lower())
+                    if status not in ("running", "pending"):
+                        continue
+                    started = task.started_at or task.created_at
+                    if started is None:
+                        continue
+                    if started.tzinfo is None:
+                        started = started.replace(tzinfo=timezone.utc)
+                    age_hours = (
+                        datetime.now(timezone.utc) - started
+                    ).total_seconds() / 3600
+                    if age_hours <= STUCK_TASK_THRESHOLD_HOURS and task.progress < 100:
+                        continue
+                    alive = await self.background_queue_service.recording_task_liveness(
+                        task_id
                     )
-
-                    if is_recording_task:
-                        # Check if task is stuck
-                        now = datetime.now(timezone.utc)
-
-                        task_age = None
-                        if hasattr(task, "started_at") and task.started_at:
-                            task_started = task.started_at
-                            if task_started.tzinfo is None:
-                                task_started = task_started.replace(tzinfo=timezone.utc)
-                            task_age = (
-                                now - task_started
-                            ).total_seconds() / 3600  # hours
-                        elif hasattr(task, "created_at") and task.created_at:
-                            # Fall back to created_at if started_at is not available
-                            task_created = task.created_at
-                            if task_created.tzinfo is None:
-                                task_created = task_created.replace(tzinfo=timezone.utc)
-                            task_age = (
-                                now - task_created
-                            ).total_seconds() / 3600  # hours
-
-                        is_stuck = False
-                        reason = ""
-
-                        # Task running for more than the threshold hours (reduced from 6)
-                        if task_age and task_age > STUCK_TASK_THRESHOLD_HOURS:
-                            is_stuck = True
-                            reason = f"running for {task_age:.1f}h"
-
-                        # Task at 100% progress but still "running" status (reduced time to 5 minutes)
-                        elif (
-                            hasattr(task, "progress")
-                            and task.progress >= 100
-                            and hasattr(task, "status")
-                            and str(task.status).lower() == "running"
-                        ):
-                            # For 100% tasks, check if the actual recording process is still running
-                            is_stuck = True
-                            reason = "at 100% but status still running"
-
-                            # Additional check: if it's a recording task, verify if the stream is actually ended
-                            if task_id.startswith("recording_"):
-                                try:
-                                    recording_id = task_id.replace("recording_", "")
-                                    # Check if the recording is actually finished in the database
-                                    from app.database import SessionLocal
-                                    from app.models import Recording
-
-                                    with SessionLocal() as db:
-                                        recording = (
-                                            db.query(Recording)
-                                            .filter(Recording.id == recording_id)
-                                            .first()
-                                        )
-                                        if recording and recording.stream:
-                                            # If the stream is ended, then the recording should be completed
-                                            if recording.stream.ended_at:
-                                                logger.info(
-                                                    f"🧹 RECORDING_SHOULD_BE_COMPLETE: {task_id} - stream ended at {recording.stream.ended_at}"
-                                                )
-                                                reason = "stream ended but task still running (100% complete)"
-                                            else:
-                                                # Stream is still live, so task might legitimately be running
-                                                is_stuck = False
-                                                logger.info(
-                                                    f"🧹 RECORDING_STILL_LIVE: {task_id} - stream still live, not stuck"
-                                                )
-                                except Exception as e:
-                                    logger.warning(
-                                        f"Could not verify recording status: {e}"
-                                    )
-
-                        if is_stuck:
-                            logger.info(f"🧹 CLEANUP_STUCK_TASK: {task_id} ({reason})")
-
-                            # For recording tasks at 100%, mark them as completed properly instead of killing
-                            if (
-                                hasattr(task, "progress")
-                                and task.progress >= 100
-                                and hasattr(task, "status")
-                                and str(task.status).lower() == "running"
-                            ):
-                                logger.info(
-                                    f"🧹 COMPLETING_TASK: Marking {task_id} as completed (was at 100% but running)"
-                                )
-
-                                # Mark as completed through proper channels
-                                if hasattr(
-                                    self.background_queue_service,
-                                    "complete_external_task",
-                                ):
-                                    self.background_queue_service.complete_external_task(
-                                        task_id, success=True
-                                    )
-                                    logger.info(
-                                        f"✅ TASK_COMPLETED: {task_id} marked as completed via complete_external_task"
-                                    )
-
-                                # Update task status directly if it has status attribute
-                                if hasattr(task, "status"):
-                                    try:
-                                        from app.services.processing.task_dependency_manager import (
-                                            TaskStatus,
-                                        )
-
-                                        if isinstance(task.status, TaskStatus):
-                                            task.status = TaskStatus.COMPLETED
-                                        else:
-                                            task.status = "completed"
-                                        logger.info(
-                                            f"✅ STATUS_UPDATED: {task_id} status updated to completed"
-                                        )
-                                    except Exception as e:
-                                        logger.warning(
-                                            f"Could not update task status directly: {e}"
-                                        )
-
-                                # Set completed_at timestamp if not set
-                                if (
-                                    not hasattr(task, "completed_at")
-                                    or not task.completed_at
-                                ):
-                                    task.completed_at = datetime.now(timezone.utc)
-                                    logger.info(
-                                        f"✅ TIMESTAMP_SET: {task_id} completed_at timestamp set"
-                                    )
-
-                            # For tasks running too long (likely Streamlink didn't signal completion)
-                            elif task_age and task_age > 0.5:  # 30 minutes
-                                logger.info(
-                                    f"🧹 STREAMLINK_LIKELY_DONE: {task_id} - Streamlink probably finished but didn't signal completion"
-                                )
-
-                                # Mark as completed since Streamlink often doesn't signal completion properly
-                                if hasattr(
-                                    self.background_queue_service,
-                                    "complete_external_task",
-                                ):
-                                    self.background_queue_service.complete_external_task(
-                                        task_id, success=True
-                                    )
-                                    logger.info(
-                                        f"✅ STREAMLINK_COMPLETED: {task_id} marked as completed (Streamlink timeout)"
-                                    )
-
-                                # Update task status
-                                if hasattr(task, "status"):
-                                    try:
-                                        from app.services.processing.task_dependency_manager import (
-                                            TaskStatus,
-                                        )
-
-                                        if isinstance(task.status, TaskStatus):
-                                            task.status = TaskStatus.COMPLETED
-                                        else:
-                                            task.status = "completed"
-                                        logger.info(
-                                            f"✅ STREAMLINK_STATUS_UPDATED: {task_id} status updated to completed"
-                                        )
-                                    except Exception as e:
-                                        logger.warning(
-                                            f"Could not update Streamlink task status: {e}"
-                                        )
-
-                                # Set completed timestamp
-                                if (
-                                    not hasattr(task, "completed_at")
-                                    or not task.completed_at
-                                ):
-                                    task.completed_at = datetime.now(timezone.utc)
-                                    logger.info(
-                                        f"✅ STREAMLINK_TIMESTAMP_SET: {task_id} completed_at timestamp set"
-                                    )
-
-                            else:
-                                # For tasks running too long, remove them as they're likely stuck
-                                logger.info(
-                                    f"🧹 REMOVING_STUCK_TASK: {task_id} running too long, removing"
-                                )
-
-                                if hasattr(
-                                    self.background_queue_service,
-                                    "complete_external_task",
-                                ):
-                                    self.background_queue_service.complete_external_task(
-                                        task_id, success=True
-                                    )
-
-                                # Remove from external_tasks directly if method doesn't work
-                                if task_id in external_tasks:
-                                    del external_tasks[task_id]
-                                    logger.info(
-                                        f"🧹 CLEANUP_REMOVED: Directly removed {task_id} from external_tasks"
-                                    )
-
-                            # Remove from progress tracking to prevent UI showing as stuck
-                            if hasattr(
-                                self.background_queue_service, "progress_tracker"
-                            ):
-                                try:
-                                    self.background_queue_service.progress_tracker.remove_external_task(
-                                        task_id
-                                    )
-                                    logger.info(
-                                        f"🧹 TRACKING_REMOVED: Removed {task_id} from progress tracker"
-                                    )
-                                except Exception as e:
-                                    logger.warning(
-                                        f"Could not remove from progress tracker: {e}"
-                                    )
-
-                            cleaned_count += 1
-                            logger.info(
-                                f"✅ CLEANUP_SUCCESS: Processed stuck recording task {task_id}"
-                            )
-
+                    if alive is not False or external_tasks.get(task_id) is not task:
+                        continue
+                    task.error_message = (
+                        "Capture is no longer owned/running; recovery required."
+                    )
+                    self.background_queue_service.complete_external_task(
+                        task_id, success=False
+                    )
+                    cleaned_count += 1
                 except Exception as e:
                     error_msg = f"Failed to cleanup task {task_id}: {str(e)}"
                     errors.append(error_msg)
-                    logger.error(f"❌ CLEANUP_ERROR: {error_msg}")
-
-            logger.info(
-                f"🧹 CLEANUP_COMPLETE: Processed {cleaned_count} stuck recording tasks"
-            )
-
+                    logger.error("Recording task cleanup failed: %s", error_msg)
             return {
                 "cleaned": cleaned_count,
                 "errors": errors,
                 "message": f"Processed {cleaned_count} stuck recording tasks",
             }
-
         except Exception as e:
-            logger.error(f"Error in cleanup_stuck_recording_tasks: {e}", exc_info=True)
+            logger.error("Error in cleanup_stuck_recording_tasks: %s", e, exc_info=True)
             return {"cleaned": 0, "errors": [str(e)]}
 
     async def stop_continuous_orphaned_recovery(self) -> Dict[str, Any]:

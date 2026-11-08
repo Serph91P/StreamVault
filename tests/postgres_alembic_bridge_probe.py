@@ -2,7 +2,8 @@
 
 Run only against a disposable database whose name ends in ``_migration_test``::
 
-    DATABASE_URL=postgresql+psycopg://.../streamvault_migration_test \
+    DATABASE_URL=postgresql+psycopg://.../streamvault_test_bridge_migration_test \
+      STREAMVAULT_POSTGRES_TEST_DISPOSABLE=streamvault_test_bridge_migration_test \
       .venv/bin/python tests/postgres_alembic_bridge_probe.py
 """
 
@@ -14,20 +15,36 @@ import sys
 
 from sqlalchemy import inspect, text
 from sqlalchemy.engine import make_url
+from alembic.script import ScriptDirectory
 
 from app.database import database_lifecycle
 from app.services.system.migration_service import MigrationService
 
 DATABASE_URL = os.environ["DATABASE_URL"]
 DATABASE_NAME = make_url(DATABASE_URL).database or ""
-if not DATABASE_NAME.endswith("_migration_test"):
+parsed = make_url(DATABASE_URL)
+if not (
+    parsed.get_backend_name() == "postgresql"
+    and parsed.host in {"127.0.0.1", "localhost", "::1"}
+    and DATABASE_NAME.startswith("streamvault_test_")
+    and DATABASE_NAME.endswith("_migration_test")
+    and os.environ.get("STREAMVAULT_POSTGRES_TEST_DISPOSABLE") == DATABASE_NAME
+):
     raise RuntimeError("refusing destructive probe outside a *_migration_test database")
 
 
 def _reset_database() -> None:
+    _guard_effective_database()
     with database_lifecycle.sync_engine.begin() as connection:
         connection.execute(text("DROP SCHEMA public CASCADE"))
         connection.execute(text("CREATE SCHEMA public"))
+
+
+def _guard_effective_database():
+    if database_lifecycle.sync_engine.url != parsed:
+        raise RuntimeError(
+            "effective lifecycle database differs from guarded disposable URL"
+        )
 
 
 def _schema_signature() -> tuple[tuple[str, tuple[str, ...]], ...]:
@@ -45,7 +62,9 @@ def _assert_current() -> None:
             connection.execute(
                 text("SELECT version_num FROM alembic_version")
             ).scalar_one()
-            == MigrationService.ALEMBIC_LEGACY_BASELINE
+            == ScriptDirectory.from_config(
+                MigrationService._alembic_config()
+            ).get_current_head()
         )
         assert connection.execute(
             text("SELECT COUNT(*) FROM migrations WHERE success = TRUE")
@@ -53,8 +72,24 @@ def _assert_current() -> None:
 
 
 def _run_single() -> None:
+    _guard_effective_database()
     assert MigrationService.run_migrations()
     _assert_current()
+
+
+def _restore_actual_pre_alembic_fixture(connection):
+    # Historical applications did not have these known candidate tables.
+    for table in (
+        "background_task_dependencies",
+        "background_tasks",
+        "video_catalog_entries",
+    ):
+        assert (
+            connection.execute(text(f'SELECT COUNT(*) FROM "{table}"')).scalar_one()
+            == 0
+        )
+        connection.execute(text(f'DROP TABLE "{table}"'))
+    connection.execute(text("DROP TABLE alembic_version"))
 
 
 def _run_suite() -> None:
@@ -78,7 +113,7 @@ def _run_suite() -> None:
 
     # Representative pre-Alembic ledger with the historical `name` column.
     with database_lifecycle.sync_engine.begin() as connection:
-        connection.execute(text("DROP TABLE alembic_version"))
+        _restore_actual_pre_alembic_fixture(connection)
         connection.execute(
             text("ALTER TABLE migrations RENAME COLUMN script_name TO name")
         )
@@ -87,7 +122,7 @@ def _run_suite() -> None:
 
     # Interrupted bridge: DDL exists, but the final two ledger writes and stamp do not.
     with database_lifecycle.sync_engine.begin() as connection:
-        connection.execute(text("DROP TABLE alembic_version"))
+        _restore_actual_pre_alembic_fixture(connection)
         connection.execute(
             text(
                 "DELETE FROM migrations WHERE script_name IN "

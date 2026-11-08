@@ -183,10 +183,12 @@
     "app/frontend/src/services/__tests__/api-real.streamers.spec.ts",
     "app/frontend/src/services/__tests__/api-real.subscriptions.spec.ts",
     "app/frontend/src/services/__tests__/api-real.twitch.spec.ts",
+    "app/frontend/src/services/__tests__/api-real.video-catalog.spec.ts",
     "app/frontend/src/services/__tests__/api-real.video.spec.ts",
     "app/frontend/src/services/__tests__/api.mock.proxy.spec.ts",
     "app/frontend/src/services/__tests__/api.mock.streamers.spec.ts",
     "app/frontend/src/services/__tests__/api.mock.subscriptions.spec.ts",
+    "app/frontend/src/services/__tests__/api.mock.video-catalog.spec.ts",
     "app/frontend/src/services/__tests__/api.mock.video.spec.ts",
     "app/frontend/src/services/__tests__/recording-auth-priority.spec.ts",
     "app/frontend/src/services/__tests__/recording-settings-save.spec.ts",
@@ -269,6 +271,7 @@
     "app/frontend/src/views/__tests__/SystemBackNavigation.spec.ts",
     "app/frontend/src/views/__tests__/SystemHubView.spec.ts",
     "app/frontend/src/views/__tests__/VideoPlayerView.spec.ts",
+    "app/frontend/src/views/__tests__/VideosView.pagination.spec.ts",
     "app/frontend/src/views/__tests__/VideosView.spec.ts",
     "app/frontend/tests/audit/baselineObservation.ts",
     "app/frontend/tests/audit/gateEvidence.ts",
@@ -1466,6 +1469,15 @@
     },
     {
       "method": "GET",
+      "path": "/api/videos/${streamId}/metadata",
+      "source": "app/frontend/src/services/api-real.ts",
+      "auth": "cookie credentials include via ApiClient",
+      "headers": [
+        "Content-Type: application/json"
+      ]
+    },
+    {
+      "method": "GET",
       "path": "/api/videos",
       "source": "app/frontend/src/services/api-real.ts",
       "auth": "cookie credentials include via ApiClient",
@@ -1804,6 +1816,7 @@
     "app/frontend/src/views/VideoPlayerView.vue",
     "app/frontend/src/views/__tests__/StreamerDetailView.spec.ts",
     "app/frontend/src/views/__tests__/VideoPlayerView.spec.ts",
+    "app/frontend/src/views/__tests__/VideosView.pagination.spec.ts",
     "app/frontend/src/views/__tests__/VideosView.spec.ts",
     "app/frontend/tests/e2e/final-local-state-matrix.spec.ts",
     "app/frontend/tests/e2e/foundation.spec.ts",
@@ -2032,6 +2045,7 @@
     "app/frontend/src/services/__tests__/api-real.batch-delete.spec.ts",
     "app/frontend/src/services/__tests__/api-real.return-navigation.spec.ts",
     "app/frontend/src/services/__tests__/api.mock.proxy.spec.ts",
+    "app/frontend/src/services/__tests__/api.mock.video-catalog.spec.ts",
     "app/frontend/src/services/__tests__/recording-settings-save.spec.ts",
     "app/frontend/src/services/__tests__/recording-status.spec.ts",
     "app/frontend/src/services/__tests__/session.spec.ts",
@@ -2065,6 +2079,7 @@
     "app/frontend/src/types/proxy.ts",
     "app/frontend/src/types/settings.ts",
     "app/frontend/src/types/streamer.ts",
+    "app/frontend/src/types/video.ts",
     "app/frontend/src/utils/__tests__/focus.spec.ts",
     "app/frontend/src/utils/__tests__/playerClock.spec.ts",
     "app/frontend/src/utils/apiCache.ts",
@@ -2086,6 +2101,7 @@
     "app/frontend/src/views/__tests__/StreamersView.channelFirst.spec.ts",
     "app/frontend/src/views/__tests__/SubscriptionsView.spec.ts",
     "app/frontend/src/views/__tests__/VideoPlayerView.spec.ts",
+    "app/frontend/src/views/__tests__/VideosView.pagination.spec.ts",
     "app/frontend/src/views/__tests__/VideosView.spec.ts",
     "app/frontend/tests/audit/baselineObservation.ts",
     "app/frontend/tests/audit/gateEvidence.ts",
@@ -2200,7 +2216,9 @@
     "app/frontend/src/services/__tests__/api-real.streamers.spec.ts",
     "app/frontend/src/services/__tests__/api-real.subscriptions.spec.ts",
     "app/frontend/src/services/__tests__/api-real.twitch.spec.ts",
+    "app/frontend/src/services/__tests__/api-real.video-catalog.spec.ts",
     "app/frontend/src/services/__tests__/api-real.video.spec.ts",
+    "app/frontend/src/services/__tests__/api.mock.video-catalog.spec.ts",
     "app/frontend/src/services/__tests__/session.spec.ts",
     "app/frontend/src/services/api-real.ts",
     "app/frontend/src/services/api.ts",
@@ -2226,6 +2244,7 @@
     "app/frontend/src/views/__tests__/SystemBackNavigation.spec.ts",
     "app/frontend/src/views/__tests__/SystemHubView.spec.ts",
     "app/frontend/src/views/__tests__/VideoPlayerView.spec.ts",
+    "app/frontend/src/views/__tests__/VideosView.pagination.spec.ts",
     "app/frontend/src/views/__tests__/VideosView.spec.ts",
     "app/frontend/tests/audit/interactionAudit.ts",
     "app/frontend/tests/e2e/background-queue-lifecycle.spec.ts",
@@ -2746,7 +2765,7 @@
     },
     {
       "file": "app/frontend/src/views/VideoPlayerView.vue",
-      "line": 1317,
+      "line": 1302,
       "match": "@media (max-width: 767px"
     }
   ],
@@ -3623,22 +3642,22 @@
     },
     {
       "file": "app/frontend/src/views/VideoPlayerView.vue",
-      "line": 399,
+      "line": 384,
       "match": "document.createElement"
     },
     {
       "file": "app/frontend/src/views/VideoPlayerView.vue",
-      "line": 403,
+      "line": 388,
       "match": "document.body"
     },
     {
       "file": "app/frontend/src/views/VideoPlayerView.vue",
-      "line": 405,
+      "line": 390,
       "match": "document.body"
     },
     {
       "file": "app/frontend/src/views/VideoPlayerView.vue",
-      "line": 456,
+      "line": 441,
       "match": "document.execCommand"
     },
     {
@@ -4485,72 +4504,72 @@
     },
     {
       "file": "app/frontend/src/services/api.ts",
-      "line": 78,
+      "line": 121,
       "match": "const mockVideoApi = {"
     },
     {
       "file": "app/frontend/src/services/api.ts",
-      "line": 97,
+      "line": 146,
       "match": "const mockRecordingApi = {"
     },
     {
       "file": "app/frontend/src/services/api.ts",
-      "line": 103,
+      "line": 152,
       "match": "const mockBackgroundQueueApi = {"
     },
     {
       "file": "app/frontend/src/services/api.ts",
-      "line": 119,
+      "line": 168,
       "match": "const mockSettingsApi = {"
     },
     {
       "file": "app/frontend/src/services/api.ts",
-      "line": 131,
+      "line": 180,
       "match": "const mockApiKeysApi = {"
     },
     {
       "file": "app/frontend/src/services/api.ts",
-      "line": 144,
+      "line": 193,
       "match": "const mockNotificationApi = {"
     },
     {
       "file": "app/frontend/src/services/api.ts",
-      "line": 183,
+      "line": 232,
       "match": "const mockProxyApi = {"
     },
     {
       "file": "app/frontend/src/services/api.ts",
-      "line": 256,
+      "line": 305,
       "match": "const mockSystemApi = {"
     },
     {
       "file": "app/frontend/src/services/api.ts",
-      "line": 271,
+      "line": 320,
       "match": "const mockStreamsApi = {"
     },
     {
       "file": "app/frontend/src/services/api.ts",
-      "line": 275,
+      "line": 324,
       "match": "const mockAuthApi = {"
     },
     {
       "file": "app/frontend/src/services/api.ts",
-      "line": 286,
+      "line": 335,
       "match": "const mockSubscriptionsApi = {"
     },
     {
       "file": "app/frontend/src/services/api.ts",
-      "line": 306,
+      "line": 355,
       "match": "const mockCategoriesApi = {"
     },
     {
       "file": "app/frontend/src/services/api.ts",
-      "line": 311,
+      "line": 360,
       "match": "const mockFilenamePresetsApi = {"
     },
     {
       "file": "app/frontend/src/services/api.ts",
-      "line": 315,
+      "line": 364,
       "match": "const mockLiveApi = {"
     },
     {
@@ -4650,7 +4669,17 @@
     },
     {
       "file": "app/frontend/src/views/VideosView.vue",
-      "line": 376,
+      "line": 384,
+      "match": "const pageSize = 5"
+    },
+    {
+      "file": "app/frontend/src/views/VideosView.vue",
+      "line": 389,
+      "match": "let generation = 0"
+    },
+    {
+      "file": "app/frontend/src/views/VideosView.vue",
+      "line": 396,
       "match": "const sortOptions = ["
     },
     {
@@ -5327,23 +5356,58 @@
     },
     {
       "file": "app/frontend/src/views/VideoPlayerView.vue",
-      "line": 411,
+      "line": 396,
       "match": "setTimeout("
     },
     {
       "file": "app/frontend/src/views/VideoPlayerView.vue",
-      "line": 464,
+      "line": 449,
       "match": "setTimeout("
     },
     {
       "file": "app/frontend/src/views/VideoPlayerView.vue",
-      "line": 495,
+      "line": 480,
       "match": "addEventListener("
     },
     {
       "file": "app/frontend/src/views/VideoPlayerView.vue",
-      "line": 500,
+      "line": 485,
       "match": "removeEventListener("
+    },
+    {
+      "file": "app/frontend/src/views/VideosView.vue",
+      "line": 591,
+      "match": "clearTimeout("
+    },
+    {
+      "file": "app/frontend/src/views/VideosView.vue",
+      "line": 597,
+      "match": "setTimeout("
+    },
+    {
+      "file": "app/frontend/src/views/VideosView.vue",
+      "line": 600,
+      "match": "clearTimeout("
+    },
+    {
+      "file": "app/frontend/src/views/VideosView.vue",
+      "line": 606,
+      "match": "clearTimeout("
+    },
+    {
+      "file": "app/frontend/src/views/__tests__/VideosView.pagination.spec.ts",
+      "line": 65,
+      "match": "setTimeout("
+    },
+    {
+      "file": "app/frontend/src/views/__tests__/VideosView.pagination.spec.ts",
+      "line": 69,
+      "match": "setTimeout("
+    },
+    {
+      "file": "app/frontend/src/views/__tests__/VideosView.spec.ts",
+      "line": 142,
+      "match": "setTimeout("
     },
     {
       "file": "app/frontend/tests/e2e/frontend-baseline.spec.ts",
@@ -5689,7 +5753,7 @@
     },
     {
       "file": "app/frontend/src/services/api-real.ts",
-      "line": 502,
+      "line": 509,
       "match": ": any"
     },
     {
@@ -5739,7 +5803,7 @@
     },
     {
       "file": "app/frontend/src/views/HomeView.vue",
-      "line": 547,
+      "line": 541,
       "match": ": any"
     },
     {
@@ -5879,27 +5943,32 @@
     },
     {
       "file": "app/frontend/src/views/VideoPlayerView.vue",
+      "line": 330,
+      "match": ": any"
+    },
+    {
+      "file": "app/frontend/src/views/VideoPlayerView.vue",
       "line": 345,
       "match": ": any"
     },
     {
       "file": "app/frontend/src/views/VideoPlayerView.vue",
-      "line": 360,
-      "match": ": any"
-    },
-    {
-      "file": "app/frontend/src/views/VideoPlayerView.vue",
-      "line": 382,
+      "line": 367,
       "match": ": any"
     },
     {
       "file": "app/frontend/src/views/VideosView.vue",
-      "line": 544,
+      "line": 541,
       "match": ": any"
     },
     {
       "file": "app/frontend/src/views/VideosView.vue",
-      "line": 623,
+      "line": 572,
+      "match": ": any"
+    },
+    {
+      "file": "app/frontend/src/views/VideosView.vue",
+      "line": 681,
       "match": ": any"
     }
   ],
@@ -7333,32 +7402,47 @@
     },
     {
       "file": "app/frontend/src/views/VideosView.vue",
-      "line": 178,
-      "match": "@click="
-    },
-    {
-      "file": "app/frontend/src/views/VideosView.vue",
       "line": 194,
       "match": "@click="
     },
     {
       "file": "app/frontend/src/views/VideosView.vue",
-      "line": 204,
+      "line": 210,
       "match": "@click="
     },
     {
       "file": "app/frontend/src/views/VideosView.vue",
-      "line": 214,
+      "line": 220,
       "match": "@click="
     },
     {
       "file": "app/frontend/src/views/VideosView.vue",
-      "line": 316,
+      "line": 230,
       "match": "@click="
     },
     {
       "file": "app/frontend/src/views/VideosView.vue",
-      "line": 319,
+      "line": 259,
+      "match": "@click="
+    },
+    {
+      "file": "app/frontend/src/views/VideosView.vue",
+      "line": 327,
+      "match": "@click="
+    },
+    {
+      "file": "app/frontend/src/views/VideosView.vue",
+      "line": 329,
+      "match": "@click="
+    },
+    {
+      "file": "app/frontend/src/views/VideosView.vue",
+      "line": 345,
+      "match": "@click="
+    },
+    {
+      "file": "app/frontend/src/views/VideosView.vue",
+      "line": 348,
       "match": "@click="
     },
     {
@@ -7378,17 +7462,17 @@
     },
     {
       "file": "app/frontend/src/views/__tests__/VideosView.spec.ts",
-      "line": 36,
+      "line": 54,
       "match": "@click="
     },
     {
       "file": "app/frontend/src/views/__tests__/VideosView.spec.ts",
-      "line": 48,
+      "line": 66,
       "match": "@click="
     },
     {
       "file": "app/frontend/src/views/__tests__/VideosView.spec.ts",
-      "line": 52,
+      "line": 70,
       "match": "@click="
     },
     {
@@ -7803,7 +7887,7 @@
     },
     {
       "file": "app/frontend/src/components/cards/VideoCard.vue",
-      "line": 488,
+      "line": 471,
       "match": "transition: all"
     },
     {
@@ -8033,57 +8117,57 @@
     },
     {
       "file": "app/frontend/src/views/VideoPlayerView.vue",
-      "line": 704,
+      "line": 689,
       "match": "transition: all"
     },
     {
       "file": "app/frontend/src/views/VideoPlayerView.vue",
-      "line": 946,
+      "line": 931,
       "match": "transition: all"
     },
     {
       "file": "app/frontend/src/views/VideoPlayerView.vue",
-      "line": 1020,
+      "line": 1005,
       "match": "transition: all"
     },
     {
       "file": "app/frontend/src/views/VideosView.vue",
-      "line": 735,
+      "line": 795,
       "match": "transition: all"
     },
     {
       "file": "app/frontend/src/views/VideosView.vue",
-      "line": 837,
+      "line": 897,
       "match": "transition: all"
     },
     {
       "file": "app/frontend/src/views/VideosView.vue",
-      "line": 976,
+      "line": 1036,
       "match": "transition: all"
     },
     {
       "file": "app/frontend/src/views/VideosView.vue",
-      "line": 1001,
+      "line": 1061,
       "match": "transition: all"
     },
     {
       "file": "app/frontend/src/views/VideosView.vue",
-      "line": 1104,
+      "line": 1164,
       "match": "transition: all"
     },
     {
       "file": "app/frontend/src/views/VideosView.vue",
-      "line": 1132,
+      "line": 1192,
       "match": "transition: all"
     },
     {
       "file": "app/frontend/src/views/VideosView.vue",
-      "line": 1158,
+      "line": 1218,
       "match": "transition: all"
     },
     {
       "file": "app/frontend/src/views/VideosView.vue",
-      "line": 1168,
+      "line": 1228,
       "match": "transition: all"
     }
   ],
@@ -8967,62 +9051,62 @@
     },
     {
       "file": "app/frontend/src/components/cards/VideoCard.vue",
-      "line": 491,
+      "line": 474,
       "match": "width: 32px"
     },
     {
       "file": "app/frontend/src/components/cards/VideoCard.vue",
-      "line": 492,
+      "line": 475,
       "match": "height: 32px"
     },
     {
       "file": "app/frontend/src/components/cards/VideoCard.vue",
-      "line": 515,
+      "line": 498,
       "match": "width: 20px"
     },
     {
       "file": "app/frontend/src/components/cards/VideoCard.vue",
-      "line": 516,
+      "line": 499,
       "match": "height: 20px"
     },
     {
       "file": "app/frontend/src/components/cards/VideoCard.vue",
-      "line": 603,
+      "line": 586,
       "match": "width: 14px"
     },
     {
       "file": "app/frontend/src/components/cards/VideoCard.vue",
-      "line": 604,
+      "line": 587,
       "match": "height: 14px"
     },
     {
       "file": "app/frontend/src/components/cards/VideoCard.vue",
-      "line": 632,
+      "line": 615,
       "match": "width: 36px"
     },
     {
       "file": "app/frontend/src/components/cards/VideoCard.vue",
-      "line": 633,
+      "line": 616,
       "match": "height: 36px"
     },
     {
       "file": "app/frontend/src/components/cards/VideoCard.vue",
-      "line": 675,
+      "line": 658,
       "match": "width: 28px"
     },
     {
       "file": "app/frontend/src/components/cards/VideoCard.vue",
-      "line": 676,
+      "line": 659,
       "match": "height: 28px"
     },
     {
       "file": "app/frontend/src/components/cards/VideoCard.vue",
-      "line": 724,
+      "line": 707,
       "match": "width: 32px"
     },
     {
       "file": "app/frontend/src/components/cards/VideoCard.vue",
-      "line": 725,
+      "line": 708,
       "match": "height: 32px"
     },
     {
@@ -9992,42 +10076,42 @@
     },
     {
       "file": "app/frontend/src/views/HomeView.vue",
-      "line": 806,
+      "line": 800,
       "match": "width: 16px"
     },
     {
       "file": "app/frontend/src/views/HomeView.vue",
-      "line": 807,
+      "line": 801,
       "match": "height: 16px"
     },
     {
       "file": "app/frontend/src/views/HomeView.vue",
-      "line": 822,
+      "line": 816,
       "match": "width: 24px"
     },
     {
       "file": "app/frontend/src/views/HomeView.vue",
-      "line": 823,
+      "line": 817,
       "match": "height: 24px"
     },
     {
       "file": "app/frontend/src/views/HomeView.vue",
-      "line": 828,
+      "line": 822,
       "match": "width: 20px"
     },
     {
       "file": "app/frontend/src/views/HomeView.vue",
-      "line": 829,
+      "line": 823,
       "match": "height: 20px"
     },
     {
       "file": "app/frontend/src/views/HomeView.vue",
-      "line": 935,
+      "line": 929,
       "match": "width: 16px"
     },
     {
       "file": "app/frontend/src/views/HomeView.vue",
-      "line": 936,
+      "line": 930,
       "match": "height: 16px"
     },
     {
@@ -10447,187 +10531,187 @@
     },
     {
       "file": "app/frontend/src/views/VideoPlayerView.vue",
-      "line": 595,
+      "line": 580,
       "match": "min-height: 36px"
     },
     {
       "file": "app/frontend/src/views/VideoPlayerView.vue",
-      "line": 709,
+      "line": 694,
       "match": "width: 14px"
     },
     {
       "file": "app/frontend/src/views/VideoPlayerView.vue",
-      "line": 710,
+      "line": 695,
       "match": "height: 14px"
     },
     {
       "file": "app/frontend/src/views/VideoPlayerView.vue",
-      "line": 726,
+      "line": 711,
       "match": "min-height: 28px"
     },
     {
       "file": "app/frontend/src/views/VideoPlayerView.vue",
-      "line": 787,
+      "line": 772,
       "match": "width: 12px"
     },
     {
       "file": "app/frontend/src/views/VideoPlayerView.vue",
-      "line": 788,
+      "line": 773,
       "match": "height: 12px"
     },
     {
       "file": "app/frontend/src/views/VideoPlayerView.vue",
-      "line": 852,
+      "line": 837,
       "match": "width: 18px"
     },
     {
       "file": "app/frontend/src/views/VideoPlayerView.vue",
-      "line": 853,
+      "line": 838,
       "match": "height: 18px"
     },
     {
       "file": "app/frontend/src/views/VideoPlayerView.vue",
-      "line": 924,
+      "line": 909,
       "match": "width: 4px"
     },
     {
       "file": "app/frontend/src/views/VideoPlayerView.vue",
-      "line": 1027,
+      "line": 1012,
       "match": "width: 16px"
     },
     {
       "file": "app/frontend/src/views/VideoPlayerView.vue",
-      "line": 1028,
+      "line": 1013,
       "match": "height: 16px"
     },
     {
       "file": "app/frontend/src/views/VideoPlayerView.vue",
-      "line": 1116,
+      "line": 1101,
       "match": "width: 14px"
     },
     {
       "file": "app/frontend/src/views/VideoPlayerView.vue",
-      "line": 1117,
+      "line": 1102,
       "match": "height: 14px"
     },
     {
       "file": "app/frontend/src/views/VideoPlayerView.vue",
-      "line": 1256,
+      "line": 1241,
       "match": "width: 16px"
     },
     {
       "file": "app/frontend/src/views/VideoPlayerView.vue",
-      "line": 1257,
+      "line": 1242,
       "match": "height: 16px"
     },
     {
       "file": "app/frontend/src/views/VideoPlayerView.vue",
-      "line": 1280,
+      "line": 1265,
       "match": "width: 14px"
     },
     {
       "file": "app/frontend/src/views/VideoPlayerView.vue",
-      "line": 1281,
+      "line": 1266,
       "match": "height: 14px"
     },
     {
       "file": "app/frontend/src/views/VideosView.vue",
-      "line": 720,
+      "line": 780,
       "match": "width: 20px"
     },
     {
       "file": "app/frontend/src/views/VideosView.vue",
-      "line": 721,
+      "line": 781,
       "match": "height: 20px"
     },
     {
       "file": "app/frontend/src/views/VideosView.vue",
-      "line": 765,
+      "line": 825,
       "match": "width: 16px"
     },
     {
       "file": "app/frontend/src/views/VideosView.vue",
-      "line": 766,
+      "line": 826,
       "match": "height: 16px"
     },
     {
       "file": "app/frontend/src/views/VideosView.vue",
-      "line": 804,
+      "line": 864,
       "match": "width: 20px"
     },
     {
       "file": "app/frontend/src/views/VideosView.vue",
-      "line": 805,
+      "line": 865,
       "match": "height: 20px"
     },
     {
       "file": "app/frontend/src/views/VideosView.vue",
-      "line": 840,
+      "line": 900,
       "match": "width: 18px"
     },
     {
       "file": "app/frontend/src/views/VideosView.vue",
-      "line": 841,
+      "line": 901,
       "match": "height: 18px"
     },
     {
       "file": "app/frontend/src/views/VideosView.vue",
-      "line": 855,
+      "line": 915,
       "match": "min-width: 20px"
     },
     {
       "file": "app/frontend/src/views/VideosView.vue",
-      "line": 856,
+      "line": 916,
       "match": "height: 20px"
     },
     {
       "file": "app/frontend/src/views/VideosView.vue",
-      "line": 903,
+      "line": 963,
       "match": "width: 18px"
     },
     {
       "file": "app/frontend/src/views/VideosView.vue",
-      "line": 904,
+      "line": 964,
       "match": "height: 18px"
     },
     {
       "file": "app/frontend/src/views/VideosView.vue",
-      "line": 1006,
+      "line": 1066,
       "match": "width: 16px"
     },
     {
       "file": "app/frontend/src/views/VideosView.vue",
-      "line": 1007,
+      "line": 1067,
       "match": "height: 16px"
     },
     {
       "file": "app/frontend/src/views/VideosView.vue",
-      "line": 1048,
+      "line": 1108,
       "match": "width: 14px"
     },
     {
       "file": "app/frontend/src/views/VideosView.vue",
-      "line": 1049,
+      "line": 1109,
       "match": "height: 14px"
     },
     {
       "file": "app/frontend/src/views/VideosView.vue",
-      "line": 1149,
+      "line": 1209,
       "match": "width: 24px"
     },
     {
       "file": "app/frontend/src/views/VideosView.vue",
-      "line": 1150,
+      "line": 1210,
       "match": "height: 24px"
     },
     {
       "file": "app/frontend/src/views/VideosView.vue",
-      "line": 1162,
+      "line": 1222,
       "match": "width: 16px"
     },
     {
       "file": "app/frontend/src/views/VideosView.vue",
-      "line": 1163,
+      "line": 1223,
       "match": "height: 16px"
     },
     {
@@ -11594,6 +11678,16 @@
     },
     {
       "method": "GET",
+      "path": "/api/videos/catalog",
+      "source": "app/routes/videos.py"
+    },
+    {
+      "method": "GET",
+      "path": "/api/videos/{stream_id}/metadata",
+      "source": "app/routes/videos.py"
+    },
+    {
+      "method": "GET",
       "path": "/api/videos",
       "source": "app/routes/videos.py"
     },
@@ -11677,31 +11771,31 @@
     "schemaVersion": 1,
     "generatedBy": "app/frontend/scripts/inventory-frontend.mjs",
     "sourceRoot": "app/frontend",
-    "frontendFiles": 357,
+    "frontendFiles": 360,
     "routes": 21,
     "navigationDestinations": 18,
-    "apiCalls": 146,
+    "apiCalls": 147,
     "websocketConsumers": 19,
     "storage": 3,
-    "overlays": 84,
+    "overlays": 85,
     "forms": 7,
     "tables": 6,
     "destructiveActions": 69,
-    "states": 213,
+    "states": 216,
     "players": 14,
-    "pwa": 130,
+    "pwa": 133,
     "breakpoints": 94,
     "directDomMutations": 292,
-    "moduleScopeMutableState": 109,
-    "listenersAndTimers": 137,
-    "anyTypes": 91,
+    "moduleScopeMutableState": 111,
+    "listenersAndTimers": 144,
+    "anyTypes": 92,
     "nonsemanticActions": 18,
-    "clickSemantics": 286,
+    "clickSemantics": 289,
     "nativeDialogs": 55,
     "vHtml": 0,
     "transitionAll": 76,
     "raw100vh": 15,
     "potentialUndersizeTargets": 496,
-    "backendRoutes": 205
+    "backendRoutes": 207
   }
 }

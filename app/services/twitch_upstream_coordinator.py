@@ -10,6 +10,7 @@ import psutil
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
 
 from app.models import (
     GlobalSettings,
@@ -220,6 +221,24 @@ class TwitchUpstreamCoordinator:
         return await asyncio.to_thread(
             self._update_auth_priority, channel_key, generation, priority
         )
+
+    async def run_capture_maintenance[T](self, operation: Callable[[Session], T]) -> T:
+        """Serialize a bounded synchronous maintenance mutation with admission.
+
+        Both the Session and ORM values stay inside this worker-thread callback.
+        Only its affected-row count crosses back to the event loop.
+        """
+        from app.utils.async_db_utils import run_in_thread_pool
+
+        return await run_in_thread_pool(self._run_capture_maintenance, operation)
+
+    def _run_capture_maintenance[T](self, operation: Callable[[Session], T]) -> T:
+        with self._session_factory() as db:
+            self._begin_guarded_transaction(db)
+            self._lock_guard(db, self._utcnow())
+            result = operation(db)
+            db.commit()
+            return result
 
     async def release(
         self,

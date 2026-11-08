@@ -5,7 +5,7 @@ const { chromium, expect } = createRequire(process.env.FRONTEND_ROOT + '/package
 const origin = process.env.ACCEPTANCE_ORIGIN
 const output = process.env.ACCEPTANCE_OUTPUT
 const browser = await chromium.launch({ headless: true })
-const result = { scope: 'REAL build, actual product factory/routers/services, disposable SQLite; only failed POST seams', cases: [] }
+const result = { scope: 'REAL build, actual product factory/routers/services, disposable SQLite; cached synthetic release metadata and failed POST seams only', cases: [] }
 try {
   for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
     const context = await browser.newContext({ viewport, serviceWorkers: 'block' })

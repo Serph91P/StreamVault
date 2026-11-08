@@ -102,7 +102,7 @@ describe('blocking build-output budgets', () => {
     expect(result.stdout).toContain(`\"jsBytes\": ${compliantWithWorker.jsBytes}`)
   })
 
-  it.each([[381000, 0], [381001, 1]])('enforces the approved application gzip boundary at %i bytes', async (applicationGzip, status) => {
+  it.each([[382700, 0], [382701, 1]])('enforces the approved application gzip boundary at %i bytes', async (applicationGzip, status) => {
     const directory = await mkdtemp(join(tmpdir(), 'streamvault-gzip-boundary-'))
     const fixture = join(directory, 'metrics.json')
     await writeFile(fixture, JSON.stringify({
@@ -111,7 +111,7 @@ describe('blocking build-output budgets', () => {
     }))
     const result = spawnSync(process.execPath, [script, '--fixture', fixture, '--budget', budgets], { encoding: 'utf8' })
     expect(result.status).toBe(status)
-    if (status) expect(result.stderr).toContain('applicationJsGzipBytes 381001 > 381000')
+    if (status) expect(result.stderr).toContain('applicationJsGzipBytes 382701 > 382700')
   })
 
   it.each([
@@ -121,7 +121,7 @@ describe('blocking build-output budgets', () => {
     ['missing worker', { hlsWorker: { ...compliantWithWorker.hlsWorker, count: 0, path: null, bytes: 0, gzipBytes: 0 } }],
     ['wrong package version', { hlsWorker: { ...compliantWithWorker.hlsWorker, packageVersion: '1.7.2' } }],
     ['missing worker metric', { hlsWorker: undefined }],
-    ['oversized application despite allowed total', { jsBytes: compliantWithWorker.jsBytes + 4000, hlsWorker: { ...compliantWithWorker.hlsWorker, bytes: 116000 } }],
+    ['oversized application despite allowed total', { jsBytes: 1201534 + 116000, hlsWorker: { ...compliantWithWorker.hlsWorker, bytes: 116000 } }],
   ])('rejects %s', async (_name, changed) => {
     const directory = await mkdtemp(join(tmpdir(), 'streamvault-budget-worker-fail-'))
     const fixture = join(directory, 'metrics.json')

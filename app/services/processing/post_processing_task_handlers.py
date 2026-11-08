@@ -463,6 +463,7 @@ class PostProcessingTaskHandlers:
                 chapters=chapters,
                 streamer_name=streamer_name,
                 logging_service=self.logging_service,
+                overwrite=payload.get("overwrite", False),
             )
 
             if not result.get("success"):
