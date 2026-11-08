@@ -20,6 +20,8 @@ describe('issue 828 synthetic REAL HTTP fixture (not live backend evidence)', ()
       expect(await (await fetch(`${base}/auth/setup`)).json()).toEqual({ setup_required: false, welcome_completed: true })
       expect(await (await fetch(`${base}/auth/check`)).json()).toEqual({ authenticated: true })
       expect(await (await fetch(`${base}/api/videos?q=alpha`)).json()).toEqual(syntheticVideos)
+      expect(await (await fetch(`${base}/api/videos/1/metadata`)).json()).toEqual(syntheticVideos[0])
+      expect((await fetch(`${base}/api/videos/999/metadata`)).status).toBe(404)
       expect(await (await fetch(`${base}/api/videos/1/chapters`)).json()).toEqual(syntheticChapters('default'))
       for (const selected of chapterVariants) {
         variant = selected

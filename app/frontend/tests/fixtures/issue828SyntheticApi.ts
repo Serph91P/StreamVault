@@ -44,6 +44,10 @@ export function syntheticReply(path: string, method = 'GET', variant: ChapterVar
   if (pathname === '/auth/setup') body = { setup_required: false, welcome_completed: true }
   else if (pathname === '/auth/check') body = { authenticated: true }
   else if (pathname === '/api/videos') body = syntheticVideos
+  else if (/^\/api\/videos\/\d+\/metadata$/.test(pathname)) {
+    body = syntheticVideos.find(video => video.id === Number(pathname.split('/')[3]))
+    if (!body) return { status: 404, body: { detail: 'Synthetic video not found' } }
+  }
   else if (/^\/api\/videos\/\d+\/chapters$/.test(pathname)) body = syntheticChapters(variant)
   else if (pathname === '/api/streamers') body = { streamers: [syntheticStreamer] }
   else if (pathname === '/api/streamers/streamer/1') body = syntheticStreamer

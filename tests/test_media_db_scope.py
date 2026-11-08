@@ -2,6 +2,7 @@
 
 import asyncio
 import importlib
+import secrets
 from datetime import datetime, timedelta, timezone
 
 from fastapi import FastAPI
@@ -35,7 +36,7 @@ def test_authenticated_slow_media_releases_all_db_scopes_before_body(tmp_path, m
         monkeypatch.setattr(module, "SessionLocal", sessions)
     monkeypatch.setattr(settings_module, "get_settings", lambda: config)
     with sessions() as db:
-        user = User(username="synthetic-pool", password="unusable-synthetic", is_admin=True, is_active=True)
+        user = User(username="synthetic-pool", password=secrets.token_urlsafe(32), is_admin=True, is_active=True)
         channel = Streamer(username="synthetic-pool", twitch_id="synthetic-pool")
         db.add_all([user, channel])
         db.flush()
