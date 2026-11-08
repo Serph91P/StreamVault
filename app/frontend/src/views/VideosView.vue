@@ -423,7 +423,7 @@ const isDeleting = ref(false)
 const deleteError = ref('')
 
 // Available filter options
-const availableStreamers = computed(() => summary.value.streamers.map(streamer => streamer.name))
+const availableStreamers = computed(() => summary.value.streamers.map(streamer => streamer.name).sort())
 
 // Active filters count
 const activeFiltersCount = computed(() => {

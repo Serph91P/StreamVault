@@ -36,6 +36,32 @@ export const syntheticVideos = Array.from({ length: 40 }, (_, index) => ({
   language: 'en', twitch_stream_id: null, episode_number: index + 1,
 } satisfies Stream & Record<string, unknown>))
 
+/** Deterministic catalog boundary for browser fixtures, not backend evidence. */
+function syntheticCatalog(path: string) {
+  const query = new URL(path, 'http://127.0.0.1').searchParams
+  const page = Math.max(1, Number(query.get('page') || 1))
+  const pageSize = Math.min(200, Math.max(1, Number(query.get('page_size') || 50)))
+  const q = (query.get('q') || '').toLowerCase()
+  const videos = syntheticVideos.filter(video =>
+    (!q || `${video.title} ${video.streamer_name}`.toLowerCase().includes(q)) &&
+    (!query.has('streamer_id') || video.streamer_id === Number(query.get('streamer_id'))) &&
+    (!query.get('streamer') || video.streamer_name === query.get('streamer')) &&
+    (!query.get('category') || video.category_name === query.get('category')))
+  const order = query.get('order') === 'asc' ? 1 : -1
+  videos.sort((a, b) => order * (query.get('sort') === 'title'
+    ? a.title.localeCompare(b.title) : Date.parse(a.created_at) - Date.parse(b.created_at)))
+  return {
+    items: videos.slice((page - 1) * pageSize, page * pageSize),
+    total: videos.length, page, page_size: pageSize, has_more: page * pageSize < videos.length,
+    index: { pending: 0, missing: 0, error: 0, complete: true, oldest_checked_at: null,
+      page_revalidation_changed: false, retry_required: false },
+    summary: { total: syntheticVideos.length, duration: 12 * syntheticVideos.length,
+      file_size: 3257 * syntheticVideos.length,
+      streamers: [{ id: 1, name: 'synthetic_alpha', count: syntheticVideos.length }],
+      categories: ['Synthetic category'] },
+  }
+}
+
 /** Unknown requests fail closed instead of returning a plausible empty success. */
 export function syntheticReply(path: string, method = 'GET', variant: ChapterVariant = 'default') {
   const pathname = new URL(path, 'http://127.0.0.1').pathname
@@ -44,6 +70,7 @@ export function syntheticReply(path: string, method = 'GET', variant: ChapterVar
   if (pathname === '/auth/setup') body = { setup_required: false, welcome_completed: true }
   else if (pathname === '/auth/check') body = { authenticated: true }
   else if (pathname === '/api/videos') body = syntheticVideos
+  else if (pathname === '/api/videos/catalog') body = syntheticCatalog(path)
   else if (/^\/api\/videos\/\d+\/metadata$/.test(pathname)) {
     body = syntheticVideos.find(video => video.id === Number(pathname.split('/')[3]))
     if (!body) return { status: 404, body: { detail: 'Synthetic video not found' } }

@@ -39,6 +39,17 @@ beforeEach(() => {
 afterEach(() => vi.clearAllMocks())
 
 describe('server paged library workflow', () => {
+  it('keeps global streamer filter options alphabetic regardless of server facet order', async () => {
+    const response = page()
+    response.summary.streamers.reverse()
+    mocks.getPage.mockResolvedValueOnce(response)
+    const wrapper = view()
+    await flushPromises()
+    expect(wrapper.findAll('[aria-label="Filter videos by streamer"] option').map(option => option.text()))
+      .toEqual(['All Streamers', 'alpha', 'zeta'])
+    wrapper.unmount()
+  })
+
   it('restores page, uses global facets/totals and clears selection on page change', async () => {
     const wrapper = view()
     await flushPromises()
