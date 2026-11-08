@@ -29,6 +29,9 @@ caller's ``cmd`` should NOT already contain ``-progress`` or ``-nostats``.
 from __future__ import annotations
 
 import asyncio
+from app.utils.media_process import media_process
+from app.utils.process_output import BoundedStreamlinkOutput
+
 import inspect
 import logging
 from pathlib import Path
@@ -99,29 +102,29 @@ class FFmpegProgressTracker:
             except Exception as exc:
                 logger.debug(f"logging_service.log_ffmpeg_start failed: {exc}")
 
-        process = await asyncio.create_subprocess_exec(
+        process_scope = media_process(
             *instrumented_cmd,
+            drain=False,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             cwd=cwd,
             env=env,
         )
+        process, _ = await process_scope.__aenter__()
+
+        drainers = []
 
         async def _runner():
-            stderr_chunks: List[bytes] = []
-            stdout_chunks: List[bytes] = []
+            stderr = b""
 
             async def _consume_stderr():
-                assert process.stderr is not None
-                while True:
-                    chunk = await process.stderr.read(4096)
-                    if not chunk:
-                        break
-                    stderr_chunks.append(chunk)
+                nonlocal stderr
+                stderr = await BoundedStreamlinkOutput.drain_reader(process.stderr)
 
             async def _consume_progress():
                 assert process.stdout is not None
                 buf = b""
+                discarding_line = False
                 last_emit = 0.0
                 last_pct = -1.0
                 loop = asyncio.get_event_loop()
@@ -132,13 +135,17 @@ class FFmpegProgressTracker:
                 while True:
                     chunk = await process.stdout.read(4096)
                     if not chunk:
-                        # Capture trailing partial line (rare for -progress).
-                        if buf:
-                            stdout_chunks.append(buf)
                         break
+                    if discarding_line:
+                        if b"\n" not in chunk:
+                            continue
+                        _, chunk = chunk.split(b"\n", 1)
+                        discarding_line = False
                     buf += chunk
                     while b"\n" in buf:
                         line, buf = buf.split(b"\n", 1)
+                        if len(line) > BoundedStreamlinkOutput.MAX_LINE_BYTES:
+                            continue
                         # Pass non-progress lines through to stdout for the
                         # caller's logging.
                         try:
@@ -172,30 +179,54 @@ class FFmpegProgressTracker:
                         elif key == "progress" and value == "end":
                             if progress_callback:
                                 await self._emit(progress_callback, 99.0)
+                    if len(buf) > BoundedStreamlinkOutput.MAX_LINE_BYTES:
+                        buf = b""
+                        discarding_line = True
 
-            await asyncio.gather(_consume_stderr(), _consume_progress())
+            drainers.extend(
+                [
+                    asyncio.create_task(_consume_stderr()),
+                    asyncio.create_task(_consume_progress()),
+                ]
+            )
+            await asyncio.gather(*drainers)
             await process.wait()
-            return b"".join(stdout_chunks), b"".join(stderr_chunks)
+            return b"", stderr
 
+        runner = asyncio.create_task(_runner())
         try:
             if timeout is not None:
-                stdout, stderr = await asyncio.wait_for(_runner(), timeout=timeout)
+                stdout, stderr = await asyncio.wait_for(
+                    asyncio.shield(runner), timeout=timeout
+                )
             else:
-                stdout, stderr = await _runner()
-        except asyncio.TimeoutError:
-            logger.error(f"FFmpeg ({operation}) timed out after {timeout}s; killing")
-            try:
-                process.kill()
-            except ProcessLookupError:
-                pass
-            await process.wait()
+                stdout, stderr = await asyncio.shield(runner)
+        except BaseException:
+
+            async def stop_and_reap():
+                if process.returncode is None:
+                    try:
+                        process.kill()
+                    except ProcessLookupError:
+                        pass
+                await asyncio.gather(*drainers, return_exceptions=True)
+                for drainer, reader in zip(drainers, (process.stderr, process.stdout)):
+                    if reader and (drainer.cancelled() or drainer.exception()):
+                        while await reader.read(8192):
+                            pass
+                await process.wait()
+                await asyncio.gather(runner, return_exceptions=True)
+
+            cleanup = asyncio.create_task(stop_and_reap())
+            while not cleanup.done():
+                try:
+                    await asyncio.shield(cleanup)
+                except asyncio.CancelledError:
+                    continue
+            cleanup.result()
             raise
-        except Exception:
-            try:
-                process.kill()
-            except ProcessLookupError:
-                pass
-            raise
+        finally:
+            await process_scope.__aexit__(None, None, None)
 
         if self.logging_service is not None and streamer_name:
             try:
@@ -217,7 +248,7 @@ class FFmpegProgressTracker:
         if not input_path:
             return None
         try:
-            probe = await asyncio.create_subprocess_exec(
+            async with media_process(
                 "ffprobe",
                 "-v",
                 "error",
@@ -226,10 +257,8 @@ class FFmpegProgressTracker:
                 "-of",
                 "default=noprint_wrappers=1:nokey=1",
                 str(input_path),
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-            out, _ = await asyncio.wait_for(probe.communicate(), timeout=10)
+            ) as (probe, output):
+                out, _ = await asyncio.wait_for(output.wait(), timeout=10)
             text = out.decode("utf-8", errors="ignore").strip()
             if not text:
                 return None

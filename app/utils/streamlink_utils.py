@@ -23,6 +23,11 @@ from app.utils.security import (
 logger = logging.getLogger(__name__)
 
 
+def get_streamlink_log_level() -> str:
+    """Use the existing application debug opt-in, not permanent child debug."""
+    return "debug" if os.getenv("LOG_LEVEL", "INFO").upper() == "DEBUG" else "info"
+
+
 def _select_proxy_url(proxy_settings: Dict[str, str]) -> str:
     return (
         proxy_settings.get("http", "").strip()
@@ -450,7 +455,7 @@ def get_streamlink_vod_command(
         quality,
     ]
 
-    cmd.extend(["--loglevel", "debug"])
+    cmd.extend(["--loglevel", get_streamlink_log_level()])
 
     # Add proxy settings if provided
     if proxy_settings:
@@ -496,7 +501,7 @@ def get_streamlink_clip_command(
         quality,
     ]
 
-    cmd.extend(["--loglevel", "debug"])
+    cmd.extend(["--loglevel", get_streamlink_log_level()])
 
     # Add proxy settings if provided
     if proxy_settings:

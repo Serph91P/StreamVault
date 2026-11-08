@@ -217,17 +217,6 @@ interface ChapterData {
   video_url: string
 }
 
-interface CatalogVideo {
-  id?: number
-  stream_id?: number
-  title?: string
-  stream_title?: string
-  streamer_name?: string
-  duration?: number
-  created_at?: string
-  started_at?: string
-  recorded_at?: string
-}
 
 interface BackendChapter {
   id: number
@@ -312,24 +301,20 @@ const loadChapterData = async () => {
       throw new Error('Invalid video ID.')
     }
 
-    const [chapterResponse, catalogResponse] = await Promise.all([
+    const [chapterResponse, currentVideo] = await Promise.all([
       videoApi.getChapters(selectedStreamId),
-      videoApi.getAll()
+      videoApi.getMetadata(selectedStreamId)
     ])
     if (generation !== loadGeneration.value) return
     if (!Array.isArray(chapterResponse)) {
       throw new Error('Invalid chapter response.')
     }
 
-    const videos: CatalogVideo[] = Array.isArray(catalogResponse)
-      ? catalogResponse
-      : catalogResponse?.data ?? catalogResponse?.videos ?? []
-    const currentVideo = videos.find(video => String(video.id ?? video.stream_id) === String(selectedStreamId))
-    if (!currentVideo) {
+    if (!currentVideo || currentVideo.id !== selectedStreamId) {
       throw new Error('Video metadata unavailable.')
     }
 
-    const title = currentVideo.title ?? currentVideo.stream_title
+    const title = currentVideo.title
     const duration = Number(currentVideo.duration)
     const recordedAt = currentVideo.created_at ?? currentVideo.started_at ?? currentVideo.recorded_at
     if (!title || !Number.isFinite(duration) || duration < 0 || !recordedAt || Number.isNaN(Date.parse(recordedAt))) {

@@ -20,6 +20,7 @@ from app.models import User
 from app.services.core.api_key_service import ApiKeyService
 from app.services.core.auth_service import AuthService
 from app.services.background_queue_cleanup_service import BackgroundQueueCleanupService
+from app.services.queues.task_progress_tracker import QueueTask, TaskPriority, TaskProgressTracker, TaskStatus
 from app.utils.token_store import ShareTokenModel
 
 
@@ -66,13 +67,19 @@ def admin_stack(monkeypatch, tmp_path):
         return path
 
     monkeypatch.setattr(security, "validate_path_security", local_path)
+    tracker = TaskProgressTracker()
+    tracker.external_tasks["synthetic-job"] = QueueTask(
+        id="synthetic-job", task_type="recording", priority=TaskPriority.NORMAL,
+        payload={}, progress=100, status=TaskStatus.RUNNING,
+        created_at=datetime.now(timezone.utc), started_at=datetime.now(timezone.utc),
+    )
+    async def known_abandoned_capture(task_id):
+        assert task_id == "synthetic-job"
+        return False
     queue = SimpleNamespace(
-        external_tasks={
-            "synthetic-job": SimpleNamespace(
-                task_type="recording", progress=100, status="running"
-            )
-        },
-        active_tasks={},
+        external_tasks=tracker.external_tasks, active_tasks={},
+        recording_task_liveness=known_abandoned_capture,
+        complete_external_task=tracker.complete_external_task,
     )
     monkeypatch.setattr(admin, "_background_queue_service", queue)
     import app.services.background_queue_cleanup_service as cleanup
@@ -207,9 +214,12 @@ def test_admin_current_policy_before_database_and_file_effects(
         with factory() as db:
             assert (db.get(ShareTokenModel, 1) is None) == (state == "admin")
         assert sentinel.exists() == (state != "admin")
-        assert queue.external_tasks["synthetic-job"].status == (
-            "completed" if state == "admin" else "running"
+        assert queue.external_tasks["synthetic-job"].status is (
+            TaskStatus.FAILED if state == "admin" else TaskStatus.RUNNING
         )
+        if state == "admin":
+            assert jobs.json()["stuck_recordings_fixed"] == 1
+            assert jobs.json()["errors"] == []
         assert queue.active_tasks == {}
         if state != "admin":
             assert business_snapshot() == before

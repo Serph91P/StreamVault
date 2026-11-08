@@ -39,6 +39,11 @@ jobs:
           uv lock --check
           uv sync --locked --all-groups --reinstall-package streamvault
 
+      - name: Install media test dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ffmpeg
+
       - name: Run backend tests with coverage
         run: |
           uv run pytest tests/ -v \

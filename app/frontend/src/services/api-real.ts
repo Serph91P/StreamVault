@@ -16,7 +16,7 @@ import type {
   ProxyToggleResponse
 } from '@/types/proxy'
 import type { ApiKey, ApiKeyCreated } from '@/types/api-keys'
-import type { VideoDeleteOutcome } from '@/types/video'
+import type { CatalogVideo, VideoCatalogPage, VideoCatalogQuery, VideoDeleteOutcome } from '@/types/video'
 
 // Shared boundaries prevent concurrent safe requests from refreshing or logging out twice.
 let refreshPromise: Promise<boolean> | null = null
@@ -470,6 +470,13 @@ export const liveApi = {
 
 // Video API endpoints
 export const videoApi = {
+  getPage: (params: VideoCatalogQuery = {}, signal?: AbortSignal): Promise<VideoCatalogPage> => {
+    const query = new URLSearchParams(Object.entries(params)
+      .filter(([, value]) => value !== undefined && value !== '')
+      .map(([key, value]) => [key, String(value)]))
+    return apiClient.request(`/api/videos/catalog?${query}`, { method: 'GET', signal })
+  },
+  getMetadata: (streamId: number): Promise<CatalogVideo> => apiClient.get(`/api/videos/${streamId}/metadata`),
   // Get all videos
   getAll: (params: Record<string, any> = {}) => 
     apiClient.get('/api/videos', params),

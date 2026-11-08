@@ -262,6 +262,8 @@ class AuthMiddleware:
                             logger.debug(
                                 f"Authenticated API key id={resolved.record.id} for {request.url.path}"
                             )
+                            db.close()
+                            db = None
                             return await self.app(scope, receive, send)
                         else:
                             logger.warning(
@@ -300,8 +302,15 @@ class AuthMiddleware:
                     return await RedirectResponse(url="/auth/login", status_code=307)(
                         scope, receive, send
                     )
+            else:
+                # Reuse the verified primitive identity; no dependency connection
+                # is needed while a media worker prepares its own response.
+                from app.dependencies import get_current_identity
 
-            return await self.app(scope, receive, send)
+                scope.setdefault("state", {})["auth_identity"] = get_current_identity(
+                    request, service=auth_service
+                )
+
         except Exception as e:
             logger.error(f"Auth middleware error for {request.url.path}: {e}")
             # SECURITY: Fail closed when auth cannot be verified (CWE-280)
@@ -313,4 +322,6 @@ class AuthMiddleware:
                 {"error": "Authentication service unavailable"}, status_code=503
             )(scope, receive, send)
         finally:
-            db.close()
+            if db is not None:
+                db.close()
+        return await self.app(scope, receive, send)

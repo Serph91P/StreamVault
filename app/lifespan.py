@@ -20,6 +20,32 @@ from app.tasks.websocket_broadcast_task import websocket_broadcast_task
 logger = setup_logging()
 
 
+def _reconcile_catalog_batch(cursor):
+    from app.services.media.video_catalog_service import VideoCatalogService
+
+    with SessionLocal() as db:
+        return VideoCatalogService(db).reconcile_next_batch(cursor)
+
+
+async def _run_catalog_reconciliation():
+    from app.services.media.video_catalog_service import VideoCatalogService
+    from app.utils.async_db_utils import run_in_thread_pool
+
+    cursor = 0
+    with VideoCatalogService.track_changes():
+        while True:
+            try:
+                cursor, count = await run_in_thread_pool(
+                    _reconcile_catalog_batch, cursor
+                )
+                await asyncio.sleep(0.05 if count else 60)
+            except asyncio.CancelledError:
+                raise
+            except Exception as error:
+                logger.error("Catalog reconciliation failed (%s)", type(error).__name__)
+                await asyncio.sleep(2)
+
+
 async def _run_session_cleanup() -> None:
     """Periodically clean up expired sessions without retaining a DB lock."""
     while True:
@@ -151,6 +177,7 @@ async def lifespan(app: FastAPI):
         )
         supervisor.create_task("recording-cleanup", _run_recording_cleanup())
         supervisor.create_task("session-cleanup", _run_session_cleanup())
+        supervisor.create_task("catalog-reconciliation", _run_catalog_reconciliation())
 
         from app.services.init.startup_init import initialize_background_services
 

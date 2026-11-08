@@ -27,7 +27,7 @@ import type {
 } from '@/types/proxy'
 import type { NotificationSettings, StreamerNotificationSettings } from '@/types/settings'
 import type { ApiKey, ApiKeyCreated } from '@/types/api-keys'
-import type { VideoDeleteOutcome } from '@/types/video'
+import type { CatalogVideo, VideoCatalogPage, VideoCatalogQuery, VideoDeleteOutcome } from '@/types/video'
 
 // Check if mock mode is enabled
 const USE_MOCK_DATA = import.meta.env.VITE_USE_MOCK_DATA === 'true'
@@ -75,7 +75,56 @@ const mockStreamersApi = {
 }
 
 let mockVideoCatalog = mockVideos
+const catalogMockItems = (): CatalogVideo[] => mockVideoCatalog.map(video => ({
+  ...video, created_at: video.recorded_at, is_recording: false,
+  streamer_name: mockStreamers.find(streamer => streamer.id === video.streamer_id)?.username ?? '',
+}))
+
+async function mockCatalogPage(params: VideoCatalogQuery = {}, signal?: AbortSignal): Promise<VideoCatalogPage> {
+  signal?.throwIfAborted()
+  const page = params.page ?? 1
+  const size = params.page_size ?? 50
+  const sort = params.sort ?? 'date'
+  if (!Number.isInteger(page) || page < 1 || !Number.isInteger(size) || size < 1 || size > 100 || !['date', 'title', 'streamer', 'duration', 'size'].includes(sort)) {
+    throw new realApi.ApiRequestError('Invalid catalog query', 'http_error', 422)
+  }
+  const all = catalogMockItems()
+  const filtered = all.filter(video => {
+    const q = params.q?.toLowerCase()
+    const duration = video.duration ?? 0
+    const date = Date.parse(video.created_at ?? '')
+    return (!q || `${video.title ?? ''} ${video.streamer_name}`.toLowerCase().includes(q))
+      && (params.streamer_id === undefined || video.streamer_id === params.streamer_id)
+      && (params.streamer === undefined || video.streamer_name === params.streamer)
+      && (params.category === undefined || video.category_name === params.category)
+      && (params.recording === undefined || video.is_recording === params.recording)
+      && (!params.created_from || date >= Date.parse(params.created_from))
+      && (!params.created_before || date < Date.parse(params.created_before))
+      && (!params.duration || (params.duration === 'short' ? duration < 3600 : params.duration === 'medium' ? duration >= 3600 && duration <= 10800 : duration > 10800))
+  })
+  const value = (video: CatalogVideo) => sort === 'title' ? (video.title ?? '').toLowerCase() : sort === 'streamer' ? (video.streamer_name ?? '').toLowerCase() : sort === 'date' ? Date.parse(video.created_at ?? '') : sort === 'size' ? video.file_size ?? 0 : video.duration ?? 0
+  const descending = params.order ? params.order === 'desc' : !['title', 'streamer'].includes(sort)
+  filtered.sort((a, b) => {
+    const av = value(a), bv = value(b)
+    return (av < bv ? -1 : av > bv ? 1 : 0) * (descending ? -1 : 1) || a.id - b.id
+  })
+  const streamers = mockStreamers.map(streamer => ({ id: streamer.id, name: streamer.username, count: all.filter(video => video.streamer_id === streamer.id).length })).filter(streamer => streamer.count > 0)
+  await mockDelay(200)
+  signal?.throwIfAborted()
+  return {
+    items: filtered.slice((page - 1) * size, page * size), total: filtered.length, page, page_size: size, has_more: page * size < filtered.length,
+    index: { pending: 0, missing: 0, error: 0, complete: true, oldest_checked_at: null, page_revalidation_changed: false, retry_required: false },
+    summary: { total: all.length, duration: all.reduce((sum, video) => sum + (video.duration ?? 0), 0), file_size: all.reduce((sum, video) => sum + (video.file_size ?? 0), 0), streamers, categories: [...new Set(all.map(video => video.category_name).filter((name): name is string => Boolean(name)))].sort() },
+  }
+}
+
 const mockVideoApi = {
+  getPage: mockCatalogPage,
+  getMetadata: async (id: number): Promise<CatalogVideo> => {
+    const video = catalogMockItems().find(video => video.id === id)
+    if (!video) throw new realApi.ApiRequestError('Video metadata unavailable', 'http_error', 404)
+    return mockResponse(video)
+  },
   getAll: (_params: Record<string, any> = {}) => mockResponse([...mockVideoCatalog]),
   delete: (_id: number) => mockResponse({ success: true }),
   deleteMultiple: async (ids: number[]): Promise<VideoDeleteOutcome[]> => {

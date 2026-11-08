@@ -7,6 +7,7 @@ on a time-based schedule.
 """
 
 import logging
+from collections.abc import Callable
 from typing import Dict, Any
 
 # Configuration constants
@@ -16,7 +17,9 @@ MAX_CONCURRENT_ORPHANED_CHECKS = 3  # Maximum concurrent orphaned recovery check
 logger = logging.getLogger("streamvault")
 
 
-async def handle_orphaned_recovery_check(task_data: Dict[str, Any]) -> Dict[str, Any]:
+async def handle_orphaned_recovery_check(
+    task_data: Dict[str, Any], progress_callback: Callable[[float], None] | None = None
+) -> Dict[str, Any]:
     """
     Handle background orphaned recovery check task
 
@@ -37,7 +40,7 @@ async def handle_orphaned_recovery_check(task_data: Dict[str, Any]) -> Dict[str,
         )
 
         # PRODUCTION FIX: Check if too many orphaned checks are already running
-        from app.services.background_queue_service import get_background_queue_service
+        from app.services.init.background_queue_init import get_background_queue_service
 
         queue_service = get_background_queue_service()
         if queue_service:

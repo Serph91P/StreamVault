@@ -28,11 +28,11 @@
 
     <!-- Library stats strip (the marketing copy that used to sit next to it
          explained the page to itself; the numbers are the useful part) -->
-    <section v-if="!isLoading && !fetchError && videos.length > 0" class="videos-brief" aria-label="Video library summary">
+    <section v-if="!isLoading && !fetchError && summary.total > 0" class="videos-brief" aria-label="Video library summary">
       <dl class="brief-stats">
         <div class="brief-stat total">
           <dt>Recordings</dt>
-          <dd>{{ videos.length }}</dd>
+          <dd>{{ summary.total }}</dd>
         </div>
         <div class="brief-stat">
           <dt>Hours</dt>
@@ -174,6 +174,22 @@
           </select>
         </div>
 
+        <div class="filter-group">
+          <label class="filter-label">Category</label>
+          <select v-model="filterCategory" class="filter-select" aria-label="Filter videos by category">
+            <option value="">All Categories</option>
+            <option v-for="category in summary.categories" :key="category" :value="category">{{ category }}</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label class="filter-label">Recording status</label>
+          <select v-model="filterRecording" class="filter-select" aria-label="Filter videos by recording status">
+            <option value="">All Recordings</option>
+            <option value="true">Active</option>
+            <option value="false">Finished</option>
+          </select>
+        </div>
+
         <!-- Clear Filters -->
         <button @click="clearFilters" class="clear-filters-btn" v-ripple>
           <svg class="icon">
@@ -223,8 +239,8 @@
       <span>
         Showing {{ filteredAndSortedVideos.length }}
         {{ filteredAndSortedVideos.length === 1 ? 'video' : 'videos' }}
-        <template v-if="videos.length > 0 && filteredAndSortedVideos.length < videos.length">
-          of {{ videos.length }}
+        <template v-if="total > 0 && filteredAndSortedVideos.length < total">
+          of {{ total }}
         </template>
         <template v-if="hasActiveSearchOrFilters">
           <template v-if="searchQuery"> matching "{{ searchQuery }}"</template>
@@ -234,7 +250,14 @@
       <span v-if="selectedVideos.length > 0" class="selected-count">
         {{ selectedVideos.length }} selected
       </span>
+      <span v-if="selectMode">Selection is limited to this page.</span>
     </div>
+
+    <p v-if="!isLoading && catalogIndex && (catalogIndex.pending || catalogIndex.error || catalogIndex.missing)" role="status">
+      Library snapshot: {{ catalogIndex.pending }} pending, {{ catalogIndex.error }} indexing errors,
+      {{ catalogIndex.missing }} missing files. Counts describe indexed media.
+      <BaseButton size="sm" :disabled="isDeleting" @click="fetchVideos">Refresh library</BaseButton>
+    </p>
 
     <!-- Error State -->
     <EmptyState
@@ -260,7 +283,7 @@
     <!-- Empty State -->
     <EmptyState
       v-else-if="filteredAndSortedVideos.length === 0"
-      :title="hasActiveSearchOrFilters ? 'No Results Found' : 'No Videos Yet'"
+      :title="catalogIndex?.pending ? 'Indexing Library' : hasActiveSearchOrFilters ? 'No Results Found' : 'No Videos Yet'"
       :description="hasActiveSearchOrFilters ? emptyResultsDescription : 'Start recording streamers to see their VODs here.'"
       icon="video"
       :action-label="hasActiveSearchOrFilters ? 'Clear Search and Filters' : undefined"
@@ -300,6 +323,12 @@
       </div>
     </div>
 
+    <nav v-if="!fetchError && (page > 1 || hasMore)" aria-label="Video library pages" class="results-info">
+      <BaseButton aria-label="Previous video page" :disabled="isLoading || isDeleting || page <= 1" @click="setPage(page - 1)">Previous</BaseButton>
+      <span aria-live="polite">Page {{ page }}</span>
+      <BaseButton aria-label="Next video page" :disabled="isLoading || isDeleting || !hasMore" @click="setPage(page + 1)">Next</BaseButton>
+    </nav>
+
     <BaseModal
       v-model="showDeleteConfirm"
       title="Delete selected videos?"
@@ -328,7 +357,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
+import type { CatalogVideo as Video, VideoCatalogPage, VideoCatalogQuery } from '@/types/video'
 import { appStorage } from '@/services/storage'
 import { useRoute, useRouter } from 'vue-router'
 import { prepareVideoReturn, restoreVideoReturnScroll } from '@/composables/useNavigation'
@@ -341,25 +371,6 @@ import VideoCard from '@/components/cards/VideoCard.vue'
 import BaseModal from '@/components/base/BaseModal.vue'
 import PageHeader from '@/components/base/PageHeader.vue'
 
-interface Video {
-  id: number
-  title?: string | null
-  thumbnail_url?: string
-  duration?: number
-  file_size?: number
-  view_count?: number
-  viewer_count?: number
-  created_at?: string
-  recorded_at?: string
-  stream_date?: string
-  streamer_name?: string
-  streamer_id?: number
-  category_name?: string
-  file_path?: string
-  status?: 'recording' | 'processing' | 'ready' | 'failed' | string
-  is_recording?: boolean
-}
-
 const router = useRouter()
 const route = useRoute()
 
@@ -369,6 +380,15 @@ const fetchError = ref('')
 const videos = ref<Video[]>([])
 const stringQuery = (key: string, fallback = '') => typeof route.query[key] === 'string' ? route.query[key] : fallback
 const searchQuery = ref(stringQuery('q'))
+const page = ref(Math.max(1, Number.parseInt(stringQuery('page', '1'), 10) || 1))
+const pageSize = 50
+const total = ref(0)
+const hasMore = ref(false)
+const summary = ref<VideoCatalogPage['summary']>({ total: 0, file_size: 0, duration: 0, streamers: [], categories: [] })
+const catalogIndex = ref<VideoCatalogPage['index'] | null>(null)
+let generation = 0
+let request: AbortController | null = null
+let searchTimer: ReturnType<typeof setTimeout> | undefined
 // Grid/list choice survives reloads
 const viewMode = ref<'grid' | 'list'>(stringQuery('view', appStorage.getViewMode('videos') ?? 'grid') === 'list' ? 'list' : 'grid')
 watch(viewMode, (mode) => appStorage.setViewMode('videos', mode))
@@ -380,7 +400,8 @@ const sortOptions = [
   { value: 'duration-asc', label: 'Shortest Duration' },
   { value: 'size-desc', label: 'Largest Size' },
   { value: 'size-asc', label: 'Smallest Size' },
-  { value: 'title', label: 'Title A-Z' }
+  { value: 'title', label: 'Title A-Z' },
+  { value: 'streamer', label: 'Streamer A-Z' }
 ]
 const currentSortLabel = computed(() =>
   sortOptions.find((option) => option.value === sortBy.value)?.label ?? 'Newest First'
@@ -391,6 +412,8 @@ const showFilters = ref(false)
 const filterStreamer = ref(stringQuery('streamer'))
 const filterDate = ref(stringQuery('date', 'all'))
 const filterDuration = ref(stringQuery('duration'))
+const filterCategory = ref(stringQuery('category'))
+const filterRecording = ref(stringQuery('recording'))
 
 // Selection
 const selectMode = ref(false)
@@ -400,13 +423,7 @@ const isDeleting = ref(false)
 const deleteError = ref('')
 
 // Available filter options
-const availableStreamers = computed(() => {
-  const streamers = videos.value
-    .map(v => v.streamer_name)
-    .filter((name, index, arr) => name && arr.indexOf(name) === index)
-    .sort()
-  return streamers
-})
+const availableStreamers = computed(() => summary.value.streamers.map(streamer => streamer.name).sort())
 
 // Active filters count
 const activeFiltersCount = computed(() => {
@@ -414,11 +431,13 @@ const activeFiltersCount = computed(() => {
   if (filterStreamer.value) count++
   if (filterDate.value !== 'all') count++
   if (filterDuration.value) count++
+  if (filterCategory.value) count++
+  if (filterRecording.value) count++
   return count
 })
 
 // Summary metrics
-const totalDuration = computed(() => videos.value.reduce((sum, v) => sum + (v.duration || 0), 0))
+const totalDuration = computed(() => summary.value.duration)
 const totalHoursDisplay = computed(() => {
   const hours = totalDuration.value / 3600
   if (hours >= 1) return `${Math.round(hours * 10) / 10}h`
@@ -426,7 +445,7 @@ const totalHoursDisplay = computed(() => {
   return `${minutes}m`
 })
 const totalSizeDisplay = computed(() => {
-  const bytes = videos.value.reduce((sum, v) => sum + (v.file_size || 0), 0)
+  const bytes = summary.value.file_size
   if (bytes >= 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`
   if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
   if (bytes > 0) return `${(bytes / 1024).toFixed(0)} KB`
@@ -463,12 +482,15 @@ const getVideoOrigin = () => {
     date: filterDate.value,
     duration: filterDuration.value,
     sort: sortBy.value,
-    view: viewMode.value
+    view: viewMode.value,
+    page: String(page.value),
+    category: filterCategory.value,
+    recording: filterRecording.value,
   } }).fullPath
 }
 // Keep Vue Router's current location in sync, not only window.history: its next
 // push otherwise rewrites the origin entry with the stale entry-time query.
-watch([searchQuery, filterStreamer, filterDate, filterDuration, sortBy, viewMode], () => {
+watch([searchQuery, filterStreamer, filterDate, filterDuration, filterCategory, filterRecording, sortBy, viewMode, page], () => {
   router.replace(getVideoOrigin())
 })
 const emptyResultsDescription = computed(() => (
@@ -477,78 +499,114 @@ const emptyResultsDescription = computed(() => (
     : 'No videos match the selected filters. Try clearing one or more filters.'
 ))
 
-// Filtered and sorted videos
-const filteredAndSortedVideos = computed(() => {
-  let filtered = [...videos.value]
+// Filtering/order are SQL-side; never reinterpret only the current page.
+const filteredAndSortedVideos = computed(() => videos.value)
 
-  // Search filter
-  if (searchQuery.value) {
-    const query = searchQuery.value.toLowerCase()
-    filtered = filtered.filter(v =>
-      v.title?.toLowerCase().includes(query) ||
-      v.streamer_name?.toLowerCase().includes(query)
-    )
-  }
-
-  // Streamer filter
-  if (filterStreamer.value) {
-    filtered = filtered.filter(v => v.streamer_name === filterStreamer.value)
-  }
-
-  // Date filter
-  if (filterDate.value !== 'all') {
-    const now = new Date()
-    const filterTime = new Date()
-
-    if (filterDate.value === 'today') filterTime.setHours(0, 0, 0, 0)
-    else if (filterDate.value === 'week') filterTime.setDate(now.getDate() - 7)
-    else if (filterDate.value === 'month') filterTime.setMonth(now.getMonth() - 1)
-
-    filtered = filtered.filter(v => {
-      const date = new Date(v.recorded_at || v.stream_date || v.created_at || '')
-      return date >= filterTime
-    })
-  }
-
-  // Duration filter
-  if (filterDuration.value) {
-    filtered = filtered.filter(v => {
-      const duration = v.duration || 0
-      return filterDuration.value === 'short' ? duration < 3600
-        : filterDuration.value === 'medium' ? duration >= 3600 && duration <= 10800
-          : duration > 10800
-    })
-  }
-
+function catalogQuery(): VideoCatalogQuery {
   const sorting = sortBy.value
-  const date = (video: Video) => new Date(video.recorded_at || video.stream_date || video.created_at || '').getTime()
-  if (sorting === 'title') return filtered.sort((a, b) => (a.title || '').localeCompare(b.title || ''))
-  const direction = sorting === 'oldest' || sorting.endsWith('asc') ? 1 : -1
-  const field = sorting.startsWith('size') ? 'file_size' : 'duration'
-  const time = sorting === 'newest' || sorting === 'oldest'
-  return filtered.sort((a, b) => direction * (time
-    ? date(a) - date(b)
-    : (a[field] || 0) - (b[field] || 0)))
-})
+  const sort: VideoCatalogQuery['sort'] = sorting.startsWith('size') ? 'size' : sorting.startsWith('duration') ? 'duration' : sorting === 'title' || sorting === 'streamer' ? sorting : 'date'
+  const params: VideoCatalogQuery = {
+    page: page.value, page_size: pageSize, sort,
+    order: sorting === 'oldest' || sorting.endsWith('asc') || sorting === 'title' || sorting === 'streamer' ? 'asc' : 'desc',
+    q: searchQuery.value || undefined, streamer: filterStreamer.value || undefined,
+    category: filterCategory.value || undefined,
+    recording: filterRecording.value ? filterRecording.value === 'true' : undefined,
+    duration: (filterDuration.value || undefined) as VideoCatalogQuery['duration'],
+  }
+  if (filterDate.value !== 'all') {
+    const boundary = new Date()
+    if (filterDate.value === 'today') boundary.setHours(0, 0, 0, 0)
+    else if (filterDate.value === 'week') boundary.setDate(boundary.getDate() - 7)
+    else if (filterDate.value === 'month') boundary.setMonth(boundary.getMonth() - 1)
+    params.created_from = boundary.toISOString()
+  }
+  return params
+}
+
 
 // Fetch videos
 async function fetchVideos() {
+  const current = ++generation
+  request?.abort()
+  const controller = request = new AbortController()
   isLoading.value = true
   fetchError.value = ''
   try {
-    const response = await videoApi.getAll()
-
-    // Backend returns array directly (not wrapped in { data: [] })
-    videos.value = Array.isArray(response) ? response : (response.data || [])
-    selectedVideos.value = selectedVideos.value.filter(id => videos.value.some(video => video.id === id))
+    const params = catalogQuery()
+    let response: VideoCatalogPage | undefined
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        response = await videoApi.getPage(params, controller.signal)
+        if (current !== generation || controller.signal.aborted) return
+      } catch (error: any) {
+        if (current !== generation || controller.signal.aborted) return
+        if (error?.status !== 409 || attempt > 0) throw error
+        page.value = params.page = 1
+        continue
+      }
+      if (attempt === 0 && response.items.length === 0 && response.total > 0 && page.value > 1) {
+        page.value = params.page = 1
+        continue
+      }
+      break
+    }
+    if (current !== generation || controller.signal.aborted) return
+    if (!response || !Array.isArray(response.items)) throw new Error('Invalid catalog response.')
+    videos.value = response.items
+    total.value = response.total
+    hasMore.value = response.has_more
+    summary.value = response.summary
+    catalogIndex.value = response.index
+    if (selectedVideos.value.length) {
+      const selected = [...selectedVideos.value]
+      const checks = await Promise.allSettled(selected.map(id => videoApi.getMetadata(id)))
+      if (current !== generation || controller.signal.aborted) return
+      selectedVideos.value = selected.filter((_, index) => {
+        const check = checks[index]!
+        return check.status === 'fulfilled' || (check.reason as { status?: number })?.status !== 404
+      })
+      if (checks.some(check => check.status === 'rejected' && (check.reason as { status?: number })?.status !== 404)) {
+        throw new Error('Could not verify selected videos. Reload before retrying deletion.')
+      }
+    }
   } catch (error: any) {
+    if (current !== generation || controller.signal.aborted) return
     console.error('[VideosView] Failed to fetch videos:', error)
     fetchError.value = error?.message || 'An unexpected error occurred while loading videos.'
   } finally {
-    isLoading.value = false
-    await restoreVideoReturnScroll()
+    if (current === generation) {
+      isLoading.value = false
+      await restoreVideoReturnScroll()
+    }
   }
 }
+
+function setPage(value: number) {
+  page.value = Math.max(1, value)
+  selectedVideos.value = []
+  fetchVideos()
+}
+
+watch(searchQuery, () => {
+  clearTimeout(searchTimer)
+  request?.abort()
+  generation++
+  selectedVideos.value = []
+  page.value = 1
+  isLoading.value = true
+  searchTimer = setTimeout(fetchVideos, 300)
+})
+watch([filterStreamer, filterDate, filterDuration, filterCategory, filterRecording, sortBy], () => {
+  clearTimeout(searchTimer)
+  page.value = 1
+  selectedVideos.value = []
+  fetchVideos()
+})
+onBeforeUnmount(() => {
+  clearTimeout(searchTimer)
+  request?.abort()
+  generation++
+})
 
 // Actions
 function playVideo(video: Video) {
@@ -632,6 +690,8 @@ function clearFilters() {
   filterStreamer.value = ''
   filterDate.value = 'all'
   filterDuration.value = ''
+  filterCategory.value = ''
+  filterRecording.value = ''
 }
 
 function clearSearchAndFilters() {
