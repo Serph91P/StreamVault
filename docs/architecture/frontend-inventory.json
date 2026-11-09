@@ -4891,7 +4891,7 @@
   "listenersAndTimers": [
     {
       "file": "app/frontend/scripts/__tests__/compact-production-chunks.spec.ts",
-      "line": 34,
+      "line": 46,
       "match": "addEventListener("
     },
     {
