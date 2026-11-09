@@ -82,6 +82,8 @@ function lighthouseFlags(port, scenario, cacheMode) {
 }
 
 async function launchIsolatedChrome(userDataDir) {
+  // The launcher appends stderr and otherwise rediscovers the previous run's port.
+  await writeFile(join(userDataDir, 'chrome-err.log'), '')
   const chrome = await launch({
     chromePath,
     userDataDir,
