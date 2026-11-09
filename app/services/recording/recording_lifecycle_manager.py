@@ -757,6 +757,14 @@ class RecordingLifecycleManager:
 
     async def _generate_recording_path(self, streamer_id: int, stream_id: int) -> str:
         """Generate file path for recording"""
+        from app.config.settings import settings
+
+        recordings_dir = (
+            self.config_manager.get_recordings_directory()
+            if self.config_manager is not None
+            else settings.RECORDING_DIRECTORY
+        )
+        session_factory = getattr(self.config_manager, "_session_factory", None)
         try:
             logger.info(
                 f"🎬 GENERATE_PATH: streamer_id={streamer_id}, stream_id={stream_id}"
@@ -801,7 +809,11 @@ class RecordingLifecycleManager:
             template = "Season {year}-{month}/{streamer} - S{year}{month}E{episode:02d} - {title}"
 
             filename = await generate_filename(
-                streamer=streamer, stream_data=stream_data, template=template
+                streamer=streamer,
+                stream_data=stream_data,
+                template=template,
+                session_factory=session_factory,
+                recordings_directory=recordings_dir,
             )
 
             # Try to persist the month-episode number we just used into the Stream
@@ -811,7 +823,12 @@ class RecordingLifecycleManager:
                 if m:
                     episode_num = int(m.group(2))
                     # Persist on Stream for later consumers (NFO, APIs)
-                    await update_episode_number(stream.id, episode_num)
+                    if session_factory is None:
+                        await update_episode_number(stream.id, episode_num)
+                    else:
+                        await update_episode_number(
+                            stream.id, episode_num, session_factory=session_factory
+                        )
             except Exception:
                 logger.exception(
                     "Failed to update episode number for stream %s", stream.id
@@ -827,11 +844,6 @@ class RecordingLifecycleManager:
             # Add .ts extension
             filename += ".ts"
 
-            # Use settings for recordings directory (supports Docker and local dev)
-            from app.config.settings import settings
-
-            recordings_dir = settings.RECORDING_DIRECTORY
-
             # Create full path with streamer directory and season structure
             streamer_dir = Path(recordings_dir) / streamer.username
             full_path = str(streamer_dir / filename)
@@ -840,7 +852,7 @@ class RecordingLifecycleManager:
             season_dir = (
                 streamer_dir / filename.split("/")[0]
             )  # Extract season directory
-            season_dir.mkdir(parents=True, exist_ok=True)
+            await run_in_thread_pool(season_dir.mkdir, parents=True, exist_ok=True)
 
             logger.info(f"🎬 GENERATED_PATH: {full_path}")
             return full_path
@@ -850,11 +862,10 @@ class RecordingLifecycleManager:
                 f"🎬 GENERATE_PATH_ERROR: Failed to generate recording path: {e}",
                 exc_info=True,
             )
-            # Fallback path using settings
-            from app.config.settings import settings
-
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            fallback_path = f"{settings.RECORDING_DIRECTORY}/recording_{streamer_id}_{stream_id}_{timestamp}.ts"
+            fallback_path = (
+                f"{recordings_dir}/recording_{streamer_id}_{stream_id}_{timestamp}.ts"
+            )
             logger.info(f"🎬 FALLBACK_PATH: {fallback_path}")
             return fallback_path
 

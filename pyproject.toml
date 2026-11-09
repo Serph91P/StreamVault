@@ -80,6 +80,8 @@ files = [
     "app/routes/health.py",
     "app/services/system/logging_service.py",
     "app/services/recording/recording_logger.py",
+    "app/utils/path_utils.py",
+    "app/utils/async_db_utils.py",
 ]
 follow_imports = "skip"
 warn_unused_ignores = true

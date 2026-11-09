@@ -2,19 +2,29 @@
 
 import importlib
 import json
+import logging
 from datetime import datetime, timezone
 from threading import get_ident
 
 import pytest
 
 from app.dependencies import _get_application_recording_manager
-from app.config.logging_config import request_context
+from app.config.logging_config import JSONFormatter, request_context
 from app.lifespan import _close_application_proxy, _close_application_twitch
 from app.utils.async_db_utils import run_in_thread_pool
 from tests import test_logging_application_ownership
 
 image_applications = test_logging_application_ownership.image_applications
 logging_applications = test_logging_application_ownership.logging_applications
+
+
+def test_json_severity_does_not_inherit_dependency_level_spelling():
+    record = logging.LogRecord(
+        "streamvault.recording", logging.ERROR, __file__, 1, "component error", (), None
+    )
+    # Importing the real Streamlink CLI changes standard level names to lowercase.
+    record.levelname = "error"
+    assert json.loads(JSONFormatter().format(record))["level"] == "ERROR"
 
 
 @pytest.mark.asyncio

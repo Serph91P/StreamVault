@@ -1,11 +1,14 @@
 """Path utility functions for StreamVault."""
 
 import logging
+import os
+from collections.abc import Callable
 from datetime import datetime
 from typing import Dict, Any
 from sqlalchemy import extract
+from sqlalchemy.orm import Session
 from app.database import SessionLocal
-from app.utils import async_file
+from app.utils.async_db_utils import run_in_thread_pool
 
 logger = logging.getLogger("streamvault")
 
@@ -20,7 +23,25 @@ FILENAME_PRESETS = {
 }
 
 
-async def get_episode_number(streamer_id: int, now: datetime) -> str:
+async def get_episode_number(
+    streamer_id: int,
+    now: datetime,
+    *,
+    session_factory: Callable[[], Session] | None = None,
+    recordings_directory: str | None = None,
+) -> str:
+    """Resolve an episode entirely inside its closed native worker scope."""
+    return await run_in_thread_pool(
+        _get_episode_number, streamer_id, now, session_factory, recordings_directory
+    )
+
+
+def _get_episode_number(
+    streamer_id: int,
+    now: datetime,
+    session_factory: Callable[[], Session] | None,
+    recordings_directory: str | None,
+) -> str:
     """
     Get episode number (count of streams in current month).
 
@@ -38,7 +59,8 @@ async def get_episode_number(streamer_id: int, now: datetime) -> str:
     try:
         from app.models import Stream
 
-        with SessionLocal() as db:
+        factory = session_factory if session_factory is not None else SessionLocal
+        with factory() as db:
             # Find the highest episode number for the current month using database storage
             max_episode_num = 0
 
@@ -106,12 +128,14 @@ async def get_episode_number(streamer_id: int, now: datetime) -> str:
                 # If still no episodes found, also check filesystem for safety
                 if max_episode_num == 0:
                     try:
-                        from app.config.settings import get_settings
+                        output_directory = recordings_directory
+                        if output_directory is None:
+                            from app.config.settings import get_settings
 
-                        settings = get_settings()
-                        output_directory = getattr(
-                            settings, "output_directory", "/recordings"
-                        )
+                            settings = get_settings()
+                            output_directory = getattr(
+                                settings, "output_directory", "/recordings"
+                            )
 
                         # Get streamer name
                         from app.models import Streamer
@@ -122,17 +146,17 @@ async def get_episode_number(streamer_id: int, now: datetime) -> str:
                             .first()
                         )
                         if streamer:
-                            streamer_dir = await async_file.join(
+                            streamer_dir = os.path.join(
                                 output_directory, streamer.username
                             )
-                            season_dir = await async_file.join(
+                            season_dir = os.path.join(
                                 streamer_dir, f"Season {now.year}-{now.month:02d}"
                             )
 
-                            if await async_file.exists(season_dir):
+                            if os.path.exists(season_dir):
                                 import re
 
-                                for filename in await async_file.listdir(season_dir):
+                                for filename in os.listdir(season_dir):
                                     match = re.search(
                                         rf"S{current_month_year}E(\d+)", filename
                                     )
@@ -160,7 +184,13 @@ async def get_episode_number(streamer_id: int, now: datetime) -> str:
 
 
 async def generate_filename(
-    streamer: Any, stream_data: Dict[str, Any], template: str, sanitize_func=None
+    streamer: Any,
+    stream_data: Dict[str, Any],
+    template: str,
+    sanitize_func=None,
+    *,
+    session_factory: Callable[[], Session] | None = None,
+    recordings_directory: str | None = None,
 ) -> str:
     """
     Generate a filename from template with variables.
@@ -185,7 +215,15 @@ async def generate_filename(
     streamer_name = sanitize(streamer.username)
 
     # Get episode number (count of streams in current month)
-    episode_str = await get_episode_number(streamer.id, now)
+    if session_factory is None and recordings_directory is None:
+        episode_str = await get_episode_number(streamer.id, now)
+    else:
+        episode_str = await get_episode_number(
+            streamer.id,
+            now,
+            session_factory=session_factory,
+            recordings_directory=recordings_directory,
+        )
     episode_int = int(episode_str)  # Convert to int for formatting
 
     # Create a dictionary of replaceable values
@@ -270,6 +308,10 @@ async def generate_filename(
 
 
 async def update_recording_path(stream_id: int, new_path: str):
+    await run_in_thread_pool(_update_recording_path, stream_id, new_path)
+
+
+def _update_recording_path(stream_id: int, new_path: str):
     """
     Update the recording path for a stream after media server structure creation.
 
@@ -299,7 +341,22 @@ async def update_recording_path(stream_id: int, new_path: str):
         )
 
 
-async def update_episode_number(stream_id: int, episode_number: int):
+async def update_episode_number(
+    stream_id: int,
+    episode_number: int,
+    *,
+    session_factory: Callable[[], Session] | None = None,
+):
+    await run_in_thread_pool(
+        _update_episode_number, stream_id, episode_number, session_factory
+    )
+
+
+def _update_episode_number(
+    stream_id: int,
+    episode_number: int,
+    session_factory: Callable[[], Session] | None,
+):
     """
     Update the episode number for a stream.
 
@@ -310,7 +367,8 @@ async def update_episode_number(stream_id: int, episode_number: int):
     try:
         from app.models import Stream
 
-        with SessionLocal() as db:
+        factory = session_factory if session_factory is not None else SessionLocal
+        with factory() as db:
             stream = db.query(Stream).filter(Stream.id == stream_id).first()
             if stream:
                 # Check if episode_number column exists before trying to set it
