@@ -218,8 +218,11 @@ async def test_lifespan_uses_factory_service_overrides_for_startup_and_shutdown(
 
     proxy_bootstraps = []
 
-    def proxy_bootstrap(factory):
+    def proxy_bootstrap(factory, *, timeout_seconds):
         proxy_bootstraps.append((factory, threading.get_ident()))
+        from app.bootstrap.settings import resolve_app_settings
+
+        assert timeout_seconds == resolve_app_settings(app).READINESS_TIMEOUT_SECONDS
         calls.append("proxy-identities")
 
     monkeypatch.setattr(proxy_encryption, "bootstrap_proxy_identity", proxy_bootstrap)

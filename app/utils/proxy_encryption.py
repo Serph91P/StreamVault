@@ -136,13 +136,19 @@ class ProxyEncryption:
             raise
 
 
-def bootstrap_proxy_identity(session_factory: Callable[[], Session]) -> ProxyEncryption:
+def bootstrap_proxy_identity(
+    session_factory: Callable[[], Session], *, timeout_seconds: float = 3.0
+) -> ProxyEncryption:
     """Persist one owner identity after migrations and prime future owned sessions."""
     from app.models import GlobalSettings
 
     try:
         with session_factory() as session:
             if session.get_bind().dialect.name == "postgresql":
+                session.execute(
+                    text("SELECT set_config('lock_timeout', :timeout, true)"),
+                    {"timeout": f"{timeout_seconds}s"},
+                )
                 session.execute(
                     text("SELECT pg_advisory_xact_lock(:lock_id)"),
                     {"lock_id": 7_314_908_422},

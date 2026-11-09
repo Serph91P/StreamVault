@@ -238,7 +238,8 @@ async def lifespan(app: FastAPI):
             from app.utils.proxy_encryption import bootstrap_proxy_identity
 
             bootstrap_proxy_identity(
-                getattr(runtime_database, "sync_session_factory", SessionLocal)
+                getattr(runtime_database, "sync_session_factory", SessionLocal),
+                timeout_seconds=runtime_settings.READINESS_TIMEOUT_SECONDS,
             )
 
         await run_in_thread_pool(bootstrap_keys)

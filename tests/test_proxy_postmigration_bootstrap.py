@@ -7,6 +7,49 @@ from app import database as database_module
 from app.database import Base, DatabaseLifecycle
 from app.models import GlobalSettings
 from app.utils import proxy_encryption
+from test_video_catalog_timestamps import catalog_sessions
+
+
+@pytest.mark.parametrize("catalog_sessions", ["postgres"], indirect=True)
+def test_postgres_proxy_bootstrap_concurrent_first_start_and_held_lock_deadline(
+    catalog_sessions,
+):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Barrier
+    from time import monotonic
+    from sqlalchemy import text
+
+    factory, _ = catalog_sessions
+    engine = factory.kw["bind"]
+    Base.metadata.create_all(engine, tables=[GlobalSettings.__table__])
+    barrier = Barrier(2)
+
+    def initialize():
+        barrier.wait(timeout=5)
+        return proxy_encryption.bootstrap_proxy_identity(factory)
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        futures = [pool.submit(initialize) for _ in range(2)]
+        ciphers = [future.result(timeout=10) for future in futures]
+    encrypted = ciphers[0].encrypt("http://synthetic.invalid:8080")
+    assert ciphers[1].decrypt(encrypted) == "http://synthetic.invalid:8080"
+    with factory() as session:
+        assert session.query(GlobalSettings).count() == 1
+        key = session.query(GlobalSettings).one().proxy_encryption_key
+    with engine.begin() as holder:
+        holder.execute(
+            text("SELECT pg_advisory_xact_lock(:lock_id)"), {"lock_id": 7_314_908_422}
+        )
+        begin = monotonic()
+        with pytest.raises(RuntimeError, match="Persistent proxy identity unavailable"):
+            proxy_encryption.bootstrap_proxy_identity(factory, timeout_seconds=0.05)
+        assert monotonic() - begin < 1
+    with factory() as session:
+        assert session.query(GlobalSettings).one().proxy_encryption_key == key
+        assert (
+            proxy_encryption.get_cached_proxy_encryption(session).decrypt(encrypted)
+            == "http://synthetic.invalid:8080"
+        )
 
 
 @pytest.mark.asyncio
