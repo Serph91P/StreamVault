@@ -426,7 +426,27 @@ async def test_lifespan_uses_factory_service_overrides_for_startup_and_shutdown(
 
         app.state.image_sync_service.stop_sync_worker = owned_stop
 
+    import asyncio
+    from app.services.core.automated_recovery_state import AutomatedRecoveryState
+
+    app.state.automated_recovery_state = AutomatedRecoveryState()
+    recovery_entered = asyncio.Event()
+
+    async def recovery_work():
+        try:
+            recovery_entered.set()
+            await asyncio.Event().wait()
+        finally:
+            await asyncio.sleep(0)
+            calls.append("recovery-drained")
+
     async with lifespan_module.lifespan(app):
+        assert await app.state.automated_recovery_state.start(
+            app.state.task_supervisor, recovery_work, 300
+        )
+        await asyncio.wait_for(recovery_entered.wait(), 1)
+        recovery_task = await app.state.automated_recovery_state.get_task()
+        assert recovery_task is not None
         assert app.state.startup_complete is True
         assert app.state.startup_failure is None
         assert len(proxy_bootstraps) == 1
@@ -479,6 +499,9 @@ async def test_lifespan_uses_factory_service_overrides_for_startup_and_shutdown(
             "ready",
         ]
 
+    assert recovery_task.done()
+    assert await app.state.automated_recovery_state.get_task() is None
+    assert calls.index("recovery-drained") < calls.index("background-stop")
     assert app.state.startup_complete is False
     if owned_logging:
         assert len(constructor_threads) == 1

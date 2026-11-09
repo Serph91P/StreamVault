@@ -241,8 +241,8 @@ class UnifiedRecoveryService:
             return stats
 
         except Exception as e:
-            logger.error(f"❌ Comprehensive recovery scan failed: {e}", exc_info=True)
-            return stats
+            logger.error("Comprehensive recovery scan failed (%s)", type(e).__name__)
+            raise RuntimeError("Recovery scan failed") from e
         finally:
             self.is_running = False
 
@@ -255,8 +255,8 @@ class UnifiedRecoveryService:
                 self._scan_orphaned_segments_sync, max_age_hours, paths
             )
         except Exception as error:
-            logger.error("Error scanning orphaned segments: %s", error)
-            return []
+            logger.error("Error scanning orphaned segments (%s)", type(error).__name__)
+            raise RuntimeError("Recovery catalogue is unavailable") from error
 
     def _scan_orphaned_segments_sync(
         self, max_age_hours: int, active_recording_paths: set[str]
@@ -357,7 +357,8 @@ class UnifiedRecoveryService:
                     orphaned.append(orphan_data)
 
         except Exception as e:
-            logger.error(f"Error scanning orphaned segments: {e}")
+            logger.error("Error scanning orphaned segments (%s)", type(e).__name__)
+            raise RuntimeError("Recovery catalogue is unavailable") from e
 
         logger.info(
             f"🔍 ORPHANED_SCAN_COMPLETE: Found {len(orphaned)} orphaned recordings across all streamers"
@@ -373,8 +374,10 @@ class UnifiedRecoveryService:
                 self._scan_failed_post_processing_sync, max_age_hours, paths
             )
         except Exception as error:
-            logger.error("Error scanning failed post-processing: %s", error)
-            return []
+            logger.error(
+                "Error scanning failed post-processing (%s)", type(error).__name__
+            )
+            raise RuntimeError("Recovery catalogue is unavailable") from error
 
     def _scan_failed_post_processing_sync(
         self, max_age_hours: int, active_recording_paths: set[str]
@@ -450,7 +453,8 @@ class UnifiedRecoveryService:
                             )
 
         except Exception as e:
-            logger.error(f"Error scanning failed post-processing: {e}")
+            logger.error("Error scanning failed post-processing (%s)", type(e).__name__)
+            raise RuntimeError("Recovery catalogue is unavailable") from e
 
         logger.info(
             f"🔍 FAILED_PP_SCAN_COMPLETE: Found {len(failed)} failed post-processing recordings across all streamers"

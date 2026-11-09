@@ -84,12 +84,28 @@ files = [
     "app/utils/async_db_utils.py",
     "app/utils/proxy_encryption.py",
     "app/services/recording/admin_cleanup.py",
+    "app/services/core/automated_recovery_state.py",
+    "app/services/simple_recovery_service.py",
 ]
 follow_imports = "skip"
 warn_unused_ignores = true
 warn_redundant_casts = true
 warn_return_any = true
 no_implicit_optional = true
+
+# Strict per-module flags; the original legacy roots and exclusions stay unchanged.
+[[tool.mypy.overrides]]
+module = ["app.services.core.automated_recovery_state", "app.services.simple_recovery_service"]
+disallow_any_generics = true
+disallow_subclassing_any = true
+disallow_untyped_calls = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+implicit_reexport = false
+strict_equality = true
+extra_checks = true
 
 [[tool.mypy.overrides]]
 module = ["py_vapid", "py_vapid.*"]

@@ -1,31 +1,54 @@
 """
 Simple Recovery Service
 
-Creates simple metadata_generation tasks without dependencies.
-These work reliably compared to complex dependency chains.
+Admits full post-processing chains through the existing owned recovery scanner.
 """
 
 import logging
-from typing import Dict, Any, TYPE_CHECKING
+from typing import NotRequired, Protocol, TypedDict
 from datetime import datetime, timezone
 
 
-if TYPE_CHECKING:
-    from ..services.recording.unified_recovery_service import UnifiedRecoveryService
+class RecoveryScanSummary(Protocol):
+    failed_post_processing: int
+
+
+class RecoveryScanner(Protocol):
+    async def comprehensive_recovery_scan(
+        self, max_age_hours: int = 72, dry_run: bool = False
+    ) -> RecoveryScanSummary: ...
+
+    async def retry_failed_recordings(self, max_age_hours: int = 72) -> int: ...
+
+
+class SimpleRecoveryDetails(TypedDict):
+    success: bool
+    failed_found: int
+    recovery_triggered: int
+    method: str
+
+
+class SimpleRecoveryResult(TypedDict):
+    start_time: str
+    simple_recovery: SimpleRecoveryDetails | None
+    total_recoveries: int
+    success: bool
+    end_time: NotRequired[str]
+    error: NotRequired[str]
+
 
 logger = logging.getLogger("streamvault")
 
 
 async def run_simple_reliable_recovery(
-    unified_service: "UnifiedRecoveryService | None" = None,
-) -> Dict[str, Any]:
+    unified_service: RecoveryScanner | None = None,
+) -> SimpleRecoveryResult:
     """
     Performs simple, reliable recovery.
 
-    Uses only single metadata_generation tasks without dependencies,
-    as these are more reliable than complex chains.
+    Uses native snapshots and the normal dependency-chain producer.
     """
-    results = {
+    results: SimpleRecoveryResult = {
         "start_time": datetime.now(timezone.utc).isoformat(),
         "simple_recovery": None,
         "total_recoveries": 0,
@@ -87,12 +110,12 @@ async def run_simple_reliable_recovery(
     except Exception as e:
         results["end_time"] = datetime.now(timezone.utc).isoformat()
         results["success"] = False
-        results["error"] = str(e)
-        logger.error(f"❌ Simple recovery failed: {e}")
+        results["error"] = "Simple recovery failed"
+        logger.error("Simple recovery failed (%s)", type(e).__name__)
         return results
 
 
-async def create_full_recovery_chains(unified_service: "UnifiedRecoveryService") -> int:
+async def create_full_recovery_chains(unified_service: RecoveryScanner) -> int:
     """
     Creates full post-processing chains for failed recordings.
 

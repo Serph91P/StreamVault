@@ -162,14 +162,23 @@ async def run_comprehensive_recovery(
         # 4. Failed Recovery (specific for failed post-processing)
         logger.info("🔧 Starting failed recovery...")
         try:
-            from ..services.recording.failed_recording_recovery_service import (
-                get_failed_recovery_service,
-            )
+            if service is None:
+                from ..services.recording.unified_recovery_service import (
+                    get_unified_recovery_service,
+                )
 
-            failed_service = await get_failed_recovery_service()
-            failed_result = await failed_service.scan_and_recover_failed_recordings(
-                dry_run=False
+                failed_service = await get_unified_recovery_service()
+            else:
+                failed_service = service
+            failed_summary = await failed_service.comprehensive_recovery_scan(
+                max_age_hours=72, dry_run=True
             )
+            triggered = await failed_service.retry_failed_recordings()
+            failed_result = {
+                "failed_found": failed_summary.failed_post_processing,
+                "recoverable_found": triggered,
+                "recovery_triggered": triggered,
+            }
             results["failed_recovery"] = {
                 "success": True,
                 "recovery_triggered": failed_result.get("recovery_triggered", 0),
@@ -188,8 +197,19 @@ async def run_comprehensive_recovery(
             }
 
         results["end_time"] = datetime.now(timezone.utc).isoformat()
-        results["success"] = True
-        await state.increment_successful_runs()
+        results["success"] = all(
+            isinstance(results[key], dict) and results[key].get("success") is True
+            for key in (
+                "simple_recovery",
+                "unified_recovery",
+                "orphaned_recovery",
+                "failed_recovery",
+            )
+        )
+        if results["success"]:
+            await state.increment_successful_runs()
+        else:
+            await state.increment_failed_runs("Comprehensive recovery failed")
 
         logger.info(
             f"🎉 Comprehensive recovery completed: {results['total_recoveries']} total recoveries"
@@ -354,10 +374,15 @@ async def run_simple_recovery(
 
         result = await run_simple_reliable_recovery(unified_service=service)
 
-        await state.increment_successful_runs()
-        logger.info(
-            f"✅ Simple recovery completed: {result.get('total_recoveries', 0)} tasks created"
-        )
+        if result["success"]:
+            await state.increment_successful_runs()
+            logger.info(
+                "Simple recovery completed: %s tasks created",
+                result["total_recoveries"],
+            )
+        else:
+            await state.increment_failed_runs("Simple recovery failed")
+            logger.error("Simple recovery failed")
         return result
 
     except Exception as e:
@@ -446,11 +471,7 @@ async def test_recovery_services(
 
     Nützlich um zu prüfen ob alle Services verfügbar sind
     """
-    results = {
-        "unified_recovery": None,
-        "orphaned_recovery": None,
-        "failed_recovery": None,
-    }
+    results: dict[str, dict[str, bool | int | float | str]] = {}
 
     # Test Unified Recovery
     try:
@@ -503,18 +524,14 @@ async def test_recovery_services(
 
     # Test Failed Recovery
     try:
-        from ..services.recording.failed_recording_recovery_service import (
-            get_failed_recovery_service,
-        )
-
-        failed_service = await get_failed_recovery_service()
-        failed_result = await failed_service.scan_and_recover_failed_recordings(
-            dry_run=True
+        failed_summary = await service.comprehensive_recovery_scan(
+            max_age_hours=72, dry_run=True
         )
         results["failed_recovery"] = {
             "available": True,
-            "failed_found": failed_result.get("failed_found", 0),
-            "recoverable_found": failed_result.get("recoverable_found", 0),
+            "failed_found": failed_summary.failed_post_processing,
+            # Preview never admits a chain, so recoverability is not yet proven.
+            "recoverable_found": 0,
         }
     except Exception:
         results["failed_recovery"] = {

@@ -279,9 +279,11 @@ async def test_comprehensive_and_diagnostic_scans_use_owned_services(
     if path == "run-once":
         assert result["unified_recovery"]["success"] is True
         assert result["orphaned_recovery"]["success"] is True
+        assert result["failed_recovery"]["success"] is True
     else:
         assert result["services"]["unified_recovery"]["available"] is True
         assert result["services"]["orphaned_recovery"]["available"] is True
+        assert result["services"]["failed_recovery"]["available"] is True
     assert queries and all(thread != get_ident() for thread, _ in queries)
 
 
@@ -320,3 +322,41 @@ async def test_recovery_activity_log_uses_owned_directory_off_loop(
         "SYSTEM_RECOVERY" in path.read_text() for path in roots[1].rglob("*.log")
     )
     assert request_opens and get_ident() not in request_opens
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("path", ["run-simple", "run-once", "test-services"])
+async def test_owned_scan_database_fault_cannot_be_successful_or_poison_peer(
+    proxy_applications, path
+):
+    from sqlalchemy import event
+
+    _, databases, clients, _ = proxy_applications
+
+    def fault(_, __, statement, *___):
+        if "FROM recordings" in statement:
+            raise RuntimeError("synthetic-secret-token catalogue unavailable")
+
+    event.listen(databases[0].sync_engine, "before_cursor_execute", fault)
+    response = await (clients[0].get if path == "test-services" else clients[0].post)(
+        f"/api/recovery/automated/{path}"
+    )
+    assert response.status_code == 200
+    result = response.json()
+    if path == "run-simple":
+        assert result["success"] is False
+        status = await clients[0].get("/api/recovery/automated/status")
+        assert status.json()["data"]["statistics"]["failed_runs"] == 1
+        assert status.json()["data"]["statistics"]["successful_runs"] == 0
+    elif path == "run-once":
+        assert result["success"] is False
+        assert result["unified_recovery"]["success"] is False
+        assert result["orphaned_recovery"]["success"] is False
+        assert result["failed_recovery"]["success"] is False
+    else:
+        assert result["services"]["unified_recovery"]["available"] is False
+        assert result["services"]["orphaned_recovery"]["available"] is False
+    assert "synthetic-secret-token" not in response.text
+    peer = await clients[1].post("/api/recovery/automated/run-simple")
+    assert peer.status_code == 200 and peer.json()["success"] is True
+    assert all(database.sync_engine.pool.checkedout() == 0 for database in databases)
