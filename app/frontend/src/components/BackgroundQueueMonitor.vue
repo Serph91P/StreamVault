@@ -2,6 +2,7 @@
   <div class="background-queue-monitor">
     <!-- Queue Status Indicator -->
     <button
+      v-if="!inline"
       type="button"
       class="queue-status-indicator"
       :aria-label="`Open background queue, ${combinedActiveTasks.length} active ${combinedActiveTasks.length === 1 ? 'job' : 'jobs'}`"
@@ -26,7 +27,7 @@
     </button>
 
     <!-- Teleport to body so panel isn't trapped inside scoped component -->
-    <Teleport to="body">
+    <Teleport to="body" :disabled="inline">
     <!-- Backdrop for panel -->
     <Transition name="fade">
       <div v-if="showPanel" ref="backdrop" class="glass-popup-backdrop" @click="togglePanel"></div>
@@ -35,24 +36,25 @@
     <!-- Expandable Panel -->
     <Transition name="slide-down">
       <div
-        v-if="showPanel"
+        v-if="inline || showPanel"
         :id="panelId"
         ref="panelRef"
-        class="glass-popup-panel queue-panel"
-        role="dialog"
-        aria-modal="true"
+        :class="inline ? 'queue-activity' : 'glass-popup-panel queue-panel'"
+        :role="inline ? 'region' : 'dialog'"
+        :aria-modal="inline ? undefined : true"
         :aria-labelledby="titleId"
-        tabindex="-1"
+        :tabindex="inline ? undefined : -1"
         @click.stop
       >
-      <div class="glass-popup-header">
-        <h3 :id="titleId">Background Queue</h3>
-        <button @click="closePanel()" class="glass-btn-icon" aria-label="Close background queue">
+      <div :class="inline ? 'queue-section-header' : 'glass-popup-header'">
+        <h2 :id="titleId">Background Queue</h2>
+        <router-link v-if="!inline" to="/activity" @click="closePanel()">Vollständige Aktivität</router-link>
+        <button v-if="!inline" @click="closePanel()" class="glass-btn-icon" aria-label="Close background queue">
           <svg><use href="#icon-x" /></svg>
         </button>
       </div>
 
-      <div class="glass-popup-content panel-content">
+      <div class="panel-content" :class="{ 'glass-popup-content': !inline }">
         <div v-if="isLoading" class="queue-state" role="status" aria-live="polite">
           <span class="queue-state-spinner" aria-hidden="true"></span>
           <span>Loading background jobs…</span>
@@ -93,9 +95,9 @@
 
         <!-- Active Tasks -->
     <div v-if="hasActiveTasks" class="active-tasks-section">
-          <h4>Active Tasks</h4>
+          <h3>Active Tasks</h3>
           <div class="task-list">
-      <div v-for="task in combinedActiveTasks" :key="task.id" class="task-item status-border status-border-primary">
+      <div v-for="task in (inline ? combinedActiveTasks : combinedActiveTasks.slice(0, 3))" :key="task.id" class="task-item status-border status-border-primary">
               <div class="task-header">
                 <span class="task-type">{{ formatTaskType(task.task_type, task) }}</span>
                 <span class="task-streamer">{{ getStreamerName(task) }}</span>
@@ -127,9 +129,9 @@
 
         <!-- Recent Tasks -->
         <div v-if="recentTasks.length > 0" class="recent-tasks-section">
-          <h4>Recent Tasks</h4>
+          <h3>Recent Tasks</h3>
           <div class="task-list">
-            <div v-for="task in recentTasks.slice(0, 10)" :key="task.id" class="task-item status-border" :class="getStatusBorderClass(task.status)">
+            <div v-for="task in (inline ? recentTasks : recentTasks.slice(0, 3))" :key="task.id" class="task-item status-border" :class="getStatusBorderClass(task.status)">
               <div class="task-header">
                 <span class="task-type">{{ formatTaskType(task.task_type, task) }}</span>
                 <span class="task-streamer">{{ getStreamerName(task) }}</span>
@@ -167,6 +169,8 @@ import { useBackgroundQueue } from '@/composables/useBackgroundQueue'
 import { useSystemAndRecordingStatus } from '@/composables/useSystemAndRecordingStatus'
 import { useModal } from '@/composables/useModal'
 
+const props = defineProps<{ inline?: boolean }>()
+
 // Constants
 // INCREASED: 24 hours to support long streams (marathons, etc.)
 // Backend zombie cleanup handles truly stuck recordings
@@ -193,7 +197,11 @@ const backdrop = ref<HTMLElement | null>(null)
 const instanceId = useId().replace(/:/g, '')
 const panelId = `background-queue-panel-${instanceId}`
 const titleId = `background-queue-title-${instanceId}`
-const { isOpen: showPanel, open: openPanel, close: closePanel } = useModal(panelRef, { backdrop })
+// The full activity is an ordinary region, never a second modal owner.
+const modal = props.inline ? undefined : useModal(panelRef, { backdrop })
+const showPanel = modal?.isOpen ?? ref(false)
+const openPanel = () => modal?.open()
+const closePanel = () => modal?.close()
 
 // Additional computed properties
 // Helper to decide if a task should be treated as "active" in the UI
@@ -359,6 +367,20 @@ defineExpose({ togglePanel, taskCount: combinedActiveTasks })
 
 .background-queue-monitor {
   position: relative;
+}
+
+.queue-activity {
+  padding: var(--spacing-4);
+  margin-bottom: var(--spacing-6);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  background: var(--sv-cmp-panel-background);
+  overflow-wrap: anywhere;
+}
+
+.queue-section-header h2 {
+  margin: 0 0 var(--spacing-4);
+  font-size: var(--text-xl);
 }
 
 .queue-status-indicator {
@@ -559,8 +581,8 @@ defineExpose({ togglePanel, taskCount: combinedActiveTasks })
   }
 }
 
-.active-tasks-section h4,
-.recent-tasks-section h4 {
+.active-tasks-section h3,
+.recent-tasks-section h3 {
   margin: 0 0 16px 0;
   color: var(--text-primary);
   font-size: 16px;
@@ -570,12 +592,12 @@ defineExpose({ togglePanel, taskCount: combinedActiveTasks })
   gap: 8px;
 }
 
-.active-tasks-section h4::before {
+.active-tasks-section h3::before {
   content: "⚡";
   color: var(--info-color);
 }
 
-.recent-tasks-section h4::before {
+.recent-tasks-section h3::before {
   content: "📝";
   color: var(--text-secondary);
 }

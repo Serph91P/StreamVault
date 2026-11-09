@@ -214,6 +214,12 @@ describe('VideoPlayerView route identity', () => {
 })
 
 describe('VideoPlayerView backend playback contract', () => {
+  it('keeps exactly one heading while playback data is loading', async () => {
+    mocks.getChapters.mockReturnValueOnce(new Promise(() => {}))
+    const wrapper = await mountView()
+    expect(wrapper.findAll('h1')).toHaveLength(1)
+    wrapper.unmount()
+  })
   it('returns to the registered library route only after successful deletion', async () => {
     const wrapper = await mountView()
     await wrapper.get('.action-btn.danger').trigger('click')
@@ -295,6 +301,7 @@ describe('VideoPlayerView backend playback contract', () => {
   it('shows a retryable error and never substitutes demo playback', async () => {
     mocks.getChapters.mockRejectedValueOnce(new Error('Authentication required'))
     const wrapper = await mountView()
+    expect(wrapper.findAll('h1')).toHaveLength(1)
 
     expect(wrapper.get('.player-error').text()).toContain('Authentication required')
     expect(wrapper.find('.video-player-stub').exists()).toBe(false)

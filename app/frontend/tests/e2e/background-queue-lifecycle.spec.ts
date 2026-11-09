@@ -48,6 +48,57 @@ async function fixture(page: Page) {
     assertClean: () => { expect(unknown).toEqual([]); expect(errors).toEqual([]) },
   }
 }
+for (const width of [1440, 390]) {
+  for (const theme of ['light', 'dark'] as const) {
+    test.describe(`queue ${width}px ${theme}`, () => {
+      test.use({ viewport: { width, height: 844 }, hasTouch: width === 390, isMobile: width === 390, colorScheme: theme })
+  test('queue preview links to all loaded jobs and errors', async ({ page }, testInfo) => {
+    // This regression seeds >3 jobs per group through the synthetic HTTP boundary,
+    // which only exists on the REAL frontend. The shared MOCK project cannot seed
+    // HTTP (its store reads mockData, not the network), so it runs only in the
+    // dedicated real-build queue lifecycle config.
+    test.skip(testInfo.project.metadata.useMockData === true, 'REAL-only: synthetic HTTP queue seed')
+    const api = await fixture(page)
+    const active = Array.from({ length: 5 }, (_, i) => ({
+      id: `active-${i + 1}`, task_type: 'thumbnail', status: 'running', progress: 20,
+      payload: { streamer_name: `ACTIVE-${i + 1}` },
+    }))
+    const recent = active.map((task, i) => ({
+      ...task, id: `failed-${i + 1}`, status: 'failed',
+      payload: { streamer_name: `FAILED-${i + 1}` }, error_message: `ERROR-${i + 1}`,
+    }))
+    await page.route('**/api/background-queue/active-tasks', route => route.fulfill({ json: active }))
+    await page.route('**/api/background-queue/recent-tasks*', route => route.fulfill({ json: recent }))
+    await page.clock.resume()
+    await page.getByRole('button', { name: /Open background queue/ }).click()
+    const preview = page.getByRole('dialog', { name: 'Background Queue' })
+    await expect(preview.locator('.active-tasks-section .task-item')).toHaveCount(3)
+    await expect(preview.locator('.recent-tasks-section .task-item')).toHaveCount(3)
+    await preview.getByRole('link', { name: 'Vollständige Aktivität' }).click()
+    await expect(page).toHaveURL(/\/activity$/)
+    await expect(page.getByRole('dialog')).toHaveCount(0)
+    await expect(page.locator('main .active-tasks-section .task-item')).toHaveCount(5)
+    await expect(page.locator('main .recent-tasks-section .task-item')).toHaveCount(5)
+    for (const i of [4, 5]) {
+      await expect(page.locator('main').getByText(`ACTIVE-${i}`, { exact: true })).toBeVisible()
+      await expect(page.locator('main').getByText(`FAILED-${i}`, { exact: true })).toBeVisible()
+      await expect(page.locator('main').getByText(`ERROR-${i}`, { exact: true })).toBeVisible()
+    }
+    await page.reload()
+    await expect(page.locator('main .task-item')).toHaveCount(10)
+    await expect(page.locator('main')).toContainText('ERROR-5')
+    await expect(page.locator('main')).toHaveCount(1)
+    await expect(page.locator('h1')).toHaveCount(1)
+    if (width === 390) {
+      await page.setViewportSize({ width: 320, height: 844 })
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+    }
+    api.assertClean()
+  })
+    })
+  }
+}
+
 async function enterAdmin(page: Page) {
   // Let the existing route transition finish before controlling polling time.
   await page.clock.resume()

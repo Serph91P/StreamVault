@@ -35,25 +35,36 @@
       </svg>
 
       <!-- Label -->
-      <span class="nav-label">{{ tab.mobileLabel || tab.label }}</span>
-
-      <!-- Badge (notifications, live count, etc.) -->
-      <span v-if="tab.badge" class="nav-badge">{{ tab.badge }}</span>
+      <span class="nav-label">{{ tab.label }}</span>
     </BaseLink>
+    <button type="button" class="nav-tab focus-ring-primary" aria-label="Mehr"
+      :class="{ active: isActiveRoute('/settings') || isActiveRoute('/system') }"
+      aria-haspopup="dialog" :aria-expanded="showMore" @click="showMore = true">
+      <svg class="nav-icon" aria-hidden="true"><use href="#icon-menu" /></svg>
+      <span class="nav-label">Mehr</span>
+    </button>
   </nav>
+  <BaseModal v-if="isMobile" v-model="showMore" title="Mehr" :fullscreen-mobile="false">
+    <NavigationUtilities @navigate="showMore = false" />
+  </BaseModal>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useNavigation } from '@/composables/useNavigation'
 import { useWebSocket } from '@/composables/useWebSocket'
 import BaseLink from '@/components/base/BaseLink.vue'
+import BaseModal from '@/components/base/BaseModal.vue'
+import NavigationUtilities from './NavigationUtilities.vue'
+
+const showMore = ref(false)
 
 const {
   navigationTabs,
   isMobile,
   isActiveRoute
 } = useNavigation()
+watch(isMobile, () => { showMore.value = false })
 const {
   connectionStatus,
   isBrowserOnline,

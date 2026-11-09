@@ -520,12 +520,7 @@ const handlePlay = () => {
   line-height: v.$leading-snug;
   margin: 0 0 var(--spacing-2) 0;
 
-  // Limit to 2 lines
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;  // Standard property for compatibility
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+  overflow-wrap: anywhere;
 
   transition: color v.$duration-200 v.$ease-out;
 }
@@ -739,8 +734,6 @@ const handlePlay = () => {
   .video-title {
     font-size: var(--text-sm);
     margin: 0;
-    -webkit-line-clamp: 1;
-    line-clamp: 1;
   }
 
   .video-meta {

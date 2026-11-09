@@ -87,6 +87,8 @@ test('uses the realtime socket contract configured for setup and logout', async 
     await expect(page.evaluate(() => (window as unknown as { __observedWebSocketUrls: string[] }).__observedWebSocketUrls[0])).resolves.toMatch(/\/ws$/)
   }
 
+  if (await page.getByRole('button', { name: 'Mehr', exact: true }).isVisible())
+    await page.getByRole('button', { name: 'Mehr', exact: true }).click()
   page.once('dialog', dialog => dialog.accept())
   await page.getByRole('button', { name: 'Logout' }).click()
   await expect(page).toHaveURL(/\/auth\/login/)

@@ -1,6 +1,7 @@
 import { createRequire } from 'node:module'
 import { writeFileSync } from 'node:fs'
 import assert from 'node:assert/strict'
+import { verifyShell } from './shell.mjs'
 const { chromium, expect } = createRequire(process.env.FRONTEND_ROOT + '/package.json')('@playwright/test')
 const origin = process.env.ACCEPTANCE_ORIGIN, output = process.env.ACCEPTANCE_OUTPUT
 const browser = await chromium.launch({ executablePath: '/opt/data/agent/cache/ms-playwright/chromium-1243/chrome-linux64/chrome', headless: true })
@@ -52,6 +53,8 @@ try {
       await expect(page.getByText('synthetic-channel', { exact: true }).first()).toBeVisible()
       await expect.poll(() => responses.some(response => response.path === '/api/background-queue/active-tasks' && response.status === 200)).toBe(true)
       assert.equal((await api('/_acceptance/seed', 'POST')).status, 200)
+      const shell = await verifyShell({ page, context, browser, origin, device })
+      result.cases.push({ device: device.name, shell })
 
       await go('/settings?section=recording')
       await expect(page.getByRole('heading', { name: 'Globale Aufnahmevorgaben' })).toBeVisible()

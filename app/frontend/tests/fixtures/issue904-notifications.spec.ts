@@ -71,11 +71,17 @@ for (const viewport of [{ width: 320, height: 640 }, { width: 390, height: 844 }
           await bell.click()
           const panel = page.locator('#notification-panel')
           await readyForSettledMotion(panel)
-          const toggle = panel.locator('.filter-menu-toggle')
+          await expect(panel.locator('.notification-item')).toHaveCount(5)
+          await panel.getByRole('link', { name: 'Alle Meldungen', exact: true }).click()
+          await expect(panel).toHaveCount(0)
+          const history = page.locator('.activity-view')
+          const toggle = history.locator('.filter-menu-toggle')
           if (expanded) await toggle.click()
-          const list = panel.locator('.notification-groups')
+          await history.locator('.notification-feed').evaluate(element => element.scrollIntoView({ block: 'start' }))
+          const list = history.locator('.notification-groups')
           await expect(list.locator('.notification-item')).toHaveCount(events.length)
           await expect(list.locator('.notification-group-header')).toHaveCount(3)
+          await page.screenshot({ path: testInfo.outputPath('history-layout.png') })
           const samples = []
           for (const delta of [0, 200, 450, -100, 1600, 20000, -10000]) {
             const box = (await list.boundingBox())!
@@ -83,7 +89,7 @@ for (const viewport of [{ width: 320, height: 640 }, { width: 390, height: 844 }
             await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
             if (delta) await page.mouse.wheel(0, delta)
             await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))
-            const state = await panel.evaluate(element => {
+            const state = await history.evaluate(element => {
               const list = element.querySelector('.notification-groups')!
               const feed = element.querySelector('.notification-feed')!
               const filters = element.querySelector('.notification-filters')!
@@ -144,13 +150,13 @@ for (const viewport of [{ width: 320, height: 640 }, { width: 390, height: 844 }
           }
           expect(writes, 'opening and scrolling do not mark or clear data').toEqual([])
           if (await toggle.getAttribute('aria-expanded') !== 'true') await toggle.click()
-          await panel.getByRole('button', { name: /^Warnings/ }).click()
+          await history.getByRole('button', { name: /^Warnings/ }).click()
           await expect(list.locator('.notification-item')).toHaveCount(events.filter(event => event.data.severity === 'warning').length)
           const first = list.locator('.notification-item').first()
           await first.getByRole('button', { name: / read$/ }).click()
           await expect(first.getByRole('button', { name: / unread$/ })).toBeVisible()
           expect(writes, 'single-item read is local, not a global mutation').toEqual([])
-          await panel.getByRole('button', { name: 'Mark all notifications read', exact: true }).click()
+          await history.getByRole('button', { name: 'Mark all notifications read', exact: true }).click()
           await expect.poll(() => writes.length).toBe(1)
           expect(writes).toEqual(['POST /api/notifications/mark-read'])
           expect(unexpected).toEqual([])

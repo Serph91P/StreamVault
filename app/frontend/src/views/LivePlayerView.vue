@@ -1,5 +1,6 @@
 <template>
   <div class="page-view live-player-view fade-in" :class="{ 'theater-mode': effectiveTheaterMode }">
+    <h1 v-if="isLoading || isStopped || !sessionId">Livewiedergabe</h1>
     <!-- Loading State -->
     <div v-if="isLoading" class="content-state">
       <LoadingSkeleton type="video" />

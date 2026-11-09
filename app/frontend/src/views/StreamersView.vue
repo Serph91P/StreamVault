@@ -13,8 +13,7 @@
             </svg>
             Kanal hinzufügen
           </router-link>
-          <router-link to="/streamers/manage" class="btn btn-secondary btn-sm">Kanäle verwalten</router-link>
-          <router-link to="/add-streamer/import" class="btn btn-secondary btn-sm">Follows importieren</router-link>
+
         </div>
       </template>
     </PageHeader>
@@ -127,15 +126,7 @@
           <template v-if="activeFilter !== 'all'"> · {{ activeFilterLabel }}</template>
           <template v-if="searchQuery"> · „{{ searchQuery }}“</template>
         </span>
-        <span v-if="lastUpdateTime">Stand {{ formatLastUpdate(lastUpdateTime) }}</span>
-        <BaseButton variant="ghost" size="sm" :aria-pressed="autoRefresh" @click="toggleAutoRefresh">
-          Hintergrundabgleich: {{ autoRefresh ? 'an' : 'aus' }}
-        </BaseButton>
-        <button @click="handleRefresh" class="refresh-btn" aria-label="Kanalstatus erneut abrufen" title="Kanalstatus erneut abrufen" v-ripple>
-          <svg class="icon" :class="{ spinning: isRefreshing }">
-            <use href="#icon-refresh-cw" />
-          </svg>
-        </button>
+
       </div>
     </div>
 
@@ -183,11 +174,11 @@
       description="Zu dieser Suche oder diesem Status gibt es gerade keine Kanäle. Die übrigen Kanäle sind weiterhin vorhanden."
       icon="search"
       action-label="Alle Kanäle anzeigen"
-      @action="searchQuery = ''; activeFilter = 'all'"
+      @action="router.replace({ query: { ...route.query, q: undefined, filter: 'all' } })"
     />
 
     <!-- Streamers Grid/List -->
-    <div v-else class="streamers-container" :class="[`view-${viewMode}`, viewMode === 'grid' ? 'grid-streamers' : '']">
+    <div v-else class="streamers-container" :class="[`view-${viewMode}`, viewMode === 'grid' ? 'grid-streamers' : '']" @click.capture="prepareChannelReturn">
       <div
         v-for="streamer in filteredAndSortedStreamers"
         :key="streamer.id"
@@ -202,13 +193,28 @@
         />
       </div>
     </div>
+    <details class="collection-tools">
+      <summary>Weitere Kanalaktionen</summary>
+      <div class="header-actions">
+        <router-link to="/streamers/manage" class="btn btn-secondary btn-sm">Kanäle verwalten</router-link>
+        <router-link to="/add-streamer/import" class="btn btn-secondary btn-sm">Follows importieren</router-link>
+        <span v-if="lastUpdateTime">Stand {{ formatLastUpdate(lastUpdateTime) }}</span>
+        <BaseButton variant="ghost" size="sm" :aria-pressed="autoRefresh" @click="toggleAutoRefresh">
+          Hintergrundabgleich: {{ autoRefresh ? 'an' : 'aus' }}
+        </BaseButton>
+        <button @click="handleRefresh" class="refresh-btn" aria-label="Kanalstatus erneut abrufen" title="Kanalstatus erneut abrufen" v-ripple>
+          <svg class="icon" :class="{ spinning: isRefreshing }"><use href="#icon-refresh-cw" /></svg>
+        </button>
+      </div>
+    </details>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { appStorage } from '@/services/storage'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
+import { prepareVideoReturn, restoreVideoReturnScroll } from '@/composables/useNavigation'
 import { streamersApi } from '@/services/api'
 import { useRealtimeStore } from '@/stores/realtime'
 import { useNotificationStore } from '@/stores/notifications'
@@ -228,6 +234,7 @@ const unreadProblems = computed(() => notifications.notifications.filter(
   event => !event.read && ['warning', 'error', 'critical'].includes(event.severity)
 ).length)
 const route = useRoute()
+const router = useRouter()
 
 // Force recording composable
 const { forceStartRecording } = useForceRecording()  // NEW: Use composable
@@ -236,12 +243,23 @@ const { forceStartRecording } = useForceRecording()  // NEW: Use composable
 const isLoading = ref(true)
 const isRefreshing = ref(false)
 const streamers = ref<any[]>([])
-const searchQuery = ref('')
+const searchQuery = computed({
+  get: () => typeof route.query.q === 'string' ? route.query.q : '',
+  set: (q: string) => { void router.replace({ query: { ...route.query, q: q || undefined } }) },
+})
 // Grid/list choice survives reloads
-const viewMode = ref<'grid' | 'list'>(appStorage.getViewMode('streamers') ?? 'list')
-watch(viewMode, (mode) => appStorage.setViewMode('streamers', mode))
-const sortBy = ref('live-first')
-const activeFilter = ref('all')
+const viewMode = computed<'grid' | 'list'>({
+  get: () => route.query.view === 'grid' || route.query.view === 'list' ? route.query.view : appStorage.getViewMode('streamers') ?? 'list',
+  set: (view) => { appStorage.setViewMode('streamers', view); void router.replace({ query: { ...route.query, view } }) },
+})
+const sortBy = computed({
+  get: () => sortOptions.some(option => option.value === route.query.sort) ? route.query.sort as string : 'live-first',
+  set: (sort: string) => { void router.replace({ query: { ...route.query, sort } }) },
+})
+const activeFilter = computed({
+  get: () => validFilters.has(route.query.filter as string) ? route.query.filter as string : 'all',
+  set: (filter: string) => { void router.replace({ query: { ...route.query, filter } }) },
+})
 const autoRefresh = ref(true)
 const lastUpdateTime = ref<Date | null>(null)
 const fetchError = ref('')
@@ -249,11 +267,9 @@ const fetchFailureState = ref<PresentationState>('error')
 
 const validFilters = new Set(['all', 'live', 'recording', 'offline'])
 
-function applyFilterFromRoute() {
-  const routeFilter = Array.isArray(route.query.filter) ? route.query.filter[0] : route.query.filter
-  if (typeof routeFilter === 'string' && validFilters.has(routeFilter)) {
-    activeFilter.value = routeFilter
-  }
+function prepareChannelReturn(event: MouseEvent) {
+  if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return
+  if ((event.target as Element).closest('a[href^="/streamers/"]')) prepareVideoReturn(route.fullPath)
 }
 
 // Auto-refresh interval
@@ -497,8 +513,8 @@ const realtimeCleanups: (() => void)[] = []
 
 // Lifecycle
 onMounted(async () => {
-  applyFilterFromRoute()
   await loadStreamers()
+  await restoreVideoReturnScroll()
   if (autoRefresh.value) {
     startAutoRefresh()
   }
@@ -590,10 +606,6 @@ onMounted(async () => {
   )
 })
 
-watch(
-  () => route.query.filter,
-  () => applyFilterFromRoute()
-)
 
 onUnmounted(() => {
   stopAutoRefresh()
