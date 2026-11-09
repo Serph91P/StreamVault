@@ -38,9 +38,7 @@ def get_lifespan_service(app: FastAPI, provider: Callable):
     """Resolve a factory-provided service without invoking it eagerly."""
     if provider in app.dependency_overrides:
         return app.dependency_overrides[provider]
-    if provider is get_recording_manager and not getattr(
-        app.state, "legacy_default", True
-    ):
+    if provider is get_recording_manager:
         return partial(_get_application_recording_manager, app)
     if provider is get_event_registry and hasattr(app.state, "event_registry_lock"):
         return partial(_initialize_application_event_registry, app)
@@ -215,6 +213,7 @@ def get_recording_manager():
 
 def _get_application_recording_manager(app: FastAPI):
     """Build once in the synchronous provider worker, never during create_app."""
+    global recording_manager
     with app.state.recording_manager_lock:
         if app.state.recording_manager is None:
             from app.services.recording.recording_orchestrator import (
@@ -245,6 +244,8 @@ def _get_application_recording_manager(app: FastAPI):
                 service=RecordingService(orchestrator=orchestrator),
                 upstream_coordinator=orchestrator.process_manager.upstream_coordinator,
             )
+        if getattr(app.state, "legacy_default", False):
+            recording_manager = app.state.recording_manager
         return app.state.recording_manager
 
 

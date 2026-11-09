@@ -3,9 +3,12 @@ API routes for system testing and administration
 """
 
 import logging
-from datetime import timezone
 from fastapi import APIRouter, HTTPException, Depends
-from app.dependencies import get_db, get_application_session_factory
+from app.dependencies import (
+    get_db,
+    get_application_session_factory,
+    get_application_recording_manager,
+)
 from collections.abc import Callable
 from app.dependencies import require_admin_user
 from sqlalchemy.orm import Session, joinedload
@@ -960,84 +963,21 @@ def fix_recording_availability(
 
 @router.post("/recordings/cleanup-orphaned-db")
 async def cleanup_orphaned_database_recordings(
-    max_age_hours: int = 48, dry_run: bool = True
+    max_age_hours: int = 48,
+    dry_run: bool = True,
+    session_factory: Callable[[], Session] = Depends(get_application_session_factory),
+    manager=Depends(get_application_recording_manager),
 ) -> Dict[str, Any]:
     """Clean up database recordings that have been running too long"""
     try:
-        from app.database import SessionLocal
-        from app.models import Recording, Stream
-        from datetime import datetime, timedelta
+        from app.services.recording.admin_cleanup import inspect_or_cleanup_recordings
 
-        results = {"checked": 0, "cleaned": 0, "errors": 0, "details": []}
-
-        # Calculate cutoff time (timezone-aware)
-        cutoff_time = datetime.now(timezone.utc) - timedelta(hours=max_age_hours)
-
-        with SessionLocal() as db:
-            # Find recordings that are still "recording" but started too long ago with eager loading
-            orphaned_recordings = (
-                db.query(Recording)
-                .options(joinedload(Recording.stream).joinedload(Stream.streamer))
-                .filter(
-                    Recording.status == "recording", Recording.start_time < cutoff_time
-                )
-                .all()
-            )
-
-            for recording in orphaned_recordings:
-                results["checked"] += 1
-                recording_result = {
-                    "recording_id": recording.id,
-                    "stream_id": recording.stream_id,
-                    "streamer_id": None,
-                    "started_at": recording.start_time.isoformat()
-                    if recording.start_time
-                    else None,
-                    "duration_hours": None,
-                    "action": "none",
-                }
-
-                try:
-                    # Get additional info via relationships (already loaded)
-                    if recording.stream:
-                        recording_result["streamer_id"] = recording.stream.streamer_id
-                        if recording.stream.streamer:
-                            recording_result["streamer_name"] = (
-                                recording.stream.streamer.username
-                            )
-
-                    if recording.start_time:
-                        # Use timezone-aware datetime
-                        now = datetime.now(timezone.utc)
-                        duration = now - recording.start_time
-                        recording_result["duration_hours"] = (
-                            duration.total_seconds() / 3600
-                        )
-
-                    # Mark as completed with current time
-                    recording_result["action"] = "mark_completed"
-                    if not dry_run:
-                        recording.status = "completed"
-                        # Use timezone-aware datetime
-                        recording.end_time = datetime.now(timezone.utc)
-                        if recording.start_time:
-                            duration = recording.end_time - recording.start_time
-                            recording.duration = duration.total_seconds()
-                        results["cleaned"] += 1
-
-                    results["details"].append(recording_result)
-
-                except Exception as e:
-                    logger.error(f"Error processing recording {recording.id}: {e}")
-                    results["errors"] += 1
-                    recording_result["error"] = "Processing failed"
-                    results["details"].append(recording_result)
-
-            if not dry_run:
-                db.commit()
-                logger.info(
-                    f"Cleaned up {results['cleaned']} orphaned database recordings"
-                )
+        results = await inspect_or_cleanup_recordings(
+            manager.process_manager,
+            session_factory,
+            dry_run=dry_run,
+            max_age_hours=max_age_hours,
+        )
 
         return {
             "success": True,
@@ -1052,94 +992,18 @@ async def cleanup_orphaned_database_recordings(
 
 
 @router.post("/recordings/cleanup-process-orphaned")
-async def cleanup_process_orphaned_recordings(dry_run: bool = True) -> Dict[str, Any]:
+async def cleanup_process_orphaned_recordings(
+    dry_run: bool = True,
+    session_factory: Callable[[], Session] = Depends(get_application_session_factory),
+    manager=Depends(get_application_recording_manager),
+) -> Dict[str, Any]:
     """Clean up recordings marked as 'recording' but without active processes"""
     try:
-        from app.database import SessionLocal
-        from app.models import Recording, Stream
-        from app.dependencies import get_recording_manager
-        from datetime import datetime
+        from app.services.recording.admin_cleanup import inspect_or_cleanup_recordings
 
-        results = {"checked": 0, "cleaned": 0, "errors": 0, "details": []}
-
-        with SessionLocal() as db:
-            # Process state is local; ownership itself remains lease-backed.
-            process_manager = get_recording_manager().process_manager
-
-            # Find all recordings that are still marked as "recording" with eager loading
-            recording_status_recordings = (
-                db.query(Recording)
-                .options(joinedload(Recording.stream).joinedload(Stream.streamer))
-                .filter(Recording.status == "recording")
-                .all()
-            )
-
-            for recording in recording_status_recordings:
-                results["checked"] += 1
-                process_id = f"stream_{recording.stream_id}"
-                has_active_process = process_id in process_manager.active_processes
-
-                recording_result = {
-                    "recording_id": recording.id,
-                    "stream_id": recording.stream_id,
-                    "process_id": process_id,
-                    "has_active_process": has_active_process,
-                    "streamer_id": None,
-                    "started_at": recording.start_time.isoformat()
-                    if recording.start_time
-                    else None,
-                    "duration_hours": None,
-                    "action": "none",
-                }
-
-                try:
-                    # Get additional info via relationships (already loaded)
-                    if recording.stream:
-                        recording_result["streamer_id"] = recording.stream.streamer_id
-                        if recording.stream.streamer:
-                            recording_result["streamer_name"] = (
-                                recording.stream.streamer.username
-                            )
-
-                    if recording.start_time:
-                        # Use timezone-aware datetime to match recording.start_time
-                        now = datetime.now(timezone.utc)
-                        duration = now - recording.start_time
-                        recording_result["duration_hours"] = (
-                            duration.total_seconds() / 3600
-                        )
-
-                    # If no active process, mark as completed
-                    if not has_active_process:
-                        recording_result["action"] = "mark_completed_no_process"
-                        if not dry_run:
-                            recording.status = "completed"
-                            # Use timezone-aware datetime
-                            recording.end_time = datetime.now(timezone.utc)
-                            if recording.start_time:
-                                duration = recording.end_time - recording.start_time
-                                recording.duration = duration.total_seconds()
-                            results["cleaned"] += 1
-                        else:
-                            results["cleaned"] += (
-                                1  # Count what would be cleaned in dry run
-                            )
-                    else:
-                        recording_result["action"] = "keep_active_process_found"
-
-                    results["details"].append(recording_result)
-
-                except Exception as e:
-                    logger.error(f"Error processing recording {recording.id}: {e}")
-                    results["errors"] += 1
-                    recording_result["error"] = "Processing failed"
-                    results["details"].append(recording_result)
-
-            if not dry_run:
-                db.commit()
-                logger.info(
-                    f"Cleaned up {results['cleaned']} process-orphaned recordings"
-                )
+        results = await inspect_or_cleanup_recordings(
+            manager.process_manager, session_factory, dry_run=dry_run
+        )
 
         return {
             "success": True,
