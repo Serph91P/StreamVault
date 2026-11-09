@@ -95,15 +95,7 @@ class ProxyEncryption:
                 )
                 logger.warning("   Migration 032 should have moved this to database")
             else:
-                # Last resort: Generate ephemeral key (will cause data loss on restart)
-                logger.error(
-                    "❌ CRITICAL: No encryption key in database or environment!"
-                )
-                logger.error(
-                    "   Generating ephemeral key - proxies will be lost on restart"
-                )
-                new_key = Fernet.generate_key()
-                encryption_key = new_key.decode("utf-8")
+                raise RuntimeError("Persistent proxy identity unavailable") from e
 
         try:
             self._cipher = Fernet(
