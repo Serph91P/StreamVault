@@ -65,7 +65,7 @@
           class="filter-tab"
           v-ripple
         >
-          {{ tab.value === 'recording' ? 'Aufnahme' : tab.label }}
+          {{ tab.label }}
           <span v-if="tab.count !== undefined" class="tab-badge">
             {{ tab.count }}
           </span>
@@ -301,7 +301,7 @@ const filterTabs = computed(() => [
     count: liveStreamers.value.length
   },
   {
-    label: 'Wird aufgenommen',
+    label: 'Aufnahme',
     value: 'recording',
     count: recordingStreamers.value.length
   },

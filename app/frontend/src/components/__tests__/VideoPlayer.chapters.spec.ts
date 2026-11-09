@@ -52,6 +52,7 @@ describe('VideoPlayer automatic chapters', () => {
     expect(markers).toHaveLength(2)
     expect(markers[0].attributes('title')).toContain('Opening - 0:00 (10m 0s)')
     expect(markers[1].attributes('title')).toContain('Main event - 10:00 (5m 0s)')
+    expect(wrapper.get('.chapters-button').attributes('aria-label')).toBe('Chapters 2')
   })
 
   it('leaves chapters empty when the chapter service fails', async () => {

@@ -63,7 +63,7 @@ describe('real shell/feed/item action ownership', () => {
 
   it.each(['mark', 'clear'])('executes a feed %s intent once rather than again in the parent shell', async action => {
     const { wrapper, store } = await setup()
-    const label = action === 'mark' ? 'Mark all notifications read' : 'Clear all notifications'
+    const label = action === 'mark' ? 'Mark all read' : 'Clear all notifications'
     expect(wrapper.findAll(`[aria-label="${label}"]`)).toHaveLength(1)
     await wrapper.get(`[aria-label="${label}"]`).trigger('click')
     await flushPromises()
@@ -75,7 +75,7 @@ describe('real shell/feed/item action ownership', () => {
   it('shows a mark-all server error without pretending the history is read', async () => {
     const { wrapper, store } = await setup(false)
     api.markRead.mockRejectedValueOnce(new Error('synthetic failure'))
-    await wrapper.get('[aria-label="Mark all notifications read"]').trigger('click')
+    await wrapper.get('[aria-label="Mark all read"]').trigger('click')
     await flushPromises()
     expect(wrapper.text()).toContain('could not be marked read')
     expect(store.unreadCount).toBe(2)
@@ -85,7 +85,7 @@ describe('real shell/feed/item action ownership', () => {
     let finish!: (value: unknown) => void
     api.markRead.mockReturnValue(new Promise(resolve => { finish = resolve }))
     const { wrapper, store } = await setup(false)
-    const mark = wrapper.get('[aria-label="Mark all notifications read"]')
+    const mark = wrapper.get('[aria-label="Mark all read"]')
     await mark.trigger('click')
     await mark.trigger('click')
     await wrapper.get('[aria-label="Clear all notifications"]').trigger('click')

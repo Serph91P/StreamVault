@@ -11,7 +11,7 @@
     "largestCssBytes": 310991
   },
   "hlsWorkerAllowance": {
-    "packageVersion": "1.7.3",
+    "packageVersion": "1.7.4",
     "bytes": 116764,
     "gzipBytes": 40615
   }
