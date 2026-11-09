@@ -176,8 +176,8 @@ async def test_queue_managers_execute_owned_chapters_and_stop_without_stopping_p
                     session.scalar(select(RecordingProcessingState)).chapters_status
                     == "completed"
                 )
-            assert database.sync_engine.pool.checkedout() == 0
         await managers[0].shutdown()
+        assert databases[0].sync_engine.pool.checkedout() == 0
         assert not managers[0].is_running()
         assert managers[0].recovery_service.recovery_task.done()
         assert managers[1].is_running()
@@ -192,6 +192,8 @@ async def test_queue_managers_execute_owned_chapters_and_stop_without_stopping_p
         for socket in sockets:
             await socket.close_all()
         for database in databases:
+            # A live peer dispatcher may borrow a connection; shutdown is the leak boundary.
+            assert database.sync_engine.pool.checkedout() == 0
             await database.adispose()
 
 

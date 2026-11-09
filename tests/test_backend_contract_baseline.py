@@ -129,7 +129,18 @@ def test_public_openapi_routes_and_middleware_preserve_verified_base():
             (route["path"], route["methods"], route["route_class"]) for route in routes
         ]
 
-    expected_routes = signatures(expected["routes_in_registration_order"])
+    historical_routes = copy.deepcopy(expected["routes_in_registration_order"])
+    for route in historical_routes:
+        if route["path"] == "":
+            # FastAPI0.143.1/#16484 fixes included WS metadata, not its actual URI.
+            assert route == {
+                "path": "",
+                "methods": [],
+                "route_class": "APIWebSocketRoute",
+                "endpoint": "app.routes.realtime.websocket_endpoint",
+            }
+            route["path"] = "/ws"
+    expected_routes = signatures(historical_routes)
     insertion = expected_routes.index(("/streamers", ["GET"], "APIRoute")) + 1
     expected_routes[insertion:insertion] = [
         (path, ["GET"], "APIRoute") for path in spa_paths
