@@ -14,7 +14,7 @@ from app import dependencies
 from app.config.settings import Settings
 from app.database import Base, DatabaseLifecycle
 from app.main import create_app
-from app.models import Recording, Stream, Streamer
+from app.models import Recording, RecordingProcessingState, Stream, Streamer
 from app.services.recording.unified_recovery_service import (
     RecoveryStats,
     UnifiedRecoveryService,
@@ -161,8 +161,14 @@ async def test_recovery_discovery_and_enqueue_use_only_owned_closed_worker_scope
         assert loop_thread not in queries
         assert probes and loop_thread not in probes
         for app, database in zip(applications, databases, strict=True):
-            tasks = app.state.background_queue_service.queue_manager.dependency_manager.tasks
-            assert tasks and any(task.type == "mp4_remux" for task in tasks.values())
+            def stored_tasks():
+                with database.sync_session_factory() as session:
+                    state = session.query(RecordingProcessingState).filter_by(recording_id=7).one()
+                    ids = list(state.get_task_ids().values())
+                return app.state.background_queue_service.queue_manager.task_store.snapshot(ids)
+
+            tasks = await run_in_thread_pool(stored_tasks)
+            assert tasks and any(task.task_type == "mp4_remux" for task in tasks.values())
             probe = (
                 Path(app.state.settings.RECORDING_DIRECTORY)
                 / "alice"

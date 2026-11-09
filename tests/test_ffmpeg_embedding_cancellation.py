@@ -10,6 +10,7 @@ import pytest
 
 from app.utils.ffmpeg_utils import embed_metadata_with_ffmpeg_wrapper
 from app.services.media.thumbnail_service import ThumbnailService
+from app.utils.process_output import BoundedStreamlinkOutput
 
 
 @pytest.mark.asyncio
@@ -43,6 +44,7 @@ async def test_cancelled_media_operation_drains_real_child_and_owned_files(
     )
     original_create = asyncio.create_subprocess_exec
     original_communicate = asyncio.subprocess.Process.communicate
+    original_wait = BoundedStreamlinkOutput.wait
     started = asyncio.Event()
     release = asyncio.Event()
     children = []
@@ -56,10 +58,12 @@ async def test_cancelled_media_operation_drains_real_child_and_owned_files(
         process = await original_create(*args, **kwargs)
         children.append(process)
         if operation == "embedding":
-            metadata_files.append(Path(args[4]))
+            inputs = [index for index, argument in enumerate(args) if argument == "-i"]
+            metadata_files.append(Path(args[inputs[1] + 1]))
         return process
 
-    async def communicate(process, input=None):
+    async def wait(output):
+        process = output.process
         if process in children and process.pid not in blocked:
             blocked.add(process.pid)
             started.set()
@@ -71,10 +75,10 @@ async def test_cancelled_media_operation_drains_real_child_and_owned_files(
             except asyncio.CancelledError:
                 drain_cancelled.append(process.pid)
                 raise
-        return await original_communicate(process, input)
+        return await original_wait(output)
 
     monkeypatch.setattr(asyncio, "create_subprocess_exec", create)
-    monkeypatch.setattr(asyncio.subprocess.Process, "communicate", communicate)
+    monkeypatch.setattr(BoundedStreamlinkOutput, "wait", wait)
     coroutine = (
         embed_metadata_with_ffmpeg_wrapper(
             str(source), str(output), {"title": "cancelled"}

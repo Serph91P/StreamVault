@@ -4,6 +4,9 @@ import os
 import urllib.parse
 from typing import List, Optional, Literal
 from datetime import datetime
+from collections.abc import Callable
+from app.bootstrap.settings import resolve_app_settings
+from app.config.settings import Settings
 from app.database import SessionLocal
 from app.utils.async_db_utils import run_in_thread_pool
 from app.utils.media_response import SnapshotFileResponse
@@ -42,6 +45,7 @@ from app.dependencies import (
     get_current_identity,
     get_db,
     get_video_catalog_service,
+    get_application_session_factory,
 )
 
 logger = logging.getLogger("streamvault")
@@ -301,10 +305,10 @@ def is_video_file(filename: str) -> bool:
     return Path(filename).suffix.lower() in video_extensions
 
 
-def _read_catalog_page(**options):
+def _read_catalog_page(session_factory: Callable[[], Session], **options):
     from sqlalchemy.orm.exc import StaleDataError
 
-    with SessionLocal() as db:
+    with session_factory() as db:
         try:
             result = VideoCatalogService(db).list_page(**options)
             if not result["index"]["retry_required"]:
@@ -319,6 +323,7 @@ def _read_catalog_page(**options):
 
 @router.get("/videos/catalog")
 async def get_video_catalog(
+    session_factory: Callable[[], Session] = Depends(get_application_session_factory),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=100),
     q: Optional[str] = Query(None, max_length=200),
@@ -344,6 +349,7 @@ async def get_video_catalog(
         )
     return await run_in_thread_pool(
         _read_catalog_page,
+        session_factory,
         page=page,
         page_size=page_size,
         q=q,
@@ -362,12 +368,13 @@ async def get_video_catalog(
 @router.get("/videos/{stream_id}/metadata")
 async def get_video_metadata(
     stream_id: int,
+    session_factory: Callable[[], Session] = Depends(get_application_session_factory),
     identity: AuthIdentity = Depends(get_current_identity),
 ):
     if not identity.interactive:
         raise HTTPException(status_code=401, detail="Authentication required")
     result = await run_in_thread_pool(
-        _read_catalog_page, stream_id=stream_id, page_size=1
+        _read_catalog_page, session_factory, stream_id=stream_id, page_size=1
     )
     if not result["items"]:
         raise HTTPException(
@@ -500,15 +507,13 @@ def generate_share_token(
         share_token = token_urlsafe(32)  # Generate a secure random token
 
         # Store the share token with expiration
-        store_share_token(share_token, stream_id, TOKEN_EXPIRATION_SECONDS)
+        store_share_token(share_token, stream_id, TOKEN_EXPIRATION_SECONDS, db=db)
 
         # Clean up any expired tokens while we're here
-        cleanup_expired_tokens()
+        cleanup_expired_tokens(db=db)
 
-        # Create the share URL using BASE_URL from settings (ensures correct HTTPS URL)
-        from app.config.settings import get_settings
-
-        settings = get_settings()
+        # Create the share URL using the owner's configured origin.
+        settings = resolve_app_settings(request.app)
         base_url = settings.BASE_URL.rstrip("/")
         share_url = f"{base_url}/api/videos/public/{stream_id}?token={share_token}"
 
@@ -639,35 +644,43 @@ def get_video_thumbnail(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-def _media_read_in_worker(operation, *args):
-    with SessionLocal() as db:
+def _media_read_in_worker(
+    operation, *args, session_factory: Callable[[], Session] | None = None
+):
+    with (session_factory or SessionLocal)() as db:
         return operation(db, *args)
 
 
 @router.head("/videos/public/{stream_id}", operation_id="head_public_video")
 @router.get("/videos/public/{stream_id}")
 async def stream_video_public(
+    request: Request,
     stream_id: int,
     token: str = Query(...),
-    request: Request = None,
+    session_factory: Callable[[], Session] = Depends(get_application_session_factory),
 ):
     """Stream video with token-based authentication for external players like VLC"""
     from app.utils.async_db_utils import run_in_thread_pool
 
     return await run_in_thread_pool(
-        _media_read_in_worker, _public_video_response, stream_id, token
+        _media_read_in_worker,
+        _public_video_response,
+        stream_id,
+        token,
+        resolve_app_settings(request.app),
+        session_factory=session_factory,
     )
 
 
-def _public_video_response(db, stream_id, token):
+def _public_video_response(db, stream_id, token, settings: Settings):
     try:
         logger.info(f"Public video stream request for stream_id: {stream_id}")
 
         # Validate the share token
-        token_stream_id = validate_share_token(token)
+        token_stream_id = validate_share_token(token, db=db)
         if not token_stream_id or token_stream_id != stream_id:
             # Also try validating as a session token for backward compatibility
-            auth_service = AuthService(db)
+            auth_service = AuthService(db, settings=settings)
             if auth_service.resolve_legacy_session(token) is None:
                 raise HTTPException(status_code=401, detail="Invalid or expired token")
 
@@ -680,7 +693,11 @@ def _public_video_response(db, stream_id, token):
             raise HTTPException(status_code=404, detail="Video not found")
 
         # SECURITY: Validate path and file type
-        validated_path = validate_path_security(stream.recording_path, "read")
+        validated_path = validate_path_security(
+            stream.recording_path,
+            "read",
+            recording_directory=settings.RECORDING_DIRECTORY,
+        )
         try:
             validate_file_type(validated_path, ALLOWED_VIDEO_EXTENSIONS)
         except ValueError as e:
@@ -725,13 +742,20 @@ def _public_video_response(db, stream_id, token):
 def stream_video_by_id(
     stream_id: int,
     request: Request,
+    session_factory: Callable[[], Session] = Depends(get_application_session_factory),
     identity: AuthIdentity = Depends(get_current_identity),
 ):
     """Stream a video file by stream ID with range request support"""
-    return _media_read_in_worker(_stored_video_response, stream_id, identity)
+    return _media_read_in_worker(
+        _stored_video_response,
+        stream_id,
+        identity,
+        resolve_app_settings(request.app),
+        session_factory=session_factory,
+    )
 
 
-def _stored_video_response(db, stream_id, identity):
+def _stored_video_response(db, stream_id, identity, settings: Settings):
     try:
         logger.info(f"Video stream request for stream_id: {stream_id}")
         # SECURITY: Never log headers or cookies - CWE-532
@@ -764,7 +788,11 @@ def _stored_video_response(db, stream_id, identity):
 
         # SECURITY: Validate path and file type
         try:
-            validated_path = validate_path_security(stream.recording_path, "read")
+            validated_path = validate_path_security(
+                stream.recording_path,
+                "read",
+                recording_directory=settings.RECORDING_DIRECTORY,
+            )
         except HTTPException as e:
             logger.error(f"Path validation failed for stream {stream_id}: {e.detail}")
             raise HTTPException(status_code=403, detail="Invalid file path")

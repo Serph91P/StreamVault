@@ -83,6 +83,11 @@ async def test_startup_recovery_keeps_closed_snapshots_owner_and_failure_boundar
             else:
                 database = DatabaseLifecycle(f"sqlite:///{root / 'owned.db'}")
             databases.append(database)
+            dead_capture = await asyncio.create_subprocess_exec(
+                sys.executable, "-c", "pass", start_new_session=True
+            )
+            children.append(dead_capture)
+            await dead_capture.wait()
             assert not inspect(database.sync_engine).get_table_names(), (
                 "probe requires empty owned databases"
             )
@@ -126,13 +131,16 @@ async def test_startup_recovery_keeps_closed_snapshots_owner_and_failure_boundar
                                 segments_dir_path=str(metadata_segments),
                             )
                         )
-                    if kind in {"success", "failed"}:
+                    if kind in {"success", "failed", "api-error"}:
                         session.add(
                             TwitchUpstreamLease(
                                 channel_key=f"{owner}:{kind}",
                                 recording_id=index + 7,
                                 purpose="RECORDING",
                                 state="ACTIVE",
+                                process_pid=dead_capture.pid,
+                                process_group_id=dead_capture.pid,
+                                process_start_fingerprint="reaped-fixture",
                                 generation=11,
                                 reserved_at=now,
                                 heartbeat_at=now,
@@ -234,7 +242,11 @@ async def test_startup_recovery_keeps_closed_snapshots_owner_and_failure_boundar
             ("second", 71, 2),
         ]
         assert not any(value.endswith(":active") for value in requests)
-        assert len(requests) == 12
+        assert requests == [
+            f"{owner}:{kind}"
+            for owner in ("first", "second")
+            for kind in ("success", "failed", "dead", "api-error")
+        ]
         assert all(
             database.sync_engine.pool.checkedout() == 0 for database in databases
         )

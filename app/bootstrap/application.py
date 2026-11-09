@@ -129,12 +129,15 @@ def _configure_app(
     application.state.websocket_manager = (
         websocket_manager if legacy_default else ConnectionManager()
     )
+    owned_database = database
     application.state.background_queue_service = (
         background_queue_service
         if legacy_default
-        else BackgroundQueueService.for_application(application.state.websocket_manager)
+        else BackgroundQueueService.for_application(
+            application.state.websocket_manager,
+            session_factory=lambda: owned_database.sync_session_factory(),
+        )
     )
-    owned_database = database
     application.state.background_queue_manager = (
         background_queue_manager
         if legacy_default

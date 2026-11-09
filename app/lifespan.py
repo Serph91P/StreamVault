@@ -33,14 +33,18 @@ from app.utils.async_db_utils import run_in_thread_pool
 logger = setup_logging()
 
 
-def _reconcile_catalog_batch(cursor):
+def _reconcile_catalog_batch(
+    cursor: int, session_factory: Callable[[], Session] = SessionLocal
+):
     from app.services.media.video_catalog_service import VideoCatalogService
 
-    with SessionLocal() as db:
+    with session_factory() as db:
         return VideoCatalogService(db).reconcile_next_batch(cursor)
 
 
-async def _run_catalog_reconciliation():
+async def _run_catalog_reconciliation(
+    session_factory: Callable[[], Session] = SessionLocal,
+):
     from app.services.media.video_catalog_service import VideoCatalogService
     from app.utils.async_db_utils import run_in_thread_pool
 
@@ -49,7 +53,7 @@ async def _run_catalog_reconciliation():
         while True:
             try:
                 cursor, count = await run_in_thread_pool(
-                    _reconcile_catalog_batch, cursor
+                    _reconcile_catalog_batch, cursor, session_factory
                 )
                 await asyncio.sleep(0.05 if count else 60)
             except asyncio.CancelledError:
@@ -293,7 +297,12 @@ async def lifespan(app: FastAPI):
                 runtime_settings,
             ),
         )
-        supervisor.create_task("catalog-reconciliation", _run_catalog_reconciliation())
+        supervisor.create_task(
+            "catalog-reconciliation",
+            _run_catalog_reconciliation(
+                lambda: runtime_database.sync_session_factory()
+            ),
+        )
 
         from app.services.init.startup_init import initialize_background_services
 

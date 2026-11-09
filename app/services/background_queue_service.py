@@ -14,6 +14,7 @@ import logging
 import warnings
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional, Callable, Awaitable
+from sqlalchemy.orm import Session
 from .queues import TaskQueueManager
 from .queues.task_progress_tracker import QueueTask, TaskStatus, TaskPriority
 from app.observability import service_metrics
@@ -52,30 +53,44 @@ class BackgroundQueueService:
                 )
             return
 
-        self._initialize(max_workers, websocket_manager)
+        import app.database as database
+
+        self._initialize(
+            max_workers, websocket_manager, lambda: database.SessionLocal()
+        )
         BackgroundQueueService._initialized = True
         logger.debug("BackgroundQueueService singleton initialized")
 
     @classmethod
     def for_application(
-        cls, websocket_manager: ConnectionManager, max_workers: int = 3
+        cls,
+        websocket_manager: ConnectionManager,
+        max_workers: int = 3,
+        *,
+        session_factory: Callable[[], Session] | None = None,
     ) -> "BackgroundQueueService":
         instance = object.__new__(cls)
-        instance._initialize(max_workers, websocket_manager)
+        instance._initialize(max_workers, websocket_manager, session_factory)
         return instance
 
     def _initialize(
-        self, max_workers: int, websocket_manager: ConnectionManager | None
+        self,
+        max_workers: int,
+        websocket_manager: ConnectionManager | None,
+        session_factory: Callable[[], Session] | None = None,
     ) -> None:
         # Initialize the refactored queue manager with streamer isolation enabled for production
-        import app.database as database
         from .queues.durable_task_store import DurableTaskStore
 
         self.queue_manager = TaskQueueManager(
             max_workers=max_workers,
             websocket_manager=websocket_manager,
             enable_streamer_isolation=True,  # Enable concurrent streaming by default
-            task_store=DurableTaskStore(lambda: database.SessionLocal()),
+            task_store=(
+                DurableTaskStore(session_factory)
+                if session_factory is not None
+                else None
+            ),
         )
 
         # Legacy properties for compatibility

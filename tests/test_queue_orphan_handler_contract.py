@@ -34,11 +34,20 @@ def recovery_boundary(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_initialized_isolated_queue_executes_registered_orphan_scan(
-    monkeypatch, recovery_boundary
+    monkeypatch, recovery_boundary, tmp_path
 ):
     from app.services import background_queue_service as queue_module
     from app.services import automatic_queue_recovery_service as automatic
     from app.services.init.background_queue_init import BackgroundQueueManager
+    import app.database as database
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+
+    engine = create_engine(f"sqlite:///{tmp_path / 'orphan-contract.db'}")
+    with engine.begin() as connection:
+        connection.exec_driver_sql("BEGIN")
+        database.Base.metadata.create_all(connection)
+    monkeypatch.setattr(database, "SessionLocal", sessionmaker(engine))
 
     monkeypatch.setattr(queue_module.BackgroundQueueService, "_instance", None)
     monkeypatch.setattr(queue_module.BackgroundQueueService, "_initialized", False)
@@ -70,7 +79,7 @@ async def test_initialized_isolated_queue_executes_registered_orphan_scan(
             max_retries=0,
         )
         await asyncio.wait_for(
-            service.queue_manager.streamer_queues["synthetic"].join(), 3
+            service.wait_for_completion(), 3
         )
         task = service.get_task(task_id)
         assert task is not None
@@ -83,6 +92,7 @@ async def test_initialized_isolated_queue_executes_registered_orphan_scan(
         assert not service.queue_manager.progress_tracker.progress_callbacks
     finally:
         await initialization.shutdown()
+        engine.dispose()
 
 
 @pytest.mark.asyncio

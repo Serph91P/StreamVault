@@ -179,7 +179,12 @@ def create_safe_file_path(
     return file_path
 
 
-def validate_path_security(user_path: str, operation_type: str = "access") -> str:
+def validate_path_security(
+    user_path: str,
+    operation_type: str = "access",
+    *,
+    recording_directory: str | None = None,
+) -> str:
     """
     SECURITY: Validate path against traversal attacks
 
@@ -209,8 +214,11 @@ def validate_path_security(user_path: str, operation_type: str = "access") -> st
         logger.error(f"🚨 SECURITY: Empty or invalid path type: {type(user_path)}")
         raise HTTPException(status_code=400, detail="Path cannot be empty")
 
-    settings = get_settings()
-    safe_base = os.path.realpath(settings.RECORDING_DIRECTORY)
+    safe_base = os.path.realpath(
+        recording_directory
+        if recording_directory is not None
+        else get_settings().RECORDING_DIRECTORY
+    )
 
     try:
         # CRITICAL: Normalize and resolve all path components

@@ -114,6 +114,10 @@ async def test_factory_queue_recovery_uses_its_own_service_and_reports_failure(
             if index == 1:
                 assert "controlled-scan-fault" in task.error_message
         assert scans == [0, 1]
+        # Durable dispatch polls in closed workers; inspect quiescent shutdown,
+        # not a random instant inside another legitimate journal transaction.
+        for app in applications:
+            await app.state.background_queue_manager.shutdown()
         assert query_threads and loop_thread not in query_threads
         assert file_threads and loop_thread not in file_threads
         assert all(db.sync_engine.pool.checkedout() == 0 for db in databases)
