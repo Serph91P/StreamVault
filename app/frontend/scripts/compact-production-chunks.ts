@@ -1,21 +1,14 @@
 import type { Plugin } from 'vite'
 import { minify as oxcMinify } from 'rolldown/utils'
-import { minify as terserMinify } from 'terser'
 
-// Oxc folds the bundled helpers; Terser then collapses the exposed expressions.
-// Vite's final Oxc pass still owns hashing and emitted worker/app artifacts.
+// Fold bundled helpers before Vite's parallel Terser pass and final Oxc output.
 export function compactProductionChunks(): Plugin {
   return {
     name: 'streamvault-compact-production-chunks',
     apply: 'build',
-    async renderChunk(source, chunk, options) {
+    async renderChunk(source, chunk) {
       const compact = await oxcMinify(chunk.fileName, source, { compress: true, mangle: true })
-      const result = await terserMinify(compact.code, {
-        ecma: 2020,
-        module: options.format === 'es',
-        compress: { passes: 2 },
-      })
-      return { code: result.code!, map: null }
+      return { code: compact.code, map: null }
     },
   }
 }
