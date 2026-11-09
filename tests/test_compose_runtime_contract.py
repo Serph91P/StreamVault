@@ -18,7 +18,9 @@ def test_compose_uses_the_configured_postgres_password_and_live_healthcheck():
     )
     assert expected_database_url in compose
     assert 'test: ["CMD", "python", "-m", "app.healthcheck"]' in compose
-    assert '"/api/health/live"' in Path("app/healthcheck.py").read_text(encoding="utf-8")
+    assert '"/api/health/live"' in Path("app/healthcheck.py").read_text(
+        encoding="utf-8"
+    )
     assert "assert_openapi_surface" in runtime_smoke
     assert '"${base_url}/api/openapi.json"' in runtime_smoke
     assert '"content-type:"*"application/json"' in runtime_smoke
