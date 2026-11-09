@@ -31,7 +31,7 @@ for (const viewport of [
     const bounds = await page.locator('.video-wrapper').boundingBox()
     const geometry = []
     for (const name of ['Play', 'Mute', 'Chapters', 'Fullscreen']) {
-      const button = page.getByRole('button', { name, exact: true })
+      const button = page.getByRole('button', { name: name === 'Chapters' ? /^Chapters \d+$/ : name, exact: true })
       await readyForSettledMotion(button)
       const box = (await button.boundingBox())!
       const icon = (await button.locator('svg').boundingBox())!
