@@ -89,11 +89,11 @@ def _parse_client_ip(value: str) -> str | None:
             port = suffix[1:]
     elif value.count(":") == 1:
         address, port = value.rsplit(":", 1)
-    if port is not None and (
-        not port.isascii() or not port.isdecimal() or not 1 <= int(port) <= 65535
-    ):
-        return None
     try:
+        if port is not None and (
+            not port.isascii() or not port.isdecimal() or not 1 <= int(port) <= 65535
+        ):
+            return None
         parsed = ipaddress.ip_address(address)
     except ValueError:
         return None
