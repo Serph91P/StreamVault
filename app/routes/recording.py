@@ -18,8 +18,11 @@ from app.schemas.recording import CleanupPolicySchema, StorageUsageSchema
 from app.dependencies import (
     get_db,
     get_recording_manager,
+    get_application_recording_manager,
     get_application_session_factory,
     get_streamlink_config_service,
+    get_websocket_manager,
+    get_logging_service,
 )
 from app.services.system.streamlink_config_service import StreamlinkConfigService
 from app.utils.async_db_utils import run_in_thread_pool
@@ -27,7 +30,8 @@ from collections.abc import Callable
 from app.services.recording.config_manager import (
     FILENAME_PRESETS,
 )  # Import FILENAME_PRESETS from config_manager
-from app.services.system.logging_service import logging_service
+from app.services.system.logging_service import LoggingService, logging_service
+from app.services.communication.websocket_manager import ConnectionManager
 from app.services.unified_image_service import unified_image_service
 from app.services.communication.websocket_manager import websocket_manager
 from sqlalchemy.orm import Session, joinedload
@@ -506,22 +510,35 @@ async def get_active_recordings():
 
 
 @router.post("/stop/{streamer_id}")
-async def stop_recording(streamer_id: int):
+async def stop_recording(
+    streamer_id: int,
+    session_factory: Callable[[], Session] = Depends(get_application_session_factory),
+    recording_manager=Depends(get_application_recording_manager),
+    websocket_manager: ConnectionManager = Depends(get_websocket_manager),
+    logging_service: LoggingService = Depends(get_logging_service),
+):
     """Manually stop an active recording"""
-    try:
-        # Get streamer info for notifications
-        with SessionLocal() as db:
+
+    def streamer_name_snapshot():
+        with session_factory() as db:
             streamer = db.query(Streamer).filter(Streamer.id == streamer_id).first()
-            streamer_name = streamer.username if streamer else f"Streamer {streamer_id}"
+            return streamer.username if streamer else f"Streamer {streamer_id}"
+
+    try:
+        streamer_name = await run_in_thread_pool(streamer_name_snapshot)
 
         # Log the stop request
-        logging_service.log_recording_activity(
-            "STOP_REQUEST", f"Streamer {streamer_id}", "Manual stop requested via API"
+        await run_in_thread_pool(
+            logging_service.log_recording_activity,
+            "STOP_REQUEST",
+            f"Streamer {streamer_id}",
+            "Manual stop requested via API",
         )
 
-        result = await get_recording_service().stop_recording_manual(streamer_id)
+        result = await recording_manager.stop_recording_manual(streamer_id)
         if result:
-            logging_service.log_recording_activity(
+            await run_in_thread_pool(
+                logging_service.log_recording_activity,
                 "STOP_SUCCESS",
                 f"Streamer {streamer_id}",
                 "Recording stopped successfully via API",
@@ -536,7 +553,8 @@ async def stop_recording(streamer_id: int):
 
             return {"status": "success", "message": "Recording stopped successfully"}
         else:
-            logging_service.log_recording_activity(
+            await run_in_thread_pool(
+                logging_service.log_recording_activity,
                 "STOP_FAILED",
                 f"Streamer {streamer_id}",
                 "No active recording found",
@@ -552,18 +570,18 @@ async def stop_recording(streamer_id: int):
 
             return {"status": "error", "message": "No active recording found"}
     except Exception as e:
-        logging_service.log_recording_error(
-            streamer_id, f"Streamer {streamer_id}", "API_STOP_ERROR", str(e)
+        await run_in_thread_pool(
+            logging_service.log_recording_error,
+            streamer_id,
+            f"Streamer {streamer_id}",
+            "API_STOP_ERROR",
+            str(e),
         )
         logger.error(f"Error stopping recording: {e}")
 
         # Send error toast notification
         try:
-            with SessionLocal() as db:
-                streamer = db.query(Streamer).filter(Streamer.id == streamer_id).first()
-                streamer_name = (
-                    streamer.username if streamer else f"Streamer {streamer_id}"
-                )
+            streamer_name = await run_in_thread_pool(streamer_name_snapshot)
 
             await websocket_manager.send_toast_notification(
                 toast_type="error",
