@@ -8,6 +8,7 @@ from uuid import UUID
 
 from fastapi import FastAPI, Request
 from fastapi.testclient import TestClient
+from app.config.settings import settings
 
 
 def test_request_id_is_generated_or_strictly_validated_at_the_edge() -> None:
@@ -301,19 +302,26 @@ def test_metrics_are_low_cardinality_and_exclude_request_ids() -> None:
 def test_readiness_timeout_returns_sanitized_component_status(monkeypatch) -> None:
     from app.routes import health
 
-    async def slow_database_check() -> bool:
-        await asyncio.sleep(0.05)
+    observed = []
+
+    async def slow_database_check(_session_factory=None) -> bool:
+        observed.append("entered")
+        try:
+            await asyncio.sleep(0.05)
+        finally:
+            observed.append("closed")
         return True
 
     monkeypatch.setattr(health, "_check_database", slow_database_check)
-    monkeypatch.setattr(health.settings, "READINESS_TIMEOUT_SECONDS", 0.001)
-    monkeypatch.setattr(health.settings, "READINESS_REQUIRED_COMPONENTS", ["database"])
+    monkeypatch.setattr(settings, "READINESS_TIMEOUT_SECONDS", 0.001)
+    monkeypatch.setattr(settings, "READINESS_REQUIRED_COMPONENTS", ["database"])
 
     app = FastAPI()
     app.include_router(health.router)
     with TestClient(app, raise_server_exceptions=False) as client:
         response = client.get("/api/health/ready")
 
+    assert observed == ["entered", "closed"]
     assert response.status_code == 503
     assert response.json() == {
         "status": "not_ready",
@@ -384,7 +392,7 @@ def test_liveness_stays_available_when_a_required_dependency_is_down(
 ) -> None:
     from app.routes import health
 
-    async def unavailable_database() -> bool:
+    async def unavailable_database(_session_factory=None) -> bool:
         return False
 
     monkeypatch.setattr(health, "_check_database", unavailable_database)
@@ -405,18 +413,25 @@ def test_compatibility_health_timeout_degrades_without_exposing_an_exception(
 ) -> None:
     from app.routes import health
 
-    async def slow_database_check() -> bool:
-        await asyncio.sleep(0.05)
+    observed = []
+
+    async def slow_database_check(_session_factory=None) -> bool:
+        observed.append("entered")
+        try:
+            await asyncio.sleep(0.05)
+        finally:
+            observed.append("closed")
         return True
 
     monkeypatch.setattr(health, "_check_database", slow_database_check)
-    monkeypatch.setattr(health.settings, "READINESS_TIMEOUT_SECONDS", 0.001)
+    monkeypatch.setattr(settings, "READINESS_TIMEOUT_SECONDS", 0.001)
     app = FastAPI()
     app.include_router(health.router)
 
     with TestClient(app, raise_server_exceptions=False) as client:
         response = client.get("/api/health")
 
+    assert observed == ["entered", "closed"]
     assert response.status_code == 200
     assert response.json() == {
         "status": "degraded",
@@ -429,9 +444,9 @@ def test_metrics_endpoint_is_opt_in_and_requires_its_deployment_token(
 ) -> None:
     from app.routes import health
 
-    monkeypatch.setattr(health.settings, "METRICS_ENABLED", True)
-    monkeypatch.setattr(health.settings, "METRICS_AUTH_TOKEN", "metrics-fixture-value")
-    monkeypatch.setattr(health.settings, "METRICS_ALLOW_UNAUTHENTICATED", False)
+    monkeypatch.setattr(settings, "METRICS_ENABLED", True)
+    monkeypatch.setattr(settings, "METRICS_AUTH_TOKEN", "metrics-fixture-value")
+    monkeypatch.setattr(settings, "METRICS_ALLOW_UNAUTHENTICATED", False)
     app = FastAPI()
     app.include_router(health.router)
     with TestClient(app) as client:
@@ -455,9 +470,9 @@ def test_metrics_token_policy_is_reachable_through_auth_middleware(monkeypatch) 
         raise AssertionError("metrics policy must run before session authentication")
 
     monkeypatch.setattr(auth_middleware, "SessionLocal", database_must_not_be_opened)
-    monkeypatch.setattr(health.settings, "METRICS_ENABLED", True)
-    monkeypatch.setattr(health.settings, "METRICS_AUTH_TOKEN", "metrics-fixture-value")
-    monkeypatch.setattr(health.settings, "METRICS_ALLOW_UNAUTHENTICATED", False)
+    monkeypatch.setattr(settings, "METRICS_ENABLED", True)
+    monkeypatch.setattr(settings, "METRICS_AUTH_TOKEN", "metrics-fixture-value")
+    monkeypatch.setattr(settings, "METRICS_ALLOW_UNAUTHENTICATED", False)
     app = FastAPI()
     app.include_router(health.router)
     app.add_middleware(AuthMiddleware)

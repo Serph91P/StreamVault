@@ -150,7 +150,13 @@ async def test_sync_notification_and_cleanup_writes_persist_only_in_the_owner(
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     "path",
-    ["/api/recordings/latest", "/api/status/active-recordings", "/api/recording/active"],
+    [
+        "/api/recordings/latest",
+        "/api/status/active-recordings",
+        "/api/recording/active",
+        "/api/health",
+        "/api/health/ready",
+    ],
 )
 async def test_cancelled_http_worker_drains_before_its_request_session_closes(
     image_applications,
@@ -161,7 +167,9 @@ async def test_cancelled_http_worker_drains_before_its_request_session_closes(
     loop_thread = get_ident()
 
     def hold(connection, cursor, sql, *args):
-        if "FROM recordings" in sql and not entered.is_set():
+        if (
+            "FROM recordings" in sql or sql.strip() == "SELECT 1"
+        ) and not entered.is_set():
             assert get_ident() != loop_thread
             entered.set()
             assert release.wait(5), "test did not release its held SQL callback"
