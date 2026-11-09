@@ -202,12 +202,11 @@ class ConfigManager:
         return 0  # 0 means unlimited
 
     def get_output_directory(self) -> str:
-        """Use explicit context storage, retaining the legacy no-config default."""
-        return (
-            self._settings.RECORDING_DIRECTORY
-            if self._settings is not None
-            else "/recordings"
-        )
+        """Resolve configured storage, including the default app.main context."""
+        from app.config.settings import get_settings
+
+        settings = self._settings if self._settings is not None else get_settings()
+        return settings.RECORDING_DIRECTORY
 
     def get_recordings_directory(self) -> str:
         return self.get_output_directory()
