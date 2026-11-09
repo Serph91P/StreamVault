@@ -23,6 +23,7 @@ SYNC_HANDLERS = {
         "get_share_tokens_stats",
         "cleanup_share_tokens",
         "delete_share_token",
+        "fix_recording_availability",
     ),
     "api_keys": ("list_api_keys", "create_api_key", "revoke_api_key"),
     "auth": ("get_onboarding_state", "complete_onboarding"),

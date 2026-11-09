@@ -5,7 +5,8 @@ API routes for system testing and administration
 import logging
 from datetime import timezone
 from fastapi import APIRouter, HTTPException, Depends
-from app.dependencies import get_db
+from app.dependencies import get_db, get_application_session_factory
+from collections.abc import Callable
 from app.dependencies import require_admin_user
 from sqlalchemy.orm import Session, joinedload
 from typing import Dict, Any, List, Optional
@@ -856,18 +857,19 @@ def debug_check_stream_recordings(
 
 
 @router.post("/recordings/fix-availability")
-async def fix_recording_availability(
-    streamer_id: Optional[int] = None, dry_run: bool = True
+def fix_recording_availability(
+    streamer_id: Optional[int] = None,
+    dry_run: bool = True,
+    session_factory: Callable[[], Session] = Depends(get_application_session_factory),
 ) -> Dict[str, Any]:
     """Fix recording_path fields based on actual file existence"""
     try:
-        from app.database import SessionLocal
         from app.models import Stream
         from pathlib import Path
 
         results = {"checked": 0, "fixed": 0, "errors": 0, "details": []}
 
-        with SessionLocal() as db:
+        with session_factory() as db:
             # Include all owners even when repairing only one streamer.
             streams = db.query(Stream).options(joinedload(Stream.recordings)).all()
             owners = {}
