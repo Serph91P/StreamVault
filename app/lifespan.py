@@ -22,6 +22,7 @@ from app.dependencies import (
     _get_application_image_refresh_service,
     _get_application_image_migration_service,
     _get_application_auto_image_sync_service,
+    _get_application_logging_service,
 )
 
 from app.services.core.session_maintenance import cleanup_expired_sessions
@@ -119,6 +120,13 @@ async def _shutdown_step(name: str, operation) -> None:
         logger.error("Shutdown step %s failed (%s)", name, type(error).__name__)
 
 
+async def _close_application_logging(app: FastAPI) -> None:
+    actor = getattr(app.state, "logging_service", None)
+    if actor is not None:
+        await run_in_thread_pool(actor.close)
+        app.state.logging_service = None
+
+
 async def _close_application_proxy(app: FastAPI) -> None:
     actor = getattr(app.state, "proxy_health_service", None)
     if actor is not None:
@@ -183,6 +191,7 @@ async def lifespan(app: FastAPI):
         app.state, "websocket_broadcast_task", websocket_broadcast_task
     )
     proxy_actor = None
+    logging_actor = None
 
     def phase(name: str) -> None:
         app.state.startup_phases.append(name)
@@ -227,6 +236,13 @@ async def lifespan(app: FastAPI):
 
         await run_in_thread_pool(bootstrap_keys)
         phase("persistent-identities")
+
+        if hasattr(app.state, "logging_service_lock"):
+            logging_actor = await run_in_thread_pool(
+                _get_application_logging_service, app
+            )
+            if not await run_in_thread_pool(logging_actor.cleanup_old_logs):
+                logger.warning("Initial log cleanup incomplete")
 
         from app.services.migration.image_migration_service import (
             image_migration_service,
@@ -285,7 +301,10 @@ async def lifespan(app: FastAPI):
         from app.services.system.logging_service import logging_service
 
         supervisor.create_task(
-            "log-cleanup", logging_service._schedule_cleanup(interval_hours=24)
+            "log-cleanup",
+            logging_actor._schedule_cleanup(interval_hours=24)
+            if logging_actor is not None
+            else logging_service._schedule_cleanup(interval_hours=24),
         )
         supervisor.create_task("recording-cleanup", _run_recording_cleanup())
         supervisor.create_task(
@@ -421,5 +440,6 @@ async def lifespan(app: FastAPI):
             await _shutdown_step("websocket-connections", connection_manager.close_all)
         await _shutdown_step("image-http", lambda: _close_application_images(app))
         await _shutdown_step("twitch-http", lambda: _close_application_twitch(app))
+        await _shutdown_step("logging", lambda: _close_application_logging(app))
         await _shutdown_step("database", runtime_database.adispose)
         logger.info("Application shutdown complete")

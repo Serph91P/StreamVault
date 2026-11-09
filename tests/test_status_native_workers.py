@@ -1,11 +1,14 @@
 """Real status routes use native workers and their own application resources."""
 
+import asyncio
 from importlib import import_module
 from inspect import iscoroutinefunction
 from threading import get_ident
 
 import pytest
 from sqlalchemy import event
+from app.models.background_task import BackgroundTask
+from app.utils.async_db_utils import run_in_thread_pool
 
 from tests import test_image_http_ownership
 
@@ -120,3 +123,47 @@ async def test_status_health_queries_its_owner_and_keeps_peer_healthy(
         )
     finally:
         event.remove(databases[0].sync_engine, "before_cursor_execute", unavailable)
+
+
+@pytest.mark.asyncio
+async def test_deferred_journal_work_is_counted_without_materializing_active_tasks(
+    image_applications,
+):
+    apps, databases, clients, _ = image_applications
+    queue = apps[0].state.background_queue_service
+
+    async def retry_later(_payload, _progress):
+        raise RuntimeError("synthetic retryable work failure")
+
+    queue.register_task_handler("scope.deferred", retry_later)
+    try:
+        await queue.start()
+        task_id = await queue.enqueue_task("scope.deferred", {"streamer_name": "scope"})
+
+        async def deferred_snapshot():
+            while True:
+                response = await clients[0].get("/api/status/background-queue")
+                assert response.status_code == 200
+                data = response.json()
+                if not data["active_tasks"] and data["stats"]["pending_tasks"] == 1:
+                    return response
+                await asyncio.sleep(0)
+
+        owner = await asyncio.wait_for(deferred_snapshot(), 3)
+        peer = await clients[1].get("/api/status/background-queue")
+        assert owner.status_code == peer.status_code == 200
+        assert owner.json()["active_tasks"] == []
+        assert owner.json()["stats"]["pending_tasks"] == 1
+        assert owner.json()["stats"]["queue_size"] == 1
+        assert peer.json()["stats"]["pending_tasks"] == 0
+
+        def persisted():
+            with databases[0].sync_session_factory() as session:
+                row = session.get(BackgroundTask, task_id)
+                return row is not None and row.status == "retrying"
+
+        assert await run_in_thread_pool(persisted)
+        assert not queue.get_active_tasks()
+    finally:
+        await queue.stop()
+        await queue.queue_manager.progress_tracker.cleanup_background_tasks()

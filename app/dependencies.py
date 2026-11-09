@@ -19,6 +19,10 @@ from app.services.communication.websocket_manager import (
 from app.services.core.auth_service import AuthService, AuthTokenError
 from app.services.core.settings_service import SettingsService
 from app.services.notification_service import NotificationService
+from app.services.system.logging_service import (
+    LoggingService,
+    get_logging_service as get_default_logging_service,
+)
 from app.services.background_queue_service import (
     BackgroundQueueService,
     background_queue_service,
@@ -539,6 +543,27 @@ def _get_application_proxy_health_service(app: FastAPI):
 
 def get_proxy_health_service(connection: HTTPConnection):
     return _get_application_proxy_health_service(connection.app)
+
+
+def _get_application_logging_service(app: FastAPI) -> LoggingService:
+    with app.state.logging_service_lock:
+        service: LoggingService | None = app.state.logging_service
+        if service is None:
+            configuration = resolve_app_settings(app)
+            service = LoggingService(
+                logs_base_dir=configuration.LOGS_BASE_DIR
+                or configuration.LOG_DIR
+                or "/app/logs",
+                isolated=True,
+            )
+            app.state.logging_service = service
+        return service
+
+
+def get_logging_service(connection: HTTPConnection) -> LoggingService:
+    if not hasattr(connection.app.state, "logging_service_lock"):
+        return get_default_logging_service()
+    return _get_application_logging_service(connection.app)
 
 
 def get_background_queue_service(connection: HTTPConnection) -> BackgroundQueueService:

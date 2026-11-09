@@ -102,6 +102,8 @@ def _configure_app(
     application.state.database_lifecycle = database
     application.state.recording_manager = None
     application.state.login_throttle = auth.LoginThrottle()
+    application.state.logging_service = None
+    application.state.logging_service_lock = Lock()
     application.state.recording_manager_lock = Lock()
     application.state.twitch_api = None
     application.state.twitch_api_lock = Lock()

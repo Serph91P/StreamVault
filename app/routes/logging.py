@@ -1,16 +1,27 @@
-from fastapi import APIRouter, HTTPException, Query, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 import logging
 from datetime import datetime
+from pathlib import Path
 
-from app.services.system.logging_service import logging_service
+from app.dependencies import get_logging_service
+from app.services.system.logging_service import LoggingService
 from app.schemas.logging import LogsListSchema, LogFileSchema
 
 router = APIRouter(prefix="/logging", tags=["logging"])
 logger = logging.getLogger("streamvault")
 
 
+def _log_file_path(log_dir: Path, filename: str) -> Path:
+    if ".." in filename or "/" in filename or "\\" in filename:
+        raise HTTPException(status_code=400, detail="Invalid filename")
+    path = log_dir / filename
+    if path.is_symlink() or not path.resolve().is_relative_to(log_dir.resolve()):
+        raise HTTPException(status_code=400, detail="Invalid filename")
+    return path
+
+
 @router.get("/files", response_model=LogsListSchema)
-async def list_log_files():
+def list_log_files(logging_service: LoggingService = Depends(get_logging_service)):
     """List all available log files"""
     try:
         streamlink_logs = []
@@ -21,7 +32,7 @@ async def list_log_files():
         # Get streamlink logs
         if logging_service.streamlink_logs_dir.exists():
             for log_file in logging_service.streamlink_logs_dir.glob("*.log*"):
-                if log_file.is_file():
+                if not log_file.is_symlink() and log_file.is_file():
                     stat = log_file.stat()
                     streamlink_logs.append(
                         LogFileSchema(
@@ -38,7 +49,7 @@ async def list_log_files():
         # Get FFmpeg logs
         if logging_service.ffmpeg_logs_dir.exists():
             for log_file in logging_service.ffmpeg_logs_dir.glob("*.log*"):
-                if log_file.is_file():
+                if not log_file.is_symlink() and log_file.is_file():
                     stat = log_file.stat()
                     ffmpeg_logs.append(
                         LogFileSchema(
@@ -55,7 +66,7 @@ async def list_log_files():
         # Get app logs
         if logging_service.app_logs_dir.exists():
             for log_file in logging_service.app_logs_dir.glob("*.log*"):
-                if log_file.is_file():
+                if not log_file.is_symlink() and log_file.is_file():
                     stat = log_file.stat()
                     app_logs.append(
                         LogFileSchema(
@@ -87,7 +98,11 @@ async def list_log_files():
 
 
 @router.get("/files/{log_type}/{filename}")
-async def download_log_file(log_type: str, filename: str):
+def download_log_file(
+    log_type: str,
+    filename: str,
+    logging_service: LoggingService = Depends(get_logging_service),
+):
     """Download a specific log file"""
     try:
         # Validate log type
@@ -102,11 +117,7 @@ async def download_log_file(log_type: str, filename: str):
         else:
             log_dir = logging_service.app_logs_dir
 
-        # Security check: ensure filename doesn't contain path traversal
-        if ".." in filename or "/" in filename or "\\" in filename:
-            raise HTTPException(status_code=400, detail="Invalid filename")
-
-        log_file_path = log_dir / filename
+        log_file_path = _log_file_path(log_dir, filename)
 
         if not log_file_path.exists():
             raise HTTPException(status_code=404, detail="Log file not found")
@@ -132,10 +143,11 @@ async def download_log_file(log_type: str, filename: str):
 
 
 @router.get("/files/{log_type}/{filename}/tail")
-async def tail_log_file(
+def tail_log_file(
     log_type: str,
     filename: str,
     lines: int = Query(100, description="Number of lines to return", ge=1, le=10000),
+    logging_service: LoggingService = Depends(get_logging_service),
 ):
     """Get the last N lines of a log file"""
     try:
@@ -151,11 +163,7 @@ async def tail_log_file(
         else:
             log_dir = logging_service.app_logs_dir
 
-        # Security check: ensure filename doesn't contain path traversal
-        if ".." in filename or "/" in filename or "\\" in filename:
-            raise HTTPException(status_code=400, detail="Invalid filename")
-
-        log_file_path = log_dir / filename
+        log_file_path = _log_file_path(log_dir, filename)
 
         if not log_file_path.exists():
             raise HTTPException(status_code=404, detail="Log file not found")
@@ -181,7 +189,11 @@ async def tail_log_file(
 
 
 @router.delete("/files/{log_type}/{filename}")
-async def delete_log_file(log_type: str, filename: str):
+def delete_log_file(
+    log_type: str,
+    filename: str,
+    logging_service: LoggingService = Depends(get_logging_service),
+):
     """Delete a specific log file"""
     try:
         # Validate log type
@@ -196,11 +208,7 @@ async def delete_log_file(log_type: str, filename: str):
         else:
             log_dir = logging_service.app_logs_dir
 
-        # Security check: ensure filename doesn't contain path traversal
-        if ".." in filename or "/" in filename or "\\" in filename:
-            raise HTTPException(status_code=400, detail="Invalid filename")
-
-        log_file_path = log_dir / filename
+        log_file_path = _log_file_path(log_dir, filename)
 
         if not log_file_path.exists():
             raise HTTPException(status_code=404, detail="Log file not found")
@@ -219,12 +227,14 @@ async def delete_log_file(log_type: str, filename: str):
 
 
 @router.post("/cleanup")
-async def cleanup_old_logs(
+def cleanup_old_logs(
     days_to_keep: int = Query(30, description="Days of logs to keep", ge=1, le=365),
+    logging_service: LoggingService = Depends(get_logging_service),
 ):
     """Clean up log files older than specified days"""
     try:
-        logging_service.cleanup_old_logs(days_to_keep)
+        if not logging_service.cleanup_old_logs(days_to_keep):
+            raise RuntimeError("Log cleanup did not complete")
         return {
             "status": "success",
             "message": f"Cleaned up logs older than {days_to_keep} days",
@@ -236,7 +246,7 @@ async def cleanup_old_logs(
 
 
 @router.get("/stats")
-async def get_logging_stats():
+def get_logging_stats(logging_service: LoggingService = Depends(get_logging_service)):
     """Get logging statistics"""
     try:
         stats = {
@@ -248,21 +258,21 @@ async def get_logging_stats():
         # Count streamlink logs
         if logging_service.streamlink_logs_dir.exists():
             for log_file in logging_service.streamlink_logs_dir.glob("*.log*"):
-                if log_file.is_file():
+                if not log_file.is_symlink() and log_file.is_file():
                     stats["streamlink"]["count"] += 1
                     stats["streamlink"]["total_size"] += log_file.stat().st_size
 
         # Count FFmpeg logs
         if logging_service.ffmpeg_logs_dir.exists():
             for log_file in logging_service.ffmpeg_logs_dir.glob("*.log*"):
-                if log_file.is_file():
+                if not log_file.is_symlink() and log_file.is_file():
                     stats["ffmpeg"]["count"] += 1
                     stats["ffmpeg"]["total_size"] += log_file.stat().st_size
 
         # Count app logs
         if logging_service.app_logs_dir.exists():
             for log_file in logging_service.app_logs_dir.glob("*.log*"):
-                if log_file.is_file():
+                if not log_file.is_symlink() and log_file.is_file():
                     stats["app"]["count"] += 1
                     stats["app"]["total_size"] += log_file.stat().st_size
 

@@ -147,12 +147,14 @@ async def test_lifespan_fails_startup_when_database_migrations_fail(monkeypatch)
 @pytest.mark.asyncio
 @pytest.mark.parametrize("owned_images", [False, True])
 @pytest.mark.parametrize("legacy_image_failure", [False, True])
+@pytest.mark.parametrize("owned_logging", [False, True])
 async def test_lifespan_uses_factory_service_overrides_for_startup_and_shutdown(
     monkeypatch,
     owned_images,
     tmp_path,
     caplog,
     legacy_image_failure,
+    owned_logging,
 ):
     from app import dependencies
     from app import lifespan as lifespan_module
@@ -319,6 +321,26 @@ async def test_lifespan_uses_factory_service_overrides_for_startup_and_shutdown(
         },
     )
 
+    constructor_threads = []
+    streams = []
+    if owned_logging:
+        from threading import Lock
+        from app.config.settings import get_settings
+
+        app.state.settings = get_settings().model_copy(
+            update={"LOGS_BASE_DIR": str(tmp_path / "owned-logs")}
+        )
+        app.state.logging_service = None
+        app.state.logging_service_lock = Lock()
+        native_logging = dependencies.LoggingService
+
+        class ObservedLogging(native_logging):
+            def __init__(self, *args, **kwargs):
+                constructor_threads.append(threading.get_ident())
+                super().__init__(*args, **kwargs)
+
+        monkeypatch.setattr(dependencies, "LoggingService", ObservedLogging)
+
     if owned_images:
         from threading import Lock
         from app.services.images.image_sync_service import ImageSyncService
@@ -372,6 +394,22 @@ async def test_lifespan_uses_factory_service_overrides_for_startup_and_shutdown(
         app.state.image_sync_service.stop_sync_worker = owned_stop
 
     async with lifespan_module.lifespan(app):
+        if owned_logging:
+            actor = app.state.logging_service
+            assert actor is not None
+            assert str(actor.logs_base_dir) == str(tmp_path / "owned-logs")
+            periodic = app.state.task_supervisor._tasks["log-cleanup"].get_coro()
+            assert periodic.cr_frame is not None
+            assert periodic.cr_frame.f_locals.get("self") is actor
+            streams = [
+                handler.stream
+                for component in (
+                    actor.streamlink_logger,
+                    actor.ffmpeg_logger,
+                    actor.recording_logger,
+                )
+                for handler in component.handlers
+            ]
         if owned_images:
             assert app.state.image_sync_service.is_running()
             assert app.state.auto_image_sync_service.is_running()
@@ -396,6 +434,11 @@ async def test_lifespan_uses_factory_service_overrides_for_startup_and_shutdown(
             "ready",
         ]
 
+    if owned_logging:
+        assert len(constructor_threads) == 1
+        assert constructor_threads[0] != threading.get_ident()
+        assert app.state.logging_service is None
+        assert streams and all(stream.closed for stream in streams)
     assert calls.index("reconcile") < calls.index("eventsub-initialize")
     shutdown_calls = [
         "proxy-stop",
