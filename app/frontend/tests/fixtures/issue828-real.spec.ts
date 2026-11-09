@@ -4,7 +4,7 @@ import { chapterVariants, playerViewports, syntheticChapters } from './issue828S
 
 async function assertBounds(page: Page, hasChapters: boolean) {
   for (const name of ['Play', 'Mute', ...(hasChapters ? ['Chapters'] : []), 'Fullscreen', 'Back to previous page']) {
-    const button = page.getByRole('button', { name, exact: true })
+    const button = page.getByRole('button', { name: name === 'Chapters' ? /^Chapters \d+$/ : name, exact: true })
     await expect(button).toBeVisible()
     await readyForSettledMotion(button)
     const box = await button.boundingBox()

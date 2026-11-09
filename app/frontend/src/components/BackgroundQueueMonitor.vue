@@ -16,7 +16,7 @@
       </svg>
 
       <div class="queue-info">
-        <span class="queue-label">Queue</span>
+        <span class="queue-label">{{ 'Queue ' }}</span>
         <span class="queue-count">{{ combinedActiveTasks.length }}</span>
       </div>
 

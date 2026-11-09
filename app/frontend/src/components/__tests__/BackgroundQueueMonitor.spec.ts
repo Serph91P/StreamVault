@@ -72,6 +72,7 @@ describe('BackgroundQueueMonitor', () => {
     const trigger = wrapper.get('.queue-status-indicator')
     try {
       expect(trigger.attributes('aria-label')).toContain(`Queue ${count}`)
+      expect(wrapper.get('.queue-info').text()).toBe(`Queue ${count}`)
       expect(trigger.attributes('aria-label')).toContain(`${count} active ${count === 1 ? 'job' : 'jobs'}`)
     } finally {
       wrapper.unmount()

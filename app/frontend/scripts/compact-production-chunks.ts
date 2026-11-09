@@ -13,7 +13,7 @@ export function compactProductionChunks(): Plugin {
       const result = await terserMinify(compact.code, {
         ecma: 2020,
         module: options.format === 'es',
-        compress: { passes: 4 },
+        compress: { passes: 2 },
       })
       return { code: result.code!, map: null }
     },
