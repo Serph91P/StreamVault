@@ -4,7 +4,7 @@ Call database/proc inspection in the guarded worker thread, never on the loop.
 Expiration and registry absence are not proof that a writer has exited.
 """
 
-import asyncio
+from app.utils.async_db_utils import run_in_thread_pool
 import sqlite3
 from dataclasses import dataclass
 from enum import Enum
@@ -59,7 +59,7 @@ async def recording_is_protected(
                 state is CaptureState.ABSENT and row.status == "recording"
             )
 
-    return await asyncio.to_thread(inspect)
+    return await run_in_thread_pool(inspect)
 
 
 def physical_state(identity: LocalCapture) -> CaptureState:

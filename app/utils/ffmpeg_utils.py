@@ -2,6 +2,7 @@
 
 import os
 import asyncio
+from app.utils.media_process import media_process
 import logging
 import tempfile
 from pathlib import Path
@@ -111,11 +112,8 @@ async def embed_metadata_in_mp4(
         cmd.extend(["-c", "copy", "-y", output_path])
 
         # Execute FFmpeg
-        process = await asyncio.create_subprocess_exec(
-            *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
-        )
-
-        stdout, stderr = await process.communicate()
+        async with media_process(*cmd) as (process, output):
+            stdout, stderr = await output.wait()
 
         if process.returncode == 0:
             logger.info("Successfully embedded metadata with FFmpeg")
@@ -205,11 +203,8 @@ async def convert_ts_to_mp4(
         logger.info(f"Converting {input_path} to {output_path}")
         logger.debug(f"FFmpeg command: {' '.join(cmd)}")
 
-        process = await asyncio.create_subprocess_exec(
-            *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
-        )
-
-        stdout, stderr = await process.communicate()
+        async with media_process(*cmd) as (process, output):
+            stdout, stderr = await output.wait()
 
         # Log the FFmpeg output using the logging service
         if logging_service:
@@ -263,11 +258,8 @@ async def extract_video_duration(video_path: str) -> Optional[float]:
             video_path,
         ]
 
-        process = await asyncio.create_subprocess_exec(
-            *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
-        )
-
-        stdout, stderr = await process.communicate()
+        async with media_process(*cmd) as (process, output):
+            stdout, stderr = await output.wait()
 
         if process.returncode == 0:
             duration_str = stdout.decode("utf-8").strip()
@@ -288,6 +280,7 @@ async def embed_metadata_with_ffmpeg_wrapper(
     chapters: Optional[list] = None,
     streamer_name: str = "unknown",
     logging_service=None,
+    overwrite: bool = False,
 ) -> Dict[str, Any]:
     """
     Embed metadata into MP4 file using FFmpeg.
@@ -308,6 +301,8 @@ async def embed_metadata_with_ffmpeg_wrapper(
     process: asyncio.subprocess.Process | None = None
     communication_completed = False
     cancelled = False
+    staged_output = owner = None
+    final_output = output_path
     try:
         logger.info(
             f"Starting FFmpeg metadata embedding for {streamer_name}: {input_path} -> {output_path}"
@@ -332,6 +327,30 @@ async def embed_metadata_with_ffmpeg_wrapper(
                 "stdout": "",
                 "stderr": "Input file is empty",
             }
+
+        if overwrite:
+            # Queue ownership allows retry; publish only a finished valid MP4.
+            from app.utils.queue_ownership import queue_owner_file
+            from app.utils.remux_staging import prepare_remux_stage
+
+            owner = queue_owner_file.get()
+            if owner is not None:
+
+                def create_owned_stage():
+                    nonlocal staged_output, output_path
+                    staged_output = output_path = prepare_remux_stage(
+                        output_path, owner
+                    )
+
+                await run_in_thread_pool(create_owned_stage)
+            else:
+                with tempfile.NamedTemporaryFile(
+                    prefix=f".{Path(output_path).name}.processing-",
+                    suffix=".mp4",
+                    dir=str(Path(output_path).parent),
+                    delete=False,
+                ) as staged:
+                    staged_output = output_path = staged.name
 
         # Check if output file already exists
         if await run_in_thread_pool(os.path.exists, output_path):
@@ -367,9 +386,14 @@ async def embed_metadata_with_ffmpeg_wrapper(
         # Create a temporary file for FFmpeg chapters
         def write_metadata() -> str:
             nonlocal metadata_file
-            with tempfile.NamedTemporaryFile(
-                mode="w", suffix=".txt", delete=False
-            ) as f:
+            if staged_output is not None and owner is not None:
+                metadata_file = str(Path(staged_output).with_suffix(".ffmeta"))
+                metadata_handle = open(metadata_file, "x")
+            else:
+                metadata_handle = tempfile.NamedTemporaryFile(
+                    mode="w", suffix=".txt", delete=False
+                )
+            with metadata_handle as f:
                 metadata_file = f.name
                 f.write(";FFMETADATA1\n")
                 if "title" in metadata:
@@ -378,6 +402,7 @@ async def embed_metadata_with_ffmpeg_wrapper(
                     f.write(f"artist={metadata['artist']}\n")
                 if "date" in metadata:
                     f.write(f"date={metadata['date']}\n")
+
                     f.write(
                         f"year={metadata['date'].split('-')[0] if '-' in metadata['date'] else metadata['date']}\n"
                     )
@@ -426,11 +451,8 @@ async def embed_metadata_with_ffmpeg_wrapper(
 
         # Execute FFmpeg command
         logger.debug(f"Running FFmpeg command: {' '.join(cmd)}")
-        process = await asyncio.create_subprocess_exec(
-            *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
-        )
-
-        stdout, stderr = await process.communicate()
+        async with media_process(*cmd) as (process, output):
+            stdout, stderr = await output.wait()
         communication_completed = True
         success_code = process.returncode == 0
 
@@ -467,6 +489,11 @@ async def embed_metadata_with_ffmpeg_wrapper(
             else:
                 logger.error(f"FFmpeg output file {output_path} is missing or empty")
                 success_code = False
+
+        if success_code and staged_output is not None:
+            success_code = await validate_mp4(staged_output)
+            if success_code:
+                os.replace(staged_output, final_output)
 
         if success_code:
             logger.info(f"FFmpeg metadata embedding successful: {operation_id}")
@@ -547,10 +574,12 @@ async def embed_metadata_with_ffmpeg_wrapper(
                             pass
                     await process.communicate()
             finally:
-                if metadata_file is not None:
+                for temporary in (metadata_file, staged_output):
+                    if temporary is None:
+                        continue
                     try:
                         await run_in_thread_pool(
-                            Path(metadata_file).unlink, missing_ok=True
+                            Path(temporary).unlink, missing_ok=True
                         )
                     except OSError as error:
                         logger.warning(

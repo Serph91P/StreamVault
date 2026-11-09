@@ -78,7 +78,7 @@ def _get_or_create_system_state(db: Session) -> SystemState:
 async def setup_page(
     request: Request,
     auth_service: AuthService = Depends(get_auth_service),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db, scope="function"),
 ):
     admin_exists = await auth_service.admin_exists()
 

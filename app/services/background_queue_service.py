@@ -68,10 +68,14 @@ class BackgroundQueueService:
         self, max_workers: int, websocket_manager: ConnectionManager | None
     ) -> None:
         # Initialize the refactored queue manager with streamer isolation enabled for production
+        import app.database as database
+        from .queues.durable_task_store import DurableTaskStore
+
         self.queue_manager = TaskQueueManager(
             max_workers=max_workers,
             websocket_manager=websocket_manager,
             enable_streamer_isolation=True,  # Enable concurrent streaming by default
+            task_store=DurableTaskStore(lambda: database.SessionLocal()),
         )
 
         # Legacy properties for compatibility

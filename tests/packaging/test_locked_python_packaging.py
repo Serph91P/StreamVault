@@ -166,6 +166,20 @@ def test_lock_and_runtime_consumers_are_canonical() -> None:
     assert "BASE_URL: http://localhost:7000" in release_workflow
 
 
+@pytest.mark.parametrize(
+    "workflow_name", ["test.yml", "docker-build.yml", "release.yml"]
+)
+def test_backend_suites_install_ffmpeg_before_running_pytest(
+    workflow_name: str,
+) -> None:
+    workflow = (ROOT / ".github" / "workflows" / workflow_name).read_text(
+        encoding="utf-8"
+    )
+    assert "uv run pytest tests/" in workflow
+    before_pytest = workflow.split("uv run pytest tests/", maxsplit=1)[0]
+    assert "sudo apt-get install -y --no-install-recommends ffmpeg" in before_pytest
+
+
 def test_wheel_build_uses_metadata_without_importing_application(
     tmp_path: Path,
 ) -> None:

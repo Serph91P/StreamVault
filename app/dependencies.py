@@ -89,7 +89,9 @@ def get_application_session_factory(
     )
 
 
-def get_auth_service(request: Request, db: Session = Depends(get_db)) -> AuthService:
+def get_auth_service(
+    request: Request, db: Session = Depends(get_db, scope="function")
+) -> AuthService:
     return AuthService(db=db, settings=resolve_app_settings(request.app))
 
 

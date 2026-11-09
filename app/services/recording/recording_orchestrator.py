@@ -120,15 +120,24 @@ class RecordingOrchestrator:
                             # Create recording data dict for post-processing
                             recording_data_dict = {
                                 "streamer_name": streamer_data.username,
-                                "started_at": recording_data.start_time.isoformat(),
+                                "started_at": (
+                                    recording_data.start_time.isoformat()
+                                    if recording_data.start_time
+                                    else None
+                                ),
                                 "stream_id": stream_data.id,
                                 "recording_id": recording_id,
                             }
 
                             # Use the post-processing coordinator
-                            await self.post_processing_coordinator.enqueue_post_processing(
+                            admitted = await self.post_processing_coordinator.enqueue_post_processing(
                                 recording_id, file_path, recording_data_dict
                             )
+                            if admitted:
+                                # The lifecycle safety net must not publish a second chain.
+                                self.lifecycle_manager._postprocessing_scheduled.add(
+                                    recording_id
+                                )
                             logger.info(
                                 f"Triggered post-processing via callback for recording {recording_id}"
                             )

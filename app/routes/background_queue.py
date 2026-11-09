@@ -10,6 +10,7 @@ import logging
 
 from app.services.background_queue_service import BackgroundQueueService, TaskPriority
 from app.dependencies import get_background_queue_service
+from app.utils.async_db_utils import run_in_thread_pool
 
 router = APIRouter(prefix="/background-queue", tags=["background-queue"])
 logger = logging.getLogger("streamvault")
@@ -77,7 +78,9 @@ async def get_task_status(
 ):
     """Get status of a specific task"""
     try:
-        task_status = background_queue_service.get_task_status(task_id)
+        task_status = await run_in_thread_pool(
+            background_queue_service.get_task_status, task_id
+        )
         if not task_status:
             raise HTTPException(status_code=404, detail="Task not found")
         return {"success": True, "task": task_status}

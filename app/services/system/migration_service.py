@@ -352,6 +352,9 @@ class MigrationService:
                 "legacy migration history is incomplete: " + ", ".join(missing)
             )
 
+        if cls._alembic_revision() is not None:
+            cls._upgrade_alembic()
+            return
         target = cls._engine()
         with target.begin() as connection:
             config = cls._alembic_config(connection)

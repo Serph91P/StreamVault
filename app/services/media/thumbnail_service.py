@@ -1,6 +1,8 @@
 import os
-from pathlib import Path
 import asyncio
+from pathlib import Path
+
+from app.utils.media_process import media_process
 import logging
 import time
 from PIL import Image
@@ -347,13 +349,8 @@ class ThumbnailService:
                                     f"FFmpeg logs will be written to: {streamer_log_path}"
                                 )
 
-                            process = await asyncio.create_subprocess_exec(
-                                *cmd,
-                                stdout=asyncio.subprocess.PIPE,
-                                stderr=asyncio.subprocess.PIPE,
-                            )
-
-                            stdout, stderr = await process.communicate()
+                            async with media_process(*cmd) as (process, output):
+                                stdout, stderr = await output.wait()
 
                             # Log the FFmpeg output using the logging service
                             if logging_service:
@@ -499,11 +496,8 @@ class ThumbnailService:
                 output_path,
             ]
 
-            process = await asyncio.create_subprocess_exec(
-                *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
-            )
-
-            stdout, stderr = await process.communicate()
+            async with media_process(*cmd) as (process, output):
+                stdout, stderr = await output.wait()
             communicated = True
             if process.returncode == 0 and await run_in_thread_pool(
                 self._valid_thumbnail, output_path

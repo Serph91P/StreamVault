@@ -132,7 +132,7 @@ def test_bridge_stamps_complete_legacy_history_without_touching_application_data
             connection.execute(
                 text("SELECT version_num FROM alembic_version")
             ).scalar_one()
-            == MigrationService.ALEMBIC_LEGACY_BASELINE
+            == "20261106_tasks"
         )
 
     # Immediate restart is a no-op and preserves both identity and data.
@@ -203,4 +203,4 @@ def test_documented_historical_alias_is_accepted(bridge_engine):
         revision = connection.execute(
             text("SELECT version_num FROM alembic_version")
         ).scalar_one()
-    assert revision == MigrationService.ALEMBIC_LEGACY_BASELINE
+    assert revision == "20261106_tasks"

@@ -13,6 +13,7 @@ Replaces multiple overlapping services with one unified approach.
 from __future__ import annotations
 
 import asyncio
+from app.utils.media_process import media_process
 import logging
 import tempfile
 from collections.abc import Callable
@@ -471,6 +472,8 @@ class UnifiedRecoveryService:
             expected_ts_path = recording_info["expected_ts_path"]
             recording_id = recording_info["recording_id"]
             streamer_name = recording_info["streamer_name"]
+            if str(expected_ts_path) in await self._get_active_recording_paths():
+                return False
 
             if str(expected_ts_path) in await self._get_active_recording_paths():
                 return False
@@ -704,7 +707,6 @@ class UnifiedRecoveryService:
         try:
             if ts_file_path in await self._get_active_recording_paths():
                 return False
-
             # Skip if no recording_id
             if recording_id is None:
                 logger.warning(
@@ -1130,35 +1132,66 @@ class UnifiedRecoveryService:
         from app.services.recording.media_ownership import CaptureState, capture_state
 
         manager = self._recording_owner().process_manager
-        snapshots = await manager.capture_process_snapshot()
+        cursor = 0
+        while True:
 
-        def repair(db: Session) -> int:
-            updated = 0
-            recordings = (
-                db.query(Recording)
-                .filter(Recording.status == "recording")
-                .with_for_update()
-                .all()
-            )
-            for recording in recordings:
-                if not recording.path or not Path(recording.path).exists():
-                    continue
-                if (
-                    capture_state(
-                        db, recording, snapshots.get(f"stream_{recording.stream_id}")
+            def read_batch():
+                with self._sessions() as db:
+                    rows = (
+                        db.query(Recording.id, Recording.path)
+                        .filter(
+                            Recording.status == "recording",
+                            Recording.id > cursor,
+                        )
+                        .order_by(Recording.id)
+                        .limit(100)
+                        .all()
                     )
-                    is not CaptureState.DEAD
-                ):
-                    continue
-                recording.status = "completed"
-                if not recording.end_time:
-                    recording.end_time = datetime.utcnow()
-                updated += 1
-            return updated
+                # Storage I/O must not hold the global capture admission guard.
+                return (rows[-1][0] if rows else cursor), {
+                    rid: path for rid, path in rows if path and Path(path).exists()
+                }
 
-        stats.updated_database_entries += (
-            await manager.upstream_coordinator.run_capture_maintenance(repair)
-        )
+            next_cursor, candidates = await run_in_thread_pool(read_batch)
+            if next_cursor == cursor:
+                break
+            cursor = next_cursor
+            snapshots = await manager.capture_process_snapshot()
+
+            def repair(db: Session) -> int:
+                updated = 0
+                recordings = (
+                    db.query(Recording)
+                    .filter(
+                        Recording.id.in_(candidates),
+                        Recording.status == "recording",
+                    )
+                    .order_by(Recording.id)
+                    .with_for_update()
+                    .all()
+                )
+                for recording in recordings:
+                    if recording.path != candidates[recording.id]:
+                        continue
+                    if (
+                        capture_state(
+                            db,
+                            recording,
+                            snapshots.get(f"stream_{recording.stream_id}"),
+                        )
+                        is not CaptureState.DEAD
+                    ):
+                        continue
+                    recording.status = "completed"
+                    if not recording.end_time:
+                        recording.end_time = datetime.now(timezone.utc)
+                    updated += 1
+                return updated
+
+            stats.updated_database_entries += (
+                await manager.upstream_coordinator.run_capture_maintenance(repair)
+            )
+            await asyncio.sleep(0)
 
     async def _final_database_cleanup(self, stats: RecoveryStats) -> None:
         """Remove old empty rows only after guarded positive capture-death evidence."""
@@ -1258,7 +1291,6 @@ class UnifiedRecoveryService:
     ) -> Optional[Path]:
         """Concatenate closed segments; own the child and only operation-local files."""
         owned_paths: list[Path] = []
-        creation: asyncio.Task[asyncio.subprocess.Process] | None = None
         interrupted = False
         try:
             prepared = await run_in_thread_pool(
@@ -1267,28 +1299,23 @@ class UnifiedRecoveryService:
             if prepared is None:
                 return None
             manifest, temporary = prepared
-            creation = asyncio.create_task(
-                asyncio.create_subprocess_exec(
-                    "ffmpeg",
-                    "-nostdin",
-                    "-y",
-                    "-f",
-                    "concat",
-                    "-safe",
-                    "0",
-                    "-i",
-                    str(manifest),
-                    "-c",
-                    "copy",
-                    "-avoid_negative_ts",
-                    "make_zero",
-                    str(temporary),
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE,
-                )
-            )
-            process = await asyncio.shield(creation)
-            _, stderr = await asyncio.wait_for(process.communicate(), timeout=3600)
+            async with media_process(
+                "ffmpeg",
+                "-nostdin",
+                "-y",
+                "-f",
+                "concat",
+                "-safe",
+                "0",
+                "-i",
+                str(manifest),
+                "-c",
+                "copy",
+                "-avoid_negative_ts",
+                "make_zero",
+                str(temporary),
+            ) as (process, output):
+                _, stderr = await asyncio.wait_for(output.wait(), timeout=3600)
             if process.returncode != 0:
                 logger.error(
                     "FFmpeg concatenation failed: %s", stderr.decode(errors="replace")
@@ -1306,20 +1333,7 @@ class UnifiedRecoveryService:
         finally:
 
             async def cleanup() -> None:
-                try:
-                    if creation is not None:
-                        try:
-                            child = await creation
-                        except Exception:
-                            return
-                        if child.returncode is None:
-                            try:
-                                child.kill()
-                            except ProcessLookupError:
-                                pass
-                        await child.communicate()
-                finally:
-                    await run_in_thread_pool(self._cleanup_concat_paths, owned_paths)
+                await run_in_thread_pool(self._cleanup_concat_paths, owned_paths)
 
             drain = asyncio.create_task(cleanup())
             while not drain.done():

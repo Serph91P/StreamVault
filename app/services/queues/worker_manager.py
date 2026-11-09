@@ -175,13 +175,11 @@ class WorkerManager:
         try:
             # Execute the handler
             if asyncio.iscoroutinefunction(handler):
-                # Async handler
                 if progress_callback:
                     result = await handler(task.payload, progress_callback)
                 else:
                     result = await handler(task.payload)
             else:
-                # Sync handler - run in thread pool
                 if progress_callback:
                     result = await asyncio.get_event_loop().run_in_executor(
                         None, handler, task.payload, progress_callback

@@ -18,6 +18,7 @@ Dependency Injection:
 
 import logging
 import asyncio
+from app.utils.media_process import media_process
 import os
 import re
 import signal
@@ -46,8 +47,9 @@ from app.utils.security import (
     get_streamlink_command_secret_values,
     sanitize_streamlink_output,
 )
-from app.services.recording.recording_auth_policy import is_twitch_auth_rejection
+from app.utils.process_output import BoundedStreamlinkOutput
 from app.services.recording.media_ownership import LocalCapture
+from app.services.recording.recording_auth_policy import is_twitch_auth_rejection
 from app.config.constants import ASYNC_DELAYS
 from app.services.twitch_upstream_coordinator import (
     AUTHENTICATED_TWITCH_ACCOUNT,
@@ -204,11 +206,28 @@ class ProcessManager:
         if contexts is None:
             contexts = self._streamlink_output_secrets = {}
         contexts[process] = get_streamlink_command_secret_values(command)
+        outputs = getattr(self, "_streamlink_outputs", None)
+        if outputs is None:
+            outputs = self._streamlink_outputs = {}
+        if isinstance(process, asyncio.subprocess.Process) and process not in outputs:
+            outputs[process] = BoundedStreamlinkOutput(process, contexts[process])
+            # A delayed completion monitor may run after ownership was released.
+            process._streamvault_output = outputs[process]
+
+    async def _collect_streamlink_output(self, process):
+        output = getattr(process, "_streamvault_output", None)
+        if output is not None:
+            return await output.wait()
+        # Compatibility for external process adapters without asyncio pipe readers.
+        return await process.communicate()
 
     def _release_streamlink_output_secrets(self, process) -> None:
         contexts = getattr(self, "_streamlink_output_secrets", None)
         if contexts is not None:
             contexts.pop(process, None)
+        outputs = getattr(self, "_streamlink_outputs", None)
+        if outputs is not None:
+            outputs.pop(process, None)
 
     def _track_recording_process(self, process_id, process) -> None:
         names = getattr(self, "_supervised_process_names", None)
@@ -938,7 +957,7 @@ class ProcessManager:
                         }
                     break
 
-                stdout, stderr = await process.communicate()
+                stdout, stderr = await self._collect_streamlink_output(process)
                 await self._release_tracked_process(process, already_reaped=True)
                 known_secrets = self._get_streamlink_output_secrets(process)
                 safe_output = "\n".join(
@@ -1709,7 +1728,7 @@ class ProcessManager:
             if process_id and process_id in self.long_stream_processes:
                 segment_info = self.long_stream_processes[process_id]
 
-            stdout, stderr = await process.communicate()
+            stdout, stderr = await self._collect_streamlink_output(process)
             await self._release_tracked_process(process, already_reaped=True)
             logging_service = getattr(self, "logging_service", None)
             if logging_service:
@@ -2022,7 +2041,10 @@ class ProcessManager:
                     f.write(f"file '{segment_file}'\n")
 
             # Use FFmpeg to concatenate segments
-            output_path = segment_info["base_output_path"]
+            # Concatenate inside the owned segment directory; never truncate
+            # an existing destination before collision resolution/publication.
+            output_path = str(segment_dir / Path(segment_info["base_output_path"]).name)
+            segment_info["base_output_path"] = output_path
             cmd = [
                 "ffmpeg",
                 "-f",
@@ -2040,11 +2062,8 @@ class ProcessManager:
             logger.info(
                 f"Concatenating {len(segment_files)} segments for stream {segment_info['stream_id']}"
             )
-            process = await asyncio.create_subprocess_exec(
-                *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
-            )
-
-            stdout, stderr = await process.communicate()
+            async with media_process(*cmd) as (process, output):
+                stdout, stderr = await output.wait()
 
             if process.returncode == 0:
                 logger.info(f"Successfully concatenated segments into {output_path}")
@@ -2151,6 +2170,10 @@ class ProcessManager:
 
             # Create new filename in parent directory
             final_path = parent_dir / concatenated_file.name
+
+            if concatenated_file.resolve() == final_path.resolve():
+                segment_info["final_output_path"] = str(final_path)
+                return
 
             # Check if target file already exists and create unique name if needed
             if final_path.exists():
@@ -2446,9 +2469,8 @@ class ProcessManager:
                 ):
                     return False
                 self.active_processes.pop(process_id)
-            if segment_info:
-                if segment_info["monitor_task"]:
-                    segment_info["monitor_task"].cancel()
+            if segment_info and segment_info["monitor_task"]:
+                segment_info["monitor_task"].cancel()
 
             try:
                 if segment_info and segment_info.get("upstream_channel_key"):
@@ -2467,17 +2489,20 @@ class ProcessManager:
                                 self.active_processes.setdefault(process_id, process)
                         return False
                 else:
-                    process.terminate()
-                    await asyncio.wait_for(process.wait(), timeout=timeout)
+                    if process.returncode is None:
+                        process.terminate()
+                    try:
+                        await asyncio.wait_for(process.wait(), timeout=timeout)
+                    except asyncio.TimeoutError:
+                        process.kill()
+                        await process.wait()
+                        logger.warning("Process %s killed after timeout", process_id)
                 await self._release_tracked_process(process)
-                logger.info(f"Process {process_id} terminated gracefully")
                 self._release_streamlink_output_secrets(process)
 
-                # Finalize segmented recording if needed
+                # Keep the segment owner visible until finalization/admission ends.
+                # Heavy admission must never hold the global capture registry lock.
                 if segment_info:
-                    async with self.lock:
-                        if self.long_stream_processes.get(process_id) is segment_info:
-                            self.long_stream_processes.pop(process_id)
                     await self._finalize_segmented_recording(segment_info)
 
                 if segment_info and segment_info.get("upstream_channel_key"):
@@ -2518,6 +2543,13 @@ class ProcessManager:
                     self._release_streamlink_output_secrets(process)
                 logger.error(f"Failed to terminate process {process_id}: {e}")
                 return False
+            finally:
+                async with self.lock:
+                    if process.returncode is None:
+                        # Cancellation/failed fencing must retain a live owner.
+                        self.active_processes.setdefault(process_id, process)
+                    elif self.long_stream_processes.get(process_id) is segment_info:
+                        self.long_stream_processes.pop(process_id, None)
 
     async def _terminate_process_group(
         self,

@@ -22,10 +22,14 @@ from app.models.recordings import (
 from app.models.streams import Stream, StreamEvent, StreamMetadata, Streamer
 from app.models.system import GlobalSettings, SystemConfig, SystemState
 from app.models.upstream import TwitchUpstreamCoordinationState, TwitchUpstreamLease
+from app.models.video_catalog import VideoCatalogEntry
+from app.models.background_task import BackgroundTask, BackgroundTaskDependency
 
 __all__ = [
     "ActiveRecordingState",
     "ApiKey",
+    "BackgroundTask",
+    "BackgroundTaskDependency",
     "Category",
     "FavoriteCategory",
     "GlobalSettings",
@@ -48,4 +52,5 @@ __all__ = [
     "TwitchUpstreamCoordinationState",
     "TwitchUpstreamLease",
     "User",
+    "VideoCatalogEntry",
 ]

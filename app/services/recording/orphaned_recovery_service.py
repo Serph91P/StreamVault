@@ -233,6 +233,7 @@ class OrphanedRecoveryService:
             )
             return False
 
+    # Original #959/c966fa4e: keep both legacy and public admin callers native.
     validate_orphaned_recording = _validate_orphaned_recording
     trigger_orphaned_recovery = _trigger_orphaned_recovery
 

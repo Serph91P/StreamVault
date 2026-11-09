@@ -348,10 +348,94 @@ def _is_pending_auth_handoff(upstream_lease) -> bool:
     )
 
 
+def _read_active_recordings():
+    """Own the entire synchronous DB scope and return only response values."""
+    with SessionLocal() as db:
+        recordings = (
+            db.query(Recording)
+            .join(Stream)
+            .join(Streamer)
+            .filter(Recording.status == "recording")
+            .options(joinedload(Recording.stream).joinedload(Stream.streamer))
+            .all()
+        )
+        if not recordings:
+            return []
+        streamer_ids = {item.stream.streamer_id for item in recordings}
+        recording_ids = {item.id for item in recordings}
+        settings = {}
+        for item in (
+            db.query(StreamerRecordingSettings)
+            .filter(StreamerRecordingSettings.streamer_id.in_(streamer_ids))
+            .order_by(StreamerRecordingSettings.id)
+            .all()
+        ):
+            settings.setdefault(item.streamer_id, item)
+        leases = {}
+        for item in (
+            db.query(TwitchUpstreamLease)
+            .filter(
+                TwitchUpstreamLease.recording_id.in_(recording_ids),
+                TwitchUpstreamLease.state.in_(
+                    ("STARTING", "ACTIVE", "ROTATING", "RECOVERING")
+                ),
+            )
+            .order_by(TwitchUpstreamLease.id)
+            .all()
+        ):
+            leases.setdefault(item.recording_id, item)
+        result = []
+        now = datetime.now(timezone.utc)
+        if now.tzinfo is None:
+            now = now.replace(tzinfo=timezone.utc)
+        for item in recordings:
+            stream = item.stream
+            setting = settings.get(stream.streamer_id)
+            lease = leases.get(item.id)
+            started = item.start_time
+            if started and started.tzinfo is None:
+                started = started.replace(tzinfo=timezone.utc)
+            result.append(
+                ActiveRecordingSchema(
+                    id=item.id,
+                    stream_id=item.stream_id,
+                    streamer_id=stream.streamer_id,
+                    streamer_name=stream.streamer.username,
+                    title=stream.title or "",
+                    started_at=item.start_time.isoformat() if item.start_time else "",
+                    file_path=item.path or "",
+                    status=item.status,
+                    duration=int((now - started).total_seconds()) if started else 0,
+                    twitch_auth_priority=setting.twitch_auth_priority if setting else 0,
+                    effective_auth_mode="authenticated"
+                    if lease and lease.auth_key
+                    else "anonymous"
+                    if lease
+                    else "unknown",
+                    pending_handoff=_is_pending_auth_handoff(lease) if lease else False,
+                    handoff_reason=(
+                        lease.handoff_reason
+                        or (
+                            "segment_boundary_transition"
+                            if lease.state == "ROTATING"
+                            else None
+                        )
+                    )
+                    if lease
+                    else None,
+                    partial_recording_warning=lease.partial_recording_warning
+                    if lease
+                    else False,
+                ).model_dump()
+            )
+        return result
+
+
 @router.get("/active", response_model=List[ActiveRecordingSchema])
 async def get_active_recordings():
     """Get all active recordings"""
-    import time
+    import asyncio
+    from app.utils.async_db_utils import run_in_thread_pool
     from sqlalchemy.exc import TimeoutError, OperationalError
 
     try:
@@ -382,107 +466,7 @@ async def get_active_recordings():
 
     for attempt in range(max_retries):
         try:
-            # Get active recordings directly from database instead of state manager
-            # This ensures we only get recordings that are truly active
-            result = []
-
-            # Use a new session for database queries with proper error handling
-            with SessionLocal() as db:
-                # Optimized query with joins to reduce database round trips
-                active_recordings = (
-                    db.query(Recording)
-                    .join(Stream)
-                    .join(Streamer)
-                    .filter(Recording.status == "recording")
-                    .options(joinedload(Recording.stream).joinedload(Stream.streamer))
-                    .all()
-                )
-
-                for recording in active_recordings:
-                    try:
-                        # Stream and streamer info already loaded via joinedload
-                        stream = recording.stream
-                        if stream and stream.streamer:
-                            streamer_settings = (
-                                db.query(StreamerRecordingSettings)
-                                .filter(
-                                    StreamerRecordingSettings.streamer_id
-                                    == stream.streamer_id
-                                )
-                                .first()
-                            )
-                            upstream_lease = (
-                                db.query(TwitchUpstreamLease)
-                                .filter(
-                                    TwitchUpstreamLease.recording_id == recording.id,
-                                    TwitchUpstreamLease.state.in_(
-                                        ("STARTING", "ACTIVE", "ROTATING", "RECOVERING")
-                                    ),
-                                )
-                                .first()
-                            )
-                            # Calculate duration
-                            duration = 0
-                            if recording.start_time:
-                                duration = int(
-                                    (
-                                        datetime.now(timezone.utc)
-                                        - recording.start_time
-                                    ).total_seconds()
-                                )
-
-                            # Create schema object with all required fields
-                            active_recording = ActiveRecordingSchema(
-                                id=recording.id,
-                                stream_id=recording.stream_id,
-                                streamer_id=stream.streamer_id,
-                                streamer_name=stream.streamer.username,
-                                title=stream.title or "",
-                                started_at=recording.start_time.isoformat()
-                                if recording.start_time
-                                else "",
-                                file_path=recording.path or "",
-                                status=recording.status,
-                                duration=duration,
-                                twitch_auth_priority=(
-                                    streamer_settings.twitch_auth_priority
-                                    if streamer_settings
-                                    else 0
-                                ),
-                                effective_auth_mode=(
-                                    "authenticated"
-                                    if upstream_lease and upstream_lease.auth_key
-                                    else "anonymous"
-                                    if upstream_lease
-                                    else "unknown"
-                                ),
-                                pending_handoff=(
-                                    _is_pending_auth_handoff(upstream_lease)
-                                    if upstream_lease
-                                    else False
-                                ),
-                                handoff_reason=(
-                                    upstream_lease.handoff_reason
-                                    or (
-                                        "segment_boundary_transition"
-                                        if upstream_lease.state == "ROTATING"
-                                        else None
-                                    )
-                                    if upstream_lease
-                                    else None
-                                ),
-                                partial_recording_warning=(
-                                    upstream_lease.partial_recording_warning
-                                    if upstream_lease
-                                    else False
-                                ),
-                            )
-                            result.append(active_recording)
-                    except Exception as e:
-                        logger.warning(
-                            f"Error processing active recording {recording.id}: {e}"
-                        )
-                        continue
+            result = await run_in_thread_pool(_read_active_recordings)
 
             # Cache the result for a short time (2 seconds) to reduce database load
             app_cache.set(cache_key, result, ttl=2)
@@ -498,7 +482,7 @@ async def get_active_recordings():
                     f"Database connection pool issue on attempt {attempt + 1}: {e}"
                 )
                 if attempt < max_retries - 1:
-                    time.sleep(retry_delay * (2**attempt))  # Exponential backoff
+                    await asyncio.sleep(retry_delay * (2**attempt))
                     continue
                 else:
                     logger.error(

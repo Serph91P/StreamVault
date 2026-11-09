@@ -13,8 +13,10 @@ from app.models import (
     Streamer,
     StreamMetadata,
     TwitchUpstreamLease,
+    TwitchUpstreamCoordinationState,
     User,
 )
+
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -70,6 +72,7 @@ def recovery_database(tmp_path):
             Recording.__table__,
             TwitchUpstreamLease.__table__,
             StreamMetadata.__table__,
+            TwitchUpstreamCoordinationState.__table__,
         ],
     )
     Session = sessionmaker(bind=engine)
@@ -169,6 +172,52 @@ async def test_unified_failed_resume_preserves_recoverable_recording(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("capture", ["ALIVE", "UNKNOWN"])
+async def test_startup_skips_provider_and_admission_without_proven_capture_death(
+    monkeypatch, recovery_database, capture
+):
+    from types import SimpleNamespace
+    from app.services.recording import startup_recovery
+    from app.services.recording.media_ownership import CaptureState
+    from app.services.twitch_upstream_coordinator import TwitchUpstreamCoordinator
+
+    sessions, values = recovery_database
+    calls = []
+
+    async def provider(**kwargs):
+        calls.append(("provider", kwargs))
+        return [{"id": "synthetic-live"}]
+
+    async def admission(**kwargs):
+        calls.append(("admission", kwargs))
+
+    async def snapshots():
+        return {}
+
+    monkeypatch.setattr(
+        startup_recovery, "capture_state", lambda *_: CaptureState[capture]
+    )
+    processes = SimpleNamespace(
+        capture_process_snapshot=snapshots,
+        upstream_coordinator=TwitchUpstreamCoordinator(
+            sessions, monotonic_clock=__import__("time").monotonic
+        ),
+    )
+    owner = SimpleNamespace(
+        process_manager=processes,
+        is_stream_active=lambda _: False,
+        start_recording=admission,
+    )
+    await startup_recovery.recover_startup_recordings(
+        sessions, owner, SimpleNamespace(get_streams=provider)
+    )
+    assert calls == []
+    with sessions() as db:
+        row = db.get(Recording, values["recording_id"])
+        assert (row.status, row.end_time, row.duration) == ("recording", None, 17)
+
+
+@pytest.mark.asyncio
 async def test_unified_success_stops_prior_only_after_fenced_resume(
     monkeypatch, recovery_database, tmp_path
 ):
@@ -256,8 +305,9 @@ async def test_unified_recovery_rejects_lease_for_other_recording(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("provider_failure", [False, True])
 async def test_startup_failed_resume_preserves_recoverable_recording(
-    monkeypatch, recovery_database
+    monkeypatch, recovery_database, provider_failure
 ):
     import importlib
 
@@ -268,6 +318,33 @@ async def test_startup_failed_resume_preserves_recoverable_recording(
 
     Session, values = recovery_database
     calls = []
+
+    import subprocess
+    import sys
+    import time
+    from types import SimpleNamespace
+    from app.services.twitch_upstream_coordinator import TwitchUpstreamCoordinator
+
+    dead = subprocess.Popen([sys.executable, "-c", "pass"], start_new_session=True)
+    dead.wait(timeout=5)
+    with Session() as db:
+        lease = db.query(TwitchUpstreamLease).one()
+        lease.process_pid = dead.pid
+        lease.process_group_id = dead.pid
+        db.commit()
+
+    async def snapshots():
+        return {}
+
+    provider_calls = []
+
+    async def live_status(**kwargs):
+        assert Session.kw["bind"].pool.checkedout() == 0
+        assert kwargs == {"user_ids": ["stable-channel-id"]}
+        provider_calls.append(kwargs)
+        if provider_failure:
+            raise RuntimeError("synthetic provider unavailable")
+        return [{"id": "synthetic-live"}]
 
     class RecordingService:
         def is_stream_active(self, stream_id):
@@ -290,23 +367,34 @@ async def test_startup_failed_resume_preserves_recoverable_recording(
         return [{"id": "fixture-live"}]
 
     monkeypatch.setattr(app.database, "SessionLocal", Session)
-    monkeypatch.setattr(twitch_api, "get_streams", live)
+    RecordingService.process_manager = SimpleNamespace(
+        capture_process_snapshot=snapshots,
+        upstream_coordinator=TwitchUpstreamCoordinator(
+            Session, monotonic_clock=time.monotonic
+        ),
+    )
+    monkeypatch.setattr(twitch_api, "get_streams", live_status)
     monkeypatch.setattr(
         startup_init, "get_recording_manager", lambda: RecordingService()
     )
     await startup_init.cleanup_zombie_recordings()
 
-    assert calls == [
-        (
-            values["stream_id"],
-            values["streamer_id"],
-            {
-                "force_mode": True,
-                "resume_segments_dir": None,
-                "recovery_generation": 11,
-            },
-        )
-    ]
+    assert provider_calls == [{"user_ids": ["stable-channel-id"]}]
+    assert calls == (
+        []
+        if provider_failure
+        else [
+            (
+                values["stream_id"],
+                values["streamer_id"],
+                {
+                    "force_mode": True,
+                    "resume_segments_dir": None,
+                    "recovery_generation": 11,
+                },
+            )
+        ]
+    )
     with Session() as db:
         prior = db.get(Recording, values["recording_id"])
         assert prior.status == "recording"

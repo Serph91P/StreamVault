@@ -16,11 +16,14 @@ from app.services.init.background_queue_init import (
     shutdown_background_queue,
 )
 from app.services.background_queue_service import BackgroundQueueService
+
 from app.config.constants import ASYNC_DELAYS
 from app.services.system.supervisor import TaskSupervisor
 
 logger = logging.getLogger("streamvault")
 _background_supervisor: TaskSupervisor | None = None
+if TYPE_CHECKING:
+    from app.services.recording.recording_manager import RecordingManager
 
 if TYPE_CHECKING:
     from app.services.recording.recording_manager import RecordingManager
@@ -195,42 +198,57 @@ async def _cleanup_zombie_recordings_now(
         else await run_in_thread_pool(get_recording_manager)
     )
     processes = manager.process_manager
-    snapshots = await processes.capture_process_snapshot()
     state = manager.orchestrator.state_manager
     memory = state.get_active_recordings()
+    cursor = total = 0
+    while True:
+        snapshots = await processes.capture_process_snapshot()
 
-    def stop_dead(db: Session) -> list[int]:
-        stopped = []
-        recordings = (
-            db.query(Recording)
-            .filter(Recording.status == "recording")
-            .with_for_update()
-            .all()
-        )
-        for recording in recordings:
-            if (
-                capture_state(
-                    db, recording, snapshots.get(f"stream_{recording.stream_id}")
+        def stop_dead(db: Session) -> tuple[int, list[int]]:
+            stopped = []
+            recordings = (
+                db.query(Recording)
+                .filter(
+                    Recording.status == "recording",
+                    Recording.id > cursor,
                 )
-                is not CaptureState.DEAD
-            ):
-                continue
-            now = datetime.now(timezone.utc)
-            recording.status = "stopped"
-            recording.end_time = now
-            if recording.start_time is not None:
-                started = recording.start_time
-                if started.tzinfo is None:
-                    started = started.replace(tzinfo=timezone.utc)
-                recording.duration = int((now - started).total_seconds())
-            stopped.append(recording.id)
-        return stopped
+                .order_by(Recording.id)
+                .limit(100)
+                .with_for_update()
+                .all()
+            )
+            for recording in recordings:
+                if (
+                    capture_state(
+                        db, recording, snapshots.get(f"stream_{recording.stream_id}")
+                    )
+                    is not CaptureState.DEAD
+                ):
+                    continue
+                now = datetime.now(timezone.utc)
+                recording.status = "stopped"
+                recording.end_time = now
+                if recording.start_time is not None:
+                    started = recording.start_time
+                    if started.tzinfo is None:
+                        started = started.replace(tzinfo=timezone.utc)
+                    recording.duration = int((now - started).total_seconds())
+                stopped.append(recording.id)
+            return (recordings[-1].id if recordings else cursor), stopped
 
-    stopped = await processes.upstream_coordinator.run_capture_maintenance(stop_dead)
-    for recording_id in stopped:
-        if state.get_active_recording(recording_id) is memory.get(recording_id):
-            state.remove_active_recording(recording_id)
-    return len(stopped)
+        (
+            next_cursor,
+            stopped,
+        ) = await processes.upstream_coordinator.run_capture_maintenance(stop_dead)
+        if next_cursor == cursor:
+            break
+        cursor = next_cursor
+        total += len(stopped)
+        for recording_id in stopped:
+            if state.get_active_recording(recording_id) is memory.get(recording_id):
+                state.remove_active_recording(recording_id)
+        await asyncio.sleep(0)
+    return total
 
 
 async def initialize_vapid_keys(settings: Settings | None = None):

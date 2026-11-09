@@ -45,8 +45,17 @@ class TaskQueueManager:
         max_workers: int = 3,
         websocket_manager=None,
         enable_streamer_isolation: bool = True,
+        task_store=None,
     ):
         self.enable_streamer_isolation = enable_streamer_isolation
+        self.task_store = task_store
+        self._durable_jobs = {}
+        self._durable_streamers = {}
+        self._durable_counts = {}
+        self._recovery_cursor = ""
+        self._next_recovery = 0.0
+        self._queue_wakeup = asyncio.Event()
+        self.task_queue = asyncio.PriorityQueue(maxsize=128)
 
         if enable_streamer_isolation:
             # Production fix: Use streamer-isolated queues to prevent concurrency issues
@@ -65,7 +74,7 @@ class TaskQueueManager:
             )
         else:
             # Original single shared queue
-            self.task_queue: asyncio.PriorityQueue = asyncio.PriorityQueue()
+            self.task_queue: asyncio.PriorityQueue = asyncio.PriorityQueue(maxsize=128)
             logger.info("TaskQueueManager initialized with shared queue")
 
         self._is_running = False  # Use private attribute for internal state
@@ -96,6 +105,26 @@ class TaskQueueManager:
 
         self._is_running = True
 
+        if self.task_store is not None:
+            from app.utils.async_db_utils import run_in_thread_pool
+
+            try:
+                await run_in_thread_pool(self.task_store.recover)
+                self.progress_tracker.completed_tasks.update(
+                    await run_in_thread_pool(self.task_store.recent)
+                )
+                self._durable_counts = await run_in_thread_pool(self.task_store.counts)
+            except BaseException:
+                self._is_running = False
+                await run_in_thread_pool(self.task_store.close_owner, remove=True)
+                raise
+            self.worker_manager.is_running = True
+            self._next_recovery = asyncio.get_running_loop().time() + 5
+            self.dependency_worker = asyncio.create_task(self._durable_dispatch())
+            self.stats_worker = asyncio.create_task(self._stats_broadcast_worker())
+            self._queue_wakeup.set()
+            return
+
         if self.enable_streamer_isolation:
             # Start isolated workers per streamer (production fix)
             logger.info("Starting TaskQueueManager with streamer isolation")
@@ -121,6 +150,37 @@ class TaskQueueManager:
             return
 
         self._is_running = False
+
+        if self.task_store is not None:
+            tasks = [
+                self.dependency_worker,
+                self.stats_worker,
+                *self._durable_jobs.values(),
+            ]
+            for task in tasks:
+                if task is not None:
+                    task.cancel()
+            await asyncio.gather(
+                *(task for task in tasks if task is not None), return_exceptions=True
+            )
+            from app.utils.async_db_utils import run_in_thread_pool
+
+            reset = False
+            try:
+                await run_in_thread_pool(self.task_store.recover, release_owned=True)
+                reset = True
+            except Exception:
+                logger.warning(
+                    "Durable queue stop could not persist reset; work remains recoverable"
+                )
+            finally:
+                await run_in_thread_pool(self.task_store.close_owner, remove=reset)
+            self._durable_jobs.clear()
+            self._durable_streamers.clear()
+            self.progress_tracker.active_tasks.clear()
+            self.dependency_worker = self.stats_worker = None
+            self.worker_manager.is_running = False
+            return
 
         # Cancel dependency worker
         if self.dependency_worker:
@@ -177,6 +237,19 @@ class TaskQueueManager:
         max_retries: int = 3,
     ) -> str:
         """Enqueue a new background task with optional streamer isolation"""
+
+        if self.task_store is not None:
+            task = QueueTask(
+                id=str(uuid.uuid4()),
+                task_type=task_type,
+                priority=priority,
+                payload=payload,
+                status=TaskStatus.PENDING,
+                created_at=datetime.now(timezone.utc),
+                max_retries=max_retries,
+            )
+            await self._accept_durable([(task, set())])
+            return task.id
 
         # PRODUCTION FIX: Limit orphaned recovery check tasks to prevent queue flooding
         if task_type == "orphaned_recovery_check":
@@ -412,6 +485,18 @@ class TaskQueueManager:
         max_retries: int = 3,
     ) -> str:
         """Enqueue a task with dependencies"""
+        if self.task_store is not None:
+            task = QueueTask(
+                id=str(uuid.uuid4()),
+                task_type=task_type,
+                priority=priority,
+                payload=payload,
+                status=TaskStatus.PENDING,
+                created_at=datetime.now(timezone.utc),
+                max_retries=max_retries,
+            )
+            await self._accept_durable([(task, set(dependencies or []))])
+            return task.id
         task_id = str(uuid.uuid4())
 
         # Create dependency task
@@ -444,6 +529,142 @@ class TaskQueueManager:
             f"Enqueued task {task_id} ({task_type}) with {len(dependencies or [])} dependencies"
         )
         return task_id
+
+    async def _accept_durable(self, tasks):
+        from app.utils.async_db_utils import run_in_thread_pool
+
+        def accept():
+            entries = [
+                (task, dependencies, self._extract_streamer_name(task.payload))
+                for task, dependencies in tasks
+            ]
+            self.task_store.accept(entries)
+
+        await run_in_thread_pool(accept)
+        self._queue_wakeup.set()
+
+    async def _durable_write(self, operation, *args, **kwargs):
+        from app.utils.async_db_utils import run_in_thread_pool
+        from sqlalchemy.exc import InterfaceError, OperationalError
+
+        while True:
+            try:
+                return await run_in_thread_pool(operation, *args, **kwargs)
+            except (InterfaceError, OperationalError):
+                logger.warning(
+                    "Durable queue database unavailable; retaining accepted work"
+                )
+                await asyncio.sleep(1)
+
+    async def _durable_dispatch(self):
+        from app.services.queues.durable_task_store import HEAVY_TASK_TYPES
+
+        while self._is_running:
+            self._queue_wakeup.clear()
+            try:
+                now = asyncio.get_running_loop().time()
+                if now >= self._next_recovery:
+                    self._recovery_cursor = await self._durable_write(
+                        self.task_store.recover,
+                        after_id=self._recovery_cursor,
+                        single_batch=True,
+                    )
+                    self._next_recovery = now + 5
+                capacity = (
+                    15
+                    if self.enable_streamer_isolation
+                    else self.worker_manager.max_workers
+                )
+                active_heavy = sum(
+                    task.task_type in HEAVY_TASK_TYPES
+                    for task in self.progress_tracker.active_tasks.values()
+                )
+                busy = set(self._durable_streamers.values())
+                claimed = await self._durable_write(
+                    self.task_store.claim,
+                    max(0, capacity - len(self._durable_jobs)),
+                    busy,
+                    max(0, min(2, max(1, capacity - 1)) - active_heavy),
+                    self.enable_streamer_isolation,
+                    global_capacity=capacity,
+                )
+                for task, streamer in claimed:
+                    self.progress_tracker.add_task(task)
+                    self._durable_streamers[task.id] = streamer
+                    self._durable_jobs[task.id] = asyncio.create_task(
+                        self._run_durable(task)
+                    )
+                counts = await self._durable_write(self.task_store.counts)
+                if any(
+                    counts.get(state, 0) != self._durable_counts.get(state, 0)
+                    for state in ("completed", "failed")
+                ):
+                    self.progress_tracker.completed_tasks.update(
+                        await self._durable_write(self.task_store.recent)
+                    )
+                    while len(self.progress_tracker.completed_tasks) > 1000:
+                        self.progress_tracker.completed_tasks.pop(
+                            next(iter(self.progress_tracker.completed_tasks))
+                        )
+                self._durable_counts = counts
+                await self._durable_write(self.task_store.prune)
+                if claimed:
+                    continue
+                try:
+                    await asyncio.wait_for(self._queue_wakeup.wait(), timeout=1)
+                except asyncio.TimeoutError:
+                    pass
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                logger.exception(
+                    "Durable dispatcher failed; accepted work remains persisted"
+                )
+                await asyncio.sleep(1)
+
+    async def _run_durable(self, task):
+        from app.utils.async_db_utils import run_in_thread_pool
+        from app.utils.queue_ownership import queue_owner_fd, queue_owner_file
+
+        owner_context = queue_owner_fd.set(self.task_store.owner_fd)
+        owner_file_context = queue_owner_file.set(self.task_store.owner_file)
+        try:
+            try:
+                if not await self._durable_write(self.task_store.step_completed, task):
+                    await self.worker_manager._execute_task(task, f"durable-{task.id}")
+            except Exception as error:
+                result = await self._durable_write(
+                    self.task_store.finish, task.id, success=False, error=error
+                )
+            else:
+                result = await self._durable_write(
+                    self.task_store.finish, task.id, success=True
+                )
+            task.retry_count = result.retry_count
+            self.progress_tracker.update_task_status(
+                task.id, result.status, result.error_message
+            )
+            if result.status == TaskStatus.COMPLETED:
+                self.progress_tracker.update_task_progress(task.id, 100)
+        except asyncio.CancelledError:
+            try:
+                await run_in_thread_pool(
+                    self.task_store.finish, task.id, success=False, interrupted=True
+                )
+            except Exception:
+                logger.warning("Interrupted durable work remains for restart recovery")
+            raise
+        finally:
+            queue_owner_fd.reset(owner_context)
+            queue_owner_file.reset(owner_file_context)
+            self.progress_tracker.active_tasks.pop(task.id, None)
+            while len(self.progress_tracker.completed_tasks) > 1000:
+                self.progress_tracker.completed_tasks.pop(
+                    next(iter(self.progress_tracker.completed_tasks))
+                )
+            self._durable_jobs.pop(task.id, None)
+            self._durable_streamers.pop(task.id, None)
+            self._queue_wakeup.set()
 
     async def _dependency_worker(self):
         """Worker that manages task dependencies"""
@@ -598,15 +819,20 @@ class TaskQueueManager:
 
     def get_task_status(self, task_id: str) -> Optional[TaskStatus]:
         """Get task status"""
-        return self.progress_tracker.get_task_status(task_id)
+        task = self.get_task(task_id)
+        return task.status if task else None
 
     def get_task_progress(self, task_id: str) -> Optional[float]:
         """Get task progress"""
-        return self.progress_tracker.get_task_progress(task_id)
+        task = self.get_task(task_id)
+        return task.progress if task else None
 
     def get_task(self, task_id: str) -> Optional[QueueTask]:
         """Get task by ID"""
-        return self.progress_tracker.get_task(task_id)
+        task = self.progress_tracker.get_task(task_id)
+        if task is None and self.task_store is not None:
+            return self.task_store.snapshot([task_id]).get(task_id)
+        return task
 
     def get_active_tasks(self) -> Dict[str, QueueTask]:
         """Get all active tasks"""
@@ -619,6 +845,29 @@ class TaskQueueManager:
     def get_queue_statistics(self) -> Dict[str, Any]:
         """Get comprehensive queue statistics"""
         base_stats = self.progress_tracker.get_statistics()
+
+        if self.task_store is not None:
+            counts = self._durable_counts
+            return {
+                **base_stats,
+                "total_tasks": sum(counts.values()),
+                "completed_tasks": counts.get("completed", 0),
+                "failed_tasks": counts.get("failed", 0),
+                "pending_tasks": counts.get("pending", 0) + counts.get("retrying", 0),
+                "queue_size": counts.get("pending", 0) + counts.get("retrying", 0),
+                "statistics_scope": "retained-durable-history",
+                "terminal_retention": 1000,
+                "workers": {
+                    "total": int(self.is_running) + len(self._durable_jobs),
+                    "active": len(self._durable_jobs),
+                    "isolation_enabled": self.enable_streamer_isolation,
+                },
+                "streamers": {
+                    key: {"active_workers": 1}
+                    for key in self._durable_streamers.values()
+                },
+                "registered_handlers": self.worker_manager.get_registered_handlers(),
+            }
 
         if self.enable_streamer_isolation:
             # Streamer-isolated statistics
@@ -693,6 +942,23 @@ class TaskQueueManager:
 
     async def wait_for_completion(self, timeout: Optional[float] = None):
         """Wait for all current tasks to complete"""
+        if self.task_store is not None:
+
+            async def wait():
+                while True:
+                    counts = await self._durable_write(self.task_store.counts)
+                    if not any(
+                        counts.get(state, 0)
+                        for state in ("pending", "running", "retrying")
+                    ):
+                        return
+                    await asyncio.sleep(0.1)
+
+            try:
+                await asyncio.wait_for(wait(), timeout=timeout)
+            except asyncio.TimeoutError:
+                logger.warning("Timeout waiting for durable task completion")
+            return
         await self.worker_manager.wait_for_completion(timeout)
 
     def cleanup_old_tasks(self, max_age_hours: int = 24):
@@ -803,6 +1069,17 @@ class TaskQueueManager:
                 settings=kwargs.get("settings"),
                 session_factory=kwargs.get("session_factory"),
             )
+            if self.task_store is not None:
+                entries = [
+                    (
+                        self._create_queue_task_from_dependency_task(task),
+                        task.dependencies,
+                        streamer_name,
+                    )
+                    for task in tasks
+                ]
+                self.task_store.accept(entries, recording_id=recording_id)
+                return tasks
             # Persist IDs before transferring plain task values to the event loop.
             try:
                 from app.database import SessionLocal
@@ -824,6 +1101,12 @@ class TaskQueueManager:
         from app.utils.async_db_utils import run_in_thread_pool
 
         tasks = await run_in_thread_pool(build_tasks)
+        if self.task_store is not None:
+            ids = [task.id for task in tasks]
+            for task_id in ids:
+                self.progress_tracker.completed_tasks.pop(task_id, None)
+            self._queue_wakeup.set()
+            return ids
 
         # Add tasks to dependency manager and create corresponding queue tasks for tracking
         for task in tasks:

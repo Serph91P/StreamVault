@@ -127,6 +127,22 @@ async def recover_startup_recordings(
         if recording_manager.is_stream_active(value.stream_id):
             continue
         try:
+            processes = recording_manager.process_manager
+            snapshots = await processes.capture_process_snapshot()
+
+            def is_dead(db: Session) -> bool:
+                row = db.get(Recording, value.recording_id, with_for_update=True)
+                return (
+                    row is not None
+                    and row.status == "recording"
+                    and capture_state(db, row, snapshots.get(f"stream_{row.stream_id}"))
+                    is CaptureState.DEAD
+                )
+
+            if not await processes.upstream_coordinator.run_capture_maintenance(
+                is_dead
+            ):
+                continue
             is_still_live = bool(
                 await twitch_api.get_streams(user_ids=[value.twitch_id])
             )

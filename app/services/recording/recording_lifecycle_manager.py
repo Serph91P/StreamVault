@@ -7,6 +7,7 @@ Handles recording start, stop, monitoring, and lifecycle events.
 
 import logging
 import asyncio
+from app.utils.media_process import media_process
 from typing import Dict, Any, Optional
 import re
 from datetime import datetime, timezone
@@ -1185,26 +1186,16 @@ class RecordingLifecycleManager:
 
             # Execute FFmpeg command with timeout and safe environment
             try:
-                process = await asyncio.wait_for(
-                    asyncio.create_subprocess_exec(
-                        *ffmpeg_cmd,
-                        cwd=str(first_segment.parent),  # Set working directory
-                        stdout=asyncio.subprocess.PIPE,
-                        stderr=asyncio.subprocess.PIPE,
-                        env={"PATH": "/usr/bin:/bin"},  # Restricted environment
-                    ),
-                    timeout=300,  # 5 minute timeout
-                )
-
-                stdout, stderr = await asyncio.wait_for(
-                    process.communicate(),
-                    timeout=600,  # 10 minute timeout for large files
-                )
+                async with media_process(
+                    *ffmpeg_cmd,
+                    cwd=str(first_segment.parent),
+                    env={"PATH": "/usr/bin:/bin"},
+                    launch_timeout=300,
+                ) as (process, output):
+                    stdout, stderr = await asyncio.wait_for(output.wait(), timeout=600)
 
             except asyncio.TimeoutError:
                 logger.error("🎬 CONCATENATION_TIMEOUT: FFmpeg process timed out")
-                if "process" in locals():
-                    process.kill()
                 return None
 
             if process.returncode == 0:
@@ -1304,7 +1295,11 @@ class RecordingLifecycleManager:
 
             # Check if process is active using new API
             process_id = f"stream_{recording.stream_id}"
-            is_active = process_id in self.process_manager.active_processes
+            is_active = (
+                process_id in self.process_manager.active_processes
+                or process_id
+                in getattr(self.process_manager, "long_stream_processes", {})
+            )
 
             return is_active
 
