@@ -13,6 +13,7 @@ from functools import partial
 from app.services.core.automated_recovery_state import AutomatedRecoveryState
 from app.services.system.supervisor import TaskSupervisor
 from app.dependencies import get_application_recovery_service
+from app.services.recording.unified_recovery_service import UnifiedRecoveryService
 import logging
 import asyncio
 from datetime import datetime, timezone
@@ -44,6 +45,7 @@ def get_recovery_supervisor(request: Request) -> TaskSupervisor:
 
 async def run_comprehensive_recovery(
     state: AutomatedRecoveryState | None = None,
+    service: UnifiedRecoveryService | None = None,
 ) -> Dict[str, Any]:
     """
     Runs comprehensive recovery with all existing services
@@ -75,7 +77,7 @@ async def run_comprehensive_recovery(
         try:
             from ..services.simple_recovery_service import run_simple_reliable_recovery
 
-            simple_result = await run_simple_reliable_recovery()
+            simple_result = await run_simple_reliable_recovery(unified_service=service)
             results["simple_recovery"] = simple_result.get("simple_recovery", {})
             results["total_recoveries"] += simple_result.get("total_recoveries", 0)
             logger.info(
@@ -95,7 +97,9 @@ async def run_comprehensive_recovery(
                 get_unified_recovery_service,
             )
 
-            unified_service = await get_unified_recovery_service()
+            unified_service = (
+                service if service is not None else await get_unified_recovery_service()
+            )
             unified_stats = await unified_service.comprehensive_recovery_scan(
                 max_age_hours=72, dry_run=False
             )
@@ -125,10 +129,15 @@ async def run_comprehensive_recovery(
         logger.info("🔧 Starting orphaned recovery...")
         try:
             from ..services.recording.orphaned_recovery_service import (
+                OrphanedRecoveryService,
                 get_orphaned_recovery_service,
             )
 
-            orphaned_service = await get_orphaned_recovery_service()
+            orphaned_service = (
+                OrphanedRecoveryService(service)
+                if service is not None
+                else await get_orphaned_recovery_service()
+            )
             orphaned_result = (
                 await orphaned_service.scan_and_recover_orphaned_recordings(
                     max_age_hours=48, dry_run=False
@@ -196,7 +205,10 @@ async def run_comprehensive_recovery(
         return results
 
 
-async def automated_recovery_loop(state: AutomatedRecoveryState | None = None):
+async def automated_recovery_loop(
+    state: AutomatedRecoveryState | None = None,
+    service: UnifiedRecoveryService | None = None,
+) -> None:
     """
     Hauptschleife für automatisierte Recovery
 
@@ -210,7 +222,7 @@ async def automated_recovery_loop(state: AutomatedRecoveryState | None = None):
     while await state.is_running():
         try:
             logger.info("🔄 Running automated recovery cycle...")
-            result = await run_comprehensive_recovery(state=state)
+            result = await run_comprehensive_recovery(state=state, service=service)
 
             if result["success"]:
                 logger.info(
@@ -241,6 +253,7 @@ async def start_automated_recovery(
     interval_minutes: int = 5,
     state: AutomatedRecoveryState = Depends(get_recovery_state),
     supervisor: TaskSupervisor = Depends(get_recovery_supervisor),
+    service: UnifiedRecoveryService = Depends(get_application_recovery_service),
 ):
     """
     Startet automatisierte Recovery mit allen existierenden Services
@@ -266,7 +279,7 @@ async def start_automated_recovery(
 
         if not await state.start(
             supervisor,
-            partial(automated_recovery_loop, state=state),
+            partial(automated_recovery_loop, state=state, service=service),
             interval_minutes * 60,
         ):
             return {
@@ -308,12 +321,13 @@ async def stop_automated_recovery(
 @router.post("/run-once")
 async def run_manual_recovery(
     state: AutomatedRecoveryState = Depends(get_recovery_state),
+    service: UnifiedRecoveryService = Depends(get_application_recovery_service),
 ):
     """
     Führt einmalig umfassende Recovery aus (alle Services)
     """
     try:
-        result = await run_comprehensive_recovery(state=state)
+        result = await run_comprehensive_recovery(state=state, service=service)
         return result
 
     except Exception as e:
@@ -324,7 +338,7 @@ async def run_manual_recovery(
 @router.post("/run-simple")
 async def run_simple_recovery(
     state: AutomatedRecoveryState = Depends(get_recovery_state),
-    service=Depends(get_application_recovery_service),
+    service: UnifiedRecoveryService = Depends(get_application_recovery_service),
 ):
     """
     Runs simple reliable recovery once (only metadata_generation without dependencies).
@@ -424,7 +438,9 @@ async def configure_recovery(
 
 
 @router.get("/test-services")
-async def test_recovery_services():
+async def test_recovery_services(
+    service: UnifiedRecoveryService = Depends(get_application_recovery_service),
+):
     """
     Testet alle Recovery-Services (dry run)
 
@@ -442,7 +458,9 @@ async def test_recovery_services():
             get_unified_recovery_service,
         )
 
-        unified_service = await get_unified_recovery_service()
+        unified_service = (
+            service if service is not None else await get_unified_recovery_service()
+        )
         unified_stats = await unified_service.comprehensive_recovery_scan(
             max_age_hours=72, dry_run=True
         )
@@ -461,10 +479,15 @@ async def test_recovery_services():
     # Test Orphaned Recovery
     try:
         from ..services.recording.orphaned_recovery_service import (
+            OrphanedRecoveryService,
             get_orphaned_recovery_service,
         )
 
-        orphaned_service = await get_orphaned_recovery_service()
+        orphaned_service = (
+            OrphanedRecoveryService(service)
+            if service is not None
+            else await get_orphaned_recovery_service()
+        )
         orphaned_result = await orphaned_service.scan_and_recover_orphaned_recordings(
             max_age_hours=48, dry_run=True
         )

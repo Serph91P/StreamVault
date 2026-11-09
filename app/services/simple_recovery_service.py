@@ -8,7 +8,7 @@ These work reliably compared to complex dependency chains.
 import logging
 from typing import Dict, Any, TYPE_CHECKING
 from datetime import datetime, timezone
-from pathlib import Path
+
 
 if TYPE_CHECKING:
     from ..services.recording.unified_recovery_service import UnifiedRecoveryService
@@ -105,103 +105,4 @@ async def create_full_recovery_chains(unified_service: "UnifiedRecoveryService")
     Returns:
         Number of post-processing chains created.
     """
-    from ..services.init.background_queue_init import enqueue_recording_post_processing
-    from ..database import SessionLocal
-    from ..models import Recording, Stream
-
-    recovery_count = 0
-
-    try:
-        # The scan doesn't return individual recordings, so we need to find them ourselves
-        # But we'll do it safely without complex joins
-        db = SessionLocal()
-        try:
-            # Get all recordings that have a path but completed
-            recordings = (
-                db.query(Recording)
-                .filter(Recording.path.isnot(None), Recording.status == "completed")
-                .all()
-            )
-
-            for recording in recordings:
-                try:
-                    if not recording.path:
-                        continue
-
-                    # Check if TS exists but MP4 is missing
-                    recording_path = Path(recording.path)
-                    if not recording_path.exists():
-                        continue
-
-                    # Check MP4
-                    mp4_path = recording_path.parent / f"{recording_path.stem}.mp4"
-                    if mp4_path.exists():
-                        continue  # MP4 already exists
-
-                    # Get stream information for full post-processing
-                    stream = (
-                        db.query(Stream)
-                        .filter(Stream.id == recording.stream_id)
-                        .first()
-                    )
-                    if not stream:
-                        logger.warning(
-                            f"⚠️ Stream {recording.stream_id} not found for recording {recording.id}"
-                        )
-                        continue
-
-                    # Get streamer name
-                    streamer_name = (
-                        stream.streamer.username
-                        if stream.streamer
-                        else f"stream_{stream.id}"
-                    )
-
-                    # Validate that we have the required start_time
-                    if not recording.start_time:
-                        logger.warning(
-                            f"⚠️ Recording {recording.id} has no start_time; cannot trigger post-processing"
-                        )
-                        continue
-
-                    started_at = recording.start_time.isoformat()
-                    output_dir = str(recording_path.parent)
-
-                    logger.info(
-                        f"🔍 Creating full post-processing chain for recording {recording.id}: {recording.path}"
-                    )
-
-                    # Trigger full post-processing chain (NOT just metadata!)
-                    success = await enqueue_recording_post_processing(
-                        stream_id=recording.stream_id,
-                        recording_id=recording.id,
-                        ts_file_path=str(recording.path),
-                        output_dir=output_dir,
-                        streamer_name=streamer_name,
-                        started_at=started_at,
-                        cleanup_ts_file=True,  # Clean up TS after successful MP4 creation
-                    )
-
-                    if success:
-                        recovery_count += 1
-                        logger.info(
-                            f"✅ Created full post-processing chain for recording {recording.id}"
-                        )
-                    else:
-                        logger.warning(
-                            f"⚠️ Failed to create post-processing chain for recording {recording.id}"
-                        )
-
-                except Exception as e:
-                    logger.error(
-                        f"❌ Failed to create recovery chain for recording {recording.id}: {e}"
-                    )
-                    continue
-
-        finally:
-            db.close()
-
-    except Exception as e:
-        logger.error(f"❌ Failed to create full recovery chains: {e}")
-
-    return recovery_count
+    return await unified_service.retry_failed_recordings()

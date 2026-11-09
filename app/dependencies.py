@@ -368,6 +368,7 @@ def _get_application_recovery_service(app: FastAPI):
                 recording_manager=get_lifespan_service(app, get_recording_manager)(),
                 queue_service=app.state.background_queue_service,
                 twitch_api=_get_application_twitch_api(app),
+                activity_logger=_get_application_logging_service(app),
             )
         return app.state.unified_recovery_service
 

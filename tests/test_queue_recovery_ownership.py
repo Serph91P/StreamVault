@@ -30,14 +30,16 @@ async def test_factory_queue_recovery_uses_its_own_service_and_reports_failure(
         raise AssertionError("Queue borrowed the process-global recovery service")
 
     monkeypatch.setattr(module, "get_unified_recovery_service", forbidden_global)
-    original_log = module.logging_service.log_recording_activity_to_file
+    original_log = module.LoggingService.log_recording_activity_to_file
 
-    def activity(*args, **kwargs):
+    def activity(service, *args, **kwargs):
         if args and args[0] == "SYSTEM_RECOVERY":
             file_threads.append(get_ident())
-        return original_log(*args, **kwargs)
+        return original_log(service, *args, **kwargs)
 
-    monkeypatch.setattr(module.logging_service, "log_recording_activity_to_file", activity)
+    monkeypatch.setattr(
+        module.LoggingService, "log_recording_activity_to_file", activity
+    )
     try:
         for index in range(2):
             root = tmp_path / str(index)
@@ -51,6 +53,7 @@ async def test_factory_queue_recovery_uses_its_own_service_and_reports_failure(
                 settings=Settings(
                     ENVIRONMENT="test",
                     RECORDING_DIRECTORY=str(root / "recordings"),
+                    LOGS_BASE_DIR=str(root / "logs"),
                     _env_file=None,
                 ),
                 database=database,
@@ -61,6 +64,7 @@ async def test_factory_queue_recovery_uses_its_own_service_and_reports_failure(
                 HTTPConnection({"type": "http", "app": app, "headers": []}),
             )
             original_scan = service.comprehensive_recovery_scan
+            assert service.activity_logger is app.state.logging_service
 
             async def scan(*, owner=index, original=original_scan, **kwargs):
                 scans.append(owner)
@@ -127,5 +131,7 @@ async def test_factory_queue_recovery_uses_its_own_service_and_reports_failure(
             if app.state.twitch_api is not None:
                 await app.state.twitch_api.close()
             await app.state.websocket_manager.close_all()
+            if app.state.logging_service is not None:
+                await run_in_thread_pool(app.state.logging_service.close)
         for database in databases:
             await database.adispose()

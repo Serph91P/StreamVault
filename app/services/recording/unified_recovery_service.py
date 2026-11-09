@@ -40,7 +40,7 @@ from app.config.settings import Settings
 from app.utils.async_db_utils import run_in_thread_pool
 from app.dependencies import get_recording_manager
 from app.models import Recording, Stream, Streamer
-from app.services.system.logging_service import logging_service
+from app.services.system.logging_service import LoggingService, logging_service
 from app.services.init.background_queue_init import enqueue_recording_post_processing
 
 if TYPE_CHECKING:
@@ -120,6 +120,7 @@ class UnifiedRecoveryService:
         recording_manager: RecordingManager | None = None,
         queue_service: BackgroundQueueService | None = None,
         twitch_api: TwitchAPIService | None = None,
+        activity_logger: LoggingService | None = None,
     ):
         context = (session_factory, settings, recording_manager, queue_service)
         if any(value is not None for value in context) and any(
@@ -131,6 +132,9 @@ class UnifiedRecoveryService:
         self.recording_manager = recording_manager
         self.queue_service = queue_service
         self.twitch_api = twitch_api
+        self.activity_logger = (
+            activity_logger if activity_logger is not None else logging_service
+        )
         self.recordings_base_path = Path(
             settings.RECORDING_DIRECTORY if settings is not None else "/recordings"
         )
@@ -226,7 +230,7 @@ class UnifiedRecoveryService:
 
             # Log to dedicated recovery file
             await run_in_thread_pool(
-                logging_service.log_recording_activity_to_file,
+                self.activity_logger.log_recording_activity_to_file,
                 "SYSTEM_RECOVERY",
                 "UnifiedRecovery",
                 f"Recovery scan completed: orphaned={stats.orphaned_segments}, "
@@ -562,7 +566,7 @@ class UnifiedRecoveryService:
 
             # Log to dedicated file
             await run_in_thread_pool(
-                logging_service.log_post_processing_activity,
+                self.activity_logger.log_post_processing_activity,
                 "CONCATENATION_START",
                 streamer_name,
                 f"Starting concatenation for orphaned recording {recording_id}: {segments_dir.name}",
@@ -589,7 +593,7 @@ class UnifiedRecoveryService:
                 )
 
                 await run_in_thread_pool(
-                    logging_service.log_post_processing_activity,
+                    self.activity_logger.log_post_processing_activity,
                     "CONCATENATION_SUCCESS",
                     streamer_name,
                     f"Successfully concatenated orphaned recording {recording_id}",
@@ -599,7 +603,7 @@ class UnifiedRecoveryService:
             else:
                 logger.error(f"❌ CONCATENATION_FAILED: {segments_dir}")
                 await run_in_thread_pool(
-                    logging_service.log_post_processing_activity,
+                    self.activity_logger.log_post_processing_activity,
                     "CONCATENATION_FAILED",
                     streamer_name,
                     f"Failed to concatenate orphaned recording {recording_id}",
@@ -609,6 +613,14 @@ class UnifiedRecoveryService:
         except Exception as e:
             logger.error(f"❌ Error processing orphaned recording: {e}")
             return False
+
+    async def retry_failed_recordings(self, max_age_hours: int = 72) -> int:
+        """Admit native scanned DTOs through the existing owned recovery producer."""
+        admitted = 0
+        for recording_info in await self._scan_failed_post_processing(max_age_hours):
+            if await self._retry_post_processing(recording_info):
+                admitted += 1
+        return admitted
 
     async def _retry_post_processing(
         self, recording_info: FailedPostProcessing
@@ -636,14 +648,7 @@ class UnifiedRecoveryService:
                 )
                 return result
 
-            # Check if the TS file actually exists before triggering post-processing
-            if not ts_path.exists():
-                logger.warning(
-                    f"⚠️ SKIP_POST_PROCESSING: recording_id={recording_id}, TS file no longer exists: {ts_path}"
-                )
-                return False
-
-            # Otherwise just trigger post-processing
+            # The native producer preparation revalidates file existence and size.
             return await self._trigger_post_processing(
                 recording_id, str(ts_path), streamer_name
             )
@@ -744,7 +749,7 @@ class UnifiedRecoveryService:
                     f"✅ POST_PROCESSING_TRIGGERED: recording_id={recording_id}"
                 )
                 await run_in_thread_pool(
-                    logging_service.log_post_processing_activity,
+                    self.activity_logger.log_post_processing_activity,
                     "POST_PROCESSING_START",
                     streamer_name,
                     f"Successfully triggered post-processing for recording {recording_id}",
@@ -1519,7 +1524,7 @@ class UnifiedRecoveryService:
                     )
                 logger.info(f"✅ Successfully resumed recording for {streamer_name}")
                 await run_in_thread_pool(
-                    logging_service.log_post_processing_activity,
+                    self.activity_logger.log_post_processing_activity,
                     "RECORDING_RESUMED",
                     streamer_name,
                     f"Resumed live recording {recording_id} that was interrupted during restart",

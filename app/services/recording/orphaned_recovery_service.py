@@ -46,8 +46,8 @@ class OrphanedRecoveryService:
     UnifiedRecoveryService for admin endpoints and legacy code.
     """
 
-    def __init__(self):
-        self._service = UnifiedRecoveryService()
+    def __init__(self, service: UnifiedRecoveryService | None = None):
+        self._service = service if service is not None else UnifiedRecoveryService()
 
     async def get_orphaned_statistics(self, max_age_hours: int = 72) -> Dict[str, Any]:
         """Get statistics about orphaned recordings (compatibility wrapper)"""
