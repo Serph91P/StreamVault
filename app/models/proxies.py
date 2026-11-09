@@ -52,14 +52,14 @@ class ProxySettings(Base):
 
     @property
     def proxy_url(self) -> str:
-        from app.utils.proxy_encryption import get_proxy_encryption
+        from app.utils.proxy_encryption import get_cached_proxy_encryption
 
         try:
             session = object_session(self)
             encryption = (
-                get_proxy_encryption(session)
+                get_cached_proxy_encryption(session)
                 if session is not None
-                else get_proxy_encryption()
+                else get_cached_proxy_encryption()
             )
             return encryption.decrypt(self._proxy_url_encrypted)
         except Exception as e:
@@ -71,14 +71,14 @@ class ProxySettings(Base):
 
     @proxy_url.setter
     def proxy_url(self, plaintext_url: str):
-        from app.utils.proxy_encryption import get_proxy_encryption
+        from app.utils.proxy_encryption import get_cached_proxy_encryption
 
         if plaintext_url:
             session = object_session(self)
             encryption = (
-                get_proxy_encryption(session)
+                get_cached_proxy_encryption(session)
                 if session is not None
-                else get_proxy_encryption()
+                else get_cached_proxy_encryption()
             )
             self._proxy_url_encrypted = encryption.encrypt(plaintext_url)
         else:

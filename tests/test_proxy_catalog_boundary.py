@@ -165,7 +165,10 @@ async def test_proxy_changed_during_http_is_not_overwritten_or_announced(
     service, database, notices = proxy_operation
 
     async def changed(*args):
+        from app.utils.proxy_encryption import get_proxy_encryption
+
         with database.sync_session_factory() as session:
+            get_proxy_encryption(session)
             row = session.get(ProxySettings, 1)
             row.proxy_url = (
                 "http://replacement:synthetic-password@replacement.invalid:8080"
@@ -178,6 +181,9 @@ async def test_proxy_changed_during_http_is_not_overwritten_or_announced(
         "error": "Proxy changed during health check"
     }
     with database.sync_session_factory() as session:
+        from app.utils.proxy_encryption import get_proxy_encryption
+
+        get_proxy_encryption(session)
         row = session.get(ProxySettings, 1)
         assert (
             row.proxy_url

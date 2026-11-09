@@ -36,6 +36,9 @@ async def proxy_applications(image_applications):
                 elif not settings.proxy_encryption_key:
                     settings.proxy_encryption_key = Fernet.generate_key().decode()
                 session.flush()
+                from app.utils.proxy_encryption import get_proxy_encryption
+
+                get_proxy_encryption(session)
                 proxy = ProxySettings(
                     id=1, enabled=True, health_status="healthy", priority=index
                 )

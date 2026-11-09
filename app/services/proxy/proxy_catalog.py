@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.models import ProxySettings, RecordingSettings
 from app.utils.security import sanitize_proxy_url_for_logging
+from app.utils.proxy_encryption import get_proxy_encryption
 
 
 class HealthResult(TypedDict):
@@ -111,17 +112,19 @@ def read_policy(factory: Callable[[], Session]) -> ProxyPolicy:
 
 def read_targets(factory: Callable[[], Session]) -> list[ProxySnapshot]:
     with factory() as session:
-        return [
-            ProxySnapshot.from_row(row)
-            for row in session.query(ProxySettings)
-            .filter(ProxySettings.enabled.is_(True))
-            .all()
-        ]
+        rows = (
+            session.query(ProxySettings).filter(ProxySettings.enabled.is_(True)).all()
+        )
+        if rows:
+            get_proxy_encryption(session)
+        return [ProxySnapshot.from_row(row) for row in rows]
 
 
 def read_target(factory: Callable[[], Session], proxy_id: int) -> ProxySnapshot | None:
     with factory() as session:
         row = session.get(ProxySettings, proxy_id)
+        if row is not None:
+            get_proxy_encryption(session)
         return ProxySnapshot.from_row(row) if row else None
 
 
@@ -141,6 +144,7 @@ def apply_health(
         )
         if row is None or row._proxy_url_encrypted != target.ciphertext:
             return None
+        get_proxy_encryption(session)
         row.last_health_check = datetime.now(timezone.utc)
         row.health_status = result["status"]
         row.average_response_time_ms = result["response_time_ms"]
@@ -162,7 +166,10 @@ def increment_stats(
     factory: Callable[[], Session], proxy_url: str, success: bool
 ) -> None:
     with factory() as session:
-        for row in session.query(ProxySettings).with_for_update().all():
+        rows = session.query(ProxySettings).with_for_update().all()
+        if rows:
+            get_proxy_encryption(session)
+        for row in rows:
             if row.proxy_url == proxy_url:
                 row.total_recordings += 1
                 if not success:

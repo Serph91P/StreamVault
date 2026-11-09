@@ -82,6 +82,7 @@ files = [
     "app/services/recording/recording_logger.py",
     "app/utils/path_utils.py",
     "app/utils/async_db_utils.py",
+    "app/utils/proxy_encryption.py",
 ]
 follow_imports = "skip"
 warn_unused_ignores = true

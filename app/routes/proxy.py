@@ -21,6 +21,7 @@ from app.dependencies import (
     get_proxy_health_service,
 )
 from app.utils.async_db_utils import run_in_thread_pool
+from app.utils.proxy_encryption import get_proxy_encryption
 from app.services.proxy.proxy_catalog import ProxySnapshot
 from app.utils.proxy_url_helper import (
     encode_proxy_url,
@@ -102,6 +103,8 @@ def list_proxies(
         )
 
         # Get system config from recording_settings
+        if proxies:
+            get_proxy_encryption(db)
         recording_settings = db.query(RecordingSettings).first()
 
         # Build system config with defaults if recording_settings doesn't exist
@@ -154,6 +157,7 @@ def add_proxy(
     """
     with session_factory() as db:
         # URL-encode credentials in proxy URL (fixes passwords with special chars like _)
+        get_proxy_encryption(db)
         encoded_proxy_url = encode_proxy_url(request.proxy_url)
 
         # Check for duplicate proxy URL (check both raw and encoded)
@@ -221,6 +225,7 @@ def delete_proxy(
         if not proxy:
             raise HTTPException(status_code=404, detail="Proxy not found")
 
+        get_proxy_encryption(db)
         masked_url = proxy.masked_url
 
         db.delete(proxy)
@@ -255,6 +260,7 @@ def toggle_proxy(
             raise HTTPException(status_code=404, detail="Proxy not found")
 
         # Toggle enabled status
+        get_proxy_encryption(db)
         proxy.enabled = not proxy.enabled
 
         # Reset consecutive failures when re-enabling
@@ -325,6 +331,7 @@ def update_proxy_priority(
         if not proxy:
             raise HTTPException(status_code=404, detail="Proxy not found")
 
+        get_proxy_encryption(db)
         old_priority = proxy.priority
         proxy.priority = request.priority
 
@@ -370,7 +377,10 @@ async def get_best_proxy(
 
 def _find_proxy_details(session_factory, proxy_url: str):
     with session_factory() as db:
-        for row in db.query(ProxySettings).all():
+        rows = db.query(ProxySettings).all()
+        if rows:
+            get_proxy_encryption(db)
+        for row in rows:
             if row.proxy_url == proxy_url:
                 return row.to_dict(mask_password=True)
     return None

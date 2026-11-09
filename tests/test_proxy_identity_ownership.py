@@ -50,6 +50,35 @@ def forbid_new_identity():
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("operation", ["read", "write"])
+async def test_unprepared_proxy_property_never_performs_hidden_sql(
+    proxy_databases, operation
+):
+    from sqlalchemy import event
+
+    databases, _ = proxy_databases
+    for database in databases:
+        observed = []
+        with database.sync_session_factory() as session:
+            proxy = session.get(ProxySettings, 1)
+
+            def forbidden(*_):
+                observed.append(True)
+                raise AssertionError("ORM proxy property attempted hidden SQL")
+
+            event.listen(database.sync_engine, "before_cursor_execute", forbidden)
+            try:
+                if operation == "read":
+                    assert proxy.proxy_url == ""
+                else:
+                    with pytest.raises(RuntimeError, match="not initialized"):
+                        proxy.proxy_url = "http://synthetic.invalid:8080"
+                assert not observed
+            finally:
+                event.remove(database.sync_engine, "before_cursor_execute", forbidden)
+
+
+@pytest.mark.asyncio
 async def test_mapped_proxy_roundtrip_uses_existing_owner_key_without_rotation(
     proxy_databases, monkeypatch
 ):
@@ -58,6 +87,7 @@ async def test_mapped_proxy_roundtrip_uses_existing_owner_key_without_rotation(
     monkeypatch.setattr(Fernet, "generate_key", forbid_new_identity)
     for index, database in enumerate(databases):
         with database.sync_session_factory() as session:
+            proxy_encryption.get_proxy_encryption(session)
             proxy = session.get(ProxySettings, 1)
             assert (
                 proxy.proxy_url
@@ -67,6 +97,7 @@ async def test_mapped_proxy_roundtrip_uses_existing_owner_key_without_rotation(
             proxy.proxy_url = f"http://owner-{index}:replacement-synthetic-password@proxy.invalid:8080"
             session.commit()
         with database.sync_session_factory() as session:
+            proxy_encryption.get_proxy_encryption(session)
             proxy = session.get(ProxySettings, 1)
             assert (
                 proxy.proxy_url
@@ -95,6 +126,7 @@ async def test_attached_new_proxy_does_not_autoflush_incomplete_row_or_generate_
     monkeypatch.setattr(Fernet, "generate_key", forbid_new_identity)
     for index, database in enumerate(databases):
         with database.sync_session_factory() as session:
+            proxy_encryption.get_proxy_encryption(session)
             proxy = ProxySettings()
             session.add(proxy)
             proxy.proxy_url = (

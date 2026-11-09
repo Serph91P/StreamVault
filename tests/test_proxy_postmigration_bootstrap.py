@@ -10,6 +10,66 @@ from app.utils import proxy_encryption
 
 
 @pytest.mark.asyncio
+async def test_standalone_proxy_adapter_reloads_existing_identity_and_cached_model(
+    tmp_path, monkeypatch
+):
+    lifecycle = DatabaseLifecycle(f"sqlite:///{tmp_path / 'standalone-identity.db'}")
+    key = Fernet.generate_key().decode()
+    try:
+        with lifecycle.sync_engine.begin() as connection:
+            Base.metadata.create_all(connection)
+        with lifecycle.sync_session_factory() as session:
+            session.add(GlobalSettings(proxy_encryption_key=key))
+            session.commit()
+        monkeypatch.setattr(
+            database_module, "SessionLocal", lifecycle.sync_session_factory
+        )
+        monkeypatch.setattr(proxy_encryption, "_proxy_encryption", None)
+        first = proxy_encryption.get_proxy_encryption()
+        assert proxy_encryption.get_cached_proxy_encryption() is first
+        encrypted = first.encrypt("http://synthetic.invalid:8080")
+        restored = proxy_encryption.ProxyEncryption()
+        assert restored.decrypt(encrypted) == "http://synthetic.invalid:8080"
+        with lifecycle.sync_session_factory() as session:
+            assert session.query(GlobalSettings).one().proxy_encryption_key == key
+        assert lifecycle.sync_engine.pool.checkedout() == 0
+    finally:
+        await lifecycle.adispose()
+
+
+@pytest.mark.asyncio
+async def test_invalid_existing_proxy_bootstrap_identity_is_not_replaced_or_cached(
+    tmp_path, monkeypatch
+):
+    lifecycle = DatabaseLifecycle(f"sqlite:///{tmp_path / 'invalid-identity.db'}")
+
+    def forbidden():
+        raise AssertionError("existing invalid identity was replaced")
+
+    monkeypatch.setattr(Fernet, "generate_key", forbidden)
+    try:
+        with lifecycle.sync_engine.begin() as connection:
+            Base.metadata.create_all(connection)
+        with lifecycle.sync_session_factory() as session:
+            session.add(GlobalSettings(proxy_encryption_key="synthetic-invalid-key"))
+            session.commit()
+        with pytest.raises(RuntimeError, match="Persistent proxy identity unavailable"):
+            proxy_encryption.bootstrap_proxy_identity(lifecycle.sync_session_factory)
+        assert (
+            "streamvault.proxy_encryption"
+            not in lifecycle.sync_session_factory.kw.get("info", {})
+        )
+        with lifecycle.sync_session_factory() as session:
+            assert (
+                session.query(GlobalSettings).one().proxy_encryption_key
+                == "synthetic-invalid-key"
+            )
+        assert lifecycle.sync_engine.pool.checkedout() == 0
+    finally:
+        await lifecycle.adispose()
+
+
+@pytest.mark.asyncio
 async def test_explicit_proxy_bootstrap_initializes_only_owned_factory_and_never_rotates(
     tmp_path, monkeypatch
 ):
@@ -34,9 +94,8 @@ async def test_explicit_proxy_bootstrap_initializes_only_owned_factory_and_never
             with lifecycle.sync_engine.begin() as connection:
                 Base.metadata.create_all(connection)
             with lifecycle.sync_session_factory() as session:
-                session.add(
-                    GlobalSettings(proxy_encryption_key=old_key if index else None)
-                )
+                if index:
+                    session.add(GlobalSettings(proxy_encryption_key=old_key))
                 session.commit()
         for index, lifecycle in enumerate(databases):
             factory = lifecycle.sync_session_factory

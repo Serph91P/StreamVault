@@ -214,6 +214,16 @@ async def test_lifespan_uses_factory_service_overrides_for_startup_and_shutdown(
         calls.append("legacy-config-update")
         return True
 
+    from app.utils import proxy_encryption
+
+    proxy_bootstraps = []
+
+    def proxy_bootstrap(factory):
+        proxy_bootstraps.append((factory, threading.get_ident()))
+        calls.append("proxy-identities")
+
+    monkeypatch.setattr(proxy_encryption, "bootstrap_proxy_identity", proxy_bootstrap)
+
     async def background_init(
         supervisor,
         session_factory,
@@ -412,6 +422,13 @@ async def test_lifespan_uses_factory_service_overrides_for_startup_and_shutdown(
         app.state.image_sync_service.stop_sync_worker = owned_stop
 
     async with lifespan_module.lifespan(app):
+        assert len(proxy_bootstraps) == 1
+        assert proxy_bootstraps[0][1] != threading.get_ident()
+        assert (
+            calls.index("keys-bootstrap")
+            < calls.index("proxy-identities")
+            < calls.index("reconcile")
+        )
         if owned_logging:
             assert "owned-config-update" in calls
             assert "legacy-config-update" not in calls

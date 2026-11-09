@@ -235,6 +235,12 @@ async def lifespan(app: FastAPI):
                     runtime_database.sync_session_factory
                 ).bootstrap(runtime_settings)
 
+            from app.utils.proxy_encryption import bootstrap_proxy_identity
+
+            bootstrap_proxy_identity(
+                getattr(runtime_database, "sync_session_factory", SessionLocal)
+            )
+
         await run_in_thread_pool(bootstrap_keys)
         phase("persistent-identities")
 

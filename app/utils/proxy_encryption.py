@@ -16,8 +16,10 @@ Migration 032: Encryption key now stored in GlobalSettings.proxy_encryption_key
 
 import os
 import logging
+from collections.abc import Callable
 from cryptography.fernet import Fernet
-from sqlalchemy.orm import Session
+from sqlalchemy import text
+from sqlalchemy.orm import Session, sessionmaker
 
 logger = logging.getLogger("streamvault")
 
@@ -52,39 +54,10 @@ class ProxyEncryption:
         Security: Key never logged to console or exposed in error messages.
         """
         from app.database import SessionLocal
-        from app.models import GlobalSettings
-
-        encryption_key = None
 
         try:
-            with SessionLocal() as db:
-                settings = db.query(GlobalSettings).first()
-
-                if settings and settings.proxy_encryption_key:
-                    encryption_key = settings.proxy_encryption_key
-                    logger.info("🔐 Loaded proxy encryption key from database")
-                else:
-                    # Generate new key and save to database
-                    logger.info("🔑 Generating new proxy encryption key...")
-                    new_key = Fernet.generate_key()
-                    encryption_key = new_key.decode("utf-8")
-
-                    # Save to database
-                    if not settings:
-                        settings = GlobalSettings(
-                            notifications_enabled=True,
-                            proxy_encryption_key=encryption_key,
-                        )
-                        db.add(settings)
-                    else:
-                        settings.proxy_encryption_key = encryption_key
-
-                    db.commit()
-                    logger.info(
-                        "✅ Proxy encryption key generated and saved to database"
-                    )
-                    logger.info("💡 Encryption key persists across container restarts")
-
+            self._cipher = bootstrap_proxy_identity(SessionLocal)._cipher
+            return
         except Exception as e:
             logger.error(f"❌ Failed to load/save encryption key from database: {e}")
             # Fallback to environment variable for backward compatibility
@@ -122,7 +95,7 @@ class ProxyEncryption:
             return plaintext
 
         try:
-            encrypted_bytes = self._cipher.encrypt(plaintext.encode("utf-8"))
+            encrypted_bytes: bytes = self._cipher.encrypt(plaintext.encode("utf-8"))
             encrypted_str = encrypted_bytes.decode("utf-8")
 
             logger.debug(
@@ -148,7 +121,7 @@ class ProxyEncryption:
             return encrypted
 
         try:
-            decrypted_bytes = self._cipher.decrypt(encrypted.encode("utf-8"))
+            decrypted_bytes: bytes = self._cipher.decrypt(encrypted.encode("utf-8"))
             decrypted_str = decrypted_bytes.decode("utf-8")
 
             logger.debug("🔓 Proxy URL decrypted successfully")
@@ -163,8 +136,52 @@ class ProxyEncryption:
             raise
 
 
+def bootstrap_proxy_identity(session_factory: Callable[[], Session]) -> ProxyEncryption:
+    """Persist one owner identity after migrations and prime future owned sessions."""
+    from app.models import GlobalSettings
+
+    try:
+        with session_factory() as session:
+            if session.get_bind().dialect.name == "postgresql":
+                session.execute(
+                    text("SELECT pg_advisory_xact_lock(:lock_id)"),
+                    {"lock_id": 7_314_908_422},
+                )
+            settings = session.query(GlobalSettings).first()
+            key = settings.proxy_encryption_key if settings else None
+            if not key:
+                key = Fernet.generate_key().decode()
+                if settings is None:
+                    settings = GlobalSettings(notifications_enabled=True)
+                    session.add(settings)
+                settings.proxy_encryption_key = key
+            encryption = ProxyEncryption(key)
+            session.commit()
+    except Exception as error:
+        raise RuntimeError("Persistent proxy identity unavailable") from error
+    if isinstance(session_factory, sessionmaker):
+        info = {
+            **session_factory.kw.get("info", {}),
+            "streamvault.proxy_encryption": encryption,
+        }
+        session_factory.configure(info=info)
+    return encryption
+
+
 # Singleton instance
 _proxy_encryption = None
+
+
+def get_cached_proxy_encryption(session: Session | None = None) -> ProxyEncryption:
+    """Read a prepared identity without SQL, key generation or default construction."""
+    cached = (
+        session.info.get("streamvault.proxy_encryption")
+        if session is not None
+        else _proxy_encryption
+    )
+    if not isinstance(cached, ProxyEncryption):
+        raise RuntimeError("Persistent proxy identity is not initialized")
+    return cached
 
 
 def get_proxy_encryption(session: Session | None = None) -> ProxyEncryption:

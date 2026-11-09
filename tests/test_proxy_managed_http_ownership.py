@@ -12,6 +12,7 @@ from pydantic import SecretStr
 
 from app.config.settings import Settings
 from app.models import ProxySettings
+from app.utils.proxy_encryption import get_proxy_encryption
 from tests import test_proxy_identity_ownership
 
 module = importlib.import_module("app.services.proxy.proxy_health_service")
@@ -71,6 +72,7 @@ async def test_real_proxy_operations_reuse_isolated_transports_and_body_credenti
         try:
             for index, database in enumerate(databases):
                 with database.sync_session_factory() as session:
+                    get_proxy_encryption(session)
                     session.get(ProxySettings, 1).proxy_url = url
                     session.commit()
                 service = module.ProxyHealthService(
@@ -149,6 +151,7 @@ async def test_shutdown_cancels_real_inflight_manual_http_and_retains_catalogue(
     task = None
     async with origin() as (url, _, entered, release):
         with database.sync_session_factory() as session:
+            get_proxy_encryption(session)
             session.get(ProxySettings, 1).proxy_url = url
             session.commit()
         service.token_endpoint = url + "/token"
