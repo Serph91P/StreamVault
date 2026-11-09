@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
 from app.database import SessionLocal, database_lifecycle
+from app.utils.cache import SimpleCache
 from app.bootstrap.settings import resolve_app_settings
 from app.services.communication.websocket_manager import (
     ConnectionManager,
@@ -229,6 +230,7 @@ def _get_application_recording_manager(app: FastAPI):
                 connection_manager=app.state.websocket_manager,
                 queue_service=app.state.background_queue_service,
                 logging_service=_get_application_logging_service(app),
+                status_cache=app.state.recording_status_cache,
             )
             orchestrator.process_manager.proxy_health_service = (
                 _get_application_proxy_health_service(app)
@@ -249,6 +251,11 @@ def _get_application_recording_manager(app: FastAPI):
 def get_application_recording_manager(connection: HTTPConnection):
     """Synchronous HTTP/WebSocket adapter sharing the lifespan's owned facade."""
     return get_lifespan_service(connection.app, get_recording_manager)()
+
+
+def get_recording_status_cache(connection: HTTPConnection) -> SimpleCache:
+    cache: SimpleCache = connection.app.state.recording_status_cache
+    return cache
 
 
 def _get_application_twitch_api(app: FastAPI):

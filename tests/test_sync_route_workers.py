@@ -149,7 +149,8 @@ async def test_sync_notification_and_cleanup_writes_persist_only_in_the_owner(
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "path", ["/api/recordings/latest", "/api/status/active-recordings"]
+    "path",
+    ["/api/recordings/latest", "/api/status/active-recordings", "/api/recording/active"],
 )
 async def test_cancelled_http_worker_drains_before_its_request_session_closes(
     image_applications,

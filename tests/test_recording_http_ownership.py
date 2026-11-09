@@ -16,6 +16,62 @@ logging_applications = test_logging_application_ownership.logging_applications
 
 
 @pytest.mark.asyncio
+async def test_active_recording_http_snapshot_and_cache_are_owned(
+    image_applications, monkeypatch
+):
+    from app.models import Recording, Stream
+    from app.utils.async_db_utils import run_in_thread_pool
+    from app.utils.cache import app_cache
+
+    _, databases, clients, queries = image_applications
+    module = importlib.import_module("app.routes.recording")
+    default_calls = []
+
+    def forbidden():
+        default_calls.append(True)
+        raise AssertionError("active recording snapshot borrowed default catalogue")
+
+    def seed(index):
+        with databases[index].sync_session_factory() as session:
+            session.add(Stream(id=71, streamer_id=1, title=f"title-{index}"))
+            session.flush()
+            session.add(
+                Recording(
+                    id=72,
+                    stream_id=71,
+                    status="recording",
+                    start_time=datetime.now(timezone.utc),
+                    path=f"/scope-{index}/recording.ts",
+                )
+            )
+            session.commit()
+
+    monkeypatch.setattr(module, "SessionLocal", forbidden)
+    app_cache.delete("active_recordings")
+    app_cache.delete("active_recordings_fallback")
+    try:
+        for index in range(2):
+            await run_in_thread_pool(seed, index)
+        for index in (0, 1, 0, 1):
+            queries.clear()
+            response = await clients[index].get("/api/recording/active")
+            assert response.status_code == 200, response.text
+            assert len(response.json()) == 1
+            record = response.json()[0]
+            assert record["streamer_name"] == f"owner-{index}"
+            assert record["title"] == f"title-{index}"
+            assert record["file_path"] == f"/scope-{index}/recording.ts"
+            assert get_ident() not in [thread for thread, _ in queries]
+            assert all(
+                database.sync_engine.pool.checkedout() == 0 for database in databases
+            )
+        assert not default_calls
+    finally:
+        app_cache.delete("active_recordings")
+        app_cache.delete("active_recordings_fallback")
+
+
+@pytest.mark.asyncio
 async def test_http_streamer_recording_settings_use_native_owner_scope(
     image_applications, monkeypatch
 ):
@@ -66,6 +122,7 @@ async def test_http_stop_reaps_only_owned_child_and_persists_only_owned_row(
     apps, databases, clients, _, _, _ = logging_applications
     children = []
     files = []
+    invalidations = []
 
     def seed(index):
         file = Path(apps[index].state.settings.RECORDING_DIRECTORY) / "untouched.ts"
@@ -118,6 +175,16 @@ async def test_http_stop_reaps_only_owned_child_and_persists_only_owned_row(
             service.orchestrator.state_manager.add_active_recording(
                 72, {"streamer_id": 1, "stream_id": 71, "file_path": str(file)}
             )
+            cached = await clients[index].get("/api/recording/active")
+            assert cached.status_code == 200 and len(cached.json()) == 1
+            cache = app.state.recording_status_cache
+            original = cache.delete
+
+            def invalidate(key, index=index, original=original):
+                invalidations.append((index, key))
+                return original(key)
+
+            monkeypatch.setattr(cache, "delete", invalidate)
         response = await clients[0].post("/api/recording/stop/1")
         assert response.status_code == 200, response.text
         assert response.json() == {
@@ -128,6 +195,10 @@ async def test_http_stop_reaps_only_owned_child_and_persists_only_owned_row(
         assert children[1].returncode is None
         assert await run_in_thread_pool(status, 0) == "stopped"
         assert await run_in_thread_pool(status, 1) == "recording"
+        assert (0, "active_recordings") in invalidations
+        assert (1, "active_recordings") not in invalidations
+        assert (await clients[0].get("/api/recording/active")).json() == []
+        assert len((await clients[1].get("/api/recording/active")).json()) == 1
         assert all(
             database.sync_engine.pool.checkedout() == 0 for database in databases
         )

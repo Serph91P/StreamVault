@@ -18,7 +18,7 @@ from app.utils.async_db_utils import run_in_thread_pool
 from app.services.api.twitch_api import twitch_api
 
 try:
-    from app.utils.cache import app_cache
+    from app.utils.cache import SimpleCache, app_cache
 except ImportError:
     # Fallback if cache module is not available
     class DummyCache:
@@ -72,6 +72,7 @@ class RecordingLifecycleManager:
         websocket_service=None,
         state_manager=None,
         recording_logger=None,
+        status_cache: "SimpleCache | None" = None,
     ):
         self.config_manager = config_manager
         self.process_manager = process_manager
@@ -79,6 +80,7 @@ class RecordingLifecycleManager:
         self.websocket_service = websocket_service
         self.state_manager = state_manager
         self.recording_logger = recording_logger
+        self._status_cache = status_cache if status_cache is not None else app_cache
 
         # Shutdown management
         self._shutdown_event = asyncio.Event()
@@ -154,7 +156,7 @@ class RecordingLifecycleManager:
                         logger.error(
                             f"Failed to mark stale recording {existing_recording} as failed: {cleanup_err}"
                         )
-                    app_cache.delete("active_recordings")
+                    self._status_cache.delete("active_recordings")
 
                     # Trigger post-processing for the stale recording if a file exists on disk
                     stale_file = stale_data.get("file_path") if stale_data else None
@@ -241,7 +243,7 @@ class RecordingLifecycleManager:
 
             if success:
                 # Invalidate active recordings cache
-                app_cache.delete("active_recordings")
+                self._status_cache.delete("active_recordings")
 
                 # Send WebSocket notification
                 if self.websocket_service:
@@ -369,7 +371,7 @@ class RecordingLifecycleManager:
             # Prevents ghost recordings that permanently block future recordings.
             if recording_data is not None:
                 self.state_manager.remove_active_recording(recording_id)
-                app_cache.delete("active_recordings")
+                self._status_cache.delete("active_recordings")
 
                 # Trigger post-processing for automatic stops (stream ended).
                 # This MUST be in the finally block so it runs even when the EventSub

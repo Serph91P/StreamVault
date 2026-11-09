@@ -24,10 +24,12 @@ from app.dependencies import (
     get_websocket_manager,
     get_logging_service,
     get_image_service,
+    get_recording_status_cache,
 )
 from app.services.system.streamlink_config_service import StreamlinkConfigService
 from app.utils.async_db_utils import run_in_thread_pool
 from collections.abc import Callable
+from app.utils.cache import SimpleCache
 from app.services.recording.config_manager import (
     FILENAME_PRESETS,
 )  # Import FILENAME_PRESETS from config_manager
@@ -356,9 +358,10 @@ def _is_pending_auth_handoff(upstream_lease) -> bool:
     )
 
 
-def _read_active_recordings():
+def _read_active_recordings(session_factory: Callable[[], Session] | None = None):
     """Own the entire synchronous DB scope and return only response values."""
-    with SessionLocal() as db:
+    factory = session_factory if session_factory is not None else SessionLocal
+    with factory() as db:
         recordings = (
             db.query(Recording)
             .join(Stream)
@@ -440,27 +443,16 @@ def _read_active_recordings():
 
 
 @router.get("/active", response_model=List[ActiveRecordingSchema])
-async def get_active_recordings():
+async def get_active_recordings(
+    session_factory: Callable[[], Session] = Depends(get_application_session_factory),
+    status_cache: SimpleCache = Depends(get_recording_status_cache),
+):
     """Get all active recordings"""
     import asyncio
     from app.utils.async_db_utils import run_in_thread_pool
     from sqlalchemy.exc import TimeoutError, OperationalError
 
-    try:
-        from app.utils.cache import app_cache
-    except ImportError:
-        # Fallback if cache module is not available
-        class DummyCache:
-            def delete(self, key):
-                pass
-
-            def get(self, key):
-                return None
-
-            def set(self, key, value, ttl=None):
-                pass
-
-        app_cache = DummyCache()
+    app_cache = status_cache
 
     # Check cache first (with short TTL to reduce database load)
     cache_key = "active_recordings"
@@ -474,7 +466,7 @@ async def get_active_recordings():
 
     for attempt in range(max_retries):
         try:
-            result = await run_in_thread_pool(_read_active_recordings)
+            result = await run_in_thread_pool(_read_active_recordings, session_factory)
 
             # Cache the result for a short time (2 seconds) to reduce database load
             app_cache.set(cache_key, result, ttl=2)

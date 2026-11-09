@@ -9,6 +9,7 @@ backward compatibility.
 from collections.abc import Callable, Mapping
 from functools import partial
 from threading import Lock
+from app.utils.cache import SimpleCache
 from typing import Any
 
 from fastapi import FastAPI
@@ -101,6 +102,7 @@ def _configure_app(
         )
     application.state.database_lifecycle = database
     application.state.recording_manager = None
+    application.state.recording_status_cache = SimpleCache()
     application.state.login_throttle = auth.LoginThrottle()
     application.state.logging_service = None
     application.state.logging_service_lock = Lock()

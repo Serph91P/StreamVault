@@ -11,6 +11,7 @@ from time import monotonic
 from typing import Dict, Any, Optional, List
 from sqlalchemy.orm import Session
 from app.config.settings import Settings
+from app.utils.cache import SimpleCache
 from app.services.system.logging_service import LoggingService
 from app.services.background_queue_service import BackgroundQueueService
 from app.services.communication.websocket_manager import ConnectionManager
@@ -49,6 +50,7 @@ class RecordingOrchestrator:
         connection_manager: ConnectionManager | None = None,
         queue_service: BackgroundQueueService | None = None,
         logging_service: LoggingService | None = None,
+        status_cache: SimpleCache | None = None,
     ):
         context = (settings, session_factory, connection_manager, queue_service)
         owned = any(value is not None for value in context)
@@ -191,6 +193,7 @@ class RecordingOrchestrator:
             websocket_service=self.websocket_service,
             state_manager=self.state_manager,
             recording_logger=self.recording_logger,
+            status_cache=status_cache,
         )
 
         # Initialize logging service

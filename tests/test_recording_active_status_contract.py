@@ -82,13 +82,6 @@ def test_active_recordings_route_exposes_persisted_auth_handoff_contract(monkeyp
     Base.metadata.create_all(engine, tables=tables)
     Session = sessionmaker(bind=engine, expire_on_commit=False)
     cache = _MemoryCache()
-    monkeypatch.setattr(recording_routes, "SessionLocal", Session)
-
-    # The route imports this module inside the handler, so replace its cache value
-    # rather than calling a service or a frontend mock.
-    from app.utils import cache as cache_module
-
-    monkeypatch.setattr(cache_module, "app_cache", cache)
 
     with Session() as db:
         now = datetime.now(timezone.utc).replace(tzinfo=None)
@@ -154,6 +147,8 @@ def test_active_recordings_route_exposes_persisted_auth_handoff_contract(monkeyp
 
     application = FastAPI()
     application.include_router(recording_routes.router)
+    application.dependency_overrides[recording_routes.get_application_session_factory] = lambda: Session
+    application.dependency_overrides[recording_routes.get_recording_status_cache] = lambda: cache
     monkeypatch.setattr(recording_routes, "datetime", _NaiveUtcClock)
     with TestClient(application) as client:
         response = client.get("/api/recording/active")
