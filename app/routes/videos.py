@@ -298,7 +298,7 @@ def is_video_file(filename: str) -> bool:
 
 
 @router.get("/videos")
-async def get_videos(
+def get_videos(
     request: Request,
     db: Session = Depends(get_db),
     video_catalog: VideoCatalogService = Depends(get_video_catalog_service),
@@ -399,7 +399,7 @@ async def debug_video_access(
 
 
 @router.post("/videos/{stream_id}/share-token")
-async def generate_share_token(
+def generate_share_token(
     stream_id: int,
     request: Request,
     db: Session = Depends(get_db),
@@ -448,7 +448,7 @@ async def generate_share_token(
 
 
 @router.get("/videos/{stream_id}/thumbnail")
-async def get_video_thumbnail(
+def get_video_thumbnail(
     stream_id: int,
     request: Request,
     db: Session = Depends(get_db),
@@ -687,7 +687,7 @@ async def stream_video_public(
 
 
 @router.get("/videos/{stream_id}/stream")
-async def stream_video_by_id(
+def stream_video_by_id(
     stream_id: int,
     request: Request,
     db: Session = Depends(get_db),
@@ -853,7 +853,7 @@ async def stream_video_by_id(
 
 
 @router.get("/videos/{stream_id}/chapters")
-async def get_video_chapters(
+def get_video_chapters(
     stream_id: int,
     request: Request,
     db: Session = Depends(get_db),
@@ -987,7 +987,7 @@ async def get_video_chapters(
 
 
 @router.get("/videos/{streamer_name}/{filename}")
-async def stream_video(
+def stream_video(
     streamer_name: str,
     filename: str,
     request: Request,
@@ -1383,7 +1383,7 @@ async def test_video_access(
 
 
 @router.get("/stream/{stream_id}/has-recording")
-async def check_stream_has_recording(stream_id: int, db: Session = Depends(get_db)):
+def check_stream_has_recording(stream_id: int, db: Session = Depends(get_db)):
     """Check if a specific stream has a recording available - simplified version"""
 
     try:
@@ -1433,7 +1433,7 @@ async def check_stream_has_recording(stream_id: int, db: Session = Depends(get_d
 
 
 @router.post("/streams/check-recordings")
-async def check_multiple_streams_recordings(
+def check_multiple_streams_recordings(
     stream_ids: List[int], db: Session = Depends(get_db)
 ):
     """Check recording availability for multiple streams at once - simplified version"""
@@ -1512,7 +1512,7 @@ async def check_multiple_streams_recordings(
 
 
 @router.get("/debug/videos-database")
-async def debug_videos_database(
+def debug_videos_database(
     db: Session = Depends(get_db),
     streamer_username: str = Query(
         None, description="Filter by specific streamer username"

@@ -9,7 +9,7 @@ import logging
 import re
 from datetime import datetime, timedelta
 
-from app.database import get_db
+from app.dependencies import get_db
 from app.version import get_version_info, VERSION, BRANCH
 
 router = APIRouter(prefix="/version", tags=["version"])

@@ -266,7 +266,7 @@ async def test_test_route_counts_and_persisted_expiry(
     receiver["status"] = status
     caplog.set_level(logging.DEBUG, logger="streamvault")
     db, sub = push_db
-    result = await route.send_test_notification(db)
+    result = route.send_test_notification(db)
     assert result["sent_count"] == (1 if status == 201 else 0)
     assert result["failed_count"] == (0 if status == 201 else 1)
     db.expire_all()

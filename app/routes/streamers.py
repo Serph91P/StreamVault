@@ -15,7 +15,7 @@ from app.dependencies import (
     get_application_event_registry as get_event_registry,
     get_image_service,
 )
-from app.database import get_db
+from app.dependencies import get_db
 from app.models import (
     Stream,
     Streamer,
@@ -865,7 +865,7 @@ async def delete_streamer(
 
 
 @router.get("/streamer/{streamer_id}")
-async def get_streamer(
+def get_streamer(
     streamer_id: str,
     streamer_service: StreamerService = Depends(get_streamer_service),
     db: Session = Depends(get_db),
@@ -968,7 +968,7 @@ async def get_streamer(
 
 
 @router.put("/streamer/{streamer_id}/settings")
-async def update_streamer_settings(
+def update_streamer_settings(
     streamer_id: int,
     settings: Dict[str, Any] = Body(...),
     db: Session = Depends(get_db),
@@ -1174,7 +1174,7 @@ async def delete_subscription(
 
 
 @router.get("/{streamer_id}/streams", response_model=dict)
-async def get_streams_by_streamer_id(
+def get_streams_by_streamer_id(
     streamer_id: int,
     db: Session = Depends(get_db),
     image_service=Depends(get_image_service),
@@ -1420,7 +1420,7 @@ async def validate_streamer(
 
 
 @router.get("/{streamer_id}/streams/{stream_id}/chapters")
-async def get_stream_chapters(
+def get_stream_chapters(
     streamer_id: int, stream_id: int, db: Session = Depends(get_db)
 ):
     """Get chapter data for a specific stream"""

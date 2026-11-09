@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Depends
-from app.database import SessionLocal, get_db
+from app.database import SessionLocal
 from app.models import (
     GlobalSettings,
     RecordingSettings,
@@ -16,6 +16,7 @@ from app.schemas.recording import (
 )
 from app.schemas.recording import CleanupPolicySchema, StorageUsageSchema
 from app.dependencies import (
+    get_db,
     get_recording_manager,
     get_application_session_factory,
     get_streamlink_config_service,
@@ -592,7 +593,7 @@ async def stop_recording(streamer_id: int):
 
 
 @router.post("/streamers/{streamer_id}", response_model=StreamerRecordingSettingsSchema)
-async def update_streamer_recording_settings(
+def update_streamer_recording_settings(
     streamer_id: int,
     settings: StreamerRecordingSettingsSchema,
     db: Session = Depends(get_db),
@@ -888,7 +889,7 @@ async def get_storage_usage(streamer_id: int):
 
 
 @router.post("/streamers/{streamer_id}/cleanup-policy", response_model=Dict)
-async def update_streamer_cleanup_policy(
+def update_streamer_cleanup_policy(
     streamer_id: int, request_data: Dict, db: Session = Depends(get_db)
 ):
     """Update cleanup policy for a specific streamer"""

@@ -353,7 +353,7 @@ async def keepalive(
 
 
 @router.get("/onboarding-state")
-async def get_onboarding_state(db: Session = Depends(get_db)):
+def get_onboarding_state(db: Session = Depends(get_db)):
     """Return persistent onboarding flags so the frontend router can decide
     whether to show the welcome screen without relying on browser localStorage.
     """
@@ -369,7 +369,7 @@ async def get_onboarding_state(db: Session = Depends(get_db)):
 
 
 @router.post("/onboarding/complete")
-async def complete_onboarding(
+def complete_onboarding(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):

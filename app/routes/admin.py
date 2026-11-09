@@ -5,7 +5,7 @@ API routes for system testing and administration
 import logging
 from datetime import timezone
 from fastapi import APIRouter, HTTPException, Depends
-from app.database import get_db
+from app.dependencies import get_db
 from app.dependencies import require_admin_user
 from sqlalchemy.orm import Session, joinedload
 from typing import Dict, Any, List, Optional
@@ -522,7 +522,7 @@ async def recover_specific_recording(recording_id: int) -> Dict[str, Any]:
 
 # Video Debug Endpoints
 @router.get("/debug/videos-database")
-async def debug_videos_database(db: Session = Depends(get_db)) -> Dict[str, Any]:
+def debug_videos_database(db: Session = Depends(get_db)) -> Dict[str, Any]:
     """Debug endpoint to see what's in the database vs filesystem"""
 
     try:
@@ -768,7 +768,7 @@ async def debug_recordings_directory() -> Dict[str, Any]:
 
 
 @router.post("/debug/check-stream-recordings")
-async def debug_check_stream_recordings(
+def debug_check_stream_recordings(
     stream_ids: List[int], db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """Check recording availability for multiple streams"""
@@ -1446,7 +1446,7 @@ async def cleanup_zombie_recordings() -> Dict[str, Any]:
 
 
 @router.get("/share-tokens/stats")
-async def get_share_tokens_stats(db: Session = Depends(get_db)) -> Dict[str, Any]:
+def get_share_tokens_stats(db: Session = Depends(get_db)) -> Dict[str, Any]:
     """
     Get statistics about share tokens
     """
@@ -1488,7 +1488,7 @@ async def get_share_tokens_stats(db: Session = Depends(get_db)) -> Dict[str, Any
 
 
 @router.post("/share-tokens/cleanup")
-async def cleanup_share_tokens(db: Session = Depends(get_db)) -> Dict[str, Any]:
+def cleanup_share_tokens(db: Session = Depends(get_db)) -> Dict[str, Any]:
     """
     Clean up expired share tokens
     """
@@ -1511,9 +1511,7 @@ async def cleanup_share_tokens(db: Session = Depends(get_db)) -> Dict[str, Any]:
 
 
 @router.delete("/share-tokens/{token_id}")
-async def delete_share_token(
-    token_id: int, db: Session = Depends(get_db)
-) -> Dict[str, Any]:
+def delete_share_token(token_id: int, db: Session = Depends(get_db)) -> Dict[str, Any]:
     """
     Delete a specific share token
     """

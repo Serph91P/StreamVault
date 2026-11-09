@@ -44,7 +44,7 @@ async def test_channel_cleanup_readback_preserves_saved_inheritance(monkeypatch)
             )
             db.commit()
             for inherits in (False, True):
-                await recording.update_streamer_cleanup_policy(
+                recording.update_streamer_cleanup_policy(
                     947,
                     {"cleanup_policy": policy, "use_global_cleanup_policy": inherits},
                     db,
