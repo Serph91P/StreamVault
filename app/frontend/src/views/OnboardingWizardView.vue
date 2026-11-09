@@ -180,6 +180,8 @@ async function addStreamer(): Promise<void> {
     const res = await fetch(`/api/streamers/${encodeURIComponent(username)}`, {
       method: 'POST',
       credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
     })
     if (res.ok) {
       addedStreamers.value.push(username)
