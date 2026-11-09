@@ -148,8 +148,12 @@ async def test_sync_notification_and_cleanup_writes_persist_only_in_the_owner(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "path", ["/api/recordings/latest", "/api/status/active-recordings"]
+)
 async def test_cancelled_http_worker_drains_before_its_request_session_closes(
     image_applications,
+    path,
 ):
     _, databases, clients, _ = image_applications
     entered, release = Event(), Event()
@@ -162,7 +166,7 @@ async def test_cancelled_http_worker_drains_before_its_request_session_closes(
             assert release.wait(5), "test did not release its held SQL callback"
 
     event.listen(databases[0].sync_engine, "before_cursor_execute", hold)
-    task = asyncio.create_task(clients[0].get("/api/recordings/latest"))
+    task = asyncio.create_task(clients[0].get(path))
     try:
         assert await asyncio.to_thread(entered.wait, 2)
         task.cancel()
