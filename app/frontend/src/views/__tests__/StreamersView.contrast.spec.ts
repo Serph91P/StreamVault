@@ -17,6 +17,12 @@ function contrast(foreground: string, background: string) {
 }
 
 describe('StreamersView active filter badge contrast', () => {
+  it('uses the same recording-filter label visually and in its accessible name', () => {
+    expect(source).toContain("label: 'Aufnahme'")
+    expect(source).toContain('{{ tab.label }}')
+    expect(source).toContain(':aria-label="`${tab.label} ${tab.count}`"')
+  })
+
   it('keeps active filters and count badges legible on opaque neutral surfaces in both themes', () => {
     const activeRule = source.match(/&\.active\s*\{([\s\S]*?)\n  \}/)?.[1]
     const badgeRule = activeRule?.match(/\.tab-badge\s*\{([\s\S]*?)\n    \}/)?.[1]

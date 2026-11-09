@@ -99,7 +99,7 @@ for (const theme of ['light', 'dark'] as const) {
 
       const filters = page.locator('.filter-tabs button')
       await expect(filters).toHaveCount(4)
-      for (const label of ['Alle', 'Live', 'Wird aufgenommen', 'Offline']) {
+      for (const label of ['Alle', 'Live', 'Aufnahme', 'Offline']) {
         const button = page.getByRole('button', { name: new RegExp(`^${label} \\d+$`) })
         await expect(button).toBeVisible()
         await expect(button.locator('.tab-badge')).toHaveText(/^\d+$/)

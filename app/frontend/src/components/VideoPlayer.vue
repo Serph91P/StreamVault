@@ -143,7 +143,7 @@
                 @click="toggleChapterUI"
                 class="control-button chapters-button"
                 :class="{ 'active': showChapterUI }"
-                :aria-label="'Chapters'"
+                :aria-label="`Chapters ${parsedChapters.length}`"
                 :title="`${parsedChapters.length} Chapters${currentChapter ? ': ' + currentChapter.title : ''}`"
               >
                 <svg viewBox="0 0 24 24" fill="currentColor" class="control-icon">
