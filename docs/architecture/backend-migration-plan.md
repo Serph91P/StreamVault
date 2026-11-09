@@ -495,4 +495,10 @@ Four further startup-owner REDs (four legacy controls pass) prove lifespan still
 
 Actual native PG18 replay on cleanad6d45b now **125PASS/2081warnings149.89s**,70/70required identities,0missing/0skip (real expiry/lease/schema controls included); both owned containers removed. It excludes the two explicitly separate full-app SIGKILL and real-browser gates and predates this startup/error-contract follow-up. The selection witness is5ab6e50's standard full-suite71PG-skips; compare identities to the new standard run before final reporting. Current exact-head full/PG/runtime/browser/security/CI and other local MUSTs remain pending.
 
-Full contract matrix, remaining baseline measurements and remaining implementation/final gates are pending. These verified fixes are not completion of #842 or #834.
+## Verified owner #834 completion and normal develop forward
+
+Owner reports/acceptance/merge+closure readbacks at /opt/data/agent/artifacts/streamvault-backlog-20261109/issue834 were read; fresh GitHub read confirms PR1062 MERGED@276f4a56 and issue834 CLOSED/COMPLETED. Independently verify276f4a56 tree equals tested5a494965 and ancestry. The actual canonical media/PG/runtime/security results are the owner's separately reviewed evidence, not this head's own #842 gate. No live provider probe or credential use repeated here.
+
+After a clean393b340 checkpoint and conflict-free read-only merge-tree, normal local forward yields4aa2d2e7fad673c673415c2c010e0ccc43c8dae3, preserving own native scopes, config_directory SDK seam and all9mypy targets. Only four owner-integrated UI/test files change; the previously present minimal SDK fix already matches the canonical pin/lock/export—no manifest/lock overwrite. Parsed exact lock retains Streamlink8.6.3, OAuthlib4.0.1 and http-ece1.2.1; uvlock check passes. Original three native HTTPSession regressions, command/packaging/image/health/Compose/public contract focus **60PASS/2warnings19.74s**. #842 is not closed; remaining local MUSTs/final gates continue. The matrix no longer describes the now-completed owner834 canary as an outstanding successor.
+
+Full contract matrix, remaining baseline measurements and remaining implementation/final gates are pending. These verified fixes do not complete #842; #834 was separately owner-accepted as documented above.

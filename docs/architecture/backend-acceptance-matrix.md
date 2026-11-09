@@ -95,5 +95,11 @@ successor's browser acceptance. Do not claim this asset fix repairs #900 reloads
 Physical Unraid/Android/Pixel and authenticated real-provider/device acceptance
 stay with the owner. Synthetic native PG/Docker/browser results must never be
 reported as those external passes. No local pending MUST may be hidden here as
-an external residual. #834's real public anonymous H.264/AAC canary is successor
-work on the completed reviewed #842 lock/runtime, not an invented pass.
+an external residual. #834 was separately accepted and closed COMPLETED by the
+owner after the canonical public anonymous H.264/AAC canary and all ten original
+criteria: PR1062, tested5a494965, develop276f4a56 (identical tree). Read REPORT.md,
+acceptance.md and merge/closure readbacks under
+`/opt/data/agent/artifacts/streamvault-backlog-20261109/issue834`; independently
+reread GitHub MERGED/CLOSED+COMPLETED and tree equality. This is owner evidence,
+not this candidate's own runtime/overall #842 acceptance. Preserve and
+independently countercheck its fallback/segment contracts on the final #842 head.
