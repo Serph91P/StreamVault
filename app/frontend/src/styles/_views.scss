@@ -519,7 +519,7 @@
       label {
         display: block;
         margin-bottom: v.$spacing-xs;
-        color: v.$text-primary;
+        color: var(--text-primary);
         font-weight: 500;
       }
     }
