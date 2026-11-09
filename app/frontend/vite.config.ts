@@ -155,8 +155,6 @@ export default defineConfig({
     // PERFORMANCE OPTIMIZATION
     rollupOptions: {
       output: {
-        // Keep native final minification after Vite's parallel Terser pass.
-        minify: true,
         chunkFileNames: chunk => chunk.name === 'hls.min'
           ? 'assets/hls-[hash].js'
           : 'assets/[name]-[hash].js',
@@ -180,9 +178,8 @@ export default defineConfig({
         }
       }
     },
-    // Use Vite's worker-backed Terser instead of blocking renderChunk serially.
-    minify: 'terser',
-    terserOptions: { ecma: 2020, compress: { passes: 2 } },
+    // Keep Vite's native final minification after production compression.
+    minify: true,
     // Force empty output directory to prevent build errors
     emptyOutDir: true,
     // More robust output directory handling
@@ -190,7 +187,6 @@ export default defineConfig({
   },
   worker: {
     plugins: () => [compactProductionChunks()],
-    rollupOptions: { output: { minify: true } },
   },
   // Development optimization
   server: {

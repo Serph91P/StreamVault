@@ -9,6 +9,18 @@ async function compact(code: string, format: 'es' | 'iife') {
 }
 
 describe('production chunk compression', () => {
+  it('preserves getter and Proxy reads used by reactive consumers', async () => {
+    const code = await compact(`export function read(events) {
+      const getter = { get current() { events.push('getter'); return 1 } };
+      const proxy = new Proxy({}, { get() { events.push('proxy'); return 2 } });
+      getter.current;
+      proxy.current;
+      return events;
+    }`, 'es')
+    const module = await import(`data:text/javascript;base64,${Buffer.from(code).toString('base64')}`)
+    expect(module.read([])).toEqual(['getter', 'proxy'])
+  })
+
   it('preserves full module exports, side effects and error behavior', async () => {
     const source = `
       export const version = 'synthetic';
