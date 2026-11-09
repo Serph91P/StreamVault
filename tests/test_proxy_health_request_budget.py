@@ -96,6 +96,14 @@ class FakeQuery:
 
 class FakeDatabase:
     def __init__(self, proxies):
+        from base64 import urlsafe_b64encode
+        from app.utils.proxy_encryption import ProxyEncryption
+
+        self.info = {
+            "streamvault.proxy_encryption": ProxyEncryption(
+                urlsafe_b64encode(b"x" * 32).decode()
+            )
+        }
         self.proxies = proxies
 
     def __enter__(self):

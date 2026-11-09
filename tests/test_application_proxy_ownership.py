@@ -42,6 +42,9 @@ async def test_factory_proxy_lifetime_is_owning_and_fault_cleanup_preserves_peer
                     elif not row.proxy_encryption_key:
                         row.proxy_encryption_key = Fernet.generate_key().decode()
                     session.flush()
+                    from app.utils.proxy_encryption import get_proxy_encryption
+
+                    get_proxy_encryption(session)
                     proxy = ProxySettings(id=1)
                     session.add(proxy)
                     proxy.proxy_url = url

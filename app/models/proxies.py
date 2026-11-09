@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import Optional
-from sqlalchemy import Boolean, DateTime, Float, Index, Integer, String
+from sqlalchemy import Boolean, DateTime, Float, Index, Integer, String, inspect
 from sqlalchemy.orm import Mapped, mapped_column, object_session
 from sqlalchemy.sql import func
 from app.database import Base
@@ -54,6 +54,7 @@ class ProxySettings(Base):
     def proxy_url(self) -> str:
         from app.utils.proxy_encryption import get_cached_proxy_encryption
 
+        state = inspect(self)
         try:
             session = object_session(self)
             encryption = (
@@ -61,12 +62,19 @@ class ProxySettings(Base):
                 if session is not None
                 else get_cached_proxy_encryption()
             )
-            return encryption.decrypt(self._proxy_url_encrypted)
+            ciphertext = state.attrs["_proxy_url_encrypted"].loaded_value
+            if not isinstance(ciphertext, str):
+                raise RuntimeError("Proxy ciphertext snapshot is not loaded")
+            return encryption.decrypt(ciphertext)
         except Exception as e:
             import logging
 
             logger = logging.getLogger("streamvault")
-            logger.error(f"Failed to decrypt proxy URL for ID {self.id}: {e}")
+            logger.error(
+                "Failed to decrypt proxy URL for ID %s: %s",
+                state.identity[0] if state.identity else None,
+                e,
+            )
             return ""
 
     @proxy_url.setter

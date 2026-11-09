@@ -1,4 +1,5 @@
 from types import SimpleNamespace
+from base64 import urlsafe_b64encode
 
 import pytest
 from fastapi import FastAPI
@@ -50,6 +51,9 @@ class FakeQuery:
 class FakeDatabase:
     def __init__(self, proxy):
         self.proxy = proxy
+        self.info = {
+            "streamvault.proxy_encryption": proxy_encryption.get_cached_proxy_encryption()
+        }
 
     def __enter__(self):
         return self
@@ -63,8 +67,8 @@ class FakeDatabase:
 
 @pytest.fixture
 def proxy_factory(monkeypatch):
-    encryption = DeterministicEncryption()
-    monkeypatch.setattr(proxy_encryption, "get_proxy_encryption", lambda: encryption)
+    encryption = proxy_encryption.ProxyEncryption(urlsafe_b64encode(b"x" * 32).decode())
+    monkeypatch.setattr(proxy_encryption, "_proxy_encryption", encryption)
 
     def make_proxy(url=PROXY_URL):
         proxy = ProxySettings()

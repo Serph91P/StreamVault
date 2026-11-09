@@ -50,6 +50,35 @@ def forbid_new_identity():
 
 
 @pytest.mark.asyncio
+async def test_prepared_proxy_property_does_not_refresh_expired_ciphertext(
+    proxy_databases,
+):
+    from sqlalchemy import event
+
+    databases, _ = proxy_databases
+    with databases[0].sync_session_factory() as session:
+        proxy_encryption.get_proxy_encryption(session)
+        proxy = session.get(ProxySettings, 1)
+        expected = proxy.proxy_url
+        assert expected.startswith("http://owner-0:")
+        session.expire(proxy)
+        observed = []
+
+        def forbidden(*_):
+            observed.append(True)
+            raise AssertionError("proxy property attempted implicit ORM refresh")
+
+        event.listen(databases[0].sync_engine, "before_cursor_execute", forbidden)
+        try:
+            assert proxy.proxy_url == ""
+            assert not observed
+        finally:
+            event.remove(databases[0].sync_engine, "before_cursor_execute", forbidden)
+        session.refresh(proxy, ["_proxy_url_encrypted"])
+        assert proxy.proxy_url == expected
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("operation", ["read", "write"])
 async def test_unprepared_proxy_property_never_performs_hidden_sql(
     proxy_databases, operation
