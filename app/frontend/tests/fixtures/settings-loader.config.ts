@@ -8,7 +8,7 @@ if (mode !== 'real' && mode !== 'mock') throw new Error(`Unknown settings test m
 // Keep this regression in its own job without expanding the shared browser job.
 export default defineConfig({
   testDir: '.',
-  testMatch: 'settings-loader.spec.ts',
+  testMatch: ['settings-loader.spec.ts', 'storage-contrast.spec.ts'],
   timeout: 30_000,
   expect: { timeout: 10_000 },
   workers: 1,
