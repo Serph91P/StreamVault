@@ -145,7 +145,7 @@ assert_http_surface() {
 }
 
 docker network create "${network}" >/dev/null
-docker run -d \
+docker run --rm -d \
     --name "${db_container}" \
     --network "${network}" \
     -e POSTGRES_USER="${db_user}" \
@@ -154,7 +154,7 @@ docker run -d \
     postgres:18-alpine >/dev/null
 wait_for_postgres
 
-docker create \
+docker create --rm \
     --name "${app_container_a}" \
     --network "${network}" \
     -e DATABASE_URL="${database_url}" \
@@ -167,7 +167,7 @@ docker create \
     -e ENVIRONMENT=production \
     -e LOG_LEVEL=INFO \
     "${image}" >/dev/null
-docker create \
+docker create --rm \
     --name "${app_container_b}" \
     --network "${network}" \
     -e DATABASE_URL="${database_url}" \
@@ -205,6 +205,9 @@ assert_migration_sequence "${expected_migrations}" "${total_migrations}" "${dist
 [[ "${final_migration_count}" == "1" ]]
 assert_clean_startup_logs "Application A concurrent first boot" "${first_boot_logs_a}"
 assert_clean_startup_logs "Application B concurrent first boot" "${first_boot_logs_b}"
+if [[ -n "${STREAMVAULT_EXPECTED_VERSION:-}" ]]; then
+    python tests/assert_runtime_image_identity.py "${app_container_a}"
+fi
 
 first_key="$(docker exec "${db_container}" psql -U "${db_user}" -d "${db_name}" -Atqc \
     "SELECT proxy_encryption_key FROM global_settings ORDER BY id LIMIT 1")"
@@ -226,6 +229,9 @@ wait_for_app "${app_container_a}" "Restarted StreamVault application A"
 assert_http_surface "${app_container_a}"
 restart_logs="$(docker logs --since "${restart_started}" "${app_container_a}" 2>&1)"
 assert_clean_startup_logs "Restart" "${restart_logs}"
+if [[ -n "${STREAMVAULT_EXPECTED_VERSION:-}" ]]; then
+    python tests/assert_runtime_image_identity.py "${app_container_a}"
+fi
 
 restart_key="$(docker exec "${db_container}" psql -U "${db_user}" -d "${db_name}" -Atqc \
     "SELECT proxy_encryption_key FROM global_settings ORDER BY id LIMIT 1")"
