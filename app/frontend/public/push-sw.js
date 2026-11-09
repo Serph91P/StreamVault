@@ -78,11 +78,7 @@ self.addEventListener('notificationclick', (event) => {
 
   event.waitUntil((async () => {
     try {
-      if (action && action !== 'dismiss') {
-        await openOrFocus(targetUrl);
-      } else if (!action) {
-        await openOrFocus(targetUrl);
-      }
+      if (action !== 'dismiss') await openOrFocus(targetUrl);
     } finally {
       notification.close();
     }
