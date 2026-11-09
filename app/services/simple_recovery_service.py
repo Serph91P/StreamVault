@@ -16,7 +16,9 @@ if TYPE_CHECKING:
 logger = logging.getLogger("streamvault")
 
 
-async def run_simple_reliable_recovery() -> Dict[str, Any]:
+async def run_simple_reliable_recovery(
+    unified_service: "UnifiedRecoveryService | None" = None,
+) -> Dict[str, Any]:
     """
     Performs simple, reliable recovery.
 
@@ -38,7 +40,8 @@ async def run_simple_reliable_recovery() -> Dict[str, Any]:
             get_unified_recovery_service,
         )
 
-        unified_service = await get_unified_recovery_service()
+        if unified_service is None:
+            unified_service = await get_unified_recovery_service()
 
         # Run only scan (dry_run=True) to find failed recordings
         unified_stats = await unified_service.comprehensive_recovery_scan(

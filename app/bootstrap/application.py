@@ -122,6 +122,9 @@ def _configure_app(
     application.state.streamlink_config_service_lock = Lock()
     application.state.unified_recovery_service = None
     application.state.unified_recovery_lock = Lock()
+    application.state.automated_recovery_state = (
+        automated_recovery_endpoints.AutomatedRecoveryState()
+    )
     application.state.notification_service = None
     application.state.notification_service_lock = Lock()
     application.state.event_registry = None

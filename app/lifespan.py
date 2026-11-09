@@ -404,6 +404,10 @@ async def lifespan(app: FastAPI):
         app.state.startup_complete = False
         logger.info("Starting application shutdown")
 
+        recovery_state = getattr(app.state, "automated_recovery_state", None)
+        if recovery_state is not None:
+            await _shutdown_step("automated-recovery", recovery_state.cancel_task)
+
         if proxy_actor is not None:
             await _shutdown_step("proxy-health", proxy_actor.stop)
         await _shutdown_step(

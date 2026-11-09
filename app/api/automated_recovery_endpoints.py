@@ -7,8 +7,12 @@ Automatisierung der existierenden Recovery-Services:
 - Failed Recovery (fehlgeschlagene Post-Processing)
 """
 
-from fastapi import APIRouter, HTTPException
-from typing import Dict, Any, Optional
+from fastapi import APIRouter, Depends, HTTPException, Request
+from typing import Dict, Any
+from functools import partial
+from app.services.core.automated_recovery_state import AutomatedRecoveryState
+from app.services.system.supervisor import TaskSupervisor
+from app.dependencies import get_application_recovery_service
 import logging
 import asyncio
 from datetime import datetime, timezone
@@ -23,87 +27,24 @@ ERROR_DELAY_ON_FAILURE = 60  # Pause bei Fehlern in Sekunden
 MIN_INTERVAL_MINUTES = 1
 MAX_INTERVAL_MINUTES = 1440
 
-# Thread-safe state management
-
-
-class AutomatedRecoveryState:
-    """Thread-safe state management for automated recovery"""
-
-    def __init__(self):
-        self._lock = asyncio.Lock()
-        self._running = False
-        self._interval = DEFAULT_RECOVERY_INTERVAL
-        self._last_run = None
-        self._stats = {
-            "total_runs": 0,
-            "successful_runs": 0,
-            "failed_runs": 0,
-            "last_error": None,
-        }
-        self._task: Optional[asyncio.Task] = None
-
-    async def is_running(self) -> bool:
-        async with self._lock:
-            return self._running
-
-    async def set_running(self, running: bool):
-        async with self._lock:
-            self._running = running
-
-    async def get_interval(self) -> int:
-        async with self._lock:
-            return self._interval
-
-    async def set_interval(self, interval: int):
-        async with self._lock:
-            self._interval = interval
-
-    async def get_last_run(self) -> Optional[datetime]:
-        async with self._lock:
-            return self._last_run
-
-    async def set_last_run(self, timestamp: datetime):
-        async with self._lock:
-            self._last_run = timestamp
-
-    async def get_stats(self) -> Dict[str, Any]:
-        async with self._lock:
-            return self._stats.copy()
-
-    async def increment_total_runs(self):
-        async with self._lock:
-            self._stats["total_runs"] += 1
-
-    async def increment_successful_runs(self):
-        async with self._lock:
-            self._stats["successful_runs"] += 1
-            self._stats["last_error"] = None
-
-    async def increment_failed_runs(self, error: str):
-        async with self._lock:
-            self._stats["failed_runs"] += 1
-            self._stats["last_error"] = error
-
-    async def set_task(self, task: Optional[asyncio.Task]):
-        async with self._lock:
-            self._task = task
-
-    async def get_task(self) -> Optional[asyncio.Task]:
-        async with self._lock:
-            return self._task
-
-    async def cancel_task(self):
-        async with self._lock:
-            if self._task and not self._task.done():
-                self._task.cancel()
-                self._task = None
-
-
 # Global state instance
 recovery_state = AutomatedRecoveryState()
 
 
-async def run_comprehensive_recovery() -> Dict[str, Any]:
+def get_recovery_state(request: Request) -> AutomatedRecoveryState:
+    return request.app.state.automated_recovery_state
+
+
+def get_recovery_supervisor(request: Request) -> TaskSupervisor:
+    supervisor = getattr(request.app.state, "task_supervisor", None)
+    if supervisor is None or supervisor.closed:
+        raise HTTPException(status_code=503, detail="Application is not running")
+    return supervisor
+
+
+async def run_comprehensive_recovery(
+    state: AutomatedRecoveryState | None = None,
+) -> Dict[str, Any]:
     """
     Runs comprehensive recovery with all existing services
 
@@ -113,9 +54,10 @@ async def run_comprehensive_recovery() -> Dict[str, Any]:
     3. Orphaned Recovery - for orphaned segments
     4. Failed Recovery - for failed post-processing
     """
-    await recovery_state.increment_total_runs()
+    state = recovery_state if state is None else state
+    await state.increment_total_runs()
     now = datetime.now(timezone.utc)
-    await recovery_state.set_last_run(now)
+    await state.set_last_run(now)
 
     results = {
         "start_time": now.isoformat(),
@@ -238,7 +180,7 @@ async def run_comprehensive_recovery() -> Dict[str, Any]:
 
         results["end_time"] = datetime.now(timezone.utc).isoformat()
         results["success"] = True
-        await recovery_state.increment_successful_runs()
+        await state.increment_successful_runs()
 
         logger.info(
             f"🎉 Comprehensive recovery completed: {results['total_recoveries']} total recoveries"
@@ -249,25 +191,26 @@ async def run_comprehensive_recovery() -> Dict[str, Any]:
         results["end_time"] = datetime.now(timezone.utc).isoformat()
         results["success"] = False
         results["error"] = str(e)
-        await recovery_state.increment_failed_runs(str(e))
+        await state.increment_failed_runs(str(e))
         logger.error(f"❌ Comprehensive recovery failed: {e}")
         return results
 
 
-async def automated_recovery_loop():
+async def automated_recovery_loop(state: AutomatedRecoveryState | None = None):
     """
     Hauptschleife für automatisierte Recovery
 
     Läuft kontinuierlich und führt alle recovery_interval Sekunden
     umfassende Recovery durch.
     """
-    interval = await recovery_state.get_interval()
+    state = recovery_state if state is None else state
+    interval = await state.get_interval()
     logger.info(f"🚀 Starting automated recovery loop (interval: {interval}s)")
 
-    while await recovery_state.is_running():
+    while await state.is_running():
         try:
             logger.info("🔄 Running automated recovery cycle...")
-            result = await run_comprehensive_recovery()
+            result = await run_comprehensive_recovery(state=state)
 
             if result["success"]:
                 logger.info(
@@ -279,7 +222,7 @@ async def automated_recovery_loop():
                 )
 
             # Aktuelle Interval-Zeit abrufen (könnte geändert worden sein)
-            current_interval = await recovery_state.get_interval()
+            current_interval = await state.get_interval()
             await asyncio.sleep(current_interval)
 
         except asyncio.CancelledError:
@@ -289,12 +232,16 @@ async def automated_recovery_loop():
             logger.error(f"❌ Error in automated recovery loop: {e}")
             await asyncio.sleep(ERROR_DELAY_ON_FAILURE)
 
-    await recovery_state.set_running(False)
+    await state.set_running(False)
     logger.info("🛑 Automated recovery loop stopped")
 
 
 @router.post("/start")
-async def start_automated_recovery(interval_minutes: int = 5):
+async def start_automated_recovery(
+    interval_minutes: int = 5,
+    state: AutomatedRecoveryState = Depends(get_recovery_state),
+    supervisor: TaskSupervisor = Depends(get_recovery_supervisor),
+):
     """
     Startet automatisierte Recovery mit allen existierenden Services
 
@@ -302,7 +249,7 @@ async def start_automated_recovery(interval_minutes: int = 5):
         interval_minutes: Intervall zwischen Recovery-Läufen (Standard: 5 Minuten)
     """
     try:
-        if await recovery_state.is_running():
+        if await state.is_running():
             return {
                 "success": False,
                 "message": "Automated recovery is already running",
@@ -317,12 +264,15 @@ async def start_automated_recovery(interval_minutes: int = 5):
                 detail=f"Interval must be between {MIN_INTERVAL_MINUTES} and {MAX_INTERVAL_MINUTES} minutes",
             )
 
-        await recovery_state.set_interval(interval_minutes * 60)
-        await recovery_state.set_running(True)
-
-        # Erstelle persistente Task statt Background Task
-        task = asyncio.create_task(automated_recovery_loop())
-        await recovery_state.set_task(task)
+        if not await state.start(
+            supervisor,
+            partial(automated_recovery_loop, state=state),
+            interval_minutes * 60,
+        ):
+            return {
+                "success": False,
+                "message": "Automated recovery is already running",
+            }
 
         return {
             "success": True,
@@ -337,14 +287,16 @@ async def start_automated_recovery(interval_minutes: int = 5):
 
 
 @router.post("/stop")
-async def stop_automated_recovery():
+async def stop_automated_recovery(
+    state: AutomatedRecoveryState = Depends(get_recovery_state),
+):
     """Stoppt die automatisierte Recovery"""
     try:
-        if not await recovery_state.is_running():
+        if not await state.is_running():
             return {"success": False, "message": "Automated recovery is not running"}
 
-        await recovery_state.set_running(False)
-        await recovery_state.cancel_task()
+        await state.set_running(False)
+        await state.cancel_task()
 
         return {"success": True, "message": "Automated recovery stopped"}
 
@@ -354,12 +306,14 @@ async def stop_automated_recovery():
 
 
 @router.post("/run-once")
-async def run_manual_recovery():
+async def run_manual_recovery(
+    state: AutomatedRecoveryState = Depends(get_recovery_state),
+):
     """
     Führt einmalig umfassende Recovery aus (alle Services)
     """
     try:
-        result = await run_comprehensive_recovery()
+        result = await run_comprehensive_recovery(state=state)
         return result
 
     except Exception as e:
@@ -368,44 +322,49 @@ async def run_manual_recovery():
 
 
 @router.post("/run-simple")
-async def run_simple_recovery():
+async def run_simple_recovery(
+    state: AutomatedRecoveryState = Depends(get_recovery_state),
+    service=Depends(get_application_recovery_service),
+):
     """
     Runs simple reliable recovery once (only metadata_generation without dependencies).
     This bypasses the dependency chain problem and is the most reliable recovery method.
     """
     try:
-        await recovery_state.increment_total_runs()
+        await state.increment_total_runs()
         now = datetime.now(timezone.utc)
-        await recovery_state.set_last_run(now)
+        await state.set_last_run(now)
 
         logger.info("🔧 Starting manual simple reliable recovery...")
         from ..services.simple_recovery_service import run_simple_reliable_recovery
 
-        result = await run_simple_reliable_recovery()
+        result = await run_simple_reliable_recovery(unified_service=service)
 
-        await recovery_state.increment_successful_runs()
+        await state.increment_successful_runs()
         logger.info(
             f"✅ Simple recovery completed: {result.get('total_recoveries', 0)} tasks created"
         )
         return result
 
     except Exception as e:
-        await recovery_state.increment_failed_runs(str(e))
+        await state.increment_failed_runs(str(e))
         logger.error(f"❌ Simple recovery failed: {e}")
         raise HTTPException(status_code=500, detail="Simple recovery failed")
 
 
 @router.get("/status")
-async def get_recovery_status():
+async def get_recovery_status(
+    state: AutomatedRecoveryState = Depends(get_recovery_state),
+):
     """Gibt Status der automatisierten Recovery zurück"""
-    last_run = await recovery_state.get_last_run()
-    stats = await recovery_state.get_stats()
-    interval = await recovery_state.get_interval()
+    last_run = await state.get_last_run()
+    stats = await state.get_stats()
+    interval = await state.get_interval()
 
     return {
         "success": True,
         "data": {
-            "is_running": await recovery_state.is_running(),
+            "is_running": await state.is_running(),
             "interval_minutes": interval // 60,
             "last_run": last_run.isoformat() if last_run else None,
             "statistics": stats,
@@ -422,7 +381,10 @@ async def get_recovery_status():
 
 
 @router.post("/configure")
-async def configure_recovery(interval_minutes: int = None):
+async def configure_recovery(
+    interval_minutes: int = None,
+    state: AutomatedRecoveryState = Depends(get_recovery_state),
+):
     """
     Konfiguriert automatisierte Recovery
 
@@ -441,16 +403,16 @@ async def configure_recovery(interval_minutes: int = None):
                     status_code=400,
                     detail=f"Interval must be between {MIN_INTERVAL_MINUTES} and {MAX_INTERVAL_MINUTES} minutes",
                 )
-            await recovery_state.set_interval(interval_minutes * 60)
+            await state.set_interval(interval_minutes * 60)
 
-        current_interval = await recovery_state.get_interval()
+        current_interval = await state.get_interval()
 
         return {
             "success": True,
             "message": "Configuration updated (changes take effect on next cycle)",
             "current_config": {
                 "interval_minutes": current_interval // 60,
-                "is_running": await recovery_state.is_running(),
+                "is_running": await state.is_running(),
             },
         }
 
