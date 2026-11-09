@@ -152,7 +152,9 @@ USER appuser
 LABEL org.opencontainers.image.title="StreamVault" \
       org.opencontainers.image.description="Self-hosted Twitch stream recorder" \
       org.opencontainers.image.version="${VERSION}" \
-      org.opencontainers.image.source="https://github.com/your-repo/streamvault" \
+      org.opencontainers.image.source="https://github.com/Serph91P/StreamVault" \
+      org.opencontainers.image.revision="${COMMIT_SHA}" \
+      org.opencontainers.image.ref.name="${BRANCH}" \
       org.opencontainers.image.created="${BUILD_DATE}"
 
 # Health check for container orchestration
@@ -169,6 +171,16 @@ ENTRYPOINT ["/app/entrypoint.sh"]
 # This stage removes build tools and creates the smallest possible image
 # =============================================================================
 FROM python:3.14-alpine AS runtime
+
+# COPY does not inherit build arguments or environment from unrelated stages.
+ARG VERSION=dev
+ARG BRANCH=unknown
+ARG BUILD_DATE=unknown
+ARG COMMIT_SHA=unknown
+ENV STREAMVAULT_VERSION=${VERSION} \
+    STREAMVAULT_BRANCH=${BRANCH} \
+    STREAMVAULT_BUILD_DATE=${BUILD_DATE} \
+    STREAMVAULT_COMMIT_SHA=${COMMIT_SHA}
 
 # Install only runtime dependencies (no build tools)
 RUN apk upgrade --no-cache && apk add --no-cache \
@@ -199,7 +211,12 @@ WORKDIR /app
 
 # Labels for image metadata (OCI standard)
 LABEL org.opencontainers.image.title="StreamVault" \
-      org.opencontainers.image.description="Self-hosted Twitch stream recorder"
+      org.opencontainers.image.description="Self-hosted Twitch stream recorder" \
+      org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.source="https://github.com/Serph91P/StreamVault" \
+      org.opencontainers.image.revision="${COMMIT_SHA}" \
+      org.opencontainers.image.ref.name="${BRANCH}" \
+      org.opencontainers.image.created="${BUILD_DATE}"
 
 # Health check for container orchestration
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
