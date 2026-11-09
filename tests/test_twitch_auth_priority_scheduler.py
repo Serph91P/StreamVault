@@ -213,15 +213,13 @@ class TwitchAuthPrioritySchedulerTests(unittest.TestCase):
                 streamer = Streamer(twitch_id="123", username="priority-channel")
                 db.add(streamer)
                 db.commit()
-                response = __import__("asyncio").run(
-                    update_streamer_recording_settings(
-                        streamer.id,
-                        StreamerRecordingSettingsSchema(
-                            streamer_id=streamer.id,
-                            twitch_auth_priority=100,
-                        ),
-                        db,
-                    )
+                response = update_streamer_recording_settings(
+                    streamer.id,
+                    StreamerRecordingSettingsSchema(
+                        streamer_id=streamer.id,
+                        twitch_auth_priority=100,
+                    ),
+                    db,
                 )
                 persisted = db.query(StreamerRecordingSettings).one()
 
@@ -257,15 +255,13 @@ class TwitchAuthPrioritySchedulerTests(unittest.TestCase):
                 )
                 db.commit()
 
-                response = __import__("asyncio").run(
-                    update_streamer_recording_settings(
-                        streamer.id,
-                        StreamerRecordingSettingsSchema(
-                            streamer_id=streamer.id,
-                            enabled=False,
-                        ),
-                        db,
-                    )
+                response = update_streamer_recording_settings(
+                    streamer.id,
+                    StreamerRecordingSettingsSchema(
+                        streamer_id=streamer.id,
+                        enabled=False,
+                    ),
+                    db,
                 )
                 persisted = db.query(StreamerRecordingSettings).one()
 
