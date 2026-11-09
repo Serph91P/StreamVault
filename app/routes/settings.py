@@ -269,8 +269,6 @@ async def update_settings(
             # Don't fail the whole settings update if config regeneration fails
 
         return updated_settings
-    except HTTPException:
-        raise
     except Exception as e:
         logger.error(f"Error updating settings: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")

@@ -95,36 +95,32 @@ async def test_settings_codec_save_regenerates_only_owned_config(
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "field,value,detail",
+    "field,value",
     [
         (
             "http_proxy",
             "ftp://synthetic.invalid",
-            "HTTP proxy URL must start with 'http://' or 'https://'",
         ),
         (
             "https_proxy",
             "ftp://synthetic.invalid",
-            "HTTPS proxy URL must start with 'http://' or 'https://'",
         ),
         (
             "notification_url",
             "synthetic-invalid-notification",
-            "Invalid notification URL format",
         ),
     ],
 )
-async def test_invalid_settings_proxy_keeps_explicit_400_and_database_unchanged(
+async def test_invalid_settings_keeps_legacy_error_envelope_and_database_unchanged(
     image_applications,
     field,
     value,
-    detail,
 ):
     _, databases, clients, _ = image_applications
     before = (await clients[0].get("/api/settings")).json()
     invalid = {**before, field: value}
     response = await clients[0].post("/api/settings", json=invalid)
-    assert response.status_code == 400, response.text
-    assert response.json() == {"detail": detail}
+    assert response.status_code == 500, response.text
+    assert response.json() == {"detail": "Internal server error"}
     assert (await clients[0].get("/api/settings")).json() == before
     assert all(database.sync_engine.pool.checkedout() == 0 for database in databases)

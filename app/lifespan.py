@@ -23,6 +23,7 @@ from app.dependencies import (
     _get_application_image_migration_service,
     _get_application_auto_image_sync_service,
     _get_application_logging_service,
+    _get_application_streamlink_config_service,
 )
 
 from app.services.core.session_maintenance import cleanup_expired_sessions
@@ -269,7 +270,12 @@ async def lifespan(app: FastAPI):
         )
 
         try:
-            await streamlink_config_service.update_config_from_settings()
+            config_actor = streamlink_config_service
+            if hasattr(app.state, "streamlink_config_service_lock"):
+                config_actor = await run_in_thread_pool(
+                    _get_application_streamlink_config_service, app
+                )
+            await config_actor.update_config_from_settings()
         except Exception as error:
             logger.warning(
                 "Streamlink config generation skipped (%s)", type(error).__name__

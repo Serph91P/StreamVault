@@ -211,6 +211,7 @@ async def test_lifespan_uses_factory_service_overrides_for_startup_and_shutdown(
     )
 
     async def config_update():
+        calls.append("legacy-config-update")
         return True
 
     async def background_init(
@@ -322,6 +323,7 @@ async def test_lifespan_uses_factory_service_overrides_for_startup_and_shutdown(
     )
 
     constructor_threads = []
+    config_threads = []
     streams = []
     if owned_logging:
         from threading import Lock
@@ -332,6 +334,22 @@ async def test_lifespan_uses_factory_service_overrides_for_startup_and_shutdown(
         )
         app.state.logging_service = None
         app.state.logging_service_lock = Lock()
+        app.state.streamlink_config_service_lock = Lock()
+
+        async def owned_config_update():
+            calls.append("owned-config-update")
+            return True
+
+        def owned_config(_app):
+            config_threads.append(threading.get_ident())
+            return SimpleNamespace(update_config_from_settings=owned_config_update)
+
+        monkeypatch.setattr(
+            lifespan_module,
+            "_get_application_streamlink_config_service",
+            owned_config,
+            raising=False,
+        )
         native_logging = dependencies.LoggingService
 
         class ObservedLogging(native_logging):
@@ -395,6 +413,9 @@ async def test_lifespan_uses_factory_service_overrides_for_startup_and_shutdown(
 
     async with lifespan_module.lifespan(app):
         if owned_logging:
+            assert "owned-config-update" in calls
+            assert "legacy-config-update" not in calls
+            assert config_threads and threading.get_ident() not in config_threads
             actor = app.state.logging_service
             assert actor is not None
             assert str(actor.logs_base_dir) == str(tmp_path / "owned-logs")

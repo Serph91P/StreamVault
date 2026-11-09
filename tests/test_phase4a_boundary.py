@@ -164,6 +164,7 @@ def test_settings_update_preserves_invalid_proxy_error_envelope(seeded_client):
 
 
 def test_settings_update_persists_before_regenerating_streamlink_config(monkeypatch):
+    from contextlib import nullcontext
     from app.routes import settings
     from app.schemas.settings import GlobalSettingsSchema
     from app.services.system import streamlink_config_service as config_module
@@ -209,10 +210,16 @@ def test_settings_update_persists_before_regenerating_streamlink_config(monkeypa
     service = SettingsServiceFake()
     config = StreamlinkConfigFake()
     monkeypatch.setattr(config_module, "streamlink_config_service", config)
+    monkeypatch.setattr(settings, "SettingsService", lambda _db: service)
     data = GlobalSettingsSchema(supported_codecs="av1,h265,h264")
 
     asyncio.run(
-        settings.update_settings(data, service, lambda: NotificationServiceFake())
+        settings.update_settings(
+            data,
+            session_factory=lambda: nullcontext(None),
+            streamlink_config_service=config,
+            notification_service_factory=lambda: NotificationServiceFake(),
+        )
     )
 
     assert config.observed_codecs == "av1,h265,h264"
