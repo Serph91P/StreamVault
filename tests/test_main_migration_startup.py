@@ -106,6 +106,8 @@ async def test_configured_lifespan_migrates_and_disposes_only_its_database_off_l
         with pytest.raises(RuntimeError, match=expected):
             async with module.lifespan(application):
                 pytest.fail("Failed migration must not reach ready")
+        assert application.state.startup_complete is False
+        assert application.state.startup_failure == "RuntimeError"
         assert len(bound_calls) == 1
         assert bound_calls[0][1] != event_loop_thread
         if migration_success:
@@ -425,6 +427,8 @@ async def test_lifespan_uses_factory_service_overrides_for_startup_and_shutdown(
         app.state.image_sync_service.stop_sync_worker = owned_stop
 
     async with lifespan_module.lifespan(app):
+        assert app.state.startup_complete is True
+        assert app.state.startup_failure is None
         assert len(proxy_bootstraps) == 1
         assert proxy_bootstraps[0][1] != threading.get_ident()
         assert (
@@ -475,6 +479,7 @@ async def test_lifespan_uses_factory_service_overrides_for_startup_and_shutdown(
             "ready",
         ]
 
+    assert app.state.startup_complete is False
     if owned_logging:
         assert len(constructor_threads) == 1
         assert constructor_threads[0] != threading.get_ident()

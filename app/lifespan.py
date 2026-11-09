@@ -181,6 +181,8 @@ async def lifespan(app: FastAPI):
     queue_manager = None
     app.state.task_supervisor = supervisor
     app.state.startup_phases = []
+    app.state.startup_complete = False
+    app.state.startup_failure = None
     event_registry = None
     recording_manager = None
     background_services_started = False
@@ -200,10 +202,10 @@ async def lifespan(app: FastAPI):
 
     from app.bootstrap.settings import resolve_app_settings
 
-    runtime_settings = resolve_app_settings(app)
-    setup_logging(runtime_settings)
-    logger.info("Starting application initialization")
     try:
+        runtime_settings = resolve_app_settings(app)
+        setup_logging(runtime_settings)
+        logger.info("Starting application initialization")
         from app.bootstrap.storage import prepare_storage_directories
 
         await run_in_thread_pool(prepare_storage_directories, runtime_settings)
@@ -391,10 +393,15 @@ async def lifespan(app: FastAPI):
         await proxy_actor.start()
         phase("background-services")
         phase("ready")
+        app.state.startup_complete = True
         logger.info("Application startup complete")
 
         yield
+    except BaseException as error:
+        app.state.startup_failure = type(error).__name__
+        raise
     finally:
+        app.state.startup_complete = False
         logger.info("Starting application shutdown")
 
         if proxy_actor is not None:

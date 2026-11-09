@@ -96,12 +96,28 @@ async def test_health_and_readiness_use_owned_catalogue_and_policy(
         assert response.json()["checks"]["database"] == "healthy"
         assert queries and get_ident() not in [thread for thread, _ in queries]
     first = await clients[0].get("/api/health/ready")
-    assert first.status_code == 200 and first.json()["checks"] == {"database": "ready"}
+    # Owner-confirmed startup integrity is mandatory even with DB-only tool policy.
+    assert first.status_code == 503 and first.json()["checks"] == {
+        "database": "ready",
+        "startup": "unavailable",
+        "migrations": "unavailable",
+        "critical_services": "unavailable",
+        "recordings_path": "ready",
+        "persistent_keys": "unavailable",
+    }
     peer = await clients[1].get("/api/health/ready")
     assert peer.status_code == 503
     assert peer.json() == {
         "status": "not_ready",
-        "checks": {"synthetic-unknown": "unavailable"},
+        "checks": {
+            "synthetic-unknown": "unavailable",
+            "database": "ready",
+            "startup": "unavailable",
+            "migrations": "unavailable",
+            "critical_services": "unavailable",
+            "recordings_path": "ready",
+            "persistent_keys": "unavailable",
+        },
     }
     assert not defaults
     assert all(database.sync_engine.pool.checkedout() == 0 for database in databases)
@@ -123,7 +139,12 @@ async def test_health_database_failure_is_local_and_liveness_stays_available(
     try:
         assert (await clients[0].get("/api/health/ready")).status_code == 503
         assert (await clients[0].get("/api/health/live")).json() == {"status": "alive"}
-        assert (await clients[1].get("/api/health/ready")).status_code == 200
+        peer = await clients[1].get("/api/health/ready")
+        assert peer.status_code == 503
+        assert peer.json()["checks"]["database"] == "ready"
+        assert (await clients[0].get("/api/health/ready")).json()["checks"][
+            "database"
+        ] == "unavailable"
         assert all(
             database.sync_engine.pool.checkedout() == 0 for database in databases
         )

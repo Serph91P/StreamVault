@@ -299,7 +299,9 @@ def test_metrics_are_low_cardinality_and_exclude_request_ids() -> None:
     assert "streamvault_lease_recovery_total 2" in rendered
 
 
-def test_readiness_timeout_returns_sanitized_component_status(monkeypatch) -> None:
+def test_readiness_timeout_returns_sanitized_component_status(
+    monkeypatch, tmp_path
+) -> None:
     from app.routes import health
 
     observed = []
@@ -315,6 +317,7 @@ def test_readiness_timeout_returns_sanitized_component_status(monkeypatch) -> No
     monkeypatch.setattr(health, "_check_database", slow_database_check)
     monkeypatch.setattr(settings, "READINESS_TIMEOUT_SECONDS", 0.001)
     monkeypatch.setattr(settings, "READINESS_REQUIRED_COMPONENTS", ["database"])
+    monkeypatch.setattr(settings, "RECORDING_DIRECTORY", str(tmp_path / "not-created"))
 
     app = FastAPI()
     app.include_router(health.router)
@@ -325,7 +328,14 @@ def test_readiness_timeout_returns_sanitized_component_status(monkeypatch) -> No
     assert response.status_code == 503
     assert response.json() == {
         "status": "not_ready",
-        "checks": {"database": "unavailable"},
+        "checks": {
+            "database": "unavailable",
+            "startup": "unavailable",
+            "migrations": "unavailable",
+            "critical_services": "unavailable",
+            "recordings_path": "unavailable",
+            "persistent_keys": "unavailable",
+        },
     }
 
 

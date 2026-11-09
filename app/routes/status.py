@@ -6,7 +6,7 @@ This ensures the frontend can always get current state, regardless of WebSocket 
 """
 
 from collections.abc import Callable
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import and_, text
 from typing import Dict, Any
@@ -282,6 +282,7 @@ def get_background_queue_status(
 
 @router.get("/health")
 def get_health_status(
+    request: Request,
     session_factory: Callable[[], Session] = Depends(get_application_session_factory),
     queue_service: BackgroundQueueService = Depends(get_background_queue_service),
 ) -> Dict[str, Any]:
@@ -300,10 +301,22 @@ def get_health_status(
     queue_status = "healthy" if queue_service else "unavailable"
 
     overall_status = "healthy" if db_status == "healthy" else "degraded"
+    phases = getattr(request.app.state, "startup_phases", None)
+    failure = getattr(request.app.state, "startup_failure", None)
 
     return {
         "status": overall_status,
         "components": {"database": db_status, "background_queue": queue_status},
+        "lifecycle": {
+            "startup_complete": getattr(request.app.state, "startup_complete", False)
+            is True,
+            "startup_failure": failure[:64] if isinstance(failure, str) else None,
+            "completed_phases": [
+                phase[:64] for phase in phases[:16] if isinstance(phase, str)
+            ]
+            if isinstance(phases, list)
+            else [],
+        },
         "timestamp": datetime.utcnow().isoformat(),
     }
 

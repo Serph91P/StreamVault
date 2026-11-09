@@ -99,6 +99,28 @@ def test_public_openapi_routes_and_middleware_preserve_verified_base():
         assert schema["paths"].pop(path) == definition
     for path, definition in DEVELOP_1045["added_heads"].items():
         assert schema["paths"][path].pop("head") == definition
+    # Owner-confirmed #842 health split adds exactly one GET, not a new API family.
+    assert schema["paths"].pop("/api/health/startup") == {
+        "get": {
+            "tags": ["health"],
+            "summary": "Startup Check",
+            "operationId": "startup_check_api_health_startup_get",
+            "responses": {
+                "200": {
+                    "description": "Successful Response",
+                    "content": {"application/json": {"schema": {}}},
+                }
+            },
+        }
+    }
+    readiness = schema["paths"]["/api/health/ready"]["get"]
+    assert (
+        readiness["description"]
+        == "Require owned lifecycle integrity plus the configured DB/tool policy."
+    )
+    readiness["description"] = expected["openapi"]["paths"]["/api/health/ready"]["get"][
+        "description"
+    ]
     assert schema == expected["openapi"]
 
     # Handler modules may move; registration order, route kind and methods may not.
@@ -119,6 +141,8 @@ def test_public_openapi_routes_and_middleware_preserve_verified_base():
     for path in DEVELOP_1045["added_heads"]:
         insertion = expected_routes.index((path, ["GET"], "APIRoute")) + 1
         expected_routes.insert(insertion, (path, ["HEAD"], "APIRoute"))
+    insertion = expected_routes.index(("/api/health/live", ["GET"], "APIRoute"))
+    expected_routes.insert(insertion, ("/api/health/startup", ["GET"], "APIRoute"))
     assert signatures(current["routes_in_registration_order"]) == expected_routes
     assert (
         current["middleware_in_registration_order"]

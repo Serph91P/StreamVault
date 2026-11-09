@@ -102,6 +102,9 @@ def _configure_app(
         )
     application.state.database_lifecycle = database
     application.state.recording_manager = None
+    application.state.startup_complete = False
+    application.state.startup_failure = None
+    application.state.startup_phases = []
     application.state.recording_status_cache = SimpleCache()
     application.state.login_throttle = auth.LoginThrottle()
     application.state.logging_service = None

@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import secrets
+from pathlib import Path
 from functools import partial
 from typing import Awaitable, Callable
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Request, FastAPI
 from fastapi.responses import JSONResponse, PlainTextResponse, Response
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -17,11 +19,72 @@ from app.database import SessionLocal
 from app.bootstrap.settings import resolve_app_settings
 from app.dependencies import get_application_session_factory
 from app.observability import service_metrics
+from app.services.background_queue_service import BackgroundQueueService
+from app.services.recording.recording_manager import RecordingManager
+from app.services.system.supervisor import TaskSupervisor
 from app.utils.async_db_utils import run_in_thread_pool
 
 router = APIRouter(prefix="/api", tags=["health"])
 
 _ReadinessCheck = Callable[[], Awaitable[bool]]
+_MANDATORY_CHECKS = (
+    "database",
+    "startup",
+    "migrations",
+    "critical_services",
+    "recordings_path",
+    "persistent_keys",
+)
+
+
+async def _check_startup(app: FastAPI) -> bool:
+    return getattr(app.state, "startup_complete", False) is True
+
+
+async def _check_phase(app: FastAPI, phase: str) -> bool:
+    phases = getattr(app.state, "startup_phases", None)
+    return isinstance(phases, list) and phase in phases
+
+
+async def _check_recordings_path(directory: str) -> bool:
+    def probe() -> bool:
+        path = Path(directory)
+        return path.is_dir() and os.access(path, os.R_OK | os.W_OK | os.X_OK)
+
+    try:
+        return await run_in_thread_pool(probe)
+    except OSError:
+        return False
+
+
+async def _check_critical_services(app: FastAPI) -> bool:
+    supervisor = getattr(app.state, "task_supervisor", None)
+    queue_service = getattr(app.state, "background_queue_service", None)
+    recorder = getattr(app.state, "recording_manager", None)
+    if (
+        not isinstance(supervisor, TaskSupervisor)
+        or supervisor.closed
+        or not isinstance(recorder, RecordingManager)
+        or not isinstance(queue_service, BackgroundQueueService)
+        or not queue_service.is_running
+        or not queue_service.is_queue_manager_running()
+    ):
+        return False
+    if not await _check_phase(app, "core-services") or not await _check_phase(
+        app, "background-services"
+    ):
+        return False
+    queue = queue_service.queue_manager
+    tasks = [queue.dependency_worker, queue.stats_worker]
+    if queue.task_store is None and not queue.enable_streamer_isolation:
+        if len(queue.worker_manager.workers) != queue.worker_manager.max_workers:
+            return False
+        tasks.extend(queue.worker_manager.workers)
+    elif queue.enable_streamer_isolation:
+        tasks.extend(
+            task for workers in queue.streamer_workers.values() for task in workers
+        )
+    return all(isinstance(task, asyncio.Task) and not task.done() for task in tasks)
 
 
 async def _check_database(session_factory: Callable[[], Session] | None = None) -> bool:
@@ -109,10 +172,27 @@ async def readiness_check(
     request: Request,
     session_factory: Callable[[], Session] = Depends(get_application_session_factory),
 ) -> Response:
-    """Return readiness for explicitly required dependencies only."""
+    """Require owned lifecycle integrity plus the configured DB/tool policy."""
     runtime_settings = resolve_app_settings(request.app)
     available_checks = _readiness_checks(session_factory)
-    required = tuple(runtime_settings.READINESS_REQUIRED_COMPONENTS)
+    available_checks.update(
+        {
+            "startup": partial(_check_startup, request.app),
+            "migrations": partial(_check_phase, request.app, "migrations"),
+            "persistent_keys": partial(
+                _check_phase, request.app, "persistent-identities"
+            ),
+            "recordings_path": partial(
+                _check_recordings_path, runtime_settings.RECORDING_DIRECTORY
+            ),
+            "critical_services": partial(_check_critical_services, request.app),
+        }
+    )
+    required = tuple(
+        dict.fromkeys(
+            (*runtime_settings.READINESS_REQUIRED_COMPONENTS, *_MANDATORY_CHECKS)
+        )
+    )
 
     async def check_component(component: str) -> tuple[str, str]:
         check = available_checks.get(component)
@@ -142,6 +222,15 @@ async def readiness_check(
     }
     return JSONResponse(
         status_code=200 if payload["status"] == "ready" else 503, content=payload
+    )
+
+
+@router.get("/health/startup")
+async def startup_check(request: Request) -> Response:
+    complete = await _check_startup(request.app)
+    return JSONResponse(
+        status_code=200 if complete else 503,
+        content={"status": "startup_complete" if complete else "not_started"},
     )
 
 
