@@ -10,6 +10,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional, Dict, Any, List
 from logging.handlers import TimedRotatingFileHandler
+from app.config.logging_config import JSONFormatter, RedactingFormatter
 
 logger = logging.getLogger("streamvault")
 
@@ -35,8 +36,10 @@ class LoggingService:
         test_permissions: bool = False,
         *,
         isolated: bool = False,
+        log_format: str = "text",
     ):
         self._isolated = isolated
+        self._log_format = log_format
         self._logger_factory: Callable[[str], logging.Logger] = (
             logging.Logger if isolated else logging.getLogger
         )
@@ -259,6 +262,13 @@ class LoggingService:
 
     def _setup_loggers(self):
         """Setup separate loggers for different components"""
+        formatter = (
+            JSONFormatter()
+            if self._log_format == "json"
+            else RedactingFormatter(
+                "[{asctime}][{name}][{levelname}] {message}", style="{"
+            )
+        )
         # Streamlink logger
         self.streamlink_logger = self._logger_factory("streamvault.streamlink")
         self._component_loggers.append(self.streamlink_logger)
@@ -271,9 +281,7 @@ class LoggingService:
         )
         self._handler_stack.callback(streamlink_handler.close)
         self._owned_handlers.append(streamlink_handler)
-        streamlink_handler.setFormatter(
-            logging.Formatter("[{asctime}][{name}][{levelname}] {message}", style="{")
-        )
+        streamlink_handler.setFormatter(formatter)
         self.streamlink_logger.addHandler(streamlink_handler)
         self.streamlink_logger.setLevel(logging.DEBUG)
 
@@ -289,9 +297,7 @@ class LoggingService:
         )
         self._handler_stack.callback(ffmpeg_handler.close)
         self._owned_handlers.append(ffmpeg_handler)
-        ffmpeg_handler.setFormatter(
-            logging.Formatter("[{asctime}][{name}][{levelname}] {message}", style="{")
-        )
+        ffmpeg_handler.setFormatter(formatter)
         self.ffmpeg_logger.addHandler(ffmpeg_handler)
         self.ffmpeg_logger.setLevel(logging.INFO)  # Changed to INFO to reduce noise
 
@@ -307,9 +313,7 @@ class LoggingService:
         )
         self._handler_stack.callback(recording_handler.close)
         self._owned_handlers.append(recording_handler)
-        recording_handler.setFormatter(
-            logging.Formatter("[{asctime}][{name}][{levelname}] {message}", style="{")
-        )
+        recording_handler.setFormatter(formatter)
         self.recording_logger.addHandler(recording_handler)
         self.recording_logger.setLevel(logging.DEBUG)
 

@@ -79,6 +79,7 @@ files = [
     "app/observability.py",
     "app/routes/health.py",
     "app/services/system/logging_service.py",
+    "app/services/recording/recording_logger.py",
 ]
 follow_imports = "skip"
 warn_unused_ignores = true

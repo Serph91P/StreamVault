@@ -7,7 +7,7 @@ import uuid
 import json
 from typing import Optional, Any
 
-from app.services.system.logging_service import logging_service
+from app.services.system.logging_service import LoggingService, logging_service
 
 recording_logger = logging.getLogger("streamvault.recording")
 
@@ -15,9 +15,10 @@ recording_logger = logging.getLogger("streamvault.recording")
 class RecordingLogger:
     """Detailed logging for all recording activities"""
 
-    def __init__(self, config_manager=None):
+    def __init__(self, config_manager=None, *, service: LoggingService | None = None):
         self.session_id = str(uuid.uuid4())[:8]
-        self.logger = logging_service.recording_logger
+        self.logging_service = service if service is not None else logging_service
+        self.logger = self.logging_service.recording_logger
         self.config_manager = config_manager
 
     def log_recording_start(
@@ -32,7 +33,7 @@ class RecordingLogger:
         )
 
         # Log to dedicated streamer recording file
-        logging_service.log_recording_activity_to_file(
+        self.logging_service.log_recording_activity_to_file(
             "RECORDING_START",
             streamer_name,
             f"[SESSION:{self.session_id}] Started recording: Quality={quality}, Path={output_path}",
@@ -53,7 +54,7 @@ class RecordingLogger:
         self.logger.info(f"[SESSION:{self.session_id}] Output: {output_path}")
 
         # Log to dedicated streamer recording file
-        logging_service.log_recording_activity_to_file(
+        self.logging_service.log_recording_activity_to_file(
             "RECORDING_STOP",
             streamer_name,
             f"[SESSION:{self.session_id}] Stopped recording: Duration={duration}s, Reason={reason}, Path={output_path}",
@@ -88,7 +89,7 @@ class RecordingLogger:
             path_parts = file_path.split("/")
             if len(path_parts) >= 3 and path_parts[1] == "recordings":
                 streamer_name = path_parts[2]
-                logging_service.log_post_processing_activity(
+                self.logging_service.log_post_processing_activity(
                     f"{operation}_{status}",
                     streamer_name,
                     f"[SESSION:{self.session_id}] {operation}: {file_path} - {status} {details}",
@@ -110,7 +111,7 @@ class RecordingLogger:
             self.logger.info(
                 f"[SESSION:{self.session_id}] STREAM_INFO - {streamer_name}: Title='{title}', Category='{category}'"
             )
-            recording_logger.debug(
+            self.logger.debug(
                 f"[SESSION:{self.session_id}] STREAM_INFO - {streamer_name}: {json.dumps(stream_info, indent=2)}"
             )
 
@@ -121,7 +122,9 @@ class RecordingLogger:
             category = stream_info.get("category_name", "Unknown")
             event_details += f" - Title: '{title}', Category: '{category}'"
 
-        logging_service.log_stream_event_to_file(status, streamer_name, event_details)
+        self.logging_service.log_stream_event_to_file(
+            status, streamer_name, event_details
+        )
 
     def log_configuration_change(
         self,
@@ -132,7 +135,7 @@ class RecordingLogger:
     ):
         """Log configuration changes"""
         target = "Global" if streamer_id is None else f"Streamer {streamer_id}"
-        recording_logger.info(
+        self.logger.info(
             f"[SESSION:{self.session_id}] CONFIG_CHANGE - {target}: {setting} changed from {old_value} to {new_value}"
         )
 
@@ -141,7 +144,7 @@ class RecordingLogger:
     ):
         """Log metadata operations"""
         status = "SUCCESS" if success else "FAILED"
-        recording_logger.info(
+        self.logger.info(
             f"[SESSION:{self.session_id}] METADATA - {streamer_name}: {operation} - {status} {details}"
         )
 
@@ -153,6 +156,6 @@ class RecordingLogger:
         details: str = "",
     ):
         """Log cleanup operations"""
-        recording_logger.info(
+        self.logger.info(
             f"[SESSION:{self.session_id}] CLEANUP - {streamer_name}: Deleted {files_deleted} files, freed {space_freed} MB {details}"
         )

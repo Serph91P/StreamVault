@@ -30,6 +30,7 @@ from sqlalchemy.orm import joinedload
 
 if TYPE_CHECKING:
     from app.services.system.twitch_token_service import TwitchTokenService
+    from app.services.system.logging_service import LoggingService
 
 try:
     import psutil  # noqa: F401
@@ -127,10 +128,14 @@ class ProcessManager:
         config_manager: ConfigManager,
         post_processing_callback: Callable[[int, str], Awaitable[None]],
         upstream_coordinator: TwitchUpstreamCoordinator,
+        logging_service: "LoggingService | None" = None,
     ) -> "ProcessManager":
         instance = object.__new__(cls)
         instance._initialize(
-            config_manager, post_processing_callback, upstream_coordinator
+            config_manager,
+            post_processing_callback,
+            upstream_coordinator,
+            logging_service=logging_service,
         )
         return instance
 
@@ -139,6 +144,7 @@ class ProcessManager:
         config_manager: ConfigManager | None,
         post_processing_callback: Callable[[int, str], Awaitable[None]] | None,
         upstream_coordinator: TwitchUpstreamCoordinator | None,
+        logging_service: "LoggingService | None" = None,
     ) -> None:
         self.active_processes = {}
         self.long_stream_processes = {}  # Track processes that need segmentation
@@ -173,9 +179,15 @@ class ProcessManager:
 
         # Initialize structured logging service
         try:
-            from app.services.system.logging_service import logging_service
+            from app.services.system.logging_service import (
+                logging_service as legacy_logging_service,
+            )
 
-            self.logging_service = logging_service
+            self.logging_service = (
+                logging_service
+                if logging_service is not None
+                else legacy_logging_service
+            )
             logger.debug("ProcessManager logging handle attached")
         except Exception as e:
             logger.warning(

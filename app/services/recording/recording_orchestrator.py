@@ -11,6 +11,7 @@ from time import monotonic
 from typing import Dict, Any, Optional, List
 from sqlalchemy.orm import Session
 from app.config.settings import Settings
+from app.services.system.logging_service import LoggingService
 from app.services.background_queue_service import BackgroundQueueService
 from app.services.communication.websocket_manager import ConnectionManager
 from app.services.core.state_persistence_service import StatePersistenceService
@@ -47,6 +48,7 @@ class RecordingOrchestrator:
         session_factory: Callable[[], Session] | None = None,
         connection_manager: ConnectionManager | None = None,
         queue_service: BackgroundQueueService | None = None,
+        logging_service: LoggingService | None = None,
     ):
         context = (settings, session_factory, connection_manager, queue_service)
         owned = any(value is not None for value in context)
@@ -160,6 +162,7 @@ class RecordingOrchestrator:
         self.process_manager = (
             ProcessManager.for_application(
                 config_manager=self.config_manager,
+                logging_service=logging_service,
                 post_processing_callback=post_processing_callback,
                 upstream_coordinator=TwitchUpstreamCoordinator(
                     session_factory, monotonic_clock=monotonic
@@ -173,7 +176,9 @@ class RecordingOrchestrator:
         )
 
         # Initialize remaining managers
-        self.recording_logger = RecordingLogger(config_manager=self.config_manager)
+        self.recording_logger = RecordingLogger(
+            config_manager=self.config_manager, service=logging_service
+        )
         self.notification_manager = NotificationManager(
             config_manager=self.config_manager
         )
@@ -189,10 +194,17 @@ class RecordingOrchestrator:
         )
 
         # Initialize logging service
+        self.logging_service = None
         try:
-            from app.services.system.logging_service import logging_service
+            from app.services.system.logging_service import (
+                logging_service as legacy_logging_service,
+            )
 
-            self.logging_service = logging_service
+            self.logging_service = (
+                logging_service
+                if logging_service is not None
+                else legacy_logging_service
+            )
         except Exception as e:
             logger.warning(f"Could not initialize logging service: {e}")
             self.logging_service = None

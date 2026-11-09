@@ -228,6 +228,7 @@ def _get_application_recording_manager(app: FastAPI):
                 session_factory=database.sync_session_factory,
                 connection_manager=app.state.websocket_manager,
                 queue_service=app.state.background_queue_service,
+                logging_service=_get_application_logging_service(app),
             )
             orchestrator.process_manager.proxy_health_service = (
                 _get_application_proxy_health_service(app)
@@ -555,6 +556,7 @@ def _get_application_logging_service(app: FastAPI) -> LoggingService:
                 or configuration.LOG_DIR
                 or "/app/logs",
                 isolated=True,
+                log_format=configuration.LOG_FORMAT,
             )
             app.state.logging_service = service
         return service

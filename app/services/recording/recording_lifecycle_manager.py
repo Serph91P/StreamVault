@@ -14,6 +14,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from app.config.constants import ASYNC_DELAYS
 from app.utils.path_utils import generate_filename, update_episode_number
+from app.utils.async_db_utils import run_in_thread_pool
 from app.services.api.twitch_api import twitch_api
 
 try:
@@ -219,8 +220,9 @@ class RecordingLifecycleManager:
             recovery_generation = kwargs.get("recovery_generation")
 
             # Log recording start to dedicated file
-            if hasattr(self, "recording_logger"):
-                self.recording_logger.log_recording_start(
+            if hasattr(self, "recording_logger") and self.recording_logger is not None:
+                await run_in_thread_pool(
+                    self.recording_logger.log_recording_start,
                     streamer_id=streamer_id,
                     streamer_name=streamer_name,
                     quality=quality,
@@ -279,7 +281,7 @@ class RecordingLifecycleManager:
             success = await self._stop_recording_process(recording_id)
 
             # Log recording stop to dedicated file
-            if hasattr(self, "recording_logger"):
+            if hasattr(self, "recording_logger") and self.recording_logger is not None:
                 try:
                     # Get recording info for logging
                     recording = await self.database_service.get_recording_by_id(
@@ -300,13 +302,17 @@ class RecordingLifecycleManager:
                         if hasattr(recording, "created_at") and recording.created_at:
                             from datetime import datetime, timezone
 
+                            created_at = recording.created_at
+                            if created_at.tzinfo is None:
+                                created_at = created_at.replace(tzinfo=timezone.utc)
                             duration = int(
                                 (
-                                    datetime.now(timezone.utc) - recording.created_at
+                                    datetime.now(timezone.utc) - created_at
                                 ).total_seconds()
                             )
 
-                        self.recording_logger.log_recording_stop(
+                        await run_in_thread_pool(
+                            self.recording_logger.log_recording_stop,
                             streamer_id=recording_data["streamer_id"],
                             streamer_name=streamer_name,
                             duration=duration,
