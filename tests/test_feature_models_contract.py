@@ -34,6 +34,8 @@ FEATURES = {
     "system": ("GlobalSettings", "SystemState", "SystemConfig"),
     "upstream": ("TwitchUpstreamLease", "TwitchUpstreamCoordinationState"),
     "proxies": ("ProxySettings",),
+    "video_catalog": ("VideoCatalogEntry",),
+    "background_task": ("BackgroundTask", "BackgroundTaskDependency"),
 }
 
 
@@ -95,7 +97,10 @@ def test_models_have_feature_local_typed_definitions_and_stable_aliases(
         assert model.__module__ == f"app.models.{feature}"
         feature_module = importlib.import_module(f"app.models.{feature}")
         assert getattr(feature_module, name) is model
-        assert getattr(legacy, name) is model
+        if feature in {"video_catalog", "background_task"}:
+            assert not hasattr(legacy, name)  # Added by #1045, never legacy exports.
+        else:
+            assert getattr(legacy, name) is model
         node = ast.parse(python_inspect.getsource(model)).body[0]
         annotated = {
             field.target.id: field.annotation
@@ -119,7 +124,13 @@ def test_feature_model_metadata_preserves_pre_extraction_sqlite_and_postgres_abi
     baseline = json.loads(
         (Path(__file__).parent / "fixtures" / "model-schema-baseline.json").read_text()
     )
-    assert snapshot_model_schema() == baseline
+    additions = json.loads(
+        (Path(__file__).parent / "fixtures" / "accepted-develop-1045.json").read_text()
+    )["models"]
+    current = snapshot_model_schema()
+    for name, definition in additions.items():
+        assert current.pop(name) == definition
+    assert current == baseline
 
 
 def test_feature_relationship_graph_round_trips_in_an_isolated_database(

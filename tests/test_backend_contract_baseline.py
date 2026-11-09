@@ -12,6 +12,9 @@ from tests.backend_contract_capture import public_contract, settings_contract
 
 ROOT = Path(__file__).resolve().parents[1]
 BASELINE = json.loads((ROOT / "docs/architecture/contracts/base-842.json").read_text())
+DEVELOP_1045 = json.loads(
+    (ROOT / "tests/fixtures/accepted-develop-1045.json").read_text()
+)
 
 
 def test_public_openapi_routes_and_middleware_preserve_verified_base():
@@ -91,6 +94,11 @@ def test_public_openapi_routes_and_middleware_preserve_verified_base():
         operation = copy.deepcopy(expected["openapi"]["paths"]["/streamers"])
         operation["get"]["operationId"] = f"serve_spa_routes_{path[1:]}_get"
         assert schema["paths"].pop(path) == operation
+    # Exact published #1045 additions; never regenerate the historical baseline.
+    for path, definition in DEVELOP_1045["added_paths"].items():
+        assert schema["paths"].pop(path) == definition
+    for path, definition in DEVELOP_1045["added_heads"].items():
+        assert schema["paths"][path].pop("head") == definition
     assert schema == expected["openapi"]
 
     # Handler modules may move; registration order, route kind and methods may not.
@@ -104,6 +112,13 @@ def test_public_openapi_routes_and_middleware_preserve_verified_base():
     expected_routes[insertion:insertion] = [
         (path, ["GET"], "APIRoute") for path in spa_paths
     ]
+    insertion = expected_routes.index(("/api/videos", ["GET"], "APIRoute"))
+    expected_routes[insertion:insertion] = [
+        (path, ["GET"], "APIRoute") for path in DEVELOP_1045["added_paths"]
+    ]
+    for path in DEVELOP_1045["added_heads"]:
+        insertion = expected_routes.index((path, ["GET"], "APIRoute")) + 1
+        expected_routes.insert(insertion, (path, ["HEAD"], "APIRoute"))
     assert signatures(current["routes_in_registration_order"]) == expected_routes
     assert (
         current["middleware_in_registration_order"]
@@ -157,4 +172,12 @@ def test_feature_model_layout_preserves_canonical_postgresql_schema():
         }
         for table in Base.metadata.sorted_tables
     ]
-    assert current == BASELINE["canonical_postgresql_schema"]
+    added_tables = {
+        entry["table"] for entry in DEVELOP_1045["canonical_postgresql_schema"]
+    }
+    assert [
+        entry for entry in current if entry["table"] in added_tables
+    ] == DEVELOP_1045["canonical_postgresql_schema"]
+    assert [
+        entry for entry in current if entry["table"] not in added_tables
+    ] == BASELINE["canonical_postgresql_schema"]
