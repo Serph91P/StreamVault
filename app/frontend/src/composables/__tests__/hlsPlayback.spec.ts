@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   HLS_WORKER_URL,
   createHlsConfig,
+  loadFullHlsJs,
   selectHlsPlaybackEngine
 } from '../hlsPlayback'
 
@@ -12,6 +13,17 @@ function videoWithNativeSupport(result: CanPlayTypeResult): HTMLVideoElement {
 }
 
 describe('HLS playback strategy', () => {
+  it('loads every full-build controller and the same event/version contracts', async () => {
+    const Hls = await loadFullHlsJs()
+    const original = (await import('hls.js')).default
+    expect(Hls.version).toBe(original.version)
+    expect(Hls.Events).toEqual(original.Events)
+    expect(Object.keys(Hls.DefaultConfig).sort()).toEqual(Object.keys(original.DefaultConfig).sort())
+    for (const key of ['audioStreamController', 'subtitleStreamController', 'timelineController', 'emeController'] as const) {
+      expect(Hls.DefaultConfig[key]).toBeTypeOf('function')
+    }
+  })
+
   it('uses native HLS before importing hls.js', async () => {
     const importer = vi.fn()
 

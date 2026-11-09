@@ -269,6 +269,8 @@ describe('VideoPlayerView backend playback contract', () => {
     expect(wrapper.get('.chapter-item').findAll('.chapter-title, .chapter-category, .chapter-time, .chapter-duration').map(row => row.text())).toEqual([
       title, 'Synthetic category', '0:01 - 0:04', 'Duration: 0:03',
     ])
+    expect(wrapper.get('.chapter-item').attributes('aria-label')).toBeUndefined()
+    expect(wrapper.get('.chapter-item').text()).toContain('Seek to ')
     await wrapper.get('.chapter-item').trigger('click')
     expect(mocks.seekToChapter).toHaveBeenCalledWith(1.25)
     wrapper.unmount()

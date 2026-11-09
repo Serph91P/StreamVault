@@ -12,7 +12,8 @@ export type HlsPlaybackEngine =
   | { mode: 'hls.js'; Hls: HlsConstructor }
 
 export const loadFullHlsJs: HlsImporter = async () => {
-  const module = await import('hls.js')
+  // Use the upstream full minified ESM build, not the feature-reduced light build.
+  const module = await import('hls.js/dist/hls.min.mjs')
   return module.default
 }
 

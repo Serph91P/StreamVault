@@ -72,6 +72,9 @@ async function namedNativeTarget(page: Page, scope: Locator, name: string, role:
   await expect(page.locator(`[id="${id}"]`)).toHaveCount(1)
   await scope.locator(`label[for="${id}"]`).click()
   await expect(control).toBeFocused()
+  // Chromium opens the native picker on label activation; dismiss it before
+  // testing document tab order rather than spending Tab on picker dismissal.
+  if (role === 'combobox') await page.keyboard.press('Escape')
   await page.keyboard.press('Tab')
   await expect(control).not.toBeFocused()
   await page.keyboard.press('Shift+Tab')
@@ -175,6 +178,10 @@ for (const theme of ['light', 'dark'] as const) {
       await expect(page.locator(`[id="${id}"]`)).toHaveCount(1)
       await dialog.locator(`label[for="${id}"]`).click()
       await expect(control).toBeFocused()
+      // Close a single-select picker before testing dialog document tab order.
+      if (await control.evaluate(element => element instanceof HTMLSelectElement && !element.multiple)) {
+        await page.keyboard.press('Escape')
+      }
       await page.keyboard.press('Tab')
       await page.keyboard.press('Shift+Tab')
       await expect(control).toBeFocused()

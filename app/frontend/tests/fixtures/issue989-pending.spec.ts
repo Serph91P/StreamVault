@@ -57,7 +57,7 @@ for (const mobile of [false, true]) {
       await bell.click()
       const panel = page.locator('#notification-panel')
       await expect(panel.locator('.notification-item')).toHaveCount(1)
-      const markAll = panel.getByRole('button', { name: 'Mark all notifications read', exact: true })
+      const markAll = panel.getByRole('button', { name: 'Mark all read', exact: true })
       if (mobile) await markAll.tap()
       else await markAll.click()
       await expect.poll(() => committed).toBe(true)

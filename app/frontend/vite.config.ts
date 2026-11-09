@@ -2,6 +2,7 @@ import { fileURLToPath, URL } from 'node:url'
 import { defineConfig, type Plugin } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { VitePWA } from 'vite-plugin-pwa'
+import { compactProductionChunks } from './scripts/compact-production-chunks'
 
 function retryableSettingsPanelHost(): Plugin {
   const publicPath = '/assets/settings-panel-host-loader.js'
@@ -72,6 +73,7 @@ export const loadSettingsPanelHost=async attempt=>{const[,panelModule]=await Pro
 export default defineConfig({
   plugins: [
     vue(),
+    compactProductionChunks(),
     retryableSettingsPanelHost(),
     VitePWA({
       registerType: 'autoUpdate',
@@ -153,6 +155,9 @@ export default defineConfig({
     // PERFORMANCE OPTIMIZATION
     rollupOptions: {
       output: {
+        chunkFileNames: chunk => chunk.name === 'hls.min'
+          ? 'assets/hls-[hash].js'
+          : 'assets/[name]-[hash].js',
         manualChunks(id) {
           // Split vendor libraries for better caching
           if (id.includes('node_modules/vue/') || id.includes('node_modules/vue-router/')) {
@@ -173,12 +178,15 @@ export default defineConfig({
         }
       }
     },
-    // Use Vite's default production minifier.
+    // Keep Vite's native final minification after production compression.
     minify: true,
     // Force empty output directory to prevent build errors
     emptyOutDir: true,
     // More robust output directory handling
     outDir: 'dist'
+  },
+  worker: {
+    plugins: () => [compactProductionChunks()],
   },
   // Development optimization
   server: {

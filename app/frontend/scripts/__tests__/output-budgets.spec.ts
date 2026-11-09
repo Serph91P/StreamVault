@@ -26,7 +26,7 @@ const compliantWithWorker = {
     path: 'assets/hls.worker-R6zLAL9a.js',
     bytes: 116764,
     gzipBytes: 40615,
-    packageVersion: '1.7.3',
+    packageVersion: '1.7.4',
   },
 }
 

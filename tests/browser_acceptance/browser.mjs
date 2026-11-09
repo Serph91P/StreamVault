@@ -4,7 +4,7 @@ import assert from 'node:assert/strict'
 import { verifyShell } from './shell.mjs'
 const { chromium, expect } = createRequire(process.env.FRONTEND_ROOT + '/package.json')('@playwright/test')
 const origin = process.env.ACCEPTANCE_ORIGIN, output = process.env.ACCEPTANCE_OUTPUT
-const browser = await chromium.launch({ executablePath: '/opt/data/agent/cache/ms-playwright/chromium-1243/chrome-linux64/chrome', headless: true })
+const browser = await chromium.launch({ executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ?? chromium.executablePath(), headless: true })
 const result = { scope: 'Final REAL candidate + production app factory/routers/services; disposable SQLite/media; zero API fulfills', cases: [] }
 try {
   for (const device of [

@@ -122,13 +122,13 @@ for (const mobile of [false, true]) {
       expect(writes).toEqual([])
 
       failure = 'mark-read'
-      await panel.getByRole('button', { name: 'Mark all notifications read', exact: true }).click()
+      await panel.getByRole('button', { name: 'Mark all read', exact: true }).click()
       await expect(panel).toContainText('could not be marked read')
       await expect(bell.locator('.badge')).toHaveText('1')
       failure = undefined
       await panel.getByRole('button', { name: 'Retry', exact: true }).click()
       await expect(item('A')).toBeVisible()
-      await panel.getByRole('button', { name: 'Mark all notifications read', exact: true }).click()
+      await panel.getByRole('button', { name: 'Mark all read', exact: true }).click()
       await expect(bell.locator('.badge')).toHaveCount(0)
       expect(writes).toEqual(['POST /api/notifications/mark-read', 'POST /api/notifications/mark-read'])
       await item('A').getByRole('button', { name: 'Mark A unread', exact: true }).click()
