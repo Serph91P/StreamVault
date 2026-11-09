@@ -107,7 +107,6 @@
                 type="button"
                 class="chapter-item"
                 :class="{ 'active': currentChapterIndex === index }"
-                :aria-label="chapterAccessibleName(chapter)"
                 :aria-current="currentChapterIndex === index ? 'true' : undefined"
                 @click="seekToChapter(chapter)"
               >
@@ -123,6 +122,7 @@
                     <use :href="`#icon-${chapter.artwork.startsWith('icon:') ? chapter.artwork.slice(5) : 'gamepad'}`" />
                   </svg>
                 </div>
+                <span class="sr-only">Seek to </span>
                 <ChapterDetails :title="chapter.title" :category-name="chapter.category_name" :start="chapter.start" :end="chapter.end" />
               </button>
             </div>
@@ -354,10 +354,6 @@ const loadChapterData = async () => {
     if (generation === loadGeneration.value) isLoading.value = false
   }
 }
-
-
-const chapterAccessibleName = (chapter: ChapterData['chapters'][number]) =>
-  `Seek to ${chapter.title} at ${formatTimestamp(chapter.start)}`
 
 // The shared helper validates Vue Router's previous in-app history entry.
 const goBack = () => returnFromVideo(router)

@@ -4,7 +4,7 @@ import { chapterVariants, playerViewports, syntheticChapters } from './issue828S
 
 async function assertBounds(page: Page, hasChapters: boolean) {
   for (const name of ['Play', 'Mute', ...(hasChapters ? ['Chapters'] : []), 'Fullscreen', 'Back to previous page']) {
-    const button = page.getByRole('button', { name, exact: true })
+    const button = page.getByRole('button', { name: name === 'Chapters' ? /^Chapters \d+$/ : name, exact: true })
     await expect(button).toBeVisible()
     await readyForSettledMotion(button)
     const box = await button.boundingBox()
@@ -37,7 +37,7 @@ for (const viewport of playerViewports) {
         await expect.poll(() => video.evaluate(el => (el as HTMLVideoElement).duration)).toBe(12)
         const chapters = syntheticChapters(variant)
         await assertBounds(page, chapters.length > 0)
-        const opener = page.getByRole('button', { name: 'Chapters', exact: true })
+        const opener = page.getByRole('button', { name: /^Chapters \d+$/, exact: true })
         if (!chapters.length) {
           await expect(opener).toHaveCount(0)
           await expect(page.getByRole('dialog', { name: 'Chapters' })).toHaveCount(0)

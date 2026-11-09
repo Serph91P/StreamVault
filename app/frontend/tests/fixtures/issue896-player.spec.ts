@@ -311,7 +311,7 @@ for (const viewport of [
       'inline title is completely rendered, not merely present in the DOM',
     ).toBe(true)
 
-    const opener = page.getByRole('button', { name: 'Chapters', exact: true })
+    const opener = page.getByRole('button', { name: /^Chapters \d+$/, exact: true })
     const before = await readyForMeasuredClick(page, opener)
     const origin = (await opener.boundingBox())!
     await page.touchscreen.tap(origin.x + origin.width / 2, origin.y + origin.height / 2)

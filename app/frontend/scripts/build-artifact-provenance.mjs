@@ -19,6 +19,7 @@ const sourceInputs = [
   'tsconfig.node.json',
   'vite.config.ts',
   'scripts/build-artifact-provenance.mjs',
+  'scripts/compact-production-chunks.ts',
 ]
 
 function requireMode(mode) {

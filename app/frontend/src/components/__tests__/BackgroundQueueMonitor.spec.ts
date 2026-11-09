@@ -63,6 +63,22 @@ describe('BackgroundQueueMonitor', () => {
     document.body.innerHTML = ''
   })
 
+  it.each([0, 1, 2])('includes the visible Queue count in the accessible name for %i jobs', count => {
+    queueState.activeTasks.value = Array.from({ length: count }, (_, id) => ({
+      id: `task-${id}`, task_type: 'thumbnail', status: 'running', progress: 50,
+      started_at: '2026-10-09T12:00:00Z', payload: { streamer_name: 'Synthetic' },
+    }))
+    const wrapper = mount(BackgroundQueueMonitor)
+    const trigger = wrapper.get('.queue-status-indicator')
+    try {
+      expect(trigger.attributes('aria-label')).toContain(`Queue ${count}`)
+      expect(wrapper.get('.queue-info').text()).toBe(`Queue ${count}`)
+      expect(trigger.attributes('aria-label')).toContain(`${count} active ${count === 1 ? 'job' : 'jobs'}`)
+    } finally {
+      wrapper.unmount()
+    }
+  })
+
   it('focuses the dialog on open, closes with Escape, and restores its trigger', async () => {
     const wrapper = mount(BackgroundQueueMonitor, { attachTo: document.body })
     const trigger = wrapper.get('button')

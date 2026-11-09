@@ -152,7 +152,7 @@ onMounted(() => {
           v-if="unreadCount > 0"
           type="button"
           class="header-action mark-read-action"
-          aria-label="Mark all notifications read"
+          aria-label="Mark all read"
           :disabled="isMutating"
           @click="markAllRead"
         >

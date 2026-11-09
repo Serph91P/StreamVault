@@ -5,7 +5,7 @@
       v-if="!inline"
       type="button"
       class="queue-status-indicator"
-      :aria-label="`Open background queue, ${combinedActiveTasks.length} active ${combinedActiveTasks.length === 1 ? 'job' : 'jobs'}`"
+      :aria-label="`Open background queue, Queue ${combinedActiveTasks.length} active ${combinedActiveTasks.length === 1 ? 'job' : 'jobs'}`"
       aria-haspopup="dialog"
       :aria-expanded="showPanel"
       :aria-controls="panelId"
@@ -16,7 +16,7 @@
       </svg>
 
       <div class="queue-info">
-        <span class="queue-label">Queue</span>
+        <span class="queue-label">{{ 'Queue ' }}</span>
         <span class="queue-count">{{ combinedActiveTasks.length }}</span>
       </div>
 

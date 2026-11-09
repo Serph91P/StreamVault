@@ -41,6 +41,19 @@ describe('build artifact provenance', () => {
     await expect(verifyBuildProvenance(root, 'mock')).rejects.toThrow(/source bytes changed/)
   })
 
+  it('invalidates reuse when production compression code changes', async () => {
+    const root = await fixture()
+    try {
+      await mkdir(join(root, 'scripts'), { recursive: true })
+      await writeFile(join(root, 'scripts', 'compact-production-chunks.ts'), 'export const passes = 3\n')
+      await recordBuildProvenance(root, 'mock')
+      await writeFile(join(root, 'scripts', 'compact-production-chunks.ts'), 'export const passes = 4\n')
+      await expect(verifyBuildProvenance(root, 'mock')).rejects.toThrow(/source bytes changed/)
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
   it('fails closed when the provenance file is absent or malformed', async () => {
     const root = await fixture()
     await expect(verifyBuildProvenance(root, 'mock')).rejects.toThrow(/provenance is missing/)

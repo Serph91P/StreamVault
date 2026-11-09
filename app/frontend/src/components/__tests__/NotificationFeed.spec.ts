@@ -99,6 +99,15 @@ describe('NotificationFeed states', () => {
     expect(wrapper.emitted('clear-all')).toHaveLength(1)
   })
 
+  it('keeps the visible mark-all label in its accessible name', async () => {
+    const { wrapper, store } = mountFeed()
+    store.notifications = [first]
+    await flushPromises()
+    const action = wrapper.get('.mark-read-action')
+    expect(action.attributes('aria-label')).toContain(action.text())
+    wrapper.unmount()
+  })
+
   it('preserves local notifications and exposes a retryable error when backend clear fails', async () => {
     api.clear.mockRejectedValueOnce(new Error('backend unavailable')).mockResolvedValueOnce({})
     localStorage.setItem('streamvault_notifications', JSON.stringify([first]))

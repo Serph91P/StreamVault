@@ -16,7 +16,7 @@ const chromePath = await validateLighthouseChromePath(process.env.LIGHTHOUSE_CHR
 
 const scenarios = [
   { id: 'mobile-streamers', route: '/streamers', readinessSelector: '.streamers-view', formFactor: 'mobile', viewport: { width: 390, height: 844 } },
-  { id: 'desktop-home', route: '/', readinessSelector: '.home-view', formFactor: 'desktop', viewport: { width: 1440, height: 900 } },
+  { id: 'desktop-home', route: '/overview', readinessSelector: '.home-view', formFactor: 'desktop', viewport: { width: 1440, height: 900 } },
 ]
 
 function startPreviewServer() {
@@ -82,6 +82,8 @@ function lighthouseFlags(port, scenario, cacheMode) {
 }
 
 async function launchIsolatedChrome(userDataDir) {
+  // The launcher appends stderr and otherwise rediscovers the previous run's port.
+  await writeFile(join(userDataDir, 'chrome-err.log'), '')
   const chrome = await launch({
     chromePath,
     userDataDir,
