@@ -380,51 +380,33 @@ def test_fresh_jwt_login_reaches_authenticated_media_contract(
         "WEBVTT\n\n00:00:00.000 --> 00:00:04.000\nOpening\n",
         encoding="utf-8",
     )
-    stream = SimpleNamespace(
-        id=1,
-        title="Synthetic recording",
-        recording_path=str(media_file),
-        started_at=None,
-        ended_at=None,
-    )
-    metadata = SimpleNamespace(
-        stream_id=1,
-        chapters_vtt_path=str(chapters),
-        chapters_ffmpeg_path=None,
-    )
+    from app.models import Stream, Streamer, StreamMetadata
 
-    class Query:
-        def __init__(self, value):
-            self.value = value
-
-        def filter(self, *_args):
-            return self
-
-        def first(self):
-            return self.value
-
-    class MediaDb:
-        def query(self, model):
-            return Query(metadata if model.__name__ == "StreamMetadata" else stream)
-
-    from app.config import settings as settings_module
-
+    Base.metadata.create_all(_SessionFactory.kw["bind"])
+    with _SessionFactory() as db:
+        channel = Streamer(username="synthetic-media", twitch_id="synthetic-media")
+        db.add(channel)
+        db.flush()
+        db.add(
+            Stream(
+                id=1,
+                streamer_id=channel.id,
+                title="Synthetic recording",
+                recording_path=str(media_file),
+            )
+        )
+        db.flush()
+        db.add(StreamMetadata(stream_id=1, chapters_vtt_path=str(chapters)))
+        db.commit()
+    _settings.BASE_URL = "https://test.invalid"
+    _settings.RECORDING_DIRECTORY = str(tmp_path)
     monkeypatch.setattr(
-        video_routes, "validate_path_security", lambda path, _mode: path
+        video_routes,
+        "validate_path_security",
+        lambda path, _mode, *, recording_directory=None: path,
     )
     monkeypatch.setattr(video_routes, "validate_file_type", lambda *_args: None)
     monkeypatch.setattr(video_routes, "get_recordings_directory", lambda: str(tmp_path))
-    monkeypatch.setattr(video_routes, "store_share_token", lambda *_args: None)
-    monkeypatch.setattr(video_routes, "cleanup_expired_tokens", lambda: None)
-    monkeypatch.setattr(
-        settings_module,
-        "get_settings",
-        lambda: SimpleNamespace(BASE_URL="https://test.invalid"),
-    )
-    from contextlib import nullcontext
-
-    app.dependency_overrides[get_db] = lambda: MediaDb()
-    monkeypatch.setattr(video_routes, "SessionLocal", lambda: nullcontext(MediaDb()))
 
     with TestClient(app) as client:
         login = client.post(

@@ -95,6 +95,9 @@ class AuthService:
         return bool(self.db.query(User).filter_by(is_admin=True).first())
 
     async def create_admin(self, user_data: UserCreate) -> UserResponse:
+        return self.create_admin_sync(user_data)
+
+    def create_admin_sync(self, user_data: UserCreate) -> UserResponse:
         admin = User(
             username=user_data.username,
             password=self.hash_password(user_data.password),
@@ -107,6 +110,9 @@ class AuthService:
         return UserResponse.model_validate(admin)
 
     async def validate_login(self, username: str, password: str) -> Optional[User]:
+        return self.validate_login_sync(username, password)
+
+    def validate_login_sync(self, username: str, password: str) -> Optional[User]:
         user = self.db.query(User).filter_by(username=username).first()
         if not user or not getattr(user, "is_active", True):
             return None
@@ -360,6 +366,9 @@ class AuthService:
 
     async def create_session(self, user_id: int) -> str:
         """Create the temporary legacy opaque session during the JWT migration."""
+        return self.create_session_sync(user_id)
+
+    def create_session_sync(self, user_id: int) -> str:
         token = secrets.token_urlsafe(32)
         self.db.add(Session(user_id=user_id, token=_hash_token(token)))
         self.db.commit()
@@ -411,6 +420,9 @@ class AuthService:
         return len(expired)
 
     async def delete_session(self, token: str) -> bool:
+        return self.delete_session_sync(token)
+
+    def delete_session_sync(self, token: str) -> bool:
         session = self.db.query(Session).filter_by(token=_hash_token(token)).first()
         if not session:
             return False
