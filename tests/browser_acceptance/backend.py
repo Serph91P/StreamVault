@@ -33,6 +33,7 @@ from app.models import (
 )
 from app.services.core.auth_service import AuthService
 from app.services.background_queue_service import background_queue_service
+from app.services.media.video_catalog_service import VideoCatalogService
 from app.services.queues.task_progress_tracker import (
     QueueTask,
     TaskPriority,
@@ -173,6 +174,9 @@ async def seed():
                     )
                 )
         db.commit()
+        # This isolated harness disables production lifespan/background workers.
+        # Index its real generated media through the same service as runtime.
+        VideoCatalogService(db).reconcile_batch(after_id=0, limit=100)
     return {"seeded": True}
 
 
