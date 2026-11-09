@@ -128,9 +128,10 @@ async def test_owned_oauth_selection_reuses_fresh_tokens_and_singleflights_refre
     service._refresh_lock = ObservedLock()
 
     async def provider(method, url, **kwargs):
-        assert all(db.sync_engine.pool.checkedout() == 0 for db in databases)
         requests.append(method)
         assert await asyncio.wait_for(waiting.wait(), 2)
+        # The peer's snapshot can still be reading until it joins the lock.
+        assert all(db.sync_engine.pool.checkedout() == 0 for db in databases)
         return HTTPReply(
             200, {}, b'{"access_token":"fixture-renewed","expires_in":7200}'
         )

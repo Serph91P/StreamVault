@@ -1,6 +1,7 @@
 """Periodic realtime producers snapshot only their own DB/queue off-loop."""
 
 import asyncio
+from contextvars import ContextVar
 from datetime import datetime, timezone
 import json
 from pathlib import Path
@@ -29,12 +30,18 @@ async def test_factory_broadcaster_uses_owned_db_queue_and_closed_session_snapsh
     loop_thread = threading.get_ident()
     sql_threads = []
     active_sessions = set()
+    snapshot_scope = ContextVar("broadcast_snapshot_scope", default=False)
+    observed_snapshot_sessions = []
     closed_at_send = []
     frames = [asyncio.Queue(), asyncio.Queue()]
     task_ids = []
+    release_tasks = asyncio.Event()
 
     def transaction_open(session, *_args):
-        active_sessions.add(id(session))
+        # Concurrent queue heartbeats are not borrowed broadcast transactions.
+        if snapshot_scope.get():
+            active_sessions.add(id(session))
+            observed_snapshot_sessions.append(id(session))
 
     def transaction_closed(session, *_args):
         active_sessions.discard(id(session))
@@ -67,9 +74,20 @@ async def test_factory_broadcaster_uses_owned_db_queue_and_closed_session_snapsh
     try:
         for app, outgoing in zip(apps, frames, strict=True):
             queue = app.state.background_queue_service
+            started = asyncio.Event()
+
+            async def probe_handler(_payload, _progress, started=started):
+                started.set()
+                await release_tasks.wait()
+                return True
+
+            # Deferred journal rows are not active workers under the 1045 contract.
+            queue.register_task_handler("scope.probe", probe_handler)
+            await queue.start()
             task_ids.append(
                 await queue.enqueue_task("scope.probe", {"streamer_name": "scope"})
             )
+            await asyncio.wait_for(started.wait(), 3)
             await queue.queue_manager.progress_tracker.cleanup_background_tasks()
 
             async def receive():
@@ -93,23 +111,32 @@ async def test_factory_broadcaster_uses_owned_db_queue_and_closed_session_snapsh
         for app, outgoing, label, task_id in zip(
             apps, frames, ("first", "second"), task_ids, strict=True
         ):
-            producer = app.state.websocket_broadcast_task
-            await producer._broadcast_active_recordings()
-            message = json.loads((await asyncio.wait_for(outgoing.get(), 3))["text"])
-            assert message["type"] == "active_recordings_update"
-            assert [row["streamer_name"] for row in message["data"]] == [label]
-            assert [row["file_path"] for row in message["data"]] == [f"/{label}.ts"]
-            await producer._broadcast_background_queue_status()
-            message = json.loads((await asyncio.wait_for(outgoing.get(), 3))["text"])
-            assert message["type"] == "background_queue_update"
-            assert [task["id"] for task in message["data"]["active_tasks"]] == [task_id]
+            with snapshot_scope.set(True):
+                producer = app.state.websocket_broadcast_task
+                await producer._broadcast_active_recordings()
+                message = json.loads(
+                    (await asyncio.wait_for(outgoing.get(), 3))["text"]
+                )
+                assert message["type"] == "active_recordings_update"
+                assert [row["streamer_name"] for row in message["data"]] == [label]
+                assert [row["file_path"] for row in message["data"]] == [f"/{label}.ts"]
+                await producer._broadcast_background_queue_status()
+                message = json.loads(
+                    (await asyncio.wait_for(outgoing.get(), 3))["text"]
+                )
+                assert message["type"] == "background_queue_update"
+                assert [task["id"] for task in message["data"]["active_tasks"]] == [
+                    task_id
+                ]
         assert sql_threads and all(thread != loop_thread for thread in sql_threads)
+        assert observed_snapshot_sessions and not active_sessions
         assert closed_at_send == [True, True]
         await apps[0].state.websocket_broadcast_task.start()
         await apps[1].state.websocket_broadcast_task.start()
         await apps[0].state.websocket_broadcast_task.stop()
         assert apps[1].state.websocket_broadcast_task.is_running
     finally:
+        release_tasks.set()
         event.remove(Session, "after_begin", transaction_open)
         event.remove(Session, "after_transaction_end", transaction_closed)
         for app, database in zip(apps, databases, strict=True):
