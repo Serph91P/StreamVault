@@ -42,6 +42,12 @@ SYNC_HANDLERS = {
         "update_streamer_cleanup_policy",
     ),
     "recordings": ("get_latest_recording", "get_recent_recordings"),
+    "settings": (
+        "get_settings",
+        "get_all_streamer_settings",
+        "update_streamer_settings",
+        "get_streamer_settings",
+    ),
     "streamers": (
         "get_streamer",
         "update_streamer_settings",
@@ -74,6 +80,37 @@ def test_sync_handler_selects_the_native_fastapi_worker_branch(module, name):
 
 
 _OWNER = object()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "path", ["/api/settings", "/api/settings/streamer", "/api/settings/streamers"]
+)
+async def test_settings_read_sql_stays_in_native_owners(image_applications, path):
+    from app.models import GlobalSettings, NotificationSettings
+
+    _, databases, clients, queries = image_applications
+
+    def seed(index):
+        with databases[index].sync_session_factory() as db:
+            db.add(GlobalSettings(id=1, supported_codecs=("h264", "av1")[index]))
+            db.add(NotificationSettings(streamer_id=1, notify_online=bool(index)))
+            db.commit()
+
+    for index in range(2):
+        await run_in_thread_pool(seed, index)
+    for index, client in enumerate(clients):
+        queries.clear()
+        response = await client.get(path)
+        assert response.status_code == 200, response.text
+        if path == "/api/settings":
+            assert response.json()["supported_codecs"] == ("h264", "av1")[index]
+        else:
+            assert response.json()[0]["notify_online"] is bool(index)
+        assert queries and get_ident() not in [thread for thread, _ in queries]
+        assert all(
+            database.sync_engine.pool.checkedout() == 0 for database in databases
+        )
 
 
 @pytest.mark.asyncio

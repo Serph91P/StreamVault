@@ -63,6 +63,12 @@ def recording_application(monkeypatch):
             yield db
 
     application.dependency_overrides[get_db] = override_get_db
+    application.dependency_overrides[
+        recording_routes.get_application_session_factory
+    ] = lambda: Session
+    application.dependency_overrides[recording_routes.get_recording_status_cache] = (
+        lambda: cache
+    )
     monkeypatch.setattr(recording_routes, "SessionLocal", Session)
     from app.utils import cache as cache_module
 

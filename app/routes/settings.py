@@ -6,15 +6,19 @@ from app.schemas.settings import (
     StreamerNotificationSettingsUpdateSchema,
 )
 from app.dependencies import (
+    get_application_session_factory,
     get_application_twitch_token_service,
     get_image_service,
     get_notification_service_factory,
     get_settings_service,
+    get_streamlink_config_service,
     get_websocket_manager,
     require_scopes,
 )
 from app.services.core.settings_service import SettingsService
 from app.services.system.twitch_token_service import TwitchTokenService
+from app.services.system.streamlink_config_service import StreamlinkConfigService
+from sqlalchemy.orm import Session
 from app.services.notification_service import NotificationService
 from app.utils.async_db_utils import run_in_thread_pool
 import logging
@@ -30,14 +34,14 @@ router = APIRouter(
 
 
 @router.get("", response_model=GlobalSettingsSchema)
-async def get_settings(
+def get_settings(
     settings_service: SettingsService = Depends(get_settings_service),
 ):
     return settings_service.get_global_settings_schema()
 
 
 @router.get("/streamer", response_model=List[StreamerNotificationSettingsSchema])
-async def get_all_streamer_settings(
+def get_all_streamer_settings(
     settings_service: SettingsService = Depends(get_settings_service),
     image_service=Depends(get_image_service),
 ):
@@ -51,7 +55,7 @@ async def get_all_streamer_settings(
 @router.post(
     "/streamer/{streamer_id}", response_model=StreamerNotificationSettingsSchema
 )
-async def update_streamer_settings(
+def update_streamer_settings(
     streamer_id: int,
     settings_data: StreamerNotificationSettingsUpdateSchema,
     settings_service: SettingsService = Depends(get_settings_service),
@@ -69,7 +73,7 @@ async def update_streamer_settings(
 
 
 @router.get("/streamers")
-async def get_streamer_settings(
+def get_streamer_settings(
     settings_service: SettingsService = Depends(get_settings_service),
 ):
     try:
@@ -192,62 +196,63 @@ async def test_websocket_notification(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.post("", response_model=GlobalSettingsSchema)
-async def update_settings(
-    settings_data: GlobalSettingsSchema,
-    settings_service: SettingsService = Depends(get_settings_service),
-    notification_service_factory: Callable[[], NotificationService] = Depends(
-        get_notification_service_factory
-    ),
-    _identity=Depends(require_scopes("admin")),
-):
-    try:
-        if settings_data.notification_url and not settings_service.validate_apprise_url(
+def _persist_settings_snapshot(
+    session_factory: Callable[[], Session], settings_data: GlobalSettingsSchema
+) -> tuple[GlobalSettingsSchema, bool]:
+    with session_factory() as db:
+        service = SettingsService(db)
+        if settings_data.notification_url and not service.validate_apprise_url(
             settings_data.notification_url
         ):
             raise HTTPException(
                 status_code=400, detail="Invalid notification URL format"
             )
-
-        # Validate proxy URLs
-        if settings_data.http_proxy and not settings_service.validate_proxy_url(
+        if settings_data.http_proxy and not service.validate_proxy_url(
             settings_data.http_proxy
         ):
             raise HTTPException(
                 status_code=400,
                 detail="HTTP proxy URL must start with 'http://' or 'https://'",
             )
-
-        if settings_data.https_proxy and not settings_service.validate_proxy_url(
+        if settings_data.https_proxy and not service.validate_proxy_url(
             settings_data.https_proxy
         ):
             raise HTTPException(
                 status_code=400,
                 detail="HTTPS proxy URL must start with 'http://' or 'https://'",
             )
-
-        settings = settings_service.get_global_settings_row()
-
-        proxy_changed = (
+        settings = service.get_global_settings_row()
+        changed = (
             settings_data.http_proxy != settings.http_proxy
             or settings_data.https_proxy != settings.https_proxy
+            or settings_data.supported_codecs != settings.supported_codecs
         )
-        codec_changed = (
-            hasattr(settings_data, "supported_codecs")
-            and settings_data.supported_codecs != settings.supported_codecs
-        )
-        updated_settings = settings_service.update_global_settings(settings_data)
+        return service.update_global_settings(settings_data), changed
 
-        notification_service = notification_service_factory()
+
+@router.post("", response_model=GlobalSettingsSchema)
+async def update_settings(
+    settings_data: GlobalSettingsSchema,
+    session_factory: Callable[[], Session] = Depends(get_application_session_factory),
+    streamlink_config_service: StreamlinkConfigService = Depends(
+        get_streamlink_config_service
+    ),
+    notification_service_factory: Callable[[], NotificationService] = Depends(
+        get_notification_service_factory
+    ),
+    _identity=Depends(require_scopes("admin")),
+):
+    try:
+        updated_settings, config_changed = await run_in_thread_pool(
+            _persist_settings_snapshot, session_factory, settings_data
+        )
+
+        notification_service = await run_in_thread_pool(notification_service_factory)
         await run_in_thread_pool(notification_service._initialize_apprise)
 
         # Regenerate Streamlink config after the updated settings are committed.
         try:
-            from app.services.system.streamlink_config_service import (
-                streamlink_config_service,
-            )
-
-            if proxy_changed or codec_changed:
+            if config_changed:
                 logger.info(
                     "🔄 Proxy or codec settings changed - regenerating Streamlink config..."
                 )
@@ -264,6 +269,8 @@ async def update_settings(
             # Don't fail the whole settings update if config regeneration fails
 
         return updated_settings
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error updating settings: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
