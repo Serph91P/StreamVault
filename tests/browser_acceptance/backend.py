@@ -32,6 +32,7 @@ from app.models import (
     User,
 )
 from app.services.core.auth_service import AuthService
+from app.services.media.video_catalog_service import VideoCatalogService
 from app.services.background_queue_service import background_queue_service
 from app.services.queues.task_progress_tracker import (
     QueueTask,
@@ -178,6 +179,8 @@ async def seed():
                     )
                 )
         db.commit()
+        # Production lifespan is disabled here; index seeded files through its real worker seam.
+        VideoCatalogService(db).reconcile_batch(stream_ids=[933, 934, 935])
     return {"seeded": True}
 
 
