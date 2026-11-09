@@ -2,6 +2,7 @@
 Client IP extraction utilities for reverse proxy environments.
 """
 
+import ipaddress
 import logging
 
 from app.config.settings import settings
@@ -61,9 +62,10 @@ def get_real_client_ip(request_or_websocket) -> str:
             else:
                 client_ip = header_value.strip()
 
-            if client_ip and is_valid_ip(client_ip):
-                logger.debug(f"Real client IP found in {header_name}: {client_ip}")
-                return client_ip
+            parsed_ip = _parse_client_ip(client_ip) if client_ip else None
+            if parsed_ip is not None:
+                logger.debug("Real client IP found in %s: %s", header_name, parsed_ip)
+                return parsed_ip
 
     # Fallback to direct connection IP
     if direct_ip != "unknown":
@@ -73,45 +75,37 @@ def get_real_client_ip(request_or_websocket) -> str:
     return "unknown"
 
 
+def _parse_client_ip(value: str) -> str | None:
+    """Normalize a literal address, optionally with an unambiguous port."""
+    if not value or "%" in value:
+        return None
+    address = value
+    port = None
+    if value.startswith("["):
+        address, separator, suffix = value[1:].partition("]")
+        if not separator or (suffix and not suffix.startswith(":")):
+            return None
+        if suffix:
+            port = suffix[1:]
+    elif value.count(":") == 1:
+        address, port = value.rsplit(":", 1)
+    try:
+        if port is not None and (
+            not port.isascii() or not port.isdecimal() or not 1 <= int(port) <= 65535
+        ):
+            return None
+        parsed = ipaddress.ip_address(address)
+    except ValueError:
+        return None
+    # A forwarded loopback must not bypass the limiter's local-peer exemption.
+    if parsed.is_loopback:
+        return None
+    return str(parsed)
+
+
 def is_valid_ip(ip: str) -> bool:
-    """
-    Basic IP address validation.
-
-    Args:
-        ip: IP address string to validate
-
-    Returns:
-        True if the IP appears valid
-    """
-    if not ip or ip in ["unknown", "localhost", "127.0.0.1", "::1"]:
-        return False
-
-    # Remove port if present (IPv4:port or [IPv6]:port)
-    if ":" in ip and not ip.startswith("["):
-        # IPv4 with port
-        ip = ip.split(":")[0]
-    elif ip.startswith("[") and "]:" in ip:
-        # IPv6 with port
-        ip = ip[1 : ip.rindex("]")]
-
-    # Basic IPv4 validation
-    if "." in ip:
-        parts = ip.split(".")
-        if len(parts) == 4:
-            try:
-                return all(0 <= int(part) <= 255 for part in parts)
-            except ValueError:
-                return False
-
-    # Basic IPv6 validation (simplified)
-    if ":" in ip:
-        return len(ip.split(":")) <= 8 and all(
-            len(part) <= 4 and all(c in "0123456789abcdefABCDEF" for c in part)
-            for part in ip.split(":")
-            if part
-        )
-
-    return False
+    """Whether a forwarded value is a valid non-loopback literal address."""
+    return _parse_client_ip(ip) is not None
 
 
 def get_client_info(request_or_websocket) -> dict:
