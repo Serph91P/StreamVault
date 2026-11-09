@@ -45,6 +45,8 @@ def test_valid_forwarded_addresses(address):
         "[2001:db8::42]junk",
         "2001:db8::42%eth0",
         "203.0.113.42, 203.0.113.43",
+        pytest.param("203.0.113.42:" + "9" * 5000, id="ipv4-oversized-port"),
+        pytest.param("[2001:db8::42]:" + "9" * 5000, id="ipv6-oversized-port"),
     ],
 )
 def test_invalid_forwarded_addresses(address):
@@ -92,6 +94,18 @@ def trusted_proxy(monkeypatch):
         ("forwarded", 'for="[2001:db8::42]:443";proto=https', "2001:db8::42"),
         ("x-real-ip", "203.0.113.42:443", "203.0.113.42"),
         ("x-real-ip", "2001::db8::42", "192.0.2.1"),
+        pytest.param(
+            "x-real-ip",
+            "203.0.113.42:" + "9" * 5000,
+            "192.0.2.1",
+            id="ipv4-oversized-port",
+        ),
+        pytest.param(
+            "x-real-ip",
+            "[2001:db8::42]:" + "9" * 5000,
+            "192.0.2.1",
+            id="ipv6-oversized-port",
+        ),
     ],
 )
 def test_actual_http_and_websocket_extraction(
