@@ -16,7 +16,7 @@ const chromePath = await validateLighthouseChromePath(process.env.LIGHTHOUSE_CHR
 
 const scenarios = [
   { id: 'mobile-streamers', route: '/streamers', readinessSelector: '.streamers-view', formFactor: 'mobile', viewport: { width: 390, height: 844 } },
-  { id: 'desktop-home', route: '/', readinessSelector: '.home-view', formFactor: 'desktop', viewport: { width: 1440, height: 900 } },
+  { id: 'desktop-home', route: '/overview', readinessSelector: '.home-view', formFactor: 'desktop', viewport: { width: 1440, height: 900 } },
 ]
 
 function startPreviewServer() {
