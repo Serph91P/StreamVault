@@ -6,7 +6,6 @@
     "app/frontend/.prettierrc.json",
     "app/frontend/.vscode/extensions.json",
     "app/frontend/env.d.ts",
-    "app/frontend/foundation-test-results/.last-run.json",
     "app/frontend/index.html",
     "app/frontend/package-lock.json",
     "app/frontend/package.json",
@@ -1790,6 +1789,7 @@
     "app/frontend/src/components/VideoModal.vue",
     "app/frontend/src/components/VideoPlayer.vue",
     "app/frontend/src/components/__tests__/AddStreamerForm.persistence.spec.ts",
+    "app/frontend/src/components/__tests__/BackgroundQueueMonitor.recovery.spec.ts",
     "app/frontend/src/components/__tests__/BackgroundQueueMonitor.spec.ts",
     "app/frontend/src/components/__tests__/CleanupPolicyEditor.persistence.spec.ts",
     "app/frontend/src/components/__tests__/FoundationFeedback.spec.ts",
@@ -1842,6 +1842,7 @@
     "app/frontend/src/views/__tests__/VideoPlayerView.spec.ts",
     "app/frontend/src/views/__tests__/VideosView.pagination.spec.ts",
     "app/frontend/src/views/__tests__/VideosView.spec.ts",
+    "app/frontend/tests/e2e/background-queue-lifecycle.spec.ts",
     "app/frontend/tests/e2e/channel-first.spec.ts",
     "app/frontend/tests/e2e/final-local-state-matrix.spec.ts",
     "app/frontend/tests/e2e/foundation.spec.ts",
@@ -2900,27 +2901,37 @@
     },
     {
       "file": "app/frontend/src/components/__tests__/BackgroundQueueMonitor.recovery.spec.ts",
-      "line": 131,
+      "line": 128,
       "match": "document.body"
     },
     {
       "file": "app/frontend/src/components/__tests__/BackgroundQueueMonitor.recovery.spec.ts",
-      "line": 132,
+      "line": 134,
       "match": "document.body"
     },
     {
       "file": "app/frontend/src/components/__tests__/BackgroundQueueMonitor.recovery.spec.ts",
-      "line": 142,
+      "line": 159,
       "match": "document.body"
     },
     {
       "file": "app/frontend/src/components/__tests__/BackgroundQueueMonitor.recovery.spec.ts",
-      "line": 143,
+      "line": 160,
       "match": "document.body"
     },
     {
       "file": "app/frontend/src/components/__tests__/BackgroundQueueMonitor.recovery.spec.ts",
-      "line": 144,
+      "line": 170,
+      "match": "document.body"
+    },
+    {
+      "file": "app/frontend/src/components/__tests__/BackgroundQueueMonitor.recovery.spec.ts",
+      "line": 171,
+      "match": "document.body"
+    },
+    {
+      "file": "app/frontend/src/components/__tests__/BackgroundQueueMonitor.recovery.spec.ts",
+      "line": 172,
       "match": "document.body"
     },
     {
@@ -3724,6 +3735,11 @@
       "match": "document.body"
     },
     {
+      "file": "app/frontend/tests/e2e/background-queue-lifecycle.spec.ts",
+      "line": 89,
+      "match": "document.documentElement"
+    },
+    {
       "file": "app/frontend/tests/e2e/channel-first.spec.ts",
       "line": 31,
       "match": "document.documentElement"
@@ -4357,7 +4373,7 @@
     },
     {
       "file": "app/frontend/src/components/BackgroundQueueMonitor.vue",
-      "line": 174,
+      "line": 177,
       "match": "const STALE_RECORDING_THRESHOLD_HOURS = 2"
     },
     {
@@ -5626,27 +5642,27 @@
     },
     {
       "file": "app/frontend/src/components/BackgroundQueueMonitor.vue",
-      "line": 201,
+      "line": 208,
       "match": ": any"
     },
     {
       "file": "app/frontend/src/components/BackgroundQueueMonitor.vue",
-      "line": 242,
+      "line": 249,
       "match": ": any"
     },
     {
       "file": "app/frontend/src/components/BackgroundQueueMonitor.vue",
-      "line": 258,
+      "line": 265,
       "match": "as any"
     },
     {
       "file": "app/frontend/src/components/BackgroundQueueMonitor.vue",
-      "line": 284,
+      "line": 291,
       "match": ": any"
     },
     {
       "file": "app/frontend/src/components/BackgroundQueueMonitor.vue",
-      "line": 319,
+      "line": 326,
       "match": ": any"
     },
     {
@@ -6078,13 +6094,13 @@
     },
     {
       "file": "app/frontend/src/components/BackgroundQueueMonitor.vue",
-      "line": 32,
+      "line": 33,
       "match": "<div v-if=\"showPanel\" ref=\"backdrop\" class=\"glass-popup-backdrop\" @click"
     },
     {
       "file": "app/frontend/src/components/BackgroundQueueMonitor.vue",
-      "line": 37,
-      "match": "<div\n        v-if=\"showPanel\"\n        :id=\"panelId\"\n        ref=\"panelRef\"\n        class=\"glass-popup-panel queue-panel\"\n        role=\"dialog\"\n        aria-modal=\"true\"\n        :ar"
+      "line": 38,
+      "match": "<div\n        v-if=\"inline || showPanel\"\n        :id=\"panelId\"\n        ref=\"panelRef\"\n        :class=\"inline ? 'queue-activity' : 'glass-popup-panel queue-panel'\"\n        :role=\"inl"
     },
     {
       "file": "app/frontend/src/components/ToastContainer.vue",
@@ -6190,17 +6206,12 @@
     },
     {
       "file": "app/frontend/src/components/BackgroundQueueMonitor.vue",
-      "line": 11,
+      "line": 12,
       "match": "@click.stop="
     },
     {
       "file": "app/frontend/src/components/BackgroundQueueMonitor.vue",
-      "line": 32,
-      "match": "@click="
-    },
-    {
-      "file": "app/frontend/src/components/BackgroundQueueMonitor.vue",
-      "line": 50,
+      "line": 33,
       "match": "@click="
     },
     {
@@ -6210,12 +6221,17 @@
     },
     {
       "file": "app/frontend/src/components/BackgroundQueueMonitor.vue",
-      "line": 64,
+      "line": 52,
       "match": "@click="
     },
     {
       "file": "app/frontend/src/components/BackgroundQueueMonitor.vue",
-      "line": 70,
+      "line": 65,
+      "match": "@click="
+    },
+    {
+      "file": "app/frontend/src/components/BackgroundQueueMonitor.vue",
+      "line": 71,
       "match": "@click="
     },
     {
@@ -7677,7 +7693,7 @@
     },
     {
       "file": "app/frontend/src/components/__tests__/BackgroundQueueMonitor.recovery.spec.ts",
-      "line": 128,
+      "line": 156,
       "match": "alert("
     },
     {
@@ -7915,7 +7931,7 @@
   "transitionAll": [
     {
       "file": "app/frontend/src/components/BackgroundQueueMonitor.vue",
-      "line": 373,
+      "line": 394,
       "match": "transition: all"
     },
     {
@@ -8404,72 +8420,72 @@
     },
     {
       "file": "app/frontend/src/components/BackgroundQueueMonitor.vue",
-      "line": 389,
+      "line": 410,
       "match": "width: 16px"
     },
     {
       "file": "app/frontend/src/components/BackgroundQueueMonitor.vue",
-      "line": 390,
+      "line": 411,
       "match": "height: 16px"
     },
     {
       "file": "app/frontend/src/components/BackgroundQueueMonitor.vue",
-      "line": 422,
+      "line": 443,
       "match": "width: 30px"
     },
     {
       "file": "app/frontend/src/components/BackgroundQueueMonitor.vue",
-      "line": 423,
+      "line": 444,
       "match": "height: 4px"
     },
     {
       "file": "app/frontend/src/components/BackgroundQueueMonitor.vue",
-      "line": 479,
+      "line": 500,
       "match": "width: 16px"
     },
     {
       "file": "app/frontend/src/components/BackgroundQueueMonitor.vue",
-      "line": 480,
+      "line": 501,
       "match": "height: 16px"
     },
     {
       "file": "app/frontend/src/components/BackgroundQueueMonitor.vue",
-      "line": 635,
+      "line": 656,
       "match": "height: 6px"
     },
     {
       "file": "app/frontend/src/components/BackgroundQueueMonitor.vue",
-      "line": 668,
+      "line": 689,
       "match": "min-width: 40px"
     },
     {
       "file": "app/frontend/src/components/BackgroundQueueMonitor.vue",
-      "line": 765,
+      "line": 786,
       "match": "width: 8px"
     },
     {
       "file": "app/frontend/src/components/BackgroundQueueMonitor.vue",
-      "line": 766,
+      "line": 787,
       "match": "height: 8px"
     },
     {
       "file": "app/frontend/src/components/BackgroundQueueMonitor.vue",
-      "line": 795,
+      "line": 816,
       "match": "width: 25px"
     },
     {
       "file": "app/frontend/src/components/BackgroundQueueMonitor.vue",
-      "line": 796,
+      "line": 817,
       "match": "height: 3px"
     },
     {
       "file": "app/frontend/src/components/BackgroundQueueMonitor.vue",
-      "line": 800,
+      "line": 821,
       "match": "width: 14px"
     },
     {
       "file": "app/frontend/src/components/BackgroundQueueMonitor.vue",
-      "line": 801,
+      "line": 822,
       "match": "height: 14px"
     },
     {
@@ -11904,13 +11920,13 @@
     "schemaVersion": 1,
     "generatedBy": "app/frontend/scripts/inventory-frontend.mjs",
     "sourceRoot": "app/frontend",
-    "frontendFiles": 368,
+    "frontendFiles": 367,
     "routes": 21,
     "navigationDestinations": 19,
     "apiCalls": 149,
     "websocketConsumers": 19,
     "storage": 3,
-    "overlays": 88,
+    "overlays": 90,
     "forms": 7,
     "tables": 6,
     "destructiveActions": 71,
@@ -11918,7 +11934,7 @@
     "players": 14,
     "pwa": 135,
     "breakpoints": 94,
-    "directDomMutations": 297,
+    "directDomMutations": 300,
     "moduleScopeMutableState": 114,
     "listenersAndTimers": 149,
     "anyTypes": 92,

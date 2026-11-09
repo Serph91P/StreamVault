@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import PageHeader from '@/components/base/PageHeader.vue'
 import NotificationFeed from '@/components/NotificationFeed.vue'
+import BackgroundQueueMonitor from '@/components/BackgroundQueueMonitor.vue'
 import HomeView from './HomeView.vue'
 
 const route = useRoute()
@@ -26,7 +27,10 @@ const showHistory = computed(() => route.query.tab === 'history')
 
     </nav>
     <NotificationFeed v-if="showHistory" />
-    <HomeView v-else embedded />
+    <template v-else>
+      <BackgroundQueueMonitor inline />
+      <HomeView embedded />
+    </template>
   </div>
 </template>
 

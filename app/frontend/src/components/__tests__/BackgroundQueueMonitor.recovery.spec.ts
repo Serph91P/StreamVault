@@ -113,6 +113,34 @@ describe('production BackgroundQueueMonitor + composable + both Pinia stores', (
     expect(document.body.textContent ?? '').toContain('Total:')
   })
 
+  it('shares realtime truth between the compact dialog and full activity region', async () => {
+    const pinia = createPinia()
+    manager.connectionStatus.value = 'connected'
+    const preview = await openPanel(pinia)
+    const activity = mount(BackgroundQueueMonitor, { props: { inline: true }, global: { plugins: [pinia] } })
+    wrappers.push(activity)
+    await flushPromises()
+    const dispatch = vi.mocked(manager.onMessage).mock.calls[0]![0]
+    const active = Array.from({ length: 5 }, (_, i) => ({ ...task, id: `job-${i}`, payload: { ...task.payload, streamer_name: `Channel ${i}` } }))
+    const recent = active.map(t => ({ ...t, id: `failed-${t.id}`, status: 'failed', error_message: `Error ${t.id}` }))
+    dispatch({ type: 'background_queue_update', data: { stats, active_tasks: active, recent_tasks: recent } })
+    await nextTick()
+    expect(document.body.querySelectorAll('[role="dialog"]')).toHaveLength(1)
+    expect(activity.find('[role="region"]').exists()).toBe(true)
+    expect(activity.find('[aria-modal]').exists()).toBe(false)
+    expect(activity.find('.queue-status-indicator').exists()).toBe(false)
+    expect(activity.findAll('.task-item')).toHaveLength(10)
+    expect(activity.text()).toContain('Error job-4')
+    expect(document.body.querySelectorAll('[role="dialog"] .task-item')).toHaveLength(6)
+    expect(manager.onMessage).toHaveBeenCalledTimes(1)
+    activity.unmount()
+    wrappers.pop()
+    dispatch({ type: 'task_progress_update', data: { task_id: 'job-0', progress: 67 } })
+    await nextTick()
+    expect(useBackgroundQueueStore(pinia).activeTasks[0].progress).toBe(67)
+    expect(preview.exists()).toBe(true)
+  })
+
   it('preserves empty, single-task, and mixed-task progress averages', () => {
     const queue = useBackgroundQueueStore(createPinia())
     expect(queue.totalProgress).toBe(0)
