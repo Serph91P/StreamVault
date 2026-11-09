@@ -10,6 +10,21 @@ describe('channel-first route preservation', () => {
     expect(componentAt('/overview')).not.toBe(componentAt('/'))
   })
 
+  it('does not overwrite entry restoration or in-page filter scroll', async () => {
+    const normalized = (path: string) => ({ ...router.resolve(path), name: router.resolve(path).name ?? undefined })
+    const list = normalized('/streamers?q=demo')
+    const detail = normalized('/streamers/42')
+    history.replaceState({ svrs: 420 }, '', '/streamers?q=demo')
+    expect(await router.options.scrollBehavior!(list, detail, null)).toBe(false)
+    history.replaceState({}, '', '/streamers?q=demo')
+    expect(await router.options.scrollBehavior!(list, normalized('/streamers'), null)).toBe(false)
+    expect(await router.options.scrollBehavior!(list, detail, { left: 0, top: 420 })).toBe(false)
+    expect(history.state.svrs).toBe(420)
+    delete history.state.svrs
+    history.replaceState({}, '', '/streamers?q=demo')
+    expect(await router.options.scrollBehavior!(detail, list, null)).toEqual({ top: 0, left: 0 })
+  })
+
   it('resolves channel management separately from a channel detail', () => {
     expect(router.resolve('/streamers/manage').name).toBe('channel-management')
     expect(componentAt('/streamers/manage')).not.toBe(componentAt('/streamers/7'))

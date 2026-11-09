@@ -64,7 +64,8 @@ describe('real shell/feed/item action ownership', () => {
   it.each(['mark', 'clear'])('executes a feed %s intent once rather than again in the parent shell', async action => {
     const { wrapper, store } = await setup()
     const label = action === 'mark' ? 'Mark all notifications read' : 'Clear all notifications'
-    await wrapper.get(`.notification-feed [aria-label="${label}"]`).trigger('click')
+    expect(wrapper.findAll(`[aria-label="${label}"]`)).toHaveLength(1)
+    await wrapper.get(`[aria-label="${label}"]`).trigger('click')
     await flushPromises()
     expect(action === 'mark' ? api.markRead : api.clear).toHaveBeenCalledTimes(1)
     expect(store.unreadCount).toBe(0)

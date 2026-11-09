@@ -26,10 +26,11 @@ const second: StoredNotification = {
   severity: 'error', title: 'Second', timestamp: '2026-10-09T13:00:00Z', read: true,
 }
 
-function mountFeed() {
+function mountFeed(compact = false) {
   const pinia = createPinia()
   setActivePinia(pinia)
   const wrapper = mount(NotificationFeed, {
+    props: { compact },
     global: {
       plugins: [pinia],
       stubs: {
@@ -43,6 +44,17 @@ function mountFeed() {
 }
 
 describe('NotificationFeed states', () => {
+  it('renders a bounded shell preview without duplicating its parent title or mutations', async () => {
+    const { wrapper, store } = mountFeed(true)
+    await flushPromises()
+    store.notifications = Array.from({ length: 12 }, (_, index) => ({ ...first, id: `event-${index}` }))
+    await flushPromises()
+    expect(wrapper.findAll('.feed-header')).toHaveLength(1)
+    expect(wrapper.get('h2').text()).toBe('Notifications')
+    expect(wrapper.findAll('article')).toHaveLength(5)
+    expect(store.totalCount).toBe(12)
+    expect(wrapper.findAll('[aria-label="Clear all notifications"]')).toHaveLength(1)
+  })
   beforeEach(() => {
     vi.clearAllMocks()
     localStorage.clear()

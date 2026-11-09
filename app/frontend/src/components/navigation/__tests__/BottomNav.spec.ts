@@ -42,7 +42,8 @@ describe('BottomNav', () => {
     expect(link.attributes('aria-label')).toBe('Library')
     expect(link.attributes('aria-current')).toBe('page')
     expect(link.classes()).toContain('base-link-target--icon')
-    expect(wrapper.find('button.nav-tab').exists()).toBe(false)
+    expect(wrapper.findAll('button.nav-tab')).toHaveLength(1)
+    expect(wrapper.get('button.nav-tab').attributes('aria-label')).toBe('Mehr')
   })
 
   it('renders Retry only for an online failed pill', async () => {

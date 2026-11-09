@@ -248,6 +248,7 @@ test('System hub keeps settings, admin and subscriptions reachable on desktop an
     const shellNav = page.locator(width === 390 ? '.bottom-nav' : '.sidebar-nav')
     await expect(shellNav).toBeVisible()
     await expect(shellNav).toHaveCSS('backdrop-filter', 'none')
+    if (width === 390) await page.getByRole('button', { name: 'Mehr', exact: true }).click()
     await page.getByRole('link', { name: 'System', exact: true }).click()
     await expect(page.getByRole('heading', { name: 'System', exact: true })).toBeVisible()
 

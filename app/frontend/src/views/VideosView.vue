@@ -3,7 +3,6 @@
     <PageHeader
       title="Aufzeichnungen"
       icon="video"
-      subtitle="Aufgezeichnete Streams durchsuchen und verwalten"
     >
       <template #actions>
         <BaseButton
@@ -26,32 +25,6 @@
       </template>
     </PageHeader>
 
-    <!-- Library stats strip (the marketing copy that used to sit next to it
-         explained the page to itself; the numbers are the useful part) -->
-    <section v-if="!isLoading && !fetchError && summary.total > 0" class="videos-brief" aria-label="Video library summary">
-      <dl class="brief-stats">
-        <div class="brief-stat total">
-          <dt>Recordings</dt>
-          <dd>{{ summary.total }}</dd>
-        </div>
-        <div class="brief-stat">
-          <dt>Hours</dt>
-          <dd>{{ totalHoursDisplay || '0m' }}</dd>
-        </div>
-        <div class="brief-stat">
-          <dt>Size</dt>
-          <dd>{{ totalSizeDisplay || '0 B' }}</dd>
-        </div>
-        <div v-if="failedCount > 0" class="brief-stat failed">
-          <dt>Failed</dt>
-          <dd>{{ failedCount }}</dd>
-        </div>
-        <div v-if="processingCount > 0" class="brief-stat processing">
-          <dt>Processing</dt>
-          <dd>{{ processingCount }}</dd>
-        </div>
-      </dl>
-    </section>
 
     <!-- Search and Filters -->
     <div class="controls-bar">
@@ -328,6 +301,16 @@
       <span aria-live="polite">Page {{ page }}</span>
       <BaseButton aria-label="Next video page" :disabled="isLoading || isDeleting || !hasMore" @click="setPage(page + 1)">Next</BaseButton>
     </nav>
+
+    <section v-if="!isLoading && !fetchError && summary.total > 0" class="videos-brief" aria-label="Video library summary">
+      <dl class="brief-stats">
+        <div class="brief-stat total"><dt>Recordings</dt><dd>{{ summary.total }}</dd></div>
+        <div class="brief-stat"><dt>Hours</dt><dd>{{ totalHoursDisplay || '0m' }}</dd></div>
+        <div class="brief-stat"><dt>Size</dt><dd>{{ totalSizeDisplay || '0 B' }}</dd></div>
+        <div v-if="failedCount > 0" class="brief-stat failed"><dt>Failed</dt><dd>{{ failedCount }}</dd></div>
+        <div v-if="processingCount > 0" class="brief-stat processing"><dt>Processing</dt><dd>{{ processingCount }}</dd></div>
+      </dl>
+    </section>
 
     <BaseModal
       v-model="showDeleteConfirm"

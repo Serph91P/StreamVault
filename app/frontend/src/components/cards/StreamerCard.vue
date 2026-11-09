@@ -525,15 +525,7 @@ onUnmounted(() => {
   margin: 0;
   line-height: 1.3;
 
-  /* MAX 2 LINES with ellipsis */
-  overflow: hidden;
-  text-overflow: ellipsis;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  -webkit-box-orient: vertical;
-  word-break: break-word;
-  max-height: 2.6em;  /* 2 * 1.3 line-height */
+  overflow-wrap: anywhere;
 
   transition: color v.$duration-200 v.$ease-out;
 }
@@ -935,9 +927,6 @@ onUnmounted(() => {
     .streamer-name {
       font-size: var(--text-sm);
       font-weight: v.$font-semibold;
-      -webkit-line-clamp: 1;
-      line-clamp: 1;
-      max-height: 1.3em;
     }
   }
 

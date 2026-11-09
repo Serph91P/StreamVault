@@ -33,17 +33,19 @@ withDefaults(defineProps<Props>(), {
           <use :href="`#icon-${icon}`" />
         </svg>
         <div class="page-header-copy">
-          <h1 class="page-header-title-text desktop-title" :class="{ 'm-hide': !!mobileTitle }">
-            <svg v-if="backTo && icon" class="page-header-icon" aria-hidden="true">
-              <use :href="`#icon-${icon}`" />
-            </svg>
-            {{ title }}
-          </h1>
-          <h1 v-if="mobileTitle" class="page-header-title-text mobile-title">
-            <svg v-if="mobileIcon" class="page-header-icon" aria-hidden="true">
-              <use :href="`#icon-${mobileIcon}`" />
-            </svg>
-            {{ mobileTitle }}
+          <h1 class="page-header-title-text">
+            <span class="desktop-title" :class="{ 'm-hide': !!mobileTitle }">
+              <svg v-if="backTo && icon" class="page-header-icon" aria-hidden="true">
+                <use :href="`#icon-${icon}`" />
+              </svg>
+              {{ title }}
+            </span>
+            <span v-if="mobileTitle" class="mobile-title">
+              <svg v-if="mobileIcon" class="page-header-icon" aria-hidden="true">
+                <use :href="`#icon-${mobileIcon}`" />
+              </svg>
+              {{ mobileTitle }}
+            </span>
           </h1>
           <p v-if="subtitle" class="page-header-subtitle">{{ subtitle }}</p>
         </div>

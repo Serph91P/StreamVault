@@ -37,6 +37,16 @@ async function flushFocus() {
 }
 
 describe('BackgroundQueueMonitor', () => {
+  it('links its short preview to the complete activity without changing queue truth', async () => {
+    queueState.recentTasks.value = Array.from({ length: 12 }, (_, id) => ({ id, task_type: 'thumbnail', status: 'completed' }))
+    const wrapper = mount(BackgroundQueueMonitor, { attachTo: document.body })
+    await wrapper.get('button').trigger('click')
+    const dialog = document.querySelector('[role="dialog"]')!
+    expect(dialog.querySelector('router-link')?.getAttribute('to')).toBe('/activity')
+    expect(dialog.querySelectorAll('.recent-tasks-section .task-item')).toHaveLength(3)
+    expect(queueState.recentTasks.value).toHaveLength(12)
+    wrapper.unmount()
+  })
   beforeEach(() => {
     vi.clearAllMocks()
     queueState.queueStats.value = { total_tasks: 0, completed_tasks: 0, failed_tasks: 0, pending_tasks: 0 }

@@ -8,6 +8,8 @@ import { useNotificationStore, type NotificationFilter } from '@/stores/notifica
 import type { StoredNotification } from '@/services/notificationStorage'
 import { normalizeNotificationTargetUrl } from '@/types/events'
 
+const props = defineProps<{ compact?: boolean }>()
+
 const emit = defineEmits<{
   (e: 'close-panel'): void
   (e: 'clear-all'): void
@@ -23,7 +25,9 @@ const isMutating = ref(false)
 const notifications = computed(() => notificationStore.filteredNotifications)
 const totalCount = computed(() => notificationStore.totalCount)
 const unreadCount = computed(() => notificationStore.unreadCount)
-const groupedNotifications = computed(() => notificationStore.groupedNotifications)
+const groupedNotifications = computed(() => props.compact
+  ? notificationStore.groupedNotifications.slice(0, 1).map(group => ({ ...group, notifications: group.notifications.slice(0, 5) }))
+  : notificationStore.groupedNotifications)
 
 const activeFilter = computed<NotificationFilter>({
   get: () => notificationStore.filter,
@@ -34,12 +38,9 @@ const severityCounts = computed(() => notificationStore.severityCounts)
 const sourceOptions = computed(() => notificationStore.sourceOptions)
 const typeOptions = computed(() => notificationStore.typeOptions)
 
-const subtitle = computed(() => {
-  if (unreadCount.value > 0) {
-    return `${unreadCount.value} unread of ${totalCount.value} notification${totalCount.value !== 1 ? 's' : ''}`
-  }
-  return `${totalCount.value} notification${totalCount.value !== 1 ? 's' : ''} in history`
-})
+const subtitle = computed(() =>
+  `${unreadCount.value} unread of ${totalCount.value} notification${totalCount.value !== 1 ? 's' : ''}`
+)
 
 async function openNotificationTarget(notification: StoredNotification): Promise<void> {
   if (!notification.target_url) {
@@ -124,32 +125,25 @@ async function refreshNotifications(): Promise<void> {
   }
 }
 
-function closeFeed(): void {
-  emit('close')
-}
 
 onMounted(() => {
   refreshNotifications()
 })
 
-// The compact shell header delegates to the same owner as the standalone feed.
-defineExpose({ markAllRead, clearAllNotifications, isMutating })
+
 </script>
 
 <template>
   <section class="notification-feed" aria-label="Notification Center">
     <header class="feed-header">
       <div class="header-content">
-        <div class="header-icon" aria-hidden="true">
-          <svg class="bell-svg"><use href="#icon-bell" /></svg>
-        </div>
         <div class="header-text">
-          <p class="eyebrow">Notification Center</p>
-          <h2 class="section-title">Stay on top of StreamVault</h2>
+          <h2 class="section-title">Notifications</h2>
+          <router-link v-if="compact" to="/activity?tab=history" @click="emit('close-panel')">Alle Meldungen</router-link>
           <p class="section-subtitle">{{ subtitle }}</p>
           <p class="channel-explainer">
-            In-app events arrive live over WebSocket. External delivery still uses your configured Apprise and push targets.
-            History and read/unread are local to this browser. Mark all read and Clear all are global.
+
+            History/read: this browser. Bulk actions: global.
           </p>
         </div>
       </div>
@@ -175,10 +169,11 @@ defineExpose({ markAllRead, clearAllNotifications, isMutating })
           Clear all
         </button>
         <button
+          v-if="compact"
           type="button"
           class="header-action icon-action"
           aria-label="Close notifications"
-          @click="closeFeed"
+          @click="emit('close')"
         >
           <svg class="close-svg"><use href="#icon-x" /></svg>
         </button>
@@ -186,7 +181,7 @@ defineExpose({ markAllRead, clearAllNotifications, isMutating })
     </header>
 
     <NotificationFilters
-      v-if="totalCount > 0"
+      v-if="!compact && totalCount > 0"
       v-model="activeFilter"
       :total-count="totalCount"
       :unread-count="unreadCount"

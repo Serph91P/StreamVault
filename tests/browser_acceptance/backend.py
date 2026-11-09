@@ -33,6 +33,7 @@ from app.models import (
 )
 from app.services.core.auth_service import AuthService
 from app.services.background_queue_service import background_queue_service
+from app.services.media.video_catalog_service import VideoCatalogService
 from app.services.queues.task_progress_tracker import (
     QueueTask,
     TaskPriority,
@@ -157,7 +158,12 @@ if Path("/scratch/restarted").exists():
 async def seed():
     seed_task()
     with SessionLocal() as db:
-        for id in (933, 934):
+        for index in range(12):
+            if not db.get(Streamer, 2000 + index):
+                db.add(Streamer(id=2000 + index, twitch_id=f"synthetic-other-{index}", username=f"synthetic-long-channel-{index:02}", is_live=False, auto_record=False))
+                db.add(StreamerRecordingSettings(streamer_id=2000 + index, enabled=False, use_global_cleanup_policy=True))
+                db.add(NotificationSettings(streamer_id=2000 + index, notify_online=False, notify_offline=False, notify_update=False))
+        for id in (933, 934, 935):
             if not db.get(Stream, id):
                 copy = media.with_name(f"acceptance-{id}.mp4")
                 copy.write_bytes(media.read_bytes())
@@ -166,13 +172,16 @@ async def seed():
                         id=id,
                         streamer_id=933,
                         twitch_stream_id=f"synthetic-{id}",
-                        title=f"Synthetic recording {id}",
+                        title=f"Synthetic recording {id}" if id != 935 else "Synthetic complete recording name — a deliberately long description that must remain fully readable on a narrow phone without clipping",
                         started_at=datetime.now(timezone.utc) - timedelta(seconds=12),
                         ended_at=datetime.now(timezone.utc),
                         recording_path=str(copy),
                     )
                 )
         db.commit()
+        # This isolated harness disables production lifespan/background workers.
+        # Index its real generated media through the same service as runtime.
+        VideoCatalogService(db).reconcile_batch(after_id=0, limit=100)
     return {"seeded": True}
 
 
