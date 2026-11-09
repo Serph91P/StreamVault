@@ -39,7 +39,6 @@ from app.services.unified_image_service import (
     UnifiedImageService,
     unified_image_service,
 )
-from app.services.communication.websocket_manager import websocket_manager
 from sqlalchemy.orm import Session, joinedload
 import logging
 from typing import List, Dict
@@ -505,6 +504,14 @@ async def get_active_recordings(
             return []
 
 
+def _streamer_name_snapshot(
+    session_factory: Callable[[], Session], streamer_id: int
+) -> str:
+    with session_factory() as db:
+        streamer = db.query(Streamer).filter(Streamer.id == streamer_id).first()
+        return streamer.username if streamer else f"Streamer {streamer_id}"
+
+
 @router.post("/stop/{streamer_id}")
 async def stop_recording(
     streamer_id: int,
@@ -515,13 +522,10 @@ async def stop_recording(
 ):
     """Manually stop an active recording"""
 
-    def streamer_name_snapshot():
-        with session_factory() as db:
-            streamer = db.query(Streamer).filter(Streamer.id == streamer_id).first()
-            return streamer.username if streamer else f"Streamer {streamer_id}"
-
     try:
-        streamer_name = await run_in_thread_pool(streamer_name_snapshot)
+        streamer_name = await run_in_thread_pool(
+            _streamer_name_snapshot, session_factory, streamer_id
+        )
 
         # Log the stop request
         await run_in_thread_pool(
@@ -577,7 +581,9 @@ async def stop_recording(
 
         # Send error toast notification
         try:
-            streamer_name = await run_in_thread_pool(streamer_name_snapshot)
+            streamer_name = await run_in_thread_pool(
+                _streamer_name_snapshot, session_factory, streamer_id
+            )
 
             await websocket_manager.send_toast_notification(
                 toast_type="error",
@@ -716,24 +722,32 @@ def update_streamer_recording_settings(
 
 
 @router.post("/force-start/{streamer_id}")
-async def force_start_recording(streamer_id: int):
+async def force_start_recording(
+    streamer_id: int,
+    session_factory: Callable[[], Session] = Depends(get_application_session_factory),
+    recording_manager=Depends(get_application_recording_manager),
+    websocket_manager: ConnectionManager = Depends(get_websocket_manager),
+    logging_service: LoggingService = Depends(get_logging_service),
+):
     """Manually start a recording for an active stream"""
     try:
         # Get streamer info for notifications
-        with SessionLocal() as db:
-            streamer = db.query(Streamer).filter(Streamer.id == streamer_id).first()
-            streamer_name = streamer.username if streamer else f"Streamer {streamer_id}"
+        streamer_name = await run_in_thread_pool(
+            _streamer_name_snapshot, session_factory, streamer_id
+        )
 
         # Log force start attempt
-        logging_service.log_recording_activity(
+        await run_in_thread_pool(
+            logging_service.log_recording_activity,
             "FORCE_START_REQUEST",
             f"Streamer {streamer_id}",
             "Manual force start requested via API",
         )
 
-        result = await get_recording_service().force_start_recording(streamer_id)
+        result = await recording_manager.force_start_recording(streamer_id)
         if result:
-            logging_service.log_recording_activity(
+            await run_in_thread_pool(
+                logging_service.log_recording_activity,
                 "FORCE_START_SUCCESS",
                 f"Streamer {streamer_id}",
                 "Force recording started successfully",
@@ -757,7 +771,8 @@ async def force_start_recording(streamer_id: int):
             logger.error("3. There are network connectivity issues")
             logger.error("4. The stream URL is not accessible")
 
-            logging_service.log_recording_activity(
+            await run_in_thread_pool(
+                logging_service.log_recording_activity,
                 "FORCE_START_FAILED",
                 f"Streamer {streamer_id}",
                 "Force start failed - streamer may be offline or stream inaccessible",
@@ -779,18 +794,20 @@ async def force_start_recording(streamer_id: int):
         # Re-raise HTTP exceptions without modification
         raise
     except Exception as e:
-        logging_service.log_recording_error(
-            streamer_id, f"Streamer {streamer_id}", "FORCE_START_ERROR", str(e)
+        await run_in_thread_pool(
+            logging_service.log_recording_error,
+            streamer_id,
+            f"Streamer {streamer_id}",
+            "FORCE_START_ERROR",
+            str(e),
         )
         logger.error(f"Error force starting recording: {e}", exc_info=True)
 
         # Send error toast notification for unexpected errors
         try:
-            with SessionLocal() as db:
-                streamer = db.query(Streamer).filter(Streamer.id == streamer_id).first()
-                streamer_name = (
-                    streamer.username if streamer else f"Streamer {streamer_id}"
-                )
+            streamer_name = await run_in_thread_pool(
+                _streamer_name_snapshot, session_factory, streamer_id
+            )
 
             await websocket_manager.send_force_recording_feedback(
                 success=False,

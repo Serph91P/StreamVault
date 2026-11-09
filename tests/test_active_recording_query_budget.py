@@ -66,7 +66,9 @@ async def test_active_recordings_batch_queries_and_keep_db_off_eventloop(
     event.listen(engine, "before_cursor_execute", delay_and_count)
     ticker = asyncio.create_task(heartbeat())
     try:
-        result = await recording.get_active_recordings()
+        result = await recording.get_active_recordings(
+            session_factory=sessions, status_cache=app_cache
+        )
         assert len(query_threads) <= 3, (
             "active response must not query settings/lease per recording"
         )

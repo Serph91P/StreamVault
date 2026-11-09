@@ -53,6 +53,9 @@ def codec_api(monkeypatch, tmp_path):
     )
     app = FastAPI()
     app.dependency_overrides[get_application_session_factory] = lambda: sessions
+    app.dependency_overrides[recording.get_image_service] = lambda: (
+        recording.unified_image_service
+    )
     app.include_router(recording.router)
     with TestClient(app) as client:
         yield SimpleNamespace(

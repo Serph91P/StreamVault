@@ -49,7 +49,10 @@ async def test_channel_cleanup_readback_preserves_saved_inheritance(monkeypatch)
                     {"cleanup_policy": policy, "use_global_cleanup_policy": inherits},
                     db,
                 )
-                response = (await recording.get_all_streamer_recording_settings())[0]
+                response = recording.get_all_streamer_recording_settings(
+                    session_factory=sessions,
+                    unified_image_service=recording.unified_image_service,
+                )[0]
                 assert response.use_global_cleanup_policy is inherits
                 with sessions() as readback:
                     stored = readback.query(StreamerRecordingSettings).one()

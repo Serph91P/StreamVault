@@ -16,6 +16,52 @@ logging_applications = test_logging_application_ownership.logging_applications
 
 
 @pytest.mark.asyncio
+async def test_force_start_missing_streamer_uses_only_own_db_logs_and_feedback(
+    logging_applications, image_applications, monkeypatch
+):
+    from starlette.requests import HTTPConnection
+    from app.dependencies import get_websocket_manager
+
+    apps, databases, clients, _, _, log_threads = logging_applications
+    _, _, _, queries = image_applications
+    module = importlib.import_module("app.routes.recording")
+    feedback = []
+    default_calls = []
+
+    def forbidden():
+        default_calls.append(True)
+        raise AssertionError("force start borrowed default catalogue")
+
+    monkeypatch.setattr(module, "SessionLocal", forbidden)
+    for index, app in enumerate(apps):
+        manager = get_websocket_manager(HTTPConnection({"type": "http", "app": app}))
+        original = manager.send_force_recording_feedback
+
+        async def observe(*args, index=index, original=original, **kwargs):
+            feedback.append((index, kwargs))
+            return await original(*args, **kwargs)
+
+        monkeypatch.setattr(manager, "send_force_recording_feedback", observe)
+    for index in range(2):
+        feedback.clear()
+        queries.clear()
+        log_threads.clear()
+        response = await clients[index].post("/api/recording/force-start/999")
+        assert response.status_code == 400, response.text
+        assert len(feedback) == 1
+        assert feedback[0][0] == index
+        assert feedback[0][1]["success"] is False
+        assert feedback[0][1]["streamer_name"] == "Streamer 999"
+        assert queries
+        assert get_ident() not in [thread for thread, _ in queries]
+        assert log_threads and get_ident() not in log_threads
+        assert all(
+            database.sync_engine.pool.checkedout() == 0 for database in databases
+        )
+    assert not default_calls
+
+
+@pytest.mark.asyncio
 async def test_active_recording_http_snapshot_and_cache_are_owned(
     image_applications, monkeypatch
 ):
@@ -220,7 +266,11 @@ async def test_http_stop_reaps_only_owned_child_and_persists_only_owned_row(
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     "method,path",
-    [("POST", "/api/recording/stop/1"), ("GET", "/api/recording/streamers")],
+    [
+        ("POST", "/api/recording/stop/1"),
+        ("GET", "/api/recording/streamers"),
+        ("POST", "/api/recording/force-start/999"),
+    ],
 )
 async def test_http_stop_database_fault_stays_local_and_closes_scope(
     logging_applications, method, path
@@ -245,13 +295,19 @@ async def test_http_stop_database_fault_stays_local_and_closes_scope(
         peer = await clients[1].request(method, path)
         assert failed.status_code == 500
         assert failed.json() == {"detail": "Internal server error"}
-        assert peer.status_code == 200
-        if method == "POST":
+        if "force-start" in path:
+            assert peer.status_code == 400
+            assert peer.json() == {
+                "detail": "Failed to start recording. The streamer may be offline, or the stream may not be accessible. Check the logs for more details."
+            }
+        elif method == "POST":
+            assert peer.status_code == 200
             assert peer.json() == {
                 "status": "error",
                 "message": "No active recording found",
             }
         else:
+            assert peer.status_code == 200
             assert peer.json()[0]["username"] == "owner-1"
         assert observed and get_ident() not in observed
         assert all(
