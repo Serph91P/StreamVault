@@ -23,6 +23,7 @@ from app.dependencies import (
     get_streamlink_config_service,
     get_websocket_manager,
     get_logging_service,
+    get_image_service,
 )
 from app.services.system.streamlink_config_service import StreamlinkConfigService
 from app.utils.async_db_utils import run_in_thread_pool
@@ -32,7 +33,10 @@ from app.services.recording.config_manager import (
 )  # Import FILENAME_PRESETS from config_manager
 from app.services.system.logging_service import LoggingService, logging_service
 from app.services.communication.websocket_manager import ConnectionManager
-from app.services.unified_image_service import unified_image_service
+from app.services.unified_image_service import (
+    UnifiedImageService,
+    unified_image_service,
+)
 from app.services.communication.websocket_manager import websocket_manager
 from sqlalchemy.orm import Session, joinedload
 import logging
@@ -243,9 +247,12 @@ async def update_recording_settings(
 
 
 @router.get("/streamers", response_model=List[StreamerRecordingSettingsSchema])
-async def get_all_streamer_recording_settings():
+def get_all_streamer_recording_settings(
+    session_factory: Callable[[], Session] = Depends(get_application_session_factory),
+    unified_image_service: UnifiedImageService = Depends(get_image_service),
+):
     try:
-        with SessionLocal() as db:
+        with session_factory() as db:
             # Get all streamers first
             streamers = db.query(Streamer).all()
 
@@ -267,6 +274,7 @@ async def get_all_streamer_recording_settings():
                         streamer_id=streamer.id, enabled=True
                     )
                     db.add(settings)
+                    db.flush()
                 # Create response object
                 try:
                     cleanup_policy = None
@@ -302,11 +310,7 @@ async def get_all_streamer_recording_settings():
             return result
     except Exception as e:
         logger.error(f"Error fetching streamer recording settings: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=500, detail="Internal server error"
-        ) @ router.post(
-            "/streamers/{streamer_id}", response_model=StreamerRecordingSettingsSchema
-        )
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 # async def update_streamer_recording_settings(

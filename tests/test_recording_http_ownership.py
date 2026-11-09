@@ -16,6 +16,46 @@ logging_applications = test_logging_application_ownership.logging_applications
 
 
 @pytest.mark.asyncio
+async def test_http_streamer_recording_settings_use_native_owner_scope(
+    image_applications, monkeypatch
+):
+    from app.models import StreamerRecordingSettings
+    from app.utils.async_db_utils import run_in_thread_pool
+
+    _, databases, clients, queries = image_applications
+    module = importlib.import_module("app.routes.recording")
+    default_calls = []
+
+    def forbidden():
+        default_calls.append(True)
+        raise AssertionError(
+            "streamer recording settings borrowed the default catalogue"
+        )
+
+    monkeypatch.setattr(module, "SessionLocal", forbidden)
+
+    def stored(index):
+        with databases[index].sync_session_factory() as session:
+            return session.query(StreamerRecordingSettings).count()
+
+    for index, client in enumerate(clients):
+        queries.clear()
+        response = await client.get("/api/recording/streamers")
+        assert response.status_code == 200, response.text
+        assert len(response.json()) == 1
+        assert response.json()[0]["username"] == f"owner-{index}"
+        assert response.json()[0]["twitch_auth_priority"] == 0
+        assert queries and get_ident() not in [thread for thread, _ in queries]
+        assert await run_in_thread_pool(stored, index) == 1
+        if index == 0:
+            assert await run_in_thread_pool(stored, 1) == 0
+        assert all(
+            database.sync_engine.pool.checkedout() == 0 for database in databases
+        )
+    assert not default_calls
+
+
+@pytest.mark.asyncio
 async def test_http_stop_reaps_only_owned_child_and_persists_only_owned_row(
     logging_applications, monkeypatch
 ):
@@ -107,8 +147,12 @@ async def test_http_stop_reaps_only_owned_child_and_persists_only_owned_row(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "method,path",
+    [("POST", "/api/recording/stop/1"), ("GET", "/api/recording/streamers")],
+)
 async def test_http_stop_database_fault_stays_local_and_closes_scope(
-    logging_applications,
+    logging_applications, method, path
 ):
     from sqlalchemy import event
     from app.dependencies import _get_application_recording_manager
@@ -126,15 +170,18 @@ async def test_http_stop_database_fault_stays_local_and_closes_scope(
 
     event.listen(databases[0].sync_engine, "before_cursor_execute", unavailable)
     try:
-        failed = await clients[0].post("/api/recording/stop/1")
-        peer = await clients[1].post("/api/recording/stop/1")
+        failed = await clients[0].request(method, path)
+        peer = await clients[1].request(method, path)
         assert failed.status_code == 500
         assert failed.json() == {"detail": "Internal server error"}
         assert peer.status_code == 200
-        assert peer.json() == {
-            "status": "error",
-            "message": "No active recording found",
-        }
+        if method == "POST":
+            assert peer.json() == {
+                "status": "error",
+                "message": "No active recording found",
+            }
+        else:
+            assert peer.json()[0]["username"] == "owner-1"
         assert observed and get_ident() not in observed
         assert all(
             database.sync_engine.pool.checkedout() == 0 for database in databases
