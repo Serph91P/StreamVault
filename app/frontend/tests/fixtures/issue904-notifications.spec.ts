@@ -156,7 +156,7 @@ for (const viewport of [{ width: 320, height: 640 }, { width: 390, height: 844 }
           await first.getByRole('button', { name: / read$/ }).click()
           await expect(first.getByRole('button', { name: / unread$/ })).toBeVisible()
           expect(writes, 'single-item read is local, not a global mutation').toEqual([])
-          await history.getByRole('button', { name: 'Mark all notifications read', exact: true }).click()
+          await history.getByRole('button', { name: 'Mark all read', exact: true }).click()
           await expect.poll(() => writes.length).toBe(1)
           expect(writes).toEqual(['POST /api/notifications/mark-read'])
           expect(unexpected).toEqual([])

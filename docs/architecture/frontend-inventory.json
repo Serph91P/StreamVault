@@ -14,6 +14,7 @@
     "app/frontend/scripts/__tests__/api-client-treeshaking.spec.ts",
     "app/frontend/scripts/__tests__/api-surface-cleanup.spec.ts",
     "app/frontend/scripts/__tests__/build-artifact-provenance.spec.ts",
+    "app/frontend/scripts/__tests__/compact-production-chunks.spec.ts",
     "app/frontend/scripts/__tests__/eslint-config.spec.ts",
     "app/frontend/scripts/__tests__/foundation-gates.spec.ts",
     "app/frontend/scripts/__tests__/inventory-frontend.spec.ts",
@@ -23,6 +24,7 @@
     "app/frontend/scripts/__tests__/settings-panel-css.spec.ts",
     "app/frontend/scripts/__tests__/ux06-loading.spec.ts",
     "app/frontend/scripts/build-output-budgets.json",
+    "app/frontend/scripts/compact-production-chunks.ts",
     "app/frontend/scripts/design-token-allowlist.json",
     "app/frontend/scripts/lighthouseSummary.d.ts",
     "app/frontend/src/App.vue",
@@ -352,6 +354,7 @@
     "app/frontend/tests/fixtures/settings-loader.spec.ts",
     "app/frontend/tests/fixtures/settings-parity.config.ts",
     "app/frontend/tests/fixtures/settings-parity.spec.ts",
+    "app/frontend/tests/fixtures/storage-contrast.spec.ts",
     "app/frontend/tests/fixtures/ux-foundation.spec.ts",
     "app/frontend/tests/unit/baselineObservation.spec.ts",
     "app/frontend/tests/unit/gateEvidence.spec.ts",
@@ -1768,6 +1771,7 @@
     "app/frontend/tests/fixtures/issue991-status.spec.ts",
     "app/frontend/tests/fixtures/issue992-recording.spec.ts",
     "app/frontend/tests/fixtures/settings-parity.spec.ts",
+    "app/frontend/tests/fixtures/storage-contrast.spec.ts",
     "app/frontend/tests/fixtures/ux-foundation.spec.ts"
   ],
   "storage": [
@@ -1863,6 +1867,7 @@
     "app/frontend/tests/fixtures/issue991-status.spec.ts",
     "app/frontend/tests/fixtures/recording-a11y.ts",
     "app/frontend/tests/fixtures/settings-parity.spec.ts",
+    "app/frontend/tests/fixtures/storage-contrast.spec.ts",
     "app/frontend/tests/fixtures/ux-foundation.spec.ts",
     "app/frontend/tests/unit/issue828Motion.spec.ts",
     "app/frontend/vite.config.ts"
@@ -1962,6 +1967,7 @@
     "app/frontend/package.json",
     "app/frontend/scripts/__tests__/api-client-treeshaking.spec.ts",
     "app/frontend/scripts/__tests__/api-surface-cleanup.spec.ts",
+    "app/frontend/scripts/__tests__/compact-production-chunks.spec.ts",
     "app/frontend/scripts/__tests__/eslint-config.spec.ts",
     "app/frontend/scripts/__tests__/foundation-gates.spec.ts",
     "app/frontend/scripts/__tests__/player-control-assets.spec.ts",
@@ -2170,6 +2176,7 @@
     "app/frontend/tests/fixtures/settings-loader.config.ts",
     "app/frontend/tests/fixtures/settings-loader.spec.ts",
     "app/frontend/tests/fixtures/settings-parity.spec.ts",
+    "app/frontend/tests/fixtures/storage-contrast.spec.ts",
     "app/frontend/tests/fixtures/ux-foundation.spec.ts",
     "app/frontend/tests/unit/baselineObservation.spec.ts",
     "app/frontend/tests/unit/gateEvidence.spec.ts",
@@ -2179,6 +2186,7 @@
     "app/frontend/vite.config.ts"
   ],
   "players": [
+    "app/frontend/env.d.ts",
     "app/frontend/package-lock.json",
     "app/frontend/package.json",
     "app/frontend/scripts/__tests__/output-budgets.spec.ts",
@@ -2198,6 +2206,7 @@
     "app/frontend/package-lock.json",
     "app/frontend/playwright.config.ts",
     "app/frontend/scripts/__tests__/api-client-treeshaking.spec.ts",
+    "app/frontend/scripts/__tests__/compact-production-chunks.spec.ts",
     "app/frontend/scripts/__tests__/foundation-gates.spec.ts",
     "app/frontend/scripts/__tests__/ux06-loading.spec.ts",
     "app/frontend/src/App.vue",
@@ -2326,6 +2335,7 @@
     "app/frontend/tests/fixtures/settings-loader.spec.ts",
     "app/frontend/tests/fixtures/settings-parity.config.ts",
     "app/frontend/tests/fixtures/settings-parity.spec.ts",
+    "app/frontend/tests/fixtures/storage-contrast.spec.ts",
     "app/frontend/tests/fixtures/ux-foundation.spec.ts",
     "app/frontend/tests/unit/lighthouseLifecycle.spec.ts",
     "app/frontend/tests/unit/pwaManifestOwnership.spec.ts",
@@ -2961,27 +2971,17 @@
     },
     {
       "file": "app/frontend/src/components/__tests__/BackgroundQueueMonitor.spec.ts",
-      "line": 67,
+      "line": 82,
       "match": "document.body"
     },
     {
       "file": "app/frontend/src/components/__tests__/BackgroundQueueMonitor.spec.ts",
-      "line": 73,
+      "line": 88,
       "match": "document.querySelector"
     },
     {
       "file": "app/frontend/src/components/__tests__/BackgroundQueueMonitor.spec.ts",
-      "line": 79,
-      "match": "document.querySelector"
-    },
-    {
-      "file": "app/frontend/src/components/__tests__/BackgroundQueueMonitor.spec.ts",
-      "line": 87,
-      "match": "document.body"
-    },
-    {
-      "file": "app/frontend/src/components/__tests__/BackgroundQueueMonitor.spec.ts",
-      "line": 93,
+      "line": 94,
       "match": "document.querySelector"
     },
     {
@@ -2991,27 +2991,27 @@
     },
     {
       "file": "app/frontend/src/components/__tests__/BackgroundQueueMonitor.spec.ts",
-      "line": 105,
-      "match": "document.body"
-    },
-    {
-      "file": "app/frontend/src/components/__tests__/BackgroundQueueMonitor.spec.ts",
-      "line": 111,
-      "match": "document.body"
-    },
-    {
-      "file": "app/frontend/src/components/__tests__/BackgroundQueueMonitor.spec.ts",
-      "line": 113,
+      "line": 108,
       "match": "document.querySelector"
     },
     {
       "file": "app/frontend/src/components/__tests__/BackgroundQueueMonitor.spec.ts",
-      "line": 118,
+      "line": 117,
       "match": "document.body"
     },
     {
       "file": "app/frontend/src/components/__tests__/BackgroundQueueMonitor.spec.ts",
       "line": 120,
+      "match": "document.body"
+    },
+    {
+      "file": "app/frontend/src/components/__tests__/BackgroundQueueMonitor.spec.ts",
+      "line": 126,
+      "match": "document.body"
+    },
+    {
+      "file": "app/frontend/src/components/__tests__/BackgroundQueueMonitor.spec.ts",
+      "line": 128,
       "match": "document.querySelector"
     },
     {
@@ -3022,6 +3022,16 @@
     {
       "file": "app/frontend/src/components/__tests__/BackgroundQueueMonitor.spec.ts",
       "line": 135,
+      "match": "document.querySelector"
+    },
+    {
+      "file": "app/frontend/src/components/__tests__/BackgroundQueueMonitor.spec.ts",
+      "line": 148,
+      "match": "document.body"
+    },
+    {
+      "file": "app/frontend/src/components/__tests__/BackgroundQueueMonitor.spec.ts",
+      "line": 150,
       "match": "document.querySelector"
     },
     {
@@ -3736,7 +3746,7 @@
     },
     {
       "file": "app/frontend/tests/e2e/background-queue-lifecycle.spec.ts",
-      "line": 89,
+      "line": 94,
       "match": "document.documentElement"
     },
     {
@@ -4301,7 +4311,7 @@
     },
     {
       "file": "app/frontend/vite.config.ts",
-      "line": 63,
+      "line": 64,
       "match": "document.createElement"
     }
   ],
@@ -4878,6 +4888,11 @@
     }
   ],
   "listenersAndTimers": [
+    {
+      "file": "app/frontend/scripts/__tests__/compact-production-chunks.spec.ts",
+      "line": 34,
+      "match": "addEventListener("
+    },
     {
       "file": "app/frontend/src/components/CleanupPolicyEditor.vue",
       "line": 504,
@@ -11920,23 +11935,23 @@
     "schemaVersion": 1,
     "generatedBy": "app/frontend/scripts/inventory-frontend.mjs",
     "sourceRoot": "app/frontend",
-    "frontendFiles": 367,
+    "frontendFiles": 370,
     "routes": 21,
     "navigationDestinations": 19,
     "apiCalls": 149,
-    "websocketConsumers": 19,
+    "websocketConsumers": 20,
     "storage": 3,
-    "overlays": 90,
+    "overlays": 91,
     "forms": 7,
     "tables": 6,
     "destructiveActions": 71,
-    "states": 219,
-    "players": 14,
-    "pwa": 135,
+    "states": 221,
+    "players": 15,
+    "pwa": 137,
     "breakpoints": 94,
     "directDomMutations": 300,
     "moduleScopeMutableState": 114,
-    "listenersAndTimers": 149,
+    "listenersAndTimers": 150,
     "anyTypes": 92,
     "nonsemanticActions": 19,
     "clickSemantics": 293,

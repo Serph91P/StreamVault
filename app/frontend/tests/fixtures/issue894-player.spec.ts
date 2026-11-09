@@ -77,7 +77,7 @@ for (const width of [360, 390]) {
     test(`chapter opening and closing preserves document scroll ${width} ${variant}`, async ({ page }) => {
       await page.setViewportSize({ width, height: 640 })
       const { api } = await openPlayer(page, variant)
-      const opener = page.getByRole('button', { name: 'Chapters', exact: true })
+      const opener = page.getByRole('button', { name: /^Chapters \d+$/, exact: true })
       const before = await readyForMeasuredClick(page, opener)
       expect(before).toBeGreaterThan(0)
       const probe = await page.evaluateHandle(() => {

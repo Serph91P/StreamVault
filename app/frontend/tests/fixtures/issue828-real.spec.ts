@@ -37,7 +37,7 @@ for (const viewport of playerViewports) {
         await expect.poll(() => video.evaluate(el => (el as HTMLVideoElement).duration)).toBe(12)
         const chapters = syntheticChapters(variant)
         await assertBounds(page, chapters.length > 0)
-        const opener = page.getByRole('button', { name: 'Chapters', exact: true })
+        const opener = page.getByRole('button', { name: /^Chapters \d+$/, exact: true })
         if (!chapters.length) {
           await expect(opener).toHaveCount(0)
           await expect(page.getByRole('dialog', { name: 'Chapters' })).toHaveCount(0)

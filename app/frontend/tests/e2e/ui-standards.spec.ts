@@ -52,6 +52,13 @@ function formatViolations(violations: AxeViolation[]) {
     .join('\n')
 }
 
+// The shipped MOCK avatar is synthetic; never contact its provider in this UI gate.
+test.beforeEach(async ({ page }) => {
+  await page.route('https://static-cdn.jtvnw.net/jtv_user_pictures/2b1f0b6e-8b0c-4f3a-8b1a-1f0b6e8b0c4f-profile_image-300x300.png', route => route.fulfill({
+    contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1" />',
+  }))
+})
+
 for (const theme of ['dark', 'light'] as const) {
   for (const route of routes) {
     test(`${theme} ${route.path} has no stable contrast, target-size, or console errors`, async ({ page }) => {

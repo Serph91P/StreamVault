@@ -2,6 +2,10 @@
 /// <reference types="vue/ref-macros" />
 /// <reference types="vite-plugin-pwa/client" />
 
+declare module 'hls.js/dist/hls.min.mjs' {
+  export { default } from 'hls.js'
+}
+
 declare module '*.vue' {
   import { DefineComponent } from 'vue'
   const component: DefineComponent<{}, {}, any>
