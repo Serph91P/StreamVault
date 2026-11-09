@@ -433,6 +433,9 @@ for (const snapshot of snapshots) {
         option.textContent = 'A streamer name deliberately long enough to require calm reflow'
       })
       await page.getByLabel('Filter videos by streamer').selectOption({ index: 1 })
+      // Server-side filtering now reloads the catalog; capture the settled UI,
+      // not the intermediate loading skeleton after changing a facet.
+      await expect(page.getByRole('region', { name: 'Video library summary' })).toBeVisible()
     }
     await disableMotion(page)
     await expect(page).toHaveScreenshot(`${snapshot.name}.png`, {

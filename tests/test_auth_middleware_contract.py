@@ -413,7 +413,10 @@ def test_fresh_jwt_login_reaches_authenticated_media_contract(auth_stack, monkey
     monkeypatch.setattr(
         settings_module, "get_settings", lambda: SimpleNamespace(BASE_URL="https://test.invalid")
     )
+    from contextlib import nullcontext
+
     app.dependency_overrides[get_db] = lambda: MediaDb()
+    monkeypatch.setattr(video_routes, "SessionLocal", lambda: nullcontext(MediaDb()))
 
     with TestClient(app) as client:
         login = client.post(

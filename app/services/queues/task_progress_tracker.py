@@ -143,7 +143,6 @@ class TaskProgressTracker:
                 elif status == TaskStatus.FAILED:
                     self.stats["failed_tasks"] += 1
             elif status == TaskStatus.RETRYING:
-                task.retry_count += 1
                 self.stats["retried_tasks"] += 1
 
             logger.debug(

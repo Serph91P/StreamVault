@@ -3,6 +3,7 @@
 import importlib
 import json
 import os
+from datetime import datetime, timedelta
 
 from fastapi import Depends
 from pydantic import SecretStr
@@ -58,6 +59,21 @@ with SessionLocal() as db:
         )
     )
     db.commit()
+
+# Settings also reads version information before revealing its panels. Seed the
+# existing update cache so an unrelated external GitHub lookup cannot stall this
+# isolated persistence acceptance (all auth/settings/DB routes remain real).
+version_routes = importlib.import_module("app.routes.version")
+version_routes._update_check_cache.update(
+    data={
+        "update_available": False,
+        "latest_version": None,
+        "latest_version_url": None,
+        "update_check_error": None,
+        "release_channel": "prerelease",
+    },
+    expires_at=datetime.utcnow() + timedelta(minutes=5),
+)
 
 app = importlib.import_module("app.main").create_app(settings=settings)
 

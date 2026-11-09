@@ -139,6 +139,16 @@ class OrphanedRecoveryService:
             result["reason"] = "No file path"
             return result
 
+        from app.dependencies import get_recording_manager
+        from app.services.recording.media_ownership import recording_is_protected
+
+        snapshots = (
+            await get_recording_manager().process_manager.capture_process_snapshot()
+        )
+        if await recording_is_protected(recording, snapshots):
+            result["reason"] = "Capture is active or its ownership is unverified"
+            return result
+
         file_path = Path(recording.path)
 
         # Check if TS file exists
@@ -182,7 +192,7 @@ class OrphanedRecoveryService:
         import os
 
         try:
-            if not recording.path:
+            if not (await self._validate_orphaned_recording(recording))["valid"]:
                 return False
 
             # Prepare post-processing payload
@@ -222,6 +232,10 @@ class OrphanedRecoveryService:
                 f"Failed to trigger recovery for recording {recording.id}: {e}"
             )
             return False
+
+    # Original #959/c966fa4e: keep both legacy and public admin callers native.
+    validate_orphaned_recording = _validate_orphaned_recording
+    trigger_orphaned_recovery = _trigger_orphaned_recovery
 
     async def _cleanup_orphaned_segments(
         self, db, max_age_hours: int, dry_run: bool, result: Dict

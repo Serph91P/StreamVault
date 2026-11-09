@@ -1,6 +1,7 @@
 """Regression coverage for authenticated stored-media range responses."""
 
 from pathlib import Path
+from contextlib import nullcontext
 
 import pytest
 from fastapi import FastAPI, HTTPException, Request
@@ -42,16 +43,21 @@ def stored_media_client(monkeypatch, tmp_path):
     from app.routes import videos
 
     media_file = tmp_path / "recording.mp4"
-    media_file.write_bytes(b"synthetic-media")
+    media_file.write_bytes(b"synthetic-media" * 10000)
     database = _Database(_Stream(media_file))
 
-    async def valid_session(_self, _token):
+    def valid_session(_self, _token):
         return True
 
-    monkeypatch.setattr(videos.AuthService, "validate_session", valid_session)
+    monkeypatch.setattr(videos.AuthService, "resolve_legacy_session", valid_session)
+    monkeypatch.setattr(videos, "SessionLocal", lambda: nullcontext(database))
     monkeypatch.setattr(videos, "validate_path_security", lambda path, _mode: path)
     monkeypatch.setattr(videos, "validate_file_type", lambda *_args: None)
+    monkeypatch.setattr(
+        videos, "validate_share_token", lambda token: 1 if token == "valid" else None
+    )
     application = FastAPI()
+    application.state.media_path = media_file
     application.include_router(videos.router)
     application.dependency_overrides[dependencies.get_db] = lambda: database
 
@@ -112,12 +118,14 @@ def test_public_share_token_seek_and_expiry_keep_media_contract_fail_closed(
     from app.routes import videos
 
     client, file_size = stored_media_client
-    monkeypatch.setattr(videos, "validate_share_token", lambda token: 1 if token == "valid" else None)
+    monkeypatch.setattr(
+        videos, "validate_share_token", lambda token: 1 if token == "valid" else None
+    )
 
-    async def invalid_legacy_session(_self, _token):
-        return False
+    def invalid_legacy_session(_self, _token):
+        return None
 
-    monkeypatch.setattr(videos.AuthService, "validate_session", invalid_legacy_session)
+    monkeypatch.setattr(videos.AuthService, "resolve_legacy_session", invalid_legacy_session)
 
     seek = client.get(
         "/api/videos/public/1?token=valid",
@@ -135,3 +143,112 @@ def test_public_share_token_seek_and_expiry_keep_media_contract_fail_closed(
     assert unsatisfied.status_code == 416
     assert unsatisfied.headers["content-range"] == f"bytes */{file_size}"
     assert expired.status_code == 401
+
+
+@pytest.mark.parametrize(
+    "route", ["/api/videos/1/stream", "/api/videos/public/1?token=valid"]
+)
+def test_stored_media_uses_bounded_large_delivery_chunks(stored_media_client, route):
+    client, _ = stored_media_client
+    chunks = []
+
+    class ObserveBody:
+        def __init__(self, app):
+            self.app = app
+
+        async def __call__(self, scope, receive, send):
+            async def observe(message):
+                if message["type"] == "http.response.body":
+                    chunks.append(len(message.get("body", b"")))
+                await send(message)
+
+            await self.app(scope, receive, observe)
+
+    client.app.add_middleware(ObserveBody)
+    client.cookies.set("session", "test-session")
+    response = client.get(route)
+    assert response.status_code == 200
+    assert response.content == b"synthetic-media" * 10000
+    assert response.headers["cache-control"] == "no-cache"
+    assert max(chunks) == 65536
+    assert sum(chunks) == len(response.content)
+    suffix = client.get(route, headers={"Range": "bytes=-5"})
+    assert suffix.status_code == 206
+    assert suffix.content == response.content[-5:]
+    assert (
+        suffix.headers["content-range"]
+        == f"bytes {len(response.content) - 5}-{len(response.content) - 1}/{len(response.content)}"
+    )
+    head = client.head(route)
+    assert head.status_code == 200
+    assert head.content == b""
+    assert head.headers["content-length"] == str(len(response.content))
+
+
+@pytest.mark.parametrize(
+    "route", ["/api/videos/1/stream", "/api/videos/public/1?token=valid"]
+)
+def test_growing_full_media_over_real_uvicorn_has_exact_snapshot_length(
+    stored_media_client, route
+):
+    import socket
+    import threading
+    import time
+    import httpx
+    import uvicorn
+
+    client, size = stored_media_client
+    app = client.app
+    path = app.state.media_path
+    original = path.read_bytes()
+
+    class GrowingCapture:
+        def __init__(self, app):
+            self.app = app
+
+        async def __call__(self, scope, receive, send):
+            async def grow(message):
+                if message["type"] == "http.response.start":
+                    with path.open("ab") as writer:
+                        writer.write(b"live capture continues" * 1000)
+                await send(message)
+
+            await self.app(scope, receive, grow)
+
+    app.add_middleware(GrowingCapture)
+    listener = socket.socket()
+    listener.bind(("127.0.0.1", 0))
+    listener.listen()
+    server = uvicorn.Server(uvicorn.Config(app, log_level="error", access_log=False))
+    thread = threading.Thread(target=server.run, kwargs={"sockets": [listener]})
+    thread.start()
+    try:
+        deadline = time.monotonic() + 5
+        while not server.started and thread.is_alive() and time.monotonic() < deadline:
+            time.sleep(0.01)
+        assert server.started
+        with httpx.Client(
+            base_url=f"http://127.0.0.1:{listener.getsockname()[1]}",
+            cookies={"session": "test-session"},
+        ) as connection:
+            response = connection.get(route)
+            assert response.status_code == 200
+            assert response.headers["content-length"] == str(size)
+            assert response.content == original
+            # More bytes exist on disk, but did not invalidate this snapshot transfer.
+            assert path.stat().st_size > size
+            selected = path.read_bytes()[10:101]
+            ranged = connection.get(route, headers={"Range": "bytes=10-100"})
+            assert ranged.status_code == 206
+            assert ranged.content == selected
+            assert ranged.headers["content-length"] == "91"
+            before_head = path.stat().st_size
+            head = connection.head(route)
+            assert head.status_code == 200
+            assert head.content == b""
+            assert head.headers["content-length"] == str(before_head)
+    finally:
+        server.should_exit = True
+        thread.join(timeout=5)
+        listener.close()
+        assert not thread.is_alive()

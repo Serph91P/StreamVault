@@ -41,8 +41,8 @@ from app.services.twitch_upstream_coordinator import (
     TwitchUpstreamConflict,
     twitch_upstream_coordinator,
 )
+from app.utils.process_output import BoundedStreamlinkOutput
 from app.utils.security import (
-    StreamingStreamlinkOutputSanitizer,
     get_streamlink_command_secret_values,
     sanitize_proxy_url_for_logging,
 )
@@ -576,26 +576,15 @@ class LiveStreamingService:
         name: str,
     ):
         """Read stderr from a subprocess and log it for diagnostics."""
-        sanitizer = StreamingStreamlinkOutputSanitizer(
-            self._streamlink_output_secrets.get(process, ())
-        )
         try:
-            if not process.stderr:
-                return
-            while True:
-                line = await process.stderr.readline()
-                if not line:
-                    break
-                safe_output = sanitizer.feed(line)
-                if safe_output:
-                    logger.debug("[LIVE][%s] %s", name, safe_output)
-            safe_output = sanitizer.flush()
+            safe_output = await BoundedStreamlinkOutput.drain_reader(
+                process.stderr, self._streamlink_output_secrets.get(process, ())
+            )
             if safe_output:
-                logger.debug("[LIVE][%s] %s", name, safe_output)
+                logger.debug(
+                    "[LIVE][%s] %s", name, safe_output.decode(errors="replace")
+                )
         except Exception as error:
-            safe_output = sanitizer.flush()
-            if safe_output:
-                logger.debug("[LIVE][%s] %s", name, safe_output)
             logger.debug(
                 "[LIVE][%s] stderr logger ended (%s)", name, type(error).__name__
             )

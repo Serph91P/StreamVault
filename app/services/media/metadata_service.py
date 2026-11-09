@@ -1,7 +1,8 @@
 import os
 import json
 import aiohttp
-import asyncio
+
+from app.utils.media_process import media_process
 import logging
 import copy  # Add missing import for copy module
 import re
@@ -1606,12 +1607,8 @@ class MetadataService:
                 "default=noprint_wrappers=1:nokey=1",
                 str(video_path_obj),
             ]
-            check_process = await asyncio.create_subprocess_exec(
-                *check_cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-            check_stdout, _ = await check_process.communicate()
+            async with media_process(*check_cmd) as (check_process, output):
+                check_stdout, _ = await output.wait()
             if (
                 check_process.returncode != 0
                 or not check_stdout
@@ -1645,61 +1642,17 @@ class MetadataService:
                 if "-" in video_path_obj.stem
                 else "unknown"
             )
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            ffmpeg_log_path = logging_service.get_ffmpeg_log_path(
-                f"thumbnail_{timestamp}", streamer_name
-            )
-            os.makedirs(os.path.dirname(ffmpeg_log_path), exist_ok=True)
-
-            # Set up environment and quiet logging
+            # Use the same bounded, redacted pipe diagnostics as other media jobs.
             env = os.environ.copy()
-            env["FFREPORT"] = f"file={ffmpeg_log_path}:level=40"
+            env.pop("FFREPORT", None)
             env["AV_LOG_FORCE_NOCOLOR"] = "1"
-            env["AV_LOG_FORCE_STDERR"] = "0"
-            cmd.extend(["-loglevel", "quiet"])
-
-            import tempfile
-
-            stdout_file = tempfile.NamedTemporaryFile(
-                delete=False, prefix="ffmpeg_thumb_stdout_", suffix=".log"
+            cmd.extend(["-loglevel", "error"])
+            logging_service.log_ffmpeg_start("thumbnail_extract", cmd, streamer_name)
+            async with media_process(*cmd, env=env) as (process, output):
+                stdout, stderr = await output.wait()
+            logging_service.log_ffmpeg_output(
+                "thumbnail_extract", stdout, stderr, process.returncode, streamer_name
             )
-            stderr_file = tempfile.NamedTemporaryFile(
-                delete=False, prefix="ffmpeg_thumb_stderr_", suffix=".log"
-            )
-            try:
-                process = await asyncio.create_subprocess_exec(
-                    *cmd,
-                    stdout=stdout_file.fileno(),
-                    stderr=stderr_file.fileno(),
-                    env=env,
-                )
-                stdout_file.close()
-                stderr_file.close()
-                await process.wait()
-
-                # Append temp outputs to the ffmpeg log
-                try:
-                    with open(stdout_file.name, "r", errors="ignore") as f:
-                        stdout_str = f.read()
-                    with open(stderr_file.name, "r", errors="ignore") as f:
-                        stderr_str = f.read()
-                    with open(ffmpeg_log_path, "a", errors="ignore") as f:
-                        f.write("\n\n--- STDOUT ---\n")
-                        f.write(stdout_str)
-                        f.write("\n\n--- STDERR ---\n")
-                        f.write(stderr_str)
-                finally:
-                    try:
-                        os.unlink(stdout_file.name)
-                        os.unlink(stderr_file.name)
-                    except Exception as e:
-                        logger.warning(
-                            f"Failed to clean up temporary thumbnail stdout/stderr files: {e}"
-                        )
-            except Exception as e:
-                logger.error(
-                    f"Error during thumbnail extraction process: {e}", exc_info=True
-                )
 
             # Verify thumbnail
             if thumbnail_path.exists() and thumbnail_path.stat().st_size > 0:
@@ -2930,11 +2883,8 @@ class MetadataService:
             logger.debug(f"FFmpeg command for metadata embedding: {' '.join(cmd)}")
 
             # Execute FFmpeg command
-            process = await asyncio.create_subprocess_exec(
-                *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
-            )
-
-            stdout, stderr = await process.communicate()
+            async with media_process(*cmd) as (process, output):
+                stdout, stderr = await output.wait()
 
             if process.returncode != 0:
                 logger.error(

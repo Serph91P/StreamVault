@@ -18,6 +18,8 @@ from app.database import Base, DatabaseLifecycle
 EXPECTED_TABLES = {
     "active_recordings_state",
     "api_keys",
+    "background_tasks",
+    "background_task_dependencies",
     "categories",
     "favorite_categories",
     "global_settings",
@@ -40,6 +42,7 @@ EXPECTED_TABLES = {
     "twitch_upstream_coordination_state",
     "twitch_upstream_leases",
     "users",
+    "video_catalog_entries",
 }
 
 

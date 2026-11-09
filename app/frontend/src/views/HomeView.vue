@@ -213,6 +213,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { prepareVideoReturn, restoreVideoReturnScroll } from '@/composables/useNavigation'
 import { streamersApi, videoApi, recordingApi, backgroundQueueApi } from '@/services/api'
+import type { CatalogVideo as VideoSummary } from '@/types/video'
 import { useRealtimeStore } from '@/stores/realtime'
 import { useForceRecording } from '@/composables/useForceRecording'
 import { toRecordingStatusSummary, type RecordingStatusSource } from '@/services/recording-status'
@@ -246,13 +247,6 @@ interface StreamerSummary {
   [key: string]: unknown
 }
 
-interface VideoSummary {
-  id: number
-  title: string
-  stream_date?: string
-  created_at?: string
-  [key: string]: unknown
-}
 
 interface ActiveRecording extends RecordingStatusSource {
   id?: string | number
@@ -482,8 +476,8 @@ async function fetchVideos() {
   isLoadingVideos.value = true
   videosError.value = ''
   try {
-    const response = await videoApi.getAll({ limit: 12 })
-    videos.value = response || []
+    const response = await videoApi.getPage({ page: 1, page_size: 12, sort: 'date', order: 'desc' })
+    videos.value = response.items
   } catch (error) {
     console.error('Failed to fetch videos:', error)
     videosError.value = 'Could not load latest videos.'

@@ -6,7 +6,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
-from app.models import Recording, Stream, Streamer, TwitchUpstreamLease, User
+from app.models import Recording, Stream, Streamer, TwitchUpstreamLease, User, StreamMetadata, TwitchUpstreamCoordinationState
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -21,16 +21,6 @@ def test_state_persistence_process_exists_has_os_fallback() -> None:
     assert "except ProcessLookupError:" in source
     assert "except PermissionError:" in source
 
-
-def test_startup_recovery_defers_when_live_status_cannot_be_verified() -> None:
-    source = (ROOT / "app/services/init/startup_init.py").read_text(encoding="utf-8")
-
-    api_error_block = source.split("except Exception as api_error:", 1)[1]
-    api_error_block = api_error_block.split("if is_still_live:", 1)[0]
-
-    assert "Deferring zombie recording cleanup" in api_error_block
-    assert "continue" in api_error_block
-    assert "is_still_live = False" not in api_error_block
 
 
 def test_process_manager_psutil_flag_reflects_import_result() -> None:
@@ -59,6 +49,8 @@ def recovery_database(tmp_path):
             Stream.__table__,
             Recording.__table__,
             TwitchUpstreamLease.__table__,
+            StreamMetadata.__table__,
+            TwitchUpstreamCoordinationState.__table__,
         ],
     )
     Session = sessionmaker(bind=engine)
@@ -231,8 +223,9 @@ async def test_unified_recovery_rejects_lease_for_other_recording(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("provider_failure",[False,True])
 async def test_startup_failed_resume_preserves_recoverable_recording(
-    monkeypatch, recovery_database
+    monkeypatch, recovery_database, provider_failure
 ):
     import importlib
 
@@ -245,12 +238,31 @@ async def test_startup_failed_resume_preserves_recoverable_recording(
     Session, values = recovery_database
     calls = []
 
-    class StreamerService:
-        def __init__(self, *args, **kwargs):
-            pass
+    import subprocess
+    import sys
+    import time
+    from types import SimpleNamespace
+    from app.services.twitch_upstream_coordinator import TwitchUpstreamCoordinator
+    from app.services.api.twitch_api import twitch_api
 
-        async def check_streamer_live_status(self, twitch_id):
-            return True
+    dead = subprocess.Popen([sys.executable,"-c","pass"],start_new_session=True)
+    dead.wait(timeout=5)
+    with Session() as db:
+        lease=db.query(TwitchUpstreamLease).one()
+        lease.process_pid=dead.pid
+        lease.process_group_id=dead.pid
+        db.commit()
+
+    async def snapshots():
+        return {}
+
+    provider_calls=[]
+    async def live_status(**kwargs):
+        assert kwargs=={"user_ids":["stable-channel-id"]}
+        provider_calls.append(kwargs)
+        if provider_failure:
+            raise RuntimeError("synthetic provider unavailable")
+        return [{"id":"synthetic-live"}]
 
     class RecordingService:
         def is_stream_active(self, stream_id):
@@ -270,7 +282,8 @@ async def test_startup_failed_resume_preserves_recoverable_recording(
             pass
 
     monkeypatch.setattr(app.database, "SessionLocal", Session)
-    monkeypatch.setattr(streamer_service_module, "StreamerService", StreamerService)
+    RecordingService.process_manager=SimpleNamespace(capture_process_snapshot=snapshots,upstream_coordinator=TwitchUpstreamCoordinator(Session,monotonic_clock=time.monotonic))
+    monkeypatch.setattr(twitch_api,"get_streams",live_status)
     monkeypatch.setattr(
         startup_init, "get_recording_manager", lambda: RecordingService()
     )
@@ -278,7 +291,8 @@ async def test_startup_failed_resume_preserves_recoverable_recording(
 
     await startup_init.cleanup_zombie_recordings()
 
-    assert calls == [
+    assert provider_calls==[{"user_ids":["stable-channel-id"]}]
+    assert calls == ([] if provider_failure else [
         (
             values["stream_id"],
             values["streamer_id"],
@@ -288,7 +302,7 @@ async def test_startup_failed_resume_preserves_recoverable_recording(
                 "recovery_generation": 11,
             },
         )
-    ]
+    ])
     with Session() as db:
         prior = db.get(Recording, values["recording_id"])
         assert prior.status == "recording"

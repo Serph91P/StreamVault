@@ -31,10 +31,14 @@ from app.models._legacy import (
     User,
 )
 from app.models.categories import Category, FavoriteCategory
+from app.models.video_catalog import VideoCatalogEntry
+from app.models.background_task import BackgroundTask, BackgroundTaskDependency
 
 __all__ = [
     "ActiveRecordingState",
     "ApiKey",
+    "BackgroundTask",
+    "BackgroundTaskDependency",
     "Category",
     "FavoriteCategory",
     "GlobalSettings",
@@ -57,4 +61,5 @@ __all__ = [
     "TwitchUpstreamCoordinationState",
     "TwitchUpstreamLease",
     "User",
+    "VideoCatalogEntry",
 ]

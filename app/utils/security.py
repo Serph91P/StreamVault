@@ -802,6 +802,8 @@ class StreamingStreamlinkOutputSanitizer:
         self._redaction_emitted = False
 
     def _pending_secret_start(self) -> int:
+        if not self._secret_forms:
+            return len(self._buffer)
         positions = []
         collapsed = []
         for index, character in enumerate(self._buffer):

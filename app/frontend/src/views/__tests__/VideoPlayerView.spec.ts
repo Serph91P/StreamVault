@@ -8,7 +8,7 @@ const mocks = vi.hoisted(() => ({
   route: { params: { id: '42' } as Record<string, string>, query: {} },
   routerBack: vi.fn(),
   routerPush: vi.fn(),
-  getAll: vi.fn(),
+  getMetadata: vi.fn(),
   getChapters: vi.fn(),
   getCategoryImage: vi.fn(),
   getVideoStreamUrl: vi.fn((id: number) => `/api/videos/${id}/stream`),
@@ -26,7 +26,7 @@ vi.mock('vue-router', () => ({
 vi.mock('@/services/api', () => ({
   categoriesApi: { getImage: mocks.getCategoryImage },
   videoApi: {
-    getAll: mocks.getAll,
+    getMetadata: mocks.getMetadata,
     getChapters: mocks.getChapters,
     getVideoStreamUrl: mocks.getVideoStreamUrl,
     createShareToken: mocks.createShareToken,
@@ -84,13 +84,13 @@ beforeEach(() => {
   reactiveRoute.params = { id: '42' }
   mocks.route.query = {}
   mocks.getCategoryImage.mockResolvedValue({ image_url: '/api/media/categories/synthetic-artwork.jpg' })
-  mocks.getAll.mockResolvedValue([{
+  mocks.getMetadata.mockResolvedValue({
     id: 42,
     title: 'Backend title',
     streamer_name: 'backend-streamer',
     duration: 900,
     created_at: '2026-09-01T12:00:00Z'
-  }])
+  })
   mocks.getChapters.mockResolvedValue([
     { id: 1, title: 'Start', start: 0, end: 600 },
     { id: 2, title: 'Ten minutes', start: 600, end: 900 }
@@ -130,7 +130,7 @@ describe('VideoPlayerView route identity', () => {
     await flushPromises()
     await wrapper.findAll('.action-btn')[2].trigger('click')
     expect(wrapper.find('.modal-stub').exists()).toBe(true)
-    mocks.getAll.mockResolvedValue([secondVideo])
+    mocks.getMetadata.mockResolvedValue(secondVideo)
     mocks.getChapters.mockResolvedValue(secondChapters)
     reactiveRoute.params = params
     await flushPromises()
@@ -163,7 +163,7 @@ describe('VideoPlayerView route identity', () => {
     mocks.getChapters.mockReturnValueOnce(old.promise)
     const wrapper = await mountView(false)
     for (const id of ['43', '42', '43']) {
-      mocks.getAll.mockResolvedValue([secondVideo])
+      mocks.getMetadata.mockResolvedValue(secondVideo)
       mocks.getChapters.mockResolvedValue(secondChapters)
       reactiveRoute.params = { id }
       await flushPromises()
@@ -238,7 +238,8 @@ describe('VideoPlayerView backend playback contract', () => {
     const wrapper = await mountView()
 
     expect(mocks.getChapters).toHaveBeenCalledWith(42)
-    expect(mocks.getAll).toHaveBeenCalledTimes(1)
+    expect(mocks.getMetadata).toHaveBeenCalledTimes(1)
+    expect(mocks.getMetadata).toHaveBeenCalledWith(42)
     expect(mocks.getVideoStreamUrl).toHaveBeenCalledWith(42)
     expect(wrapper.get('.video-player-stub').attributes('data-src')).toBe('/api/videos/42/stream')
     expect(wrapper.text()).toContain('Backend title')
@@ -358,7 +359,7 @@ describe('VideoPlayerView backend playback contract', () => {
   })
 
   it('rejects incomplete catalog metadata instead of inventing values', async () => {
-    mocks.getAll.mockResolvedValueOnce([{ id: 42, title: 'Missing metadata' }])
+    mocks.getMetadata.mockResolvedValueOnce({ id: 42, title: 'Missing metadata' })
     const wrapper = await mountView()
 
     expect(wrapper.get('.player-error').text()).toContain('Video metadata is incomplete')

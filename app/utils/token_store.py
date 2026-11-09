@@ -70,7 +70,10 @@ def validate_share_token(token: str) -> Optional[int]:
 
             # Check if token is expired
             now = datetime.now(timezone.utc)
-            if now > share_token.expires_at:
+            expires_at = share_token.expires_at
+            if expires_at.tzinfo is None:
+                expires_at = expires_at.replace(tzinfo=timezone.utc)
+            if now > expires_at:
                 # Clean up expired token
                 db.delete(share_token)
                 db.commit()
