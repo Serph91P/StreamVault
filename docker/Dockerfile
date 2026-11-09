@@ -158,7 +158,7 @@ LABEL org.opencontainers.image.title="StreamVault" \
 # Health check for container orchestration
 # Uses the /api/health/live endpoint for lightweight liveness checks
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD curl -f http://localhost:7000/api/health/live || exit 1
+    CMD python -m app.healthcheck
 
 EXPOSE 7000
 
@@ -203,7 +203,7 @@ LABEL org.opencontainers.image.title="StreamVault" \
 
 # Health check for container orchestration
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD curl -f http://localhost:7000/api/health/live || exit 1
+    CMD python -m app.healthcheck
 
 EXPOSE 7000
 
