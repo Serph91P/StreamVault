@@ -20,7 +20,11 @@ from app.database import (
 
 def test_sqlite_async_url_transform():
     assert to_async_url("sqlite:///data/test.db") == "sqlite+aiosqlite:///data/test.db"
-    assert to_async_url("sqlite:///:memory:") == "sqlite+aiosqlite:///:memory:"
+    # SQLAlchemy 2.1 percent-encodes the rendered database component. Compare
+    # every URL component, not a rendering detail, without decoding by hand.
+    assert make_url(to_async_url("sqlite:///:memory:")) == make_url(
+        "sqlite+aiosqlite:///:memory:"
+    )
 
 
 def test_postgres_async_url_uses_psycopg_driver():
@@ -88,16 +92,63 @@ def test_lifecycle_is_lazy_no_engine_at_construction(monkeypatch):
     assert created_async == []
 
     lifecycle.sync_engine
-    assert created_sync == ["sqlite:///:memory:"]
+    assert [make_url(url) for url in created_sync] == [make_url("sqlite:///:memory:")]
     assert created_async == []
 
     lifecycle.async_engine
-    assert created_async == ["sqlite+aiosqlite:///:memory:"]
+    assert [make_url(url) for url in created_async] == [
+        make_url("sqlite+aiosqlite:///:memory:")
+    ]
 
     # Session factories are lazy too.
     assert lifecycle._sync_session_factory is None
     lifecycle.sync_session_factory
     assert lifecycle._sync_session_factory is not None
+
+
+@pytest.mark.parametrize(
+    "transform,driver", [(to_sync_url, "sqlite"), (to_async_url, "sqlite+aiosqlite")]
+)
+@pytest.mark.parametrize(
+    "source", ["sqlite:///:memory:", "sqlite:///data/a%20b.db?timeout=3&mode=ro"]
+)
+def test_sqlite_url_transform_preserves_all_non_driver_components(
+    transform, driver, source
+):
+    original = make_url(source)
+    transformed = make_url(transform(source))
+    assert transformed == original.set(drivername=driver)
+    assert transformed != original.set(drivername="postgresql+psycopg")
+    assert transformed != original.set(drivername=driver, database="wrong.db")
+
+
+@pytest.mark.asyncio
+async def test_memory_url_roundtrip_uses_real_in_memory_sync_and_async_engines():
+    lifecycle = DatabaseLifecycle("sqlite:///:memory:")
+    try:
+        assert lifecycle.sync_engine.url.database == ":memory:"
+        with lifecycle.sync_engine.connect() as connection:
+            assert connection.exec_driver_sql("PRAGMA database_list").all() == [
+                (0, "main", "")
+            ]
+            connection.exec_driver_sql("CREATE TABLE sdk_probe (value INTEGER)")
+            connection.exec_driver_sql("INSERT INTO sdk_probe VALUES (41)")
+            assert (
+                connection.exec_driver_sql("SELECT value FROM sdk_probe").scalar_one()
+                == 41
+            )
+        assert lifecycle.async_engine.url.database == ":memory:"
+        async with lifecycle.async_engine.connect() as connection:
+            assert (await connection.exec_driver_sql("PRAGMA database_list")).all() == [
+                (0, "main", "")
+            ]
+            await connection.exec_driver_sql("CREATE TABLE sdk_probe (value INTEGER)")
+            await connection.exec_driver_sql("INSERT INTO sdk_probe VALUES (41)")
+            assert (
+                await connection.exec_driver_sql("SELECT value FROM sdk_probe")
+            ).scalar_one() == 41
+    finally:
+        await lifecycle.adispose()
 
 
 def test_lifecycle_sync_configures_pool_pre_ping_for_postgres(monkeypatch):
