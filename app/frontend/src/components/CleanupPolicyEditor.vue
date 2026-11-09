@@ -677,8 +677,8 @@ select.form-control option {
 }
 
 .btn-primary {
-  background-color: var(--primary-color);
-  color: white;
+  background-color: var(--sv-cmp-button-background);
+  color: var(--sv-cmp-button-foreground);
 }
 
 .btn-secondary {
