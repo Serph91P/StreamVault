@@ -52,7 +52,12 @@ for (const width of [1440, 390]) {
   for (const theme of ['light', 'dark'] as const) {
     test.describe(`queue ${width}px ${theme}`, () => {
       test.use({ viewport: { width, height: 844 }, hasTouch: width === 390, isMobile: width === 390, colorScheme: theme })
-  test('queue preview links to all loaded jobs and errors', async ({ page }) => {
+  test('queue preview links to all loaded jobs and errors', async ({ page }, testInfo) => {
+    // This regression seeds >3 jobs per group through the synthetic HTTP boundary,
+    // which only exists on the REAL frontend. The shared MOCK project cannot seed
+    // HTTP (its store reads mockData, not the network), so it runs only in the
+    // dedicated real-build queue lifecycle config.
+    test.skip(testInfo.project.metadata.useMockData === true, 'REAL-only: synthetic HTTP queue seed')
     const api = await fixture(page)
     const active = Array.from({ length: 5 }, (_, i) => ({
       id: `active-${i + 1}`, task_type: 'thumbnail', status: 'running', progress: 20,
