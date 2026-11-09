@@ -80,6 +80,114 @@ def test_log_files_use_native_dispatch(name):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("kind", ["streamlink", "ffmpeg"])
+async def test_component_log_read_tail_delete_keeps_its_owner(
+    logging_applications, kind
+):
+    _, _, clients, roots, contents, observed = logging_applications
+    for root, content in zip(roots, contents, strict=True):
+        (root / kind).mkdir(exist_ok=True)
+        (root / kind / "component.log").write_text(content)
+    for index, client in enumerate(clients):
+        observed.clear()
+        path = f"/logging/files/{kind}/component.log"
+        download = await client.get(path)
+        tail = await client.get(path + "/tail?lines=100")
+        assert download.status_code == tail.status_code == 200
+        assert download.content == contents[index].encode()
+        assert tail.json()["content"] == contents[index]
+        assert tail.json()["lines_returned"] == tail.json()["total_lines"] == 2
+        deleted = await client.delete(path)
+        assert deleted.status_code == 200
+        assert observed and get_ident() not in observed
+        assert not (roots[index] / kind / "component.log").exists()
+        if index == 0:
+            assert (roots[1] / kind / "component.log").read_text() == contents[1]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("operation", ["list", "stats", "download", "tail", "delete"])
+async def test_log_io_failure_is_not_success_and_preserves_peer(
+    logging_applications, monkeypatch, operation
+):
+    _, _, clients, roots, contents, _ = logging_applications
+    target = roots[0] / "app" / "owned.log"
+    observed = []
+    original_stat = Path.stat
+    original_unlink = Path.unlink
+    original_open = builtins.open
+
+    def fail():
+        observed.append(get_ident())
+        raise PermissionError("synthetic log IO failure")
+
+    def stat(path, *args, **kwargs):
+        if path == target and operation in {"list", "stats"}:
+            fail()
+        return original_stat(path, *args, **kwargs)
+
+    def unlink(path, *args, **kwargs):
+        if path == target:
+            fail()
+        return original_unlink(path, *args, **kwargs)
+
+    def open_file(path, *args, **kwargs):
+        if isinstance(path, (str, os.PathLike)) and Path(path) == target:
+            fail()
+        return original_open(path, *args, **kwargs)
+
+    with monkeypatch.context() as broken:
+        if operation in {"list", "stats"}:
+            broken.setattr(Path, "stat", stat)
+        elif operation == "delete":
+            broken.setattr(Path, "unlink", unlink)
+        else:
+            broken.setattr(builtins, "open", open_file)
+        path = {
+            "list": "/logging/files",
+            "stats": "/logging/stats",
+            "download": "/logging/files/app/owned.log",
+            "tail": "/logging/files/app/owned.log/tail",
+            "delete": "/logging/files/app/owned.log",
+        }[operation]
+        response = await clients[0].request(
+            "DELETE" if operation == "delete" else "GET", path
+        )
+        assert response.status_code == 500
+        assert response.json() == {"detail": "Internal server error"}
+        assert observed and get_ident() not in observed
+    assert target.read_text() == contents[0]
+    peer = await clients[1].get("/logging/files/app/owned.log")
+    assert peer.status_code == 200 and peer.content == contents[1].encode()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "method,path,code",
+    [
+        ("GET", "/files/invalid/owned.log", 400),
+        ("GET", "/files/invalid/owned.log/tail", 400),
+        ("DELETE", "/files/invalid/owned.log", 400),
+        ("GET", "/files/app/missing.log", 404),
+        ("GET", "/files/app/missing.log/tail", 404),
+        ("DELETE", "/files/app/missing.log", 404),
+        ("GET", "/files/app/owned.log/tail?lines=0", 422),
+        ("GET", "/files/app/owned.log/tail?lines=10001", 422),
+        ("POST", "/cleanup?days_to_keep=0", 422),
+        ("POST", "/cleanup?days_to_keep=366", 422),
+        ("GET", "/files/app/%2e%2e%5cowned.log", 400),
+    ],
+)
+async def test_invalid_log_requests_preserve_both_roots(
+    logging_applications, method, path, code
+):
+    _, _, clients, roots, contents, _ = logging_applications
+    response = await clients[0].request(method, "/logging" + path)
+    assert response.status_code == code
+    assert [(root / "app" / "owned.log").read_text() for root in roots] == contents
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("operation", ["list", "stats", "download", "tail"])
 async def test_real_log_reads_are_owned_and_off_loop(logging_applications, operation):
     _, _, clients, _, contents, observed = logging_applications

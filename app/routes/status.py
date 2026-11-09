@@ -167,9 +167,12 @@ def get_active_recordings_status(
                         # Calculate duration
                         duration = 0
                         if recording.start_time:
+                            start_time = recording.start_time
+                            if start_time.tzinfo is None:
+                                start_time = start_time.replace(tzinfo=timezone.utc)
                             duration = int(
                                 (
-                                    datetime.now(timezone.utc) - recording.start_time
+                                    datetime.now(timezone.utc) - start_time
                                 ).total_seconds()
                             )
 

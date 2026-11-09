@@ -1,6 +1,7 @@
 """Real status routes use native workers and their own application resources."""
 
 import asyncio
+from datetime import datetime, timedelta, timezone
 from importlib import import_module
 from inspect import iscoroutinefunction
 from threading import get_ident
@@ -13,6 +14,84 @@ from app.utils.async_db_utils import run_in_thread_pool
 from tests import test_image_http_ownership
 
 image_applications = test_image_http_ownership.image_applications
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "path,field,expected",
+    [
+        ("recordings-active", ("active_count",), 1),
+        ("active-recordings", ("count",), 1),
+        ("system", ("system", "live_streamers"), 1),
+        ("streamers", ("summary", "recording"), 1),
+        ("streams", ("summary", "recorded_count"), 1),
+        ("notifications", ("recent_events", 0, "streamer_name"), None),
+    ],
+)
+async def test_status_populated_catalogue_preserves_owned_values(
+    image_applications, path, field, expected
+):
+    from app.models import Recording, Stream, StreamEvent
+
+    _, databases, clients, queries = image_applications
+    started = datetime.now(timezone.utc) - timedelta(seconds=60)
+
+    def seed(database, index):
+        with database.sync_session_factory() as session:
+            session.add(
+                Stream(
+                    id=71,
+                    streamer_id=1,
+                    title=f"title-{index}",
+                    started_at=started,
+                    created_at=started,
+                )
+            )
+            session.flush()
+            session.add(
+                Recording(
+                    id=72,
+                    stream_id=71,
+                    status="recording",
+                    start_time=started,
+                    path=f"/scope-{index}/recording.ts",
+                )
+            )
+            session.add(
+                StreamEvent(
+                    stream_id=71,
+                    event_type="stream_online",
+                    title=f"title-{index}",
+                    timestamp=started,
+                )
+            )
+            session.commit()
+
+    for index, database in enumerate(databases):
+        await run_in_thread_pool(seed, database, index)
+    for index, client in enumerate(clients):
+        queries.clear()
+        response = await client.get(f"/api/status/{path}")
+        assert response.status_code == 200, response.text
+        body = response.json()
+        value = body
+        for part in field:
+            value = value[part]
+        assert value == (f"owner-{index}" if expected is None else expected)
+        if path == "active-recordings":
+            record = body["active_recordings"][0]
+            assert record["streamer_name"] == f"owner-{index}"
+            assert record["title"] == f"title-{index}"
+            assert record["file_path"] == f"/scope-{index}/recording.ts"
+            assert (
+                60
+                <= record["duration"]
+                <= int((datetime.now(timezone.utc) - started).total_seconds()) + 1
+            )
+        assert queries and get_ident() not in [thread for thread, _ in queries]
+        assert all(
+            database.sync_engine.pool.checkedout() == 0 for database in databases
+        )
 
 
 @pytest.mark.parametrize(
@@ -30,6 +109,81 @@ image_applications = test_image_http_ownership.image_applications
 )
 def test_sync_status_uses_native_dispatch(name):
     assert not iscoroutinefunction(getattr(import_module("app.routes.status"), name))
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "path,table,expected_code",
+    [
+        ("recordings-active", "recordings", 500),
+        ("active-recordings", "recordings", 500),
+        ("system", "recordings", 500),
+        ("streamers", "streamers", 500),
+        ("streams", "streams", 500),
+        ("notifications", "notification_settings", 500),
+        ("notifications", "stream_events", 200),
+    ],
+)
+async def test_status_query_failure_keeps_peer_and_closes_transactions(
+    image_applications, path, table, expected_code
+):
+    _, databases, clients, _ = image_applications
+    observed = []
+
+    def unavailable(_connection, _cursor, statement, *_):
+        if f"FROM {table}" in statement:
+            observed.append(get_ident())
+            raise RuntimeError("synthetic status query outage")
+
+    event.listen(databases[0].sync_engine, "before_cursor_execute", unavailable)
+    try:
+        failed = await clients[0].get(f"/api/status/{path}")
+        peer = await clients[1].get(f"/api/status/{path}")
+        assert failed.status_code == expected_code
+        assert peer.status_code == 200
+        assert "synthetic status query outage" not in failed.text
+        if expected_code == 200:
+            assert failed.json()["recent_events"] == []
+        else:
+            assert failed.json()["detail"].startswith("Failed")
+        assert observed and get_ident() not in observed
+        assert all(
+            database.sync_engine.pool.checkedout() == 0 for database in databases
+        )
+    finally:
+        event.remove(databases[0].sync_engine, "before_cursor_execute", unavailable)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("path", ["system", "background-queue"])
+async def test_status_queue_failure_is_explicit_and_owned(
+    image_applications, monkeypatch, path
+):
+    apps, databases, clients, _ = image_applications
+    observed = []
+
+    def unavailable():
+        observed.append(get_ident())
+        raise RuntimeError("synthetic queue monitoring outage")
+
+    monkeypatch.setattr(
+        apps[0].state.background_queue_service, "get_queue_statistics", unavailable
+    )
+    failed = await clients[0].get(f"/api/status/{path}")
+    peer = await clients[1].get(f"/api/status/{path}")
+    assert peer.status_code == 200
+    if path == "system":
+        assert failed.status_code == 200
+        assert failed.json()["background_queue"] == {
+            "error": "Queue service unavailable"
+        }
+        assert failed.json()["system"]["total_streamers"] == 1
+    else:
+        assert failed.status_code == 500
+        assert failed.json()["detail"] == "Failed to get background queue status"
+    assert "synthetic queue monitoring outage" not in failed.text
+    assert observed and get_ident() not in observed
+    assert all(database.sync_engine.pool.checkedout() == 0 for database in databases)
 
 
 @pytest.mark.asyncio
