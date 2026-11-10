@@ -1,6 +1,6 @@
 import os
 import json
-import aiohttp
+
 
 from app.utils.media_process import media_process
 import logging
@@ -8,6 +8,7 @@ import copy  # Add missing import for copy module
 import re
 import shutil
 from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Any
@@ -17,7 +18,8 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.database import SessionLocal
 from app.models import Stream, StreamMetadata, StreamEvent, Streamer, RecordingSettings
-from app.services.system.logging_service import logging_service
+from app.services.system.logging_service import LoggingService, get_logging_service
+from app.services.http_client import HTTPPolicy, ManagedHTTPClient
 
 # artwork_service imported lazily to avoid directory creation at import time
 from app.utils.file_utils import sanitize_filename
@@ -26,24 +28,54 @@ from app.utils.async_db_utils import run_in_thread_pool
 logger = logging.getLogger("streamvault")
 
 
+@dataclass(frozen=True, slots=True)
+class _MetadataTarget:
+    directory: Path
+    filename: str
+    username: str
+    profile_url: str | None
+    offline_url: str | None
+    thumbnail_url: str | None
+    thumbnail_path: str | None
+
+
 class MetadataService:
-    def __init__(self, *, session_factory: Callable[[], Session] | None = None):
+    def __init__(
+        self,
+        *,
+        session_factory: Callable[[], Session] | None = None,
+        http_client: ManagedHTTPClient | None = None,
+        recordings_root: Path | None = None,
+        logging_service_factory: Callable[[], LoggingService] | None = None,
+    ) -> None:
         self._session_factory = session_factory
-        self.session: Optional[aiohttp.ClientSession] = None
+        self.session = http_client
+        self._owns_session = http_client is None
+        self._recordings_root = recordings_root
+        self._logging_service_factory = logging_service_factory
 
     def _sessions(self) -> Session:
         return (self._session_factory or SessionLocal)()
 
-    async def _get_session(self) -> aiohttp.ClientSession:
-        """Liefert eine aktive HTTP-Session oder erstellt eine neue."""
-        if self.session is None or self.session.closed:
-            self.session = aiohttp.ClientSession()
+    def _logging(self) -> LoggingService:
+        return (
+            self._logging_service_factory()
+            if self._logging_service_factory
+            else get_logging_service()
+        )
+
+    async def _get_session(self) -> ManagedHTTPClient:
+        if self.session is None:
+            self.session = ManagedHTTPClient(HTTPPolicy())
         return self.session
 
     async def close(self) -> None:
         """Schließt die HTTP-Session."""
-        if self.session and not self.session.closed:
-            await self.session.close()
+        if self._owns_session and self.session is not None:
+            try:
+                await self.session.close()
+            finally:
+                self.session = None
 
     def _relative_artwork_path(
         self, nfo_dir: Path, safe_username: str, filename: str
@@ -345,21 +377,10 @@ class MetadataService:
             return bio
         return f"Streams by {streamer.username} on Twitch."
 
-    async def generate_metadata_for_stream(
+    def _prepare_metadata_target(
         self, stream_id: int, base_path: str, base_filename: str
-    ) -> bool:
-        """Generate all metadata files for a stream
-
-        NOTE: This method is invoked during post-processing and queries by stream_id
-        without filtering on ended_at, so it can operate whether or not ended_at is set.
-
-        IMPORTANT: This method uses synchronous SQLAlchemy (SessionLocal) within an async context.
-        This is a known technical debt. The entire codebase uses sync SQLAlchemy, and converting
-        this single method to async would require cascading changes across many services.
-        In practice, metadata generation is I/O-bound (file writes) rather than DB-bound,
-        and runs in background worker threads, so event loop blocking is minimal.
-        Future refactoring should migrate to async SQLAlchemy (AsyncSession/AsyncEngine).
-        """
+    ) -> _MetadataTarget | None:
+        """Resolve authoritative paths and scalar artwork inputs in one closed scope."""
         try:
             with self._sessions() as db:
                 # Query stream by ID with eager loading of related entities to avoid N+1 queries
@@ -376,13 +397,13 @@ class MetadataService:
                     logger.error(
                         f"Stream {stream_id} not found in database (may have been deleted)"
                     )
-                    return False
+                    return None
 
                 # Access streamer via relationship (already loaded)
                 streamer = stream.streamer
                 if not streamer:
                     logger.error(f"Streamer not found for stream {stream_id}")
-                    return False
+                    return None
 
                 # Resolve base path and filename, but prefer the actual recording path from DB to avoid mismatches
                 base_path_obj = Path(base_path)
@@ -482,76 +503,137 @@ class MetadataService:
                     db.add(metadata)
                     db.commit()
 
-                # Run tasks sequentially to avoid DB/file write races under concurrency
-                success = True
+                return _MetadataTarget(
+                    base_path_obj,
+                    base_filename,
+                    streamer.username,
+                    (streamer.original_profile_image_url or streamer.profile_image_url)
+                    if streamer.profile_image_url
+                    else None,
+                    streamer.original_offline_image_url or streamer.offline_image_url,
+                    metadata.thumbnail_url,
+                    metadata.thumbnail_path,
+                )
+        except Exception as error:
+            logger.error("Metadata preparation failed (%s)", type(error).__name__)
+            return None
 
-                # 1) JSON metadata
-                try:
-                    ok = await self.generate_json_metadata(
-                        db, stream, streamer, base_path_obj, base_filename, metadata
-                    )
-                    if not ok:
-                        success = False
-                except Exception as e:
-                    logger.error(f"JSON metadata generation failed: {e}", exc_info=True)
-                    success = False
+    def _write_metadata_stage(
+        self,
+        stream_id: int,
+        target: _MetadataTarget,
+        stage: str,
+        thumbnail: str | None = None,
+    ) -> bool:
+        with self._sessions() as db:
+            stream = (
+                db.query(Stream)
+                .options(
+                    joinedload(Stream.streamer), joinedload(Stream.stream_metadata)
+                )
+                .filter(Stream.id == stream_id)
+                .first()
+            )
+            if (
+                stream is None
+                or stream.streamer is None
+                or stream.stream_metadata is None
+            ):
+                return False
+            if stage == "json":
+                result = self.generate_json_metadata(
+                    db,
+                    stream,
+                    stream.streamer,
+                    target.directory,
+                    target.filename,
+                    stream.stream_metadata,
+                )
+            elif stage == "nfo":
+                result = self.generate_nfo_file(
+                    db,
+                    stream,
+                    stream.streamer,
+                    target.directory,
+                    target.filename,
+                    stream.stream_metadata,
+                    thumbnail,
+                )
+            else:
+                result = self._create_media_server_specific_files(
+                    stream,
+                    target.directory,
+                    episode_thumb_path=thumbnail,
+                    db=db,
+                    base_filename=target.filename,
+                    streamer=stream.streamer,
+                )
+            db.commit()
+            return result
 
-                # 2) NFO files
-                try:
-                    ok = await self.generate_nfo_file(
-                        db, stream, streamer, base_path_obj, base_filename, metadata
-                    )
-                    if not ok:
-                        success = False
-                except Exception as e:
-                    logger.error(f"NFO generation failed: {e}", exc_info=True)
-                    success = False
+    async def _prepare_artwork(self, target: _MetadataTarget) -> None:
+        if not target.profile_url:
+            return
+        from app.services.media.artwork_service import ArtworkService
 
-                # 3) Chapters
-                try:
-                    ok = await self.ensure_all_chapter_formats(
-                        stream_id, str(base_path_obj / f"{base_filename}.mp4")
-                    )
-                    if not ok:
-                        success = False
-                except Exception as e:
-                    logger.error(f"Chapter generation failed: {e}", exc_info=True)
-                    success = False
+        root = self._recordings_root or await run_in_thread_pool(
+            self._find_recordings_root, target.directory
+        )
+        if root is None:
+            logger.warning("Metadata artwork root unavailable")
+            return
+        artwork = ArtworkService(
+            recordings_dir=root, download_image=self._download_image
+        )
+        await artwork.save_artwork(
+            target.username, target.profile_url, target.offline_url
+        )
 
-                # 4) Media server files
-                try:
-                    ok = await self._create_media_server_specific_files(
-                        stream,
-                        base_path_obj,
-                        base_filename=base_filename,
-                        streamer=streamer,
-                        db=db,
-                    )
-                    if not ok:
-                        success = False
-                except Exception as e:
-                    logger.error(
-                        f"Media server file creation failed: {e}", exc_info=True
-                    )
-                    success = False
-
-                # Finalize
-                try:
-                    db.commit()
-                except Exception as commit_error:
-                    logger.error(
-                        f"Failed to commit metadata changes for stream {stream_id}: {commit_error}"
-                    )
-                    db.rollback()
-                    return False
-
-                return success
-
-        except Exception as e:
-            logger.error(f"Error generating metadata: {e}", exc_info=True)
+    async def generate_metadata_for_stream(
+        self, stream_id: int, base_path: str, base_filename: str
+    ) -> bool:
+        target = await run_in_thread_pool(
+            self._prepare_metadata_target, stream_id, base_path, base_filename
+        )
+        if not target:
             return False
+        success = True
+        thumbnail: str | None = None
+        for stage in ("json", "nfo", "chapters", "media"):
+            try:
+                if stage == "nfo":
+                    await self._prepare_artwork(target)
+                    thumbnail = await self._process_episode_thumbnail(
+                        stream_id,
+                        target.directory,
+                        target.filename,
+                        target.thumbnail_url,
+                        target.thumbnail_path,
+                    )
+                if stage == "chapters":
+                    result = bool(
+                        await self.ensure_all_chapter_formats(
+                            stream_id, str(target.directory / f"{target.filename}.mp4")
+                        )
+                    )
+                else:
+                    result = await run_in_thread_pool(
+                        self._write_metadata_stage,
+                        stream_id,
+                        target,
+                        stage,
+                        thumbnail if stage != "json" else None,
+                    )
+                if not result:
+                    success = False
+            except Exception as error:
+                logger.error(
+                    "Metadata %s stage failed (%s)", stage, type(error).__name__
+                )
+                success = False
+        return success
 
-    async def generate_json_metadata(
+    def generate_json_metadata(
         self,
         db: Session,
         stream: Stream,
@@ -624,7 +706,7 @@ class MetadataService:
             logger.error(f"Error generating JSON metadata: {e}", exc_info=True)
             return False
 
-    async def generate_nfo_file(
+    def generate_nfo_file(
         self,
         db: Session,
         stream: Stream,
@@ -632,6 +714,7 @@ class MetadataService:
         base_path: Path,
         base_filename: str,
         metadata: StreamMetadata,
+        episode_thumb_path: str | None = None,
     ) -> bool:
         """Creates NFO file for Kodi/Plex/Emby with relative image paths."""
         try:
@@ -724,11 +807,6 @@ class MetadataService:
 
             # Important for Plex: Store artwork in hidden .media directory
             if streamer.profile_image_url:
-                # Save artwork to .media directory (avoids Emby creating seasons from folders)
-                # Lazy import to avoid directory creation at module load time
-                from app.services.media.artwork_service import artwork_service
-
-                await artwork_service.save_streamer_artwork(streamer)
                 # Ensure local copies (some servers block ../ traversals or outside-library references)
                 try:
                     self._ensure_local_artwork(
@@ -941,28 +1019,6 @@ class MetadataService:
                     ET.SubElement(actor, "thumb").text = actor_thumb
             ET.SubElement(actor, "role").text = "Streamer"
 
-            # IMPORTANT: Thumbnails for the episode with different standard names
-            thumbnail_url = None
-            local_thumbnail = None
-
-            # Check for Twitch thumbnail in database
-            if metadata.thumbnail_url:
-                thumbnail_url = metadata.thumbnail_url
-
-            # Check for locally stored thumbnail
-            if metadata.thumbnail_path and os.path.exists(metadata.thumbnail_path):
-                local_thumbnail = metadata.thumbnail_path
-
-            # Process thumbnail for episode
-            episode_thumb_path = await self._process_episode_thumbnail(
-                stream_id=stream.id,
-                base_path=base_path,
-                base_filename=base_filename,
-                thumbnail_url=thumbnail_url,
-                local_thumbnail=local_thumbnail,
-                db=db,
-            )
-
             # Different thumb formats for different media servers
             if episode_thumb_path:
                 # Standard format
@@ -994,7 +1050,7 @@ class MetadataService:
                 logger.debug(f"season_nfo_path attribute not available: {e}")
 
             # Create additional symlinks/copies for specific media servers
-            await self._create_media_server_specific_files(
+            self._create_media_server_specific_files(
                 stream=stream,
                 base_path=base_path,
                 episode_thumb_path=episode_thumb_path if episode_thumb_path else None,
@@ -1011,145 +1067,123 @@ class MetadataService:
             logger.error(f"Error generating NFO files: {e}", exc_info=True)
             return False
 
+    def _prepare_episode_thumbnail(
+        self,
+        stream_id: int,
+        base_path: Path,
+        base_filename: str,
+        local_thumbnail: str | None,
+    ) -> str | None:
+        thumb_path = base_path / f"{base_filename}-thumb.jpg"
+        poster_path = base_path / "poster.jpg"
+        if thumb_path.exists() and thumb_path.stat().st_size > 1000:
+            with self._sessions() as db:
+                metadata = (
+                    db.query(StreamMetadata)
+                    .filter(StreamMetadata.stream_id == stream_id)
+                    .first()
+                )
+                if metadata and not metadata.thumbnail_path:
+                    metadata.thumbnail_path = str(thumb_path)
+                    db.commit()
+            if not poster_path.exists():
+                shutil.copy2(thumb_path, poster_path)
+            return str(thumb_path)
+        if local_thumbnail and os.path.exists(local_thumbnail):
+            return self._copy_episode_thumbnail(
+                local_thumbnail, base_path, base_filename
+            )
+        return None
+
+    def _copy_episode_thumbnail(
+        self, source: str, base_path: Path, base_filename: str
+    ) -> str | None:
+        if not os.path.exists(source):
+            return None
+        thumb_path = base_path / f"{base_filename}-thumb.jpg"
+        if Path(source) != thumb_path:
+            shutil.copy2(source, thumb_path)
+        shutil.copy2(source, base_path / "poster.jpg")
+        return str(thumb_path)
+
+    def _find_episode_video(self, base_path: Path) -> str | None:
+        videos = [name for name in os.listdir(base_path) if name.endswith(".mp4")]
+        return str(base_path / videos[0]) if videos else None
+
     async def _process_episode_thumbnail(
         self,
         stream_id: int,
         base_path: Path,
         base_filename: str,
-        thumbnail_url: Optional[str] = None,
-        local_thumbnail: Optional[str] = None,
-        db: Optional[Session] = None,
-    ) -> Optional[str]:
-        """Processes thumbnail for an episode and saves it in different formats
-
-        Returns:
-            Optional[str]: Path to main thumbnail or None on error
-        """
+        thumbnail_url: str | None = None,
+        local_thumbnail: str | None = None,
+    ) -> str | None:
         try:
-            # Standard filenames for different media servers
-            thumb_filename = f"{base_filename}-thumb.jpg"
-            thumb_path = base_path / thumb_filename
-
-            # Alternative filenames for Plex/Kodi/Emby
-            poster_filename = "poster.jpg"
-            poster_path = base_path / poster_filename
-
-            # Prüfen, ob das Thumbnail bereits existiert und nicht überschrieben werden soll
-            if thumb_path.exists() and thumb_path.stat().st_size > 1000:
-                logger.debug(
-                    f"Thumb already exists at {thumb_path}, using existing file"
+            existing = await run_in_thread_pool(
+                self._prepare_episode_thumbnail,
+                stream_id,
+                base_path,
+                base_filename,
+                local_thumbnail,
+            )
+            if existing:
+                return existing
+            thumb_path = base_path / f"{base_filename}-thumb.jpg"
+            if thumbnail_url and await self._download_image(thumbnail_url, thumb_path):
+                return await run_in_thread_pool(
+                    self._copy_episode_thumbnail,
+                    str(thumb_path),
+                    base_path,
+                    base_filename,
                 )
-
-                # Update database metadata if needed
-                if db:
-                    metadata = (
-                        db.query(StreamMetadata)
-                        .filter(StreamMetadata.stream_id == stream_id)
-                        .first()
+            video = await run_in_thread_pool(self._find_episode_video, base_path)
+            if video:
+                extracted = await self.extract_thumbnail(video, stream_id)
+                if extracted:
+                    return await run_in_thread_pool(
+                        self._copy_episode_thumbnail,
+                        extracted,
+                        base_path,
+                        base_filename,
                     )
-                    if metadata and not metadata.thumbnail_path:
-                        metadata.thumbnail_path = str(thumb_path)
-                        db.commit()
-
-                # Ensure poster.jpg exists as well
-                if not poster_path.exists():
-                    shutil.copy2(thumb_path, poster_path)
-
-                return str(thumb_path)
-
-            # Determine thumbnail source
-            if local_thumbnail and os.path.exists(local_thumbnail):
-                # Copy existing local thumbnail
-                shutil.copy2(local_thumbnail, thumb_path)
-                shutil.copy2(local_thumbnail, poster_path)
-                logger.debug(
-                    f"Copied local thumbnail for stream {stream_id} to {thumb_path}"
-                )
-                return str(thumb_path)
-
-            elif thumbnail_url:
-                # Download thumbnail from URL
-                success = await self._download_image(thumbnail_url, thumb_path)
-                if success:
-                    # Also save as poster.jpg
-                    shutil.copy2(thumb_path, poster_path)
-                    logger.debug(
-                        f"Downloaded thumbnail for stream {stream_id} to {thumb_path}"
-                    )
-                    return str(thumb_path)
-
-            # If no thumbnail available, extract from video
-            video_files = [f for f in os.listdir(base_path) if f.endswith(".mp4")]
-            if video_files:
-                video_path = os.path.join(base_path, video_files[0])
-                extracted_thumb = await self.extract_thumbnail(
-                    video_path, stream_id, db
-                )
-
-                if extracted_thumb and os.path.exists(extracted_thumb):
-                    # Copy to standard formats
-                    shutil.copy2(extracted_thumb, thumb_path)
-                    shutil.copy2(extracted_thumb, poster_path)
-                    logger.debug(
-                        f"Extracted thumbnail for stream {stream_id} to {thumb_path}"
-                    )
-                    return str(thumb_path)
-
-            logger.warning(f"Could not create thumbnail for stream {stream_id}")
+            logger.warning("Could not create thumbnail for stream %s", stream_id)
             return None
-        except Exception as e:
-            logger.error(f"Error processing episode thumbnail: {e}", exc_info=True)
+        except Exception as error:
+            logger.error("Episode thumbnail failed (%s)", type(error).__name__)
             return None
+
+    def _copy_local_image(self, source: str, destination: Path) -> bool:
+        path = Path(source)
+        if not path.exists():
+            return False
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(path, destination)
+        return True
+
+    def _write_image(self, destination: Path, content: bytes) -> None:
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes(content)
 
     async def _download_image(self, url: str, target_path: Path) -> bool:
-        """Downloads an image from a URL to a target path
-
-        Returns:
-            bool: True on success, False on error
-        """
         try:
-            # Check if URL is actually a local path
             if not url.startswith(("http://", "https://")):
-                local_path = Path(url)
-                if local_path.exists():
-                    os.makedirs(os.path.dirname(target_path), exist_ok=True)
-                    shutil.copy2(local_path, target_path)
-                    return True
-                else:
-                    logger.warning(f"Local image file not found: {url}")
-                    return False
-
-            # Download from URL using unified_image_service
-            from app.services.unified_image_service import unified_image_service
-
-            session = await unified_image_service._get_session()
+                return await run_in_thread_pool(
+                    self._copy_local_image, url, target_path
+                )
+            session = await self._get_session()
             async with session.stream("GET", url, follow_redirects=True) as response:
-                if response.status_code == 200:
-                    content_type = response.headers.get("content-type", "")
-                    if "image" in content_type:
-                        # Make sure the directory exists
-                        os.makedirs(os.path.dirname(target_path), exist_ok=True)
-
-                        # Save the image
-                        content = b"".join([chunk async for chunk in response.chunks])
-                        with open(target_path, "wb") as f:
-                            f.write(content)
-                        return True
-                    else:
-                        logger.warning(
-                            f"Invalid content type for image: {content_type}"
-                        )
-                        return False
-                else:
-                    logger.warning(
-                        f"Failed to download image, status: {response.status_code}"
-                    )
+                if response.status_code != 200 or "image" not in response.headers.get(
+                    "content-type", ""
+                ):
                     return False
-        except Exception as e:
-            logger.error(f"Error downloading image: {e}", exc_info=True)
+                content = b"".join([chunk async for chunk in response.chunks])
+                await run_in_thread_pool(self._write_image, target_path, content)
+                return True
+        except Exception as error:
+            logger.error("Metadata image download failed (%s)", type(error).__name__)
             return False
 
-    async def _create_media_server_specific_files(
+    def _create_media_server_specific_files(
         self,
         stream: Stream,
         base_path: Path,
@@ -1566,40 +1600,64 @@ class MetadataService:
             )
             return False
 
+    def _remember_thumbnail(
+        self, stream_id: int | None, thumbnail_path: Path, *, existing: bool
+    ) -> None:
+        if stream_id is None:
+            return
+        with self._sessions() as db:
+            metadata = (
+                db.query(StreamMetadata)
+                .filter(StreamMetadata.stream_id == stream_id)
+                .first()
+            )
+            if existing:
+                if metadata is None or metadata.thumbnail_path:
+                    return
+            elif metadata is None:
+                metadata = StreamMetadata(stream_id=stream_id)
+                db.add(metadata)
+            metadata.thumbnail_path = str(thumbnail_path)
+            db.commit()
+
+    def _prepare_thumbnail_extraction(
+        self, video_path: str, stream_id: int | None
+    ) -> tuple[Path, bool] | None:
+        video = Path(video_path)
+        if not video.exists():
+            return None
+        thumbnail = video.with_name(f"{video.stem}_thumbnail.jpg")
+        existing = thumbnail.exists() and thumbnail.stat().st_size > 1000
+        if existing:
+            self._remember_thumbnail(stream_id, thumbnail, existing=True)
+        return thumbnail, existing
+
+    def _finish_thumbnail_extraction(
+        self, thumbnail_path: Path, stream_id: int | None
+    ) -> str | None:
+        if not thumbnail_path.exists() or thumbnail_path.stat().st_size == 0:
+            return None
+        self._remember_thumbnail(stream_id, thumbnail_path, existing=False)
+        return str(thumbnail_path)
+
     async def extract_thumbnail(
         self,
         video_path: str,
         stream_id: Optional[int] = None,
-        db: Optional[Session] = None,
     ) -> Optional[str]:
         """Extrahiert das erste Frame des Videos als Thumbnail.
         Uses FFmpeg for all video formats.
         """
         try:
-            video_path_obj = Path(video_path)
-            if not video_path_obj.exists():
-                logger.warning(
-                    f"Video file not found for thumbnail extraction: {video_path}"
-                )
+            prepared = await run_in_thread_pool(
+                self._prepare_thumbnail_extraction, video_path, stream_id
+            )
+            if prepared is None:
                 return None
-
-            # Target thumbnail path (e.g., VideoName_thumbnail.jpg)
-            thumb_name = f"{video_path_obj.stem}_thumbnail.jpg"
-            thumbnail_path = video_path_obj.with_name(thumb_name)
-
-            # Reuse existing thumbnail if present
-            if thumbnail_path.exists() and thumbnail_path.stat().st_size > 1000:
-                logger.info(f"Using existing thumbnail at {thumbnail_path}")
-                if stream_id and db:
-                    metadata = (
-                        db.query(StreamMetadata)
-                        .filter(StreamMetadata.stream_id == stream_id)
-                        .first()
-                    )
-                    if metadata and not getattr(metadata, "thumbnail_path", None):
-                        metadata.thumbnail_path = str(thumbnail_path)
-                        db.commit()
+            thumbnail_path, existing = prepared
+            if existing:
                 return str(thumbnail_path)
+            video_path_obj = Path(video_path)
 
             # Check if the file has a video stream first (skip audio-only)
             check_cmd = [
@@ -1654,32 +1712,25 @@ class MetadataService:
             env.pop("FFREPORT", None)
             env["AV_LOG_FORCE_NOCOLOR"] = "1"
             cmd.extend(["-loglevel", "error"])
-            logging_service.log_ffmpeg_start("thumbnail_extract", cmd, streamer_name)
+            await run_in_thread_pool(
+                lambda: self._logging().log_ffmpeg_start(
+                    "thumbnail_extract", cmd, streamer_name
+                )
+            )
             async with media_process(*cmd, env=env) as (process, output):
                 stdout, stderr = await output.wait()
-            logging_service.log_ffmpeg_output(
-                "thumbnail_extract", stdout, stderr, process.returncode, streamer_name
+            returncode = process.returncode
+            if returncode is None:
+                raise RuntimeError("Thumbnail child did not exit")
+            await run_in_thread_pool(
+                lambda: self._logging().log_ffmpeg_output(
+                    "thumbnail_extract", stdout, stderr, returncode, streamer_name
+                )
             )
 
-            # Verify thumbnail
-            if thumbnail_path.exists() and thumbnail_path.stat().st_size > 0:
-                logger.info(f"Successfully extracted thumbnail to {thumbnail_path}")
-                if stream_id and db:
-                    metadata = (
-                        db.query(StreamMetadata)
-                        .filter(StreamMetadata.stream_id == stream_id)
-                        .first()
-                    )
-                    if not metadata:
-                        metadata = StreamMetadata(stream_id=stream_id)
-                        db.add(metadata)
-                    metadata.thumbnail_path = str(thumbnail_path)
-                    db.commit()
-                return str(thumbnail_path)
-            else:
-                logger.warning(
-                    f"Thumbnail extraction failed or produced empty file: {thumbnail_path}"
-                )
+            return await run_in_thread_pool(
+                self._finish_thumbnail_extraction, thumbnail_path, stream_id
+            )
 
         except Exception as e:
             logger.error(f"Error extracting thumbnail: {e}", exc_info=True)
@@ -1695,56 +1746,35 @@ class MetadataService:
         """
         return f"https://static-cdn.jtvnw.net/previews-ttv/live_user_{username}-{width}x{height}.jpg"
 
+    def _store_downloaded_thumbnail(self, stream_id: int, path: Path, url: str) -> None:
+        with self._sessions() as db:
+            metadata = (
+                db.query(StreamMetadata)
+                .filter(StreamMetadata.stream_id == stream_id)
+                .first()
+            )
+            if metadata is None:
+                metadata = StreamMetadata(stream_id=stream_id)
+                db.add(metadata)
+            metadata.thumbnail_path = str(path)
+            metadata.thumbnail_url = url
+            db.commit()
+
     async def download_twitch_thumbnail(
         self, streamer_username: str, stream_id: int, output_dir: str
-    ) -> Optional[str]:
-        """Lädt das Twitch-Stream-Thumbnail herunter.
-
-        Returns:
-            Optional[str]: Pfad zum heruntergeladenen Thumbnail oder None bei Fehler
-        """
+    ) -> str | None:
         try:
-            # Verzeichnis erstellen
-            output_path = Path(output_dir)
-            output_path.mkdir(parents=True, exist_ok=True)
-            thumbnail_path = output_path / f"{streamer_username}_thumbnail.jpg"
-
-            # URL generieren
+            path = Path(output_dir) / f"{streamer_username}_thumbnail.jpg"
             url = await self.get_stream_thumbnail_url(streamer_username)
-
-            session = await self._get_session()
-            async with session.get(url) as response:
-                if response.status == 200:
-                    with open(thumbnail_path, "wb") as f:
-                        f.write(await response.read())
-
-                    # Metadata aktualisieren
-                    with self._sessions() as db:
-                        metadata = (
-                            db.query(StreamMetadata)
-                            .filter(StreamMetadata.stream_id == stream_id)
-                            .first()
-                        )
-                        if not metadata:
-                            metadata = StreamMetadata(stream_id=stream_id)
-                            db.add(metadata)
-
-                        metadata.thumbnail_path = str(thumbnail_path)
-                        metadata.thumbnail_url = url
-                        db.commit()
-
-                    logger.info(
-                        f"Downloaded Twitch thumbnail for stream {stream_id} to {thumbnail_path}"
-                    )
-                    return str(thumbnail_path)
-                else:
-                    logger.warning(
-                        f"Failed to download Twitch thumbnail, status: {response.status}"
-                    )
-        except Exception as e:
-            logger.error(f"Error downloading Twitch thumbnail: {e}", exc_info=True)
-
-        return None
+            if not await self._download_image(url, path):
+                return None
+            await run_in_thread_pool(
+                self._store_downloaded_thumbnail, stream_id, path, url
+            )
+            return str(path)
+        except Exception as error:
+            logger.error("Twitch thumbnail failed (%s)", type(error).__name__)
+            return None
 
     async def ensure_all_chapter_formats(
         self, stream_id: int, mp4_path: str
@@ -1838,7 +1868,8 @@ class MetadataService:
 
                 # 1. WebVTT-Kapitel (für Plex/Browser)
                 vtt_path = base_path / f"{base_filename}.vtt"
-                self._generate_vtt_chapters(stream, events, vtt_path)
+                if not self._generate_vtt_chapters(stream, events, vtt_path):
+                    return None
 
                 # 2. Exakte Dateinamen-Kopie für Plex
                 exact_vtt_path = mp4_path_obj.with_suffix(".vtt")
@@ -1847,17 +1878,22 @@ class MetadataService:
 
                 # 3. SRT-Kapitel (für Kodi/einige Player)
                 srt_path = base_path / f"{base_filename}.srt"
-                self._generate_srt_chapters(stream, events, srt_path)
+                if not self._generate_srt_chapters(stream, events, srt_path):
+                    return None
 
                 # 4. FFmpeg Chapters-Datei
                 ffmpeg_chapters_path = (
                     base_path / f"{base_filename}-ffmpeg-chapters.txt"
                 )
-                self._generate_ffmpeg_chapters(stream, events, ffmpeg_chapters_path)
+                if not self._generate_ffmpeg_chapters(
+                    stream, events, ffmpeg_chapters_path
+                ):
+                    return None
 
                 # 5. Emby/Jellyfin XML Chapters
                 xml_chapters_path = base_path / f"{base_filename}.xml"
-                self._generate_xml_chapters(stream, events, xml_chapters_path)
+                if not self._generate_xml_chapters(stream, events, xml_chapters_path):
+                    return None
 
                 # Metadaten aktualisieren
                 metadata = (

@@ -17,8 +17,9 @@ from app.services.processing.post_processing_task_handlers import (
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("authoritative", [True, False])
+@pytest.mark.parametrize("outcome", ["success", "false", "error"])
 async def test_metadata_handler_prepares_only_closed_scalar_paths_off_loop(
-    tmp_path, monkeypatch, authoritative
+    tmp_path, monkeypatch, authoritative, outcome
 ):
     database = DatabaseLifecycle(f"sqlite:///{tmp_path / 'metadata-input.db'}")
     manager = ConnectionManager()
@@ -42,7 +43,9 @@ async def test_metadata_handler_prepares_only_closed_scalar_paths_off_loop(
             for value in (stream_id, base_path, base_filename)
         )
         calls.append((stream_id, base_path, base_filename))
-        return True
+        if outcome == "error":
+            raise RuntimeError("synthetic metadata failure")
+        return outcome == "success"
 
     def stat(path, *args, **kwargs):
         if isinstance(path, (str, os.PathLike)) and str(path).startswith(str(tmp_path)):
@@ -98,7 +101,10 @@ async def test_metadata_handler_prepares_only_closed_scalar_paths_off_loop(
         assert progress == [10.0, 20.0, 90.0, 100.0]
         with database.sync_session_factory() as session:
             state = session.query(RecordingProcessingState).one()
-            assert state.recording_id == 8 and state.metadata_status == "completed"
+            assert state.recording_id == 8
+            assert state.metadata_status == (
+                "completed" if outcome == "success" else "failed"
+            )
         if authoritative:
             assert source.read_bytes() == b"original capture bytes"
             assert not output.exists()

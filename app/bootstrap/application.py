@@ -8,6 +8,7 @@ backward compatibility.
 
 from collections.abc import Callable, Mapping
 from functools import partial
+from pathlib import Path
 from threading import Lock
 from app.utils.cache import SimpleCache
 
@@ -18,7 +19,10 @@ from app.config.settings import Settings
 from app.bootstrap.settings import resolve_app_settings
 from app.core.exceptions import install_exception_handlers
 from app.database import DatabaseLifecycle, database_lifecycle
-from app.dependencies import _get_application_recovery_service
+from app.dependencies import (
+    _get_application_recovery_service,
+    _get_application_logging_service,
+)
 from app.services.communication.websocket_manager import (
     ConnectionManager,
     websocket_manager,
@@ -160,6 +164,12 @@ def _configure_app(
                 recovery_service_factory=partial(
                     _get_application_recovery_service, application
                 ),
+                logging_service_factory=partial(
+                    _get_application_logging_service, application
+                ),
+                recordings_root=Path(settings.RECORDING_DIRECTORY)
+                if settings
+                else None,
             ),
         )
     )

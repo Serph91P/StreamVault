@@ -21,6 +21,7 @@ from app.models import Stream, StreamMetadata, RecordingProcessingState, Recordi
 from app.services.processing.status_values import ProcessingStatus, RecordingAvailable
 from app.utils.async_db_utils import run_in_thread_pool
 from app.services.media.metadata_service import MetadataService
+from app.services.system.logging_service import LoggingService
 from app.services.media.thumbnail_service import ThumbnailService
 from app.services.communication.websocket_manager import (
     ConnectionManager,
@@ -45,6 +46,8 @@ class PostProcessingTaskHandlers:
         session_factory: Callable[[], Session] | None = None,
         connection_manager: ConnectionManager | None = None,
         recovery_service_factory: Callable[[], "UnifiedRecoveryService"] | None = None,
+        logging_service_factory: Callable[[], LoggingService] | None = None,
+        recordings_root: Path | None = None,
     ):
         self._session_factory = session_factory
         self._recovery_service_factory = recovery_service_factory
@@ -53,7 +56,11 @@ class PostProcessingTaskHandlers:
         )
         self._broadcast_tasks: set[asyncio.Task[None]] = set()
         self._debounce_tasks: dict[int, asyncio.Task[None]] = {}
-        self.metadata_service = MetadataService(session_factory=session_factory)
+        self.metadata_service = MetadataService(
+            session_factory=session_factory,
+            logging_service_factory=logging_service_factory,
+            recordings_root=recordings_root,
+        )
         self.thumbnail_service = ThumbnailService(session_factory=session_factory)
         # TTLCache for debouncing broadcasts (prevents memory leaks with automatic expiration)
         self._broadcast_debounce: TTLCache[int, ProcessingStatus] = TTLCache(
@@ -195,6 +202,7 @@ class PostProcessingTaskHandlers:
                 progress_callback(20.0)
 
             # Generate metadata using metadata service
+            success = False
             try:
                 success = await self.metadata_service.generate_metadata_for_stream(
                     stream_id=stream_id,
@@ -237,7 +245,8 @@ class PostProcessingTaskHandlers:
                     payload.get("recording_id"),
                     stream_id,
                     "metadata_generation",
-                    "completed",
+                    "completed" if success else "failed",
+                    None if success else "metadata_generation_failed",
                 )
             except Exception as persist_err:
                 logger.debug(f"Could not persist metadata status: {persist_err}")

@@ -1,9 +1,11 @@
 import logging
 import shutil
+from collections.abc import Awaitable, Callable
 from pathlib import Path
 
 from app.database import SessionLocal
 from app.models import Stream, Streamer
+from app.utils.async_db_utils import run_in_thread_pool
 
 # Lazy import to avoid directory creation at import time
 # unified_image_service is imported when needed in methods
@@ -14,10 +16,14 @@ logger = logging.getLogger("streamvault")
 class ArtworkService:
     """Service for managing artwork and metadata files separately from recordings"""
 
-    def __init__(self):
-        # Use unified .media directory instead of separate .artwork
-        # Hardcoded Docker path - always /recordings in container
-        self.recordings_dir = Path("/recordings")
+    def __init__(
+        self,
+        *,
+        recordings_dir: Path = Path("/recordings"),
+        download_image: Callable[[str, Path], Awaitable[bool]] | None = None,
+    ) -> None:
+        self.recordings_dir = recordings_dir
+        self._image_downloader = download_image
         self.media_base_path = self.recordings_dir / ".media"
         self.artwork_base_path = self.media_base_path / "artwork"
         self._initialized = False
@@ -59,6 +65,15 @@ class ArtworkService:
         return f".media/artwork/{safe_username}/{filename}"
 
     async def save_streamer_artwork(self, streamer: Streamer) -> bool:
+        return await self.save_artwork(
+            streamer.username,
+            streamer.original_profile_image_url or streamer.profile_image_url,
+            streamer.original_offline_image_url or streamer.offline_image_url,
+        )
+
+    async def save_artwork(
+        self, username: str, profile_url: str | None, banner_url: str | None
+    ) -> bool:
         """Save all artwork files for a streamer in the artwork directory
 
         Uses profile image for portrait artwork (poster, logo) and
@@ -71,22 +86,13 @@ class ArtworkService:
             bool: True if successful, False otherwise
         """
         try:
-            # Get the best available profile image URL
-            profile_url = getattr(
-                streamer, "original_profile_image_url", None
-            ) or getattr(streamer, "profile_image_url", None)
-
             if not profile_url:
-                logger.warning(f"No profile image URL for streamer {streamer.username}")
+                logger.warning(f"No profile image URL for streamer {username}")
                 return False
 
-            # Get banner/offline image URL (for landscape artwork)
-            # Twitch provides this as "offline_image_url" - shown when streamer is offline
-            banner_url = getattr(
-                streamer, "original_offline_image_url", None
-            ) or getattr(streamer, "offline_image_url", None)
-
-            artwork_dir = self.get_streamer_artwork_dir(streamer.username)
+            artwork_dir = await run_in_thread_pool(
+                self.get_streamer_artwork_dir, username
+            )
 
             # Portrait artwork (square profile image works well)
             portrait_files = {
@@ -112,9 +118,7 @@ class ArtworkService:
                 target_path = artwork_dir / filename
                 if await self._download_image(profile_url, target_path):
                     success_count += 1
-                    logger.debug(
-                        f"Saved {description} for {streamer.username} at {target_path}"
-                    )
+                    logger.debug(f"Saved {description} for {username} at {target_path}")
 
             # Download landscape artwork from banner (or fallback to profile)
             landscape_url = banner_url if banner_url else profile_url
@@ -122,9 +126,7 @@ class ArtworkService:
                 target_path = artwork_dir / filename
                 if await self._download_image(landscape_url, target_path):
                     success_count += 1
-                    logger.debug(
-                        f"Saved {description} for {streamer.username} at {target_path}"
-                    )
+                    logger.debug(f"Saved {description} for {username} at {target_path}")
 
             return success_count > 0
 
@@ -265,6 +267,14 @@ class ArtworkService:
         Returns:
             bool: True on success, False on error
         """
+        if self._image_downloader is not None:
+            if await run_in_thread_pool(target_path.exists):
+                return True
+            if url.startswith("/data/images/profiles/"):
+                url = str(
+                    self.recordings_dir / ".media" / "profiles" / url.split("/")[-1]
+                )
+            return await self._image_downloader(url, target_path)
         try:
             if target_path.exists():
                 logger.debug(f"Image already exists: {target_path}")

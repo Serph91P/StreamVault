@@ -135,3 +135,78 @@ async def test_chapter_generation_uses_owned_closed_off_loop_scopes(
             await service.close()
         for database in databases:
             await database.adispose()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("suffix", [".vtt", ".srt", "-ffmpeg-chapters.txt", ".xml"])
+async def test_failed_chapter_file_never_persists_success_and_remains_retryable(
+    tmp_path, monkeypatch, suffix
+):
+    database = DatabaseLifecycle(f"sqlite:///{tmp_path / 'chapters.db'}")
+    service = MetadataService(session_factory=database.sync_session_factory)
+    directory = tmp_path / "alice"
+    directory.mkdir()
+    media = directory / "episode.mp4"
+    media.write_bytes(b"unchanged media fixture")
+    original_open = builtins.open
+
+    def denied(path, *args, **kwargs):
+        if str(path) == str(directory / f"episode{suffix}"):
+            raise PermissionError("synthetic chapter file refusal")
+        return original_open(path, *args, **kwargs)
+
+    try:
+        with database.sync_engine.begin() as connection:
+            connection.exec_driver_sql("BEGIN")
+            Base.metadata.create_all(connection)
+        with database.sync_session_factory() as session:
+            session.add(Streamer(id=1, username="alice", twitch_id="alice"))
+            session.flush()
+            started = datetime(2026, 11, 1, tzinfo=timezone.utc)
+            session.add(
+                Stream(
+                    id=1,
+                    streamer_id=1,
+                    started_at=started,
+                    ended_at=started + timedelta(minutes=5),
+                )
+            )
+            session.flush()
+            session.add(
+                StreamMetadata(
+                    stream_id=1,
+                    chapters_vtt_path="previous-vtt",
+                    chapters_srt_path="previous-srt",
+                    chapters_ffmpeg_path="previous-ffmpeg",
+                    chapters_xml_path="previous-xml",
+                )
+            )
+            session.commit()
+        with monkeypatch.context() as injected:
+            injected.setattr(builtins, "open", denied)
+            assert await service.ensure_all_chapter_formats(1, str(media)) is None
+        with database.sync_session_factory() as session:
+            stored = session.scalar(select(StreamMetadata))
+            assert [
+                stored.chapters_vtt_path,
+                stored.chapters_srt_path,
+                stored.chapters_ffmpeg_path,
+                stored.chapters_xml_path,
+            ] == [
+                "previous-vtt",
+                "previous-srt",
+                "previous-ffmpeg",
+                "previous-xml",
+            ]
+        assert database.sync_engine.pool.checkedout() == 0
+        result = await service.ensure_all_chapter_formats(1, str(media))
+        assert result is not None and set(result) == {"vtt", "srt", "ffmpeg", "xml"}
+        assert all(Path(path).is_file() for path in result.values())
+        with database.sync_session_factory() as session:
+            stored = session.scalar(select(StreamMetadata))
+            assert stored.chapters_vtt_path == result["vtt"]
+            assert stored.chapters_xml_path == result["xml"]
+        assert media.read_bytes() == b"unchanged media fixture"
+    finally:
+        await service.close()
+        await database.adispose()
