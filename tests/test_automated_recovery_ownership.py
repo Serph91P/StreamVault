@@ -360,3 +360,121 @@ async def test_owned_scan_database_fault_cannot_be_successful_or_poison_peer(
     peer = await clients[1].post("/api/recovery/automated/run-simple")
     assert peer.status_code == 200 and peer.json()["success"] is True
     assert all(database.sync_engine.pool.checkedout() == 0 for database in databases)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("path", ["start", "configure"])
+@pytest.mark.parametrize("interval", [0, 1441])
+async def test_invalid_recovery_interval_is_client_error_without_starting_child(proxy_applications, path, interval):
+    applications, _, clients, _ = proxy_applications
+    supervisor = recovery.TaskSupervisor("invalid-input")
+    applications[0].state.task_supervisor = supervisor
+    try:
+        response = await clients[0].post(f"/api/recovery/automated/{path}", params={"interval_minutes": interval})
+        assert response.status_code == 400
+        assert response.json() == {"detail": "Interval must be between 1 and 1440 minutes"}
+        assert supervisor.task_names == ()
+        assert await applications[0].state.automated_recovery_state.get_task() is None
+        assert await applications[0].state.automated_recovery_state.get_interval() == 300
+    finally:
+        await supervisor.shutdown()
+
+
+@pytest.mark.asyncio
+async def test_stopped_recovery_does_not_bootstrap_and_configure_without_change_is_stable(proxy_applications):
+    applications, _, clients, _ = proxy_applications
+    app = applications[0]
+    before = (await clients[0].get("/api/recovery/automated/status")).json()
+    not_started = await clients[0].post("/api/recovery/automated/start")
+    assert not_started.status_code == 503
+    assert app.state.unified_recovery_service is None
+    stopped = await clients[0].post("/api/recovery/automated/stop")
+    assert stopped.status_code == 200
+    assert stopped.json() == {"success": False, "message": "Automated recovery is not running"}
+    unchanged = await clients[0].post("/api/recovery/automated/configure")
+    assert unchanged.status_code == 200
+    assert unchanged.json()["current_config"] == {"interval_minutes": 5, "is_running": False}
+    assert (await clients[0].get("/api/recovery/automated/status")).json() == before
+
+
+@pytest.mark.asyncio
+async def test_legacy_async_recovery_entrypoints_retain_default_provider_compatibility(proxy_applications, monkeypatch):
+    from app.dependencies import get_application_recovery_service
+    from app.services import simple_recovery_service
+    from app.services.recording import unified_recovery_service, orphaned_recovery_service
+    from app.utils.async_db_utils import run_in_thread_pool
+    from starlette.requests import HTTPConnection
+
+    applications, _, _, _ = proxy_applications
+    app = applications[0]
+    service = await run_in_thread_pool(get_application_recovery_service, HTTPConnection({"type": "http", "app": app, "headers": []}))
+
+    async def default_provider():
+        return service
+
+    async def default_orphaned():
+        return orphaned_recovery_service.OrphanedRecoveryService(service)
+
+    monkeypatch.setattr(unified_recovery_service, "get_unified_recovery_service", default_provider)
+    monkeypatch.setattr(orphaned_recovery_service, "get_orphaned_recovery_service", default_orphaned)
+    monkeypatch.setattr(recovery, "recovery_state", app.state.automated_recovery_state)
+    assert (await simple_recovery_service.run_simple_reliable_recovery())["success"] is True
+    result = await recovery.run_comprehensive_recovery()
+    assert result["success"] is True
+    assert result["total_recoveries"] == 0
+    assert (await app.state.automated_recovery_state.get_stats())["successful_runs"] == 1
+
+
+@pytest.mark.asyncio
+async def test_shutdown_between_dependency_lookup_and_admission_cannot_start_child(proxy_applications):
+    applications, _, clients, _ = proxy_applications
+    app = applications[0]
+    state = app.state.automated_recovery_state
+    supervisor = recovery.TaskSupervisor("shutdown-race")
+    resolved = asyncio.Event()
+
+    async def resolved_supervisor():
+        resolved.set()
+        return supervisor
+
+    app.dependency_overrides[recovery.get_recovery_supervisor] = resolved_supervisor
+    await state._lock.acquire()
+    request = asyncio.create_task(clients[0].post("/api/recovery/automated/start"))
+    try:
+        await asyncio.wait_for(resolved.wait(), 1)
+        await supervisor.shutdown()
+    finally:
+        state._lock.release()
+    try:
+        response = await request
+        assert response.status_code == 500
+        assert response.json() == {"detail": "Failed to start recovery"}
+        assert await state.get_task() is None
+        assert not await state.is_running()
+        assert supervisor.task_names == ()
+    finally:
+        await supervisor.shutdown()
+
+
+@pytest.mark.asyncio
+async def test_failed_owned_child_stop_is_truthful_and_clears_its_reference(proxy_applications):
+    applications, _, clients, _ = proxy_applications
+    app = applications[0]
+    supervisor = recovery.TaskSupervisor("failed-child")
+
+    async def broken():
+        raise RuntimeError("synthetic-stop-fault")
+
+    task = supervisor.create_task("automated-recovery", broken())
+    await app.state.automated_recovery_state.set_task(task)
+    await app.state.automated_recovery_state.set_running(True)
+    await asyncio.gather(task, return_exceptions=True)
+    try:
+        response = await clients[0].post("/api/recovery/automated/stop")
+        assert response.status_code == 500
+        assert response.json() == {"detail": "Failed to stop recovery"}
+        assert await app.state.automated_recovery_state.get_task() is None
+        assert not await app.state.automated_recovery_state.is_running()
+        assert not await applications[1].state.automated_recovery_state.is_running()
+    finally:
+        await supervisor.shutdown()

@@ -314,6 +314,8 @@ async def start_automated_recovery(
             "services": ["unified_recovery", "orphaned_recovery", "failed_recovery"],
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to start automated recovery: {e}")
         raise HTTPException(status_code=500, detail="Failed to start recovery")
