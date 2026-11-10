@@ -61,7 +61,20 @@ def test_existing_category_cache_remains_available_on_first_use(tmp_path, operat
     assert image.read_bytes() == b"previously cached image bytes"
 
 
-@pytest.mark.parametrize("module", ["app.models", "app.services", "app.main"])
+def _application_modules() -> list[str]:
+    modules = set()
+    for path in (ROOT / "app").rglob("*.py"):
+        relative = path.relative_to(ROOT)
+        if "frontend" in relative.parts or "__pycache__" in relative.parts:
+            continue
+        parts = relative.with_suffix("").parts
+        if parts[-1] == "__init__":
+            parts = parts[:-1]
+        modules.add(".".join(parts))
+    return sorted(modules)
+
+
+@pytest.mark.parametrize("module", _application_modules())
 def test_cold_import_and_construction_do_not_bootstrap_runtime_resources(
     tmp_path, module
 ):
@@ -89,8 +102,10 @@ import os
 import pathlib
 import sys
 import sqlalchemy
+import sqlalchemy.ext.asyncio
 import requests
 import aiohttp
+import httpx
 import asyncio
 import builtins
 import secrets
@@ -109,8 +124,11 @@ pathlib.Path.write_text = forbidden("write_text")
 pathlib.Path.write_bytes = forbidden("write_bytes")
 os.mkdir = forbidden("os.mkdir")
 sqlalchemy.create_engine = forbidden("engine")
+sqlalchemy.ext.asyncio.create_async_engine = forbidden("async-engine")
 requests.Session.__init__ = forbidden("requests-session")
 aiohttp.ClientSession.__init__ = forbidden("aiohttp-session")
+httpx.Client.__init__ = forbidden("httpx-client")
+httpx.AsyncClient.__init__ = forbidden("httpx-async-client")
 asyncio.create_task = forbidden("task")
 threading.Thread.start = forbidden("thread")
 subprocess.Popen = forbidden("subprocess")

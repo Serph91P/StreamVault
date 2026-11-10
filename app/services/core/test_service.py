@@ -1380,7 +1380,3 @@ class StreamVaultTestService:
 
         except Exception as e:
             logger.error(f"Failed to cleanup test data: {e}")
-
-
-# Global test service instance
-test_service = StreamVaultTestService()
