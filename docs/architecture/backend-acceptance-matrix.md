@@ -14,9 +14,19 @@ identical application code). Final gates below are run against that head.
 - Fresh PostgreSQL 18 image integration `tests/run_fresh_postgres_proxy_migrations.sh streamvault:test-842`: two concurrent boots database-healthy, **48/48 total/distinct/successful migrations, 0 failed**, persisted proxy key valid and unchanged after immediate restart, HTTP surface (liveness/readiness/OpenAPI/frontend redirect/request-ID/metrics token) verified, no ERROR/CRITICAL/Traceback in first-boot or restart logs. Built image 723 MB runs non-root (uid 1000).
 - Native PostgreSQL opt-in replay `run_pg_checkpoint.py`: **75/75 required identities, 130 total testcases, exit 0**.
 
-Remaining at PR handoff (not local MUSTs): GitHub-hosted frontend/browser/npm
-build gates and the Trivy/Hadolint/npm-audit scans run against the pushed exact
-head in CI. External physical-device/authenticated-provider acceptance remains
+**Exact-head GitHub CI (PR #1070, head ab8f4f69):** all 7 required status
+checks green — Backend Tests (13m14s, suite now 2399 tests with a raised
+25-minute budget), Frontend Build & Lint, Python Lint & Type Check,
+Integration Tests, npm audit, pip-audit, Trivy (Container Scan) — and every
+other GitHub Actions check green (Bandit, Gitleaks, Hadolint, Chapter
+Artwork, Cleanup Policy, Notification Scroll, Settings Loader, Frontend
+Core/Browser, docker-build test/build/security, Quick Security Scan). The
+sole red check is GitGuardian's third-party "Username Password" detector
+flagging four clearly-synthetic test fixtures (`User(username=..., password=...)`
+seed values such as `not-a-login-hash`); the repository's authoritative
+gitleaks scan reports 0 leaks and GitGuardian is not a required check.
+
+External physical-device/authenticated-provider acceptance remains
 owner-rest. This ledger documents candidate evidence; it is not owner acceptance.
 
 ## Additional audit contracts (all fifteen remain visible)
