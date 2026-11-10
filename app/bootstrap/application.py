@@ -167,9 +167,9 @@ def _configure_app(
                 logging_service_factory=partial(
                     _get_application_logging_service, application
                 ),
-                recordings_root=Path(settings.RECORDING_DIRECTORY)
-                if settings
-                else None,
+                recordings_root_provider=lambda: Path(
+                    resolve_app_settings(application).RECORDING_DIRECTORY
+                ),
             ),
         )
     )

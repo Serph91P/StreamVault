@@ -47,7 +47,7 @@ class PostProcessingTaskHandlers:
         connection_manager: ConnectionManager | None = None,
         recovery_service_factory: Callable[[], "UnifiedRecoveryService"] | None = None,
         logging_service_factory: Callable[[], LoggingService] | None = None,
-        recordings_root: Path | None = None,
+        recordings_root_provider: Callable[[], Path] | None = None,
     ):
         self._session_factory = session_factory
         self._recovery_service_factory = recovery_service_factory
@@ -59,7 +59,7 @@ class PostProcessingTaskHandlers:
         self.metadata_service = MetadataService(
             session_factory=session_factory,
             logging_service_factory=logging_service_factory,
-            recordings_root=recordings_root,
+            recordings_root_provider=recordings_root_provider,
         )
         self.thumbnail_service = ThumbnailService(session_factory=session_factory)
         # TTLCache for debouncing broadcasts (prevents memory leaks with automatic expiration)

@@ -169,7 +169,7 @@ async def test_real_metadata_pipeline_keeps_catalog_and_files_off_the_owner_loop
                 service = MetadataService(
                     session_factory=database.sync_session_factory,
                     logging_service_factory=logging_factory,
-                    recordings_root=root,
+                    recordings_root_provider=lambda root=root: root,
                 )
             services.append(service)
             if thumbnail_source != "existing":

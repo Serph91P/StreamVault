@@ -15,6 +15,7 @@ import logging
 from collections.abc import Callable
 from sqlalchemy.orm import Session
 from app.config.settings import Settings
+from app.services.http_client import ManagedHTTPClient
 from app.utils.async_db_utils import run_in_thread_pool
 from typing import Dict, List, Optional, Any
 from app.services.images import (
@@ -81,7 +82,7 @@ class UnifiedImageService:
     def _ensure_initialized(self):
         """Legacy method - already initialized"""
 
-    async def _get_session(self):
+    async def _get_session(self) -> ManagedHTTPClient:
         """Legacy method - get HTTP session"""
         return await self.download_service.get_session()
 

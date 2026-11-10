@@ -45,13 +45,13 @@ class MetadataService:
         *,
         session_factory: Callable[[], Session] | None = None,
         http_client: ManagedHTTPClient | None = None,
-        recordings_root: Path | None = None,
+        recordings_root_provider: Callable[[], Path] | None = None,
         logging_service_factory: Callable[[], LoggingService] | None = None,
     ) -> None:
         self._session_factory = session_factory
         self.session = http_client
         self._owns_session = http_client is None
-        self._recordings_root = recordings_root
+        self._recordings_root_provider = recordings_root_provider
         self._logging_service_factory = logging_service_factory
 
     def _sessions(self) -> Session:
@@ -266,7 +266,7 @@ class MetadataService:
         never empty as long as the streamer has ever been seen playing something.
         """
         genres: List[str] = []
-        seen: set = set()
+        seen: set[str] = set()
 
         def _add(value: Optional[str]) -> None:
             if not value:
@@ -408,7 +408,7 @@ class MetadataService:
                 # Resolve base path and filename, but prefer the actual recording path from DB to avoid mismatches
                 base_path_obj = Path(base_path)
                 try:
-                    if getattr(stream, "recording_path", None):
+                    if stream.recording_path:
                         rec_path = Path(stream.recording_path)
                         if rec_path.exists():
                             rec_dir = rec_path.parent
@@ -471,14 +471,14 @@ class MetadataService:
                                         f"Base path {base_path_obj} not under streamer dir {expected_streamer_dir}; attempting to rebase"
                                     )
                                     # Prefer recording_path if available
-                                    if getattr(stream, "recording_path", None):
+                                    if stream.recording_path:
                                         rp = Path(stream.recording_path)
                                         if rp.exists() and self._is_within(
                                             rp, expected_streamer_dir
                                         ):
                                             base_path_obj = rp.parent
                                             base_filename = rp.stem
-                                    else:
+                                    elif stream.started_at is not None:
                                         # Fallback to computed Season folder
                                         season_dir = (
                                             expected_streamer_dir
@@ -491,6 +491,15 @@ class MetadataService:
                     logger.debug(
                         f"Could not enforce streamer directory for metadata paths: {e}"
                     )
+
+                if self._recordings_root_provider is not None:
+                    root = self._recordings_root_provider()
+                    if not self._is_within(base_path_obj, root):
+                        logger.warning(
+                            "Metadata target outside application root for stream %s",
+                            stream_id,
+                        )
+                        return None
 
                 # Get or create metadata
                 metadata = (
@@ -576,8 +585,10 @@ class MetadataService:
             return
         from app.services.media.artwork_service import ArtworkService
 
-        root = self._recordings_root or await run_in_thread_pool(
-            self._find_recordings_root, target.directory
+        root: Path | None = (
+            await run_in_thread_pool(self._recordings_root_provider)
+            if self._recordings_root_provider is not None
+            else await run_in_thread_pool(self._find_recordings_root, target.directory)
         )
         if root is None:
             logger.warning("Metadata artwork root unavailable")
@@ -770,7 +781,7 @@ class MetadataService:
                                 f"Streamer dir mismatch for NFOs: {streamer_dir} -> {expected_streamer_dir}"
                             )
                             streamer_dir = expected_streamer_dir
-                            if season_dir is not None:
+                            if season_dir is not None and stream.started_at is not None:
                                 # Recompute season_dir under corrected streamer_dir
                                 try:
                                     season_dir = (
@@ -868,6 +879,8 @@ class MetadataService:
 
             # Create season NFO if in season directory
             if season_dir is not None and season_nfo_path is not None:
+                if stream.started_at is None:
+                    return False
                 season_root = ET.Element("season")
 
                 if stream.started_at:
@@ -961,7 +974,7 @@ class MetadataService:
                 season_num = stream.started_at.strftime("%Y%m")
                 # Prefer DB episode_number if set, else day-of-month
                 try:
-                    if getattr(stream, "episode_number", None):
+                    if stream.episode_number:
                         episode_num = f"{int(stream.episode_number):02d}"
                     else:
                         episode_num = stream.started_at.strftime("%d")
@@ -1212,7 +1225,10 @@ class MetadataService:
             # Default to generic files if no specific preset found
             filename_preset = "default"
             if recording_settings and hasattr(recording_settings, "filename_preset"):
-                filename_preset = recording_settings.filename_preset
+                configured_preset = recording_settings.filename_preset
+                if configured_preset is None:
+                    return False
+                filename_preset = configured_preset
 
             logger.debug(
                 f"Using filename preset '{filename_preset}' for media server specific files"
@@ -1222,7 +1238,7 @@ class MetadataService:
             target_dir = base_path
             resolved_base_filename = base_filename
             try:
-                if getattr(stream, "recording_path", None):
+                if stream.recording_path:
                     rec_path = Path(stream.recording_path)
                     if rec_path.exists():
                         target_dir = rec_path.parent
@@ -1367,7 +1383,7 @@ class MetadataService:
                 season_num = stream.started_at.strftime("%Y%m")
                 # Use monthly episode numbering when available (fallback to day-of-month)
                 try:
-                    if getattr(stream, "episode_number", None):
+                    if stream.episode_number:
                         episode_num = f"{int(stream.episode_number):02d}"
                     else:
                         episode_num = stream.started_at.strftime("%d")
@@ -1464,7 +1480,7 @@ class MetadataService:
                 nfo_src = None
                 try:
                     # Prefer exact recording path
-                    if getattr(stream, "recording_path", None):
+                    if stream.recording_path:
                         rp = Path(stream.recording_path)
                         if rp.exists():
                             video_src = rp
@@ -1929,6 +1945,13 @@ class MetadataService:
             logger.error(f"Error generating all chapter formats: {e}", exc_info=True)
             return None
 
+    @staticmethod
+    def _chapter_event_time(event: StreamEvent) -> datetime:
+        timestamp = event.timestamp
+        if timestamp is None:
+            raise ValueError("Chapter event has no timestamp")
+        return timestamp
+
     def _generate_vtt_chapters(
         self, stream: Stream, events: List[StreamEvent], output_path: Path
     ) -> bool:
@@ -1939,7 +1962,7 @@ class MetadataService:
         """
         try:
             # Sort events by timestamp to ensure proper order
-            events = sorted(events, key=lambda x: x.timestamp)
+            events = sorted(events, key=self._chapter_event_time)
 
             # Calculate stream duration and handle pre-stream events
             stream_duration, events = self._prepare_events_and_duration(stream, events)
@@ -1970,24 +1993,26 @@ class MetadataService:
             Tuple[float, List[StreamEvent]]: Stream-Dauer in Sekunden und vorbereitete Events
         """
         # Calculate stream duration
-        duration = 0
+        duration: float = 0
         if stream.started_at and stream.ended_at:
             duration = (stream.ended_at - stream.started_at).total_seconds()
             logger.debug(f"Stream duration: {duration} seconds")
 
         # Sort events by timestamp to ensure proper processing
-        sorted_events = sorted(events, key=lambda x: x.timestamp)
+        sorted_events = sorted(events, key=self._chapter_event_time)
 
         # Process pre-stream events if they exist
         if stream.started_at:
             # Check for pre-stream events
             pre_stream_events = [
-                event for event in sorted_events if event.timestamp < stream.started_at
+                event
+                for event in sorted_events
+                if self._chapter_event_time(event) < stream.started_at
             ]
 
             if pre_stream_events:
                 # If we have pre-stream events, use the latest one as the first chapter starting at time 0
-                latest_pre_stream = max(pre_stream_events, key=lambda x: x.timestamp)
+                latest_pre_stream = max(pre_stream_events, key=self._chapter_event_time)
 
                 # Create a copy of this event but set timestamp to stream start
                 adjusted_event = copy.deepcopy(latest_pre_stream)
@@ -1997,7 +2022,7 @@ class MetadataService:
                 post_stream_events = [
                     event
                     for event in sorted_events
-                    if event.timestamp >= stream.started_at
+                    if self._chapter_event_time(event) >= stream.started_at
                 ]
 
                 # Deduplicate: if the first post-stream event starts at exactly
@@ -2117,13 +2142,18 @@ class MetadataService:
             Tuple[float, float]: Start- und Endzeit in Sekunden
         """
         # Determine start time - ensure non-negative
+        start_offset: float
+        end_offset: float
         if stream.started_at:
-            if event.timestamp < stream.started_at:
+            if self._chapter_event_time(event) < stream.started_at:
                 # Handle pre-stream events by setting offset to 0
                 start_offset = 0
             else:
                 start_offset = max(
-                    0, (event.timestamp - stream.started_at).total_seconds()
+                    0,
+                    (
+                        self._chapter_event_time(event) - stream.started_at
+                    ).total_seconds(),
                 )
         else:
             start_offset = 0
@@ -2132,13 +2162,15 @@ class MetadataService:
         if index < len(events) - 1:
             next_event = events[index + 1]
             if stream.started_at:
-                if next_event.timestamp < stream.started_at:
+                if self._chapter_event_time(next_event) < stream.started_at:
                     # Another pre-stream event
                     end_offset = 0
                 else:
                     end_offset = max(
                         start_offset + 1,
-                        (next_event.timestamp - stream.started_at).total_seconds(),
+                        (
+                            self._chapter_event_time(next_event) - stream.started_at
+                        ).total_seconds(),
                     )
             else:
                 end_offset = start_offset + 60  # Default 1 minute if no timestamps
@@ -2163,7 +2195,7 @@ class MetadataService:
         """
         try:
             # Sort events by timestamp
-            events = sorted(events, key=lambda x: x.timestamp)
+            events = sorted(events, key=self._chapter_event_time)
 
             with open(output_path, "w", encoding="utf-8") as f:
                 chapter_num = 0
@@ -2212,11 +2244,11 @@ class MetadataService:
             Tuple[float, float]: Start- und Endzeit in Sekunden
         """
         # Start-Zeit des Events
-        start_time = event.timestamp
+        start_time = self._chapter_event_time(event)
 
         # End-Zeit ist entweder der nächste Event oder das Stream-Ende
         if index < len(events) - 1:
-            end_time = events[index + 1].timestamp
+            end_time = self._chapter_event_time(events[index + 1])
         elif stream.ended_at:
             end_time = stream.ended_at
         else:
@@ -2224,6 +2256,7 @@ class MetadataService:
             end_time = start_time + timedelta(hours=24)
 
         # Berechne Offset in Sekunden - ensure non-negative values
+        start_offset: float
         if stream.started_at:
             # For pre-stream events, set their start time to 0 but keep their original duration
             if start_time < stream.started_at:
@@ -2281,18 +2314,14 @@ class MetadataService:
                     f.write(f"date={stream.started_at.strftime('%Y-%m-%d')}\n")
 
                 # Sort events by timestamp and include ALL events (no dedup) to ensure correctness
-                filtered_events = sorted(events, key=lambda x: x.timestamp)
+                filtered_events = sorted(events, key=self._chapter_event_time)
 
                 # If we have no events, create a default one covering the whole stream
                 if not filtered_events and stream.category_name:
-                    dummy_event = type(
-                        "Event",
-                        (),
-                        {
-                            "timestamp": stream.started_at,
-                            "title": stream.title,
-                            "category_name": stream.category_name,
-                        },
+                    dummy_event = StreamEvent(
+                        timestamp=stream.started_at,
+                        title=stream.title,
+                        category_name=stream.category_name,
                     )
                     filtered_events.append(dummy_event)
 
@@ -2314,7 +2343,7 @@ class MetadataService:
                     f.write("START=0\n")
 
                     # Use the actual duration in seconds, not milliseconds
-                    duration = 0
+                    duration: float = 0
                     if stream.started_at and stream.ended_at:
                         duration = int(
                             (stream.ended_at - stream.started_at).total_seconds()
@@ -2394,11 +2423,11 @@ class MetadataService:
             Tuple[int, int]: Start- und Endzeit in Millisekunden
         """
         # Start-Zeit des Events
-        start_time = event.timestamp
+        start_time = self._chapter_event_time(event)
 
         # End-Zeit ist entweder der nächste Event oder das Stream-Ende
         if index < len(events) - 1:
-            end_time = events[index + 1].timestamp
+            end_time = self._chapter_event_time(events[index + 1])
         elif stream.ended_at:
             end_time = stream.ended_at
         else:
@@ -2496,20 +2525,22 @@ class MetadataService:
 
     async def import_manual_chapters(
         self, stream_id: int, chapters_txt_path: str, mp4_path: str
-    ) -> Optional[Dict[str, str]]:
-        """Importiert manuell erstellte Kapitel aus einer Textdatei und erstellt alle Formate.
+    ) -> dict[str, str] | None:
+        if not await run_in_thread_pool(
+            self._import_manual_chapters, stream_id, chapters_txt_path
+        ):
+            return None
+        return await self.ensure_all_chapter_formats(stream_id, mp4_path)
 
-        Returns:
-            Optional[Dict[str, str]]: Dictionary mit Pfaden zu allen erstellten Kapitelformaten oder None bei Fehler
-        """
+    def _import_manual_chapters(self, stream_id: int, chapters_txt_path: str) -> bool:
         try:
             chapters_path = Path(chapters_txt_path)
             if not chapters_path.exists():
                 logger.warning(f"Chapters text file not found: {chapters_txt_path}")
-                return None
+                return False
 
             # Kapitel aus der Textdatei lesen
-            chapters = []
+            chapters: list[tuple[str, int]] = []
             with open(chapters_path, "r", encoding="utf-8") as f:
                 for line in f:
                     # Format: 0:23:20 Start
@@ -2526,19 +2557,19 @@ class MetadataService:
                         total_seconds = (hrs * 3600) + (mins * 60) + secs
                         timestamp_ms = total_seconds * 1000
 
-                        chapters.append({"title": title, "startTime": timestamp_ms})
+                        chapters.append((title, timestamp_ms))
 
             # Keine Kapitel gefunden
             if not chapters:
                 logger.warning(f"No chapters found in {chapters_path}")
-                return None
+                return False
 
             # Stream-Events aus den manuellen Kapiteln erstellen
             with self._sessions() as db:
                 stream = db.query(Stream).filter(Stream.id == stream_id).first()
                 if not stream:
                     logger.warning(f"Stream with ID {stream_id} not found")
-                    return None
+                    return False
 
                 # Bestehende Events löschen
                 db.query(StreamEvent).filter(
@@ -2546,34 +2577,29 @@ class MetadataService:
                 ).delete()
 
                 # Neue Events aus manuellen Kapiteln erstellen
-                for i, chapter in enumerate(chapters):
+                for title, start_ms in chapters:
                     # Zeitstempel berechnen
                     if stream.started_at:
-                        timestamp = stream.started_at + timedelta(
-                            milliseconds=chapter["startTime"]
-                        )
+                        timestamp = stream.started_at + timedelta(milliseconds=start_ms)
                     else:
                         # Fallback, wenn keine Startzeit bekannt ist
-                        timestamp = datetime.now() - timedelta(
-                            seconds=chapter["startTime"] / 1000
-                        )
+                        timestamp = datetime.now() - timedelta(seconds=start_ms / 1000)
 
                     # Event erstellen
                     event = StreamEvent(
                         stream_id=stream_id,
                         event_type="manual.chapter",
-                        title=chapter["title"],
+                        title=title,
                         timestamp=timestamp,
                     )
                     db.add(event)
 
                 db.commit()
 
-                # Alle Kapitelformate mit den neuen Events erstellen
-                return await self.ensure_all_chapter_formats(stream_id, mp4_path)
+                return True
         except Exception as e:
             logger.error(f"Error importing manual chapters: {e}", exc_info=True)
-            return None
+            return False
 
     async def embed_all_metadata(
         self, mp4_path: str, chapters_path: str, stream_id: int
@@ -2752,7 +2778,7 @@ class MetadataService:
                 #         CHAPTER01NAME=Chapter Title
 
                 # Sort events and filter duplicates
-                sorted_events = sorted(events, key=lambda x: x.timestamp)
+                sorted_events = sorted(events, key=self._chapter_event_time)
                 last_category = None
                 chapter_events = []
 
@@ -2783,7 +2809,10 @@ class MetadataService:
                     # Calculate offset in seconds
                     if stream.started_at:
                         offset_seconds = max(
-                            0, (event.timestamp - stream.started_at).total_seconds()
+                            0,
+                            (
+                                self._chapter_event_time(event) - stream.started_at
+                            ).total_seconds(),
                         )
                     else:
                         offset_seconds = 0
@@ -2972,7 +3001,7 @@ class MetadataService:
             chapters = []
             for i, event in enumerate(events):
                 # Calculate start time relative to stream start
-                start_time = 0
+                start_time: float = 0
                 if stream.started_at and event.timestamp:
                     start_time = (event.timestamp - stream.started_at).total_seconds()
                     if start_time < 0:

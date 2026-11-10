@@ -1,6 +1,7 @@
 """Single-owner, bounded and redacted diagnostic drains for recording children."""
 
 import asyncio
+from collections.abc import Iterable
 
 from app.utils.security import StreamingStreamlinkOutputSanitizer
 
@@ -16,7 +17,9 @@ class BoundedStreamlinkOutput:
         "No playable streams found",
     )
 
-    def __init__(self, process, known_secrets=()):
+    def __init__(
+        self, process: asyncio.subprocess.Process, known_secrets: Iterable[object] = ()
+    ) -> None:
         self.process = process
         self._readers = tuple(
             asyncio.create_task(self.drain_reader(reader, known_secrets))
@@ -25,7 +28,9 @@ class BoundedStreamlinkOutput:
         self._completion = asyncio.create_task(self._finish())
 
     @classmethod
-    async def drain_reader(cls, reader, known_secrets=()):
+    async def drain_reader(
+        cls, reader: asyncio.StreamReader | None, known_secrets: Iterable[object] = ()
+    ) -> bytes:
         # Recording's package exports ProcessManager, which imports this utility.
         from app.services.recording.recording_auth_policy import (
             is_twitch_auth_rejection,
@@ -33,14 +38,14 @@ class BoundedStreamlinkOutput:
 
         if reader is None:
             return b""
-        sanitizer = StreamingStreamlinkOutputSanitizer(known_secrets)
+        sanitizer = StreamingStreamlinkOutputSanitizer(tuple(known_secrets))
         pending = b""
         discarding_line = False
         tail = b""
         scan_tail = ""
-        markers = set()
+        markers: set[str] = set()
 
-        def retain(safe):
+        def retain(safe: str) -> None:
             nonlocal tail, scan_tail
             scan = scan_tail + safe
             lower = scan.lower()
@@ -78,11 +83,11 @@ class BoundedStreamlinkOutput:
         prefix = ("\n".join(sorted(markers)) + "\n").encode() if markers else b""
         return prefix + tail[-(cls.TAIL_BYTES - len(prefix)) :]
 
-    async def _finish(self):
+    async def _finish(self) -> tuple[bytes, bytes]:
         output = await asyncio.gather(*self._readers)
         await self.process.wait()
-        return tuple(output)
+        return output[0], output[1]
 
-    async def wait(self):
+    async def wait(self) -> tuple[bytes, bytes]:
         # Cancelling one consumer must not cancel pipe ownership during rotation.
         return await asyncio.shield(self._completion)

@@ -102,6 +102,8 @@ files = [
     "app/services/core/session_maintenance.py",
     "app/services/core/state_values.py",
     "app/services/http_client.py",
+    "app/services/media/metadata_service.py",
+    "app/services/media/artwork_service.py",
     "app/services/processing/status_values.py",
     "app/services/proxy/proxy_catalog.py",
     "app/services/recording/configuration_values.py",
@@ -109,6 +111,7 @@ files = [
     "app/services/recording/recording_database_service.py",
     "app/services/streamers/values.py",
     "app/services/system/temporary_cleanup_service.py",
+    "app/utils/process_output.py",
 ]
 follow_imports = "silent"
 warn_unused_ignores = true
@@ -125,6 +128,7 @@ module = [
     "app.models.streams", "app.models.system", "app.models.upstream",
     "app.services.core.automated_recovery_state", "app.services.core.session_maintenance", "app.services.core.state_values",
     "app.services.http_client", "app.services.processing.status_values", "app.services.proxy.proxy_catalog",
+    "app.services.media.metadata_service", "app.services.media.artwork_service", "app.utils.process_output",
     "app.services.recording.admin_cleanup", "app.services.recording.configuration_values", "app.services.recording.recording_values", "app.services.recording.recording_database_service",
     "app.services.simple_recovery_service", "app.services.streamers.values", "app.services.system.temporary_cleanup_service",
 ]

@@ -28,7 +28,7 @@ class ArtworkService:
         self.artwork_base_path = self.media_base_path / "artwork"
         self._initialized = False
 
-    def _ensure_dirs(self):
+    def _ensure_dirs(self) -> None:
         """Lazily create directories only when needed"""
         if self._initialized:
             return
@@ -40,7 +40,7 @@ class ArtworkService:
             # Running in test environment without /recordings
             pass
 
-    async def close(self):
+    async def close(self) -> None:
         """Close resources (now handled by unified_image_service)"""
 
     def get_streamer_artwork_dir(self, streamer_username: str) -> Path:
@@ -162,7 +162,7 @@ class ArtworkService:
             logger.error(f"Error saving streamer metadata: {e}", exc_info=True)
             return False
 
-    async def _create_tvshow_nfo(self, streamer: Streamer, nfo_path: Path):
+    async def _create_tvshow_nfo(self, streamer: Streamer, nfo_path: Path) -> None:
         """Create tvshow.nfo file for the streamer"""
         try:
             # Use relative paths for artwork - media servers expect paths relative to the NFO
@@ -200,7 +200,7 @@ class ArtworkService:
 
     async def _create_season_metadata_files(
         self, streamer: Streamer, metadata_dir: Path
-    ):
+    ) -> None:
         """Create season metadata files for all seasons (year-month combinations)"""
         try:
             with SessionLocal() as db:
@@ -234,7 +234,7 @@ class ArtworkService:
 
     async def _create_season_nfo(
         self, streamer: Streamer, year: int, month: int, nfo_path: Path
-    ):
+    ) -> None:
         """Create season.nfo file for a specific year-month combination"""
         try:
             # Use relative paths for artwork
