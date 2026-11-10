@@ -13,6 +13,10 @@ from app.database import Base
 if TYPE_CHECKING:
     from app.models.streams import Stream, Streamer
 
+type JSONValue = (
+    None | bool | int | float | str | list[JSONValue] | dict[str, JSONValue]
+)
+
 
 class Recording(Base):
     __tablename__ = "recordings"
@@ -36,7 +40,7 @@ class Recording(Base):
         DateTime(timezone=True), nullable=True
     )
     status: Mapped[str] = mapped_column(String, nullable=False, index=True)
-    duration: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    duration: Mapped[int | float | None] = mapped_column(Integer, nullable=True)
     path: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
@@ -158,15 +162,16 @@ class ActiveRecordingState(Base):
     )
     recording: Mapped[Recording] = relationship("Recording")
 
-    def get_config(self):
+    def get_config(self) -> JSONValue:
         if self.config_json:
-            return json.loads(self.config_json)
+            result: JSONValue = json.loads(self.config_json)
+            return result
         return {}
 
-    def set_config(self, config_dict):
+    def set_config(self, config_dict: JSONValue) -> None:
         self.config_json = json.dumps(config_dict) if config_dict else None
 
-    def is_stale(self, max_age_seconds=300):
+    def is_stale(self, max_age_seconds: float = 300) -> bool:
         if not self.last_heartbeat:
             return True
         age = (
@@ -232,11 +237,14 @@ class RecordingProcessingState(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
 
-    def set_task_ids(self, task_ids: dict):
+    def set_task_ids(self, task_ids: dict[str, str]) -> None:
         self.task_ids_json = json.dumps(task_ids) if task_ids else None
 
-    def get_task_ids(self):
+    def get_task_ids(self) -> JSONValue:
         try:
-            return json.loads(self.task_ids_json) if self.task_ids_json else {}
+            result: JSONValue = (
+                json.loads(self.task_ids_json) if self.task_ids_json else {}
+            )
+            return result
         except Exception:
             return {}

@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Optional
 from sqlalchemy import Boolean, DateTime, Float, Index, Integer, String, inspect
-from sqlalchemy.orm import Mapped, mapped_column, object_session
+from sqlalchemy.orm import InstanceState, Mapped, mapped_column, object_session
 from sqlalchemy.sql import func
 from app.database import Base
 
@@ -54,7 +54,7 @@ class ProxySettings(Base):
     def proxy_url(self) -> str:
         from app.utils.proxy_encryption import get_cached_proxy_encryption
 
-        state = inspect(self)
+        state: InstanceState[ProxySettings] = inspect(self)
         try:
             session = object_session(self)
             encryption = (
@@ -78,7 +78,7 @@ class ProxySettings(Base):
             return ""
 
     @proxy_url.setter
-    def proxy_url(self, plaintext_url: str):
+    def proxy_url(self, plaintext_url: str) -> None:
         from app.utils.proxy_encryption import get_cached_proxy_encryption
 
         if plaintext_url:
@@ -105,10 +105,12 @@ class ProxySettings(Base):
             (self.total_recordings - self.failed_recordings) / self.total_recordings
         ) * 100.0
 
-    def update_success_rate(self):
+    def update_success_rate(self) -> None:
         self.success_rate = self.calculate_success_rate()
 
-    def to_dict(self, mask_password: bool = True) -> dict:
+    def to_dict(
+        self, mask_password: bool = True
+    ) -> dict[str, str | int | float | bool | None]:
         masked_url = self.masked_url
         return {
             "id": self.id,

@@ -77,7 +77,7 @@ class Stream(Base):
     )
 
     @property
-    def is_live(self):
+    def is_live(self) -> bool:
         return self.ended_at is None
 
 
@@ -198,7 +198,7 @@ class Streamer(Base):
     streams: Mapped[list[Stream]] = relationship("Stream", back_populates="streamer")
 
     @property
-    def display_name(self):
+    def display_name(self) -> str:
         """Deprecated alias for username."""
         warnings.warn(
             "The `display_name` property is deprecated and will be removed in the future. Use `username` instead.",

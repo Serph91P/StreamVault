@@ -95,7 +95,9 @@ def _protected_directories(db: Session, root: Path) -> set[Path] | None:
             select(Stream.recording_path).where(Stream.recording_path.isnot(None))
         )
     )
-    protected = {Path(path).resolve(strict=False).parent for path in paths}
+    protected = {
+        Path(path).resolve(strict=False).parent for path in paths if path is not None
+    }
     for lease in db.scalars(select(TwitchUpstreamLease)):
         state = (
             CaptureState.UNKNOWN

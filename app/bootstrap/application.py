@@ -10,16 +10,20 @@ from collections.abc import Callable, Mapping
 from functools import partial
 from threading import Lock
 from app.utils.cache import SimpleCache
-from typing import Any
+
 
 from fastapi import FastAPI
 
-from app.config.logging_config import setup_logging
+from app.config.settings import Settings
 from app.bootstrap.settings import resolve_app_settings
 from app.core.exceptions import install_exception_handlers
 from app.database import DatabaseLifecycle, database_lifecycle
-from app.dependencies import websocket_manager, _get_application_recovery_service
-from app.services.communication.websocket_manager import ConnectionManager
+from app.dependencies import _get_application_recovery_service
+from app.services.communication.websocket_manager import (
+    ConnectionManager,
+    websocket_manager,
+)
+from app.services.core.automated_recovery_state import AutomatedRecoveryState
 from app.services.init.background_queue_init import (
     BackgroundQueueManager,
     background_queue_manager,
@@ -77,15 +81,13 @@ from app.frontend import (
     register_static_mounts,
 )
 
-logger = setup_logging()
-
 _application: FastAPI | None = None
 
 
 def _configure_app(
     application: FastAPI,
-    settings: Any | None,
-    service_overrides: Mapping[Callable[..., Any], Callable[..., Any]] | None,
+    settings: Settings | None,
+    service_overrides: Mapping[Callable[..., object], Callable[..., object]] | None,
     *,
     legacy_default: bool = False,
     database: DatabaseLifecycle | None = None,
@@ -122,9 +124,7 @@ def _configure_app(
     application.state.streamlink_config_service_lock = Lock()
     application.state.unified_recovery_service = None
     application.state.unified_recovery_lock = Lock()
-    application.state.automated_recovery_state = (
-        automated_recovery_endpoints.AutomatedRecoveryState()
-    )
+    application.state.automated_recovery_state = AutomatedRecoveryState()
     application.state.notification_service = None
     application.state.notification_service_lock = Lock()
     application.state.event_registry = None
@@ -229,8 +229,9 @@ def _configure_app(
 
 
 def create_app(
-    settings: Any | None = None,
-    service_overrides: Mapping[Callable[..., Any], Callable[..., Any]] | None = None,
+    settings: Settings | None = None,
+    service_overrides: Mapping[Callable[..., object], Callable[..., object]]
+    | None = None,
     *,
     database: DatabaseLifecycle | None = None,
 ) -> FastAPI:

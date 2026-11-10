@@ -65,7 +65,7 @@ class RecordingValue:
     start_time: datetime
     end_time: datetime | None
     status: str
-    duration: int | None
+    duration: int | float | None
     path: str | None
     created_at: datetime | None
     error_message: str | None

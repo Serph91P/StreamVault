@@ -33,7 +33,7 @@ from sqlalchemy.ext.asyncio import (
     async_sessionmaker,
     create_async_engine,
 )
-from sqlalchemy.orm import declarative_base, sessionmaker
+from sqlalchemy.orm import DeclarativeBase, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 # Compatibility metadata only; URL selection uses validated settings below.
@@ -300,8 +300,9 @@ async def get_async_db() -> AsyncGenerator[AsyncSession, None]:
 # Process-scoped lifecycle. No engine is created at import time.
 database_lifecycle = DatabaseLifecycle()
 
-Base = declarative_base(
-    metadata=MetaData(
+
+class Base(DeclarativeBase):
+    metadata = MetaData(
         naming_convention={
             "ix": "ix_%(table_name)s_%(column_0_name)s",
             "uq": "uq_%(table_name)s_%(column_0_name)s",
@@ -310,7 +311,7 @@ Base = declarative_base(
             "pk": "pk_%(table_name)s",
         }
     )
-)
+
 
 # ---------------------------------------------------------------------------
 # Temporary compatibility exports (documented seam above).

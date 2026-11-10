@@ -78,7 +78,9 @@ def _get_episode_number(
                     .first()
                 )
 
-                max_episode_num = max_episode[0] if max_episode else 0
+                max_episode_num = (
+                    max_episode[0] if max_episode and max_episode[0] is not None else 0
+                )
             except Exception as e:
                 # If episode_number column doesn't exist, fall back to old method
                 logger.debug(

@@ -88,6 +88,19 @@ def snapshot_model_schema() -> dict:
 
 
 @pytest.mark.parametrize("feature,names", FEATURES.items())
+def test_feature_mappings_share_a_native_typed_declarative_base(feature, names):
+    from sqlalchemy.orm import DeclarativeBase
+    from app.database import Base
+
+    assert issubclass(Base, DeclarativeBase)
+    for name in names:
+        model = getattr(models, name)
+        assert issubclass(model, Base)
+        assert model.registry is Base.registry
+        assert model.metadata is Base.metadata
+
+
+@pytest.mark.parametrize("feature,names", FEATURES.items())
 def test_models_have_feature_local_typed_definitions_and_stable_aliases(
     feature, names
 ) -> None:
