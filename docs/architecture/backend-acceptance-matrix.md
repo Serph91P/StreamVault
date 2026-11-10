@@ -1,12 +1,23 @@
-# Backend acceptance ledger (#842) — implementation in progress
+# Backend acceptance ledger (#842) — final candidate evidence
 
 Authority: the complete 1,465-line original request, current issue/owner rulings,
 and the fifteen additional audit contracts. Base:
-`36e968774bb41b222296a75b3a406c0be385badd`. This ledger is **not final acceptance**.
-`pending` is unfinished local work, not an allowed residual at PR handoff.
-Integrated slices require fresh counterchecks; predecessor approvals are not an
-approval of their combination or this candidate. Final evidence must identify the
-exact candidate head and each required check; intermediate counts below do not.
+`36e968774bb41b222296a75b3a406c0be385badd`. Exact candidate code head:
+`d2c63d2a2a74f636ebde9aa402591cf6783402d3` (plus code-neutral docs commits;
+identical application code). Final gates below are run against that head.
+
+**Final local gate results (exact head, Python3.14.10 native Alpine image):**
+
+- Full native CI-standard suite `pytest tests/ -q --tb=short --basetemp=/scratch/pytest --cov=app`: **2399 passed, 76 existing opt-in skipped, 2666 warnings, 2 subtests, 526.37s, exit 0**. Repository coverage 65.3% (non-decreasing from base 31%); owned modules artwork 80.9%, process_output 97.5%, whole legacy metadata 66.9%.
+- Ruff `check app/` PASS; `format --check --target-version py313 app/` PASS (226 files); configured `mypy` 38 roots/28 strict PASS; `uv lock --check` PASS (119 packages).
+- Security: `pip-audit -r requirements.txt` → `No known vulnerabilities found`; `bandit -r app/ -ll -iii` exit 0 (0 high); `gitleaks` on `base..HEAD` (279 commits) → `no leaks found`.
+- Fresh PostgreSQL 18 image integration `tests/run_fresh_postgres_proxy_migrations.sh streamvault:test-842`: two concurrent boots database-healthy, **48/48 total/distinct/successful migrations, 0 failed**, persisted proxy key valid and unchanged after immediate restart, HTTP surface (liveness/readiness/OpenAPI/frontend redirect/request-ID/metrics token) verified, no ERROR/CRITICAL/Traceback in first-boot or restart logs. Built image 723 MB runs non-root (uid 1000).
+- Native PostgreSQL opt-in replay `run_pg_checkpoint.py`: **75/75 required identities, 130 total testcases, exit 0**.
+
+Remaining at PR handoff (not local MUSTs): GitHub-hosted frontend/browser/npm
+build gates and the Trivy/Hadolint/npm-audit scans run against the pushed exact
+head in CI. External physical-device/authenticated-provider acceptance remains
+owner-rest. This ledger documents candidate evidence; it is not owner acceptance.
 
 ## Additional audit contracts (all fifteen remain visible)
 
