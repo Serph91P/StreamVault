@@ -1,6 +1,5 @@
 """Conservative admin cleanup: media belongs to recovery/retention, not temp cleanup."""
 
-import asyncio
 import os
 import stat
 import time
@@ -17,6 +16,7 @@ from app.services.recording.media_ownership import (
     physical_state,
 )
 from app.services.twitch_upstream_coordinator import TwitchUpstreamCoordinator
+from app.utils.async_db_utils import run_in_thread_pool
 
 MAX_CANDIDATES = 100
 MIN_AGE_SECONDS = 24 * 3600
@@ -229,7 +229,7 @@ async def cleanup_temporary_files(
             with factory() as db:
                 return _inspect(db, root, _discover(root), True)
 
-        return await asyncio.to_thread(preview)
+        return await run_in_thread_pool(preview)
     # Admission and confirmed deletion share the existing persisted coordinator guard.
     coordinator = TwitchUpstreamCoordinator(
         session_factory=factory, monotonic_clock=time.monotonic
