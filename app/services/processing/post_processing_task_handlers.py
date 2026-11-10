@@ -98,6 +98,44 @@ class PostProcessingTaskHandlers:
 
         return await run_in_thread_pool(work), None
 
+    def _prepare_metadata_paths(
+        self, stream_id: int, output_dir: str, base_filename: str
+    ) -> tuple[str, str]:
+        try:
+            with self._sessions() as db:
+                recorded_path = db.scalar(
+                    select(Stream.recording_path).where(Stream.id == stream_id)
+                )
+                if recorded_path:
+                    path = Path(recorded_path)
+                    if path.exists():
+                        directory, stem = str(path.parent), path.stem
+                        if directory != output_dir or stem != base_filename:
+                            logger.warning(
+                                "[METADATA_DIR_CORRECTION] Correcting metadata path for stream %s from %s/%s to %s/%s",
+                                stream_id,
+                                output_dir,
+                                base_filename,
+                                directory,
+                                stem,
+                            )
+                            output_dir, base_filename = directory, stem
+        except Exception as error:
+            logger.debug(
+                "Metadata path correction unavailable (%s)", type(error).__name__
+            )
+        output = Path(output_dir)
+        if not output.exists():
+            log_with_context(
+                logger,
+                "warning",
+                f"Output directory does not exist, creating: {output_dir}",
+                stream_id=stream_id,
+                operation="metadata_generation_dir_create",
+            )
+            output.mkdir(parents=True, exist_ok=True)
+        return output_dir, base_filename
+
     async def handle_metadata_generation(self, payload, progress_callback=None):
         """Handle metadata generation task"""
         # Deep copy payload to avoid accidental mutation across tasks
@@ -149,39 +187,9 @@ class PostProcessingTaskHandlers:
             if base_filename.lower().endswith((".mp4", ".ts", ".mkv")):
                 base_filename = Path(base_filename).stem
 
-            # If possible, correct output_dir and base_filename from the authoritative recording_path
-            try:
-                with self._sessions() as db:
-                    stream = db.query(Stream).filter(Stream.id == stream_id).first()
-                    if stream and getattr(stream, "recording_path", None):
-                        rec_path = Path(stream.recording_path)
-                        if rec_path.exists():
-                            rec_dir = str(rec_path.parent)
-                            rec_stem = rec_path.stem
-                            if rec_dir != output_dir or rec_stem != base_filename:
-                                logger.warning(
-                                    "[METADATA_DIR_CORRECTION] Provided output/base did not match recording_path; correcting. "
-                                    f"stream_id={stream_id}, provided_dir={output_dir}, provided_name={base_filename}, "
-                                    f"recording_dir={rec_dir}, recording_name={rec_stem}"
-                                )
-                                output_dir = rec_dir
-                                base_filename = rec_stem
-            except Exception as corr_err:
-                logger.debug(
-                    f"Could not correct metadata generation paths from recording_path: {corr_err}"
-                )
-
-            # Check if output directory exists
-            output_path = Path(output_dir)
-            if not output_path.exists():
-                log_with_context(
-                    logger,
-                    "warning",
-                    f"Output directory does not exist, creating: {output_dir}",
-                    stream_id=stream_id,
-                    operation="metadata_generation_dir_create",
-                )
-                output_path.mkdir(parents=True, exist_ok=True)
+            output_dir, base_filename = await run_in_thread_pool(
+                self._prepare_metadata_paths, stream_id, output_dir, base_filename
+            )
 
             if progress_callback:
                 progress_callback(20.0)
