@@ -77,9 +77,13 @@ async def test_manual_import_parses_and_persists_off_loop_without_touching_peer(
             result = await service.import_manual_chapters(
                 1, str(source), str(root / "episode.mp4")
             )
+            await service._create_media_server_chapters(1, str(root / "episode.mp4"))
         assert result is not None and set(result) == {"vtt", "srt", "ffmpeg", "xml"}
         assert queries and loop_thread not in queries
         assert reads and loop_thread not in reads
+        plex = (root / "episode.chapters.txt").read_text()
+        assert "CHAPTER01NAME=First chapter" in plex
+        assert "CHAPTER02NAME=Second chapter" in plex
         for filename in result.values():
             assert "First chapter" in Path(filename).read_text()
             assert "Second chapter" in Path(filename).read_text()

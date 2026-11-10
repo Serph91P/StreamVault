@@ -11,6 +11,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
+from uuid import uuid4
 from typing import Dict, List, Optional, Tuple, Any
 
 import xml.etree.ElementTree as ET
@@ -37,6 +38,14 @@ class _MetadataTarget:
     offline_url: str | None
     thumbnail_url: str | None
     thumbnail_path: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class _MetadataEmbedding:
+    source: Path
+    output: Path
+    command: tuple[str, ...]
+    streamer: str
 
 
 class MetadataService:
@@ -594,7 +603,9 @@ class MetadataService:
             logger.warning("Metadata artwork root unavailable")
             return
         artwork = ArtworkService(
-            recordings_dir=root, download_image=self._download_image
+            recordings_dir=root,
+            download_image=self._download_image,
+            session_factory=self._sessions,
         )
         await artwork.save_artwork(
             target.username, target.profile_url, target.offline_url
@@ -2601,106 +2612,99 @@ class MetadataService:
             logger.error(f"Error importing manual chapters: {e}", exc_info=True)
             return False
 
+    def _prepare_metadata_embedding(
+        self, mp4_path: str, chapters_path: str, stream_id: int
+    ) -> _MetadataEmbedding | None:
+        source = Path(mp4_path)
+        if not source.is_file() or source.stat().st_size < 10000:
+            logger.warning(
+                "Metadata embedding input unavailable for stream %s", stream_id
+            )
+            return None
+        if self._recordings_root_provider is not None:
+            root = self._recordings_root_provider()
+            if not self._is_within(source, root) or (
+                chapters_path and not self._is_within(Path(chapters_path), root)
+            ):
+                return None
+        with self._sessions() as db:
+            stream = (
+                db.query(Stream)
+                .options(
+                    joinedload(Stream.streamer), joinedload(Stream.stream_metadata)
+                )
+                .filter(Stream.id == stream_id)
+                .first()
+            )
+            if (
+                stream is None
+                or stream.streamer is None
+                or stream.stream_metadata is None
+            ):
+                return None
+            output = source.with_name(f".{source.name}.{uuid4().hex}.metadata.tmp")
+            command = self._metadata_embedding_command(
+                stream, stream.streamer, str(source), str(output), chapters_path
+            )
+            return _MetadataEmbedding(source, output, command, stream.streamer.username)
+
+    def _publish_metadata_embedding(self, plan: _MetadataEmbedding) -> bool:
+        if not plan.output.is_file() or plan.output.stat().st_size == 0:
+            return False
+        os.replace(plan.output, plan.source)
+        return True
+
     async def embed_all_metadata(
         self, mp4_path: str, chapters_path: str, stream_id: int
     ) -> bool:
-        """Embed both chapters and all other metadata in one pass."""
+        plan: _MetadataEmbedding | None = None
         try:
-            logger.info(
-                f"Starting metadata embedding for stream {stream_id}, mp4: {mp4_path}"
+            plan = await run_in_thread_pool(
+                self._prepare_metadata_embedding, mp4_path, chapters_path, stream_id
             )
-            mp4_path_obj = Path(mp4_path)
-
-            # Import logging service
-            from app.services.system.logging_service import logging_service
-
-            # Validate source file exists and has reasonable size
-            if not mp4_path_obj.exists():
-                logger.error(f"MP4 file does not exist: {mp4_path}")
-                logging_service.ffmpeg_logger.error(
-                    f"[METADATA_EMBED_FAILED] MP4 file does not exist: {mp4_path}"
-                )
+            if plan is None:
                 return False
-
-            # Check file size to ensure it's not empty or corrupted
-            mp4_size = mp4_path_obj.stat().st_size
-            if mp4_size < 10000:
-                logger.error(
-                    f"MP4 file is too small ({mp4_size} bytes), likely corrupted: {mp4_path}"
+            command, streamer = plan.command, plan.streamer
+            await run_in_thread_pool(
+                lambda: self._logging().log_ffmpeg_start(
+                    "metadata_embed", list(command), streamer
                 )
-                logging_service.ffmpeg_logger.error(
-                    f"[METADATA_EMBED_FAILED] MP4 file too small: {mp4_path}, {mp4_size} bytes"
-                )
-                return False
-
-            logger.info(
-                f"Source MP4 validation passed: {mp4_path}, size: {mp4_size} bytes"
             )
-
-            # Get stream and related data with eager loading to avoid N+1 queries
-            with self._sessions() as db:
-                stream = (
-                    db.query(Stream)
-                    .options(
-                        joinedload(Stream.streamer), joinedload(Stream.stream_metadata)
-                    )
-                    .filter(Stream.id == stream_id)
-                    .first()
+            async with media_process(*command) as (process, output):
+                stdout, stderr = await output.wait()
+            returncode = process.returncode
+            if returncode is None:
+                return False
+            await run_in_thread_pool(
+                lambda: self._logging().log_ffmpeg_output(
+                    "metadata_embed", stdout, stderr, returncode, streamer
                 )
-                if not stream:
-                    logger.error(f"Stream not found: {stream_id}")
-                    return False
-
-                streamer = stream.streamer
-                if not streamer:
-                    logger.error(f"Streamer not found for stream: {stream_id}")
-                    return False
-
-                metadata = stream.stream_metadata
-                if not metadata:
-                    logger.error(f"Metadata not found for stream: {stream_id}")
-                    return False
-
-                # Create temporary output file for metadata embedding
-                temp_output = f"{mp4_path}.metadata.tmp"
-
-                try:
-                    # Embed metadata using FFmpeg
-                    success = await self.embed_metadata_with_ffmpeg_service(
-                        db, stream, streamer, mp4_path, temp_output, metadata
-                    )
-
-                    if success and os.path.exists(temp_output):
-                        # Replace original file with the metadata-embedded version
-                        shutil.move(temp_output, mp4_path)
-                        logger.info(
-                            f"Successfully embedded metadata using FFmpeg for stream {stream_id}"
-                        )
-                        logging_service.ffmpeg_logger.info(
-                            f"[METADATA_EMBED_SUCCESS] FFmpeg metadata embedding successful: {mp4_path}"
-                        )
-                        return True
-                    else:
-                        logger.error(
-                            f"FFmpeg metadata embedding failed for stream {stream_id}"
-                        )
-                        logging_service.ffmpeg_logger.error(
-                            f"[METADATA_EMBED_FAILED] FFmpeg metadata embedding failed: {mp4_path}"
-                        )
-                        return False
-
-                except Exception as e:
-                    logger.error(f"Error during FFmpeg metadata embedding: {e}")
-                    # Clean up temp file if it exists
-                    if os.path.exists(temp_output):
-                        os.remove(temp_output)
-                    return False
-
-        except Exception as e:
-            logger.error(f"Error embedding all metadata: {e}", exc_info=True)
+            )
+            if returncode != 0:
+                return False
+            return await run_in_thread_pool(self._publish_metadata_embedding, plan)
+        except Exception as error:
+            logger.error(
+                "Metadata embedding failed for stream %s (%s)",
+                stream_id,
+                type(error).__name__,
+            )
             return False
+        finally:
+            if plan is not None:
+                await run_in_thread_pool(lambda: plan.output.unlink(missing_ok=True))
 
     async def _create_media_server_chapters(
+        self, stream_id: int, mp4_path: str, use_category_as_chapter_title: bool = False
+    ) -> None:
+        await run_in_thread_pool(
+            self._write_media_server_chapters,
+            stream_id,
+            mp4_path,
+            use_category_as_chapter_title,
+        )
+
+    def _write_media_server_chapters(
         self, stream_id: int, mp4_path: str, use_category_as_chapter_title: bool = False
     ) -> None:
         """Create additional chapter files for better media server compatibility
@@ -2736,7 +2740,7 @@ class MetadataService:
 
                 # 1. Create Plex-compatible chapters.txt file
                 plex_chapters_path = f"{base_path}.chapters.txt"
-                await self._create_plex_chapters_file(
+                self._create_plex_chapters_file(
                     stream, events, plex_chapters_path, use_category_as_chapter_title
                 )
 
@@ -2754,7 +2758,7 @@ class MetadataService:
         except Exception as e:
             logger.error(f"Error creating media server chapters: {e}")
 
-    async def _create_plex_chapters_file(
+    def _create_plex_chapters_file(
         self,
         stream: Stream,
         events: List[StreamEvent],
@@ -2876,105 +2880,51 @@ class MetadataService:
         secs = seconds % 60
         return f"{hours:02d}:{minutes:02d}:{secs:09.6f}"
 
-    async def embed_metadata_with_ffmpeg_service(
+    def _metadata_embedding_command(
         self,
-        db: Session,
         stream: Stream,
         streamer: Streamer,
         input_path: str,
         output_path: str,
-        metadata: StreamMetadata,
-    ) -> bool:
-        """
-        Embed metadata into MP4 file using FFmpeg.
-
-        Args:
-            db: Database session
-            stream: Stream object
-            streamer: Streamer object
-            input_path: Path to input MP4 file
-            output_path: Path to output MP4 file
-            metadata: StreamMetadata object
-
-        Returns:
-            bool: True on success, False on error
-        """
-        try:
-            logger.info(f"Embedding metadata using FFmpeg for stream {stream.id}")
-
-            # Prepare metadata dictionary for FFmpeg
-            metadata_dict = {
-                "title": stream.title or "Stream Recording",
-                "artist": streamer.username,
-                "album": f"{streamer.username} Streams",
-                "year": str(stream.started_at.year)
-                if stream.started_at
-                else str(datetime.now().year),
-                "genre": stream.category_name or "Gaming",
-                "comment": f"Recorded stream from {streamer.username}",
-                "description": stream.title or "Twitch stream recording",
-                "streamer": streamer.username,
-                "game": stream.category_name,
-                "stream_date": (
-                    stream.started_at.strftime("%Y-%m-%d")
-                    if stream.started_at
-                    else datetime.now().strftime("%Y-%m-%d")
-                ),
-            }
-
-            # Build FFmpeg command for metadata embedding
-            cmd = [
-                "ffmpeg",
-                "-i",
-                input_path,
-                "-c",
-                "copy",
-                "-metadata",
-                f"title={metadata_dict['title']}",
-                "-metadata",
-                f"artist={metadata_dict['artist']}",
-                "-metadata",
-                f"album={metadata_dict['album']}",
-                "-metadata",
-                f"year={metadata_dict['year']}",
-                "-metadata",
-                f"genre={metadata_dict['genre']}",
-                "-metadata",
-                f"comment={metadata_dict['comment']}",
-                "-metadata",
-                f"description={metadata_dict['description']}",
-                "-metadata",
-                f"streamer={metadata_dict['streamer']}",
-                "-metadata",
-                f"game={metadata_dict['game']}",
-                "-metadata",
-                f"stream_date={metadata_dict['stream_date']}",
-                "-y",  # Overwrite output file if exists
-                output_path,
-            ]
-
-            logger.debug(f"FFmpeg command for metadata embedding: {' '.join(cmd)}")
-
-            # Execute FFmpeg command
-            async with media_process(*cmd) as (process, output):
-                stdout, stderr = await output.wait()
-
-            if process.returncode != 0:
-                logger.error(
-                    f"FFmpeg metadata embedding failed: {stderr.decode('utf-8', errors='ignore')}"
-                )
-                return False
-
-            logger.info(
-                f"Successfully embedded metadata using FFmpeg for stream {stream.id}"
+        chapters_path: str,
+    ) -> tuple[str, ...]:
+        metadata = {
+            "title": stream.title or "Stream Recording",
+            "artist": streamer.username,
+            "album": f"{streamer.username} Streams",
+            "year": str(stream.started_at.year)
+            if stream.started_at
+            else str(datetime.now().year),
+            "genre": stream.category_name or "Gaming",
+            "comment": f"Recorded stream from {streamer.username}",
+            "description": stream.title or "Twitch stream recording",
+            "streamer": streamer.username,
+            "game": stream.category_name,
+            "stream_date": stream.started_at.strftime("%Y-%m-%d")
+            if stream.started_at
+            else datetime.now().strftime("%Y-%m-%d"),
+        }
+        command = ["ffmpeg", "-i", input_path]
+        if chapters_path:
+            command.extend(
+                [
+                    "-f",
+                    "ffmetadata",
+                    "-i",
+                    chapters_path,
+                    "-map_metadata",
+                    "0",
+                    "-map_chapters",
+                    "1",
+                ]
             )
-            return True
+        command.extend(["-c", "copy"])
+        for key, value in metadata.items():
+            command.extend(["-metadata", f"{key}={value}"])
+        command.extend(["-f", "mp4", "-y", output_path])
+        return tuple(command)
 
-        except Exception as e:
-            logger.error(f"Error embedding metadata with FFmpeg: {e}", exc_info=True)
-            return False
-
-    async def _get_chapters_for_ffmpeg(
+    def _get_chapters_for_ffmpeg(
         self, db: Session, stream: Stream
     ) -> Optional[List[Dict[str, Any]]]:
         """

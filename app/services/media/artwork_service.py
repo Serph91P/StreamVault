@@ -2,13 +2,14 @@ import logging
 import shutil
 from collections.abc import Awaitable, Callable
 from pathlib import Path
+from sqlalchemy import inspect
+from sqlalchemy.exc import NoInspectionAvailable
+from sqlalchemy.orm import Session
 
 from app.database import SessionLocal
 from app.models import Stream, Streamer
+from app.services.http_client import HTTPPolicy, ManagedHTTPClient
 from app.utils.async_db_utils import run_in_thread_pool
-
-# Lazy import to avoid directory creation at import time
-# unified_image_service is imported when needed in methods
 
 logger = logging.getLogger("streamvault")
 
@@ -21,9 +22,12 @@ class ArtworkService:
         *,
         recordings_dir: Path = Path("/recordings"),
         download_image: Callable[[str, Path], Awaitable[bool]] | None = None,
+        session_factory: Callable[[], Session] | None = None,
     ) -> None:
         self.recordings_dir = recordings_dir
         self._image_downloader = download_image
+        self._session_factory = session_factory
+        self._http: ManagedHTTPClient | None = None
         self.media_base_path = self.recordings_dir / ".media"
         self.artwork_base_path = self.media_base_path / "artwork"
         self._initialized = False
@@ -41,7 +45,9 @@ class ArtworkService:
             pass
 
     async def close(self) -> None:
-        """Close resources (now handled by unified_image_service)"""
+        if self._http is not None:
+            await self._http.close()
+            self._http = None
 
     def get_streamer_artwork_dir(self, streamer_username: str) -> Path:
         """Get the artwork directory for a specific streamer"""
@@ -64,12 +70,41 @@ class ArtworkService:
         safe_username = self._sanitize_filename(streamer_username)
         return f".media/artwork/{safe_username}/{filename}"
 
-    async def save_streamer_artwork(self, streamer: Streamer) -> bool:
-        return await self.save_artwork(
-            streamer.username,
-            streamer.original_profile_image_url or streamer.profile_image_url,
-            streamer.original_offline_image_url or streamer.offline_image_url,
-        )
+    def _sessions(self) -> Session:
+        return (self._session_factory or SessionLocal)()
+
+    @staticmethod
+    def _streamer_identity(streamer: Streamer) -> int | None:
+        """Read cached identity without lazy I/O before constructing a coroutine."""
+        try:
+            identity = inspect(streamer).identity
+        except NoInspectionAvailable:
+            return None
+        if identity is None or len(identity) != 1:
+            return None
+        return identity[0] if isinstance(identity[0], int) else None
+
+    def save_streamer_artwork(self, streamer: Streamer) -> Awaitable[bool]:
+        return self._save_artwork_by_id(self._streamer_identity(streamer))
+
+    def _read_artwork(
+        self, streamer_id: int
+    ) -> tuple[str, str | None, str | None] | None:
+        with self._sessions() as db:
+            streamer = db.get(Streamer, streamer_id)
+            if streamer is None:
+                return None
+            return (
+                streamer.username,
+                streamer.original_profile_image_url or streamer.profile_image_url,
+                streamer.original_offline_image_url or streamer.offline_image_url,
+            )
+
+    async def _save_artwork_by_id(self, streamer_id: int | None) -> bool:
+        if streamer_id is None:
+            return False
+        values = await run_in_thread_pool(self._read_artwork, streamer_id)
+        return await self.save_artwork(*values) if values is not None else False
 
     async def save_artwork(
         self, username: str, profile_url: str | None, banner_url: str | None
@@ -134,35 +169,28 @@ class ArtworkService:
             logger.error(f"Error saving streamer artwork: {e}", exc_info=True)
             return False
 
-    async def save_streamer_metadata(self, streamer: Streamer) -> bool:
-        """Save metadata files for a streamer in the metadata directory
+    def save_streamer_metadata(self, streamer: Streamer) -> Awaitable[bool]:
+        return run_in_thread_pool(
+            self._save_metadata_by_id, self._streamer_identity(streamer)
+        )
 
-        Args:
-            streamer: Streamer object
-
-        Returns:
-            bool: True if successful, False otherwise
-        """
+    def _save_metadata_by_id(self, streamer_id: int | None) -> bool:
+        if streamer_id is None:
+            return False
         try:
-            metadata_dir = self.get_streamer_metadata_dir(streamer.username)
-
-            # Create tvshow.nfo
-            tvshow_nfo_path = metadata_dir / "tvshow.nfo"
-            await self._create_tvshow_nfo(streamer, tvshow_nfo_path)
-
-            # Create season.nfo for each year/month combination
-            await self._create_season_metadata_files(streamer, metadata_dir)
-
-            logger.info(
-                f"Successfully saved metadata for {streamer.username} in {metadata_dir}"
-            )
-            return True
-
-        except Exception as e:
-            logger.error(f"Error saving streamer metadata: {e}", exc_info=True)
+            with self._sessions() as db:
+                streamer = db.get(Streamer, streamer_id)
+                if streamer is None:
+                    return False
+                metadata_dir = self.get_streamer_metadata_dir(streamer.username)
+                if not self._create_tvshow_nfo(streamer, metadata_dir / "tvshow.nfo"):
+                    return False
+                return self._create_season_metadata_files(db, streamer, metadata_dir)
+        except Exception as error:
+            logger.error("Streamer metadata failed (%s)", type(error).__name__)
             return False
 
-    async def _create_tvshow_nfo(self, streamer: Streamer, nfo_path: Path) -> None:
+    def _create_tvshow_nfo(self, streamer: Streamer, nfo_path: Path) -> bool:
         """Create tvshow.nfo file for the streamer"""
         try:
             # Use relative paths for artwork - media servers expect paths relative to the NFO
@@ -194,47 +222,46 @@ class ArtworkService:
                 f.write(tvshow_content)
 
             logger.debug(f"Created tvshow.nfo: {nfo_path}")
+            return True
 
         except Exception as e:
             logger.error(f"Error creating tvshow.nfo: {e}")
+            return False
 
-    async def _create_season_metadata_files(
-        self, streamer: Streamer, metadata_dir: Path
-    ) -> None:
+    def _create_season_metadata_files(
+        self, db: Session, streamer: Streamer, metadata_dir: Path
+    ) -> bool:
         """Create season metadata files for all seasons (year-month combinations)"""
         try:
-            with SessionLocal() as db:
-                # Get all unique year-month combinations for this streamer
-                streams = (
-                    db.query(Stream)
-                    .filter(
-                        Stream.streamer_id == streamer.id, Stream.started_at.isnot(None)
-                    )
-                    .all()
+            streams = (
+                db.query(Stream.started_at)
+                .filter(
+                    Stream.streamer_id == streamer.id, Stream.started_at.isnot(None)
                 )
-
-                season_combinations = set()
-                for stream in streams:
-                    if stream.started_at:
-                        year_month = (stream.started_at.year, stream.started_at.month)
-                        season_combinations.add(year_month)
-
-                # Create season.nfo for each combination
-                for year, month in season_combinations:
-                    season_dir = metadata_dir / f"Season_{year}-{month:02d}"
-                    season_dir.mkdir(parents=True, exist_ok=True)
-
-                    season_nfo_path = season_dir / "season.nfo"
-                    await self._create_season_nfo(
-                        streamer, year, month, season_nfo_path
-                    )
+                .yield_per(1000)
+            )
+            season_combinations = {
+                (started_at.year, started_at.month)
+                for (started_at,) in streams
+                if started_at is not None
+            }
+            success = True
+            for year, month in sorted(season_combinations):
+                season_dir = metadata_dir / f"Season_{year}-{month:02d}"
+                season_dir.mkdir(parents=True, exist_ok=True)
+                if not self._create_season_nfo(
+                    streamer, year, month, season_dir / "season.nfo"
+                ):
+                    success = False
+            return success
 
         except Exception as e:
             logger.error(f"Error creating season metadata files: {e}", exc_info=True)
+            return False
 
-    async def _create_season_nfo(
+    def _create_season_nfo(
         self, streamer: Streamer, year: int, month: int, nfo_path: Path
-    ) -> None:
+    ) -> bool:
         """Create season.nfo file for a specific year-month combination"""
         try:
             # Use relative paths for artwork
@@ -257,9 +284,37 @@ class ArtworkService:
                 f.write(season_content)
 
             logger.debug(f"Created season.nfo: {nfo_path}")
+            return True
 
         except Exception as e:
             logger.error(f"Error creating season.nfo: {e}")
+            return False
+
+    def _prepare_image(self, url: str, target_path: Path) -> bool | None:
+        if target_path.exists():
+            return True
+        is_local = (
+            url.startswith("/")
+            or (len(url) >= 3 and url[1] == ":" and url[2] == "\\")
+            or url.startswith("\\\\")
+            or Path(url).is_absolute()
+        )
+        if not is_local:
+            return None
+        source = Path(url)
+        if url.startswith("/data/images/profiles/"):
+            source = self.recordings_dir / ".media" / "profiles" / url.split("/")[-1]
+        if not source.exists():
+            return False
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, target_path)
+        return True
+
+    @staticmethod
+    def _write_image(target_path: Path, content: bytes) -> None:
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(target_path, "wb") as destination:
+            destination.write(content)
 
     async def _download_image(self, url: str, target_path: Path) -> bool:
         """Download an image from a URL or copy from local path to a target path
@@ -276,59 +331,20 @@ class ArtworkService:
                 )
             return await self._image_downloader(url, target_path)
         try:
-            if target_path.exists():
-                logger.debug(f"Image already exists: {target_path}")
-                return True
-
-            # Check if URL is actually a local file path (cross-platform detection)
-            # Handle Unix paths, Windows paths, and UNC paths
-            is_local_path = (
-                url.startswith("/")  # Unix absolute path
-                or (
-                    len(url) >= 3 and url[1] == ":" and url[2] == "\\"
-                )  # Windows C:\ style
-                or url.startswith("\\\\")  # UNC path \\server\share
-                or Path(url).is_absolute()  # Fallback for other formats
-            )
-
-            if is_local_path:
-                # This is a local file path, not a URL
-                logger.debug(f"Detected local file path instead of URL: {url}")
-                source_path = Path(url)
-
-                # Handle legacy path migration: /data/images/profiles/ -> /recordings/.media/profiles/
-                if url.startswith("/data/images/profiles/"):
-                    # Map old path to new structure
-                    filename = url.split("/")[-1]  # Extract just the filename
-                    source_path = self.recordings_dir / ".media" / "profiles" / filename
-                    logger.debug(f"Mapped legacy path {url} to {source_path}")
-
-                if source_path.exists():
-                    # Copy the local file
-                    target_path.parent.mkdir(parents=True, exist_ok=True)
-                    shutil.copy2(source_path, target_path)
-                    logger.debug(f"Copied local image: {source_path} -> {target_path}")
-                    return True
-                else:
-                    logger.warning(f"Local image file does not exist: {source_path}")
-                    return False
-
-            # URL is a proper HTTP/HTTPS URL - download it
-            # Lazy import to avoid directory creation at module load time
-            from app.services.unified_image_service import unified_image_service
-
-            session = await unified_image_service._get_session()
-            async with session.stream("GET", url, follow_redirects=True) as response:
+            prepared = await run_in_thread_pool(self._prepare_image, url, target_path)
+            if prepared is not None:
+                return prepared
+            if self._http is None:
+                self._http = ManagedHTTPClient(HTTPPolicy())
+            async with self._http.stream("GET", url, follow_redirects=True) as response:
                 if response.status_code == 200:
                     content_type = response.headers.get("content-type", "")
                     if "image" in content_type:
                         content = b"".join([chunk async for chunk in response.chunks])
 
-                        # Create parent directory if it doesn't exist
-                        target_path.parent.mkdir(parents=True, exist_ok=True)
-
-                        with open(target_path, "wb") as f:
-                            f.write(content)
+                        await run_in_thread_pool(
+                            self._write_image, target_path, content
+                        )
 
                         logger.debug(f"Downloaded image: {target_path}")
                         return True
