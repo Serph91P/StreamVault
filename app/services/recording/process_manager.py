@@ -29,6 +29,9 @@ from pathlib import Path
 from sqlalchemy.orm import joinedload
 
 if TYPE_CHECKING:
+    from app.services.notifications.external_notification_service import (
+        ExternalNotificationService,
+    )
     from app.services.system.twitch_token_service import TwitchTokenService
     from app.services.system.logging_service import LoggingService
 
@@ -1716,6 +1719,17 @@ class ProcessManager:
             )
             segment_info.pop("upstream_rotation_generation", None)
 
+    def _get_external_notification_service(self) -> "ExternalNotificationService":
+        from app.services.notifications.external_notification_service import (
+            ExternalNotificationService,
+        )
+
+        config = getattr(self, "config_manager", None)
+        return ExternalNotificationService(
+            session_factory=getattr(config, "_session_factory", None),
+            settings=getattr(config, "_settings", None),
+        )
+
     async def monitor_process(self, process: asyncio.subprocess.Process) -> int:
         """Monitor a recording process until completion with failure detection
 
@@ -1908,80 +1922,19 @@ class ProcessManager:
 
                     # Send Apprise notification for recording_completed (NEW - non-segmented)
                     try:
-                        from app.database import SessionLocal
-                        from app.models import Stream
-                        from app.services.notifications.external_notification_service import (
-                            ExternalNotificationService,
+                        stream_id = (
+                            process_id.split("_")[1]
+                            if process_id and "_" in process_id
+                            else None
                         )
-                        import os
-
-                        notification_service = ExternalNotificationService()
-
-                        with SessionLocal() as db:
-                            stream_id = (
-                                process_id.split("_")[1] if "_" in process_id else None
+                        if stream_id:
+                            await self._get_external_notification_service().send_recording_completion(
+                                int(stream_id)
                             )
-                            if stream_id:
-                                stream = (
-                                    db.query(Stream)
-                                    .options(joinedload(Stream.streamer))
-                                    .filter(Stream.id == int(stream_id))
-                                    .first()
-                                )
-
-                                if stream and stream.streamer and stream.recording_path:
-                                    # Get quality from streamer recording settings
-                                    from app.models import StreamerRecordingSettings
-
-                                    recording_settings = (
-                                        db.query(StreamerRecordingSettings)
-                                        .filter(
-                                            StreamerRecordingSettings.streamer_id
-                                            == stream.streamer_id
-                                        )
-                                        .first()
-                                    )
-                                    quality = (
-                                        recording_settings.quality
-                                        if recording_settings
-                                        and recording_settings.quality
-                                        else "best"
-                                    )
-
-                                    # Calculate recording duration from stream timestamps
-                                    duration_seconds = 0
-                                    if stream.started_at and stream.ended_at:
-                                        duration_seconds = int(
-                                            (
-                                                stream.ended_at - stream.started_at
-                                            ).total_seconds()
-                                        )
-
-                                    # Get file size
-                                    file_size_bytes = 0
-                                    if os.path.exists(stream.recording_path):
-                                        file_size_bytes = os.path.getsize(
-                                            stream.recording_path
-                                        )
-                                    file_size_mb = file_size_bytes / (1024 * 1024)
-
-                                    await notification_service.send_recording_notification(
-                                        streamer_name=stream.streamer.username,
-                                        event_type="recording_completed",
-                                        details={
-                                            "duration_minutes": duration_seconds // 60,
-                                            "file_size_mb": f"{file_size_mb:.2f}",
-                                            "quality": quality,
-                                        },
-                                    )
-
-                                    logger.info(
-                                        f"📧 Apprise notification sent: recording_completed for {stream.streamer.username}"
-                                    )
-
                     except Exception as apprise_error:
                         logger.error(
-                            f"Failed to send Apprise notification for recording_completed: {apprise_error}"
+                            "Recording completion notification failed (%s)",
+                            type(apprise_error).__name__,
                         )
 
                 return process.returncode or 0
@@ -2082,77 +2035,24 @@ class ProcessManager:
 
                 # Send Apprise notification for recording_completed (NEW)
                 try:
-                    from app.database import SessionLocal
-                    from app.models import Stream
-                    from app.services.notifications.external_notification_service import (
-                        ExternalNotificationService,
-                    )
-                    from datetime import datetime
-                    import os
-
-                    notification_service = ExternalNotificationService()
-
-                    with SessionLocal() as db:
-                        stream = (
-                            db.query(Stream)
-                            .options(joinedload(Stream.streamer))
-                            .filter(Stream.id == segment_info["stream_id"])
-                            .first()
+                    duration_seconds = (
+                        int(
+                            (
+                                datetime.now() - segment_info["segment_start_time"]
+                            ).total_seconds()
                         )
-
-                        if stream and stream.streamer:
-                            # Get quality from streamer recording settings
-                            from app.models import StreamerRecordingSettings
-
-                            recording_settings = (
-                                db.query(StreamerRecordingSettings)
-                                .filter(
-                                    StreamerRecordingSettings.streamer_id
-                                    == stream.streamer_id
-                                )
-                                .first()
-                            )
-                            quality = (
-                                recording_settings.quality
-                                if recording_settings and recording_settings.quality
-                                else "best"
-                            )
-
-                            # Calculate recording duration
-                            duration_seconds = 0
-                            if segment_info.get("segment_start_time"):
-                                duration_seconds = int(
-                                    (
-                                        datetime.now()
-                                        - segment_info["segment_start_time"]
-                                    ).total_seconds()
-                                )
-
-                            # Get file size
-                            file_size_bytes = (
-                                os.path.getsize(output_path)
-                                if os.path.exists(output_path)
-                                else 0
-                            )
-                            file_size_mb = file_size_bytes / (1024 * 1024)
-
-                            await notification_service.send_recording_notification(
-                                streamer_name=stream.streamer.username,
-                                event_type="recording_completed",
-                                details={
-                                    "duration_minutes": duration_seconds // 60,
-                                    "file_size_mb": f"{file_size_mb:.2f}",
-                                    "quality": quality,
-                                },
-                            )
-
-                            logger.info(
-                                f"📧 Apprise notification sent: recording_completed for {stream.streamer.username}"
-                            )
-
+                        if segment_info.get("segment_start_time")
+                        else 0
+                    )
+                    await self._get_external_notification_service().send_recording_completion(
+                        segment_info["stream_id"],
+                        output_path=output_path,
+                        duration_seconds=duration_seconds,
+                    )
                 except Exception as apprise_error:
                     logger.error(
-                        f"Failed to send Apprise notification for recording_completed: {apprise_error}"
+                        "Recording completion notification failed (%s)",
+                        type(apprise_error).__name__,
                     )
 
                 # Move concatenated file from segments directory to parent directory

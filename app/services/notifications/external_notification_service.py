@@ -6,12 +6,13 @@ Handles external notifications via Apprise (Ntfy, Discord, Telegram, etc.)
 """
 
 import logging
+import os
 import re
 from collections.abc import Callable
 from typing import Literal, Optional
 from urllib.parse import quote
 from apprise import Apprise, NotifyFormat
-from app.models import GlobalSettings, Streamer
+from app.models import GlobalSettings, Streamer, Stream
 from sqlalchemy.orm import Session
 from app.config.settings import Settings
 from app.database import SessionLocal
@@ -594,6 +595,67 @@ class ExternalNotificationService:
             "No specific configuration for this notification service, using base URL"
         )
         return base_url
+
+    def _prepare_recording_completion(
+        self,
+        stream_id: int,
+        output_path: str | None,
+        duration_seconds: int | None,
+    ) -> tuple[str, dict[str, str | int]] | None:
+        from sqlalchemy.orm import joinedload
+        from app.models import StreamerRecordingSettings
+
+        with (self._session_factory or SessionLocal)() as db:
+            stream = (
+                db.query(Stream)
+                .options(joinedload(Stream.streamer))
+                .filter(Stream.id == stream_id)
+                .first()
+            )
+            if stream is None or stream.streamer is None:
+                return None
+            path = output_path if output_path is not None else stream.recording_path
+            if not path:
+                return None
+            policy = (
+                db.query(StreamerRecordingSettings)
+                .filter(StreamerRecordingSettings.streamer_id == stream.streamer_id)
+                .first()
+            )
+            quality = (
+                policy.quality if policy is not None and policy.quality else "best"
+            )
+            if duration_seconds is None:
+                duration_seconds = (
+                    int((stream.ended_at - stream.started_at).total_seconds())
+                    if stream.started_at is not None and stream.ended_at is not None
+                    else 0
+                )
+            size = os.path.getsize(path) if os.path.exists(path) else 0
+            return stream.streamer.username, {
+                "duration_minutes": duration_seconds // 60,
+                "file_size_mb": f"{size / (1024 * 1024):.2f}",
+                "quality": quality,
+            }
+
+    async def send_recording_completion(
+        self,
+        stream_id: int,
+        *,
+        output_path: str | None = None,
+        duration_seconds: int | None = None,
+    ) -> bool:
+        prepared = await run_in_thread_pool(
+            self._prepare_recording_completion, stream_id, output_path, duration_seconds
+        )
+        if prepared is None:
+            return False
+        streamer_name, details = prepared
+        return await self.send_recording_notification(
+            streamer_name=streamer_name,
+            event_type="recording_completed",
+            details=details,
+        )
 
     def _prepare_recording_notification(
         self, streamer_name: str, event_type: str, details: dict
