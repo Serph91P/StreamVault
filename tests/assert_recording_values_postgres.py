@@ -310,6 +310,33 @@ async def main() -> None:
                 raise AssertionError(
                     "duplicate Twitch stream must fail without retries"
                 )
+            failed_id = await service.mark_active_stream_recording_failed(
+                stream.id, "synthetic child failure", "streamlink_crash"
+            )
+            assert failed_id == recording.id
+            failed = await service.get_recording(recording.id)
+            assert (
+                failed.status == "failed"
+                and failed.error_message == "synthetic child failure"
+            )
+            assert failed.failure_reason == "streamlink_crash"
+            assert (
+                failed.failure_timestamp.tzinfo is not None
+                and failed.end_time.tzinfo is not None
+            )
+            assert (
+                await service.mark_active_stream_recording_failed(
+                    stream.id, "later", "later"
+                )
+                is None
+            )
+            assert await service.get_recording(recording.id) == failed
+            assert (
+                await service.mark_active_stream_recording_failed(
+                    999999, "absent", "absent"
+                )
+                is None
+            )
             await service.update_recording_status(
                 recording.id, "completed", path=label + ".mp4", duration_seconds=7
             )

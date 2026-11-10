@@ -14,7 +14,7 @@ from app.config.settings import Settings
 from app.dependencies import _get_application_recording_manager
 from app.lifespan import _close_application_proxy, _close_application_twitch
 from app.main import create_app
-from app.models import GlobalSettings, Stream, StreamerRecordingSettings
+from app.models import GlobalSettings, Stream, StreamerRecordingSettings, Recording
 from app.utils.async_db_utils import run_in_thread_pool
 from tests.test_external_notification_boundary import notification_catalogs as _catalogs
 
@@ -45,7 +45,7 @@ async def test_completion_without_a_recording_path_cannot_manufacture_notificati
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("entry", ["monitor", "finalize"])
+@pytest.mark.parametrize("entry", ["monitor", "finalize", "failure"])
 async def test_native_completion_notifies_from_closed_owned_catalogs(
     notification_catalogs, tmp_path, monkeypatch, entry
 ):
@@ -90,6 +90,7 @@ async def test_native_completion_notifies_from_closed_owned_catalogs(
                 policy = session.get(GlobalSettings, 1)
                 policy.notification_url = f"json://127.0.0.1:{port}/{index}"
                 policy.notify_recording_completed = True
+                policy.notify_recording_failed = True
                 session.add(
                     Stream(
                         id=7,
@@ -105,6 +106,16 @@ async def test_native_completion_notifies_from_closed_owned_catalogs(
                         streamer_id=1, quality=("720p", "480p")[index]
                     )
                 )
+                if entry == "failure":
+                    session.add(
+                        Recording(
+                            id=8,
+                            stream_id=7,
+                            start_time=now,
+                            status="recording",
+                            path=str(recording),
+                        )
+                    )
                 session.commit()
             app = create_app(
                 settings=Settings(
@@ -124,18 +135,68 @@ async def test_native_completion_notifies_from_closed_owned_catalogs(
                 "before_cursor_execute",
                 lambda *_: observed.append(get_ident()),
             )
-            if entry == "monitor":
+            if entry in {"monitor", "failure"}:
                 child = await asyncio.create_subprocess_exec(
                     sys.executable,
                     "-c",
-                    "pass",
+                    "import sys;sys.stderr.write('synthetic failure');sys.exit(2)"
+                    if entry == "failure"
+                    else "pass",
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
                 )
                 children.append(child)
                 manager.active_processes["stream_7"] = child
-                assert await manager.monitor_process(child) == 0
-                assert child.returncode == 0
+                expected = 2 if entry == "failure" else 0
+                assert await manager.monitor_process(child) == expected
+                assert child.returncode == expected
+                if entry == "failure":
+
+                    def failure_state():
+                        with database.sync_session_factory() as session:
+                            row = session.get(Recording, 8)
+                            return (
+                                row.status,
+                                row.error_message,
+                                row.failure_reason,
+                                row.failure_timestamp,
+                                row.end_time,
+                            )
+
+                    (
+                        status,
+                        error,
+                        reason,
+                        failed_at,
+                        ended_at,
+                    ) = await run_in_thread_pool(failure_state)
+                    assert status == "failed"
+                    assert (
+                        error == "Streamlink exited with code 2"
+                        and reason == "streamlink_crash"
+                    )
+                    assert failed_at is not None and ended_at is not None
+                    dao = manager._get_recording_database_service()
+                    assert dao is facade._service.orchestrator.database_service
+                    assert (
+                        await dao.mark_active_stream_recording_failed(
+                            7, "must not overwrite", "later"
+                        )
+                        is None
+                    )
+                    assert (
+                        await dao.mark_active_stream_recording_failed(
+                            999, "absent", "absent"
+                        )
+                        is None
+                    )
+                    assert await run_in_thread_pool(failure_state) == (
+                        status,
+                        error,
+                        reason,
+                        failed_at,
+                        ended_at,
+                    )
             else:
                 folder = root / "finished_segments"
                 folder.mkdir()
@@ -196,14 +257,26 @@ async def test_native_completion_notifies_from_closed_owned_catalogs(
                     capture_output=True,
                 )
         assert [owner for owner, _ in received] == [0, 1]
-        assert (
-            "2h 30m" in received[0][1]["message"]
-            and "720p" in received[0][1]["message"]
-        )
-        assert (
-            "2h 31m" in received[1][1]["message"]
-            and "480p" in received[1][1]["message"]
-        )
+        if entry == "failure":
+            assert all(
+                "Streamlink exited with code 2" in message["message"]
+                for _, message in received
+            )
+            for app in apps:
+                events = await app.state.websocket_manager.get_events_since()
+                assert len(events) == 1 and events[0]["type"] == "recording_failed"
+                assert events[0]["data"]["stream_id"] == 7
+                assert events[0]["data"]["streamer_id"] == 1
+                assert events[0]["data"]["stream_title"] == f"Owner {apps.index(app)}"
+        else:
+            assert (
+                "2h 30m" in received[0][1]["message"]
+                and "720p" in received[0][1]["message"]
+            )
+            assert (
+                "2h 31m" in received[1][1]["message"]
+                and "480p" in received[1][1]["message"]
+            )
         assert observed and get_ident() not in observed
         assert all(
             database.sync_engine.pool.checkedout() == 0 for database in databases

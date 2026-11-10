@@ -92,7 +92,7 @@ async def recording_policy(tmp_path, monkeypatch):
     monkeypatch.setattr(lifecycle_module, "background_queue_service", None)
     monkeypatch.setattr(
         "app.services.notifications.external_notification_service.ExternalNotificationService",
-        lambda: SimpleNamespace(send_recording_notification=AsyncMock()),
+        lambda **_context: SimpleNamespace(send_recording_notification=AsyncMock()),
     )
     commands = []
 
@@ -137,6 +137,25 @@ async def recording_policy(tmp_path, monkeypatch):
     assert process.proxy_health_service is not None
     await process.proxy_health_service.stop()
     engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_actual_recording_start_selects_its_notification_catalog(
+    recording_policy, monkeypatch
+):
+    env = recording_policy
+    owners = []
+
+    def notifier(*, session_factory=None, settings=None):
+        owners.append((session_factory, settings))
+        return SimpleNamespace(send_recording_notification=AsyncMock())
+
+    monkeypatch.setattr(
+        "app.services.notifications.external_notification_service.ExternalNotificationService",
+        notifier,
+    )
+    assert await env.lifecycle.start_recording(1, 1) is not None
+    assert owners == [(env.sessions, env.config._settings)]
 
 
 @pytest.mark.asyncio

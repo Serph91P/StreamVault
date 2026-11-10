@@ -26,9 +26,13 @@ import shutil
 from datetime import datetime, timedelta
 from typing import Dict, Optional, Callable, Awaitable, TYPE_CHECKING
 from pathlib import Path
-from sqlalchemy.orm import joinedload
+
 
 if TYPE_CHECKING:
+    from app.services.recording.recording_database_service import (
+        RecordingDatabaseService,
+    )
+    from app.services.communication.websocket_manager import ConnectionManager
     from app.services.notifications.external_notification_service import (
         ExternalNotificationService,
     )
@@ -132,6 +136,8 @@ class ProcessManager:
         post_processing_callback: Callable[[int, str], Awaitable[None]],
         upstream_coordinator: TwitchUpstreamCoordinator,
         logging_service: "LoggingService | None" = None,
+        database_service: "RecordingDatabaseService | None" = None,
+        connection_manager: "ConnectionManager | None" = None,
     ) -> "ProcessManager":
         instance = object.__new__(cls)
         instance._initialize(
@@ -139,6 +145,8 @@ class ProcessManager:
             post_processing_callback,
             upstream_coordinator,
             logging_service=logging_service,
+            database_service=database_service,
+            connection_manager=connection_manager,
         )
         return instance
 
@@ -148,6 +156,8 @@ class ProcessManager:
         post_processing_callback: Callable[[int, str], Awaitable[None]] | None,
         upstream_coordinator: TwitchUpstreamCoordinator | None,
         logging_service: "LoggingService | None" = None,
+        database_service: "RecordingDatabaseService | None" = None,
+        connection_manager: "ConnectionManager | None" = None,
     ) -> None:
         self.active_processes = {}
         self.long_stream_processes = {}  # Track processes that need segmentation
@@ -159,6 +169,8 @@ class ProcessManager:
         self._task_supervisor = TaskSupervisor("recording-processes")
         self.ASYNC_DELAYS = ASYNC_DELAYS
         self.config_manager = config_manager
+        self._database_service = database_service
+        self._connection_manager = connection_manager
         self.post_processing_callback = post_processing_callback  # Injected dependency
         self.upstream_coordinator = upstream_coordinator or twitch_upstream_coordinator
         self.proxy_health_service = None
@@ -1172,11 +1184,7 @@ class ProcessManager:
 
             # Send Apprise notification for recording_started (NEW)
             try:
-                from app.services.notifications.external_notification_service import (
-                    ExternalNotificationService,
-                )
-
-                notification_service = ExternalNotificationService()
+                notification_service = self._get_external_notification_service()
 
                 await notification_service.send_recording_notification(
                     streamer_name=streamer_name,
@@ -1719,16 +1727,31 @@ class ProcessManager:
             )
             segment_info.pop("upstream_rotation_generation", None)
 
+    def _get_recording_database_service(self) -> "RecordingDatabaseService":
+        from app.services.recording.recording_database_service import (
+            RecordingDatabaseService,
+        )
+
+        service = getattr(self, "_database_service", None)
+        if service is None:
+            service = RecordingDatabaseService(
+                session_factory=getattr(
+                    getattr(self, "config_manager", None), "_session_factory", None
+                )
+            )
+        return service
+
     def _get_external_notification_service(self) -> "ExternalNotificationService":
         from app.services.notifications.external_notification_service import (
             ExternalNotificationService,
         )
 
         config = getattr(self, "config_manager", None)
-        return ExternalNotificationService(
-            session_factory=getattr(config, "_session_factory", None),
-            settings=getattr(config, "_settings", None),
-        )
+        factory = getattr(config, "_session_factory", None)
+        settings = getattr(config, "_settings", None)
+        if factory is None and settings is None:
+            return ExternalNotificationService()
+        return ExternalNotificationService(session_factory=factory, settings=settings)
 
     async def monitor_process(self, process: asyncio.subprocess.Process) -> int:
         """Monitor a recording process until completion with failure detection
@@ -2706,145 +2729,81 @@ class ProcessManager:
 
     async def _record_failure_in_database(
         self, process_id: str, error_message: str, failure_reason: str
-    ):
-        """Record recording failure in database for visibility
-
-        Args:
-            process_id: Process ID (format: stream_{stream_id})
-            error_message: Detailed error message
-            failure_reason: Short failure category
-        """
+    ) -> None:
+        """Commit only the owning catalog's currently active recording failure."""
         try:
-            from app.database import SessionLocal
-            from app.models import Recording
-            from datetime import datetime, timezone
-
-            # Extract stream_id from process_id
             stream_id = process_id.split("_")[1] if "_" in process_id else None
-            if not stream_id:
-                logger.warning(
-                    f"Could not extract stream_id from process_id: {process_id}"
-                )
+            if stream_id is None:
                 return
+            await self._get_recording_database_service().mark_active_stream_recording_failed(
+                int(stream_id), error_message, failure_reason
+            )
+        except Exception as error:
+            logger.error(
+                "Recording failure persistence failed (%s)", type(error).__name__
+            )
 
-            with SessionLocal() as db:
-                # Find the active recording for this stream
-                recording = (
-                    db.query(Recording)
-                    .filter(
-                        Recording.stream_id == int(stream_id),
-                        Recording.status == "recording",
-                    )
-                    .first()
-                )
-
-                if recording:
-                    # Update recording with failure information
-                    recording.status = "failed"
-                    recording.error_message = error_message
-                    recording.failure_reason = failure_reason
-                    recording.failure_timestamp = datetime.now(timezone.utc)
-                    recording.end_time = datetime.now(timezone.utc)
-
-                    db.commit()
-                    logger.info(
-                        f"✅ Recorded failure in database for recording {recording.id}: {failure_reason}"
-                    )
-                else:
-                    logger.warning(f"No active recording found for stream {stream_id}")
-
-        except Exception as e:
-            logger.error(f"Failed to record failure in database: {e}", exc_info=True)
-
-    async def _notify_recording_failed(self, process_id: str, error_message: str):
-        """Broadcast WebSocket notification for recording failure
-
-        Args:
-            process_id: Process ID (format: stream_{stream_id})
-            error_message: Error message to broadcast
-        """
+    async def _notify_recording_failed(
+        self, process_id: str, error_message: str
+    ) -> None:
+        """Publish a closed scalar snapshot to this actor's socket and notifier."""
         try:
-            from app.database import SessionLocal
-            from app.models import Stream
-            from datetime import datetime, timezone
+            from datetime import timezone
 
-            # Extract stream_id
             stream_id = process_id.split("_")[1] if "_" in process_id else None
-            if not stream_id:
+            if stream_id is None:
                 return
+            stream = await self._get_recording_database_service().get_stream_by_id(
+                int(stream_id)
+            )
+            if stream is None or stream.streamer is None:
+                return
+            now = datetime.now(timezone.utc)
+            try:
+                manager = getattr(self, "_connection_manager", None)
+                if manager is None:
+                    from app.services.communication.websocket_manager import (
+                        websocket_manager,
+                    )
 
-            with SessionLocal() as db:
-                # Get stream and streamer info
-                stream = (
-                    db.query(Stream)
-                    .options(joinedload(Stream.streamer))
-                    .filter(Stream.id == int(stream_id))
-                    .first()
+                    manager = websocket_manager
+                await manager.send_notification(
+                    {
+                        "type": "recording_failed",
+                        "data": {
+                            "stream_id": stream.id,
+                            "streamer_id": stream.streamer.id,
+                            "streamer_name": stream.streamer.username,
+                            "error_message": error_message,
+                            "timestamp": now.isoformat(),
+                            "stream_title": stream.title or "N/A",
+                            "category": stream.category_name or "N/A",
+                        },
+                    }
                 )
-
-                if stream and stream.streamer:
-                    # Broadcast WebSocket event
-                    try:
-                        from app.services.websocket.websocket_manager import (
-                            websocket_manager,
-                        )
-
-                        await websocket_manager.broadcast(
-                            {
-                                "type": "recording_failed",
-                                "data": {
-                                    "stream_id": stream.id,
-                                    "streamer_id": stream.streamer.id,
-                                    "streamer_name": stream.streamer.username,
-                                    "error_message": error_message,
-                                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                                    "stream_title": stream.title or "N/A",
-                                    "category": stream.category_name or "N/A",
-                                },
-                            }
-                        )
-
-                        logger.info(
-                            f"📡 WebSocket notification sent: recording_failed for {stream.streamer.username}"
-                        )
-
-                    except Exception as ws_error:
-                        logger.error(
-                            f"Failed to send WebSocket notification: {ws_error}"
-                        )
-
-                    # Send Apprise notification (NEW)
-                    try:
-                        from app.services.notifications.external_notification_service import (
-                            ExternalNotificationService,
-                        )
-
-                        notification_service = ExternalNotificationService()
-
-                        await notification_service.send_recording_notification(
-                            streamer_name=stream.streamer.username,
-                            event_type="recording_failed",
-                            details={
-                                "error_message": error_message,
-                                "timestamp": datetime.now(timezone.utc).strftime(
-                                    "%Y-%m-%d %H:%M:%S UTC"
-                                ),
-                                "stream_title": stream.title or "N/A",
-                                "category": stream.category_name or "N/A",
-                            },
-                        )
-
-                        logger.info(
-                            f"📧 Apprise notification sent: recording_failed for {stream.streamer.username}"
-                        )
-
-                    except Exception as apprise_error:
-                        logger.error(
-                            f"Failed to send Apprise notification: {apprise_error}"
-                        )
-
-        except Exception as e:
-            logger.error(f"Error in _notify_recording_failed: {e}", exc_info=True)
+            except Exception as error:
+                logger.error(
+                    "Recording failure socket notification failed (%s)",
+                    type(error).__name__,
+                )
+            try:
+                await self._get_external_notification_service().send_recording_notification(
+                    streamer_name=stream.streamer.username,
+                    event_type="recording_failed",
+                    details={
+                        "error_message": error_message,
+                        "timestamp": now.strftime("%Y-%m-%d %H:%M:%S UTC"),
+                        "stream_title": stream.title or "N/A",
+                        "category": stream.category_name or "N/A",
+                    },
+                )
+            except Exception as error:
+                logger.error(
+                    "Recording failure external notification failed (%s)",
+                    type(error).__name__,
+                )
+        except Exception as error:
+            logger.error("Recording failure snapshot failed (%s)", type(error).__name__)
 
     async def get_recording_progress(self, recording_id: int) -> Optional[Dict]:
         """Get progress information for a recording

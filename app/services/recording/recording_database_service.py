@@ -163,6 +163,26 @@ class RecordingDatabaseService:
 
         await self._run(work)
 
+    async def mark_active_stream_recording_failed(
+        self, stream_id: int, error_message: str, failure_reason: str
+    ) -> int | None:
+        def work(session: Session) -> int | None:
+            row = session.scalar(
+                select(Recording).where(
+                    Recording.stream_id == stream_id, Recording.status == "recording"
+                )
+            )
+            if row is None:
+                return None
+            row.status = "failed"
+            row.error_message = error_message
+            row.failure_reason = failure_reason
+            row.failure_timestamp = datetime.now(timezone.utc)
+            row.end_time = datetime.now(timezone.utc)
+            return row.id
+
+        return await self._run(work)
+
     async def mark_recording_failed(
         self, recording_id: int, error_message: str | None = None
     ) -> None:

@@ -165,6 +165,8 @@ class RecordingOrchestrator:
             ProcessManager.for_application(
                 config_manager=self.config_manager,
                 logging_service=logging_service,
+                database_service=self.database_service,
+                connection_manager=connection_manager,
                 post_processing_callback=post_processing_callback,
                 upstream_coordinator=TwitchUpstreamCoordinator(
                     session_factory, monotonic_clock=monotonic
