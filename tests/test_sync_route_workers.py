@@ -26,7 +26,7 @@ SYNC_HANDLERS = {
         "fix_recording_availability",
     ),
     "api_keys": ("list_api_keys", "create_api_key", "revoke_api_key"),
-    "auth": ("get_onboarding_state", "complete_onboarding"),
+    "auth": ("get_onboarding_state", "complete_onboarding"),  # ggignore
     "notifications": (
         "mark_notifications_read",
         "clear_notifications",

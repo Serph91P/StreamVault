@@ -267,7 +267,7 @@ async def test_distinct_factories_keep_auth_database_state_separate(
                 Base.metadata.create_all(connection)
         with lifecycles[0].sync_session_factory() as session:
             session.add(
-                User(username="scope-first", password="not-a-login", is_admin=True)
+                User(username="scope-first", password="not-a-login", is_admin=True)  # ggignore
             )
             session.commit()
         async with httpx.AsyncClient(

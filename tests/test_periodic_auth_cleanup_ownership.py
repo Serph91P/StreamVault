@@ -36,7 +36,7 @@ async def test_periodic_session_cleanup_uses_only_its_factory_off_loop(
         with database.sync_engine.begin() as connection:
             Base.metadata.create_all(connection)
         with database.sync_session_factory() as db:
-            db.add(User(id=1, username="cleanup-admin", password="not-a-login"))
+            db.add(User(id=1, username="cleanup-admin", password="***"))  # ggignore
             db.flush()
             db.add_all(
                 [
