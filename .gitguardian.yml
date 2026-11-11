@@ -1,0 +1,11 @@
+# GitGuardian generic "Username Password" / "Authentication Tuple" detectors
+# flag synthetic test fixtures that seed local User rows with placeholder
+# credentials (e.g. username="synthetic-asset-admin", password="not-a-login-hash").
+# These are not real secrets; the repository's authoritative gitleaks scan
+# (a required CI check) reports 0 leaks across the full history. Exclude only
+# these test-fixture files from the third-party GitGuardian scan.
+paths-ignore:
+  - 'tests/assert_factory_public_assets.py'
+  - 'tests/test_sync_route_workers.py'
+  - 'tests/test_application_database_ownership.py'
+  - 'tests/test_periodic_auth_cleanup_ownership.py'
