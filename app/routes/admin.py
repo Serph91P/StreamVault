@@ -228,13 +228,15 @@ def get_system_info(request: Request) -> Dict[str, Any]:
 
 
 @router.post("/tests/quick-health")
-async def quick_health_check() -> Dict[str, Any]:
+def quick_health_check(
+    request: Request,
+    session_factory: Callable[[], Session] = Depends(get_application_session_factory),
+) -> Dict[str, Any]:
     """
     Run a quick health check of critical systems
     """
     try:
         import subprocess
-        from app.database import SessionLocal
 
         health = {"timestamp": "", "overall_status": "healthy", "checks": {}}
 
@@ -242,7 +244,7 @@ async def quick_health_check() -> Dict[str, Any]:
         try:
             from sqlalchemy import text
 
-            with SessionLocal() as db:
+            with session_factory() as db:
                 db.execute(text("SELECT 1"))
             health["checks"]["database"] = {
                 "status": "healthy",
@@ -306,7 +308,7 @@ async def quick_health_check() -> Dict[str, Any]:
             import os
             from pathlib import Path
 
-            recording_dir = Path("/recordings")  # Hard-coded path based on Docker mount
+            recording_dir = Path(resolve_app_settings(request.app).RECORDING_DIRECTORY)
             stat = os.statvfs(recording_dir)
             free_gb = (stat.f_bavail * stat.f_frsize) / (1024**3)
 

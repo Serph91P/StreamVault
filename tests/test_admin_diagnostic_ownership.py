@@ -148,3 +148,117 @@ async def test_admin_queue_status_and_cleanup_never_observe_or_mutate_peer_tasks
     finally:
         await own.stop()
         await peer.stop()
+
+
+@pytest.mark.asyncio
+async def test_quick_health_probes_only_the_request_owner_in_worker(
+    image_applications, monkeypatch
+):
+    import subprocess
+    from sqlalchemy import event
+    import app.database as database_module
+
+    apps, databases, clients, _ = image_applications
+    monkeypatch.setattr(
+        database_module, "SessionLocal", databases[1].sync_session_factory
+    )
+    queries, commands, paths = [], [], []
+    native_run, native_statvfs = subprocess.run, os.statvfs
+    for index, database in enumerate(databases):
+        event.listen(
+            database.sync_engine,
+            "before_cursor_execute",
+            lambda *_args, index=index: queries.append((index, get_ident())),
+        )
+
+    def run(command, *args, **kwargs):
+        commands.append((command, get_ident()))
+        return native_run(command, *args, **kwargs)
+
+    def statvfs(path):
+        paths.append((str(path), get_ident()))
+        return native_statvfs(path)
+
+    monkeypatch.setattr(subprocess, "run", run)
+    monkeypatch.setattr(os, "statvfs", statvfs)
+    response = await clients[0].post("/api/admin/tests/quick-health")
+    assert response.status_code == 200, response.text
+    checks = response.json()["checks"]
+    assert checks["database"]["status"] == "healthy"
+    assert checks["disk_space"]["status"] in {"healthy", "warning", "error"}
+    assert queries and {owner for owner, _thread in queries} == {0}
+    assert commands and [command for command, _thread in commands] == [
+        ["ffmpeg", "-version"],
+        ["streamlink", "--version"],
+    ]
+    assert [path for path, _thread in paths] == [
+        apps[0].state.settings.RECORDING_DIRECTORY
+    ]
+    assert get_ident() not in {thread for _value, thread in queries + commands + paths}
+    assert all(database.sync_engine.pool.checkedout() == 0 for database in databases)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "failure",
+    [
+        "database",
+        "ffmpeg-failed",
+        "ffmpeg-missing",
+        "streamlink-failed",
+        "streamlink-missing",
+        "disk_space",
+    ],
+)
+async def test_quick_health_reports_native_probe_failures_without_exception_details(
+    image_applications, monkeypatch, failure
+):
+    import subprocess
+    import sys
+    from sqlalchemy import event
+
+    apps, databases, clients, _ = image_applications
+    native_run, native_statvfs = subprocess.run, os.statvfs
+    faults = []
+    sensitive_detail = "synthetic-private-probe-detail"
+
+    def sql(_connection, _cursor, statement, *_args):
+        if failure == "database" and statement.strip().upper() == "SELECT 1":
+            faults.append(get_ident())
+            raise PermissionError(sensitive_detail)
+
+    event.listen(databases[0].sync_engine, "before_cursor_execute", sql)
+
+    def run(command, *args, **kwargs):
+        if failure.startswith(command[0] + "-"):
+            faults.append(get_ident())
+            if failure.endswith("missing"):
+                raise FileNotFoundError(sensitive_detail)
+            # Controlled child exit at the CLI port; other probes stay native.
+            return native_run(
+                [sys.executable, "-c", "raise SystemExit(17)"], *args, **kwargs
+            )
+        return native_run(command, *args, **kwargs)
+
+    def statvfs(path):
+        assert str(path) == apps[0].state.settings.RECORDING_DIRECTORY
+        if failure == "disk_space":
+            faults.append(get_ident())
+            raise PermissionError(sensitive_detail)
+        return native_statvfs(path)
+
+    monkeypatch.setattr(subprocess, "run", run)
+    monkeypatch.setattr(os, "statvfs", statvfs)
+    try:
+        response = await clients[0].post("/api/admin/tests/quick-health")
+        assert response.status_code == 200, response.text
+        data = response.json()
+        target = failure.split("-")[0]
+        assert data["checks"][target]["status"] == "error"
+        assert data["overall_status"] != "healthy"
+        assert sensitive_detail not in response.text
+        assert datetime.fromisoformat(data["timestamp"])
+        assert len(faults) == 1 and get_ident() not in faults
+        assert all(db.sync_engine.pool.checkedout() == 0 for db in databases)
+    finally:
+        event.remove(databases[0].sync_engine, "before_cursor_execute", sql)
