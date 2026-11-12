@@ -172,12 +172,16 @@ async def test_recording_start_keeps_external_task_and_sql_with_the_application_
         if finish == "progress":
             lifecycle.process_manager.active_processes["stream_70"] = children[0]
             event.listen(database.sync_engine, "before_cursor_execute", observe_sql)
-            progress = await lifecycle.process_manager.get_recording_progress(recording_id)
+            progress = await lifecycle.process_manager.get_recording_progress(
+                recording_id
+            )
             assert progress is not None and progress["status"] == "running"
             assert progress["pid"] == children[0].pid
             children[0].terminate()
             await children[0].wait()
-            assert await lifecycle.process_manager.get_recording_progress(recording_id) == {"status": "completed", "exit_code": children[0].returncode}
+            assert await lifecycle.process_manager.get_recording_progress(
+                recording_id
+            ) == {"status": "completed", "exit_code": children[0].returncode}
             assert await lifecycle.process_manager.get_recording_progress(999) is None
             assert loop_thread not in sql_threads
             event.remove(database.sync_engine, "before_cursor_execute", observe_sql)

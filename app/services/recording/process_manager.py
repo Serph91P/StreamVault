@@ -2815,7 +2815,23 @@ class ProcessManager:
             Dictionary with progress information or None if not found
         """
         try:
-            process_id = f"stream_{recording_id}"
+            from app.database import SessionLocal
+            from app.models import Recording
+            from app.utils.async_db_utils import run_in_thread_pool
+
+            factory = (
+                getattr(self.config_manager, "_session_factory", None) or SessionLocal
+            )
+
+            def recording_stream_id() -> int | None:
+                with factory() as db:
+                    recording = db.get(Recording, recording_id)
+                    return recording.stream_id if recording is not None else None
+
+            stream_id = await run_in_thread_pool(recording_stream_id)
+            if stream_id is None:
+                return None
+            process_id = f"stream_{stream_id}"
 
             async with self.lock:
                 if process_id not in self.active_processes:
