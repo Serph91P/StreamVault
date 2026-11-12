@@ -45,7 +45,17 @@ async def test_completion_without_a_recording_path_cannot_manufacture_notificati
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("entry", ["monitor", "finalize", "failure"])
+@pytest.mark.parametrize(
+    "entry",
+    [
+        "monitor",
+        "finalize",
+        "failure",
+        "failure-proxy",
+        "failure-unavailable",
+        "failure-no-streams",
+    ],
+)
 async def test_native_completion_notifies_from_closed_owned_catalogs(
     notification_catalogs, tmp_path, monkeypatch, entry
 ):
@@ -106,7 +116,7 @@ async def test_native_completion_notifies_from_closed_owned_catalogs(
                         streamer_id=1, quality=("720p", "480p")[index]
                     )
                 )
-                if entry == "failure":
+                if entry.startswith("failure"):
                     session.add(
                         Recording(
                             id=8,
@@ -135,22 +145,30 @@ async def test_native_completion_notifies_from_closed_owned_catalogs(
                 "before_cursor_execute",
                 lambda *_: observed.append(get_ident()),
             )
-            if entry in {"monitor", "failure"}:
+            if entry in {"monitor"} or entry.startswith("failure"):
+                if entry == "monitor":
+                    code = "pass"
+                else:
+                    stderr_text = {
+                        "failure": "synthetic failure",
+                        "failure-proxy": "ProxyError: tunnel connection failed",
+                        "failure-unavailable": "Unable to open URL",
+                        "failure-no-streams": "No playable streams found",
+                    }[entry]
+                    code = f"import sys;sys.stderr.write({stderr_text!r});sys.exit(2)"
                 child = await asyncio.create_subprocess_exec(
                     sys.executable,
                     "-c",
-                    "import sys;sys.stderr.write('synthetic failure');sys.exit(2)"
-                    if entry == "failure"
-                    else "pass",
+                    code,
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
                 )
                 children.append(child)
                 manager.active_processes["stream_7"] = child
-                expected = 2 if entry == "failure" else 0
+                expected = 0 if entry == "monitor" else 2
                 assert await manager.monitor_process(child) == expected
                 assert child.returncode == expected
-                if entry == "failure":
+                if entry.startswith("failure"):
 
                     def failure_state():
                         with database.sync_session_factory() as session:
@@ -171,10 +189,25 @@ async def test_native_completion_notifies_from_closed_owned_catalogs(
                         ended_at,
                     ) = await run_in_thread_pool(failure_state)
                     assert status == "failed"
-                    assert (
-                        error == "Streamlink exited with code 2"
-                        and reason == "streamlink_crash"
-                    )
+                    expected_reason = {
+                        "failure": (
+                            "Streamlink exited with code 2",
+                            "streamlink_crash",
+                        ),
+                        "failure-proxy": (
+                            "Proxy connection failed (500 Internal Server Error)",
+                            "proxy_error",
+                        ),
+                        "failure-unavailable": (
+                            "Stream unavailable or ended",
+                            "stream_unavailable",
+                        ),
+                        "failure-no-streams": (
+                            "No playable streams found",
+                            "no_streams",
+                        ),
+                    }[entry]
+                    assert (error, reason) == expected_reason
                     assert failed_at is not None and ended_at is not None
                     dao = manager._get_recording_database_service()
                     assert dao is facade._service.orchestrator.database_service
@@ -257,10 +290,15 @@ async def test_native_completion_notifies_from_closed_owned_catalogs(
                     capture_output=True,
                 )
         assert [owner for owner, _ in received] == [0, 1]
-        if entry == "failure":
+        if entry.startswith("failure"):
+            expected_failure_text = {
+                "failure": "Streamlink exited with code 2",
+                "failure-proxy": "Proxy connection failed (500 Internal Server Error)",
+                "failure-unavailable": "Stream unavailable or ended",
+                "failure-no-streams": "No playable streams found",
+            }[entry]
             assert all(
-                "Streamlink exited with code 2" in message["message"]
-                for _, message in received
+                expected_failure_text in message["message"] for _, message in received
             )
             for app in apps:
                 events = await app.state.websocket_manager.get_events_since()
