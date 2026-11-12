@@ -14,6 +14,7 @@ from app.utils.async_db_utils import run_in_thread_pool
 
 if TYPE_CHECKING:
     from app.services.background_queue_service import BackgroundQueueService
+    from app.services.communication.websocket_manager import ConnectionManager
     from app.services.recording.unified_recovery_service import UnifiedRecoveryService
 
 # Configuration constants
@@ -29,6 +30,7 @@ async def handle_orphaned_recovery_check(
     *,
     queue_service: "BackgroundQueueService | None" = None,
     recovery_service_factory: "Callable[[], UnifiedRecoveryService] | None" = None,
+    connection_manager: "ConnectionManager | None" = None,
 ) -> Dict[str, Any]:
     """
     Handle background orphaned recovery check task
@@ -137,22 +139,19 @@ async def handle_orphaned_recovery_check(
         )
 
         # Send notification if significant number of orphaned recordings were found
-        if result["recovery_triggered"] > 0:
+        if result["recovery_triggered"] > 0 and connection_manager is not None:
             try:
-                from app.services.websocket.websocket_service import websocket_service
-
-                if websocket_service:
-                    await websocket_service.send_system_notification(
-                        {
-                            "type": "orphaned_recovery_auto_triggered",
-                            "message": f"Automatic orphaned recovery: {result['recovery_triggered']} recordings processed",
-                            "data": {
-                                "recovery_triggered": result["recovery_triggered"],
-                                "trigger_reason": trigger_reason,
-                                "statistics": stats,
-                            },
-                        }
-                    )
+                await connection_manager.send_notification(
+                    {
+                        "type": "orphaned_recovery_auto_triggered",
+                        "message": f"Automatic orphaned recovery: {result['recovery_triggered']} recordings processed",
+                        "data": {
+                            "recovery_triggered": result["recovery_triggered"],
+                            "trigger_reason": trigger_reason,
+                            "statistics": stats,
+                        },
+                    }
+                )
             except Exception as e:
                 logger.debug(f"Could not send WebSocket notification: {e}")
 

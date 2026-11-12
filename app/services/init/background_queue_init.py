@@ -122,6 +122,11 @@ class BackgroundQueueManager:
                 handle_orphaned_recovery_check,
                 queue_service=self.queue_service,
                 recovery_service_factory=self.task_handlers._recovery_service_factory,
+                connection_manager=(
+                    self.task_handlers.connection_manager
+                    if self.task_handlers._recovery_service_factory is not None
+                    else None
+                ),
             ),
         )
 
@@ -194,7 +199,7 @@ class BackgroundQueueManager:
         self.is_initialized = False
         logger.info("Background queue service shut down successfully")
 
-    def get_queue_service(self):
+    def get_queue_service(self) -> BackgroundQueueService:
         """Get the background queue service instance"""
         return self.queue_service
 
@@ -221,7 +226,7 @@ async def shutdown_background_queue():
     await background_queue_manager.shutdown()
 
 
-def get_background_queue_service():
+def get_background_queue_service() -> BackgroundQueueService:
     """Get the background queue service instance"""
     return background_queue_manager.get_queue_service()
 

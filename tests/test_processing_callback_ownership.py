@@ -199,9 +199,6 @@ async def test_admitted_orphan_recovery_notification_uses_the_existing_owner_soc
     image_applications,
 ):
     # Real queue admission/catalogue/replay, not media execution or provider QA.
-    from app.services.recording.orphaned_recovery_tasks import (
-        handle_orphaned_recovery_check,
-    )
     from app.models import BackgroundTask
 
     apps, databases, _, _ = image_applications
@@ -235,21 +232,20 @@ async def test_admitted_orphan_recovery_notification_uses_the_existing_owner_soc
             db.commit()
 
     await run_in_thread_pool(seed)
-    service = await run_in_thread_pool(
-        dependencies.get_application_recovery_service,
-        HTTPConnection({"type": "http", "app": app}),
-    )
     own_socket = app.state.background_queue_manager.task_handlers.connection_manager
     peer_socket = apps[
         1
     ].state.background_queue_manager.task_handlers.connection_manager
     try:
-        result = await handle_orphaned_recovery_check(
-            {"max_age_hours": 12, "trigger_reason": "owned-native-admission"},
-            queue_service=app.state.background_queue_service,
-            recovery_service_factory=lambda: service,
-            connection_manager=own_socket,
-        )
+        await app.state.background_queue_manager.initialize()
+        # Keep media consumers out of this admission/replay contract, using the
+        # actual registered callback after draining the native dispatcher.
+        dispatcher = app.state.background_queue_service.queue_manager.dependency_worker
+        dispatcher.cancel()
+        await asyncio.gather(dispatcher, return_exceptions=True)
+        result = await app.state.background_queue_service.task_handlers[
+            "orphaned_recovery_check"
+        ]({"max_age_hours": 12, "trigger_reason": "owned-native-admission"})
         assert result["success"] is True and result["recovery_triggered"] == 1
         with database.sync_session_factory() as db:
             assert db.query(BackgroundTask).count() > 0
