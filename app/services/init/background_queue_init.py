@@ -6,6 +6,7 @@ Sets up the background queue service with task handlers and dependency managemen
 import logging
 import asyncio
 from collections.abc import Callable
+from functools import partial
 from sqlalchemy.orm import Session
 from app.config.settings import Settings
 from typing import Any, Optional
@@ -116,7 +117,12 @@ class BackgroundQueueManager:
         )
 
         self.queue_service.register_task_handler(
-            "orphaned_recovery_check", handle_orphaned_recovery_check
+            "orphaned_recovery_check",
+            partial(
+                handle_orphaned_recovery_check,
+                queue_service=self.queue_service,
+                recovery_service_factory=self.task_handlers._recovery_service_factory,
+            ),
         )
 
         # Register segment concatenation handler

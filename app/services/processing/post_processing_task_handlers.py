@@ -68,14 +68,19 @@ class PostProcessingTaskHandlers:
             ttl=CACHE_CONFIG.BROADCAST_DEBOUNCE_TTL,
         )
 
-        # Initialize logging service
-        try:
-            from app.services.system.logging_service import logging_service
+        from app.services.system.logging_service import get_logging_service
 
-            self.logging_service = logging_service
-        except Exception as e:
-            logger.warning(f"Could not initialize logging service: {e}")
-            self.logging_service = None
+        self._logging_service_factory = (
+            logging_service_factory
+            if logging_service_factory is not None
+            else get_logging_service
+        )
+        self.logging_service: LoggingService | None = None
+
+    def _get_logging_service(self) -> LoggingService:
+        if self.logging_service is None:
+            self.logging_service = self._logging_service_factory()
+        return self.logging_service
 
     async def _check_stream_exists(
         self, stream_id: int, task_name: str, task_id: str | None = None
@@ -498,10 +503,11 @@ class PostProcessingTaskHandlers:
         except Exception as e:
             logger.debug(f"mp4_remux: failed to mark running: {e}")
 
-        # Log to structured logging service
-        if self.logging_service:
+        # Resolve the owned file logger in the worker, not on the event loop.
+        logging_service = await run_in_thread_pool(self._get_logging_service)
+        if logging_service:
             await run_in_thread_pool(
-                self.logging_service.log_recording_activity,
+                logging_service.log_recording_activity,
                 "MP4_REMUX_START",
                 streamer_name,
                 f"Remuxing {ts_file_path} to {mp4_output_path}",
@@ -519,7 +525,7 @@ class PostProcessingTaskHandlers:
                 metadata=metadata_dict,
                 chapters=chapters,
                 streamer_name=streamer_name,
-                logging_service=self.logging_service,
+                logging_service=logging_service,
                 overwrite=payload.get("overwrite", False),
             )
 
@@ -862,12 +868,13 @@ class PostProcessingTaskHandlers:
             logger.debug(f"cleanup: failed to mark running: {e}")
 
         # Log to structured logging service
-        if self.logging_service:
+        logging_service = await run_in_thread_pool(self._get_logging_service)
+        if logging_service:
             cleanup_type = (
                 "DELETION_CLEANUP" if is_deletion_cleanup else "POST_PROCESSING_CLEANUP"
             )
             await run_in_thread_pool(
-                self.logging_service.log_recording_activity,
+                logging_service.log_recording_activity,
                 f"{cleanup_type}_START",
                 streamer_name,
                 f"Cleaning up {len(files_to_remove)} files for stream {stream_id}",

@@ -2,11 +2,13 @@
 
 import asyncio
 import importlib
+import threading
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
 from starlette.requests import HTTPConnection
+from sqlalchemy import event
 
 from app import dependencies
 from app.lifespan import (
@@ -43,10 +45,21 @@ async def test_factory_cleanup_handler_writes_only_its_injected_owner_log(
             "LOGS_BASE_DIR",
             app.state.settings.RECORDING_DIRECTORY + "/.logs",
         )
-    own, peer = [
-        await run_in_thread_pool(dependencies._get_application_logging_service, app)
-        for app in apps
-    ]
+    peer = await run_in_thread_pool(
+        dependencies._get_application_logging_service, apps[1]
+    )
+    own_root = Path(apps[0].state.settings.LOGS_BASE_DIR)
+    assert not own_root.exists()
+    loop_thread = threading.get_ident()
+    creation_threads = []
+    native_mkdir = Path.mkdir
+
+    def mkdir(path, *args, **kwargs):
+        if path.is_relative_to(own_root):
+            creation_threads.append(threading.get_ident())
+        return native_mkdir(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "mkdir", mkdir)
     logs = importlib.import_module("app.services.system.logging_service")
     monkeypatch.setattr(logs, "get_logging_service", lambda: peer)
     handler = apps[0].state.background_queue_manager.task_handlers
@@ -55,13 +68,10 @@ async def test_factory_cleanup_handler_writes_only_its_injected_owner_log(
     )
     file.write_bytes(b"owned disposable cleanup fixture")
 
-    def snapshot(service):
-        return {
-            str(path): path.read_bytes()
-            for path in service.logs_base_dir.rglob("*.log")
-        }
+    def snapshot(root):
+        return {str(path): path.read_bytes() for path in root.rglob("*.log")}
 
-    before = snapshot(peer)
+    before = snapshot(peer.logs_base_dir)
     try:
         await handler.handle_cleanup(
             {
@@ -71,8 +81,13 @@ async def test_factory_cleanup_handler_writes_only_its_injected_owner_log(
             }
         )
         assert not file.exists()
-        assert snapshot(peer) == before, "App A handler wrote the default/peer B log"
-        assert any(b"DELETION_CLEANUP_START" in data for data in snapshot(own).values())
+        assert snapshot(peer.logs_base_dir) == before, (
+            "App A handler wrote the default/peer B log"
+        )
+        assert any(
+            b"DELETION_CLEANUP_START" in data for data in snapshot(own_root).values()
+        )
+        assert creation_threads and loop_thread not in creation_threads
     finally:
         await handler.cleanup()
         await close_owned(apps)
@@ -113,6 +128,14 @@ async def test_registered_orphan_job_scans_its_own_catalogue_not_default_peer(
             db.commit()
 
     await run_in_thread_pool(seed_peer)
+    loop_thread = threading.get_ident()
+    sql_threads = []
+
+    def observe_sql(*args):
+        sql_threads.append(threading.get_ident())
+
+    for database in databases:
+        event.listen(database.sync_engine, "before_cursor_execute", observe_sql)
     services = [
         await run_in_thread_pool(
             dependencies.get_application_recovery_service,
@@ -168,3 +191,4 @@ async def test_registered_orphan_job_scans_its_own_catalogue_not_default_peer(
     finally:
         await close_owned(apps)
     assert all(db.sync_engine.pool.checkedout() == 0 for db in databases)
+    assert sql_threads and loop_thread not in sql_threads

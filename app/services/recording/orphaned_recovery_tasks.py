@@ -8,7 +8,13 @@ on a time-based schedule.
 
 import logging
 from collections.abc import Callable
-from typing import Dict, Any
+from typing import TYPE_CHECKING, Dict, Any
+
+from app.utils.async_db_utils import run_in_thread_pool
+
+if TYPE_CHECKING:
+    from app.services.background_queue_service import BackgroundQueueService
+    from app.services.recording.unified_recovery_service import UnifiedRecoveryService
 
 # Configuration constants
 ORPHANED_RECOVERY_TIMEOUT_SECONDS = 120  # 2 minutes timeout for recovery operations
@@ -18,7 +24,11 @@ logger = logging.getLogger("streamvault")
 
 
 async def handle_orphaned_recovery_check(
-    task_data: Dict[str, Any], progress_callback: Callable[[float], None] | None = None
+    task_data: Dict[str, Any],
+    progress_callback: Callable[[float], None] | None = None,
+    *,
+    queue_service: "BackgroundQueueService | None" = None,
+    recovery_service_factory: "Callable[[], UnifiedRecoveryService] | None" = None,
 ) -> Dict[str, Any]:
     """
     Handle background orphaned recovery check task
@@ -42,7 +52,8 @@ async def handle_orphaned_recovery_check(
         # PRODUCTION FIX: Check if too many orphaned checks are already running
         from app.services.init.background_queue_init import get_background_queue_service
 
-        queue_service = get_background_queue_service()
+        if queue_service is None:
+            queue_service = get_background_queue_service()
         if queue_service:
             active_tasks = queue_service.get_active_tasks()
             orphaned_check_count = sum(
@@ -69,7 +80,16 @@ async def handle_orphaned_recovery_check(
             get_orphaned_recovery_service,
         )
 
-        recovery_service = await get_orphaned_recovery_service()
+        if recovery_service_factory is None:
+            recovery_service = await get_orphaned_recovery_service()
+        else:
+            from app.services.recording.orphaned_recovery_service import (
+                OrphanedRecoveryService,
+            )
+
+            recovery_service = OrphanedRecoveryService(
+                await run_in_thread_pool(recovery_service_factory)
+            )
 
         # Get statistics first
         stats = await recovery_service.get_orphaned_statistics(
