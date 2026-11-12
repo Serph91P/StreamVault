@@ -2,62 +2,64 @@
 
 ## Scope and provenance
 
-Measured on 2026-11-12, not inferred from resource-stability tests or historical CI. Comparison: base `49b61a80962e249789c2836db301e9fa9f305b3e` and product source `cf30e6252ebd773d85cda365f93c410d2694e1c7`. Later test/documentation/workflow changes do not change the measured product behavior. The subsequent Ruff-only three-line formatting correction in `app/lifespan.py` is AST-identical to the measured source (verified programmatically); the other `app/**` files remain byte-identical. If production behavior changes, repeat the candidate measurements before final acceptance.
+Measured on 2026-11-12, not inferred from resource-stability tests or historical CI. This correction comparison replaces the earlier cf30e625 measurement: base `49b61a80962e249789c2836db301e9fa9f305b3e` versus product source `c63b1aa2208259f010dbcda57c175ab8dadcbb82`. It includes the later app-owned retention/admin/queue/recovery/lifecycle corrections and the recording-progress DAO lookup; the earlier results are not transferred to these changes. Subsequent test/documentation-only edits are not a new product measurement. Repeat candidate measurement if product behavior changes.
 
-Three independent fresh base/candidate pairs ran serially on the same host, alternating base then candidate. Both used the same Docker base/toolchain and production dependency versions: CPython **3.14.10**, 75 installed distributions, programmatically compared equal. Both `uv.lock` files are byte-identical, SHA256 `dfb3bdf91e30f2dd1b695590a9b6ea6954f41c7b597bfc33fd8e6091f7c29a09`. This is not a claim of Python 3.14.7 execution. The two immutable image IDs, PostgreSQL image inspection, actual container inspection and SHA256 of all three harness files are recorded in every raw `result.json`; all six runs used identical harness hashes.
+Three independent fresh base/candidate pairs ran serially, alternating base then candidate, without a competing test/build workload. Native disposable executions verify the same **CPython 3.14.10** interpreter and 75 equal installed distributions. Backend `uv.lock` remains byte-equal, SHA256 `dfb3bdf91e30f2dd1b695590a9b6ea6954f41c7b597bfc33fd8e6091f7c29a09`. This is not Python 3.14.7 evidence. The normally integrated PR1069 frontend manifest/lock delta remains in the candidate image; it does not invent a new backend baseline or dependency comparison. Image-size change includes those frontend inputs as well as backend source changes.
 
-Each run creates its own `--rm` PostgreSQL 18 Alpine container and fresh tmpfs database, then a normal migrated application/lifespan in that container's network namespace. The namespace is `--network none`, without published ports or external provider access. No production database, volume, key or shared service is used. The benchmark-only entry module and client are copied into the disposable container, not installed in the product entry point. Both images have the same resource settings; this is a shared-host experiment, **not** dedicated-CPU or statistically significant capacity certification.
+Source-built, no-push runtime images: base `sha256:074886ec89478dff61991994c78457821be056fd59f4b0ac159c85dae0e1df50`; candidate `sha256:f806c200cf8c4d7a257b98458001a648238b467bb1b8abf8fc603ccb1c3f718b`. Every raw result retains its image inspection, source head, harness hashes and cleanup record. All six harness hash sets are equal. Runtime/package equality and report hashes are retained separately in `842-performance-r2-provenance.json`. All six actual PostgreSQL logs identify PostgreSQL18.6/Alpine15.2.0. The harness did not retain per-PG-container image inspections; the separate post-run PG tag inspection is not presented as such a record.
 
-Reproduce with the same two source-built, no-push images:
+Each run creates an owned `--rm`, fresh tmpfs PostgreSQL container, then a normally migrated application/lifespan in that container's `--network none` namespace. No ports are published, no external provider is contacted, no production database/volume/key/shared service is used. The benchmark-only entry/client are copied into the disposable container, not the product entry point. The same Docker arguments/resource settings apply to both variants. This is shared-host measurement, not dedicated-CPU or statistically significant capacity certification.
 
 ```sh
 python tests/performance/run_backend_comparison.py \
-  --image <base-image> --source-head 49b61a80962e249789c2836db301e9fa9f305b3e \
+  --image streamvault-842-benchmark:base49 \
+  --source-head 49b61a80962e249789c2836db301e9fa9f305b3e \
   --output <new-empty-base-output>
 python tests/performance/run_backend_comparison.py \
-  --image <candidate-image> --source-head <exact-product-head> \
+  --image streamvault-842-benchmark:candidate-c63b1aa \
+  --source-head c63b1aa2208259f010dbcda57c175ab8dadcbb82 \
   --output <new-empty-candidate-output>
 ```
 
-Repeat the pair three times without a competing test/build workload. Retain all output directories, not only this rounded table. Raw artifacts for this execution are `842-performance-final-{base49,cf30}-{1,2,3}/` plus `842-performance-final-summary.json` and `842-performance-runtime-versions.json` in the correction evidence. Failed earlier harness experiments and single-sample reports are not part of these aggregates.
+Repeat the pair three times without competing tests/builds. Raw artifacts: `842-performance-r2-{base49,c63b1aa}-{1,2,3}/`, `842-performance-r2-runner.log`, `842-performance-r2-summary.json`, `842-performance-r2-provenance.json`, and the executable aggregation script `842-summarize-performance-r2.py` in correction evidence. All six results report passed; all twelve owned-container cleanup checks pass. Historical cf30 reports remain historical, not members of this aggregate.
 
 ## Workloads and results
 
-The fixture has 20 synthetic streamers and 2,000 recorded streams; catalog responses must contain the requested 50 items. Authentication is real setup/login and a synthetic local user; no external credentials are involved. Each process starts with a fresh catalog, then the same seed and request order. Read measurements include one warmup followed by 30 timed requests per endpoint per run. The table pools **90 observations** per variant; p95 is the sorted sample at index `int((n-1)*0.95)`, not an interpolated tail estimate. SQL count and elapsed time come from actual SQLAlchemy driver execute events in each request's context, including off-loop work; they are not fabricated query estimates.
+The fixture has20 synthetic streamers and2,000 recorded streams; catalog pages must contain the requested50 items. Authentication uses real setup/login and a local synthetic user. Each process starts with a fresh catalog, common seed and request order, then one warmup and30 timed reads per endpoint. Tables pool **90 observations per variant**; p95 is the sorted sample at `int((n-1)*0.95)`, not interpolation. Query count/time come from actual SQLAlchemy driver execution events, including workers, not query estimates.
 
 | Actual HTTP read | Base median / p95 ms | Candidate median / p95 ms | Base / candidate SQL count | Base / candidate median SQL ms |
 | --- | ---: | ---: | ---: | ---: |
-| `/api/health/live` | 1.331 / 4.647 | 1.320 / 2.260 | 0 / 0 | 0 / 0 |
-| `/api/recording/active` | 3.130 / 3.483 | 3.407 / 10.315 | 3 / 2 | 0.384 / 0.340 |
-| `/api/streamers` | 21.104 / 43.378 | 24.105 / 45.838 | 44 / 43 | 5.794 / 6.393 |
-| `/api/videos/catalog?page=1&page_size=50` | 28.039 / 51.552 | 23.029 / 34.930 | 12 / 12 | 14.344 / 11.713 |
+| `/api/health/live` | 1.261 / 1.957 | 1.659 / 3.803 | 0 / 0 | 0 / 0 |
+| `/api/recording/active` | 3.895 / 5.915 | 3.513 / 5.454 | 3 / 2 | 0.497 / 0.327 |
+| `/api/streamers` | 20.350 / 32.542 | 25.398 / 34.346 | 44 / 43 | 5.276 / 6.690 |
+| `/api/videos/catalog?page=1&page_size=50` | 28.008 / 42.890 | 25.699 / 41.279 | 12 / 12 | 14.104 / 12.900 |
 
-Other latency samples likewise pool 90 observations per variant:
+Other samples also pool90 observations per variant:
 
 | Workload | Base median / p95 ms | Candidate median / p95 ms |
 | --- | ---: | ---: |
-| Native WS send → actual subscribed socket receive | 3.021 / 3.688 | 2.965 / 6.863 |
-| HMAC-signed EventSub verification challenge → acknowledgment | 1.696 / 2.514 | 1.758 / 3.261 |
-| Synthetic native Python child start + termination + wait/reap | 18.156 / 26.515 | 21.209 / 28.780 |
+| Native WS send → subscribed socket receive | 3.495 / 7.835 | 3.174 / 7.689 |
+| HMAC-signed EventSub challenge → acknowledgment | 1.751 / 2.945 | 1.778 / 3.784 |
+| Native synthetic Python child start + terminate + wait/reap | 19.891 / 28.185 | 20.986 / 27.918 |
 
-Medians of the three independent runs:
+Medians of three independent runs:
 
 | Measurement | Base | Candidate | Observed change |
 | --- | ---: | ---: | ---: |
-| Container start → first successful HTTP liveness, seconds | 4.573824 | 4.628688 | +1.20% |
-| Post-startup RSS before incoming workload, KiB | 168416 | 169328 | +0.54% |
-| Docker image bytes | 719388752 | 719524109 | +0.02% |
-| 100 real native queue handler completions, jobs/second | 46.544602 | 45.901111 | −1.38% |
-| Recording actor admission → acknowledged physical child, seconds | 0.148911 | 0.135703 | −8.87% |
+| Container start → first HTTP liveness, seconds | 5.099675 | 4.518302 | −11.40% |
+| Post-startup RSS before workload, KiB | 168532 | 172792 | +2.53% |
+| Docker image bytes | 719388752 | 723099217 | +0.52% |
+| 100 native queue handler completions, jobs/second | 52.986632 | 48.929990 | −7.66% |
+| Recording actor admission → acknowledged child, seconds | 0.141085 | 0.143169 | +1.48% |
 
-The recording workload uses the actual app recorder, actor/admission, config, lifecycle and ProcessManager. Only the provider executable is replaced with a local Python child that acknowledges its pid and emits the expected startup signal. All six runs confirm actor startup, stop, child reaping and cleanup. This is **not** stream acquisition, codec correctness or provider recovery certification. The standalone child workload is deliberately separate and must not be passed off as actor startup.
+The recording workload uses the real app recorder, actor/admission/config/lifecycle/ProcessManager. Only the provider executable is replaced by a local Python child acknowledging its pid and expected startup signal. All six runs verify startup, stop and reaping. This is not stream acquisition, codec/provider recovery or authenticated-provider certification. The standalone child workload is distinct, not an actor-startup substitute.
 
-After the common workload, base FD counts were `[25,25,25]`, candidate `[27,27,27]`; base asyncio task counts `[22,21,21]`, candidate `[21,21,21]`. These are snapshots with the normal dispatcher still running, not leak-slope evidence. Repeated stability/drain tests remain separate requirements. Every run's finally block verifies removal of both owned containers; all six cleanup records pass.
+Post-workload base FD counts `[25,25,25]`, candidate `[27,27,27]`; base asyncio tasks `[22,21,22]`, candidate `[21,21,21]`. These snapshots include the normal dispatcher, not a leak-slope proof. Separate repeated stability/drain tests remain required.
 
 ## Regression assessment and measured hybrid decision
 
-There is **no blanket speedup claim**. Catalog latency was lower in this sample, but its SQL count remains 12. Streamer listing still performs 43 statements for 20 streamers, and is slower here; these measurements do not substantiate an N+1 elimination claim. Active-recording median and p95, WS p95, EventSub p95, standalone-child latency and queue throughput also worsen in this experiment. Report them rather than hiding them behind unchanged functional budgets or a selected faster endpoint. Startup/RSS/image differences are small in these three observations; no significance or upper-bound guarantee follows.
+There is **no blanket speedup claim**. Candidate streamer median/p95 and SQL time, liveness median/p95, EventSub median/p95, standalone-child median, queue throughput, actor startup, RSS and image bytes worsen. Active-recording/catalog reads and WS samples improve here. Streamer listing still has43 statements for20 streamers; catalog retains12. Neither N+1 elimination nor causal attribution of these small-sample differences is substantiated. No gate, individual timeout, drain budget or performance threshold is relaxed.
 
-Each run additionally captures `cProfile` output around ten actual authenticated loopback catalog requests in the serving interpreter. Example first-pair cumulative observations: base `_read_catalog_page` 0.253s / `list_page` 0.248s; candidate 0.211s / 0.189s. Profiling perturbs latency and is not included in the timed read table. These cumulative snapshots identify catalog projection/DB access and authentication as work to inspect; they are not independent CPU accounting, SQL-server profiling or proof of event-loop residency. The actual driver-duration measurements above and separate worker-thread/session regression tests answer those different questions.
+Each run also profiles ten actual authenticated loopback catalog requests in the serving interpreter. These retained `catalog_profile` records explicitly identify their event-loop-thread cProfile scope; worker SQL timing is measured separately. Profiling perturbs latency and is not included in the timed tables. These are observations for inspecting projection/auth work, not independent CPU accounting, server profiling or proof that worker SQL runs on the event loop.
 
-The implemented hybrid is retained for **ownership, cancellation and session correctness**, not because this experiment proves it globally faster. Keep the already integrated category `AsyncSession` slice; synchronous legacy catalog/file/process units execute as complete app-owned, cancellation-drained workers and export only scalars/DTOs. Do not introduce an unmeasured big-bang async conversion merely to improve this table. ADR-001's amendment records this bounded choice and its costs. No performance threshold is changed, no provider/device pass inferred, and B5/full exact-head verification remain independently open until their own evidence is complete.
+Retain the hybrid for **ownership/session/cancellation correctness**, not a claimed global performance advantage. Preserve the integrated category `AsyncSession` slice. Legacy synchronous catalog/file/process units execute as complete app-owned, cancellation-drained worker scopes returning scalars/DTOs. ADR-001 records that bounded choice and its thread/pool/drain costs. No unmeasured universal async rewrite is justified by this sample. Final B5/B6, original-probe scope, operational checks and exact-head CI remain independent and open until their own evidence is complete.
