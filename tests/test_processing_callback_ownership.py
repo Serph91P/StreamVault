@@ -192,3 +192,76 @@ async def test_registered_orphan_job_scans_its_own_catalogue_not_default_peer(
         await close_owned(apps)
     assert all(db.sync_engine.pool.checkedout() == 0 for db in databases)
     assert sql_threads and loop_thread not in sql_threads
+
+
+@pytest.mark.asyncio
+async def test_admitted_orphan_recovery_notification_uses_the_existing_owner_socket(
+    image_applications,
+):
+    # Real queue admission/catalogue/replay, not media execution or provider QA.
+    from app.services.recording.orphaned_recovery_tasks import (
+        handle_orphaned_recovery_check,
+    )
+    from app.models import BackgroundTask
+
+    apps, databases, _, _ = image_applications
+    app, database = apps[0], databases[0]
+    path = Path(app.state.settings.RECORDING_DIRECTORY) / "recover.ts"
+    with path.open("wb") as file:
+        file.truncate(2 * 1024 * 1024)
+    now = datetime.now(timezone.utc)
+
+    def seed():
+        with database.sync_session_factory() as db:
+            db.add(
+                Stream(
+                    id=70,
+                    streamer_id=1,
+                    title="Owned orphan",
+                    started_at=now - timedelta(hours=2),
+                    ended_at=now - timedelta(hours=1),
+                )
+            )
+            db.flush()
+            db.add(
+                Recording(
+                    id=7,
+                    stream_id=70,
+                    status="stopped",
+                    path=str(path),
+                    start_time=now - timedelta(hours=2),
+                )
+            )
+            db.commit()
+
+    await run_in_thread_pool(seed)
+    service = await run_in_thread_pool(
+        dependencies.get_application_recovery_service,
+        HTTPConnection({"type": "http", "app": app}),
+    )
+    own_socket = app.state.background_queue_manager.task_handlers.connection_manager
+    peer_socket = apps[
+        1
+    ].state.background_queue_manager.task_handlers.connection_manager
+    try:
+        result = await handle_orphaned_recovery_check(
+            {"max_age_hours": 12, "trigger_reason": "owned-native-admission"},
+            queue_service=app.state.background_queue_service,
+            recovery_service_factory=lambda: service,
+            connection_manager=own_socket,
+        )
+        assert result["success"] is True and result["recovery_triggered"] == 1
+        with database.sync_session_factory() as db:
+            assert db.query(BackgroundTask).count() > 0
+        events = [
+            event
+            for event in await own_socket.get_events_since()
+            if event["type"] == "orphaned_recovery_auto_triggered"
+        ]
+        assert len(events) == 1
+        assert events[0]["data"]["recovery_triggered"] == 1
+        assert events[0]["data"]["trigger_reason"] == "owned-native-admission"
+        assert not await peer_socket.get_events_since()
+        assert path.stat().st_size == 2 * 1024 * 1024
+    finally:
+        await close_owned(apps)
