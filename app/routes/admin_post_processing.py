@@ -2,7 +2,8 @@
 Admin endpoints for manual post-processing management
 """
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Depends
+from app.dependencies import get_retention_service
 from typing import Dict, Any, List, Optional
 import logging
 import os
@@ -298,7 +299,9 @@ async def cleanup_orphaned_segments(
 
 
 @router.post("/cleanup-orphaned-files")
-async def cleanup_orphaned_files() -> Dict[str, Any]:
+async def cleanup_orphaned_files(
+    cleanup_service=Depends(get_retention_service),
+) -> Dict[str, Any]:
     """
     🧹 Cleanup Orphaned Files
     Remove broken symlinks, 0-byte files, and empty segment directories
@@ -306,8 +309,6 @@ async def cleanup_orphaned_files() -> Dict[str, Any]:
     Security: Uses configured RECORDING_DIRECTORY, no user input accepted
     """
     try:
-        from app.services.system.cleanup_service import cleanup_service
-
         # SECURITY: Pass None to use configured directory (safest approach)
         # This prevents any possibility of path traversal attacks
         logger.info(

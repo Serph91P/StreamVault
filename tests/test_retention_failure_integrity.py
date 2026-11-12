@@ -74,7 +74,7 @@ async def test_retention_preserves_outside_root_catalog_and_bytes(catalog):
     db.get(Recording, recording_id).path = str(outside)
     db.commit()
     before = snapshot(db)
-    count, _ = await CleanupService._delete_streams([stream], db)
+    count, _ = CleanupService()._delete_streams([stream], db)
     assert count == 0
     assert outside.read_bytes() == b"outside permitted recording root"
     db.expire_all()
@@ -130,7 +130,7 @@ async def test_retention_failure_retains_catalog_then_retries(
     with monkeypatch.context() as patch:
         patch.setattr(os, "remove", remove)
         patch.setattr(shutil, "rmtree", rmtree)
-        count, deleted = await CleanupService._delete_streams([stream], db)
+        count, deleted = CleanupService()._delete_streams([stream], db)
     assert count == 0
     assert str(blocked) not in deleted
     assert blocked.exists()
@@ -139,7 +139,7 @@ async def test_retention_failure_retains_catalog_then_retries(
     assert db.get(Recording, recording_id) is not None
     assert db.get(StreamMetadata, metadata_id) is not None
 
-    retry_count, _ = await CleanupService._delete_streams(
+    retry_count, _ = CleanupService()._delete_streams(
         [db.get(Stream, stream_id)], db
     )
     assert retry_count == 1
@@ -150,7 +150,7 @@ async def test_retention_failure_retains_catalog_then_retries(
     assert not os.path.lexists(media)
     assert not sidecar.exists()
     assert not segments.exists()
-    assert await CleanupService._delete_streams([], db) == (0, [])
+    assert CleanupService()._delete_streams([], db) == (0, [])
 
 
 @pytest.mark.asyncio
@@ -169,7 +169,7 @@ async def test_retention_verifies_absence_and_is_idempotent(catalog, state):
         media.unlink()
     if state == "broken_symlink":
         media.symlink_to(media.with_name("absent-target.mp4"))
-    count, deleted = await CleanupService._delete_streams([stream], db)
+    count, deleted = CleanupService()._delete_streams([stream], db)
     assert count == 1
     assert len(deleted) == len(set(deleted))
     assert not os.path.lexists(media)
@@ -178,4 +178,4 @@ async def test_retention_verifies_absence_and_is_idempotent(catalog, state):
     assert db.get(Stream, stream_id) is None
     assert db.get(Recording, recording_id) is None
     assert db.get(StreamMetadata, metadata_id) is None
-    assert await CleanupService._delete_streams([], db) == (0, [])
+    assert CleanupService()._delete_streams([], db) == (0, [])

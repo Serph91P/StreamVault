@@ -87,12 +87,19 @@ async def _run_session_cleanup(
             )
 
 
-async def _run_recording_cleanup() -> None:
+async def _run_recording_cleanup(
+    session_factory=None, settings: Settings | None = None, activity_logger=None
+) -> None:
     from app.services.system.cleanup_service import CleanupService
 
+    retention_service = CleanupService(
+        session_factory=session_factory,
+        settings=settings,
+        activity_logger=activity_logger,
+    )
     while True:
         try:
-            await CleanupService.run_scheduled_cleanup()
+            await retention_service.run_scheduled_cleanup()
         except asyncio.CancelledError:
             raise
         except Exception as error:
@@ -321,7 +328,12 @@ async def lifespan(app: FastAPI):
             if logging_actor is not None
             else logging_service._schedule_cleanup(interval_hours=24),
         )
-        supervisor.create_task("recording-cleanup", _run_recording_cleanup())
+        supervisor.create_task(
+            "recording-cleanup",
+            _run_recording_cleanup(
+                runtime_database.sync_session_factory, runtime_settings, logging_actor
+            ),
+        )
         supervisor.create_task(
             "session-cleanup",
             _run_session_cleanup(

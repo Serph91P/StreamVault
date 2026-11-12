@@ -1,8 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException, Body
+from fastapi import APIRouter, Depends, HTTPException, Body, Request
 from sqlalchemy.orm import Session
 from app.dependencies import get_db
 from app.models import PushSubscription
-from app.config.settings import get_settings
+from app.bootstrap.settings import resolve_app_settings
 from app.utils.error_handler import create_error_response, ERRORS
 import json
 import logging
@@ -12,12 +12,11 @@ import time
 logger = logging.getLogger("streamvault")
 router = APIRouter(prefix="/api/push", tags=["push"])
 
-settings = get_settings()
-
 
 @router.get("/vapid-public-key")
-async def get_vapid_public_key():
+async def get_vapid_public_key(request: Request):
     """Get VAPID public key for push subscription"""
+    settings = resolve_app_settings(request.app)
     if not settings.has_push_notifications_configured:
         logger.warning("🔑 Push notifications requested but VAPID keys not configured")
         raise HTTPException(
@@ -142,8 +141,9 @@ def unsubscribe_from_push(
 
 
 @router.post("/test")
-def send_test_notification(db: Session = Depends(get_db)):
+def send_test_notification(request: Request, db: Session = Depends(get_db)):
     """Send a test push notification to all active subscriptions"""
+    settings = resolve_app_settings(request.app)
     try:
         logger.info("🧪 PUSH_TEST_REQUESTED: Starting push notification test")
 
@@ -266,8 +266,9 @@ def send_test_notification(db: Session = Depends(get_db)):
 
 
 @router.get("/debug")
-def get_push_debug_info(db: Session = Depends(get_db)):
+def get_push_debug_info(request: Request, db: Session = Depends(get_db)):
     """Get debug information about push notification configuration - Admin only"""
+    settings = resolve_app_settings(request.app)
     try:
         # Note: This endpoint should ideally be protected by authentication
         # For security, we'll limit the information returned

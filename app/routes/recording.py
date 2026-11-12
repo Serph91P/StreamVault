@@ -25,6 +25,7 @@ from app.dependencies import (
     get_logging_service,
     get_image_service,
     get_recording_status_cache,
+    get_retention_service,
 )
 from app.services.system.streamlink_config_service import StreamlinkConfigService
 from app.utils.async_db_utils import run_in_thread_pool
@@ -821,32 +822,37 @@ async def force_start_recording(
 
 
 @router.post("/cleanup/{streamer_id}")
-async def cleanup_old_recordings(streamer_id: int):
+async def cleanup_old_recordings(
+    streamer_id: int,
+    retention_service=Depends(get_retention_service),
+    logging_service: LoggingService = Depends(get_logging_service),
+):
     """Manually clean up old recordings for a streamer"""
     try:
         # Log cleanup request
-        logging_service.log_recording_activity(
+        await run_in_thread_pool(
+            logging_service.log_recording_activity,
             "CLEANUP_REQUEST",
             f"Streamer {streamer_id}",
             "Manual cleanup requested via API",
         )
 
-        from app.services.system.cleanup_service import CleanupService
-
-        deleted_count, deleted_paths = await CleanupService.cleanup_old_recordings(
+        deleted_count, deleted_paths = await retention_service.cleanup_old_recordings(
             streamer_id
         )
 
         # Log cleanup results
         if deleted_count > 0:
-            logging_service.log_file_operation(
+            await run_in_thread_pool(
+                logging_service.log_file_operation,
                 "CLEANUP",
                 f"{deleted_count} files",
                 True,
                 f"Deleted {deleted_count} old recordings",
             )
         else:
-            logging_service.log_recording_activity(
+            await run_in_thread_pool(
+                logging_service.log_recording_activity,
                 "CLEANUP_NO_FILES",
                 f"Streamer {streamer_id}",
                 "No files found to clean up",
@@ -859,23 +865,29 @@ async def cleanup_old_recordings(streamer_id: int):
             "deleted_paths": deleted_paths,
         }
     except Exception as e:
-        logging_service.log_recording_error(
-            streamer_id, f"Streamer {streamer_id}", "CLEANUP_ERROR", str(e)
+        await run_in_thread_pool(
+            logging_service.log_recording_error,
+            streamer_id,
+            f"Streamer {streamer_id}",
+            "CLEANUP_ERROR",
+            str(e),
         )
         logger.error(f"Error cleaning up recordings: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/cleanup/{streamer_id}/custom", response_model=Dict)
-async def run_custom_cleanup(streamer_id: int, policy: CleanupPolicySchema):
+async def run_custom_cleanup(
+    streamer_id: int,
+    policy: CleanupPolicySchema,
+    retention_service=Depends(get_retention_service),
+):
     """Run a custom cleanup with specified policy"""
     try:
-        from app.services.system.cleanup_service import CleanupService
-
         # Convert pydantic model to dict
         policy_dict = policy.dict(exclude_unset=True)
 
-        deleted_count, deleted_paths = await CleanupService.cleanup_old_recordings(
+        deleted_count, deleted_paths = await retention_service.cleanup_old_recordings(
             streamer_id, custom_policy=policy_dict
         )
 
@@ -891,12 +903,12 @@ async def run_custom_cleanup(streamer_id: int, policy: CleanupPolicySchema):
 
 
 @router.get("/storage/{streamer_id}", response_model=StorageUsageSchema)
-async def get_storage_usage(streamer_id: int):
+async def get_storage_usage(
+    streamer_id: int, retention_service=Depends(get_retention_service)
+):
     """Get storage usage information for a streamer"""
     try:
-        from app.services.system.cleanup_service import CleanupService
-
-        usage = await CleanupService.get_storage_usage(streamer_id)
+        usage = await retention_service.get_storage_usage(streamer_id)
         return usage
     except Exception as e:
         logger.error(f"Error getting storage usage: {e}", exc_info=True)

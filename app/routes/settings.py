@@ -83,9 +83,24 @@ def get_streamer_settings(
         raise HTTPException(status_code=500, detail="Failed to fetch streamer settings")
 
 
+def _notification_validation_error(
+    session_factory: Callable[[], Session],
+) -> str | None:
+    """Close validation's transaction before either notification transport awaits."""
+    with session_factory() as db:
+        settings = SettingsService(db).get_global_settings_row()
+        if not settings:
+            return "No settings configured"
+        if not settings.notifications_enabled:
+            return "Notifications are disabled"
+        if not settings.notification_url:
+            return "No notification URL configured"
+        return None
+
+
 @router.post("/test-notification")
 async def test_notification(
-    settings_service: SettingsService = Depends(get_settings_service),
+    session_factory: Callable[[], Session] = Depends(get_application_session_factory),
     notification_service_factory: Callable[[], NotificationService] = Depends(
         get_notification_service_factory
     ),
@@ -93,15 +108,11 @@ async def test_notification(
     _identity=Depends(require_scopes("admin")),
 ):
     try:
-        settings = settings_service.get_global_settings_row()
-        if not settings:
-            raise HTTPException(status_code=400, detail="No settings configured")
-        if not settings.notifications_enabled:
-            raise HTTPException(status_code=400, detail="Notifications are disabled")
-        if not settings.notification_url:
-            raise HTTPException(
-                status_code=400, detail="No notification URL configured"
-            )
+        validation_error = await run_in_thread_pool(
+            _notification_validation_error, session_factory
+        )
+        if validation_error is not None:
+            raise HTTPException(status_code=400, detail=validation_error)
 
         import uuid
 

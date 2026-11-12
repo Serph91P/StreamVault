@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from functools import partial
 from inspect import isawaitable
 from collections.abc import AsyncIterator, Callable
-from typing import Generator
+from typing import Generator, TYPE_CHECKING
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from starlette.requests import HTTPConnection
@@ -30,6 +30,9 @@ from app.services.background_queue_service import (
 )
 
 logger = logging.getLogger("streamvault")
+if TYPE_CHECKING:
+    from app.services.recording.recording_manager import RecordingManager
+
 event_registry = None
 recording_manager = None
 
@@ -197,7 +200,7 @@ async def get_event_registry():
     return event_registry
 
 
-def get_recording_manager():
+def get_recording_manager() -> "RecordingManager":
     """Return the process-scoped recording lifecycle facade.
 
     The manager owns one compatible recording service instance. Its process
@@ -575,6 +578,16 @@ def get_logging_service(connection: HTTPConnection) -> LoggingService:
     if not hasattr(connection.app.state, "logging_service_lock"):
         return get_default_logging_service()
     return _get_application_logging_service(connection.app)
+
+
+def get_retention_service(connection: HTTPConnection):
+    from app.services.system.cleanup_service import CleanupService
+
+    return CleanupService(
+        session_factory=connection.app.state.database_lifecycle.sync_session_factory,
+        settings=resolve_app_settings(connection.app),
+        activity_logger=get_logging_service(connection),
+    )
 
 
 def get_background_queue_service(connection: HTTPConnection) -> BackgroundQueueService:

@@ -254,19 +254,21 @@ async def test_test_route_counts_and_persisted_expiry(
     from types import SimpleNamespace
 
     route = import_module("app.routes.push")
-    monkeypatch.setattr(
-        route,
-        "settings",
-        SimpleNamespace(
-            has_push_notifications_configured=True,
-            VAPID_PRIVATE_KEY=identity[0],
-            VAPID_CLAIMS_SUB="mailto:push@example.com",
-        ),
+    request = SimpleNamespace(
+        app=SimpleNamespace(
+            state=SimpleNamespace(
+                settings=SimpleNamespace(
+                    has_push_notifications_configured=True,
+                    VAPID_PRIVATE_KEY=identity[0],
+                    VAPID_CLAIMS_SUB="mailto:push@example.com",
+                )
+            )
+        )
     )
     receiver["status"] = status
     caplog.set_level(logging.DEBUG, logger="streamvault")
     db, sub = push_db
-    result = route.send_test_notification(db)
+    result = route.send_test_notification(request, db)
     assert result["sent_count"] == (1 if status == 201 else 0)
     assert result["failed_count"] == (0 if status == 201 else 1)
     db.expire_all()
