@@ -101,3 +101,50 @@ async def test_admin_filesystem_diagnostics_report_the_configured_owner_off_loop
     assert observed and all(str(roots[0]) in path for path, _ in observed)
     assert get_ident() not in {thread for _, thread in observed}
     assert all(database.sync_engine.pool.checkedout() == 0 for database in databases)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("operation", ["status", "names", "all"])
+async def test_admin_queue_status_and_cleanup_never_observe_or_mutate_peer_tasks(
+    image_applications, monkeypatch, operation
+):
+    import importlib
+    from app.services.background_queue_cleanup_service import (
+        BackgroundQueueCleanupService,
+    )
+
+    apps, _, clients, _ = image_applications
+    own, peer = (app.state.background_queue_service for app in apps)
+    own.add_external_task("recording_7", "unknown", {"streamer_id": 1})
+    for task_id in ("recording_7", "recording_8", "recording_9"):
+        peer.add_external_task(task_id, "unknown", {"streamer_id": 1})
+    route = importlib.import_module("app.routes.admin")
+    legacy_cleanup = importlib.import_module(
+        "app.services.background_queue_cleanup_service"
+    )
+    monkeypatch.setattr(route, "_background_queue_service", peer)
+    monkeypatch.setattr(
+        legacy_cleanup,
+        "get_cleanup_service",
+        lambda: BackgroundQueueCleanupService(peer),
+    )
+    try:
+        if operation == "status":
+            response = await clients[0].get("/api/admin/background-queue/status")
+            assert response.status_code == 200 and response.json()["unknown_tasks"] == 1
+        else:
+            suffix = "task-names" if operation == "names" else "all"
+            response = await clients[0].post(
+                "/api/admin/background-queue/cleanup/" + suffix
+            )
+            assert response.status_code == 200
+            assert all(
+                task.task_type == "unknown" for task in peer.external_tasks.values()
+            ), "Request A changed the peer/default B task objects"
+            assert response.json()["task_names_fixed"] == 1
+            assert own.external_tasks["recording_7"].task_type == "recording"
+        assert len(peer.external_tasks) == 3
+        assert all(task.task_type == "unknown" for task in peer.external_tasks.values())
+    finally:
+        await own.stop()
+        await peer.stop()

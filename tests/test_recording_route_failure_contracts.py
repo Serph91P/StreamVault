@@ -10,7 +10,7 @@ from sqlalchemy.exc import OperationalError, TimeoutError
 
 from app import dependencies
 from app.lifespan import _close_application_logging
-from app.models import Recording, Stream, StreamerRecordingSettings
+from app.models import Recording, RecordingSettings, Stream, StreamerRecordingSettings
 from app.utils.async_db_utils import run_in_thread_pool
 from tests.test_image_http_ownership import image_applications as image_applications
 
@@ -140,3 +140,56 @@ async def test_active_recordings_native_sql_failures_preserve_retry_and_cache_co
         assert (await clients[1].get("/api/recording/active")).json() == []
     finally:
         event.remove(database.sync_engine, "before_cursor_execute", reject)
+
+
+@pytest.mark.asyncio
+async def test_malformed_stored_cleanup_policy_is_read_nonfatally_without_rewrite(
+    image_applications,
+):
+    _, databases, clients, _ = image_applications
+    database = databases[0]
+
+    def seed():
+        with database.sync_session_factory() as session:
+            session.add(RecordingSettings(cleanup_policy="not-json"))
+            session.commit()
+
+    await run_in_thread_pool(seed)
+    response = await clients[0].get("/api/recording/settings")
+    assert response.status_code == 200 and response.json()["cleanup_policy"] is None
+    with database.sync_session_factory() as session:
+        assert session.query(RecordingSettings).one().cleanup_policy == "not-json"
+    with databases[1].sync_session_factory() as session:
+        assert session.query(RecordingSettings).count() == 0
+    assert database.sync_engine.pool.checkedout() == 0
+
+
+@pytest.mark.asyncio
+async def test_filename_presets_http_contract_contains_renderable_media_templates(
+    image_applications,
+):
+    _, _, clients, _ = image_applications
+    response = await clients[0].get("/api/recording/filename-presets")
+    assert response.status_code == 200 and response.json()["status"] == "success"
+    entries = response.json()["data"]
+    by_name = {entry["value"]: entry for entry in entries}
+    assert len(by_name) == len(entries)
+    assert by_name["default"]["label"] == "Default"
+    assert {"plex", "emby", "jellyfin"} <= by_name.keys()
+    default = by_name["default"]["description"].format(
+        streamer="Fixture",
+        year="2026",
+        month="01",
+        day="02",
+        hour="03",
+        minute="04",
+        title="Title",
+        game="Game",
+    )
+    assert default == "Fixture_2026-01-02_03-04_Title_Game"
+    assert (
+        by_name["plex"]["description"].format(
+            streamer="Fixture", year="2026", month="01", episode=2, title="Title"
+        )
+        == "Season 2026-01/Fixture - S202601E02 - Title"
+    )
