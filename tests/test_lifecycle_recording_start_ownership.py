@@ -13,7 +13,7 @@ from sqlalchemy import event
 from starlette.requests import HTTPConnection
 
 from app import dependencies
-from app.models import Recording, Stream, StreamEvent
+from app.models import BackgroundTask, Recording, Stream, StreamEvent
 from app.services.queues.task_progress_tracker import TaskStatus
 from app.utils.retry_decorator import NonRetryableError
 from app.utils.async_db_utils import run_in_thread_pool
@@ -32,6 +32,8 @@ from tests.test_processing_callback_ownership import close_owned
         ("database-failed", "catalog"),
         ("active", "force-new"),
         ("active", "force-existing"),
+        ("manual-stop", "catalog"),
+        ("automatic-stop", "catalog"),
     ],
 )
 async def test_recording_start_keeps_external_task_and_sql_with_the_application_owner(
@@ -166,7 +168,25 @@ async def test_recording_start_keeps_external_task_and_sql_with_the_application_
         ]
         assert task.payload["streamer_id"] == 1 and task.payload["stream_id"] == 70
         assert production_sql_threads
-        if finish != "active":
+        if finish in {"manual-stop", "automatic-stop"}:
+            lifecycle.process_manager.active_processes["stream_70"] = children[0]
+            event.listen(database.sync_engine, "before_cursor_execute", observe_sql)
+            reason = "automatic" if finish == "automatic-stop" else "manual"
+            assert await lifecycle.stop_recording(recording_id, reason=reason) is True
+            assert children[0].returncode is not None
+            assert not lifecycle.state_manager.get_active_recordings()
+            assert "stream_70" not in lifecycle.process_manager.active_processes
+            assert loop_thread not in sql_threads
+            event.remove(database.sync_engine, "before_cursor_execute", observe_sql)
+            with database.sync_session_factory() as db:
+                assert db.get(Recording, recording_id).status == "stopped"
+            assert await lifecycle.stop_recording(recording_id, reason=reason) is False
+            assert not peer.external_tasks
+            if finish == "automatic-stop":
+                await manager.shutdown()
+                with database.sync_session_factory() as db:
+                    assert db.query(BackgroundTask).count() > 0
+        elif finish != "active":
             for child in children:
                 child.terminate()
                 await child.wait()
@@ -224,8 +244,6 @@ async def test_recording_start_keeps_external_task_and_sql_with_the_application_
                     "Owner shutdown left its fallback running"
                 )
                 assert loop_thread not in io_threads
-                from app.models import BackgroundTask
-
                 with database.sync_session_factory() as db:
                     assert db.query(BackgroundTask).count() > 0
     finally:
