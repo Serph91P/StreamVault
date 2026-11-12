@@ -42,6 +42,7 @@ async def image_applications(tmp_path):
                 )
                 applications.append(app)
                 with database.sync_engine.begin() as connection:
+                    connection.exec_driver_sql("BEGIN")
                     Base.metadata.create_all(connection)
                 with database.sync_session_factory() as session:
                     session.add(

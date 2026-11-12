@@ -252,11 +252,20 @@ async def test_recording_start_keeps_external_task_and_sql_with_the_application_
         elif finish == "progress":
             lifecycle.process_manager.active_processes["stream_70"] = children[0]
             event.listen(database.sync_engine, "before_cursor_execute", observe_sql)
+            stream = await lifecycle.database_service.get_stream_by_id(70)
+            segments = await lifecycle.process_manager._initialize_segmented_recording(
+                stream, str(path), "best", recording_id
+            )
+            segment = Path(segments["current_segment_path"])
+            segment.write_bytes(b"native-owned-segment-progress")
             progress = await lifecycle.process_manager.get_recording_progress(
                 recording_id
             )
             assert progress is not None and progress["status"] == "running"
             assert progress["pid"] == children[0].pid
+            assert progress["file_size"] == len(b"native-owned-segment-progress")
+            assert progress["segment_count"] == 1
+            assert isinstance(progress["duration"], int) and progress["duration"] >= 0
             children[0].terminate()
             await children[0].wait()
             assert await lifecycle.process_manager.get_recording_progress(
