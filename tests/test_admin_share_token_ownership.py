@@ -101,3 +101,86 @@ async def test_admin_share_token_maintenance_preserves_actual_peer_rows(
         for database, listener in zip(databases, listeners, strict=True):
             if event.contains(database.sync_engine, "before_cursor_execute", listener):
                 event.remove(database.sync_engine, "before_cursor_execute", listener)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "method,path,detail,sql_failure",
+    [
+        ("GET", "/stats", "Failed to get share token stats", False),
+        ("POST", "/cleanup", "Failed to cleanup share tokens", False),
+        ("DELETE", "/1", "Failed to delete share token", False),
+        ("DELETE", "/1", "Failed to delete share token", True),
+    ],
+)
+async def test_token_maintenance_dependency_failure_preserves_both_catalogs(
+    image_applications, monkeypatch, method, path, detail, sql_failure
+):
+    """Controlled import denial or native DELETE fault, no successful SDK receipt."""
+    import builtins
+    import sqlite3
+
+    _apps, databases, clients, _ = image_applications
+
+    def seed():
+        for index, database in enumerate(databases):
+            with database.sync_session_factory() as db:
+                db.add(
+                    ShareTokenModel(
+                        id=1,
+                        token=f"failure-fixture-{index}",
+                        stream_id=71,
+                        expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
+                    )
+                )
+                db.commit()
+
+    await run_in_thread_pool(seed)
+    queries, listeners = [], []
+    for index, database in enumerate(databases):
+
+        def observe(_connection, _cursor, statement, *_args, index=index):
+            queries.append((index, get_ident(), statement))
+            if (
+                sql_failure
+                and index == 0
+                and statement.lstrip().upper().startswith("DELETE")
+            ):
+                raise sqlite3.OperationalError("synthetic-owned-token-db-denial")
+
+        event.listen(database.sync_engine, "before_cursor_execute", observe)
+        listeners.append(observe)
+    native_import = builtins.__import__
+
+    def denied(name, *args, **kwargs):
+        if name == "app.utils.token_store":
+            raise ImportError("synthetic-token-module-denial")
+        return native_import(name, *args, **kwargs)
+
+    try:
+        with monkeypatch.context() as scoped:
+            if not sql_failure:
+                scoped.setattr(builtins, "__import__", denied)
+            response = await clients[0].request(
+                method, "/api/admin/share-tokens" + path
+            )
+        assert response.status_code == 500, response.text
+        assert response.json() == {"detail": detail}
+        assert (
+            "synthetic" not in response.text and "failure-fixture" not in response.text
+        )
+        assert queries and {owner for owner, _thread, _sql in queries} == {0}
+        assert get_ident() not in {thread for _owner, thread, _sql in queries}
+        if not sql_failure:
+            # Authentication reads own settings even when the token import fails.
+            assert not any(
+                ShareTokenModel.__tablename__ in sql for _, _, sql in queries
+            )
+    finally:
+        for database, listener in zip(databases, listeners, strict=True):
+            event.remove(database.sync_engine, "before_cursor_execute", listener)
+    for index, database in enumerate(databases):
+        with database.sync_session_factory() as db:
+            token = db.query(ShareTokenModel).one()
+            assert token.id == 1 and token.token == f"failure-fixture-{index}"
+        assert database.sync_engine.pool.checkedout() == 0
