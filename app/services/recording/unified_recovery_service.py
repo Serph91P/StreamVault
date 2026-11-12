@@ -932,21 +932,27 @@ class UnifiedRecoveryService:
         recovery_time = datetime.now(timezone.utc)
         try:
             path = Path(file_path)
-            # Extract streamer name from path: /recordings/StreamerName/Season .../filename.ts
-            parts = path.parts
-
-            # Find recordings directory in path
-            rec_idx = None
-            for i, part in enumerate(parts):
-                if part == "recordings" and i + 1 < len(parts):
-                    rec_idx = i
-                    break
-
-            if rec_idx is None or rec_idx + 1 >= len(parts):
-                logger.debug(f"Cannot extract streamer from path: {file_path}")
-                return None
-
-            streamer_name = parts[rec_idx + 1]
+            if self.settings is not None:
+                # An application root need not be literally named recordings.
+                try:
+                    relative_parts = path.relative_to(self.recordings_base_path).parts
+                except ValueError:
+                    return None
+                if len(relative_parts) < 2:
+                    return None
+                streamer_name = relative_parts[0]
+            else:
+                # Preserve the explicit standalone legacy path parser.
+                parts = path.parts
+                rec_idx = None
+                for i, part in enumerate(parts):
+                    if part == "recordings" and i + 1 < len(parts):
+                        rec_idx = i
+                        break
+                if rec_idx is None or rec_idx + 1 >= len(parts):
+                    logger.debug(f"Cannot extract streamer from path: {file_path}")
+                    return None
+                streamer_name = parts[rec_idx + 1]
 
             # Find streamer in database
             streamer = (

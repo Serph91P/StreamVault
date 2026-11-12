@@ -162,14 +162,23 @@ async def test_recovery_discovery_and_enqueue_use_only_owned_closed_worker_scope
         assert loop_thread not in queries
         assert probes and loop_thread not in probes
         for app, database in zip(applications, databases, strict=True):
+
             def stored_tasks():
                 with database.sync_session_factory() as session:
-                    state = session.query(RecordingProcessingState).filter_by(recording_id=7).one()
+                    state = (
+                        session.query(RecordingProcessingState)
+                        .filter_by(recording_id=7)
+                        .one()
+                    )
                     ids = list(state.get_task_ids().values())
-                return app.state.background_queue_service.queue_manager.task_store.snapshot(ids)
+                return app.state.background_queue_service.queue_manager.task_store.snapshot(
+                    ids
+                )
 
             tasks = await run_in_thread_pool(stored_tasks)
-            assert tasks and any(task.task_type == "mp4_remux" for task in tasks.values())
+            assert tasks and any(
+                task.task_type == "mp4_remux" for task in tasks.values()
+            )
             probe = (
                 Path(app.state.settings.RECORDING_DIRECTORY)
                 / "alice"
@@ -202,6 +211,26 @@ async def test_recovery_discovery_and_enqueue_use_only_owned_closed_worker_scope
             str(service.recordings_base_path / "alice" / "Season 2026" / "orphaned.ts")
             for service in services
         ]
+        before_rejected = await asyncio.gather(
+            *(run_in_thread_pool(snapshot, database) for database in databases)
+        )
+        rejected = await asyncio.gather(
+            *(
+                service._adopt_recording(candidate)
+                for index, service in enumerate(services)
+                for candidate in (
+                    paths[1 - index],
+                    str(service.recordings_base_path / "alice"),
+                )
+            )
+        )
+        assert rejected and all(identity is None for identity in rejected)
+        assert (
+            await asyncio.gather(
+                *(run_in_thread_pool(snapshot, database) for database in databases)
+            )
+            == before_rejected
+        )
         adopted = await asyncio.gather(
             *(
                 service._adopt_recording(path)
