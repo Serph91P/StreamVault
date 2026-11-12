@@ -13,9 +13,13 @@ from app.database import Base
 from app.models import Recording, Stream, Streamer, StreamerRecordingSettings
 from app.routes.recording import (
     _is_pending_auth_handoff,
+    unified_image_service,
     update_streamer_recording_settings,
 )
 from app.schemas.recording import StreamerRecordingSettingsSchema
+from app.services.system.logging_service import (
+    get_logging_service as get_legacy_logging_service,
+)
 from app.services.recording.twitch_auth_scheduler import (
     AuthCandidate,
     AuthDecisionKind,
@@ -220,6 +224,8 @@ class TwitchAuthPrioritySchedulerTests(unittest.TestCase):
                         twitch_auth_priority=100,
                     ),
                     db,
+                    logging_service=get_legacy_logging_service(),
+                    unified_image_service=unified_image_service,
                 )
                 persisted = db.query(StreamerRecordingSettings).one()
 
@@ -262,6 +268,8 @@ class TwitchAuthPrioritySchedulerTests(unittest.TestCase):
                         enabled=False,
                     ),
                     db,
+                    logging_service=get_legacy_logging_service(),
+                    unified_image_service=unified_image_service,
                 )
                 persisted = db.query(StreamerRecordingSettings).one()
 

@@ -59,6 +59,7 @@ async def test_streamer_settings_request_writes_only_its_owned_logging_files(
         )
         assert response.status_code == 200, response.text
         assert response.json()["custom_filename"] == "fixture-template"
+        assert queries and get_ident() not in {thread for thread, _ in queries}
         assert logs(peer) == peer_before, (
             "App A request wrote the default/peer B logger"
         )

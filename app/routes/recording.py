@@ -34,11 +34,14 @@ from app.utils.cache import SimpleCache
 from app.services.recording.config_manager import (
     FILENAME_PRESETS,
 )  # Import FILENAME_PRESETS from config_manager
-from app.services.system.logging_service import LoggingService, logging_service
+from app.services.system.logging_service import (
+    LoggingService,
+    logging_service as logging_service,
+)
 from app.services.communication.websocket_manager import ConnectionManager
 from app.services.unified_image_service import (
     UnifiedImageService,
-    unified_image_service,
+    unified_image_service as unified_image_service,
 )
 from sqlalchemy.orm import Session, joinedload
 import logging
@@ -602,6 +605,8 @@ def update_streamer_recording_settings(
     streamer_id: int,
     settings: StreamerRecordingSettingsSchema,
     db: Session = Depends(get_db),
+    logging_service: LoggingService = Depends(get_logging_service),
+    unified_image_service: UnifiedImageService = Depends(get_image_service),
 ):
     """Update recording settings for a specific streamer"""
     try:

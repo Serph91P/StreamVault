@@ -15,7 +15,12 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
-from app.dependencies import get_db, get_application_session_factory
+from app.dependencies import (
+    get_db,
+    get_application_session_factory,
+    get_logging_service,
+    get_image_service,
+)
 from app.config.settings import Settings
 from app.services.core.state_persistence_service import StatePersistenceService
 from app.services.twitch_upstream_coordinator import TwitchUpstreamCoordinator
@@ -25,6 +30,8 @@ from app.services.recording.process_manager import ProcessManager
 from app.services.recording.recording_database_service import RecordingDatabaseService
 from app.services.recording.recording_lifecycle_manager import RecordingLifecycleManager
 from app.services.recording.recording_state_manager import RecordingStateManager
+from app.services.system.logging_service import LoggingService
+from app.services.unified_image_service import UnifiedImageService
 
 
 @pytest.fixture
@@ -62,6 +69,10 @@ async def recording_policy(tmp_path, monkeypatch):
     app.include_router(importlib.import_module("app.routes.streamers").router)
     app.dependency_overrides[get_db] = get_test_db
     app.dependency_overrides[get_application_session_factory] = lambda: sessions
+    logs = LoggingService(str(tmp_path / "logs"), isolated=True)
+    images = UnifiedImageService(settings=runtime_settings, session_factory=sessions)
+    app.dependency_overrides[get_logging_service] = lambda: logs
+    app.dependency_overrides[get_image_service] = lambda: images
     config = ConfigManager(session_factory=sessions, settings=runtime_settings)
     state = RecordingStateManager.for_application(
         config, StatePersistenceService(session_factory=sessions)
@@ -136,6 +147,8 @@ async def recording_policy(tmp_path, monkeypatch):
         await process._task_supervisor.shutdown()
     assert process.proxy_health_service is not None
     await process.proxy_health_service.stop()
+    await images.close()
+    logs.close()
     engine.dispose()
 
 
