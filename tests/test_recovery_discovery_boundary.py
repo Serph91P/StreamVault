@@ -41,8 +41,9 @@ def assert_plain(value):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("directory_name", ["recordings", "media"])
 async def test_recovery_discovery_and_enqueue_use_only_owned_closed_worker_scopes(
-    tmp_path, monkeypatch
+    tmp_path, monkeypatch, directory_name
 ):
     databases = []
     recorders = []
@@ -61,7 +62,7 @@ async def test_recovery_discovery_and_enqueue_use_only_owned_closed_worker_scope
 
     try:
         for name in ("first", "second"):
-            root = tmp_path / name / "recordings"
+            root = tmp_path / name / directory_name
             directory = root / "alice" / "Season 2026"
             directory.mkdir(parents=True)
             source = directory / "failed.ts"
