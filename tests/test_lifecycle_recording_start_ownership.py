@@ -148,6 +148,29 @@ async def test_recording_start_keeps_external_task_and_sql_with_the_application_
                 )
             await lifecycle._handle_recording_completion(recording_id)
             assert (task.status is TaskStatus.FAILED) is (finish != "completed")
+            if finish == "completed":
+                pending = []
+                for candidate in asyncio.all_tasks():
+                    coroutine = candidate.get_coro()
+                    frame = getattr(coroutine, "cr_frame", None)
+                    if (
+                        frame is not None
+                        and frame.f_locals.get("self") is lifecycle
+                        and getattr(coroutine, "__qualname__", "").endswith(
+                            "._trigger_post_processing_async"
+                        )
+                    ):
+                        pending.append(candidate)
+                assert pending
+                await manager.shutdown()
+                assert all(candidate.done() for candidate in pending), (
+                    "Owner shutdown left its fallback running"
+                )
+                assert loop_thread not in io_threads
+                from app.models import BackgroundTask
+
+                with database.sync_session_factory() as db:
+                    assert db.query(BackgroundTask).count() > 0
     finally:
         if event.contains(database.sync_engine, "before_cursor_execute", denied_update):
             event.remove(database.sync_engine, "before_cursor_execute", denied_update)
