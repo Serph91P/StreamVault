@@ -108,3 +108,32 @@ async def test_lifecycle_error_and_completion_failures_do_not_manufacture_succes
     finally:
         await close_owned(apps)
     assert all(db.sync_engine.pool.checkedout() == 0 for db in databases)
+
+
+@pytest.mark.asyncio
+async def test_post_processing_refuses_missing_recording_and_streamer_off_loop(
+    image_applications, monkeypatch
+):
+    """Post-processing trigger declines missing identities without admitting tasks.
+
+    Value: protects=absent recording/stream/streamer return without enqueueing work or
+    crossing owners;
+    fails_when=a missing recording still admits tasks, or a streamer-less stream is used;
+    why_new=completion paths cover present recordings, not these missing-identity guards;
+    seam=none; no_claim=provider capture or media admission.
+    """
+    apps, databases, _clients, _ = image_applications
+    app = apps[0]
+    manager = await run_in_thread_pool(
+        get_application_recording_manager,
+        HTTPConnection({"type": "http", "app": app, "headers": []}),
+    )
+    lifecycle = manager.orchestrator.lifecycle_manager
+    try:
+        await lifecycle._trigger_post_processing(999)
+        assert not app.state.background_queue_service.external_tasks
+
+        await lifecycle._generate_recording_path(1, 888)
+    finally:
+        await close_owned(apps)
+    assert all(db.sync_engine.pool.checkedout() == 0 for db in databases)
