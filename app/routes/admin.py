@@ -16,6 +16,7 @@ from app.services.background_queue_service import BackgroundQueueService
 from app.services.background_queue_cleanup_service import BackgroundQueueCleanupService
 from app.services.recording.orphaned_recovery_service import OrphanedRecoveryService
 from app.services.recording.unified_recovery_service import UnifiedRecoveryService
+from app.services.recording.recording_manager import RecordingManager
 from collections.abc import Callable
 from app.dependencies import require_admin_user
 from sqlalchemy.orm import Session, joinedload
@@ -1272,7 +1273,9 @@ async def fix_unknown_task_names(
 
 
 @router.post("/recordings/cleanup-zombies")
-async def cleanup_zombie_recordings() -> Dict[str, Any]:
+async def cleanup_zombie_recordings(
+    recording_manager: RecordingManager = Depends(get_application_recording_manager),
+) -> Dict[str, Any]:
     """
     🧹 Clean Up Zombie Recordings
 
@@ -1294,7 +1297,9 @@ async def cleanup_zombie_recordings() -> Dict[str, Any]:
             "🧹 ADMIN_ZOMBIE_CLEANUP: Manual zombie recording cleanup triggered"
         )
 
-        cleaned_count = await _cleanup_zombie_recordings_now()
+        cleaned_count = await _cleanup_zombie_recordings_now(
+            recording_manager=recording_manager
+        )
 
         logger.info(
             f"🧹 ADMIN_ZOMBIE_CLEANUP: Cleaned {cleaned_count} zombie recordings"
