@@ -169,3 +169,46 @@ async def test_recording_start_refusal_has_native_owned_terminal_effects(
         else:
             assert rows == []
     assert all(owner.sync_engine.pool.checkedout() == 0 for owner in databases)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("case", ["missing-stream", "mismatched-streamer"])
+async def test_recording_path_generation_declines_or_corrects_authority_off_loop(
+    image_applications, case
+):
+    """Path generation never invents a streamer identity and never blocks the loop.
+
+    Value: protects=an absent stream falls back to a timestamped owned path while a
+    mismatched streamer is corrected to the stream's authoritative identity;
+    fails_when=the fallback path leaves the recordings root, or the mismatch silently
+    uses the caller-supplied streamer;
+    why_new=existing refusal table covers admission, not path-derivation authority;
+    seam=none; no_claim=provider capture or real filename/media-template output.
+    """
+    apps, databases, _clients, _ = image_applications
+    app = apps[0]
+    manager = await run_in_thread_pool(
+        get_application_recording_manager,
+        HTTPConnection({"type": "http", "app": app, "headers": []}),
+    )
+    lifecycle = manager.orchestrator.lifecycle_manager
+    root = Path(app.state.settings.RECORDING_DIRECTORY)
+
+    def seed():
+        if case == "mismatched-streamer":
+            with databases[0].sync_session_factory() as db:
+                db.add(Stream(id=70, streamer_id=1, title="owned path"))
+                db.commit()
+
+    await run_in_thread_pool(seed)
+    try:
+        if case == "missing-stream":
+            path = await lifecycle._generate_recording_path(1, 999)
+            assert str(path).startswith(str(root))
+            assert "recording_1_999_" in path and path.endswith(".ts")
+        else:
+            path = await lifecycle._generate_recording_path(2, 70)
+            assert str(path).startswith(str(root))
+            assert "owner-0" in str(path)
+    finally:
+        await close_owned(apps)
