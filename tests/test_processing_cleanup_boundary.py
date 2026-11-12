@@ -23,7 +23,8 @@ from app.services.processing.post_processing_task_handlers import (
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "case", ["post_processing", "deletion", "missing_mp4", "small_mp4", "denied_segments"]
+    "case",
+    ["post_processing", "deletion", "missing_mp4", "small_mp4", "denied_segments"],
 )
 async def test_cleanup_closes_own_persistence_and_keeps_protected_sources(
     tmp_path, monkeypatch, case
@@ -42,12 +43,17 @@ async def test_cleanup_closes_own_persistence_and_keeps_protected_sources(
     # This is deliberately a size-guard fixture, not a claim of decoded media.
     if case not in {"deletion", "missing_mp4"}:
         with output.open("wb") as file:
-            file.truncate(1024 * 1024 + 1 if case in {"post_processing", "denied_segments"} else 100)
+            file.truncate(
+                1024 * 1024 + 1
+                if case in {"post_processing", "denied_segments"}
+                else 100
+            )
     loop_thread = get_ident()
     queries = []
     probes = []
     native_stat = os.stat
     import shutil
+
     native_rmtree = shutil.rmtree
     removal_faults = []
 
@@ -127,7 +133,9 @@ async def test_cleanup_closes_own_persistence_and_keeps_protected_sources(
                 assert metadata is None
                 assert state is None
         assert source.exists() is (case in {"missing_mp4", "small_mp4"})
-        assert segments.exists() is (case in {"missing_mp4", "small_mp4", "denied_segments"})
+        assert segments.exists() is (
+            case in {"missing_mp4", "small_mp4", "denied_segments"}
+        )
         if case == "denied_segments":
             assert removal_faults and loop_thread not in removal_faults
         assert database.sync_engine.pool.checkedout() == 0

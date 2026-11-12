@@ -894,13 +894,12 @@ class PostProcessingTaskHandlers:
                         )
                         # Check if it's a directory
                         if is_directory:
-                            # Track segments directories for DB update
-                            if file_path.endswith("_segments"):
-                                segments_dirs_removed.append(file_path)
                             # Remove directory and all its contents
                             import shutil
 
                             await run_in_thread_pool(shutil.rmtree, file_path)
+                            if file_path.endswith("_segments"):
+                                segments_dirs_removed.append(file_path)
                             logger.info(f"Removed directory: {file_path}")
                             removed_files.append(file_path)
                         else:
