@@ -1,8 +1,8 @@
-"""Native lifecycle post-processing admission keeps late cleanup discovery off-loop.
+"""Native lifecycle media-task admission owns its catalog and filesystem boundary.
 
-Value: protects=owned post-recording queue dependency graph and worker filesystem reads;
-fails_when=late segment existence check blocks the loop or catalog/tasks cross owners;
-why_new=completion probes watched the TS only, not the cleanup segment-directory race;
+Value: protects=owned queue dependency graph, missing-input refusals and worker reads;
+fails_when=late segment check blocks loop, refusal admits tasks or owners cross;
+why_new=completion probes watched TS only, not cleanup discovery and native admission rows;
 seam=none; no_claim=executed media tasks or provider capture; queue admission only.
 """
 
@@ -24,15 +24,36 @@ from tests.test_processing_callback_ownership import close_owned
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("late_segments", [False, True])
+@pytest.mark.parametrize(
+    "mode",
+    [
+        "ordinary",
+        "late-segments",
+        "segments",
+        "empty-segments",
+        "missing-recording",
+        "missing-path",
+        "missing-file",
+    ],
+)
 async def test_native_postprocessing_admission_checks_late_segments_in_worker(
-    image_applications, monkeypatch, late_segments
+    image_applications, monkeypatch, mode
 ):
     apps, databases, _clients, _ = image_applications
     loop_thread = get_ident()
+    late_segments = mode == "late-segments"
     output = Path(apps[0].state.settings.RECORDING_DIRECTORY) / "capture.ts"
     output.write_bytes(b"synthetic-owned-admission-not-media")
     segments = output.with_name("capture_segments")
+    if mode in {"segments", "empty-segments"}:
+        segments.mkdir()
+        if mode == "segments":
+            for number in (2, 1):
+                (segments / f"capture_part{number:03}.ts").write_bytes(
+                    b"synthetic-owned-segment"
+                )
+    if mode == "missing-file":
+        output.unlink()
     with databases[0].sync_session_factory() as db:
         db.add(Stream(id=70, streamer_id=1, title="owned admission"))
         db.flush()
@@ -41,7 +62,7 @@ async def test_native_postprocessing_admission_checks_late_segments_in_worker(
                 id=7,
                 stream_id=70,
                 status="completed",
-                path=str(output),
+                path=None if mode == "missing-path" else str(output),
                 start_time=datetime.now(timezone.utc),
             )
         )
@@ -84,42 +105,63 @@ async def test_native_postprocessing_admission_checks_late_segments_in_worker(
                 "enqueue_task_with_dependencies",
                 enqueue_then_create_segments,
             )
-            await lifecycle._trigger_post_processing(7)
+            await lifecycle._trigger_post_processing(
+                999 if mode == "missing-recording" else 7
+            )
         assert queries and all(
             index == 0 and thread != loop_thread for index, thread in queries
         )
-        assert probes and loop_thread not in probes
+        if mode in {"missing-recording", "missing-path"}:
+            assert probes == []
+        else:
+            assert probes and loop_thread not in probes
         for database, listener in zip(databases, listeners, strict=True):
             event.remove(database.sync_engine, "before_cursor_execute", listener)
         listeners.clear()
         with databases[0].sync_session_factory() as db:
             tasks = db.query(BackgroundTask).all()
-            assert {task.task_type for task in tasks} == {
-                "metadata_generation",
-                "mp4_remux",
-                "thumbnail_generation",
-                "cleanup",
-            }
-            assert len(tasks) == 4
-            cleanup = next(task for task in tasks if task.task_type == "cleanup")
-            payload = cleanup.payload
-            by_type = {task.task_type: task.id for task in tasks}
             dependencies = {
                 (row.task_id, row.dependency_id)
                 for row in db.query(BackgroundTaskDependency).all()
             }
-            assert dependencies == {
-                (by_type["mp4_remux"], by_type["metadata_generation"]),
-                (by_type["thumbnail_generation"], by_type["mp4_remux"]),
-                (by_type["cleanup"], by_type["thumbnail_generation"]),
-            }
-            assert payload["recording_id"] == 7 and payload["stream_id"] == 70
-            assert payload["files_to_remove"] == [str(output)] + (
-                [str(segments)] if late_segments else []
-            )
+            if mode in {"ordinary", "late-segments"}:
+                assert {task.task_type for task in tasks} == {
+                    "metadata_generation",
+                    "mp4_remux",
+                    "thumbnail_generation",
+                    "cleanup",
+                }
+                assert len(tasks) == 4
+                cleanup = next(task for task in tasks if task.task_type == "cleanup")
+                payload = cleanup.payload
+                by_type = {task.task_type: task.id for task in tasks}
+                assert dependencies == {
+                    (by_type["mp4_remux"], by_type["metadata_generation"]),
+                    (by_type["thumbnail_generation"], by_type["mp4_remux"]),
+                    (by_type["cleanup"], by_type["thumbnail_generation"]),
+                }
+                assert payload["recording_id"] == 7 and payload["stream_id"] == 70
+                assert payload["files_to_remove"] == [str(output)] + (
+                    [str(segments)] if late_segments else []
+                )
+            elif mode == "segments":
+                assert len(tasks) == 1 and tasks[0].task_type == "segment_concatenation"
+                payload = tasks[0].payload
+                assert payload["recording_id"] == 7 and payload["stream_id"] == 70
+                assert payload["output_path"] == str(output)
+                assert payload["segment_files"] == [
+                    str(segments / f"capture_part{number:03}.ts") for number in (1, 2)
+                ]
+                assert dependencies == set()
+            else:
+                assert tasks == [] and dependencies == set()
+            assert db.get(Recording, 7).status == "completed"
         with databases[1].sync_session_factory() as db:
             assert db.query(BackgroundTask).count() == 0
-        assert output.read_bytes() == b"synthetic-owned-admission-not-media"
+        if mode == "missing-file":
+            assert not output.exists()
+        else:
+            assert output.read_bytes() == b"synthetic-owned-admission-not-media"
         assert not lifecycle.process_manager.active_processes
     finally:
         for database, listener in zip(databases, listeners):
