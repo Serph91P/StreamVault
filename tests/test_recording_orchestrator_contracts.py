@@ -47,6 +47,10 @@ async def test_orchestrator_compatibility_operations_keep_owned_catalogue_and_re
             )
         owner, peer = owners
         assert not owner.is_shutting_down() and not peer.is_shutting_down()
+        assert await owner.force_start_recording(999) is None
+        assert await owner.start_recording(999, 1) is None
+        await owner._monitor_and_process_recording(999)
+        assert owner.state_manager.get_recording_task(999) is None
         assert owner.get_recording_statistics()["service_status"]["database_service"]
         assert owner.get_recording_statistics()["active_recordings"] == 0
         assert await owner.recover_active_recordings_from_persistence() == []

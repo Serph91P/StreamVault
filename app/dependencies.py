@@ -233,6 +233,7 @@ def _get_application_recording_manager(app: FastAPI):
                 queue_service=app.state.background_queue_service,
                 logging_service=_get_application_logging_service(app),
                 status_cache=app.state.recording_status_cache,
+                twitch_api_service=_get_application_twitch_api(app),
             )
             orchestrator.process_manager.proxy_health_service = (
                 _get_application_proxy_health_service(app)

@@ -16,6 +16,7 @@ from app.services.system.logging_service import LoggingService
 from app.services.background_queue_service import BackgroundQueueService
 from app.services.communication.websocket_manager import ConnectionManager
 from app.services.core.state_persistence_service import StatePersistenceService
+from app.services.api.twitch_api import TwitchAPIService
 from app.services.twitch_upstream_coordinator import TwitchUpstreamCoordinator
 
 # websocket_manager will be imported when needed to avoid circular imports
@@ -51,6 +52,7 @@ class RecordingOrchestrator:
         queue_service: BackgroundQueueService | None = None,
         logging_service: LoggingService | None = None,
         status_cache: SimpleCache | None = None,
+        twitch_api_service: TwitchAPIService | None = None,
     ):
         context = (settings, session_factory, connection_manager, queue_service)
         owned = any(value is not None for value in context)
@@ -196,6 +198,7 @@ class RecordingOrchestrator:
             state_manager=self.state_manager,
             recording_logger=self.recording_logger,
             status_cache=status_cache,
+            twitch_api_service=twitch_api_service,
         )
 
         # Initialize logging service

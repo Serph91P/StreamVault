@@ -15,7 +15,7 @@ from pathlib import Path
 from app.config.constants import ASYNC_DELAYS
 from app.utils.path_utils import generate_filename, update_episode_number
 from app.utils.async_db_utils import run_in_thread_pool
-from app.services.api.twitch_api import twitch_api
+from app.services.api.twitch_api import TwitchAPIService, twitch_api
 
 try:
     from app.utils.cache import SimpleCache, app_cache
@@ -73,6 +73,7 @@ class RecordingLifecycleManager:
         state_manager=None,
         recording_logger=None,
         status_cache: "SimpleCache | None" = None,
+        twitch_api_service: TwitchAPIService | None = None,
     ):
         self.config_manager = config_manager
         self.process_manager = process_manager
@@ -81,6 +82,7 @@ class RecordingLifecycleManager:
         self.state_manager = state_manager
         self.recording_logger = recording_logger
         self._status_cache = status_cache if status_cache is not None else app_cache
+        self._twitch_api_service = twitch_api_service
 
         # Shutdown management
         self._shutdown_event = asyncio.Event()
@@ -401,7 +403,12 @@ class RecordingLifecycleManager:
 
             # Check if streamer is live via Twitch API
             twitch_id = streamer_data.twitch_id
-            streams = await twitch_api.get_streams(user_ids=[twitch_id])
+            api = (
+                self._twitch_api_service
+                if self._twitch_api_service is not None
+                else twitch_api
+            )
+            streams = await api.get_streams(user_ids=[twitch_id])
 
             if not streams:
                 logger.warning(f"Streamer {streamer_id} is not live on Twitch")
