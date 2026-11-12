@@ -78,6 +78,7 @@
     "app/services/system/cleanup_service.py",
     "app/services/system/logging_service.py",
     "app/services/system/streamlink_config_service.py",
+    "app/services/system/supervisor.py",
     "app/services/system/temporary_cleanup_service.py",
     "app/services/system/twitch_token_service.py",
     "app/tasks/websocket_broadcast_task.py",

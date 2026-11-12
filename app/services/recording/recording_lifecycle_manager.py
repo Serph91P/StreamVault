@@ -16,6 +16,7 @@ from app.config.constants import ASYNC_DELAYS
 from app.utils.path_utils import generate_filename, update_episode_number
 from app.utils.async_db_utils import run_in_thread_pool
 from app.services.api.twitch_api import TwitchAPIService, twitch_api
+from app.services.system.supervisor import TaskSupervisor
 
 if TYPE_CHECKING:
     from app.services.background_queue_service import BackgroundQueueService
@@ -95,6 +96,7 @@ class RecordingLifecycleManager:
 
         # Ensure post-processing only gets scheduled once per recording
         self._postprocessing_scheduled = set()
+        self._postprocessing_supervisor = TaskSupervisor("recording-postprocessing")
 
     @property
     def queue_service(self) -> "BackgroundQueueService | None":
@@ -941,11 +943,20 @@ class RecordingLifecycleManager:
                 return
             # Mark as scheduled first to avoid races
             self._postprocessing_scheduled.add(recording_id)
-            asyncio.create_task(self._trigger_post_processing_async(recording_id))
+            self._postprocessing_supervisor.create_task(
+                f"recording-{recording_id}",
+                self._trigger_post_processing_async(recording_id),
+            )
         except Exception as e:
             logger.error(
                 f"Failed to schedule post-processing once for recording {recording_id}: {e}"
             )
+
+    def _postprocessing_segments(self, segments_dir: str) -> list[Path] | None:
+        directory = Path(segments_dir)
+        if not directory.exists():
+            return None
+        return sorted(directory.glob(self.SEGMENT_FILE_PATTERN))
 
     async def _trigger_post_processing(self, recording_id: int):
         """Trigger post-processing for a completed recording"""
@@ -988,12 +999,11 @@ class RecordingLifecycleManager:
 
             # Check if this is a segmented recording
             segments_dir = recording_path.replace(".ts", self.SEGMENT_DIR_SUFFIX)
-            if Path(segments_dir).exists():
+            segment_files = await run_in_thread_pool(
+                self._postprocessing_segments, segments_dir
+            )
+            if segment_files is not None:
                 logger.info(f"🎬 SEGMENTED_RECORDING_DETECTED: {segments_dir}")
-
-                # Find all segment files
-                segment_files = list(Path(segments_dir).glob(self.SEGMENT_FILE_PATTERN))
-                segment_files.sort()  # Sort to maintain order
 
                 if segment_files:
                     logger.info(f"🎬 FOUND_SEGMENTS: {len(segment_files)} segments")
@@ -1017,11 +1027,13 @@ class RecordingLifecycleManager:
                     return
 
             # Verify the recording file exists
-            if not Path(recording_path).exists():
+            file_size = await run_in_thread_pool(
+                self._completion_file_size, recording_path
+            )
+            if file_size is None:
                 logger.error(f"🎬 RECORDING_FILE_NOT_FOUND: {recording_path}")
                 return
 
-            file_size = Path(recording_path).stat().st_size
             logger.info(
                 f"🎬 RECORDING_FILE_FOUND: {recording_path} ({file_size} bytes)"
             )
@@ -1307,6 +1319,7 @@ class RecordingLifecycleManager:
             timeout: Optional timeout hint (seconds) for terminating recording processes.
         """
         logger.info("Starting graceful shutdown of recording lifecycle manager")
+        deadline = asyncio.get_running_loop().time() + (timeout or 15)
 
         self._is_shutting_down = True
         self._shutdown_event.set()
@@ -1326,12 +1339,18 @@ class RecordingLifecycleManager:
             if self.process_manager and hasattr(
                 self.process_manager, "graceful_shutdown"
             ):
-                await self.process_manager.graceful_shutdown(timeout=timeout or 15)
+                await self.process_manager.graceful_shutdown(
+                    timeout=max(0.0, deadline - asyncio.get_running_loop().time())
+                )
         except Exception as e:
             logger.warning(
                 f"ProcessManager graceful shutdown encountered an error: {e}"
             )
 
+        await self._postprocessing_supervisor.drain_tasks(
+            max(0.0, deadline - asyncio.get_running_loop().time())
+        )
+        await self._postprocessing_supervisor.shutdown()
         logger.info("Recording lifecycle manager shutdown complete")
 
     def is_shutting_down(self) -> bool:

@@ -124,6 +124,16 @@ class TaskSupervisor:
             if self._tasks.get(name) is task:
                 self._tasks.pop(name, None)
 
+    async def drain_tasks(self, timeout: float) -> None:
+        """Allow owned work to finish within its caller's remaining budget."""
+        pending = tuple(
+            task
+            for task in self._tasks.values()
+            if task is not asyncio.current_task() and not task.done()
+        )
+        if pending:
+            await asyncio.wait(pending, timeout=max(0.0, timeout))
+
     async def shutdown(self, process_timeout: float = 5.0) -> None:
         """Cancel/await tasks and terminate/reap processes, once, in reverse order."""
         async with self._shutdown_lock:

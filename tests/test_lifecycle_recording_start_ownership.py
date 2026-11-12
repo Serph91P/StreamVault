@@ -180,8 +180,8 @@ async def test_recording_start_keeps_external_task_and_sql_with_the_application_
         for task in tasks:
             task.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)
-        # Cleanup only this test's legacy fallback coroutine; this is not a
-        # claim that the current production shutdown already owns that task.
+        # Defensive cleanup of only this fixture's coroutine if an assertion
+        # fails; the completed case above independently proves owner shutdown.
         fallback_tasks = []
         for candidate in asyncio.all_tasks():
             coroutine = candidate.get_coro()
