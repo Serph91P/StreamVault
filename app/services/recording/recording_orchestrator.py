@@ -199,6 +199,7 @@ class RecordingOrchestrator:
             recording_logger=self.recording_logger,
             status_cache=status_cache,
             twitch_api_service=twitch_api_service,
+            queue_service=queue_service,
         )
 
         # Initialize logging service

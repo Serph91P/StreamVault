@@ -8,7 +8,7 @@ Handles recording start, stop, monitoring, and lifecycle events.
 import logging
 import asyncio
 from app.utils.media_process import media_process
-from typing import Dict, Any, Optional
+from typing import TYPE_CHECKING, Dict, Any, Optional
 import re
 from datetime import datetime, timezone
 from pathlib import Path
@@ -16,6 +16,9 @@ from app.config.constants import ASYNC_DELAYS
 from app.utils.path_utils import generate_filename, update_episode_number
 from app.utils.async_db_utils import run_in_thread_pool
 from app.services.api.twitch_api import TwitchAPIService, twitch_api
+
+if TYPE_CHECKING:
+    from app.services.background_queue_service import BackgroundQueueService
 
 try:
     from app.utils.cache import SimpleCache, app_cache
@@ -74,6 +77,7 @@ class RecordingLifecycleManager:
         recording_logger=None,
         status_cache: "SimpleCache | None" = None,
         twitch_api_service: TwitchAPIService | None = None,
+        queue_service: "BackgroundQueueService | None" = None,
     ):
         self.config_manager = config_manager
         self.process_manager = process_manager
@@ -83,6 +87,7 @@ class RecordingLifecycleManager:
         self.recording_logger = recording_logger
         self._status_cache = status_cache if status_cache is not None else app_cache
         self._twitch_api_service = twitch_api_service
+        self._queue_service = queue_service
 
         # Shutdown management
         self._shutdown_event = asyncio.Event()
@@ -90,6 +95,14 @@ class RecordingLifecycleManager:
 
         # Ensure post-processing only gets scheduled once per recording
         self._postprocessing_scheduled = set()
+
+    @property
+    def queue_service(self) -> "BackgroundQueueService | None":
+        return (
+            self._queue_service
+            if self._queue_service is not None
+            else background_queue_service
+        )
 
     async def start_recording(
         self, stream_id: int, streamer_id: int, **kwargs
@@ -201,7 +214,9 @@ class RecordingLifecycleManager:
             if self.config_manager:
                 self.config_manager.invalidate_cache()
             quality = kwargs.get("quality") or (
-                self.config_manager.get_quality_setting(streamer_id)
+                await run_in_thread_pool(
+                    self.config_manager.get_quality_setting, streamer_id
+                )
                 if self.config_manager
                 else "best"
             )
@@ -573,7 +588,7 @@ class RecordingLifecycleManager:
             if success:
                 # Register recording as external task in background queue for monitoring
                 try:
-                    if background_queue_service:
+                    if self.queue_service:
                         task_payload = {
                             "recording_id": recording_id,
                             "streamer_id": streamer_id,
@@ -583,7 +598,7 @@ class RecordingLifecycleManager:
                             "stream_id": stream.id,
                             "file_path": file_path,
                         }
-                        background_queue_service.add_external_task(
+                        self.queue_service.add_external_task(
                             f"recording_{recording_id}", "recording", task_payload
                         )
                         logger.debug(
@@ -697,13 +712,11 @@ class RecordingLifecycleManager:
             # even if DB operations fail. Prevents ghost recordings that block future recordings.
             self.state_manager.remove_active_recording(recording_id)
             try:
-                if background_queue_service:
+                if self.queue_service:
                     task_id = f"recording_{recording_id}"
-                    background_queue_service.complete_external_task(
-                        task_id, success=True
-                    )
-                    if hasattr(background_queue_service, "progress_tracker"):
-                        background_queue_service.progress_tracker.remove_external_task(
+                    self.queue_service.complete_external_task(task_id, success=True)
+                    if hasattr(self.queue_service, "progress_tracker"):
+                        self.queue_service.progress_tracker.remove_external_task(
                             task_id
                         )
                     logger.info(
@@ -747,13 +760,11 @@ class RecordingLifecycleManager:
             # even if DB operations fail. Prevents ghost recordings that block future recordings.
             self.state_manager.remove_active_recording(recording_id)
             try:
-                if background_queue_service:
+                if self.queue_service:
                     task_id = f"recording_{recording_id}"
-                    background_queue_service.complete_external_task(
-                        task_id, success=False
-                    )
-                    if hasattr(background_queue_service, "progress_tracker"):
-                        background_queue_service.progress_tracker.remove_external_task(
+                    self.queue_service.complete_external_task(task_id, success=False)
+                    if hasattr(self.queue_service, "progress_tracker"):
+                        self.queue_service.progress_tracker.remove_external_task(
                             task_id
                         )
                     logger.info(
@@ -993,7 +1004,7 @@ class RecordingLifecycleManager:
             # Import TaskPriority only, background_queue_service already imported at module level
             from app.services.queues.task_progress_tracker import TaskPriority
 
-            background_queue = background_queue_service
+            background_queue = self.queue_service
 
             # Schedule post-processing tasks with dependencies
             logger.info(
@@ -1121,7 +1132,7 @@ class RecordingLifecycleManager:
             }
 
             # Enqueue segment concatenation task with high priority
-            concat_task_id = await background_queue_service.enqueue_task(
+            concat_task_id = await self.queue_service.enqueue_task(
                 task_type="segment_concatenation",
                 payload=concat_payload,
                 priority=TaskPriority.HIGH,  # High priority for immediate processing
@@ -1339,8 +1350,8 @@ class RecordingLifecycleManager:
             if not self.process_manager:
                 return
 
-            if background_queue_service:
-                await background_queue_service.heartbeat_recording_task(recording_id)
+            if self.queue_service:
+                await self.queue_service.heartbeat_recording_task(recording_id)
             progress = await self.process_manager.get_recording_progress(recording_id)
             if progress is not None and isinstance(progress, dict):
                 status = progress.get("status")
@@ -1359,8 +1370,8 @@ class RecordingLifecycleManager:
                 )
 
                 try:
-                    if background_queue_service:
-                        background_queue_service.update_external_task_progress(
+                    if self.queue_service:
+                        self.queue_service.update_external_task_progress(
                             f"recording_{recording_id}", progress_percent
                         )
                 except Exception as e:
@@ -1383,8 +1394,8 @@ class RecordingLifecycleManager:
 
             # Mark external task as failed in background queue
             try:
-                if background_queue_service:
-                    background_queue_service.complete_external_task(
+                if self.queue_service:
+                    self.queue_service.complete_external_task(
                         f"recording_{recording_id}", success=False
                     )
                     logger.debug(
