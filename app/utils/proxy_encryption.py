@@ -40,7 +40,7 @@ class ProxyEncryption:
         else:
             self._cipher = Fernet(encryption_key.encode())
 
-    def _initialize_cipher(self):
+    def _initialize_cipher(self) -> None:
         """
         Initialize Fernet cipher with encryption key from database.
 

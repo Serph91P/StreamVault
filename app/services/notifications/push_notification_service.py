@@ -4,6 +4,7 @@ import json
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass
+from typing import TYPE_CHECKING, TypedDict
 
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
@@ -18,6 +19,15 @@ from app.services.communication.webpush_service import WebPushException
 from app.utils.async_db_utils import run_in_thread_pool
 
 logger = logging.getLogger("streamvault")
+
+if TYPE_CHECKING:
+
+    class PushNotificationDetails(TypedDict, total=False):
+        streamer_id: int | str
+        stream_id: int | str
+        title: str
+        category_name: str
+        duration: str
 
 
 @dataclass(frozen=True)
@@ -93,8 +103,8 @@ class PushNotificationService:
             db.commit()
 
     async def send_push_notifications(
-        self, streamer_name: str, event_type: str, details: dict
-    ):
+        self, streamer_name: str, event_type: str, details: "PushNotificationDetails"
+    ) -> None:
         """Send to closed subscription snapshots; only confirmed410 expires one."""
         try:
             active_subscriptions = await run_in_thread_pool(self._load_targets)

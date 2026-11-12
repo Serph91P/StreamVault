@@ -68,7 +68,7 @@ class ProxyHealthService:
         self._session_factory = session_factory
         self._settings = settings
         self._websocket_manager = websocket_manager
-        self._background_task: Optional[asyncio.Task] = None
+        self._background_task: Optional[asyncio.Task[None]] = None
         self._running = False
         self._lock = asyncio.Lock()
         self._supervisor = TaskSupervisor("proxy-health")
@@ -93,7 +93,7 @@ class ProxyHealthService:
 
         logger.info("🔧 ProxyHealthService initialized")
 
-    async def start(self):
+    async def start(self) -> None:
         """Start the background health check task"""
         if self._running:
             logger.warning("⚠️ ProxyHealthService already running")
@@ -113,7 +113,7 @@ class ProxyHealthService:
         )
         logger.info("✅ ProxyHealthService background task started")
 
-    async def stop(self):
+    async def stop(self) -> None:
         """Stop the background health check task gracefully"""
         if self._stop_task is None:
             self._stop_task = asyncio.create_task(
@@ -142,7 +142,7 @@ class ProxyHealthService:
                     group.create_task(client.close())
         logger.info("✅ ProxyHealthService stopped")
 
-    async def _run_health_checks_loop(self):
+    async def _run_health_checks_loop(self) -> None:
         """
         Background task that runs health checks periodically.
 
@@ -198,7 +198,7 @@ class ProxyHealthService:
         finally:
             await self._supervisor.cancel_task(name)
 
-    async def _run_health_checks(self):
+    async def _run_health_checks(self) -> None:
         """
         Run health checks on all enabled proxies and update database.
 
@@ -497,7 +497,7 @@ class ProxyHealthService:
 
     async def _broadcast_proxy_status(
         self, proxy: ProxySnapshot | ProxySettings, auto_disabled: bool = False
-    ):
+    ) -> None:
         """
         Broadcast proxy status update via WebSocket.
 
@@ -514,6 +514,9 @@ class ProxyHealthService:
 
                 manager = websocket_manager
 
+            proxy_data: (
+                proxy_catalog.ProxyPayload | dict[str, str | int | float | bool | None]
+            )
             if isinstance(proxy, ProxySnapshot):
                 proxy_data = proxy.payload()
             else:
@@ -533,7 +536,7 @@ class ProxyHealthService:
         except Exception:
             logger.error("Error broadcasting proxy status")
 
-    async def increment_recording_stats(self, proxy_url: str, success: bool):
+    async def increment_recording_stats(self, proxy_url: str, success: bool) -> None:
         """
         Update recording statistics for a proxy.
 
