@@ -15,6 +15,7 @@ from starlette.requests import HTTPConnection
 from app import dependencies
 from app.models import Recording, Stream
 from app.services.queues.task_progress_tracker import TaskStatus
+from app.utils.retry_decorator import NonRetryableError
 from app.utils.async_db_utils import run_in_thread_pool
 from tests.test_image_http_ownership import image_applications as image_applications
 from tests.test_processing_callback_ownership import close_owned
@@ -85,7 +86,7 @@ async def test_recording_start_keeps_external_task_and_sql_with_the_application_
     def denied_update(_connection, _cursor, statement, *_args):
         if statement.lstrip().upper().startswith("UPDATE RECORDINGS ") and not rejected:
             rejected.append(True)
-            raise PermissionError("synthetic-completion-update-denied")
+            raise NonRetryableError("synthetic-completion-update-denied")
 
     try:
         recording_id = await manager.orchestrator.start_recording(70, 999)
@@ -145,6 +146,8 @@ async def test_recording_start_keeps_external_task_and_sql_with_the_application_
                 assert db.get(Recording, recording_id).status == (
                     "completed" if finish == "completed" else "failed"
                 )
+            await lifecycle._handle_recording_completion(recording_id)
+            assert (task.status is TaskStatus.FAILED) is (finish != "completed")
     finally:
         if event.contains(database.sync_engine, "before_cursor_execute", denied_update):
             event.remove(database.sync_engine, "before_cursor_execute", denied_update)

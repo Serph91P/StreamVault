@@ -656,8 +656,19 @@ class RecordingLifecycleManager:
             )
             return False
 
+    @staticmethod
+    def _completion_file_size(file_path: str | None) -> int | None:
+        if not file_path:
+            return None
+        try:
+            return Path(file_path).stat().st_size
+        except FileNotFoundError:
+            return None
+
     async def _handle_recording_completion(self, recording_id: int) -> None:
         """Handle recording completion"""
+        completed = False
+        recording_data = None
         try:
             logger.info(f"Handling completion for recording {recording_id}")
 
@@ -667,7 +678,8 @@ class RecordingLifecycleManager:
                 return
 
             file_path = recording_data.get("file_path")
-            if not file_path or not Path(file_path).exists():
+            file_size = await run_in_thread_pool(self._completion_file_size, file_path)
+            if file_size is None:
                 logger.error(f"Recording file not found: {file_path}")
                 try:
                     await self.database_service.mark_recording_failed(
@@ -680,10 +692,10 @@ class RecordingLifecycleManager:
                 return
 
             # Update database status
-            file_size = Path(file_path).stat().st_size
             await self.database_service.update_recording_status(
                 recording_id=recording_id, status="completed", path=file_path
             )
+            completed = True
 
             # Send completion notification
             if self.websocket_service:
@@ -707,20 +719,33 @@ class RecordingLifecycleManager:
 
         except Exception as e:
             logger.error(f"Error handling recording completion {recording_id}: {e}")
+            if not completed and recording_data:
+                try:
+                    await self.database_service.mark_recording_failed(
+                        recording_id, "Recording completion failed"
+                    )
+                except Exception as failure:
+                    logger.error(
+                        "Could not persist recording failure (%s)",
+                        type(failure).__name__,
+                    )
         finally:
             # CRITICAL: Always remove from active recordings and clean up external tasks,
             # even if DB operations fail. Prevents ghost recordings that block future recordings.
             self.state_manager.remove_active_recording(recording_id)
             try:
-                if self.queue_service:
+                if self.queue_service and recording_data:
                     task_id = f"recording_{recording_id}"
-                    self.queue_service.complete_external_task(task_id, success=True)
+                    self.queue_service.complete_external_task(
+                        task_id, success=completed
+                    )
                     if hasattr(self.queue_service, "progress_tracker"):
                         self.queue_service.progress_tracker.remove_external_task(
                             task_id
                         )
+                    outcome = "completed" if completed else "failed"
                     logger.info(
-                        f"✅ EXTERNAL_TASK_COMPLETED: recording_{recording_id} marked as completed and removed"
+                        f"EXTERNAL_TASK_{outcome.upper()}: recording_{recording_id} marked as {outcome}"
                     )
             except Exception as e:
                 logger.error(
