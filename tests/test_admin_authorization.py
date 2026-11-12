@@ -170,11 +170,10 @@ def test_mounted_single_recording_recovery_contract(admin_stack, monkeypatch, ca
             raise RuntimeError("synthetic enqueue failure")
         return "synthetic-recovery-job"
 
-    recovery = importlib.import_module(
-        "app.services.recording.orphaned_recovery_service"
-    )
     queue_init = importlib.import_module("app.services.init.background_queue_init")
-    monkeypatch.setattr(recovery, "get_orphaned_recovery_service", get_adapter)
+    app.dependency_overrides[
+        importlib.import_module("app.routes.admin").get_scoped_orphaned_recovery_service
+    ] = get_adapter
     monkeypatch.setattr(queue_init, "enqueue_recording_post_processing", enqueue)
     headers = credential_headers(admin_stack, "jwt", "admin")
     target_id = recording_id + 1000 if case == "missing" else recording_id

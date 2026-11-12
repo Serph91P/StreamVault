@@ -61,6 +61,7 @@
     "app/services/recording/config_manager.py",
     "app/services/recording/configuration_values.py",
     "app/services/recording/file_operations.py",
+    "app/services/recording/orphaned_recovery_service.py",
     "app/services/recording/process_manager.py",
     "app/services/recording/recording_database_service.py",
     "app/services/recording/recording_lifecycle_manager.py",

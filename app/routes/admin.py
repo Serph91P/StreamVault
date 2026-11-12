@@ -9,10 +9,13 @@ from app.dependencies import (
     get_db,
     get_application_session_factory,
     get_application_recording_manager,
+    get_application_recovery_service,
     get_background_queue_service as get_application_background_queue_service,
 )
 from app.services.background_queue_service import BackgroundQueueService
 from app.services.background_queue_cleanup_service import BackgroundQueueCleanupService
+from app.services.recording.orphaned_recovery_service import OrphanedRecoveryService
+from app.services.recording.unified_recovery_service import UnifiedRecoveryService
 from collections.abc import Callable
 from app.dependencies import require_admin_user
 from sqlalchemy.orm import Session, joinedload
@@ -50,6 +53,12 @@ def get_queue_cleanup_service(
     ),
 ) -> BackgroundQueueCleanupService:
     return BackgroundQueueCleanupService(queue_service)
+
+
+def get_scoped_orphaned_recovery_service(
+    service: UnifiedRecoveryService = Depends(get_application_recovery_service),
+) -> OrphanedRecoveryService:
+    return OrphanedRecoveryService(service)
 
 
 router = APIRouter(
@@ -439,14 +448,14 @@ async def run_test(test_name: str, db: Session = Depends(get_db)):
 
 # Orphaned Recording Recovery endpoints
 @router.get("/orphaned/statistics")
-async def get_orphaned_statistics(max_age_hours: int = 168) -> Dict[str, Any]:
+async def get_orphaned_statistics(
+    max_age_hours: int = 168,
+    recovery_service: OrphanedRecoveryService = Depends(
+        get_scoped_orphaned_recovery_service
+    ),
+) -> Dict[str, Any]:
     """Get statistics about orphaned recordings"""
     try:
-        from app.services.recording.orphaned_recovery_service import (
-            get_orphaned_recovery_service,
-        )
-
-        recovery_service = await get_orphaned_recovery_service()
         stats = await recovery_service.get_orphaned_statistics(max_age_hours)
 
         return {"success": True, "data": stats}
@@ -458,15 +467,14 @@ async def get_orphaned_statistics(max_age_hours: int = 168) -> Dict[str, Any]:
 
 @router.post("/orphaned/scan")
 async def scan_orphaned_recordings(
-    max_age_hours: int = 48, dry_run: bool = False
+    max_age_hours: int = 48,
+    dry_run: bool = False,
+    recovery_service: OrphanedRecoveryService = Depends(
+        get_scoped_orphaned_recovery_service
+    ),
 ) -> Dict[str, Any]:
     """Scan for orphaned recordings and optionally trigger recovery"""
     try:
-        from app.services.recording.orphaned_recovery_service import (
-            get_orphaned_recovery_service,
-        )
-
-        recovery_service = await get_orphaned_recovery_service()
         result = await recovery_service.scan_and_recover_orphaned_recordings(
             max_age_hours=max_age_hours, dry_run=dry_run
         )
@@ -483,50 +491,21 @@ async def scan_orphaned_recordings(
 
 
 @router.post("/orphaned/recover/{recording_id}")
-async def recover_specific_recording(recording_id: int) -> Dict[str, Any]:
+async def recover_specific_recording(
+    recording_id: int,
+    session_factory: Callable[[], Session] = Depends(get_application_session_factory),
+    recovery_service: OrphanedRecoveryService = Depends(
+        get_scoped_orphaned_recovery_service
+    ),
+) -> Dict[str, Any]:
     """Trigger recovery for a specific recording"""
     try:
-        from app.services.recording.orphaned_recovery_service import (
-            get_orphaned_recovery_service,
-        )
-        from app.database import SessionLocal
-        from app.models import Recording
-
-        recovery_service = await get_orphaned_recovery_service()
-
-        with SessionLocal() as db:
-            recording = db.query(Recording).filter(Recording.id == recording_id).first()
-            if not recording:
-                raise HTTPException(
-                    status_code=404, detail=f"Recording {recording_id} not found"
-                )
-
-            # Validate it's actually orphaned
-            validation = await recovery_service.validate_orphaned_recording(recording)
-            if not validation["valid"]:
-                return {
-                    "success": False,
-                    "message": f"Recording {recording_id} is not suitable for recovery: {validation['reason']}",
-                }
-
-            # Trigger recovery
-            success = await recovery_service.trigger_orphaned_recovery(recording, db)
-
-            if success:
-                return {
-                    "success": True,
-                    "message": f"Recovery triggered for recording {recording_id}",
-                    "data": {
-                        "recording_id": recording_id,
-                        "file_path": recording.path,
-                        "file_size": validation.get("file_size"),
-                    },
-                }
-            else:
-                return {
-                    "success": False,
-                    "message": f"Failed to trigger recovery for recording {recording_id}",
-                }
+        result = await recovery_service.recover_recording(recording_id, session_factory)
+        if result is None:
+            raise HTTPException(
+                status_code=404, detail=f"Recording {recording_id} not found"
+            )
+        return result
 
     except HTTPException:
         raise

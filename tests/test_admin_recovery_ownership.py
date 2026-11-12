@@ -25,7 +25,10 @@ from tests.test_image_http_ownership import image_applications as image_applicat
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("operation", ["statistics", "scan", "single"])
+@pytest.mark.parametrize(
+    "operation",
+    ["statistics", "scan", "single", "single-protected", "single-queue-failure"],
+)
 async def test_admin_recovery_preserves_closed_owner_catalogue_and_durable_admission(
     image_applications, monkeypatch, operation
 ):
@@ -58,7 +61,9 @@ async def test_admin_recovery_preserves_closed_owner_catalogue_and_durable_admis
                         Recording(
                             id=7 + offset,
                             stream_id=70 + offset,
-                            status="stopped",
+                            status="recording"
+                            if index == 0 and operation == "single-protected"
+                            else "stopped",
                             path=str(path),
                             start_time=now - timedelta(hours=2),
                         )
@@ -98,18 +103,55 @@ async def test_admin_recovery_preserves_closed_owner_catalogue_and_durable_admis
                 (row.status, row.payload) for row in session.query(BackgroundTask).all()
             ]
 
+    queue_init = importlib.import_module("app.services.init.background_queue_init")
+    native_enqueue = queue_init.enqueue_recording_post_processing
+
+    async def observe_admission(**payload):
+        from sqlalchemy import inspect
+
+        assert all(
+            database.sync_engine.pool.checkedout() == 0 for database in databases
+        )
+        assert all(inspect(value, raiseerr=False) is None for value in payload.values())
+        return await native_enqueue(**payload)
+
+    monkeypatch.setattr(
+        queue_init, "enqueue_recording_post_processing", observe_admission
+    )
     queries.clear()
     try:
-        if operation == "single":
-            response = await clients[0].post("/api/admin/orphaned/recover/7")
-            assert response.status_code == 200 and response.json()["success"] is True
-            assert response.json()["data"]["file_path"] == str(
-                roots[0] / "fixture-0.ts"
-            )
+        if operation.startswith("single"):
+            from sqlalchemy import event
+
+            def reject_job(_conn, _cursor, sql, *_):
+                if sql.lstrip().upper().startswith("INSERT INTO BACKGROUND_TASKS"):
+                    raise RuntimeError("synthetic-owned-recovery-admission-fault")
+
+            if operation == "single-queue-failure":
+                event.listen(
+                    databases[0].sync_engine, "before_cursor_execute", reject_job
+                )
+            try:
+                response = await clients[0].post("/api/admin/orphaned/recover/7")
+            finally:
+                if operation == "single-queue-failure":
+                    event.remove(
+                        databases[0].sync_engine, "before_cursor_execute", reject_job
+                    )
+            assert response.status_code == 200
             own_jobs = await run_in_thread_pool(jobs, databases[0])
-            assert own_jobs and all(status != "completed" for status, _ in own_jobs)
-            assert str(roots[0]) in json.dumps(own_jobs)
-            assert str(roots[1]) not in json.dumps(own_jobs)
+            if operation == "single":
+                assert response.json()["success"] is True
+                assert response.json()["data"]["file_path"] == str(
+                    roots[0] / "fixture-0.ts"
+                )
+                assert own_jobs and all(status != "completed" for status, _ in own_jobs)
+                assert str(roots[0]) in json.dumps(own_jobs)
+                assert str(roots[1]) not in json.dumps(own_jobs)
+            else:
+                assert response.json()["success"] is False and own_jobs == []
+                if operation == "single-protected":
+                    assert "ownership is unverified" in response.json()["message"]
         else:
             response = await (
                 clients[0].get("/api/admin/orphaned/statistics")
