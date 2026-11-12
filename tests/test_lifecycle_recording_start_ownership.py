@@ -35,6 +35,10 @@ from tests.test_processing_callback_ownership import close_owned
         ("manual-stop", "catalog"),
         ("automatic-stop", "catalog"),
         ("progress", "catalog"),
+        ("duplicate", "catalog"),
+        ("shutdown", "catalog"),
+        ("removed-before-process", "catalog"),
+        ("monitor-completion", "catalog"),
     ],
 )
 async def test_recording_start_keeps_external_task_and_sql_with_the_application_owner(
@@ -92,6 +96,8 @@ async def test_recording_start_keeps_external_task_and_sql_with_the_application_
         )
         children.append(child)
         assert await asyncio.wait_for(child.stdout.readline(), 5) == b"ready\n"
+        if finish == "monitor-completion":
+            lifecycle.process_manager.active_processes["stream_70"] = child
         return child
 
     # The media-provider port is a real controlled OS child. Isolate its separate
@@ -100,7 +106,36 @@ async def test_recording_start_keeps_external_task_and_sql_with_the_application_
         await asyncio.Event().wait()
 
     monkeypatch.setattr(lifecycle.process_manager, "start_recording_process", spawn)
-    monkeypatch.setattr(lifecycle, "monitor_and_process_recording", hold_monitor)
+    native_monitor = lifecycle.monitor_and_process_recording
+    monitor_observed = asyncio.Event()
+    if finish == "monitor-completion":
+        native_progress = lifecycle._update_recording_progress
+
+        async def observed_progress(identity):
+            result = await native_progress(identity)
+            monitor_observed.set()
+            return result
+
+        monkeypatch.setattr(lifecycle, "_update_recording_progress", observed_progress)
+    else:
+        monkeypatch.setattr(lifecycle, "monitor_and_process_recording", hold_monitor)
+    if finish == "removed-before-process":
+        native_create = lifecycle.database_service.create_recording
+
+        async def removed_after_create(*args, **kwargs):
+            value = await native_create(*args, **kwargs)
+
+            def remove():
+                with database.sync_session_factory() as db:
+                    db.delete(db.get(Recording, value.id))
+                    db.commit()
+
+            await run_in_thread_pool(remove)
+            return value
+
+        monkeypatch.setattr(
+            lifecycle.database_service, "create_recording", removed_after_create
+        )
     rejected = []
 
     def denied_update(_connection, _cursor, statement, *_args):
@@ -143,6 +178,15 @@ async def test_recording_start_keeps_external_task_and_sql_with_the_application_
             api._access_token = "synthetic-local-control"
             api._token_expires_at = float("inf")
             recording_id = await lifecycle.force_start_recording(1)
+        if finish == "removed-before-process":
+            assert recording_id is None
+            assert children == []
+            assert app.state.background_queue_service.external_tasks == {}
+            assert not lifecycle.state_manager.get_active_recordings()
+            assert not peer.external_tasks
+            assert sql_threads and loop_thread not in sql_threads
+            assert database.sync_engine.pool.checkedout() == 0
+            return
         assert recording_id is not None
         production_sql_threads = list(sql_threads)
         event.remove(database.sync_engine, "before_cursor_execute", observe_sql)
@@ -169,7 +213,43 @@ async def test_recording_start_keeps_external_task_and_sql_with_the_application_
         ]
         assert task.payload["streamer_id"] == 1 and task.payload["stream_id"] == 70
         assert production_sql_threads
-        if finish == "progress":
+        if finish == "monitor-completion":
+            from app.config.constants import ASYNC_DELAYS
+
+            await asyncio.wait_for(monitor_observed.wait(), 5)
+            children[0].terminate()
+            await children[0].wait()
+            lifecycle.process_manager.active_processes.pop("stream_70")
+
+            async def completed():
+                while lifecycle.state_manager.get_active_recording(recording_id):
+                    await asyncio.sleep(0.01)
+
+            await asyncio.wait_for(
+                completed(), ASYNC_DELAYS.RECORDING_MONITOR_INTERVAL + 5
+            )
+            with database.sync_session_factory() as db:
+                assert db.get(Recording, recording_id).status == "completed"
+            assert task.status is TaskStatus.COMPLETED
+            await manager.shutdown()
+            with database.sync_session_factory() as db:
+                assert db.query(BackgroundTask).count() > 0
+        elif finish in {"duplicate", "shutdown"}:
+            lifecycle.process_manager.active_processes["stream_70"] = children[0]
+            if finish == "shutdown":
+                await manager.shutdown()
+                assert children[0].returncode is not None
+            event.listen(database.sync_engine, "before_cursor_execute", observe_sql)
+            assert await lifecycle.start_recording(70, 1) is None
+            assert len(children) == 1
+            if finish == "duplicate":
+                await asyncio.wait_for(native_monitor(999), 3)
+                assert 999 not in lifecycle.state_manager.get_active_tasks()
+            assert loop_thread not in sql_threads
+            event.remove(database.sync_engine, "before_cursor_execute", observe_sql)
+            with database.sync_session_factory() as db:
+                assert db.query(Recording).count() == 1
+        elif finish == "progress":
             lifecycle.process_manager.active_processes["stream_70"] = children[0]
             event.listen(database.sync_engine, "before_cursor_execute", observe_sql)
             progress = await lifecycle.process_manager.get_recording_progress(
@@ -182,6 +262,12 @@ async def test_recording_start_keeps_external_task_and_sql_with_the_application_
             assert await lifecycle.process_manager.get_recording_progress(
                 recording_id
             ) == {"status": "completed", "exit_code": children[0].returncode}
+            await lifecycle._update_recording_progress(recording_id)
+            assert task.progress == 100
+            assert (
+                lifecycle.state_manager.get_active_recording(recording_id)["progress"]
+                == 100
+            )
             assert await lifecycle.process_manager.get_recording_progress(999) is None
             assert loop_thread not in sql_threads
             event.remove(database.sync_engine, "before_cursor_execute", observe_sql)
