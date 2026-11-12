@@ -16,8 +16,15 @@ from app.services.processing.post_processing_task_handlers import (
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("authoritative", [True, False])
-@pytest.mark.parametrize("outcome", ["success", "false", "error"])
+@pytest.mark.parametrize(
+    "authoritative,outcome",
+    [
+        (owned, result)
+        for owned in [True, False]
+        for result in ["success", "false", "error"]
+    ]
+    + [(True, "invalid-input")],
+)
 async def test_metadata_handler_prepares_only_closed_scalar_paths_off_loop(
     tmp_path, monkeypatch, authoritative, outcome
 ):
@@ -82,23 +89,29 @@ async def test_metadata_handler_prepares_only_closed_scalar_paths_off_loop(
             "stream_id": 7,
             "recording_id": 8,
             "output_dir": str(output),
-            "base_filename": "provided.ts",
+            "base_filename": "" if outcome == "invalid-input" else "provided.ts",
         }
         original = dict(payload)
         with monkeypatch.context() as observed:
             observed.setattr(os, "stat", stat)
             await handler.handle_metadata_generation(payload, progress.append)
         assert queries and loop_thread not in queries
-        assert probes and loop_thread not in probes
+        if outcome == "invalid-input":
+            assert probes == []
+        else:
+            assert probes and loop_thread not in probes
         assert payload == original
-        assert calls == [
+        expected_calls = [
             (
                 7,
                 str(root) if authoritative else str(output),
                 "recorded" if authoritative else "provided",
             )
         ]
-        assert progress == [10.0, 20.0, 90.0, 100.0]
+        assert calls == ([] if outcome == "invalid-input" else expected_calls)
+        assert progress == (
+            [10.0] if outcome == "invalid-input" else [10.0, 20.0, 90.0, 100.0]
+        )
         with database.sync_session_factory() as session:
             state = session.query(RecordingProcessingState).one()
             assert state.recording_id == 8
