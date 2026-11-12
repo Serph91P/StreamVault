@@ -262,3 +262,139 @@ async def test_quick_health_reports_native_probe_failures_without_exception_deta
         assert all(db.sync_engine.pool.checkedout() == 0 for db in databases)
     finally:
         event.remove(databases[0].sync_engine, "before_cursor_execute", sql)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("catalog_failure", [False, True])
+async def test_mounted_recording_diagnostics_apply_native_fallbacks_without_peer_reads(
+    image_applications, monkeypatch, catalog_failure
+):
+    from sqlalchemy import event
+
+    apps, databases, clients, _ = image_applications
+    roots = [Path(app.state.settings.RECORDING_DIRECTORY) for app in apps]
+    paths = {}
+    for index, root in enumerate(roots):
+        for stream_id in range(70, 79):
+            path = root / f"stream-{stream_id}.ts"
+            path.write_bytes(bytes([stream_id]) * (stream_id if index == 0 else 900))
+            paths[index, stream_id] = path
+        (root / "stream-71.mp4").write_bytes(b"mp4" * (100 if index == 0 else 200))
+    directory = roots[0] / "a-directory-not-a-file"
+    directory.mkdir()
+
+    def seed():
+        for index, database in enumerate(databases):
+            with database.sync_session_factory() as db:
+                for stream_id in range(70, 79):
+                    direct = (
+                        str(paths[index, stream_id])
+                        if index or stream_id in {70, 77}
+                        else None
+                    )
+                    if index == 0 and stream_id == 75:
+                        direct = str(directory)
+                    db.add(
+                        Stream(
+                            id=stream_id,
+                            streamer_id=1,
+                            title=f"owner-{index}",
+                            recording_path=direct,
+                        )
+                    )
+                db.flush()
+                for stream_id in range(71, 79):
+                    stored = str(paths[index, stream_id])
+                    if index == 0 and stream_id == 74:
+                        stored += ".missing"
+                    if index == 0 and stream_id == 76:
+                        stored = None
+                    if index == 0 and stream_id == 77:
+                        stored = str(paths[0, 72])
+                    db.add(
+                        Recording(
+                            id=stream_id,
+                            stream_id=stream_id,
+                            status="recording" if stream_id == 73 else "completed",
+                            path=stored,
+                            start_time=datetime.now(timezone.utc),
+                        )
+                    )
+                db.commit()
+
+    await run_in_thread_pool(seed)
+    queries, probes, faults = [], [], []
+    native_stat = os.stat
+    denied = {str(paths[0, 77]): 3, str(paths[0, 78]): 2}
+    stat_counts = {}
+
+    def stat(path, *args, **kwargs):
+        if isinstance(path, (str, os.PathLike)) and any(
+            str(path).startswith(str(root)) for root in roots
+        ):
+            probes.append((str(path), get_ident()))
+            if str(path) in denied:
+                stat_counts[str(path)] = stat_counts.get(str(path), 0) + 1
+                # Fail size retrieval after native exists/is_file succeeded;
+                # Python 3.14 existence predicates suppress OSError themselves.
+                if stat_counts[str(path)] >= denied[str(path)]:
+                    faults.append(str(path))
+                    raise PermissionError("synthetic-private-diagnostic-file-detail")
+        return native_stat(path, *args, **kwargs)
+
+    def sql(_connection, _cursor, statement, *_args, index):
+        queries.append((index, get_ident()))
+        if catalog_failure and "FROM streams" in statement:
+            faults.append("catalog")
+            raise PermissionError("synthetic-private-diagnostic-catalog-detail")
+
+    listeners = []
+    for index, database in enumerate(databases):
+
+        def listener(*args, index=index):
+            return sql(*args, index=index)
+
+        event.listen(database.sync_engine, "before_cursor_execute", listener)
+        listeners.append(listener)
+    monkeypatch.setattr(os, "stat", stat)
+    try:
+        response = await clients[0].post(
+            "/api/admin/debug/check-stream-recordings", json=list(range(70, 79)) + [999]
+        )
+        assert queries and {index for index, _thread in queries} == {0}
+        assert get_ident() not in {thread for _index, thread in queries}
+        assert "synthetic-private-diagnostic" not in response.text
+        if catalog_failure:
+            assert response.status_code == 500
+            assert response.json()["detail"] == "Stream recording check failed"
+            assert faults == ["catalog"]
+        else:
+            assert response.status_code == 200, response.text
+            data = response.json()["data"]
+            assert {key: value["method"] for key, value in data.items()} == {
+                "70": "stream_recording_path",
+                "71": "recording_mp4_file",
+                "72": "recording_ts_file",
+                "73": "none",
+                "74": "none",
+                "75": "recording_ts_file",
+                "76": "none",
+                "77": "recording_ts_file",
+                "78": "none",
+                "999": "stream_not_found",
+            }
+            for stream_id, size in [(70, 70), (71, 300), (72, 72), (75, 75), (77, 72)]:
+                assert data[str(stream_id)]["has_recording"] is True
+                assert data[str(stream_id)]["file_size"] == size
+                assert str(roots[0]) in data[str(stream_id)]["file_path"]
+            for stream_id in [73, 74, 76, 78, 999]:
+                assert data[str(stream_id)]["has_recording"] is False
+            assert set(faults) == set(denied)
+            assert probes and all(str(roots[0]) in path for path, _thread in probes)
+            assert get_ident() not in {thread for _path, thread in probes}
+        assert all(
+            database.sync_engine.pool.checkedout() == 0 for database in databases
+        )
+    finally:
+        for database, listener in zip(databases, listeners, strict=True):
+            event.remove(database.sync_engine, "before_cursor_execute", listener)
