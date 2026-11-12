@@ -24,7 +24,14 @@ from app.services.processing.post_processing_task_handlers import (
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     "case",
-    ["post_processing", "deletion", "missing_mp4", "small_mp4", "denied_segments"],
+    [
+        "post_processing",
+        "deletion",
+        "missing_mp4",
+        "small_mp4",
+        "denied_segments",
+        "intelligent-timeout",
+    ],
 )
 async def test_cleanup_closes_own_persistence_and_keeps_protected_sources(
     tmp_path, monkeypatch, case
@@ -45,7 +52,7 @@ async def test_cleanup_closes_own_persistence_and_keeps_protected_sources(
         with output.open("wb") as file:
             file.truncate(
                 1024 * 1024 + 1
-                if case in {"post_processing", "denied_segments"}
+                if case in {"post_processing", "denied_segments", "intelligent-timeout"}
                 else 100
             )
     loop_thread = get_ident()
@@ -100,10 +107,18 @@ async def test_cleanup_closes_own_persistence_and_keeps_protected_sources(
         if case == "deletion":
             payload["cleanup_paths"] = payload.pop("files_to_remove")
             payload.pop("mp4_path")
+        if case == "intelligent-timeout":
+            payload["intelligent_cleanup"] = True
+            payload["max_wait_time"] = 0
         with monkeypatch.context() as watched:
             watched.setattr(os, "stat", stat)
             watched.setattr(shutil, "rmtree", rmtree)
-            if case in {"post_processing", "deletion", "denied_segments"}:
+            if case in {
+                "post_processing",
+                "deletion",
+                "denied_segments",
+                "intelligent-timeout",
+            }:
                 await handler.handle_cleanup(payload)
             else:
                 with pytest.raises(
@@ -120,7 +135,7 @@ async def test_cleanup_closes_own_persistence_and_keeps_protected_sources(
         with database.sync_session_factory() as session:
             metadata = session.scalar(select(StreamMetadata))
             state = session.scalar(select(RecordingProcessingState))
-            if case == "post_processing":
+            if case in {"post_processing", "intelligent-timeout"}:
                 assert metadata.segments_removed is True
                 assert metadata.segments_dir_path == str(segments)
                 assert state.cleanup_status == "completed"
@@ -132,7 +147,9 @@ async def test_cleanup_closes_own_persistence_and_keeps_protected_sources(
             else:
                 assert metadata is None
                 assert state is None
-        assert source.exists() is (case in {"missing_mp4", "small_mp4"})
+        assert source.exists() is (
+            case in {"missing_mp4", "small_mp4", "intelligent-timeout"}
+        )
         assert segments.exists() is (
             case in {"missing_mp4", "small_mp4", "denied_segments"}
         )
