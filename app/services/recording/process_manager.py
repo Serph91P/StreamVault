@@ -18,6 +18,7 @@ Dependency Injection:
 
 import logging
 import asyncio
+from contextlib import closing
 from app.utils.media_process import media_process
 import os
 import re
@@ -37,7 +38,7 @@ if TYPE_CHECKING:
         ExternalNotificationService,
     )
     from app.services.system.twitch_token_service import TwitchTokenService
-    from app.services.system.logging_service import LoggingService
+    from app.services.system.logging_service import LoggingService, _LazyLoggingService
 
 try:
     import psutil  # noqa: F401
@@ -352,13 +353,15 @@ class ProcessManager:
             return True
 
     async def _wait_for_auth_startup(self, process, segment_path: str) -> None:
+        from app.utils.async_db_utils import run_in_thread_pool
+
         await asyncio.sleep(ASYNC_DELAYS.PROCESS_START_GRACE)
         deadline = (
             asyncio.get_running_loop().time()
             + self.AUTH_STARTUP_FALLBACK_WINDOW_SECONDS
         )
-        while process.returncode is None and not self._segment_has_recording_data(
-            segment_path
+        while process.returncode is None and not await run_in_thread_pool(
+            self._segment_has_recording_data, segment_path
         ):
             remaining = deadline - asyncio.get_running_loop().time()
             if remaining <= 0:
@@ -725,6 +728,69 @@ class ProcessManager:
                 else getattr(global_settings, "supported_codecs", None),
             )
 
+    @staticmethod
+    def _write_streamlink_start_log(
+        service: "LoggingService | _LazyLoggingService",
+        streamer_name: str,
+        quality: str,
+        segment_path: str,
+        segment_count: int,
+    ) -> str:
+        log_path = service.get_streamlink_log_path(streamer_name)
+        logger.info("📂 Streamlink logs for %s written to: %s", streamer_name, log_path)
+        # Local, short-lived handlers cannot inherit another application's logger.
+        streamer_logger = logging.Logger(f"streamlink.{streamer_name}")
+        with closing(
+            logging.FileHandler(log_path, mode="a", encoding="utf-8")
+        ) as handler:
+            handler.setFormatter(
+                logging.Formatter(
+                    "%(asctime)s %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
+                )
+            )
+            streamer_logger.addHandler(handler)
+            streamer_logger.setLevel(logging.INFO)
+            streamer_logger.propagate = False
+            streamer_logger.info(f"Starting streamlink recording for {streamer_name}")
+            streamer_logger.info(f"Quality: {quality}")
+            streamer_logger.info(f"Output: {segment_path}")
+            streamer_logger.info("Recording started with configured authentication")
+            streamer_logger.info(f"Segment: {segment_count}")
+            streamer_logger.info("=" * 80)
+        return log_path
+
+    @staticmethod
+    def _write_streamlink_failure_log(
+        service: "LoggingService | _LazyLoggingService",
+        streamer_name: str,
+        stdout: bytes,
+        stderr: bytes,
+        exit_code: int,
+        known_secrets: tuple[str, ...],
+        log_path: str,
+    ) -> None:
+        service.log_streamlink_output(
+            streamer_name, stdout, stderr, exit_code, known_secrets=known_secrets
+        )
+        try:
+            streamer_logger = logging.Logger(f"streamlink.{streamer_name}")
+            with closing(
+                logging.FileHandler(log_path, mode="a", encoding="utf-8")
+            ) as handler:
+                handler.setFormatter(
+                    logging.Formatter(
+                        "%(asctime)s %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
+                    )
+                )
+                streamer_logger.addHandler(handler)
+                streamer_logger.error(
+                    "PROCESS FAILED IMMEDIATELY (exit code: %s)", exit_code
+                )
+        except Exception as exc:
+            logger.warning(
+                "Could not write to streamlink log file (%s)", type(exc).__name__
+            )
+
     async def _start_segment(
         self,
         stream: Stream,
@@ -846,46 +912,16 @@ class ProcessManager:
             logger.debug(f"🎬 Streamlink process starting with quality: {quality}")
 
             # Log to structured logging service
+            streamlink_log_path = ""
             if self.logging_service:
-                streamlink_log_path = self.logging_service.get_streamlink_log_path(
-                    streamer_name
+                streamlink_log_path = await run_in_thread_pool(
+                    self._write_streamlink_start_log,
+                    self.logging_service,
+                    streamer_name,
+                    quality,
+                    segment_path,
+                    segment_info["segment_count"],
                 )
-
-                logger.info(
-                    f"📂 Streamlink logs for {streamer_name} written to: {streamlink_log_path}"
-                )
-
-                # Create additional streamer logger for direct output
-                streamer_logger = logging.getLogger(f"streamlink.{streamer_name}")
-
-                # Remove any existing FileHandler instances for this logger to prevent memory leaks
-                for handler in list(streamer_logger.handlers):
-                    if isinstance(handler, logging.FileHandler):
-                        streamer_logger.removeHandler(handler)
-                        handler.close()
-
-                # Add a new FileHandler pointing to the streamer-specific log
-                file_handler = logging.FileHandler(
-                    streamlink_log_path, mode="a", encoding="utf-8"
-                )
-                file_handler.setFormatter(
-                    logging.Formatter(
-                        "%(asctime)s %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
-                    )
-                )
-                streamer_logger.addHandler(file_handler)
-                streamer_logger.setLevel(logging.INFO)
-                streamer_logger.propagate = False
-
-                streamer_logger.info(
-                    f"Starting streamlink recording for {streamer_name}"
-                )
-                streamer_logger.info(f"Quality: {quality}")
-                streamer_logger.info(f"Output: {segment_path}")
-                # SECURITY: Command details omitted to prevent token exposure (CWE-532)
-                streamer_logger.info("Recording started with configured authentication")
-                streamer_logger.info(f"Segment: {segment_info['segment_count']}")
-                streamer_logger.info("=" * 80)
 
             process_id = f"stream_{stream.id}"
             rotation_generation = segment_info.get("upstream_rotation_generation")
@@ -977,8 +1013,8 @@ class ProcessManager:
                 else:
                     await self._wait_for_auth_startup(process, segment_path)
                 if process.returncode is None:
-                    if not anonymous and not self._segment_has_recording_data(
-                        segment_path
+                    if not anonymous and not await run_in_thread_pool(
+                        self._segment_has_recording_data, segment_path
                     ):
                         # The completion monitor owns no-byte auth failures that
                         # arrive after this bounded startup observation.
@@ -1012,24 +1048,16 @@ class ProcessManager:
                 logger.error("Streamlink exited during recording startup")
 
                 if self.logging_service:
-                    self.logging_service.log_streamlink_output(
+                    await run_in_thread_pool(
+                        self._write_streamlink_failure_log,
+                        self.logging_service,
                         streamer_name,
                         stdout,
                         stderr,
                         process.returncode,
-                        known_secrets=known_secrets,
+                        known_secrets,
+                        streamlink_log_path,
                     )
-                    streamer_logger = logging.getLogger(f"streamlink.{streamer_name}")
-                    try:
-                        streamer_logger.error(
-                            "PROCESS FAILED IMMEDIATELY (exit code: %s)",
-                            process.returncode,
-                        )
-                    except Exception as e:
-                        logger.warning(
-                            "Could not write to streamlink log file (%s)",
-                            type(e).__name__,
-                        )
 
                 self._release_streamlink_output_secrets(process)
                 if (
@@ -1037,7 +1065,9 @@ class ProcessManager:
                     is process
                 ):
                     segment_info.pop("auth_startup_handoff", None)
-                segment_has_data = self._segment_has_recording_data(segment_path)
+                segment_has_data = await run_in_thread_pool(
+                    self._segment_has_recording_data, segment_path
+                )
 
                 should_fallback = (
                     not anonymous
@@ -1773,6 +1803,8 @@ class ProcessManager:
         Returns:
             Exit code of the process (0 if segmented recording completed successfully)
         """
+        from app.utils.async_db_utils import run_in_thread_pool
+
         known_secrets = self._get_streamlink_output_secrets(process)
         try:
             # Find if this is a segmented recording
@@ -1792,7 +1824,8 @@ class ProcessManager:
             await self._release_tracked_process(process, already_reaped=True)
             logging_service = getattr(self, "logging_service", None)
             if logging_service:
-                logging_service.log_streamlink_output(
+                await run_in_thread_pool(
+                    logging_service.log_streamlink_output,
                     process_id or "unknown",
                     stdout,
                     stderr,
@@ -1804,11 +1837,13 @@ class ProcessManager:
                 segment_info.get("auth_startup_handoff") if segment_info else None
             )
             should_retry_anonymously = (
-                startup_handoff is not None
+                segment_info is not None
+                and startup_handoff is not None
                 and startup_handoff["process"] is process
                 and process.returncode is not None
-                and not self._segment_has_recording_data(
-                    segment_info["current_segment_path"]
+                and not await run_in_thread_pool(
+                    self._segment_has_recording_data,
+                    segment_info["current_segment_path"],
                 )
                 and is_twitch_auth_rejection(
                     "\n".join(

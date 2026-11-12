@@ -57,18 +57,20 @@ async def test_native_segment_start_prepares_owned_log_files_in_worker(
         )
         contexts.append((lifecycle.process_manager, stream, info))
     loop_thread = get_ident()
-    opened, stats, children = [], [], []
+    opened, stats, children, log_files = [], [], [], []
     native_open, native_stat = builtins.open, os.stat
     native_spawn = asyncio.create_subprocess_exec
     peer_spawned = asyncio.Event()
     first_segment = contexts[0][2]["current_segment_path"]
 
     def observed_open(path, *args, **kwargs):
+        file = native_open(path, *args, **kwargs)
         if isinstance(path, (str, bytes, os.PathLike)) and any(
             os.fsdecode(path).startswith(str(root) + os.sep) for root in roots
         ):
             opened.append(get_ident())
-        return native_open(path, *args, **kwargs)
+            log_files.append(file)
+        return file
 
     def observed_stat(path, *args, **kwargs):
         if (
@@ -120,12 +122,13 @@ async def test_native_segment_start_prepares_owned_log_files_in_worker(
         if mode == "same-name-pair":
             assert results[1] is not None and results[1].returncode is None
             peer_text = "\n".join(path.read_text() for path in roots[1].rglob("*.log"))
-            assert "PROCESS FAILED IMMEDIATELY" in own_text
             assert "PROCESS FAILED IMMEDIATELY" not in peer_text
+            assert "PROCESS FAILED IMMEDIATELY" in own_text
             assert "native-own-failure" not in peer_text
         else:
             assert not roots[1].exists()
         assert opened and loop_thread not in opened
+        assert log_files and all(file.closed for file in log_files)
         assert loop_thread not in stats
         if mode != "running":
             assert stats
