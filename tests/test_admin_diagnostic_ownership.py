@@ -14,7 +14,13 @@ from tests.test_image_http_ownership import image_applications as image_applicat
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "endpoint", ["debug/recordings-directory", "debug/videos-database", "system/info"]
+    "endpoint",
+    [
+        "debug/recordings-directory",
+        "debug/videos-database",
+        "system/info",
+        "system/info-denied",
+    ],
 )
 async def test_admin_filesystem_diagnostics_report_the_configured_owner_off_loop(
     image_applications, monkeypatch, endpoint
@@ -73,11 +79,13 @@ async def test_admin_filesystem_diagnostics_report_the_configured_owner_off_loop
             str(path).startswith(str(root)) for root in roots
         ):
             observed.append((str(path), get_ident()))
+            if endpoint == "system/info-denied":
+                raise PermissionError("synthetic-own-storage-statvfs-denial")
         return original_vfs(path)
 
     monkeypatch.setattr(os, "scandir", watch_scan)
     monkeypatch.setattr(os, "statvfs", watch_vfs)
-    response = await clients[0].get("/api/admin/" + endpoint)
+    response = await clients[0].get("/api/admin/" + endpoint.removesuffix("-denied"))
     assert response.status_code == 200, response.text
     data = response.json()
     if endpoint == "debug/recordings-directory":
@@ -97,7 +105,11 @@ async def test_admin_filesystem_diagnostics_report_the_configured_owner_off_loop
         assert "own-channel" in names and "peer-channel" not in names
     else:
         assert data["settings"]["recording_directory"] == str(roots[0])
-        assert data["storage"]["recording_drive"]["free_gb"] >= 0
+        if endpoint == "system/info-denied":
+            assert data["storage"] == {"error": "Storage check failed"}
+            assert "synthetic" not in response.text
+        else:
+            assert data["storage"]["recording_drive"]["free_gb"] >= 0
     assert observed and all(str(roots[0]) in path for path, _ in observed)
     assert get_ident() not in {thread for _, thread in observed}
     assert all(database.sync_engine.pool.checkedout() == 0 for database in databases)
