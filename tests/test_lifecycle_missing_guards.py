@@ -52,6 +52,42 @@ async def test_lifecycle_missing_manager_and_identity_guards_degrade_cleanly(
 
 
 @pytest.mark.asyncio
+async def test_lifecycle_catalog_failure_cannot_claim_process_or_create_stream(
+    image_applications,
+):
+    """Real SELECT denial closes the pool and leaves both catalogs unchanged."""
+    from sqlalchemy import event, select
+    from app.models import Stream
+    from threading import get_ident
+
+    apps, databases, _clients, _ = image_applications
+    manager = await run_in_thread_pool(
+        get_application_recording_manager,
+        HTTPConnection({"type": "http", "app": apps[0], "headers": []}),
+    )
+    lifecycle = manager.orchestrator.lifecycle_manager
+    observed = []
+
+    def deny_catalog(_conn, _cursor, statement, *_args):
+        if statement.lstrip().upper().startswith("SELECT"):
+            observed.append(get_ident())
+            raise RuntimeError("synthetic catalog read denial")
+
+    event.listen(databases[0].sync_engine, "before_cursor_execute", deny_catalog)
+    try:
+        assert await lifecycle._check_recording_process(99) is False
+        assert await lifecycle._get_or_create_stream(1, {"id": "never-created"}) is None
+        assert observed and get_ident() not in observed
+        assert all(db.sync_engine.pool.checkedout() == 0 for db in databases)
+    finally:
+        event.remove(databases[0].sync_engine, "before_cursor_execute", deny_catalog)
+        await close_owned(apps)
+    for database in databases:
+        with database.sync_session_factory() as session:
+            assert session.scalars(select(Stream)).all() == []
+
+
+@pytest.mark.asyncio
 async def test_lifecycle_error_and_completion_failures_do_not_manufacture_success(
     image_applications, monkeypatch
 ):

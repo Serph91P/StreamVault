@@ -2032,53 +2032,48 @@ class ProcessManager:
             if segment_info["monitor_task"]:
                 segment_info["monitor_task"].cancel()
 
-            # Get all segment files from the directory (not just from total_segments)
-            # This ensures we capture ALL segments including those from previous sessions
-            # (e.g., after app restart during an ongoing stream)
+            from app.utils.async_db_utils import run_in_thread_pool
+
             segment_dir = Path(segment_info["segment_dir"])
-            segment_files = []
 
-            if segment_dir.exists():
-                # Find all .ts files matching the segment pattern, sorted by name
-                # Pattern: *_partNNN.ts
-                all_ts_files = sorted(
-                    segment_dir.glob("*_part*.ts"), key=lambda x: x.name
-                )
+            def prepare() -> tuple[list[str], Path]:
+                # Include prior-session segments, not only this actor's tracked list.
+                if segment_dir.exists():
+                    all_ts_files = sorted(
+                        segment_dir.glob("*_part*.ts"), key=lambda path: path.name
+                    )
+                    segment_files = [
+                        str(path)
+                        for path in all_ts_files
+                        if path.exists() and path.stat().st_size > 0
+                    ]
+                    logger.info(
+                        f"📦 Found {len(segment_files)} segment files in directory "
+                        f"(tracked: {len(segment_info['total_segments'])}, from disk: {len(all_ts_files)})"
+                    )
+                else:
+                    logger.warning(
+                        "Segment directory not found, using tracked segments only"
+                    )
+                    segment_files = [
+                        segment["path"]
+                        for segment in segment_info["total_segments"]
+                        if Path(segment["path"]).exists()
+                        and Path(segment["path"]).stat().st_size > 0
+                    ]
+                concat_list_path = segment_dir / "concat_list.txt"
+                if segment_files:
+                    with open(concat_list_path, "w") as file:
+                        for segment_file in segment_files:
+                            file.write(f"file '{segment_file}'\n")
+                return segment_files, concat_list_path
 
-                for ts_file in all_ts_files:
-                    if (
-                        await async_file.exists(str(ts_file))
-                        and await async_file.getsize(str(ts_file)) > 0
-                    ):
-                        segment_files.append(str(ts_file))
-
-                logger.info(
-                    f"📦 Found {len(segment_files)} segment files in directory "
-                    f"(tracked: {len(segment_info['total_segments'])}, from disk: {len(all_ts_files)})"
-                )
-            else:
-                # Fallback to tracked segments if directory doesn't exist
-                logger.warning(
-                    "Segment directory not found, using tracked segments only"
-                )
-                for segment in segment_info["total_segments"]:
-                    if (
-                        await async_file.exists(segment["path"])
-                        and await async_file.getsize(segment["path"]) > 0
-                    ):
-                        segment_files.append(segment["path"])
-
+            segment_files, concat_list_path = await run_in_thread_pool(prepare)
             if not segment_files:
                 logger.error(
                     f"No valid segment files found for stream {segment_info['stream_id']}"
                 )
                 return
-
-            # Create concatenation list file for FFmpeg
-            concat_list_path = Path(segment_info["segment_dir"]) / "concat_list.txt"
-            with open(concat_list_path, "w") as f:
-                for segment_file in segment_files:
-                    f.write(f"file '{segment_file}'\n")
 
             # Use FFmpeg to concatenate segments
             # Concatenate inside the owned segment directory; never truncate
@@ -2150,17 +2145,28 @@ class ProcessManager:
 
     async def _move_concatenated_file_to_parent(self, segment_info: Dict):
         """Move concatenated TS file from segments directory to parent directory"""
+        from app.utils.async_db_utils import run_in_thread_pool
+
+        final_path = await run_in_thread_pool(
+            self._move_concatenated_file,
+            segment_info["segment_dir"],
+            segment_info["base_output_path"],
+        )
+        if final_path is not None:
+            segment_info["final_output_path"] = final_path
+
+    @staticmethod
+    def _move_concatenated_file(segment_directory: str, output_path: str) -> str | None:
         try:
-            segment_dir = Path(segment_info["segment_dir"])
+            segment_dir = Path(segment_directory)
             parent_dir = segment_dir.parent
-            concatenated_file = Path(segment_info["base_output_path"])
+            concatenated_file = Path(output_path)
 
             # Create new filename in parent directory
             final_path = parent_dir / concatenated_file.name
 
             if concatenated_file.resolve() == final_path.resolve():
-                segment_info["final_output_path"] = str(final_path)
-                return
+                return str(final_path)
 
             # Check if target file already exists and create unique name if needed
             if final_path.exists():
@@ -2179,13 +2185,13 @@ class ProcessManager:
                     f"Moved concatenated file from {concatenated_file} to {final_path}"
                 )
 
-                # Update the segment_info with new path for post-processing
-                segment_info["final_output_path"] = str(final_path)
+                return str(final_path)
             else:
                 logger.error(f"Concatenated file not found: {concatenated_file}")
 
         except Exception as e:
             logger.error(f"Error moving concatenated file: {e}", exc_info=True)
+        return None
 
     async def _trigger_post_processing_for_segmented_recording(
         self, segment_info: Dict
@@ -2355,18 +2361,27 @@ class ProcessManager:
 
     async def _cleanup_segments(self, segment_info: Dict):
         """Clean up segment files after successful concatenation"""
+        from app.utils.async_db_utils import run_in_thread_pool
+
+        await run_in_thread_pool(
+            self._cleanup_segment_files,
+            segment_info["segment_dir"],
+            tuple(segment["path"] for segment in segment_info["total_segments"]),
+        )
+
+    @staticmethod
+    def _cleanup_segment_files(segment_directory: str, paths: tuple[str, ...]) -> None:
         try:
-            segment_dir = Path(segment_info["segment_dir"])
+            segment_dir = Path(segment_directory)
 
             # Remove segment files
-            for segment in segment_info["total_segments"]:
+            for path in paths:
                 try:
-                    if await async_file.exists(segment["path"]):
-                        await async_file.remove(segment["path"])
+                    segment_path = Path(path)
+                    if segment_path.exists():
+                        segment_path.unlink()
                 except Exception as e:
-                    logger.warning(
-                        f"Could not remove segment file {segment['path']}: {e}"
-                    )
+                    logger.warning(f"Could not remove segment file {path}: {e}")
 
             # Remove concat list file
             concat_list_path = segment_dir / "concat_list.txt"

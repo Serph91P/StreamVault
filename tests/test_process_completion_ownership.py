@@ -271,7 +271,39 @@ async def test_native_completion_notifies_from_closed_owned_catalogs(
                     "segment_start_time": datetime.now()
                     - timedelta(minutes=150 + index),
                 }
-                await manager._finalize_segmented_recording(segments)
+                # Observe real filesystem work, not a mocked successful finalization.
+                import builtins
+                from pathlib import Path
+
+                file_threads = []
+                original_stat, original_glob = Path.stat, Path.glob
+                original_open = builtins.open
+
+                def watched_stat(path, *args, **kwargs):
+                    if path.is_relative_to(root):
+                        file_threads.append(("stat", get_ident()))
+                    return original_stat(path, *args, **kwargs)
+
+                def watched_glob(path, *args, **kwargs):
+                    if path.is_relative_to(root):
+                        file_threads.append(("glob", get_ident()))
+                    return original_glob(path, *args, **kwargs)
+
+                def watched_open(path, *args, **kwargs):
+                    if isinstance(path, (str, Path)) and Path(path).is_relative_to(
+                        root
+                    ):
+                        file_threads.append(("open", get_ident()))
+                    return original_open(path, *args, **kwargs)
+
+                with monkeypatch.context() as files:
+                    files.setattr(Path, "stat", watched_stat)
+                    files.setattr(Path, "glob", watched_glob)
+                    files.setattr(builtins, "open", watched_open)
+                    await manager._finalize_segmented_recording(segments)
+                assert file_threads and all(
+                    thread != get_ident() for _, thread in file_threads
+                ), file_threads
                 assert admitted == [(8, segments["final_output_path"])]
                 await run_in_thread_pool(
                     subprocess.run,
