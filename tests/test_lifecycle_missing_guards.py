@@ -137,3 +137,23 @@ async def test_post_processing_refuses_missing_recording_and_streamer_off_loop(
     finally:
         await close_owned(apps)
     assert all(db.sync_engine.pool.checkedout() == 0 for db in databases)
+
+
+@pytest.mark.asyncio
+async def test_post_processing_scheduling_is_idempotent_off_loop(image_applications):
+    """A second schedule for the same recording is a no-op, not a duplicate task."""
+    apps, databases, _clients, _ = image_applications
+    app = apps[0]
+    manager = await run_in_thread_pool(
+        get_application_recording_manager,
+        HTTPConnection({"type": "http", "app": app, "headers": []}),
+    )
+    lifecycle = manager.orchestrator.lifecycle_manager
+    try:
+        await lifecycle._schedule_post_processing_once(4242)
+        await lifecycle._schedule_post_processing_once(4242)
+        assert lifecycle._postprocessing_scheduled == {4242}
+    finally:
+        await lifecycle._postprocessing_supervisor.shutdown()
+        await close_owned(apps)
+    assert all(db.sync_engine.pool.checkedout() == 0 for db in databases)
