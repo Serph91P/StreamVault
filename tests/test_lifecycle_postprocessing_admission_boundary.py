@@ -17,6 +17,7 @@ from starlette.requests import HTTPConnection
 
 from app.dependencies import get_application_recording_manager
 from app.models import BackgroundTask, Recording, Stream
+from app.models.background_task import BackgroundTaskDependency
 from app.utils.async_db_utils import run_in_thread_pool
 from tests.test_image_http_ownership import image_applications as image_applications
 from tests.test_processing_callback_ownership import close_owned
@@ -100,10 +101,18 @@ async def test_native_postprocessing_admission_checks_late_segments_in_worker(
                 "cleanup",
             }
             assert len(tasks) == 4
-            import json
-
             cleanup = next(task for task in tasks if task.task_type == "cleanup")
-            payload = json.loads(cleanup.payload)
+            payload = cleanup.payload
+            by_type = {task.task_type: task.id for task in tasks}
+            dependencies = {
+                (row.task_id, row.dependency_id)
+                for row in db.query(BackgroundTaskDependency).all()
+            }
+            assert dependencies == {
+                (by_type["mp4_remux"], by_type["metadata_generation"]),
+                (by_type["thumbnail_generation"], by_type["mp4_remux"]),
+                (by_type["cleanup"], by_type["thumbnail_generation"]),
+            }
             assert payload["recording_id"] == 7 and payload["stream_id"] == 70
             assert payload["files_to_remove"] == [str(output)] + (
                 [str(segments)] if late_segments else []

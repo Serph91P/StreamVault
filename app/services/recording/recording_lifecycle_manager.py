@@ -1106,7 +1106,7 @@ class RecordingLifecycleManager:
 
             # Also remove segments directory if it exists
             segments_dir = recording_path.replace(".ts", self.SEGMENT_DIR_SUFFIX)
-            if Path(segments_dir).exists():
+            if await run_in_thread_pool(Path(segments_dir).exists):
                 files_to_remove.append(segments_dir)
                 logger.info(
                     f"🎬 CLEANUP_SCHEDULED: Will remove segments directory {segments_dir}"
