@@ -45,7 +45,7 @@ class ThumbnailService:
     def _valid_thumbnail(path: str, minimum_size: int = 1000) -> bool:
         return os.path.exists(path) and os.path.getsize(path) > minimum_size
 
-    async def close(self):
+    async def close(self) -> None:
         """Close resources (now handled by unified_image_service)"""
 
     async def get_stream_thumbnail(

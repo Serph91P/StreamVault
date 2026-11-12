@@ -45,7 +45,7 @@ def _remove_stable_ts(ts_path: str, mp4_path: str, previous_size: int) -> bool:
 
 async def intelligent_ts_cleanup(
     output_path: str, max_wait_time: int = 1800, psutil_available: bool = False
-):
+) -> bool | None:
     """Intelligent cleanup that monitors FFmpeg processes and file system for TS to MP4 completion.
 
     This monitors:
@@ -62,7 +62,7 @@ async def intelligent_ts_cleanup(
         if not output_path.endswith(".ts") or not await run_in_thread_pool(
             os.path.exists, output_path
         ):
-            return
+            return None
 
         mp4_path = output_path.replace(".ts", ".mp4")
         start_time = monotonic()
@@ -123,6 +123,7 @@ async def intelligent_ts_cleanup(
         logger.error(
             f"Error in process-aware TS cleanup for {output_path}: {e}", exc_info=True
         )
+    return None
 
 
 async def check_ffmpeg_processes_for_file(

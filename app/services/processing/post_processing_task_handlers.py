@@ -7,7 +7,7 @@ import asyncio
 import logging
 import os
 import copy
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypedDict
 from collections.abc import Callable
 from pathlib import Path
 
@@ -35,6 +35,37 @@ logger = logging.getLogger("streamvault")
 
 if TYPE_CHECKING:
     from app.services.recording.unified_recovery_service import UnifiedRecoveryService
+
+    type ProgressCallback = Callable[[float], None]
+
+    class TaskContext(TypedDict, total=False):
+        task_id: str
+        recording_id: int | None
+
+    class MediaTaskPayload(TaskContext, total=False):
+        stream_id: int
+        base_filename: str
+        output_dir: str
+        mp4_path: str
+        ts_file_path: str
+        mp4_output_path: str
+        streamer_name: str
+        overwrite: bool
+        validate_size_ratio: bool
+        min_size_mb: int | float
+
+    class CleanupTaskPayload(TaskContext, total=False):
+        stream_id: int | None
+        cleanup_paths: str | list[str] | None
+        files_to_remove: list[str]
+        mp4_path: str
+        intelligent_cleanup: bool
+        max_wait_time: int
+        streamer_name: str
+
+    class RecoveryTaskPayload(TaskContext, total=False):
+        max_age_hours: int
+        dry_run: bool
 
 
 class PostProcessingTaskHandlers:
@@ -148,7 +179,11 @@ class PostProcessingTaskHandlers:
             output.mkdir(parents=True, exist_ok=True)
         return output_dir, base_filename
 
-    async def handle_metadata_generation(self, payload, progress_callback=None):
+    async def handle_metadata_generation(
+        self,
+        payload: "MediaTaskPayload",
+        progress_callback: "ProgressCallback | None" = None,
+    ) -> dict[str, str] | None:
         """Handle metadata generation task"""
         # Deep copy payload to avoid accidental mutation across tasks
         local_payload = copy.deepcopy(payload)
@@ -286,7 +321,13 @@ class PostProcessingTaskHandlers:
             except Exception as persist_err:
                 logger.debug(f"Could not persist metadata failed status: {persist_err}")
 
-    async def handle_chapters_generation(self, payload, progress_callback=None):
+        return None
+
+    async def handle_chapters_generation(
+        self,
+        payload: "MediaTaskPayload",
+        progress_callback: "ProgressCallback | None" = None,
+    ) -> dict[str, str] | None:
         """Handle chapters generation task"""
         stream_id = payload["stream_id"]
         mp4_path = payload["mp4_path"]
@@ -365,6 +406,8 @@ class PostProcessingTaskHandlers:
             except Exception as persist_err:
                 logger.debug(f"Could not persist chapters failed status: {persist_err}")
             raise
+
+        return None
 
     def _load_remux_inputs(
         self, stream_id: int, ts_file_path: str, streamer_name: str
@@ -470,7 +513,11 @@ class PostProcessingTaskHandlers:
             )
         return notification
 
-    async def handle_mp4_remux(self, payload, progress_callback=None):
+    async def handle_mp4_remux(
+        self,
+        payload: "MediaTaskPayload",
+        progress_callback: "ProgressCallback | None" = None,
+    ) -> dict[str, str] | None:
         """Handle MP4 remux task"""
         stream_id = payload["stream_id"]
         ts_file_path = payload["ts_file_path"]
@@ -591,7 +638,13 @@ class PostProcessingTaskHandlers:
                 )
             raise
 
-    async def handle_thumbnail_generation(self, payload, progress_callback=None):
+        return None
+
+    async def handle_thumbnail_generation(
+        self,
+        payload: "MediaTaskPayload",
+        progress_callback: "ProgressCallback | None" = None,
+    ) -> dict[str, str] | None:
         """Handle thumbnail generation task"""
         stream_id = payload["stream_id"]
         mp4_path = payload["mp4_path"]
@@ -675,7 +728,13 @@ class PostProcessingTaskHandlers:
                 )
             raise
 
-    async def handle_mp4_validation(self, payload, progress_callback=None):
+        return None
+
+    async def handle_mp4_validation(
+        self,
+        payload: "MediaTaskPayload",
+        progress_callback: "ProgressCallback | None" = None,
+    ) -> dict[str, str] | None:
         """Handle MP4 validation task"""
         stream_id = payload["stream_id"]
         mp4_path = payload["mp4_path"]
@@ -784,6 +843,8 @@ class PostProcessingTaskHandlers:
                 )
             raise
 
+        return None
+
     @staticmethod
     def _validate_cleanup_output(mp4_path: str | None) -> None:
         if not mp4_path or not os.path.exists(mp4_path):
@@ -815,7 +876,11 @@ class PostProcessingTaskHandlers:
                 segments_path,
             )
 
-    async def handle_cleanup(self, payload, progress_callback=None):
+    async def handle_cleanup(
+        self,
+        payload: "CleanupTaskPayload",
+        progress_callback: "ProgressCallback | None" = None,
+    ) -> None:
         """Handle cleanup task with intelligent TS cleanup or stream deletion cleanup"""
         stream_id = payload["stream_id"]
 
@@ -909,6 +974,7 @@ class PostProcessingTaskHandlers:
                                 and intelligent_cleanup
                                 and file_path.endswith(".ts")
                             ):
+                                assert mp4_path is not None
                                 cleanup_success = await self._intelligent_ts_cleanup(
                                     file_path, mp4_path, max_wait_time
                                 )
@@ -931,6 +997,7 @@ class PostProcessingTaskHandlers:
             # Update StreamMetadata with segments directory tracking
             if segments_dirs_removed and not is_deletion_cleanup:
                 try:
+                    assert stream_id is not None
                     await run_in_thread_pool(
                         self._persist_removed_segments,
                         stream_id,
@@ -1001,7 +1068,7 @@ class PostProcessingTaskHandlers:
 
     async def _intelligent_ts_cleanup(
         self, ts_path: str, mp4_path: str, max_wait_time: int
-    ):
+    ) -> bool | None:
         """Intelligent TS cleanup that waits for processes to finish"""
         try:
             # Use the intelligent cleanup from file_operations
@@ -1028,7 +1095,13 @@ class PostProcessingTaskHandlers:
                 await run_in_thread_pool(os.remove, ts_path)
                 return True
 
-    async def handle_unified_recovery(self, payload, progress_callback=None):
+        return None
+
+    async def handle_unified_recovery(
+        self,
+        payload: "RecoveryTaskPayload",
+        progress_callback: "ProgressCallback | None" = None,
+    ) -> None:
         """Handle unified recovery scan task - runs in background to prevent frontend blocking"""
         max_age_hours = payload.get("max_age_hours", 72)
         dry_run = payload.get("dry_run", False)
@@ -1080,7 +1153,7 @@ class PostProcessingTaskHandlers:
             # Let the existing queue retry/failure channel own the outcome.
             raise
 
-    async def cleanup(self):
+    async def cleanup(self) -> None:
         """Clean up services"""
         tasks = list(self._broadcast_tasks)
         for task in tasks:
@@ -1172,7 +1245,7 @@ class PostProcessingTaskHandlers:
         try:
             state = self._get_or_create_state(db, recording_id, stream_id)
             if not state:
-                return
+                return None
             step_map = {
                 "metadata_generation": "metadata_status",
                 "metadata": "metadata_status",
@@ -1189,7 +1262,7 @@ class PostProcessingTaskHandlers:
                 logger.debug(
                     f"_set_status: unknown step '{step}' for recording {recording_id}"
                 )
-                return
+                return None
             setattr(state, attr, status)
             if last_error is not None:
                 state.last_error = last_error
@@ -1217,7 +1290,7 @@ class PostProcessingTaskHandlers:
         try:
             updated_iso = None
             try:
-                if getattr(state, "updated_at", None):
+                if state.updated_at is not None:
                     updated_iso = state.updated_at.isoformat()
             except Exception:
                 updated_iso = None
