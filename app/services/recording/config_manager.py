@@ -51,7 +51,7 @@ class ConfigManager:
         """Check if the cached settings are still valid"""
         return (datetime.now() - self.last_refresh).total_seconds() < self.cache_timeout
 
-    def invalidate_cache(self):
+    def invalidate_cache(self) -> None:
         """Force invalidation of the cache"""
         self._global_settings = None
         self._streamer_settings = {}
@@ -219,7 +219,7 @@ class ConfigManager:
             return getattr(global_settings, "check_interval", 30)
         return 30  # Default to 30 seconds
 
-    def get_config_value(self, key: str, default=None):
+    def get_config_value(self, key: str, default: object = None) -> object:
         """Get a configuration value by key"""
         global_settings = self.get_global_settings()
         if global_settings and hasattr(global_settings, key):
