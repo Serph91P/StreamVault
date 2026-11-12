@@ -1326,8 +1326,13 @@ def get_share_tokens_stats(db: Session = Depends(get_db)) -> Dict[str, Any]:
         from datetime import datetime, timezone
 
         now = datetime.now(timezone.utc)
-        active_tokens = [t for t in all_tokens if t.expires_at > now]
-        expired_tokens = [t for t in all_tokens if t.expires_at <= now]
+        expired_tokens = [
+            t
+            for t in all_tokens
+            if t.expires_at.replace(tzinfo=t.expires_at.tzinfo or timezone.utc) <= now
+        ]
+        expired_ids = {token.id for token in expired_tokens}
+        active_tokens = [t for t in all_tokens if t.id not in expired_ids]
 
         return {
             "success": True,
@@ -1341,7 +1346,7 @@ def get_share_tokens_stats(db: Session = Depends(get_db)) -> Dict[str, Any]:
                         "stream_id": token.stream_id,
                         "created_at": token.created_at.isoformat(),
                         "expires_at": token.expires_at.isoformat(),
-                        "is_expired": token.expires_at <= now,
+                        "is_expired": token.id in expired_ids,
                     }
                     for token in all_tokens
                 ],
@@ -1361,7 +1366,7 @@ def cleanup_share_tokens(db: Session = Depends(get_db)) -> Dict[str, Any]:
     try:
         from app.utils.token_store import cleanup_expired_tokens
 
-        cleaned_count = cleanup_expired_tokens()
+        cleaned_count = cleanup_expired_tokens(db=db)
 
         logger.info(f"Admin cleanup: Removed {cleaned_count} expired share tokens")
 

@@ -107,7 +107,7 @@ def cleanup_expired_tokens(*, db: Session | None = None) -> int:
                 # Delete expired tokens
                 db.query(ShareTokenModel).filter(
                     ShareTokenModel.expires_at < now
-                ).delete()
+                ).delete(synchronize_session="fetch")
 
                 db.commit()
                 logger.info(f"Cleaned up {expired_count} expired share tokens")
