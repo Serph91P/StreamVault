@@ -2,7 +2,7 @@
 
 ## Scope and provenance
 
-**Current correction gate: OPEN after the native ProcessManager segment-preparation worker fix. The c63b1aa results below are a frozen comparison, not measurement of that later runtime change; rerun the matched pairs before final B4 acceptance.**
+**Current correction gate: OPEN after the native ProcessManager segment-preparation, configured-root adoption, late-cleanup discovery and app-owned startup-log worker fixes (runtime e2d88a9). The c63b1aa results below are a frozen comparison, not measurement of these later runtime changes; rerun the matched pairs before final B4 acceptance.**
 
 Measured on 2026-11-12, not inferred from resource-stability tests or historical CI. This correction comparison replaces the earlier cf30e625 measurement: base `49b61a80962e249789c2836db301e9fa9f305b3e` versus product source `c63b1aa2208259f010dbcda57c175ab8dadcbb82`. It includes the later app-owned retention/admin/queue/recovery/lifecycle corrections and the recording-progress DAO lookup; the earlier results are not transferred to these changes. Subsequent test/documentation-only edits are not a new product measurement. The later `ConfigManager`, `async_file` and `StreamlinkConfigService` strict-root additions change only precise annotations (including the existing quality-list local annotation): AST comparison after annotation erasure proves equal bodies/defaults. Actual configuration/lifecycle15cases and file/config/command37cases pass. This is explicitly not a remeasurement of that later source. Repeat candidate measurement if product behavior changes.
 

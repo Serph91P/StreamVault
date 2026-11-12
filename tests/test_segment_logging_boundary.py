@@ -12,7 +12,7 @@ import logging
 import os
 from pathlib import Path
 import sys
-from threading import get_ident
+from threading import Event, get_ident
 
 import pytest
 from starlette.requests import HTTPConnection
@@ -26,7 +26,7 @@ from tests.test_processing_callback_ownership import close_owned
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("mode", ["running", "failed", "same-name-pair"])
+@pytest.mark.parametrize("mode", ["running", "failed", "same-name-pair", "cancelled"])
 async def test_native_segment_start_prepares_owned_log_files_in_worker(
     image_applications, monkeypatch, mode
 ):
@@ -61,6 +61,8 @@ async def test_native_segment_start_prepares_owned_log_files_in_worker(
     native_open, native_stat = builtins.open, os.stat
     native_spawn = asyncio.create_subprocess_exec
     peer_spawned = asyncio.Event()
+    log_opened, release_log = Event(), Event()
+    operation = None
     first_segment = contexts[0][2]["current_segment_path"]
 
     def observed_open(path, *args, **kwargs):
@@ -70,6 +72,9 @@ async def test_native_segment_start_prepares_owned_log_files_in_worker(
         ):
             opened.append(get_ident())
             log_files.append(file)
+            if mode == "cancelled":
+                log_opened.set()
+                assert release_log.wait(3)
         return file
 
     def observed_stat(path, *args, **kwargs):
@@ -90,9 +95,11 @@ async def test_native_segment_start_prepares_owned_log_files_in_worker(
         )
         child = await native_spawn(sys.executable, "-c", script, **kwargs)
         children.append(child)
+        if fail:
+            # Control actual immediate exit, not a race against the SDK startup grace.
+            await asyncio.wait_for(child.wait(), 3)
         if mode == "same-name-pair":
             if own:
-                await child.wait()
                 await asyncio.wait_for(peer_spawned.wait(), 3)
             else:
                 peer_spawned.set()
@@ -103,6 +110,26 @@ async def test_native_segment_start_prepares_owned_log_files_in_worker(
             scoped.setattr(builtins, "open", observed_open)
             scoped.setattr(os, "stat", observed_stat)
             scoped.setattr(asyncio, "create_subprocess_exec", local_spawn)
+            if mode == "cancelled":
+                pm, stream, info = contexts[0]
+                operation = asyncio.create_task(
+                    pm._start_segment(
+                        stream, info["current_segment_path"], "best", info
+                    )
+                )
+                assert await asyncio.to_thread(log_opened.wait, 3)
+                for _ in range(2):
+                    operation.cancel()
+                    await asyncio.sleep(0)
+                assert not operation.done()
+                release_log.set()
+                with pytest.raises(asyncio.CancelledError):
+                    await operation
+                assert children == []
+                assert opened and loop_thread not in opened
+                assert log_files and all(file.closed for file in log_files)
+                assert not roots[1].exists()
+                return
             results = await asyncio.gather(
                 *(
                     pm._start_segment(
@@ -133,6 +160,10 @@ async def test_native_segment_start_prepares_owned_log_files_in_worker(
         if mode != "running":
             assert stats
     finally:
+        release_log.set()
+        if operation is not None and not operation.done():
+            operation.cancel()
+            await asyncio.gather(operation, return_exceptions=True)
         for child in children:
             if child.returncode is None:
                 child.kill()
