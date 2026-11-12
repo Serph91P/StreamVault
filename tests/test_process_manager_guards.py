@@ -135,3 +135,31 @@ async def test_segment_rotation_decision_covers_duration_size_and_fault(tmp_path
 
     faulted = {"current_segment_path": str(tmp_path / "missing.ts")}
     assert await manager._should_rotate_segment(faulted) is False
+
+
+@pytest.mark.asyncio
+async def test_segmented_post_processing_and_move_guards(tmp_path):
+    """Callback admission and missing-concatenated-file degrade without a fake receipt."""
+    manager = bare_manager()
+    admitted = []
+
+    async def callback(recording_id, output_path):
+        admitted.append((recording_id, output_path))
+
+    manager.post_processing_callback = callback
+    await manager._trigger_post_processing_for_segmented_recording(
+        {
+            "stream_id": 5,
+            "recording_id": 9,
+            "base_output_path": str(tmp_path / "final.ts"),
+        }
+    )
+    assert admitted == [(9, str(tmp_path / "final.ts"))]
+
+    missing = {
+        "segment_dir": str(tmp_path / "segments"),
+        "base_output_path": str(tmp_path / "segments" / "final.ts"),
+    }
+    (tmp_path / "segments").mkdir()
+    await manager._move_concatenated_file_to_parent(missing)
+    assert "final_output_path" not in missing
