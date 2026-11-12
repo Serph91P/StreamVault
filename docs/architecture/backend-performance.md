@@ -2,7 +2,7 @@
 
 ## Scope and provenance
 
-Measured on 2026-11-12, not inferred from resource-stability tests or historical CI. Comparison: base `49b61a80962e249789c2836db301e9fa9f305b3e` and product source `cf30e6252ebd773d85cda365f93c410d2694e1c7`. Later test/documentation/workflow changes are not changes to the measured `app/**` source. If production source changes, repeat the candidate measurements before final acceptance.
+Measured on 2026-11-12, not inferred from resource-stability tests or historical CI. Comparison: base `49b61a80962e249789c2836db301e9fa9f305b3e` and product source `cf30e6252ebd773d85cda365f93c410d2694e1c7`. Later test/documentation/workflow changes do not change the measured product behavior. The subsequent Ruff-only three-line formatting correction in `app/lifespan.py` is AST-identical to the measured source (verified programmatically); the other `app/**` files remain byte-identical. If production behavior changes, repeat the candidate measurements before final acceptance.
 
 Three independent fresh base/candidate pairs ran serially on the same host, alternating base then candidate. Both used the same Docker base/toolchain and production dependency versions: CPython **3.14.10**, 75 installed distributions, programmatically compared equal. Both `uv.lock` files are byte-identical, SHA256 `dfb3bdf91e30f2dd1b695590a9b6ea6954f41c7b597bfc33fd8e6091f7c29a09`. This is not a claim of Python 3.14.7 execution. The two immutable image IDs, PostgreSQL image inspection, actual container inspection and SHA256 of all three harness files are recorded in every raw `result.json`; all six runs used identical harness hashes.
 

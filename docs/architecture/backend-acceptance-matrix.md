@@ -1,20 +1,20 @@
-# Backend acceptance ledger (#842) — final candidate evidence
+# Backend acceptance ledger (#842) — historical evidence and correction gates
 
 Authority: the complete 1,465-line original request, current issue/owner rulings,
 and the fifteen additional audit contracts. Base:
-`36e968774bb41b222296a75b3a406c0be385badd`. Exact candidate code head:
+`36e968774bb41b222296a75b3a406c0be385badd` for the original frozen contract. Current PR comparison base is `49b61a80962e249789c2836db301e9fa9f305b3e`. Historical candidate code head:
 `d2c63d2a2a74f636ebde9aa402591cf6783402d3` (plus code-neutral docs commits;
-identical application code). Final gates below are run against that head.
+identical application code at that historical checkpoint). The independent review disproved full acceptance. **The section below is historical execution evidence, NOT a current correction-head pass. B1–B6 and all explicitly OPEN correction gates take precedence; no final/CI success is extrapolated.**
 
-**Final local gate results (exact head, Python3.14.10 native Alpine image):**
+**Historical local results (that recorded head, Python3.14.10 native Alpine image):**
 
-- Full native CI-standard suite `pytest tests/ -q --tb=short --basetemp=/scratch/pytest --cov=app`: **2399 passed, 76 existing opt-in skipped, 2666 warnings, 2 subtests, 526.37s, exit 0**. Repository coverage 65.3% (non-decreasing from base 31%); owned modules artwork 80.9%, process_output 97.5%, whole legacy metadata 66.9%.
+- Historical native suite `pytest tests/ -q --tb=short --basetemp=/scratch/pytest --cov=app`: **2399 passed, 76 existing opt-in skipped, 2666 warnings, 2 subtests, 526.37s, exit 0**. Reported repository coverage65.3%, artwork80.9%, process_output97.5%, metadata66.9%; these do NOT satisfy whole-rewrite85%. The old31% base assertion is superseded for correction gating by a real locked base49 run:1310PASS/71existing opt-inSKIP/2subtests, coverage15818/36514=43.32037026893794%.
 - Ruff `check app/` PASS; `format --check --target-version py313 app/` PASS (226 files); configured `mypy` 38 roots/28 strict PASS; `uv lock --check` PASS (119 packages).
 - Security: `pip-audit -r requirements.txt` → `No known vulnerabilities found`; `bandit -r app/ -ll -iii` exit 0 (0 high); `gitleaks` on `base..HEAD` (279 commits) → `no leaks found`.
 - Fresh PostgreSQL 18 image integration `tests/run_fresh_postgres_proxy_migrations.sh streamvault:test-842`: two concurrent boots database-healthy, **48/48 total/distinct/successful migrations, 0 failed**, persisted proxy key valid and unchanged after immediate restart, HTTP surface (liveness/readiness/OpenAPI/frontend redirect/request-ID/metrics token) verified, no ERROR/CRITICAL/Traceback in first-boot or restart logs. Built image 723 MB runs non-root (uid 1000).
 - Native PostgreSQL opt-in replay `run_pg_checkpoint.py`: **75/75 required identities, 130 total testcases, exit 0**.
 
-**Exact-head GitHub CI (PR #1070, head ab8f4f69):** all 7 required status
+**Historical exact-head GitHub CI (PR #1070, head ab8f4f69, NOT current correction CI):** all 7 required status
 checks green — Backend Tests (13m14s, suite now 2399 tests with a raised
 25-minute budget), Frontend Build & Lint, Python Lint & Type Check,
 Integration Tests, npm audit, pip-audit, Trivy (Container Scan) — and every
@@ -49,7 +49,7 @@ owner-rest. This ledger documents candidate evidence; it is not owner acceptance
 | #965 | Initialized worker reaches registered orphan handler | implemented; actual shared/isolated signatures/getter; scanner finding policy separate |
 | #966 | Mounted admin recovery reaches supported public recovery operation | implemented; real mounted HTTP + native adapter4RED/1control → combined796PASS; eligible enqueue, absent404, ineligible/error non500; accepted #937 guard unchanged |
 
-## Original source coverage map (not a substitute for final criterion evidence)
+## Original source coverage map (prior component states; not correction-head acceptance)
 
 | Original lines | Contract area | Final disposition |
 |---|---|---|
@@ -72,13 +72,13 @@ owner-rest. This ledger documents candidate evidence; it is not owner acceptance
 | 919–974 | Auth/admin/CSRF/SSRF/path/content/secrets/headers/SQL threat boundaries | ✅ fulfilled: accepted current-user admin guard reused; path containment/symlink guards; CSRF and boundary tests green. |
 | 977–1002 | Managed policy-specific HTTP clients, timeouts/pools/retry/limits/errors/close | ✅ fulfilled: ManagedHTTPClient owned per service (Twitch/registry/push/artwork/thumbnail); bounded timeouts/body/close, no borrow of process-default transport. |
 | 1005–1063 | Structured contextual redacted logging/errors/metrics; four health concepts | ✅ fulfilled: GET /api/health (compat), /health/ready (mandatory database/startup/migrations/critical_services/recordings_path/persistent_keys), /health/startup (200 only after app init), /health/live, authenticated metrics; structured/redacted JSON errors. |
-| 1066–1120 | Matched before/after performance and resource stability, measured optimizations only | OPEN — review B4: resource-stability is not a before/after benchmark. Matched isolated PostgreSQL/image/HTTP/WS/EventSub/queue measurements and consistent measured Hybrid ADR are required before correction-review handoff. No performance improvement asserted. |
+| 1066–1120 | Matched before/after performance and resource stability, measured optimizations only | B4 local measurement/document deliverable fulfilled inca57b9f: three matched fresh base49/productcf30 PostgreSQL18/image pairs, identical lock/75runtime distributions/three harness hashes,90 read/WS/EventSub/child samples per variant,100queue completions/run, actual recorder actor ack/stop/reap and six verified container cleanups. backend-performance.md reports raw provenance, profiler scope and regressions; ADR001 records measured hybrid with category async preserved. No blanket speedup/N+1-elimination claim. Independent correction review and final exact-head gates remain pending. |
 | 1123–1198 | Full test categories, ten DB and ten app scenarios, compatibility, meaningful coverage | OPEN — review B5: historical 2399 PASS/76 opt-in SKIP and PG evidence remain valid for their recorded heads, but whole rewritten-module >=85% was not met. New/rewrite inventory, actual failure-path tests, matched repository baseline and blocking module/repository gate must pass. No legacy-label/diff-only waiver. |
 | 1201–1255 | Every blocking lock/style/type/test/coverage/PG/security/image gate truthful | OPEN — review B5/B6: additive strict recovery roots now pass 41 files; complete inventory/coverage gate and new exact-head full CI are still required. Historical scanner/PG/image/CI passes are not extrapolated to correction commits. |
 | 1258–1289 | Locked nonroot native runtime, signals, paths, tools, labels, health, no secrets | ✅ fulfilled: 723 MB image runs uid 1000; health/liveness/readiness/OpenAPI/frontend/request-ID/metrics token verified; clean startup/restart logs; gitleaks 0 leaks. |
 | 1292–1330 | Every explicit hotspot genuinely addressed, not merely relocated | OPEN until correction B1–B6 and their whole-contract verification finish. Historical DB/import/ownership proofs remain component evidence, not a comprehensive clean claim. |
 | 1333–1409 | Complete architecture/lifecycle/database/security/quality/compatibility/operations DoD | OPEN — local B4/B5 and full correction verification are not external owner-rests. Physical-device/authenticated-provider acceptance remains separate; no premature completion or merge claim. |
-| 1412–1465 | Reviewable commits, complete DraftPR body, exact head/base/CI, no partial delivery | ✅ fulfilled: Draft PR #1070 against develop, Refs #842 (no Closes), exact base/head, full criteria ledger, exact-head CI running. |
+| 1412–1465 | Reviewable commits, complete DraftPR body, exact head/base/CI, no partial delivery | OPEN: existing Draft PR1070/develop/Refs#842 retained; local correction changes are not yet a published exact-head green candidate. Finish B5/B6 reconciliation and all tests/gates, push normally, verify current CI and request the single same-card correction review. |
 
 ## Owner assembly RED and successor boundary
 
