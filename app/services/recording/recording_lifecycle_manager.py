@@ -8,8 +8,9 @@ Handles recording start, stop, monitoring, and lifecycle events.
 import logging
 import asyncio
 import tempfile
+from collections.abc import Sequence
 from app.utils.media_process import media_process
-from typing import TYPE_CHECKING, Dict, Any, Optional
+from typing import TYPE_CHECKING, Dict, Any, Optional, TypedDict, Unpack
 import re
 from datetime import datetime, timezone
 from pathlib import Path
@@ -21,24 +22,54 @@ from app.services.system.supervisor import TaskSupervisor
 
 if TYPE_CHECKING:
     from app.services.background_queue_service import BackgroundQueueService
+    from app.services.recording.config_manager import ConfigManager
+    from app.services.recording.process_manager import ProcessManager
+    from app.services.recording.recording_database_service import (
+        RecordingDatabaseService,
+        NewStream,
+    )
+    from app.services.recording.recording_websocket_service import (
+        RecordingWebSocketService,
+    )
+    from app.services.recording.recording_state_manager import RecordingStateManager
+    from app.services.recording.recording_logger import RecordingLogger
+    from app.services.recording.recording_values import (
+        RecordingStream,
+        StreamerIdentity,
+    )
+
+    class RecordingStartOptions(TypedDict, total=False):
+        quality: str | None
+        resume_segments_dir: str | None
+        recovery_generation: int | None
+        title: str | None
+        category_name: str | None
+        forced: bool
+
+    class NewLiveStream(NewStream):
+        is_live: bool
+
+
+app_cache: "SimpleCache | DummyCache"
 
 try:
     from app.utils.cache import SimpleCache, app_cache
 except ImportError:
     # Fallback if cache module is not available
     class DummyCache:
-        def delete(self, key):
+        def delete(self, key: str) -> None:
             pass
 
-        def get(self, key):
+        def get(self, key: str) -> None:
             return None
 
-        def set(self, key, value, ttl=None):
+        def set(self, key: str, value: object, ttl: int | None = None) -> None:
             pass
 
     app_cache = DummyCache()
 
 # Import background queue service at module level to avoid repeated imports
+background_queue_service: "BackgroundQueueService | None"
 try:
     from app.services.background_queue_service import background_queue_service
 except ImportError:
@@ -71,12 +102,12 @@ class RecordingLifecycleManager:
 
     def __init__(
         self,
-        config_manager=None,
-        process_manager=None,
-        database_service=None,
-        websocket_service=None,
-        state_manager=None,
-        recording_logger=None,
+        config_manager: "ConfigManager | None" = None,
+        process_manager: "ProcessManager | None" = None,
+        database_service: "RecordingDatabaseService | None" = None,
+        websocket_service: "RecordingWebSocketService | None" = None,
+        state_manager: "RecordingStateManager | None" = None,
+        recording_logger: "RecordingLogger | None" = None,
         status_cache: "SimpleCache | None" = None,
         twitch_api_service: TwitchAPIService | None = None,
         queue_service: "BackgroundQueueService | None" = None,
@@ -96,7 +127,7 @@ class RecordingLifecycleManager:
         self._is_shutting_down = False
 
         # Ensure post-processing only gets scheduled once per recording
-        self._postprocessing_scheduled = set()
+        self._postprocessing_scheduled: set[int] = set()
         self._postprocessing_supervisor = TaskSupervisor("recording-postprocessing")
 
     @property
@@ -108,7 +139,10 @@ class RecordingLifecycleManager:
         )
 
     async def start_recording(
-        self, stream_id: int, streamer_id: int, **kwargs
+        self,
+        stream_id: int,
+        streamer_id: int,
+        **kwargs: Unpack["RecordingStartOptions"],
     ) -> Optional[int]:
         """Start a new recording"""
         try:
@@ -117,6 +151,7 @@ class RecordingLifecycleManager:
             )
 
             # SECURITY FIX: Always derive the correct streamer_id from the stream to prevent mismatches
+            assert self.database_service is not None
             stream = await self.database_service.get_stream_by_id(stream_id)
             if not stream:
                 logger.error(f"🎬 NO_STREAM: stream_id={stream_id}")
@@ -139,6 +174,7 @@ class RecordingLifecycleManager:
                 return None
 
             # DUPLICATE PREVENTION: Check if streamer already has an active recording
+            assert self.state_manager is not None
             # Note: This check allows 24h segment logic to work because segments use stop_recording() + start_recording()
             # The old recording is removed from active_recordings before the new segment starts
             active_recordings = self.state_manager.get_active_recordings()
@@ -225,6 +261,7 @@ class RecordingLifecycleManager:
             )
 
             # Add to active recordings
+            assert quality is not None
             recording_data = {
                 "file_path": file_path,
                 "streamer_id": streamer_id,
@@ -290,6 +327,7 @@ class RecordingLifecycleManager:
         success = False
         recording_data = None
         try:
+            assert self.state_manager is not None
             recording_data = self.state_manager.get_active_recording(recording_id)
             if not recording_data:
                 logger.warning(
@@ -306,6 +344,7 @@ class RecordingLifecycleManager:
             if hasattr(self, "recording_logger") and self.recording_logger is not None:
                 try:
                     # Get recording info for logging
+                    assert self.database_service is not None
                     recording = await self.database_service.get_recording_by_id(
                         recording_id
                     )
@@ -346,6 +385,7 @@ class RecordingLifecycleManager:
 
             # Update status regardless of process stop success
             try:
+                assert self.database_service is not None
                 await self.database_service.update_recording_status(
                     recording_id=recording_id,
                     status="stopped" if success else "failed",
@@ -390,6 +430,7 @@ class RecordingLifecycleManager:
             # even if the stop process timed out or DB operations failed.
             # Prevents ghost recordings that permanently block future recordings.
             if recording_data is not None:
+                assert self.state_manager is not None
                 self.state_manager.remove_active_recording(recording_id)
                 self._status_cache.delete("active_recordings")
 
@@ -411,6 +452,7 @@ class RecordingLifecycleManager:
     async def force_start_recording(self, streamer_id: int) -> Optional[int]:
         """Force start recording for a live streamer"""
         try:
+            assert self.database_service is not None
             logger.info(f"Force starting recording for streamer {streamer_id}")
 
             # Get streamer info from Twitch
@@ -480,6 +522,7 @@ class RecordingLifecycleManager:
     async def monitor_and_process_recording(self, recording_id: int) -> None:
         """Monitor recording process and handle completion"""
         try:
+            assert self.state_manager is not None
             logger.info(f"Starting monitoring for recording {recording_id}")
 
             # Start monitoring task
@@ -499,11 +542,13 @@ class RecordingLifecycleManager:
             logger.error(f"Error monitoring recording {recording_id}: {e}")
         finally:
             # Clean up task
+            assert self.state_manager is not None
             self.state_manager.remove_recording_task(recording_id)
 
     async def _monitor_recording_task(self, recording_id: int) -> None:
         """Internal monitoring task for recording"""
         try:
+            assert self.state_manager is not None
             while not self._is_shutting_down:
                 recording_data = self.state_manager.get_active_recording(recording_id)
                 if not recording_data:
@@ -560,6 +605,7 @@ class RecordingLifecycleManager:
                 return False
 
             # Get the Stream object from the recording to use the new API properly
+            assert self.database_service is not None
             recording = await self.database_service.get_recording_by_id(recording_id)
             if not recording:
                 logger.error(f"🎬 NO_RECORDING: Recording {recording_id} not found")
@@ -616,6 +662,7 @@ class RecordingLifecycleManager:
                 monitor_task = asyncio.create_task(
                     self.monitor_and_process_recording(recording_id)
                 )
+                assert self.state_manager is not None
                 self.state_manager.add_recording_task(recording_id, monitor_task)
 
             return success
@@ -634,9 +681,11 @@ class RecordingLifecycleManager:
                 return False
 
             # Cancel monitoring task
+            assert self.state_manager is not None
             self.state_manager.cancel_recording_task(recording_id)
 
             # Get recording to find stream ID
+            assert self.database_service is not None
             recording = await self.database_service.get_recording_by_id(recording_id)
             if not recording:
                 logger.error(
@@ -673,6 +722,7 @@ class RecordingLifecycleManager:
         completed = False
         recording_data = None
         try:
+            assert self.state_manager is not None
             logger.info(f"Handling completion for recording {recording_id}")
 
             recording_data = self.state_manager.get_active_recording(recording_id)
@@ -685,6 +735,7 @@ class RecordingLifecycleManager:
             if file_size is None:
                 logger.error(f"Recording file not found: {file_path}")
                 try:
+                    assert self.database_service is not None
                     await self.database_service.mark_recording_failed(
                         recording_id, "Recording file not found"
                     )
@@ -695,6 +746,8 @@ class RecordingLifecycleManager:
                 return
 
             # Update database status
+            assert self.database_service is not None
+            assert file_path is not None
             await self.database_service.update_recording_status(
                 recording_id=recording_id, status="completed", path=file_path
             )
@@ -724,6 +777,7 @@ class RecordingLifecycleManager:
             logger.error(f"Error handling recording completion {recording_id}: {e}")
             if not completed and recording_data:
                 try:
+                    assert self.database_service is not None
                     await self.database_service.mark_recording_failed(
                         recording_id, "Recording completion failed"
                     )
@@ -735,6 +789,7 @@ class RecordingLifecycleManager:
         finally:
             # CRITICAL: Always remove from active recordings and clean up external tasks,
             # even if DB operations fail. Prevents ghost recordings that block future recordings.
+            assert self.state_manager is not None
             self.state_manager.remove_active_recording(recording_id)
             try:
                 if self.queue_service and recording_data:
@@ -764,6 +819,7 @@ class RecordingLifecycleManager:
 
             # Update database
             try:
+                assert self.database_service is not None
                 await self.database_service.mark_recording_failed(
                     recording_id, error_message
                 )
@@ -786,6 +842,7 @@ class RecordingLifecycleManager:
         finally:
             # CRITICAL: Always remove from active recordings and clean up external tasks,
             # even if DB operations fail. Prevents ghost recordings that block future recordings.
+            assert self.state_manager is not None
             self.state_manager.remove_active_recording(recording_id)
             try:
                 if self.queue_service:
@@ -819,6 +876,7 @@ class RecordingLifecycleManager:
             )
 
             # Get streamer and stream info for filename generation
+            assert self.database_service is not None
             stream = await self.database_service.get_stream_by_id(stream_id)
             # Always derive streamer from the stream to avoid mismatches
             if not stream:
@@ -917,7 +975,7 @@ class RecordingLifecycleManager:
             logger.info(f"🎬 FALLBACK_PATH: {fallback_path}")
             return fallback_path
 
-    async def _trigger_post_processing_async(self, recording_id: int):
+    async def _trigger_post_processing_async(self, recording_id: int) -> None:
         """Trigger post-processing asynchronously to avoid blocking the stream offline handler"""
         try:
             logger.info(f"🎬 POST_PROCESSING_ASYNC_START: recording_id={recording_id}")
@@ -934,7 +992,7 @@ class RecordingLifecycleManager:
                 exc_info=True,
             )
 
-    async def _schedule_post_processing_once(self, recording_id: int):
+    async def _schedule_post_processing_once(self, recording_id: int) -> None:
         """Schedule post-processing only once per recording (idempotent)."""
         try:
             if recording_id in self._postprocessing_scheduled:
@@ -959,9 +1017,10 @@ class RecordingLifecycleManager:
             return None
         return sorted(directory.glob(self.SEGMENT_FILE_PATTERN))
 
-    async def _trigger_post_processing(self, recording_id: int):
+    async def _trigger_post_processing(self, recording_id: int) -> None:
         """Trigger post-processing for a completed recording"""
         try:
+            assert self.database_service is not None
             logger.info(f"🎬 POST_PROCESSING_START: recording_id={recording_id}")
 
             # Get recording info
@@ -1043,6 +1102,7 @@ class RecordingLifecycleManager:
             from app.services.queues.task_progress_tracker import TaskPriority
 
             background_queue = self.queue_service
+            assert background_queue is not None
 
             # Schedule post-processing tasks with dependencies
             logger.info(
@@ -1144,12 +1204,13 @@ class RecordingLifecycleManager:
         self,
         recording_id: int,
         stream_id: int,
-        segment_files: list,
+        segment_files: Sequence[Path | str],
         recording_path: str,
-        streamer_data,
-    ):
+        streamer_data: "StreamerIdentity",
+    ) -> None:
         """Queue segment concatenation as a background task to avoid blocking the stream offline handler"""
         try:
+            assert self.database_service is not None
             from app.services.queues.task_progress_tracker import TaskPriority
 
             # Get stream data to include started_at timestamp
@@ -1170,7 +1231,9 @@ class RecordingLifecycleManager:
             }
 
             # Enqueue segment concatenation task with high priority
-            concat_task_id = await self.queue_service.enqueue_task(
+            queue = self.queue_service
+            assert queue is not None
+            concat_task_id = await queue.enqueue_task(
                 task_type="segment_concatenation",
                 payload=concat_payload,
                 priority=TaskPriority.HIGH,  # High priority for immediate processing
@@ -1187,7 +1250,7 @@ class RecordingLifecycleManager:
             )
 
     async def _concatenate_segments(
-        self, segment_files: list, recording_id: int
+        self, segment_files: Sequence[Path | str], recording_id: int
     ) -> Optional[Path]:
         """Concatenate multiple .ts segments into a single file using FFmpeg"""
         concat_file_path: Path | None = None
@@ -1331,6 +1394,7 @@ class RecordingLifecycleManager:
         self._shutdown_event.set()
 
         # Stop all active recordings
+        assert self.state_manager is not None
         active_recordings = self.state_manager.get_active_recordings()
         for recording_id in active_recordings:
             await self.stop_recording(recording_id, reason="shutdown")
@@ -1376,6 +1440,7 @@ class RecordingLifecycleManager:
                 return False
 
             # Get recording to find stream ID
+            assert self.database_service is not None
             recording = await self.database_service.get_recording_by_id(recording_id)
             if not recording:
                 return False
@@ -1415,6 +1480,7 @@ class RecordingLifecycleManager:
                 else:
                     return
 
+                assert self.state_manager is not None
                 self.state_manager.update_active_recording(
                     recording_id, {"progress": progress_percent}
                 )
@@ -1437,7 +1503,9 @@ class RecordingLifecycleManager:
     async def _cleanup_failed_recording(self, recording_id: int) -> None:
         """Clean up after a failed recording start"""
         try:
+            assert self.state_manager is not None
             self.state_manager.remove_active_recording(recording_id)
+            assert self.database_service is not None
             await self.database_service.mark_recording_failed(
                 recording_id, "Failed to start recording process"
             )
@@ -1461,9 +1529,10 @@ class RecordingLifecycleManager:
 
     async def _get_or_create_stream(
         self, streamer_id: int, stream_info: Dict[str, Any]
-    ):
+    ) -> "RecordingStream | None":
         """Get existing stream or create new one with StreamEvents (like EventSub does)"""
         try:
+            assert self.database_service is not None
             # Check if stream already exists
             existing_stream = (
                 await self.database_service.get_stream_by_twitch_stream_id(
@@ -1475,7 +1544,7 @@ class RecordingLifecycleManager:
                 return existing_stream
 
             # Create new stream
-            stream_data = {
+            stream_data: NewLiveStream = {
                 "streamer_id": streamer_id,
                 "title": stream_info.get("title", "Unknown Stream"),
                 "category_name": stream_info.get("game_name", "Unknown"),

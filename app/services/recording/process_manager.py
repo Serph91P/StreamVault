@@ -30,6 +30,7 @@ from pathlib import Path
 
 
 if TYPE_CHECKING:
+    from app.services.recording.recording_values import RecordingStream
     from app.services.recording.recording_database_service import (
         RecordingDatabaseService,
     )
@@ -315,7 +316,9 @@ class ProcessManager:
             )
             return None
 
-    async def _recording_auth_options(self, stream: Stream) -> tuple[int, bool]:
+    async def _recording_auth_options(
+        self, stream: "Stream | RecordingStream"
+    ) -> tuple[int, bool]:
         """Load auth safety inputs while priority arbitration is dormant."""
         from app.database import SessionLocal
         from app.models import StreamerRecordingSettings
@@ -428,7 +431,7 @@ class ProcessManager:
 
     async def start_recording_process(
         self,
-        stream: Stream,
+        stream: "Stream | RecordingStream",
         output_path: str,
         quality: str,
         recording_id: Optional[int] = None,
@@ -585,7 +588,7 @@ class ProcessManager:
 
     async def _initialize_segmented_recording(
         self,
-        stream: Stream,
+        stream: "Stream | RecordingStream",
         output_path: str,
         quality: str,
         recording_id: Optional[int] = None,
@@ -793,7 +796,7 @@ class ProcessManager:
 
     async def _start_segment(
         self,
-        stream: Stream,
+        stream: "Stream | RecordingStream",
         segment_path: str,
         quality: str,
         segment_info: Dict,
@@ -1258,7 +1261,10 @@ class ProcessManager:
             raise ProcessError("Failed to start segment recording") from e
 
     async def _monitor_long_stream(
-        self, stream: Stream, segment_info: Dict, quality: str
+        self,
+        stream: "Stream | RecordingStream",
+        segment_info: Dict,
+        quality: str,
     ):
         """Monitor a long stream and handle segmentation"""
         process_id = f"stream_{stream.id}"
@@ -1377,7 +1383,7 @@ class ProcessManager:
 
     async def _rotate_segment(
         self,
-        stream: Stream,
+        stream: "Stream | RecordingStream",
         segment_info: Dict,
         quality: str,
         *,
@@ -2395,7 +2401,7 @@ class ProcessManager:
                         del self.long_stream_processes[process_id]
                     break
 
-    async def terminate_process(self, process_id: str, timeout: int = 10) -> bool:
+    async def terminate_process(self, process_id: str, timeout: float = 10) -> bool:
         """
         Gracefully terminate a process (handles segmented recordings)
 
@@ -2682,7 +2688,7 @@ class ProcessManager:
         """Get the number of active recording processes"""
         return len(self.active_processes)
 
-    async def graceful_shutdown(self, timeout: int = 15):
+    async def graceful_shutdown(self, timeout: float = 15):
         """Gracefully shutdown all recording processes
 
         Args:
@@ -2735,7 +2741,7 @@ class ProcessManager:
                     await service.close()
 
     async def _terminate_process_gracefully(
-        self, stream_id: int, process: asyncio.subprocess.Process, timeout: int
+        self, stream_id: int, process: asyncio.subprocess.Process, timeout: float
     ):
         """Gracefully terminate a single process"""
         try:
