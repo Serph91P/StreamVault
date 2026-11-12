@@ -177,7 +177,7 @@ class ExternalNotificationService:
             return False
 
     def _prepare_stream_notification(
-        self, streamer_name: str, event_type: str, details: dict
+        self, streamer_name: str, event_type: str, details: dict[str, object]
     ) -> tuple[Apprise, str, str] | Literal[False]:
         """Send external notification via Apprise for stream events"""
         try:
@@ -301,7 +301,7 @@ class ExternalNotificationService:
             return False
 
     async def send_stream_notification(
-        self, streamer_name: str, event_type: str, details: dict
+        self, streamer_name: str, event_type: str, details: dict[str, object]
     ) -> bool:
         return await self._send_prepared_notification(
             self._prepare_stream_notification, streamer_name, event_type, details
@@ -309,10 +309,12 @@ class ExternalNotificationService:
 
     async def _send_prepared_notification(
         self,
-        prepare: Callable[[str, str, dict], tuple[Apprise, str, str] | Literal[False]],
+        prepare: Callable[
+            [str, str, dict[str, object]], tuple[Apprise, str, str] | Literal[False]
+        ],
         streamer_name: str,
         event_type: str,
-        details: dict,
+        details: dict[str, object],
     ) -> bool:
         try:
             prepared = await run_in_thread_pool(
@@ -601,7 +603,7 @@ class ExternalNotificationService:
         stream_id: int,
         output_path: str | None,
         duration_seconds: int | None,
-    ) -> tuple[str, dict[str, str | int]] | None:
+    ) -> tuple[str, dict[str, object]] | None:
         from sqlalchemy.orm import joinedload
         from app.models import StreamerRecordingSettings
 
@@ -658,7 +660,7 @@ class ExternalNotificationService:
         )
 
     def _prepare_recording_notification(
-        self, streamer_name: str, event_type: str, details: dict
+        self, streamer_name: str, event_type: str, details: dict[str, object]
     ) -> tuple[Apprise, str, str] | Literal[False]:
         """
         Send notification for recording events (started/failed/completed)
@@ -788,7 +790,10 @@ class ExternalNotificationService:
             return False
 
     async def send_recording_notification(
-        self, streamer_name: str, event_type: str, details: dict | None = None
+        self,
+        streamer_name: str,
+        event_type: str,
+        details: dict[str, object] | None = None,
     ) -> bool:
         return await self._send_prepared_notification(
             self._prepare_recording_notification,
