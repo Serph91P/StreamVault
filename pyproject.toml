@@ -109,6 +109,9 @@ files = [
     "app/services/recording/configuration_values.py",
     "app/services/recording/recording_values.py",
     "app/services/recording/recording_database_service.py",
+    "app/services/recording/unified_recovery_service.py",
+    "app/services/system/twitch_token_service.py",
+    "app/services/images/image_refresh_service.py",
     "app/services/streamers/values.py",
     "app/services/system/temporary_cleanup_service.py",
     "app/utils/process_output.py",
@@ -131,6 +134,7 @@ module = [
     "app.services.media.metadata_service", "app.services.media.artwork_service", "app.utils.process_output",
     "app.services.recording.admin_cleanup", "app.services.recording.configuration_values", "app.services.recording.recording_values", "app.services.recording.recording_database_service",
     "app.services.simple_recovery_service", "app.services.streamers.values", "app.services.system.temporary_cleanup_service",
+    "app.services.recording.unified_recovery_service", "app.services.system.twitch_token_service", "app.services.images.image_refresh_service",
 ]
 disallow_any_generics = true
 disallow_subclassing_any = true

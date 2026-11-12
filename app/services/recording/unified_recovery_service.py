@@ -121,7 +121,7 @@ class UnifiedRecoveryService:
         queue_service: BackgroundQueueService | None = None,
         twitch_api: TwitchAPIService | None = None,
         activity_logger: LoggingService | None = None,
-    ):
+    ) -> None:
         context = (session_factory, settings, recording_manager, queue_service)
         if any(value is not None for value in context) and any(
             value is None for value in context
@@ -202,23 +202,23 @@ class UnifiedRecoveryService:
                     )
 
             # Step 4: Process failed post-processing (files exist but post-processing failed)
-            for recording_info in failed_recordings:
+            for failed_info in failed_recordings:
                 try:
                     if not dry_run:
-                        success = await self._retry_post_processing(recording_info)
+                        success = await self._retry_post_processing(failed_info)
                         if success:
                             stats.triggered_post_processing += 1
                             logger.info(
-                                f"✅ POST_PROCESSING_TRIGGERED: recording_id={recording_info.get('recording_id')}"
+                                f"✅ POST_PROCESSING_TRIGGERED: recording_id={failed_info.get('recording_id')}"
                             )
                         else:
                             logger.warning(
-                                f"⚠️ POST_PROCESSING_TRIGGER_FAILED: recording_id={recording_info.get('recording_id')}"
+                                f"⚠️ POST_PROCESSING_TRIGGER_FAILED: recording_id={failed_info.get('recording_id')}"
                             )
 
                 except Exception as e:
                     logger.error(
-                        f"❌ Failed to retry post-processing for {recording_info.get('recording_id')}: {e}",
+                        f"❌ Failed to retry post-processing for {failed_info.get('recording_id')}: {e}",
                         exc_info=True,
                     )
 
@@ -582,7 +582,10 @@ class UnifiedRecoveryService:
                 segments_dir, expected_ts_path
             )
 
-            if result and await run_in_thread_pool(result.exists):
+            result_exists = (
+                await run_in_thread_pool(result.exists) if result is not None else False
+            )
+            if result_exists:
                 logger.info(f"✅ CONCATENATION_SUCCESS: {expected_ts_path}")
 
                 # Update database if we have a recording_id
@@ -800,7 +803,7 @@ class UnifiedRecoveryService:
         2. If no match, try matching by filename pattern in the same directory
         Missing rows remain undiscovered identities until explicit recovery adopts them.
         """
-        result = {}
+        result: dict[str, int | None] = {}
         try:
             with self._sessions() as db:
                 # Query all recordings with matching paths in one go (exact match)
@@ -1134,7 +1137,9 @@ class UnifiedRecoveryService:
         except Exception as e:
             logger.error(f"❌ Error updating recording {recording_id}: {e}")
 
-    async def _fix_database_inconsistencies(self, stats: RecoveryStats, dry_run: bool):
+    async def _fix_database_inconsistencies(
+        self, stats: RecoveryStats, dry_run: bool
+    ) -> None:
         """Repair only positive death evidence, serialized with capture admission."""
         if dry_run:
             return
@@ -1144,7 +1149,7 @@ class UnifiedRecoveryService:
         cursor = 0
         while True:
 
-            def read_batch():
+            def read_batch() -> tuple[int, dict[int, str]]:
                 with self._sessions() as db:
                     rows = (
                         db.query(Recording.id, Recording.path)
@@ -1560,6 +1565,8 @@ class UnifiedRecoveryService:
                     for recording in (
                         db.query(Recording).filter(Recording.path.isnot(None)).all()
                     ):
+                        if recording.path is None:
+                            continue
                         state = capture_state(
                             db,
                             recording,
