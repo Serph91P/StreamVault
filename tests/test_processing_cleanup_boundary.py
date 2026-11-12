@@ -23,7 +23,7 @@ from app.services.processing.post_processing_task_handlers import (
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "case", ["post_processing", "deletion", "missing_mp4", "small_mp4"]
+    "case", ["post_processing", "deletion", "missing_mp4", "small_mp4", "denied_segments"]
 )
 async def test_cleanup_closes_own_persistence_and_keeps_protected_sources(
     tmp_path, monkeypatch, case
@@ -42,11 +42,20 @@ async def test_cleanup_closes_own_persistence_and_keeps_protected_sources(
     # This is deliberately a size-guard fixture, not a claim of decoded media.
     if case not in {"deletion", "missing_mp4"}:
         with output.open("wb") as file:
-            file.truncate(1024 * 1024 + 1 if case == "post_processing" else 100)
+            file.truncate(1024 * 1024 + 1 if case in {"post_processing", "denied_segments"} else 100)
     loop_thread = get_ident()
     queries = []
     probes = []
     native_stat = os.stat
+    import shutil
+    native_rmtree = shutil.rmtree
+    removal_faults = []
+
+    def rmtree(path, *args, **kwargs):
+        if case == "denied_segments" and str(path) == str(segments):
+            removal_faults.append(get_ident())
+            raise PermissionError("synthetic-owned-segment-removal-denied")
+        return native_rmtree(path, *args, **kwargs)
 
     def stat(path, *args, **kwargs):
         if isinstance(path, (str, os.PathLike)) and str(path).startswith(str(tmp_path)):
@@ -87,7 +96,8 @@ async def test_cleanup_closes_own_persistence_and_keeps_protected_sources(
             payload.pop("mp4_path")
         with monkeypatch.context() as watched:
             watched.setattr(os, "stat", stat)
-            if case in {"post_processing", "deletion"}:
+            watched.setattr(shutil, "rmtree", rmtree)
+            if case in {"post_processing", "deletion", "denied_segments"}:
                 await handler.handle_cleanup(payload)
             else:
                 with pytest.raises(
@@ -109,11 +119,17 @@ async def test_cleanup_closes_own_persistence_and_keeps_protected_sources(
                 assert metadata.segments_dir_path == str(segments)
                 assert state.cleanup_status == "completed"
                 assert output.exists()
+            elif case == "denied_segments":
+                assert metadata is None or metadata.segments_removed is not True
+                assert state.cleanup_status == "completed"
+                assert output.exists()
             else:
                 assert metadata is None
                 assert state is None
         assert source.exists() is (case in {"missing_mp4", "small_mp4"})
-        assert segments.exists() is (case in {"missing_mp4", "small_mp4"})
+        assert segments.exists() is (case in {"missing_mp4", "small_mp4", "denied_segments"})
+        if case == "denied_segments":
+            assert removal_faults and loop_thread not in removal_faults
         assert database.sync_engine.pool.checkedout() == 0
     finally:
         await handler.cleanup()
