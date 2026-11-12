@@ -13,7 +13,7 @@ from sqlalchemy import event
 from starlette.requests import HTTPConnection
 
 from app import dependencies
-from app.models import Recording, Stream
+from app.models import Recording, Stream, StreamEvent
 from app.services.queues.task_progress_tracker import TaskStatus
 from app.utils.retry_decorator import NonRetryableError
 from app.utils.async_db_utils import run_in_thread_pool
@@ -23,13 +23,24 @@ from tests.test_processing_callback_ownership import close_owned
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "finish", ["active", "completed", "missing", "error", "database-failed"]
+    "finish,admission",
+    [
+        ("active", "catalog"),
+        ("completed", "catalog"),
+        ("missing", "catalog"),
+        ("error", "catalog"),
+        ("database-failed", "catalog"),
+        ("active", "force-new"),
+        ("active", "force-existing"),
+    ],
 )
 async def test_recording_start_keeps_external_task_and_sql_with_the_application_owner(
-    image_applications, monkeypatch, finish
+    image_applications, monkeypatch, finish, admission
 ):
     apps, databases, _, _ = image_applications
     app, database = apps[0], databases[0]
+    if admission != "catalog":
+        app.state.settings.TWITCH_APP_ID = "local-owner-control"
     manager = await run_in_thread_pool(
         dependencies.get_application_recording_manager,
         HTTPConnection({"type": "http", "app": app}),
@@ -41,7 +52,13 @@ async def test_recording_start_keeps_external_task_and_sql_with_the_application_
         with database.sync_session_factory() as db:
             db.add(
                 Stream(
-                    id=70, streamer_id=1, title="Local child contract", started_at=now
+                    id=69 if admission == "force-new" else 70,
+                    streamer_id=1,
+                    title="Local child contract",
+                    started_at=now,
+                    twitch_stream_id="previous"
+                    if admission == "force-new"
+                    else "local-live-70",
                 )
             )
             db.commit()
@@ -88,14 +105,54 @@ async def test_recording_start_keeps_external_task_and_sql_with_the_application_
             rejected.append(True)
             raise NonRetryableError("synthetic-completion-update-denied")
 
+    runner = None
     try:
-        recording_id = await manager.orchestrator.start_recording(70, 999)
+        if admission == "catalog":
+            recording_id = await manager.orchestrator.start_recording(70, 999)
+        else:
+            from aiohttp import web
+
+            async def streams(request):
+                assert request.query["user_id"] == "owner-0"
+                assert request.headers["Client-ID"] == "local-owner-control"
+                assert database.sync_engine.pool.checkedout() == 0
+                return web.json_response(
+                    {
+                        "data": [
+                            {
+                                "id": "local-live-70",
+                                "title": "Local child contract",
+                                "game_name": "Synthetic category",
+                                "language": "en",
+                            }
+                        ]
+                    }
+                )
+
+            provider = web.Application()
+            provider.router.add_get("/helix/streams", streams)
+            runner = web.AppRunner(provider)
+            await runner.setup()
+            site = web.TCPSite(runner, "127.0.0.1", 0)
+            await site.start()
+            api = lifecycle._twitch_api_service
+            api.base_url = f"http://127.0.0.1:{runner.addresses[0][1]}/helix"
+            api._access_token = "synthetic-local-control"
+            api._token_expires_at = float("inf")
+            recording_id = await lifecycle.force_start_recording(1)
         assert recording_id is not None
         production_sql_threads = list(sql_threads)
         event.remove(database.sync_engine, "before_cursor_execute", observe_sql)
         with database.sync_session_factory() as db:
             recording = db.get(Recording, recording_id)
             path = Path(recording.path)
+            if admission != "catalog":
+                assert recording.stream_id == 70
+                assert (
+                    db.query(Stream).filter_by(twitch_stream_id="local-live-70").count()
+                    == 1
+                )
+                assert db.query(StreamEvent).filter_by(stream_id=70).count() > 0
         assert path.is_relative_to(Path(app.state.settings.RECORDING_DIRECTORY))
         assert path.read_bytes() == b"local lifecycle child"
         assert {
@@ -201,4 +258,6 @@ async def test_recording_start_keeps_external_task_and_sql_with_the_application_
                 child.terminate()
             await child.wait()
         await close_owned(apps)
+        if runner is not None:
+            await runner.cleanup()
     assert all(db.sync_engine.pool.checkedout() == 0 for db in databases)
