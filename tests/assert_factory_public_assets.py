@@ -38,7 +38,7 @@ async def inspect_assets(frontend: Path, icons_only: bool) -> dict:
         db.add(
             User(
                 username="synthetic-asset-admin",
-                password="not-a-login-hash",  # ggignore
+                password="not-a-login-hash",
                 is_admin=True,
                 is_active=True,
             )
