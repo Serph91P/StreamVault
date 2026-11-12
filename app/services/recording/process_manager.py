@@ -25,11 +25,74 @@ import re
 import signal
 import shutil
 from datetime import datetime, timedelta
-from typing import Dict, Optional, Callable, Awaitable, TYPE_CHECKING
+from typing import Optional, Callable, Awaitable, TYPE_CHECKING
+
+from enum import Enum
 from pathlib import Path
 
 
 if TYPE_CHECKING:
+    from typing import NotRequired, TypedDict
+    from app.services.twitch_upstream_coordinator import TwitchAuthTransition
+    from app.services.system.twitch_token_service import (
+        RecordingTokenResolution,
+        RecordingStoredTokenVersion,
+    )
+
+    class CapturedSegment(TypedDict):
+        path: str
+        start_time: datetime
+        process_pid: int
+
+    class StartupHandoff(TypedDict):
+        process: asyncio.subprocess.Process
+        stream: Stream | RecordingStream
+        quality: str
+        stored_version: RecordingStoredTokenVersion | None
+        source: str | None
+        proxy_settings: dict[str, str] | None
+        supported_codecs: str | None
+
+    class SegmentInfo(TypedDict):
+        stream_id: int
+        recording_id: int | None
+        base_output_path: str
+        segment_dir: str
+        current_segment_path: str
+        segment_count: int
+        segment_start_time: datetime
+        total_segments: list[CapturedSegment]
+        monitor_task: asyncio.Task[None] | None
+        final_output_path: NotRequired[str]
+        auth_fallback_to_anonymous: NotRequired[bool]
+        auth_handoff_reason: NotRequired[str | None]
+        auth_startup_handoff: NotRequired[StartupHandoff]
+        twitch_auth_priority: NotRequired[int]
+        upstream_activated: NotRequired[bool]
+        upstream_channel_key: NotRequired[str]
+        upstream_generation: NotRequired[int]
+        upstream_rotation_generation: NotRequired[int]
+        upstream_process_group_id: NotRequired[int]
+        upstream_process_start_fingerprint: NotRequired[str]
+        upstream_process_started_at: NotRequired[datetime | None]
+
+    class RecordingProgress(TypedDict):
+        status: str
+        exit_code: NotRequired[int]
+        pid: NotRequired[int]
+        duration: NotRequired[int | None]
+        file_size: NotRequired[int | None]
+        segment_count: NotRequired[int]
+
+    class RotationHandoff(TypedDict):
+        channel_key: str
+        generation: int
+        process_pid: int
+        process_group_id: int
+        purpose: str
+        auth_key: NotRequired[str | None]
+        transition_failure_reason: NotRequired[str | None]
+
     from app.services.recording.recording_values import RecordingStream
     from app.services.recording.recording_database_service import (
         RecordingDatabaseService,
@@ -71,7 +134,13 @@ from app.services.recording.configuration_values import SegmentConfiguration
 from app.services.system.supervisor import TaskSupervisor
 
 logger = logging.getLogger("streamvault")
-_UNRESOLVED_RECORDING_TOKEN = object()
+
+
+class _UnresolvedRecordingToken(Enum):
+    VALUE = "unresolved"
+
+
+_UNRESOLVED_RECORDING_TOKEN = _UnresolvedRecordingToken.VALUE
 
 # ProcessMonitor integration temporarily disabled for stability
 process_monitor = None
@@ -94,15 +163,17 @@ class ProcessManager:
     # Singleton instance tracking
     _instance: Optional["ProcessManager"] = None
     _initialized: bool = False
+    config_manager: ConfigManager | None
+    post_processing_callback: Callable[[int, str], Awaitable[None]] | None
 
     def __new__(
         cls,
-        config_manager=None,
+        config_manager: ConfigManager | None = None,
         post_processing_callback: Optional[
             Callable[[int, str], Awaitable[None]]
         ] = None,
-        upstream_coordinator=None,
-    ):
+        upstream_coordinator: TwitchUpstreamCoordinator | None = None,
+    ) -> "ProcessManager":
         """Singleton pattern - return existing instance if available"""
         if cls._instance is None:
             cls._instance = super().__new__(cls)
@@ -110,12 +181,12 @@ class ProcessManager:
 
     def __init__(
         self,
-        config_manager=None,
+        config_manager: ConfigManager | None = None,
         post_processing_callback: Optional[
             Callable[[int, str], Awaitable[None]]
         ] = None,
-        upstream_coordinator=None,
-    ):
+        upstream_coordinator: TwitchUpstreamCoordinator | None = None,
+    ) -> None:
         # Only initialize once (singleton)
         if ProcessManager._initialized:
             # Update config_manager and callback if provided (for compatibility)
@@ -161,19 +232,23 @@ class ProcessManager:
         database_service: "RecordingDatabaseService | None" = None,
         connection_manager: "ConnectionManager | None" = None,
     ) -> None:
-        self.active_processes = {}
-        self.long_stream_processes = {}  # Track processes that need segmentation
+        self.active_processes: dict[str, asyncio.subprocess.Process] = {}
+        self.long_stream_processes: dict[str, SegmentInfo] = {}
         self.lock = asyncio.Lock()
-        self.rotation_locks = {}
-        self._streamlink_output_secrets = {}
-        self._segment_completion_tasks = {}
-        self._supervised_process_names = {}
+        self.rotation_locks: dict[str, asyncio.Lock] = {}
+        self._streamlink_output_secrets: dict[
+            asyncio.subprocess.Process, tuple[str, ...]
+        ] = {}
+        self._segment_completion_tasks: dict[
+            asyncio.subprocess.Process, asyncio.Task[int]
+        ] = {}
+        self._supervised_process_names: dict[asyncio.subprocess.Process, str] = {}
         self._task_supervisor = TaskSupervisor("recording-processes")
         self.ASYNC_DELAYS = ASYNC_DELAYS
         self.config_manager = config_manager
         self._database_service = database_service
         self._connection_manager = connection_manager
-        self.post_processing_callback = post_processing_callback  # Injected dependency
+        self.post_processing_callback = post_processing_callback
         self.upstream_coordinator = upstream_coordinator or twitch_upstream_coordinator
         self.proxy_health_service = None
         self.twitch_token_service: TwitchTokenService | None = None
@@ -200,7 +275,7 @@ class ProcessManager:
                 logging_service as legacy_logging_service,
             )
 
-            self.logging_service = (
+            self.logging_service: LoggingService | _LazyLoggingService | None = (
                 logging_service
                 if logging_service is not None
                 else legacy_logging_service
@@ -221,8 +296,13 @@ class ProcessManager:
 
         logger.debug("ProcessManager initialized")
 
-    def _get_streamlink_output_secrets(self, process) -> tuple[str, ...]:
-        return getattr(self, "_streamlink_output_secrets", {}).get(process, ())
+    def _get_streamlink_output_secrets(
+        self, process: asyncio.subprocess.Process
+    ) -> tuple[str, ...]:
+        contexts: dict[asyncio.subprocess.Process, tuple[str, ...]] = getattr(
+            self, "_streamlink_output_secrets", {}
+        )
+        return contexts.get(process, ())
 
     def _get_task_supervisor(self) -> TaskSupervisor:
         supervisor = getattr(self, "_task_supervisor", None)
@@ -230,27 +310,38 @@ class ProcessManager:
             supervisor = self._task_supervisor = TaskSupervisor("recording-processes")
         return supervisor
 
-    def _remember_streamlink_output_secrets(self, process, command: list) -> None:
+    def _remember_streamlink_output_secrets(
+        self, process: asyncio.subprocess.Process, command: list[str]
+    ) -> None:
         contexts = getattr(self, "_streamlink_output_secrets", None)
         if contexts is None:
             contexts = self._streamlink_output_secrets = {}
         contexts[process] = get_streamlink_command_secret_values(command)
         outputs = getattr(self, "_streamlink_outputs", None)
         if outputs is None:
-            outputs = self._streamlink_outputs = {}
+            self._streamlink_outputs: dict[
+                asyncio.subprocess.Process, BoundedStreamlinkOutput
+            ] = {}
+            outputs = self._streamlink_outputs
         if isinstance(process, asyncio.subprocess.Process) and process not in outputs:
             outputs[process] = BoundedStreamlinkOutput(process, contexts[process])
             # A delayed completion monitor may run after ownership was released.
-            process._streamvault_output = outputs[process]
+            setattr(process, "_streamvault_output", outputs[process])
 
-    async def _collect_streamlink_output(self, process):
-        output = getattr(process, "_streamvault_output", None)
+    async def _collect_streamlink_output(
+        self, process: asyncio.subprocess.Process
+    ) -> tuple[bytes, bytes]:
+        output: BoundedStreamlinkOutput | None = getattr(
+            process, "_streamvault_output", None
+        )
         if output is not None:
             return await output.wait()
         # Compatibility for external process adapters without asyncio pipe readers.
         return await process.communicate()
 
-    def _release_streamlink_output_secrets(self, process) -> None:
+    def _release_streamlink_output_secrets(
+        self, process: asyncio.subprocess.Process
+    ) -> None:
         contexts = getattr(self, "_streamlink_output_secrets", None)
         if contexts is not None:
             contexts.pop(process, None)
@@ -258,13 +349,15 @@ class ProcessManager:
         if outputs is not None:
             outputs.pop(process, None)
 
-    def _track_recording_process(self, process_id, process) -> None:
+    def _track_recording_process(
+        self, process_id: str, process: asyncio.subprocess.Process
+    ) -> None:
         names = getattr(self, "_supervised_process_names", None)
         if names is None:
             names = self._supervised_process_names = {}
         name = f"{process_id}:pid-{process.pid}"
 
-        async def reap(timeout):
+        async def reap(timeout: float) -> bool:
             async with self.lock:
                 is_current_owner = self.active_processes.get(process_id) is process
             if not is_current_owner:
@@ -277,7 +370,9 @@ class ProcessManager:
         self._get_task_supervisor().track_process(name, process, reaper=reap)
         names[process] = name
 
-    async def _release_tracked_process(self, process, *, already_reaped=False) -> None:
+    async def _release_tracked_process(
+        self, process: asyncio.subprocess.Process, *, already_reaped: bool = False
+    ) -> None:
         names = getattr(self, "_supervised_process_names", None)
         if not names:
             return
@@ -305,7 +400,7 @@ class ProcessManager:
             self._owns_twitch_token_service = True
         return service
 
-    async def _resolve_recording_token(self):
+    async def _resolve_recording_token(self) -> "RecordingTokenResolution | None":
         try:
             return await self._get_twitch_token_service().resolve_recording_token()
         except asyncio.CancelledError:
@@ -355,7 +450,9 @@ class ProcessManager:
         except OSError:
             return True
 
-    async def _wait_for_auth_startup(self, process, segment_path: str) -> None:
+    async def _wait_for_auth_startup(
+        self, process: asyncio.subprocess.Process, segment_path: str
+    ) -> None:
         from app.utils.async_db_utils import run_in_thread_pool
 
         await asyncio.sleep(ASYNC_DELAYS.PROCESS_START_GRACE)
@@ -372,7 +469,7 @@ class ProcessManager:
             await asyncio.sleep(min(self.AUTH_STARTUP_POLL_SECONDS, remaining))
 
     async def _replace_startup_reservation_with_anonymous(
-        self, segment_info: Dict
+        self, segment_info: "SegmentInfo"
     ) -> None:
         channel_key = segment_info["upstream_channel_key"]
         generation = segment_info["upstream_generation"]
@@ -409,7 +506,9 @@ class ProcessManager:
             raise
         segment_info["upstream_generation"] = reservation.generation
 
-    def _track_segment_completion(self, process) -> asyncio.Task:
+    def _track_segment_completion(
+        self, process: asyncio.subprocess.Process
+    ) -> asyncio.Task[int]:
         tasks = getattr(self, "_segment_completion_tasks", None)
         if tasks is None:
             tasks = self._segment_completion_tasks = {}
@@ -422,7 +521,7 @@ class ProcessManager:
         )
         tasks[process] = task
 
-        def release_task(completed_task):
+        def release_task(completed_task: asyncio.Task[int]) -> None:
             if tasks.get(process) is completed_task:
                 tasks.pop(process, None)
 
@@ -566,7 +665,8 @@ class ProcessManager:
                         if self.long_stream_processes.get(process_id) is segment_info:
                             del self.long_stream_processes[process_id]
                 if cleanup_complete:
-                    self._release_streamlink_output_secrets(owned_process)
+                    if owned_process is not None:
+                        self._release_streamlink_output_secrets(owned_process)
                     await self.upstream_coordinator.release(
                         channel_key=reservation.channel_key,
                         generation=segment_info.get(
@@ -593,7 +693,7 @@ class ProcessManager:
         quality: str,
         recording_id: Optional[int] = None,
         resume_segments_dir: Optional[str] = None,
-    ) -> Dict:
+    ) -> "SegmentInfo":
         """Initialize segmented recording structure for long streams
 
         Args:
@@ -611,7 +711,7 @@ class ProcessManager:
             self._prepare_segment_paths, output_path, resume_segments_dir
         )
 
-        segment_info = {
+        segment_info: SegmentInfo = {
             "stream_id": stream.id,
             "recording_id": recording_id,  # Store recording_id for proper post-processing
             "base_output_path": str(output_path),
@@ -799,12 +899,16 @@ class ProcessManager:
         stream: "Stream | RecordingStream",
         segment_path: str,
         quality: str,
-        segment_info: Dict,
-        token_resolution=_UNRESOLVED_RECORDING_TOKEN,
+        segment_info: "SegmentInfo",
+        token_resolution: "RecordingTokenResolution | None | _UnresolvedRecordingToken" = _UNRESOLVED_RECORDING_TOKEN,
         _monitor_handoff: bool = False,
-        _handoff_owner=None,
-        _proxy_settings=_UNRESOLVED_RECORDING_TOKEN,
-        _supported_codecs=_UNRESOLVED_RECORDING_TOKEN,
+        _handoff_owner: asyncio.subprocess.Process | None = None,
+        _proxy_settings: dict[str, str]
+        | None
+        | _UnresolvedRecordingToken = _UNRESOLVED_RECORDING_TOKEN,
+        _supported_codecs: str
+        | None
+        | _UnresolvedRecordingToken = _UNRESOLVED_RECORDING_TOKEN,
     ) -> Optional[asyncio.subprocess.Process]:
         """Start recording a single segment"""
         try:
@@ -872,9 +976,9 @@ class ProcessManager:
                         "Failed to resolve Twitch authentication (%s)", type(e).__name__
                     )
 
-            if _proxy_settings is not _UNRESOLVED_RECORDING_TOKEN:
+            if _proxy_settings is not _UnresolvedRecordingToken.VALUE:
                 proxy_settings = _proxy_settings
-            if _supported_codecs is not _UNRESOLVED_RECORDING_TOKEN:
+            if _supported_codecs is not _UnresolvedRecordingToken.VALUE:
                 supported_codecs = _supported_codecs
 
             # NOTE: Proxy connectivity is now handled by ProxyHealthService
@@ -1152,6 +1256,8 @@ class ProcessManager:
                     active_lease = await asyncio.shield(activation_task)
                 except asyncio.CancelledError:
                     active_lease = await activation_task
+                    assert active_lease.process_group_id is not None
+                    assert active_lease.process_start_fingerprint is not None
                     segment_info["upstream_process_group_id"] = (
                         active_lease.process_group_id
                     )
@@ -1165,6 +1271,8 @@ class ProcessManager:
                     )
                     segment_info["upstream_activated"] = True
                     raise
+                assert active_lease.process_group_id is not None
+                assert active_lease.process_start_fingerprint is not None
                 segment_info["upstream_process_group_id"] = (
                     active_lease.process_group_id
                 )
@@ -1263,9 +1371,9 @@ class ProcessManager:
     async def _monitor_long_stream(
         self,
         stream: "Stream | RecordingStream",
-        segment_info: Dict,
+        segment_info: "SegmentInfo",
         quality: str,
-    ):
+    ) -> None:
         """Monitor a long stream and handle segmentation"""
         process_id = f"stream_{stream.id}"
 
@@ -1356,7 +1464,7 @@ class ProcessManager:
                 exc_info=True,
             )
 
-    async def _should_rotate_segment(self, segment_info: Dict) -> bool:
+    async def _should_rotate_segment(self, segment_info: "SegmentInfo") -> bool:
         """Check if we should start a new segment"""
         try:
             # Check duration
@@ -1384,10 +1492,10 @@ class ProcessManager:
     async def _rotate_segment(
         self,
         stream: "Stream | RecordingStream",
-        segment_info: Dict,
+        segment_info: "SegmentInfo",
         quality: str,
         *,
-        auth_transition=None,
+        auth_transition: "TwitchAuthTransition | None" = None,
     ) -> bool:
         """Rotate to a new segment file"""
         process_id = f"stream_{stream.id}"
@@ -1530,7 +1638,7 @@ class ProcessManager:
                 if upstream_channel_key:
                     failure_reason = "rotation_handoff_failed"
                     try:
-                        handoff_kwargs = {
+                        handoff_kwargs: RotationHandoff = {
                             "channel_key": upstream_channel_key,
                             "generation": segment_info["upstream_generation"],
                             "process_pid": replacement_process.pid,
@@ -1550,6 +1658,8 @@ class ProcessManager:
                             handoff = await asyncio.shield(handoff_task)
                         except asyncio.CancelledError:
                             handoff = await handoff_task
+                            assert handoff.process_group_id is not None
+                            assert handoff.process_start_fingerprint is not None
                             segment_info["upstream_generation"] = handoff.generation
                             segment_info["upstream_process_group_id"] = (
                                 handoff.process_group_id
@@ -1559,6 +1669,8 @@ class ProcessManager:
                             )
                             segment_info.pop("upstream_rotation_generation", None)
                             raise
+                        assert handoff.process_group_id is not None
+                        assert handoff.process_start_fingerprint is not None
                         segment_info["upstream_generation"] = handoff.generation
                         segment_info["upstream_process_group_id"] = (
                             handoff.process_group_id
@@ -1623,12 +1735,12 @@ class ProcessManager:
 
     async def _rollback_failed_auth_transition(
         self,
-        stream,
-        quality,
-        process_id,
-        replacement_process,
-        segment_info,
-        previous_anonymous,
+        stream: "Stream | RecordingStream",
+        quality: str,
+        process_id: str,
+        replacement_process: asyncio.subprocess.Process | None,
+        segment_info: "SegmentInfo",
+        previous_anonymous: bool,
     ) -> bool:
         """Restore the prior mode after a failed fenced auth handoff."""
         try:
@@ -1673,6 +1785,8 @@ class ProcessManager:
                 auth_key=(None if previous_anonymous else AUTHENTICATED_TWITCH_ACCOUNT),
                 transition_failure_reason="auth_handoff_failed",
             )
+            assert restored.process_group_id is not None
+            assert restored.process_start_fingerprint is not None
             segment_info["upstream_generation"] = restored.generation
             segment_info["upstream_process_group_id"] = restored.process_group_id
             segment_info["upstream_process_start_fingerprint"] = (
@@ -1691,13 +1805,13 @@ class ProcessManager:
 
     async def _cleanup_failed_rotation(
         self,
-        process_id,
-        captured_process,
-        replacement_process,
-        segment_info,
-        reason,
+        process_id: str,
+        captured_process: asyncio.subprocess.Process,
+        replacement_process: asyncio.subprocess.Process | None,
+        segment_info: "SegmentInfo",
+        reason: str,
         *,
-        wait_timeout,
+        wait_timeout: float,
     ) -> None:
         channel_key = segment_info["upstream_channel_key"]
         generation = segment_info["upstream_generation"]
@@ -1862,6 +1976,8 @@ class ProcessManager:
             )
 
             if should_retry_anonymously:
+                assert process_id is not None and segment_info is not None
+                assert startup_handoff is not None
                 rotation_locks = getattr(self, "rotation_locks", None)
                 if rotation_locks is None:
                     rotation_locks = self.rotation_locks = {}
@@ -1915,6 +2031,7 @@ class ProcessManager:
 
             # Handle segmented vs normal recording completion
             if segment_info:
+                assert process_id is not None
                 rotation_locks = getattr(self, "rotation_locks", None)
                 if rotation_locks is None:
                     rotation_locks = self.rotation_locks = {}
@@ -2021,7 +2138,7 @@ class ProcessManager:
             # Cleanup
             await self._cleanup_process(process)
 
-    async def _finalize_segmented_recording(self, segment_info: Dict):
+    async def _finalize_segmented_recording(self, segment_info: "SegmentInfo") -> None:
         """Concatenate all segments into final TS file"""
         try:
             logger.info(
@@ -2143,7 +2260,9 @@ class ProcessManager:
         except Exception as e:
             logger.error(f"Error finalizing segmented recording: {e}", exc_info=True)
 
-    async def _move_concatenated_file_to_parent(self, segment_info: Dict):
+    async def _move_concatenated_file_to_parent(
+        self, segment_info: "SegmentInfo"
+    ) -> None:
         """Move concatenated TS file from segments directory to parent directory"""
         from app.utils.async_db_utils import run_in_thread_pool
 
@@ -2194,8 +2313,8 @@ class ProcessManager:
         return None
 
     async def _trigger_post_processing_for_segmented_recording(
-        self, segment_info: Dict
-    ):
+        self, segment_info: "SegmentInfo"
+    ) -> None:
         """Trigger post-processing for the segmented recording using injected callback"""
         try:
             # Use the final output path (moved file) for post-processing
@@ -2229,7 +2348,7 @@ class ProcessManager:
 
     async def _fallback_trigger_post_processing(
         self, stream_id: int, output_path: str, recording_id: Optional[int] = None
-    ):
+    ) -> None:
         """Fallback method for post-processing when no callback is injected"""
         try:
             # Import here to avoid circular imports (only used as fallback)
@@ -2359,7 +2478,7 @@ class ProcessManager:
                 f"Error in fallback post-processing trigger: {e}", exc_info=True
             )
 
-    async def _cleanup_segments(self, segment_info: Dict):
+    async def _cleanup_segments(self, segment_info: "SegmentInfo") -> None:
         """Clean up segment files after successful concatenation"""
         from app.utils.async_db_utils import run_in_thread_pool
 
@@ -2398,7 +2517,7 @@ class ProcessManager:
         except Exception as e:
             logger.error(f"Error cleaning up segments: {e}", exc_info=True)
 
-    async def _cleanup_process(self, process: asyncio.subprocess.Process):
+    async def _cleanup_process(self, process: asyncio.subprocess.Process) -> None:
         """Clean up process from tracking"""
         await self._release_tracked_process(process, already_reaped=True)
         self._release_streamlink_output_secrets(process)
@@ -2555,10 +2674,10 @@ class ProcessManager:
 
     async def _terminate_process_group(
         self,
-        process,
-        process_group_id,
-        timeout,
-        process_start_fingerprint=None,
+        process: asyncio.subprocess.Process,
+        process_group_id: int,
+        timeout: float,
+        process_start_fingerprint: str | None = None,
     ) -> bool:
         if process.returncode is not None:
             await process.wait()
@@ -2610,9 +2729,9 @@ class ProcessManager:
 
     async def _process_identity_matches(
         self,
-        process_pid,
-        process_group_id,
-        process_start_fingerprint,
+        process_pid: int,
+        process_group_id: int,
+        process_start_fingerprint: str,
     ) -> bool:
         try:
             identity = await self.upstream_coordinator.inspect_process_identity(
@@ -2626,7 +2745,7 @@ class ProcessManager:
             identity.fingerprint,
         ) == (process_pid, process_group_id, process_start_fingerprint)
 
-    async def cleanup_all(self):
+    async def cleanup_all(self) -> None:
         """Terminate all active processes"""
         process_ids = list(self.active_processes.keys())
         for process_id in process_ids:
@@ -2640,11 +2759,11 @@ class ProcessManager:
                 self.active_processes.keys() | self.long_stream_processes.keys()
             ):
                 process = self.active_processes.get(process_id)
-                info = self.long_stream_processes.get(process_id) or {}
+                info: SegmentInfo | None = self.long_stream_processes.get(process_id)
                 snapshots[process_id] = LocalCapture(
                     process.pid if process is not None else None,
-                    info.get("upstream_process_group_id"),
-                    info.get("upstream_process_start_fingerprint"),
+                    info.get("upstream_process_group_id") if info else None,
+                    info.get("upstream_process_start_fingerprint") if info else None,
                     process is not None and process.returncode is not None,
                 )
             return snapshots
@@ -2703,7 +2822,7 @@ class ProcessManager:
         """Get the number of active recording processes"""
         return len(self.active_processes)
 
-    async def graceful_shutdown(self, timeout: float = 15):
+    async def graceful_shutdown(self, timeout: float = 15) -> None:
         """Gracefully shutdown all recording processes
 
         Args:
@@ -2757,7 +2876,7 @@ class ProcessManager:
 
     async def _terminate_process_gracefully(
         self, stream_id: int, process: asyncio.subprocess.Process, timeout: float
-    ):
+    ) -> None:
         """Gracefully terminate a single process"""
         try:
             if process.returncode is None:  # Process is still running
@@ -2795,11 +2914,13 @@ class ProcessManager:
         return self._is_shutting_down
 
     async def _record_failure_in_database(
-        self, process_id: str, error_message: str, failure_reason: str
+        self, process_id: str | None, error_message: str, failure_reason: str
     ) -> None:
         """Commit only the owning catalog's currently active recording failure."""
         try:
-            stream_id = process_id.split("_")[1] if "_" in process_id else None
+            stream_id = (
+                process_id.split("_")[1] if process_id and "_" in process_id else None
+            )
             if stream_id is None:
                 return
             await self._get_recording_database_service().mark_active_stream_recording_failed(
@@ -2811,13 +2932,15 @@ class ProcessManager:
             )
 
     async def _notify_recording_failed(
-        self, process_id: str, error_message: str
+        self, process_id: str | None, error_message: str
     ) -> None:
         """Publish a closed scalar snapshot to this actor's socket and notifier."""
         try:
             from datetime import timezone
 
-            stream_id = process_id.split("_")[1] if "_" in process_id else None
+            stream_id = (
+                process_id.split("_")[1] if process_id and "_" in process_id else None
+            )
             if stream_id is None:
                 return
             stream = await self._get_recording_database_service().get_stream_by_id(
@@ -2872,7 +2995,9 @@ class ProcessManager:
         except Exception as error:
             logger.error("Recording failure snapshot failed (%s)", type(error).__name__)
 
-    async def get_recording_progress(self, recording_id: int) -> Optional[Dict]:
+    async def get_recording_progress(
+        self, recording_id: int
+    ) -> "RecordingProgress | None":
         """Get progress information for a recording
 
         Args:
@@ -2911,7 +3036,7 @@ class ProcessManager:
                     return {"status": "completed", "exit_code": process.returncode}
 
                 # Get basic process info
-                progress = {
+                progress: RecordingProgress = {
                     "status": "running",
                     "pid": process.pid,
                     "duration": None,
@@ -2946,7 +3071,7 @@ class ProcessManager:
 
     def set_post_processing_callback(
         self, callback: Optional[Callable[[int, str], Awaitable[None]]]
-    ):
+    ) -> None:
         """Set the post-processing callback for dependency injection
 
         Args:

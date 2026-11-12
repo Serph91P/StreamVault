@@ -16,7 +16,7 @@ from app.services.recording.process_manager import ProcessManager
 
 
 def bare_manager(**attrs):
-    manager = ProcessManager.__new__(ProcessManager)
+    manager = object.__new__(ProcessManager)
     manager.lock = asyncio.Lock()
     manager.active_processes = {}
     manager.long_stream_processes = {}
@@ -87,7 +87,7 @@ async def test_process_manager_graceful_termination_and_force_kill():
     stubborn = await asyncio.create_subprocess_exec(
         sys.executable,
         "-c",
-        "import signal,time;signal.signal(signal.SIGTERM,signal.SIG_IGN);time.sleep(30)",
+        "import signal,time;signal.signal(signal.SIGTERM,signal.SIG_IGN);print('ready',flush=True);time.sleep(30)",
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
     )
@@ -95,8 +95,9 @@ async def test_process_manager_graceful_termination_and_force_kill():
         await manager._terminate_process_gracefully(1, graceful, 5)
         assert graceful.returncode is not None
 
+        assert await asyncio.wait_for(stubborn.stdout.readline(), 3) == b"ready\n"
         await manager._terminate_process_gracefully(2, stubborn, 0.2)
-        assert stubborn.returncode is not None
+        assert stubborn.returncode == -9
 
         # A second call on an already-terminated child is a no-op, not a failure.
         await manager._terminate_process_gracefully(1, graceful, 5)

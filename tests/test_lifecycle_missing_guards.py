@@ -45,6 +45,7 @@ async def test_lifecycle_missing_manager_and_identity_guards_degrade_cleanly(
         assert await lifecycle._start_recording_process(1, "/tmp/never.ts", 1) is False
         assert await lifecycle._stop_recording_process(1) is False
         assert await lifecycle._check_recording_process(1) is False
+        await lifecycle._update_recording_progress(1)
     finally:
         lifecycle.process_manager = saved
         await close_owned(apps)

@@ -45,8 +45,11 @@ from app.services.unified_image_service import (
 )
 from sqlalchemy.orm import Session, joinedload
 import logging
-from typing import List, Dict
+from typing import List, Dict, TYPE_CHECKING
 from datetime import datetime, timezone
+
+if TYPE_CHECKING:
+    from app.services.recording.recording_manager import RecordingManager
 
 # Cache constants
 FALLBACK_SUFFIX = "_fallback"
@@ -56,7 +59,7 @@ logger = logging.getLogger("streamvault")
 router = APIRouter(prefix="/api/recording", tags=["recording"])
 
 
-def get_recording_service():
+def get_recording_service() -> "RecordingManager":
     """Compatibility alias for the process-scoped recording manager."""
     return get_recording_manager()
 

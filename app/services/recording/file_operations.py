@@ -149,7 +149,7 @@ def _check_ffmpeg_processes_for_file(
     try:
         import psutil
 
-        active_processes = []
+        active_processes: list[FfmpegFileOwner] = []
 
         targets = {Path(ts_path).resolve(), Path(mp4_path).resolve()}
 

@@ -8,13 +8,13 @@ user information, game data, category information, and other Twitch API interact
 import asyncio
 import json
 import logging
-from collections.abc import AsyncIterator, Mapping, Sequence
+from collections.abc import AsyncIterator, Mapping, Sequence, Callable, Awaitable
 from contextlib import asynccontextmanager
 from contextvars import ContextVar
 from functools import wraps
 from time import monotonic
 
-from typing import Optional, List
+from typing import Optional, List, Concatenate
 from app.config.settings import Settings, settings as default_settings
 from app.services.http_client import (
     HTTPClientError,
@@ -30,9 +30,13 @@ FOLLOW_MAX_PAGES = 100
 FOLLOW_FETCH_TIMEOUT = 60.0
 
 
-def _app_operation(func):
+def _app_operation[**P, T](
+    func: Callable[Concatenate["TwitchAPIService", P], Awaitable[T]],
+) -> Callable[Concatenate["TwitchAPIService", P], Awaitable[T]]:
     @wraps(func)
-    async def wrapper(self, *args, **kwargs):
+    async def wrapper(
+        self: "TwitchAPIService", /, *args: P.args, **kwargs: P.kwargs
+    ) -> T:
         if self._app_replay_used.get() is not None:
             return await func(self, *args, **kwargs)
         # Scope the auth budget outside all transient retries, including nested calls.

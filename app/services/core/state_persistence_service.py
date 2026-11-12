@@ -39,12 +39,12 @@ class StatePersistenceService:
         self.heartbeat_interval = 60  # seconds
         self.stale_timeout = 300  # 5 minutes
         self.is_running = False
-        self.heartbeat_task: Optional[asyncio.Task] = None
+        self.heartbeat_task: Optional[asyncio.Task[None]] = None
 
     def _sessions(self) -> Session:
         return (self._session_factory or SessionLocal)()
 
-    async def start(self):
+    async def start(self) -> None:
         """Start the state persistence service"""
         if self.is_running:
             logger.warning("StatePersistenceService already running")
@@ -59,7 +59,7 @@ class StatePersistenceService:
         self.heartbeat_task = asyncio.create_task(self._heartbeat_loop())
         logger.info("StatePersistenceService started")
 
-    async def stop(self):
+    async def stop(self) -> None:
         """Stop the state persistence service"""
         if not self.is_running:
             return
@@ -433,7 +433,7 @@ class StatePersistenceService:
             logger.error(f"Failed to refresh heartbeats: {e}", exc_info=True)
             return 0
 
-    async def _heartbeat_loop(self):
+    async def _heartbeat_loop(self) -> None:
         """Background task to maintain heartbeats and cleanup stale entries"""
 
         logger.info(

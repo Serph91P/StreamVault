@@ -41,7 +41,10 @@ dependencies = [
 [dependency-groups]
 dev = ["pre-commit==4.7.0", "ruff==0.17.4"]
 test = ["pytest==9.2.0", "pytest-asyncio==1.4.1.post1", "pytest-cov==6.2.1"]
-typing = ["mypy==1.17.1"]
+typing = [
+    "mypy==1.17.1",
+    "types-psutil==7.2.2.20261111",
+]
 security = ["bandit[toml]==1.9.4", "pip-audit==2.10.1"]
 
 [tool.setuptools.packages.find]
@@ -102,7 +105,9 @@ files = [
     "app/models/upstream.py",
     "app/services/core/session_maintenance.py",
     "app/services/core/state_values.py",
+    "app/services/core/state_persistence_service.py",
     "app/services/http_client.py",
+    "app/services/api/twitch_api.py",
     "app/services/media/metadata_service.py",
     "app/services/media/artwork_service.py",
     "app/services/processing/status_values.py",
@@ -113,9 +118,11 @@ files = [
     "app/services/proxy/proxy_health_service.py",
     "app/services/recording/configuration_values.py",
     "app/services/recording/config_manager.py",
+    "app/services/recording/file_operations.py",
     "app/services/recording/recording_values.py",
     "app/services/recording/recording_database_service.py",
     "app/services/recording/recording_lifecycle_manager.py",
+    "app/services/recording/process_manager.py",
     "app/services/recording/unified_recovery_service.py",
     "app/services/recording/orphaned_recovery_service.py",
     "app/services/recording/orphaned_recovery_tasks.py",
@@ -149,6 +156,7 @@ module = [
     "app.models.streams", "app.models.system", "app.models.upstream",
     "app.services.core.automated_recovery_state", "app.services.core.session_maintenance", "app.services.core.state_values",
     "app.services.http_client", "app.services.processing.status_values", "app.services.proxy.proxy_catalog",
+    "app.services.api.twitch_api",
     "app.services.media.metadata_service", "app.services.media.artwork_service", "app.utils.process_output",
     "app.utils.async_file",
     "app.utils.proxy_encryption", "app.services.notifications.push_notification_service",
@@ -156,7 +164,9 @@ module = [
     "app.services.proxy.proxy_health_service",
     "app.services.recording.admin_cleanup", "app.services.recording.configuration_values", "app.services.recording.recording_values", "app.services.recording.recording_database_service",
     "app.services.recording.config_manager",
+    "app.services.recording.file_operations", "app.services.core.state_persistence_service",
     "app.services.recording.recording_lifecycle_manager",
+    "app.services.recording.process_manager",
     "app.services.processing.post_processing_task_handlers",
     "app.services.simple_recovery_service", "app.services.streamers.values", "app.services.system.temporary_cleanup_service",
     "app.services.recording.unified_recovery_service", "app.services.system.twitch_token_service", "app.services.images.image_refresh_service",
