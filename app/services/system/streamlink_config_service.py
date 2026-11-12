@@ -205,7 +205,9 @@ class StreamlinkConfigService:
 
         return success
 
-    def get_available_qualities(self, has_oauth_token: bool = False) -> list[dict]:
+    def get_available_qualities(
+        self, has_oauth_token: bool = False
+    ) -> list[dict[str, str | bool | None]]:
         """
         Get available quality options based on OAuth token availability.
 
@@ -218,7 +220,7 @@ class StreamlinkConfigService:
         Returns:
             List of quality options with availability status
         """
-        qualities = [
+        qualities: list[dict[str, str | bool | None]] = [
             {
                 "value": "best",
                 "label": "Best Available",

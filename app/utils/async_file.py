@@ -35,7 +35,7 @@ async def mkdir(
 ) -> None:
     """Create directory asynchronously."""
 
-    def _mkdir():
+    def _mkdir() -> None:
         if isinstance(path, str):
             Path(path).mkdir(parents=parents, exist_ok=exist_ok)
         else:
@@ -57,7 +57,7 @@ async def remove(path: Union[str, Path]) -> None:
 async def unlink(path: Union[str, Path]) -> None:
     """Remove file using pathlib unlink asynchronously."""
 
-    def _unlink():
+    def _unlink() -> None:
         if isinstance(path, str):
             Path(path).unlink()
         else:
@@ -96,7 +96,7 @@ async def dirname(path: Union[str, Path]) -> str:
     return await run_in_thread_pool(os.path.dirname, str(path))
 
 
-async def splitext(path: Union[str, Path]) -> tuple:
+async def splitext(path: Union[str, Path]) -> tuple[str, str]:
     """Split extension asynchronously."""
     return await run_in_thread_pool(os.path.splitext, str(path))
 
@@ -132,7 +132,7 @@ async def path_is_dir(path: Path) -> bool:
     return await run_in_thread_pool(path.is_dir)
 
 
-async def path_stat(path: Path):
+async def path_stat(path: Path) -> os.stat_result:
     """Get Path object stat asynchronously."""
     return await run_in_thread_pool(path.stat)
 
@@ -154,6 +154,6 @@ async def glob_list(pattern: str) -> List[str]:
     return await run_in_thread_pool(glob.glob, pattern)
 
 
-async def walk(path: Union[str, Path]):
+async def walk(path: Union[str, Path]) -> list[tuple[str, list[str], list[str]]]:
     """Walk directory tree asynchronously."""
     return await run_in_thread_pool(list, os.walk(str(path)))
