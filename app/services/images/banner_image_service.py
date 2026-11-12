@@ -34,24 +34,24 @@ class BannerImageService:
         self._cache_lock = RLock()
         self.download_service = download_service or ImageDownloadService()
         # TTLCache for banner images
-        self._banner_cache: TTLCache = TTLCache(
+        self._banner_cache: TTLCache[int, str] = TTLCache(
             maxsize=CACHE_CONFIG.DEFAULT_CACHE_SIZE, ttl=CACHE_CONFIG.IMAGE_CACHE_TTL
         )
         self.banners_dir: Path | None = None
         self._cache_loaded = False
 
-    def _ensure_banners_dir(self):
+    def _ensure_banners_dir(self) -> None:
         """Create only this owner's configured storage root."""
         if self.banners_dir is None:
             directory = self.download_service.get_images_base_dir() / "banners"
             directory.mkdir(parents=True, exist_ok=True)
             self.banners_dir = directory
 
-    def _load_existing_cache(self):
+    def _load_existing_cache(self) -> None:
         with self._cache_lock:
             self._load_existing_cache_locked()
 
-    def _load_existing_cache_locked(self):
+    def _load_existing_cache_locked(self) -> None:
         """Load existing banner images into cache"""
         if self._cache_loaded:
             return

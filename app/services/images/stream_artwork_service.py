@@ -9,13 +9,19 @@ import logging
 from collections.abc import Callable
 from app.utils.async_db_utils import run_in_thread_pool
 from pathlib import Path
-from typing import Dict, Optional, List
+from typing import Dict, Optional, List, TypedDict
 from sqlalchemy.orm import Session
 from app.database import SessionLocal
 from app.models import Stream, StreamMetadata
 from .image_download_service import ImageDownloadService
 
 logger = logging.getLogger("streamvault")
+
+
+class ArtworkSource(TypedDict, total=False):
+    stream_id: int
+    streamer_id: int
+    thumbnail_url: str
 
 
 class StreamArtworkService:
@@ -200,7 +206,9 @@ class StreamArtworkService:
         logger.info("Stream artwork sync completed: %s", stats)
         return stats
 
-    async def bulk_download_artwork(self, artwork_data: List[Dict]) -> Dict[str, int]:
+    async def bulk_download_artwork(
+        self, artwork_data: List[ArtworkSource]
+    ) -> Dict[str, int]:
         """Bulk download stream artwork from provided data"""
         stats = {"downloaded": 0, "failed": 0}
 
@@ -343,6 +351,6 @@ class StreamArtworkService:
         logger.info(f"Cleaned up {cleaned_count} unused artwork files")
         return cleaned_count
 
-    async def close(self):
+    async def close(self) -> None:
         """Close the download service"""
         await self.download_service.close()

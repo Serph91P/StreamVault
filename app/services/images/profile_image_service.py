@@ -37,20 +37,20 @@ class ProfileImageService:
         self._cache_lock = RLock()
         self.download_service = download_service or ImageDownloadService()
         # TTLCache for profile images (prevents memory leaks with automatic expiration)
-        self._profile_cache: TTLCache = TTLCache(
+        self._profile_cache: TTLCache[str, str] = TTLCache(
             maxsize=CACHE_CONFIG.DEFAULT_CACHE_SIZE, ttl=CACHE_CONFIG.IMAGE_CACHE_TTL
         )
-        self._profile_sources: TTLCache = TTLCache(
+        self._profile_sources: TTLCache[str, str] = TTLCache(
             maxsize=CACHE_CONFIG.DEFAULT_CACHE_SIZE, ttl=CACHE_CONFIG.IMAGE_CACHE_TTL
         )
-        self.profiles_dir = None
+        self.profiles_dir: Path | None = None
         self._cache_loaded = False
         # Don't load cache immediately during initialization - defer until first use
 
     def _sessions(self) -> Session:
         return (self._session_factory or SessionLocal)()
 
-    def _ensure_profiles_dir(self):
+    def _ensure_profiles_dir(self) -> None:
         if self.profiles_dir is None:
             directory = self.download_service.get_images_base_dir() / "profiles"
             directory.mkdir(parents=True, exist_ok=True)
@@ -77,11 +77,11 @@ class ProfileImageService:
         else:
             return None  # File doesn't match expected patterns
 
-    def _ensure_cache_loaded(self):
+    def _ensure_cache_loaded(self) -> None:
         with self._cache_lock:
             self._ensure_cache_loaded_locked()
 
-    def _ensure_cache_loaded_locked(self):
+    def _ensure_cache_loaded_locked(self) -> None:
         """Ensure cache is loaded, but only if database is available"""
         if self._cache_loaded:
             return
@@ -108,11 +108,11 @@ class ProfileImageService:
                 )
                 self._cache_load_attempted = True
 
-    def _load_existing_cache(self):
+    def _load_existing_cache(self) -> None:
         with self._cache_lock:
             self._load_existing_cache_locked()
 
-    def _load_existing_cache_locked(self):
+    def _load_existing_cache_locked(self) -> None:
         """Load information about already cached profile images"""
         # Disk filenames alone cannot prove which upstream URL produced the bytes.
         self._profile_sources.clear()
@@ -412,6 +412,6 @@ class ProfileImageService:
 
         return cleaned_count
 
-    async def close(self):
+    async def close(self) -> None:
         """Close the download service"""
         await self.download_service.close()

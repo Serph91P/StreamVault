@@ -42,24 +42,24 @@ class CategoryImageService:
         self._category_cache: TTLCache[str, str] = TTLCache(
             maxsize=CACHE_CONFIG.DEFAULT_CACHE_SIZE, ttl=CACHE_CONFIG.IMAGE_CACHE_TTL
         )
-        self._background_tasks: Set[asyncio.Task] = set()
+        self._background_tasks: Set[asyncio.Task[None]] = set()
         self._closed = False
         self._close_task: asyncio.Task[None] | None = None
         self.categories_dir: Path | None = None
         self._cache_loaded = False
 
-    def _ensure_categories_dir(self):
+    def _ensure_categories_dir(self) -> None:
         """Use only this owner's configured root, never shared temporary storage."""
         if self.categories_dir is None:
             directory = self.download_service.get_images_base_dir() / "categories"
             directory.mkdir(parents=True, exist_ok=True)
             self.categories_dir = directory
 
-    def _load_existing_cache(self):
+    def _load_existing_cache(self) -> None:
         with self._cache_lock:
             self._load_existing_cache_locked()
 
-    def _load_existing_cache_locked(self):
+    def _load_existing_cache_locked(self) -> None:
         """Load information about already cached category images"""
         try:
             self._ensure_categories_dir()
@@ -300,7 +300,7 @@ class CategoryImageService:
 
     async def _download_category_image_background(
         self, category_name: str, box_art_url: str
-    ):
+    ) -> None:
         """Background task to download category image"""
         try:
             cached_path = await self.download_category_image(category_name, box_art_url)
@@ -391,7 +391,9 @@ class CategoryImageService:
             db.commit()
         return stats
 
-    async def bulk_sync_categories(self, category_data: List[Dict]) -> Dict[str, int]:
+    async def bulk_sync_categories(
+        self, category_data: List[Dict[str, object]]
+    ) -> Dict[str, int]:
         """Perform provider I/O before the single catalogue publication transaction."""
         stats = {"updated": 0, "downloaded": 0, "failed": 0}
         try:

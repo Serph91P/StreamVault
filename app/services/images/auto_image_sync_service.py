@@ -51,14 +51,14 @@ class AutoImageSyncService:
     def _sessions(self) -> Session:
         return (self._session_factory or SessionLocal)()
 
-    async def start_sync_worker(self):
+    async def start_sync_worker(self) -> None:
         if self._sync_task is None or self._sync_task.done():
             self._running = True
             self._sync_task = asyncio.create_task(
                 self._sync_worker(), name="streamvault:auto-image-sync"
             )
 
-    async def stop_sync_worker(self):
+    async def stop_sync_worker(self) -> None:
         self._running = False
         if self._sync_task and not self._sync_task.done():
             self._sync_task.cancel()
@@ -67,7 +67,7 @@ class AutoImageSyncService:
             except asyncio.CancelledError:
                 pass
 
-    async def _sync_worker(self):
+    async def _sync_worker(self) -> None:
         while self._running:
             try:
                 request = await asyncio.wait_for(self._sync_queue.get(), timeout=5.0)
@@ -83,7 +83,7 @@ class AutoImageSyncService:
                 logger.error("Auto image worker failed (%s)", type(error).__name__)
                 await asyncio.sleep(ASYNC_DELAYS.IMAGE_SYNC_WORKER_ERROR_WAIT)
 
-    async def _process_sync_request(self, request: SyncRequest):
+    async def _process_sync_request(self, request: SyncRequest) -> None:
         try:
             request_type = request.get("type")
             if request_type == "streamer_profile":
@@ -104,7 +104,7 @@ class AutoImageSyncService:
                 streamer.profile_image_url = cached_path
                 session.commit()
 
-    async def _sync_streamer_profile(self, request: SyncRequest):
+    async def _sync_streamer_profile(self, request: SyncRequest) -> None:
         identity, source = request.get("streamer_id"), request.get("profile_image_url")
         if identity and source:
             path = await self._images.download_profile_image(identity, source)
@@ -123,7 +123,7 @@ class AutoImageSyncService:
                 category.box_art_url = cached_path
                 session.commit()
 
-    async def _sync_category_image(self, request: SyncRequest):
+    async def _sync_category_image(self, request: SyncRequest) -> None:
         name, source = request.get("category_name"), request.get("image_url")
         if name:
             if not source:
@@ -133,7 +133,7 @@ class AutoImageSyncService:
                 if path:
                     await run_in_thread_pool(self._publish_category, name, path)
 
-    async def _sync_stream_artwork(self, request: SyncRequest):
+    async def _sync_stream_artwork(self, request: SyncRequest) -> None:
         identity, owner, source = (
             request.get("stream_id"),
             request.get("streamer_id"),
@@ -144,7 +144,7 @@ class AutoImageSyncService:
 
     async def request_streamer_profile_sync(
         self, streamer_id: int, profile_image_url: str
-    ):
+    ) -> None:
         await self._sync_queue.put(
             {
                 "type": "streamer_profile",
@@ -155,7 +155,7 @@ class AutoImageSyncService:
 
     async def request_category_image_sync(
         self, category_name: str, image_url: str | None = None
-    ):
+    ) -> None:
         await self._sync_queue.put(
             {
                 "type": "category_image",
@@ -166,7 +166,7 @@ class AutoImageSyncService:
 
     async def request_stream_artwork_sync(
         self, stream_id: int, streamer_id: int, artwork_url: str
-    ):
+    ) -> None:
         await self._sync_queue.put(
             {
                 "type": "stream_artwork",
@@ -204,7 +204,9 @@ class AutoImageSyncService:
             await self.request_streamer_profile_sync(identity, source)
         return scanned, len(sources)
 
-    async def sync_all_existing_streamers(self, limit: int = 100, offset: int = 0):
+    async def sync_all_existing_streamers(
+        self, limit: int = 100, offset: int = 0
+    ) -> int:
         try:
             _, queued = await self._queue_profile_page(limit, offset)
             return queued
@@ -223,7 +225,9 @@ class AutoImageSyncService:
                 .all()
             ]
 
-    async def sync_all_existing_categories(self, limit: int = 100, offset: int = 0):
+    async def sync_all_existing_categories(
+        self, limit: int = 100, offset: int = 0
+    ) -> int:
         try:
             sources = await run_in_thread_pool(self._category_page, limit, offset)
             for name, source in sources:
@@ -233,7 +237,7 @@ class AutoImageSyncService:
             logger.error("Auto category scan failed (%s)", type(error).__name__)
             return 0
 
-    async def sync_all_streamers_paginated(self, batch_size: int = 100):
+    async def sync_all_streamers_paginated(self, batch_size: int = 100) -> int:
         total_synced, offset = 0, 0
         while True:
             try:
@@ -248,7 +252,7 @@ class AutoImageSyncService:
             await asyncio.sleep(ASYNC_DELAYS.IMAGE_SYNC_BATCH_DELAY)
         return total_synced
 
-    async def sync_all_categories_paginated(self, batch_size: int = 100):
+    async def sync_all_categories_paginated(self, batch_size: int = 100) -> int:
         total_synced, offset = 0, 0
         while True:
             count = await self.sync_all_existing_categories(
