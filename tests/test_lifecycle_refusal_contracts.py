@@ -212,3 +212,62 @@ async def test_recording_path_generation_declines_or_corrects_authority_off_loop
             assert "owner-0" in str(path)
     finally:
         await close_owned(apps)
+
+
+@pytest.mark.asyncio
+async def test_start_recording_cleans_up_ghost_active_recording_off_loop(
+    image_applications, monkeypatch
+):
+    """A stale active entry with no live process is reclaimed before a new start.
+
+    Value: protects=a ghost recording cannot permanently block the next start for its
+    streamer and is marked failed exactly once;
+    fails_when=the ghost is left active, not marked failed, or its owned file is touched;
+    why_new=duplicate/shutdown rows cover a running process, not the no-process ghost path;
+    seam=none; no_claim=provider capture or real media admission.
+    """
+    apps, databases, _clients, _ = image_applications
+    app = apps[0]
+    manager = await run_in_thread_pool(
+        get_application_recording_manager,
+        HTTPConnection({"type": "http", "app": app, "headers": []}),
+    )
+    lifecycle = manager.orchestrator.lifecycle_manager
+    root = Path(app.state.settings.RECORDING_DIRECTORY)
+    ghost_path = root / "ghost.ts"
+
+    def seed():
+        with databases[0].sync_session_factory() as db:
+            db.add(Stream(id=71, streamer_id=1, title="ghost owner"))
+            db.flush()
+            db.add(
+                Recording(
+                    id=9,
+                    stream_id=71,
+                    status="recording",
+                    start_time=datetime.now(timezone.utc),
+                )
+            )
+            db.commit()
+
+    await run_in_thread_pool(seed)
+    ghost_path.write_bytes(b"ghost capture bytes")
+    lifecycle.state_manager.add_active_recording(
+        9,
+        {"file_path": str(ghost_path), "streamer_id": 1, "stream_id": 71},
+    )
+
+    async def refuse_start(*_args, **_kwargs):
+        return False
+
+    monkeypatch.setattr(lifecycle, "_start_recording_process", refuse_start)
+    try:
+        assert await lifecycle.start_recording(71, 1) is None
+        assert lifecycle.state_manager.get_active_recording(9) is None
+        with databases[0].sync_session_factory() as db:
+            ghost = db.get(Recording, 9)
+            assert ghost.status == "failed"
+            assert "no running process" in (ghost.error_message or "")
+        assert ghost_path.read_bytes() == b"ghost capture bytes"
+    finally:
+        await close_owned(apps)
