@@ -7,6 +7,7 @@ Handles recording start, stop, monitoring, and lifecycle events.
 
 import logging
 import asyncio
+import tempfile
 from app.utils.media_process import media_process
 from typing import TYPE_CHECKING, Dict, Any, Optional
 import re
@@ -1189,57 +1190,59 @@ class RecordingLifecycleManager:
         self, segment_files: list, recording_id: int
     ) -> Optional[Path]:
         """Concatenate multiple .ts segments into a single file using FFmpeg"""
+        concat_file_path: Path | None = None
         try:
             logger.info(
                 f"🎬 CONCATENATING_SEGMENTS: {len(segment_files)} files for recording {recording_id}"
             )
 
-            # Create output path with input validation
-            first_segment = Path(segment_files[0])
-            if not first_segment.exists() or not first_segment.is_file():
-                logger.error(f"🎬 INVALID_SEGMENT_FILE: {first_segment}")
+            def prepare() -> tuple[Path, Path, Path] | None:
+                nonlocal concat_file_path
+                first_segment = Path(segment_files[0])
+                if not first_segment.exists() or not first_segment.is_file():
+                    logger.error(f"🎬 INVALID_SEGMENT_FILE: {first_segment}")
+                    return None
+                if not isinstance(recording_id, int) or recording_id <= 0:
+                    logger.error(f"🎬 INVALID_RECORDING_ID: {recording_id}")
+                    return None
+                output_path = (
+                    first_segment.parent.parent
+                    / f"{first_segment.stem.split(self.SEGMENT_PART_IDENTIFIER)[0]}.ts"
+                )
+                if any(char in str(output_path) for char in [";", "|", "&", "`", "$"]):
+                    logger.error(f"🎬 UNSAFE_OUTPUT_PATH: {output_path}")
+                    return None
+                validated_segments = []
+                for segment in segment_files:
+                    segment_path = Path(segment)
+                    if not segment_path.exists() or not segment_path.is_file():
+                        logger.warning(f"🎬 SKIPPING_INVALID_SEGMENT: {segment}")
+                        continue
+                    if segment_path.suffix != ".ts":
+                        logger.warning(f"🎬 SKIPPING_NON_TS_SEGMENT: {segment}")
+                        continue
+                    validated_segments.append(segment_path)
+                if not validated_segments:
+                    logger.error("🎬 NO_VALID_SEGMENTS_FOUND")
+                    return None
+                with tempfile.NamedTemporaryFile(
+                    mode="w",
+                    encoding="utf-8",
+                    prefix=f"concat_list_{recording_id}_",
+                    suffix=".txt",
+                    dir=first_segment.parent,
+                    delete=False,
+                ) as file:
+                    concat_file_path = Path(file.name)
+                    for segment in validated_segments:
+                        safe_name = segment.name.replace("'", "'\"'\"'")
+                        file.write(f"file '{safe_name}'\n")
+                return output_path, first_segment, concat_file_path
+
+            prepared = await run_in_thread_pool(prepare)
+            if prepared is None:
                 return None
-
-            # Validate recording_id is numeric to prevent injection
-            if not isinstance(recording_id, int) or recording_id <= 0:
-                logger.error(f"🎬 INVALID_RECORDING_ID: {recording_id}")
-                return None
-
-            output_path = (
-                first_segment.parent.parent
-                / f"{first_segment.stem.split(self.SEGMENT_PART_IDENTIFIER)[0]}.ts"
-            )
-
-            # Validate output path doesn't contain dangerous shell characters
-            if any(char in str(output_path) for char in [";", "|", "&", "`", "$"]):
-                logger.error(f"🎬 UNSAFE_OUTPUT_PATH: {output_path}")
-                return None
-
-            # Create concat file list for FFmpeg with safe path validation
-            concat_file_path = first_segment.parent / f"concat_list_{recording_id}.txt"
-
-            # Validate all segment files exist and are safe
-            validated_segments = []
-            for segment in segment_files:
-                segment_path = Path(segment)
-                if not segment_path.exists() or not segment_path.is_file():
-                    logger.warning(f"🎬 SKIPPING_INVALID_SEGMENT: {segment}")
-                    continue
-                if not segment_path.suffix == ".ts":
-                    logger.warning(f"🎬 SKIPPING_NON_TS_SEGMENT: {segment}")
-                    continue
-                validated_segments.append(segment_path)
-
-            if not validated_segments:
-                logger.error("🎬 NO_VALID_SEGMENTS_FOUND")
-                return None
-
-            # Write concat file with escaped paths
-            with open(concat_file_path, "w", encoding="utf-8") as f:
-                for segment in validated_segments:
-                    # Use relative paths and escape single quotes
-                    safe_name = segment.name.replace("'", "'\"'\"'")
-                    f.write(f"file '{safe_name}'\n")
+            output_path, first_segment, manifest = prepared
 
             # Run FFmpeg concatenation with safe arguments
             ffmpeg_cmd = [
@@ -1249,7 +1252,7 @@ class RecordingLifecycleManager:
                 "-safe",
                 "0",
                 "-i",
-                str(concat_file_path),
+                str(manifest),
                 "-c",
                 "copy",
                 "-y",  # Overwrite output file
@@ -1276,13 +1279,10 @@ class RecordingLifecycleManager:
                 logger.info(f"🎬 CONCATENATION_SUCCESS: {output_path}")
 
                 # Verify output file was created and has reasonable size
-                if output_path.exists() and output_path.stat().st_size > 0:
-                    # Clean up concat file
-                    try:
-                        concat_file_path.unlink()
-                    except Exception as e:
-                        logger.warning(f"Could not remove concat file: {e}")
-
+                file_size = await run_in_thread_pool(
+                    self._completion_file_size, str(output_path)
+                )
+                if file_size is not None and file_size > 0:
                     return output_path
                 else:
                     logger.error(
@@ -1309,6 +1309,12 @@ class RecordingLifecycleManager:
                 exc_info=True,
             )
             return None
+        finally:
+            if concat_file_path is not None:
+                try:
+                    await run_in_thread_pool(concat_file_path.unlink, missing_ok=True)
+                except Exception as error:
+                    logger.warning(f"Could not remove concat file: {error}")
 
     # Shutdown methods
 
