@@ -69,3 +69,39 @@ async def test_process_manager_token_resolution_and_callback_guards():
 
     manager.set_post_processing_callback(callback)
     assert manager.post_processing_callback is callback
+
+
+@pytest.mark.asyncio
+async def test_process_manager_graceful_termination_and_force_kill():
+    """SIGTERM-ignoring and already-exited children are terminated without leaks."""
+    import sys
+
+    manager = bare_manager()
+    graceful = await asyncio.create_subprocess_exec(
+        sys.executable,
+        "-c",
+        "import time;time.sleep(30)",
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    stubborn = await asyncio.create_subprocess_exec(
+        sys.executable,
+        "-c",
+        "import signal,time;signal.signal(signal.SIGTERM,signal.SIG_IGN);time.sleep(30)",
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    try:
+        await manager._terminate_process_gracefully(1, graceful, 5)
+        assert graceful.returncode is not None
+
+        await manager._terminate_process_gracefully(2, stubborn, 0.2)
+        assert stubborn.returncode is not None
+
+        # A second call on an already-terminated child is a no-op, not a failure.
+        await manager._terminate_process_gracefully(1, graceful, 5)
+    finally:
+        for child in (graceful, stubborn):
+            if child.returncode is None:
+                child.kill()
+            await child.wait()
