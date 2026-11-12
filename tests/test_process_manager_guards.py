@@ -105,3 +105,33 @@ async def test_process_manager_graceful_termination_and_force_kill():
             if child.returncode is None:
                 child.kill()
             await child.wait()
+
+
+@pytest.mark.asyncio
+async def test_segment_rotation_decision_covers_duration_size_and_fault(tmp_path):
+    """Rotation decisions key off duration, file size, and a faulted stat, off-loop."""
+    from datetime import datetime, timedelta
+
+    manager = bare_manager()
+    manager.segment_duration_hours = 1
+    manager.max_file_size_gb = 1
+
+    old = {
+        "segment_start_time": datetime.now() - timedelta(hours=2),
+        "current_segment_path": str(tmp_path / "old.ts"),
+    }
+    assert await manager._should_rotate_segment(old) is True
+
+    big = tmp_path / "big.ts"
+    big.write_bytes(b"x" * (1024 * 1024))  # 1 MB, still under the 1 GB limit
+    recent = {
+        "segment_start_time": datetime.now(),
+        "current_segment_path": str(big),
+    }
+    assert await manager._should_rotate_segment(recent) is False
+
+    setattr(manager, "max_file_size_gb", 0.0005)  # below 1 MB, triggers size rotation
+    assert await manager._should_rotate_segment(recent) is True
+
+    faulted = {"current_segment_path": str(tmp_path / "missing.ts")}
+    assert await manager._should_rotate_segment(faulted) is False
