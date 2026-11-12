@@ -2,6 +2,7 @@
 
 from datetime import datetime, timedelta, timezone
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -176,3 +177,107 @@ async def test_scheduled_retention_uses_same_policy_and_remains_idempotent(
     await service.run_scheduled_cleanup()
     assert paths[2].exists()
     assert database.sync_engine.pool.checkedout() == 0
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("policy_type", ["count", "size", "age"])
+@pytest.mark.parametrize(
+    "timeframe,kept",
+    [
+        ({"start_date": "2020-01-07T00:00:00"}, {2, 3}),
+        ({"end_date": "2020-01-07T23:59:00"}, {1, 2}),
+        ({"start_date": "2020-01-07T00:00:00", "end_date": "2020-01-08T00:00:00"}, {2}),
+        ({"weekdays": [1]}, {2}),
+        ({"weekdays": [6]}, set()),
+        ({"timeOfDay": {"start": "09:00", "end": "11:00"}}, {1}),
+        ({"timeOfDay": {"start": "22:00", "end": "06:00"}}, {3}),
+        ({"timeOfDay": {"start": "17:00", "end": "19:00"}}, set()),
+        ({"timeOfDay": {"start": "invalid", "end": "99:99"}}, {1, 2, 3}),
+    ],
+)
+async def test_existing_preview_timeframe_filters_are_pure(
+    retention_catalog, policy_type, timeframe, kept
+):
+    # Existing SDK preview only, not the separate #993 execution/parity feature.
+    service, database, paths = retention_catalog
+    with database.sync_session_factory() as db:
+        for identifier, hour in ((1, 10), (2, 14), (3, 23)):
+            row = db.get(Stream, identifier)
+            row.started_at = datetime(2020, 1, 5 + identifier, hour)
+            row.ended_at = row.started_at + timedelta(minutes=15)
+        db.commit()
+    candidates = sorted({1, 2, 3} - kept)
+    expected = {
+        "count": candidates[:-1],
+        "size": candidates[:1],
+        "age": candidates,
+    }[policy_type]
+    count, result = await service.simulate_cleanup(
+        1,
+        {
+            "type": policy_type,
+            "threshold": 7 if policy_type == "age" else 1,
+            "preserve_favorites": False,
+            "preserve_timeframe": timeframe,
+        },
+    )
+    assert count == len(expected)
+    assert sorted(row["id"] for row in result["streams"]) == expected
+    assert all(path.stat().st_size == 512 * 1024 * 1024 for path in paths)
+    with database.sync_session_factory() as db:
+        assert db.query(Stream).count() == 3
+    assert database.sync_engine.pool.checkedout() == 0
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("denied", [None, "file", "directory"])
+async def test_owned_orphan_cleanup_preserves_external_links_and_counts_only_removed_items(
+    retention_catalog, tmp_path, monkeypatch, denied
+):
+    service, database, paths = retention_catalog
+    root = Path(service._settings.RECORDING_DIRECTORY)
+    empty = root / "empty.nfo"
+    empty.touch()
+    for name in ("tvshow.nfo", "season.nfo", "zero.mp4"):
+        (root / name).touch()
+    broken = root / "broken-link"
+    broken.symlink_to(root / "absent-target")
+    external = tmp_path / "peer.nfo"
+    external.touch()
+    external_link = root / "external.nfo"
+    external_link.symlink_to(external)
+    segment = root / "empty_segments"
+    segment.mkdir()
+    nonempty = root / "kept_segments"
+    nonempty.mkdir()
+    (nonempty / "part.ts").write_bytes(b"owned incomplete media")
+    native_remove, native_rmdir = os.remove, os.rmdir
+
+    def remove(path, *args, **kwargs):
+        if denied == "file" and Path(path) == empty:
+            raise PermissionError("synthetic-orphan-file-denied")
+        return native_remove(path, *args, **kwargs)
+
+    def rmdir(path, *args, **kwargs):
+        if denied == "directory" and Path(path) == segment:
+            raise PermissionError("synthetic-orphan-directory-denied")
+        return native_rmdir(path, *args, **kwargs)
+
+    monkeypatch.setattr(os, "remove", remove)
+    monkeypatch.setattr(os, "rmdir", rmdir)
+    count, removed = await service.cleanup_orphaned_files()
+    assert count == (3 if denied is None else 2)
+    assert set(removed) == (
+        {str(broken)} if denied == "file" else {str(broken), str(empty)}
+    )
+    assert empty.exists() is (denied == "file")
+    assert segment.exists() is (denied == "directory")
+    assert not broken.is_symlink()
+    assert external_link.is_symlink() and external.stat().st_size == 0
+    assert all(
+        (root / name).exists() for name in ("tvshow.nfo", "season.nfo", "zero.mp4")
+    )
+    assert (nonempty / "part.ts").read_bytes() == b"owned incomplete media"
+    assert all(path.exists() for path in paths)
+    with database.sync_session_factory() as db:
+        assert db.query(Stream).count() == 3
